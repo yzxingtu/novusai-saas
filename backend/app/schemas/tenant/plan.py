@@ -158,13 +158,6 @@ class TenantPlanDetailResponse(TenantPlanResponse):
 class TenantPlanCreateRequest(BaseSchema):
     """创建套餐请求"""
     
-    code: str = Field(
-        ..., 
-        min_length=2, 
-        max_length=50, 
-        pattern=r"^[a-z][a-z0-9_]*$",
-        description="套餐代码（小写字母开头，只能包含小写字母、数字和下划线）"
-    )
     name: str = Field(..., min_length=1, max_length=100, description="套餐名称")
     description: str | None = Field(None, max_length=500, description="套餐描述")
     price: Decimal | None = Field(None, ge=0, description="价格")

@@ -31,9 +31,8 @@ class TestAdminPlans(BaseAPITest):
     def setup(self) -> None:
         """测试前登录"""
         self._do_login()
-        # 生成唯一的测试套餐代码
+        # 生成唯一的测试套餐名称（代码由后端自动生成）
         timestamp = int(time.time())
-        self._test_data["plan_code"] = f"test_plan_{timestamp}"
         self._test_data["plan_name"] = f"测试套餐_{timestamp}"
     
     def teardown(self) -> None:
@@ -65,32 +64,29 @@ class TestAdminPlans(BaseAPITest):
         # 5. 创建套餐
         self.run_test("创建套餐", self.test_create_plan)
         
-        # 6. 创建套餐 - 代码重复
-        self.run_test("创建套餐 - 代码重复", self.test_create_plan_duplicate_code)
-        
-        # 7. 获取套餐详情
+        # 6. 获取套餐详情
         self.run_test("获取套餐详情", self.test_get_plan_detail)
         
-        # 8. 获取套餐详情 - 不存在
+        # 7. 获取套餐详情 - 不存在
         self.run_test("获取套餐详情 - 不存在", self.test_get_plan_not_found)
         
-        # 9. 更新套餐
+        # 8. 更新套餐
         self.run_test("更新套餐", self.test_update_plan)
         
         # ========== 权限管理测试 ==========
         
-        # 10. 获取套餐权限
+        # 9. 获取套餐权限
         self.run_test("获取套餐权限", self.test_get_plan_permissions)
         
-        # 11. 设置套餐权限
+        # 10. 设置套餐权限
         self.run_test("设置套餐权限", self.test_assign_plan_permissions)
         
         # ========== 删除测试 ==========
         
-        # 12. 删除套餐
+        # 11. 删除套餐
         self.run_test("删除套餐", self.test_delete_plan)
         
-        # 13. 删除套餐 - 不存在
+        # 12. 删除套餐 - 不存在
         self.run_test("删除套餐 - 不存在", self.test_delete_plan_not_found)
     
     # ========== 列表和查询测试 ==========
@@ -147,9 +143,8 @@ class TestAdminPlans(BaseAPITest):
     # ========== 创建测试 ==========
     
     def test_create_plan(self) -> None:
-        """测试创建套餐"""
+        """测试创建套餐（代码由后端自动生成）"""
         resp = self.client.post("/admin/plans", data={
-            "code": self._test_data["plan_code"],
             "name": self._test_data["plan_name"],
             "description": "测试套餐描述",
             "price": "99.99",
@@ -170,29 +165,17 @@ class TestAdminPlans(BaseAPITest):
         data = assert_success(resp, "创建套餐失败")
         
         assert_has_keys(data["data"], ["id", "code", "name", "price", "billing_cycle", "is_active"])
-        assert_equals(data["data"]["code"], self._test_data["plan_code"])
+        # 验证代码是自动生成的格式: plan_ + 6位字符
+        code = data["data"]["code"]
+        assert_true(code.startswith("plan_"), "套餐代码应以 plan_ 开头")
+        assert_true(len(code) >= 11, "套餐代码长度应不少于 11 位")
         assert_equals(data["data"]["name"], self._test_data["plan_name"])
         assert_equals(data["data"]["billing_cycle"], "monthly")
         assert_equals(data["data"]["is_active"], True)
         
-        # 保存套餐ID供后续测试使用
+        # 保存套餐ID和代码供后续测试使用
         self._test_data["created_plan_id"] = data["data"]["id"]
-    
-    def test_create_plan_duplicate_code(self) -> None:
-        """测试创建套餐 - 代码重复"""
-        plan_id = self._test_data.get("created_plan_id")
-        if not plan_id:
-            raise AssertionError("没有可用的套餐ID，无法测试重复代码")
-        
-        resp = self.client.post("/admin/plans", data={
-            "code": self._test_data["plan_code"],  # 使用相同的代码
-            "name": "另一个套餐",
-            "billing_cycle": "monthly",
-        })
-        
-        # 应该返回业务错误（HTTP 200 + code != 0）
-        data = resp.json()
-        assert_true(data.get("code") != 0, f"重复代码应返回错误，实际 code={data.get('code')}")
+        self._test_data["created_plan_code"] = code
     
     # ========== 详情测试 ==========
     
@@ -210,7 +193,7 @@ class TestAdminPlans(BaseAPITest):
             "billing_cycle", "is_active", "quota", "features", "permissions"
         ])
         assert_equals(data["data"]["id"], plan_id)
-        assert_equals(data["data"]["code"], self._test_data["plan_code"])
+        assert_equals(data["data"]["code"], self._test_data["created_plan_code"])
         
         # 验证 permissions 是列表
         assert_true(isinstance(data["data"]["permissions"], list), "permissions 应为列表")

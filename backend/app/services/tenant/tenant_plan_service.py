@@ -4,6 +4,8 @@
 提供套餐的业务逻辑（平台级，非租户隔离）
 """
 
+import secrets
+import string
 from typing import Any
 
 from sqlalchemy import select
@@ -67,6 +69,31 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         """
         return await self.repo.get_active_plans()
     
+    async def _generate_plan_code(self) -> str:
+        """
+        生成唯一的套餐代码
+        
+        格式: plan_ + 6位小写字母数字（如 plan_a8k2m9）
+        
+        Returns:
+            唯一的套餐代码
+        """
+        charset = string.ascii_lowercase + string.digits
+        max_attempts = 10
+        
+        for _ in range(max_attempts):
+            # 生成 plan_ + 6位随机字符
+            random_part = ''.join(secrets.choice(charset) for _ in range(6))
+            code = f"plan_{random_part}"
+            
+            # 检查是否已存在
+            if not await self.repo.code_exists(code):
+                return code
+        
+        # 极端情况：多次尝试后仍重复，加长随机部分
+        random_part = ''.join(secrets.choice(charset) for _ in range(10))
+        return f"plan_{random_part}"
+    
     async def create_plan(
         self,
         request: TenantPlanCreateRequest,
@@ -79,20 +106,13 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         
         Returns:
             创建的套餐
-        
-        Raises:
-            BusinessException: 套餐代码已存在
         """
-        # 检查代码是否已存在
-        if await self.repo.code_exists(request.code):
-            raise BusinessException(
-                message=_("tenant_plan.code_exists"),
-                code=ErrorCode.DUPLICATE_ENTRY,
-            )
+        # 自动生成套餐代码
+        code = await self._generate_plan_code()
         
         # 构建创建数据
         data = {
-            "code": request.code,
+            "code": code,
             "name": request.name,
             "description": request.description,
             "price": request.price,
