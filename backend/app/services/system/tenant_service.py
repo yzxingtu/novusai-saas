@@ -16,6 +16,7 @@ from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.tenant import Tenant
 from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.repositories.system.tenant_repository import TenantRepository
+from app.services.tenant.tenant_domain_service import TenantDomainService
 
 
 class TenantService(GlobalService[Tenant, TenantRepository]):
@@ -113,6 +114,10 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         }
         
         tenant = await self.create(data)
+        
+        # 创建默认域名
+        domain_service = TenantDomainService(self.db)
+        await domain_service.create_default_domain(tenant.id, tenant.code)
         
         # 创建租户组织架构根节点
         await self._create_tenant_root_node(tenant.id, tenant.name)
