@@ -77,6 +77,22 @@
     "has_tenants": "套餐正在被租户使用，无法删除",
     "permissions_updated": "套餐权限更新成功"
   },
+  "tenant_domain": {
+    "not_found": "域名不存在",
+    "already_exists": "域名已被使用",
+    "already_verified": "域名已验证",
+    "not_verified": "域名未验证，请先完成验证",
+    "created": "域名添加成功",
+    "updated": "域名更新成功",
+    "deleted": "域名删除成功",
+    "verified": "域名验证成功",
+    "verify_failed": "域名验证失败，请检查 DNS 配置",
+    "primary_set": "已设置为主域名",
+    "cannot_delete_primary": "不能删除主域名，请先设置其他域名为主域名",
+    "cannot_delete_default": "不能删除系统默认域名",
+    "quota_exceeded": "自定义域名数量已达上限",
+    "default_domain_remark": "系统自动生成的默认域名"
+  },
   "domain": {
     "not_found": "域名不存在",
     "already_exists": "域名已被使用",
@@ -231,6 +247,15 @@
       "permissions": "查看套餐权限",
       "assign_permissions": "分配套餐权限",
       "available_permissions": "查看可分配权限"
+    },
+    "tenant_domain": {
+      "list": "查看域名列表",
+      "detail": "查看域名详情",
+      "create": "添加域名",
+      "update": "更新域名",
+      "delete": "删除域名",
+      "verify": "验证域名",
+      "set_primary": "设置主域名"
     }
   },
   "role": {

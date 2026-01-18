@@ -8,6 +8,7 @@
       "organization": "组织架构",
       "tenant_mgmt": "租户管理",
       "tenant": "租户列表",
+      "tenant_domain": "租户域名管理",
       "tenant_plan": "套餐管理",
       "system_mgmt": "系统管理",
       "platform_config": "平台配置"

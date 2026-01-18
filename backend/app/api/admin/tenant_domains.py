@@ -12,6 +12,7 @@ from app.core.deps import DbSession, QueryParams, ActiveAdmin
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
+from app.schemas.common.query import FilterRule, FilterOp
 from app.rbac.decorators import (
     permission_resource,
     permission_action,
@@ -84,7 +85,7 @@ class AdminTenantDomainController(GlobalController):
             await _verify_tenant_exists(db, tenant_id)
             
             # 强制添加租户 ID 筛选
-            spec.add_filter("tenant_id", "eq", tenant_id)
+            spec.filters.append(FilterRule(field="tenant_id", op=FilterOp.eq, value=tenant_id))
             
             service = TenantDomainService(db)
             items, total = await service.query_list(spec, scope="admin")

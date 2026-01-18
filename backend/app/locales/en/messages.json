@@ -77,6 +77,22 @@
     "has_tenants": "Plan is in use by tenants and cannot be deleted",
     "permissions_updated": "Plan permissions updated successfully"
   },
+  "tenant_domain": {
+    "not_found": "Domain not found",
+    "already_exists": "Domain is already in use",
+    "already_verified": "Domain is already verified",
+    "not_verified": "Domain is not verified, please complete verification first",
+    "created": "Domain added successfully",
+    "updated": "Domain updated successfully",
+    "deleted": "Domain deleted successfully",
+    "verified": "Domain verified successfully",
+    "verify_failed": "Domain verification failed, please check DNS configuration",
+    "primary_set": "Set as primary domain",
+    "cannot_delete_primary": "Cannot delete primary domain, please set another domain as primary first",
+    "cannot_delete_default": "Cannot delete system default domain",
+    "quota_exceeded": "Custom domain limit reached",
+    "default_domain_remark": "System generated default domain"
+  },
   "domain": {
     "not_found": "Domain not found",
     "already_exists": "Domain is already in use",
@@ -231,6 +247,15 @@
       "permissions": "View Plan Permissions",
       "assign_permissions": "Assign Plan Permissions",
       "available_permissions": "View Available Permissions"
+    },
+    "tenant_domain": {
+      "list": "View Domain List",
+      "detail": "View Domain Details",
+      "create": "Add Domain",
+      "update": "Update Domain",
+      "delete": "Delete Domain",
+      "verify": "Verify Domain",
+      "set_primary": "Set Primary Domain"
     }
   },
   "role": {
