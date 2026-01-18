@@ -124,6 +124,7 @@ def permission_resource(
     scope: PermissionScope = PermissionScope.TENANT,
     menu: MenuConfig | None = None,
     description: str = "",
+    parent_resource: str | None = None,
 ) -> Callable[[type], type]:
     """
     资源权限装饰器（用于控制器类）
@@ -138,6 +139,7 @@ def permission_resource(
         scope: 权限作用域
         menu: 菜单配置（可选）
         description: 描述
+        parent_resource: 父资源标识，用于将操作权限挂载到指定资源的菜单下（适用于无菜单的资源）
     
     Example:
         @permission_resource(
@@ -151,6 +153,16 @@ def permission_resource(
             @action_read("查看用户")
             async def list_users(self, ...):
                 ...
+        
+        # 无菜单的资源，操作权限挂载到父资源下
+        @permission_resource(
+            resource="tenant_domain",
+            name="租户域名管理",
+            scope=PermissionScope.ADMIN,
+            parent_resource="tenant",  # 操作权限挂载到 tenant 菜单下
+        )
+        class TenantDomainController:
+            ...
     """
     # 延迟导入避免循环引用
     from app.rbac.registry import permission_registry
@@ -160,6 +172,7 @@ def permission_resource(
         cls._permission_resource = resource  # type: ignore
         cls._permission_name = name  # type: ignore
         cls._permission_scope = scope  # type: ignore
+        cls._permission_parent_resource = parent_resource  # type: ignore
         
         # 注册菜单权限
         if menu:
@@ -377,6 +390,7 @@ def register_action_permissions(controller_cls: type, router: Any) -> None:
     # 获取控制器的资源信息
     resource = getattr(controller_cls, "_permission_resource", None)
     scope = getattr(controller_cls, "_permission_scope", None)
+    parent_resource = getattr(controller_cls, "_permission_parent_resource", None)
     
     if not resource or not scope:
         return
@@ -384,7 +398,12 @@ def register_action_permissions(controller_cls: type, router: Any) -> None:
     # 构造父菜单权限 code（操作权限挂载到对应菜单下）
     from app.enums.rbac import PermissionScope
     scope_prefix = "admin" if scope == PermissionScope.ADMIN else "tenant"
-    parent_menu_code = f"menu:{scope_prefix}.{resource}"
+    
+    # 优先使用 parent_resource 指定的父菜单，否则使用自己的资源菜单
+    if parent_resource:
+        parent_menu_code = f"menu:{scope_prefix}.{parent_resource}"
+    else:
+        parent_menu_code = f"menu:{scope_prefix}.{resource}"
     
     # 检查父菜单是否存在（不存在则不设置 parent_code）
     parent_code = parent_menu_code if parent_menu_code in permission_registry else None

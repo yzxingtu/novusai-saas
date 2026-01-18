@@ -34,7 +34,7 @@ from app.services.tenant import TenantDomainService
     resource="tenant_domain",
     name="menu.admin.tenant_domain",  # i18n key
     scope=PermissionScope.ADMIN,
-    # 无菜单配置，域名管理嵌套在租户管理中
+    parent_resource="tenant",  # 操作权限挂载到租户管理菜单下
 )
 class AdminTenantDomainController(GlobalController):
     """
