@@ -17,7 +17,6 @@ from app.enums.rbac import PermissionScope
 from app.models import Admin
 from app.rbac.decorators import (
     permission_resource,
-    MenuConfig,
     action_read,
     action_create,
     action_update,
@@ -41,14 +40,7 @@ class AdminResetPasswordRequest(BaseSchema):
     resource="admin_user",
     name="menu.admin.admin_user",  # i18n key
     scope=PermissionScope.ADMIN,
-    menu=MenuConfig(
-        icon="lucide:user",
-        path="/system/admins",
-        component="system/admin/List",
-        parent="system",  # 父菜单: 权限管理
-        sort_order=5,
-        hidden=True
-    ),
+    parent_resource="organization",  # 操作权限挂载到组织架构菜单下
 )
 class AdminAdminController(GlobalController):
     """

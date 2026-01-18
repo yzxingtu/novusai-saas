@@ -17,7 +17,6 @@ from app.enums.rbac import PermissionScope
 from app.models import TenantAdmin
 from app.rbac.decorators import (
     permission_resource,
-    MenuConfig,
     action_read,
     action_create,
     action_update,
@@ -41,14 +40,7 @@ class TenantAdminResetPasswordRequest(BaseSchema):
     resource="tenant_user",
     name="menu.tenant.tenant_user",  # i18n key
     scope=PermissionScope.TENANT,
-    menu=MenuConfig(
-        icon="lucide:user",
-        path="/system/admins",
-        component="system/admin/List",
-        parent="system",  # 父菜单: 权限管理
-        sort_order=10,
-        hidden=True
-    ),
+    parent_resource="organization",  # 操作权限挂载到组织架构菜单下
 )
 class TenantAdminController(TenantController):
     """
