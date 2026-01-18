@@ -44,6 +44,7 @@ class TenantAdminRole(TenantModel):
         "code": "code",
         "is_system": "is_system",
         "is_active": "is_active",
+        "sort_order": "sort_order",
         "parent_id": "parent_id",
         "level": "level",
         "type": "type",

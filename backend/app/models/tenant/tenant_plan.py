@@ -40,6 +40,7 @@ class TenantPlan(BaseModel):
         "name": "name",
         "billing_cycle": "billing_cycle",
         "is_active": "is_active",
+        "sort_order": "sort_order",
         "created_at": "created_at",
         "updated_at": "updated_at",
     }
