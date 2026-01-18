@@ -4,9 +4,10 @@
  */
 import type { adminApi } from '#/api';
 
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
 
 import { useVbenForm } from '#/adapter/form';
+import { getTenantPlanSelectApi } from '#/api/admin/plan';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
@@ -22,6 +23,28 @@ const [Form, formApi] = useVbenForm({
   showDefaultActions: false,
 });
 
+// 加载套餐选项
+onMounted(async () => {
+  try {
+    const plans = await getTenantPlanSelectApi({ is_active: 'true' });
+    const options = plans.map((p) => ({
+      label: p.name,
+      value: p.id,
+    }));
+    // 更新表单 schema 中的套餐选项
+    formApi.updateSchema([
+      {
+        fieldName: 'plan_id',
+        componentProps: {
+          options,
+        },
+      },
+    ]);
+  } catch (error) {
+    console.error('Failed to load plan options:', error);
+  }
+});
+
 // CRUD 抽屉
 const { Drawer, isEdit } = useCrudDrawer<TenantInfo>({
   formApi,
@@ -31,7 +54,7 @@ const { Drawer, isEdit } = useCrudDrawer<TenantInfo>({
     contact_name: values.contact_name || null,
     contact_phone: values.contact_phone || null,
     contact_email: values.contact_email || null,
-    plan: values.plan || 'free',
+    plan_id: values.plan_id || null,
     expires_at: values.expires_at || null,
     remark: values.remark || null,
   }),
@@ -41,7 +64,7 @@ const { Drawer, isEdit } = useCrudDrawer<TenantInfo>({
     contact_name: data.contactName,
     contact_phone: data.contactPhone,
     contact_email: data.contactEmail,
-    plan: data.plan,
+    plan_id: data.planId,
     expires_at: data.expiresAt,
     remark: data.remark,
   }),

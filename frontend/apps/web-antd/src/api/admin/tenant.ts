@@ -47,6 +47,26 @@ export interface TenantStatusRequest {
   is_active: boolean;
 }
 
+/** 域名简要信息（后端原始格式） */
+export interface TenantDomainBriefRaw {
+  id: number;
+  domain: string;
+  domain_type: 'custom' | 'default';
+  is_primary: boolean;
+  verification_status: 'pending' | 'verified';
+  ssl_status: 'active' | 'failed' | 'pending';
+}
+
+/** 域名简要信息（前端格式） */
+export interface TenantDomainBrief {
+  id: number;
+  domain: string;
+  domainType: 'custom' | 'default';
+  isPrimary: boolean;
+  verificationStatus: 'pending' | 'verified';
+  sslStatus: 'active' | 'failed' | 'pending';
+}
+
 /** 租户信息（后端原始格式 snake_case） */
 export interface TenantInfoRaw {
   id: number;
@@ -56,12 +76,17 @@ export interface TenantInfoRaw {
   contact_phone?: string;
   contact_email?: string;
   plan: TenantPlan;
+  plan_id?: null | number;
   quota?: Record<string, any>;
   is_active: boolean;
   expires_at?: string;
   remark?: string;
   created_at: string;
   updated_at?: string;
+  // 域名信息
+  primary_domain?: TenantDomainBriefRaw | null;
+  domain_count?: number;
+  domains?: TenantDomainBriefRaw[];
 }
 
 /** 租户信息（前端格式 camelCase） */
@@ -73,12 +98,17 @@ export interface TenantInfo {
   contactPhone?: string;
   contactEmail?: string;
   plan: TenantPlan;
+  planId?: null | number;
   quota?: Record<string, any>;
   isActive: boolean;
   expiresAt?: string;
   remark?: string;
   createdAt: string;
   updatedAt?: string;
+  // 域名信息
+  primaryDomain?: TenantDomainBrief | null;
+  domainCount?: number;
+  domains?: TenantDomainBrief[];
 }
 
 /** 分页列表响应 */
@@ -93,6 +123,20 @@ export interface TenantListResponse {
 // 转换函数
 // ============================================================
 
+/** 转换域名简要信息 */
+function transformDomainBrief(
+  raw: TenantDomainBriefRaw,
+): TenantDomainBrief {
+  return {
+    id: raw.id,
+    domain: raw.domain,
+    domainType: raw.domain_type,
+    isPrimary: raw.is_primary,
+    verificationStatus: raw.verification_status,
+    sslStatus: raw.ssl_status,
+  };
+}
+
 /** 将后端 snake_case 转换为前端 camelCase */
 function transformTenantInfo(raw: TenantInfoRaw): TenantInfo {
   return {
@@ -103,12 +147,19 @@ function transformTenantInfo(raw: TenantInfoRaw): TenantInfo {
     contactPhone: raw.contact_phone,
     contactEmail: raw.contact_email,
     plan: raw.plan,
+    planId: raw.plan_id,
     quota: raw.quota,
     isActive: raw.is_active,
     expiresAt: raw.expires_at,
     remark: raw.remark,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
+    // 域名信息
+    primaryDomain: raw.primary_domain
+      ? transformDomainBrief(raw.primary_domain)
+      : null,
+    domainCount: raw.domain_count,
+    domains: raw.domains?.map((d) => transformDomainBrief(d)),
   };
 }
 

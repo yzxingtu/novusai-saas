@@ -43,6 +43,17 @@
   "sortFailed": "排序更新失败",
   "exportSuccess": "导出成功",
   "exportFailed": "导出失败",
+  "exportModal": {
+    "title": "导出数据",
+    "filename": "文件名",
+    "sheetName": "工作表名称",
+    "scope": "导出范围",
+    "currentPage": "当前页数据",
+    "selectedData": "已选数据",
+    "allData": "全部数据",
+    "columns": "导出列",
+    "selectAtLeastOneColumn": "请至少选择一列"
+  },
   "confirmBatchDelete": "确定要删除选中的 {count} 条记录吗？",
   "batchDeleteSuccess": "批量删除成功",
   "pleaseSelectData": "请先选择数据",

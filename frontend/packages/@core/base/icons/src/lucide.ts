@@ -9,6 +9,7 @@ export {
   Bell,
   BookOpenText,
   Check,
+  Download,
   ChevronDown,
   ChevronLeft,
   ChevronRight,

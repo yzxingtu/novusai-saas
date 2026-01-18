@@ -132,7 +132,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
               showSuccessMessage: true,
               successMessage: $t('ui.actionMessage.createSuccess'),
             }));
-        onSuccess?.();
+        await onSuccess?.();
         drawerApi.close();
       } catch {
         drawerApi.unlock();

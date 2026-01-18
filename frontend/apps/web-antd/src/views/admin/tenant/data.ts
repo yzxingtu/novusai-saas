@@ -83,6 +83,23 @@ export function useColumns<T = TenantInfo>(
       className: 'font-medium',
     },
     {
+      field: 'primaryDomain',
+      title: $t('admin.tenant.domain.primaryDomain'),
+      minWidth: 180,
+      slots: {
+        default: 'primaryDomain_cell',
+      },
+    },
+    {
+      field: 'domainCount',
+      title: $t('admin.tenant.domain.domainCount'),
+      width: 90,
+      align: 'center',
+      slots: {
+        default: 'domainCount_cell',
+      },
+    },
+    {
       field: 'contactName',
       title: $t('admin.tenant.contactName'),
       width: 100,
@@ -103,7 +120,7 @@ export function useColumns<T = TenantInfo>(
       },
       field: 'plan',
       formatter: ({ cellValue }) => getPlanText(cellValue),
-      title: $t('admin.tenant.plan'),
+      title: $t('admin.tenant.planField'),
       width: 100,
       align: 'center',
     },
@@ -176,6 +193,12 @@ export function useColumns<T = TenantInfo>(
         },
         name: 'CellOperation',
         options: [
+          {
+            code: 'manageDomains',
+            text: $t('admin.tenant.manageDomains'),
+            icon: 'lucide:globe',
+            accessCodes: ['tenant:update'], // 域名管理需要更新权限
+          },
           {
             code: 'impersonate',
             text: $t('admin.tenant.enterBackend'),
@@ -257,7 +280,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
         placeholder: $t('admin.tenant.placeholder.allPlan'),
       },
       fieldName: 'filter[plan]',
-      label: $t('admin.tenant.plan'),
+      label: $t('admin.tenant.planField'),
     },
   ];
 }
@@ -320,12 +343,12 @@ export function useFormSchema(isEdit: boolean = false): VbenFormSchema[] {
     {
       component: 'Select',
       componentProps: {
-        options: getPlanOptions(),
-        placeholder: $t('admin.tenant.placeholder.selectPlan'),
+        allowClear: true,
+        options: [], // 由 form.vue 动态加载
+        placeholder: $t('admin.tenant.placeholder.selectPlanId'),
       },
-      defaultValue: 'free',
-      fieldName: 'plan',
-      label: $t('admin.tenant.plan'),
+      fieldName: 'plan_id',
+      label: $t('admin.tenant.planId'),
     },
     {
       component: 'DatePicker',

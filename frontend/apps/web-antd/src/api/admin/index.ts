@@ -5,4 +5,6 @@ export * from './organization';
 export * from './permission';
 export * from './role';
 export * from './tenant';
+export * from './tenant-domain';
 export * from './configs';
+export * from './plan';

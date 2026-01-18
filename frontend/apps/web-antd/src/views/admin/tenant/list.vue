@@ -9,16 +9,45 @@ import { computed, onMounted, ref } from 'vue';
 import { Page } from '@vben/common-ui';
 import { IconifyIcon, Plus } from '@vben/icons';
 
-import { Card, Col, message, Row, Statistic } from 'ant-design-vue';
+import { Card, Col, message, Row, Statistic, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
 
+import { copyToClipboard } from '#/utils/common';
+
 import { PLAN_OPTIONS, useColumns, useGridFormSchema } from './data';
+import DomainsModal from './modules/domains-modal.vue';
 import Form from './modules/form.vue';
 
 type TenantInfo = adminApi.TenantInfo;
+
+// 域名管理弹窗引用
+const domainsModalRef = ref<InstanceType<typeof DomainsModal>>();
+
+/**
+ * 复制域名到剪贴板
+ */
+async function onCopyDomain(domain: string) {
+  const success = await copyToClipboard(domain);
+  if (success) {
+    message.success($t('admin.tenant.domain.copySuccess'));
+  } else {
+    message.error($t('admin.tenant.domain.copyFailed'));
+  }
+}
+
+/**
+ * 打开域名管理弹窗
+ */
+function onManageDomains(row: TenantInfo) {
+  domainsModalRef.value?.open({
+    tenantId: row.id,
+    tenantName: row.name,
+    tenantCode: row.code,
+  });
+}
 
 /**
  * 一键登录租户后台
@@ -61,6 +90,7 @@ const { Grid, FormDrawer, onCreate, onRefresh } = useCrudPage<TenantInfo>({
   nameField: 'name',
   customActions: {
     impersonate: onImpersonate,
+    manageDomains: onManageDomains,
   },
 });
 
@@ -143,6 +173,7 @@ onMounted(() => {
 <template>
   <Page auto-content-height content-class="flex flex-col gap-4">
     <FormDrawer @success="onRefresh" />
+    <DomainsModal ref="domainsModalRef" @success="onRefresh" />
 
     <!-- 统计卡片 -->
     <Row :gutter="16">
@@ -221,6 +252,32 @@ onMounted(() => {
     <!-- 表格 -->
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
+        <!-- 域名数列自定义渲染 -->
+        <template #domainCount_cell="{ row }">
+          <Tag :color="(row.domainCount ?? 0) > 1 ? 'blue' : 'default'">
+            {{ row.domainCount ?? 0 }}
+          </Tag>
+        </template>
+        <!-- 主域名列自定义渲染 -->
+        <template #primaryDomain_cell="{ row }">
+          <template v-if="row.primaryDomain">
+            <Tooltip :title="$t('admin.tenant.domain.clickToCopy')">
+              <span
+                class="cursor-pointer text-primary hover:underline"
+                @click="onCopyDomain(row.primaryDomain.domain)"
+              >
+                {{ row.primaryDomain.domain }}
+              </span>
+            </Tooltip>
+            <span
+              v-if="row.primaryDomain.verificationStatus === 'pending'"
+              class="ml-1 text-xs text-warning"
+            >
+              <IconifyIcon icon="lucide:alert-circle" class="inline-block" />
+            </span>
+          </template>
+          <span v-else class="text-gray-400">-</span>
+        </template>
         <template #toolbar-tools>
           <Card size="small" class="mr-4 !border-primary/20 !bg-primary/5">
             <span class="text-sm text-gray-600">{{

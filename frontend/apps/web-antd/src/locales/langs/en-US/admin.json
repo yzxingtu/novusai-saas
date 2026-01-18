@@ -184,6 +184,9 @@
     "basicInfo": "Basic Info",
     "contactInfo": "Contact Info",
     "permissionSettings": "Permission Settings",
-    "accountStatus": "Account Status"
+    "accountStatus": "Account Status",
+    "selectAll": "Select All",
+    "unselectAll": "Unselect All",
+    "createdAt": "Created At"
   }
 }

@@ -40,6 +40,7 @@ import { message, Modal } from 'ant-design-vue';
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
 
+import { useExportModal } from './components';
 import { useGridSearchFormOptions, useVbenVxeGrid } from './use-vxe-grid';
 
 /**
@@ -96,10 +97,14 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     }
   }
 
-  // ==================== CRUD 操作 ====================
-
+  // ==================== 导出弹窗 ====================
   // 前置声明 gridApi（用于闭包引用）
   let gridApi: ReturnType<typeof useVbenVxeGrid>[1];
+
+  // 导出弹窗
+  const { ExportModal, openExportModal } = useExportModal(() => gridApi?.grid);
+
+  // ==================== CRUD 操作 ====================
 
   /** 刷新列表 */
   function onRefresh() {
@@ -271,6 +276,12 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
 
   // ==================== 表格配置 ====================
 
+  // 构建工具栏配置，禁用原生导出，使用自定义导出按钮
+  const toolbarConfig = {
+    ...toolbar,
+    export: false, // 禁用原生导出
+  };
+
   const gridOptions = {
     columns: columns(handleActionClick, handleToggleStatus),
     stripe,
@@ -290,7 +301,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     },
     cellConfig: { height: rowHeight },
     rowConfig: { keyField: 'id' },
-    toolbarConfig: toolbar,
+    toolbarConfig,
   };
 
   // 创建表格
@@ -310,6 +321,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     gridApi,
     FormDrawer: FormPopup,
     formApi: formPopupApi,
+    ExportModal,
 
     // CRUD 操作
     onCreate,
@@ -319,6 +331,9 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     onToggleField,
     onRefresh,
     onReload,
+
+    // 导出
+    openExportModal,
 
     // 处理器
     handleActionClick,

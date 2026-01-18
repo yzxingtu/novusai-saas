@@ -43,6 +43,17 @@
   "sortFailed": "Sort update failed",
   "exportSuccess": "Export successful",
   "exportFailed": "Export failed",
+  "exportModal": {
+    "title": "Export Data",
+    "filename": "Filename",
+    "sheetName": "Sheet Name",
+    "scope": "Export Scope",
+    "currentPage": "Current Page",
+    "selectedData": "Selected Data",
+    "allData": "All Data",
+    "columns": "Export Columns",
+    "selectAtLeastOneColumn": "Please select at least one column"
+  },
   "confirmBatchDelete": "Are you sure to delete {count} selected records?",
   "batchDeleteSuccess": "Batch delete successful",
   "pleaseSelectData": "Please select data first",

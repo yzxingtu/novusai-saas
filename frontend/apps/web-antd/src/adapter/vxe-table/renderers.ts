@@ -38,10 +38,20 @@ export function registerRenderers(vxeUI: any) {
   // 拖拽手柄渲染器
   vxeUI.renderer.add('DragHandle', {
     renderTableDefault() {
-      return h(IconifyIcon, {
-        icon: 'lucide:grip-vertical',
-        class: 'drag-handle cursor-move text-gray-400 hover:text-gray-600',
-      });
+      // 用 div 包裹确保 .drag-handle 类在可点击元素上
+      return h(
+        'div',
+        {
+          class:
+            'drag-handle cursor-move flex items-center justify-center w-full h-full py-2',
+        },
+        [
+          h(IconifyIcon, {
+            icon: 'lucide:grip-vertical',
+            class: 'text-gray-400 hover:text-gray-600 size-5',
+          }),
+        ],
+      );
     },
   });
 

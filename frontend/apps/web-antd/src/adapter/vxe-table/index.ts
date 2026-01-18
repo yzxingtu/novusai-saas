@@ -5,7 +5,13 @@
  */
 
 // 拖拽排序
-export { dragColumn, type DragSortConfig, useTableDragSort } from './drag-sort';
+export {
+  dragColumn,
+  type DragSortConfig,
+  type GridGetter,
+  useAutoTableDragSort,
+  useTableDragSort,
+} from './drag-sort';
 
 // ============ 扩展功能 ============
 // 批量选择
@@ -23,6 +29,9 @@ export {
   type ExportOptions,
   exportToExcel,
 } from './extensions';
+
+// 导出弹窗组件
+export { ExportModal, useExportModal } from './components';
 
 // 展开行
 export {
