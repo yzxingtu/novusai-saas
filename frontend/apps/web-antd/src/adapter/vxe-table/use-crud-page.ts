@@ -31,7 +31,7 @@ import type {
   UseCrudPageOptions,
 } from './types';
 
-import { ref } from 'vue';
+import { defineComponent, h, ref } from 'vue';
 
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
 
@@ -40,7 +40,7 @@ import { message, Modal } from 'ant-design-vue';
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
 
-import { useExportModal } from './components';
+import { CrudGrid, useExportModal } from './components';
 import { useGridSearchFormOptions, useVbenVxeGrid } from './use-vxe-grid';
 
 /**
@@ -276,10 +276,11 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
 
   // ==================== 表格配置 ====================
 
-  // 构建工具栏配置，禁用原生导出，使用自定义导出按钮
+  // 构建工具栏配置
+  const showExportButton = toolbar.export !== false;
   const toolbarConfig = {
     ...toolbar,
-    export: false, // 禁用原生导出
+    export: false, // 禁用原生导出，使用自定义导出按钮
   };
 
   const gridOptions = {
@@ -305,7 +306,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   };
 
   // 创建表格
-  const [Grid, _gridApi] = useVbenVxeGrid({
+  const [OriginalGrid, _gridApi] = useVbenVxeGrid({
     formOptions: searchSchema
       ? useGridSearchFormOptions(searchSchema)
       : undefined,
@@ -314,6 +315,23 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
 
   // 赋值给闭包引用
   gridApi = _gridApi;
+
+  // 包装 Grid 组件，自动添加导出按钮
+  const Grid = defineComponent({
+    name: 'CrudPageGrid',
+    setup(_, { slots }) {
+      return () =>
+        h(
+          CrudGrid,
+          {
+            grid: OriginalGrid,
+            showExport: showExportButton,
+            onExport: openExportModal,
+          },
+          slots,
+        );
+    },
+  });
 
   return {
     // 组件

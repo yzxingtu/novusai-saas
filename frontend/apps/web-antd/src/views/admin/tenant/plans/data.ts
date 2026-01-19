@@ -7,7 +7,6 @@ import type { adminApi } from '#/api';
 
 import { checkboxColumn, dragColumn } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
-import { formatDate } from '#/utils/common';
 
 type TenantPlanInfo = adminApi.TenantPlanInfo;
 type BillingCycle = adminApi.BillingCycle;
@@ -84,28 +83,36 @@ export function useColumns<T = TenantPlanInfo>(
     {
       field: 'name',
       title: $t('admin.tenant.plan.name'),
-      minWidth: 150,
-      className: 'font-medium',
+      minWidth: 180,
+      slots: {
+        default: 'name_cell',
+      },
     },
     {
       field: 'code',
       title: $t('admin.tenant.plan.code'),
-      minWidth: 120,
-      className: 'font-mono text-gray-500',
+      minWidth: 140,
+      slots: {
+        default: 'code_cell',
+      },
     },
     {
       field: 'price',
       title: $t('admin.tenant.plan.price'),
-      width: 150,
-      align: 'right',
-      formatter: ({ row }: { row: TenantPlanInfo }) =>
-        formatPrice(row.price, row.billingCycle),
+      width: 160,
+      align: 'center',
+      slots: {
+        default: 'price_cell',
+      },
     },
     {
-      field: 'sortOrder',
-      title: $t('admin.tenant.plan.sortOrder'),
-      width: 80,
+      field: 'billingCycle',
+      title: $t('admin.tenant.plan.billingCycle'),
+      width: 100,
       align: 'center',
+      slots: {
+        default: 'billingCycle_cell',
+      },
     },
     {
       cellRender: {
@@ -127,9 +134,11 @@ export function useColumns<T = TenantPlanInfo>(
     },
     {
       field: 'createdAt',
-      formatter: ({ cellValue }) => formatDate(cellValue),
       title: $t('admin.common.createdAt'),
-      width: 170,
+      width: 130,
+      slots: {
+        default: 'createdAt_cell',
+      },
     },
     {
       align: 'center',
@@ -187,6 +196,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
       component: 'Select',
       componentProps: {
         allowClear: true,
+        class: 'w-full',
         options: [
           { label: $t('admin.common.enabled'), value: true },
           { label: $t('admin.common.disabled'), value: false },
@@ -242,6 +252,7 @@ export function useFormSchema(_isEdit: boolean = false): VbenFormSchema[] {
     {
       component: 'Select',
       componentProps: {
+        class: 'w-full',
         options: getBillingCycleOptions(),
         placeholder: $t('admin.tenant.plan.placeholder.selectBillingCycle'),
       },

@@ -67,6 +67,20 @@ export interface TenantDomainBrief {
   sslStatus: 'active' | 'failed' | 'pending';
 }
 
+/** 套餐简要信息（后端原始格式） */
+export interface TenantPlanBriefRaw {
+  id: number;
+  code: string;
+  name: string;
+}
+
+/** 套餐简要信息（前端格式） */
+export interface TenantPlanBrief {
+  id: number;
+  code: string;
+  name: string;
+}
+
 /** 租户信息（后端原始格式 snake_case） */
 export interface TenantInfoRaw {
   id: number;
@@ -75,8 +89,9 @@ export interface TenantInfoRaw {
   contact_name?: string;
   contact_phone?: string;
   contact_email?: string;
-  plan: TenantPlan;
+  plan?: null | TenantPlan;
   plan_id?: null | number;
+  plan_info?: TenantPlanBriefRaw | null;
   quota?: Record<string, any>;
   is_active: boolean;
   expires_at?: string;
@@ -97,8 +112,9 @@ export interface TenantInfo {
   contactName?: string;
   contactPhone?: string;
   contactEmail?: string;
-  plan: TenantPlan;
+  plan?: null | TenantPlan;
   planId?: null | number;
+  planInfo?: TenantPlanBrief | null;
   quota?: Record<string, any>;
   isActive: boolean;
   expiresAt?: string;
@@ -148,6 +164,7 @@ function transformTenantInfo(raw: TenantInfoRaw): TenantInfo {
     contactEmail: raw.contact_email,
     plan: raw.plan,
     planId: raw.plan_id,
+    planInfo: raw.plan_info || null,
     quota: raw.quota,
     isActive: raw.is_active,
     expiresAt: raw.expires_at,

@@ -6,8 +6,8 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { adminApi } from '#/api';
 
+import { getTenantPlanSelectApi } from '#/api/admin/plan';
 import { $t } from '#/locales';
-import { formatDate, formatDateOnly } from '#/utils/common';
 
 type TenantInfo = adminApi.TenantInfo;
 type TenantPlan = adminApi.TenantPlan;
@@ -32,7 +32,8 @@ export function PLAN_OPTIONS(): { label: string; value: TenantPlan }[] {
 /**
  * 获取套餐显示文本
  */
-export function getPlanText(plan: TenantPlan): string {
+export function getPlanText(plan: null | TenantPlan | undefined): string {
+  if (!plan) return '-';
   const key = `admin.tenant.planOptions.${plan}`;
   return $t(key);
 }
@@ -40,7 +41,8 @@ export function getPlanText(plan: TenantPlan): string {
 /**
  * 获取套餐颜色
  */
-export function getPlanColor(plan: TenantPlan): string {
+export function getPlanColor(plan: null | TenantPlan | undefined): string {
+  if (!plan) return 'default';
   switch (plan) {
     case 'basic': {
       return 'blue';
@@ -73,14 +75,18 @@ export function useColumns<T = TenantInfo>(
     {
       field: 'code',
       title: $t('admin.tenant.code'),
-      minWidth: 120,
-      className: 'font-mono text-gray-500',
+      minWidth: 140,
+      slots: {
+        default: 'code_cell',
+      },
     },
     {
       field: 'name',
       title: $t('admin.tenant.name'),
-      minWidth: 150,
-      className: 'font-medium',
+      minWidth: 180,
+      slots: {
+        default: 'name_cell',
+      },
     },
     {
       field: 'primaryDomain',
@@ -103,26 +109,26 @@ export function useColumns<T = TenantInfo>(
       field: 'contactName',
       title: $t('admin.tenant.contactName'),
       width: 100,
-      formatter: ({ cellValue }) => cellValue || '-',
+      slots: {
+        default: 'contactName_cell',
+      },
     },
     {
       field: 'contactPhone',
       title: $t('admin.tenant.contactPhone'),
       width: 130,
-      formatter: ({ cellValue }) => cellValue || '-',
+      slots: {
+        default: 'contactPhone_cell',
+      },
     },
     {
-      cellRender: {
-        name: 'CellTag',
-        props: ({ row }: { row: TenantInfo }) => ({
-          color: getPlanColor(row.plan),
-        }),
-      },
-      field: 'plan',
-      formatter: ({ cellValue }) => getPlanText(cellValue),
+      field: 'planInfo',
       title: $t('admin.tenant.planField'),
-      width: 100,
+      width: 140,
       align: 'center',
+      slots: {
+        default: 'planInfo_cell',
+      },
     },
     {
       cellRender: {
@@ -147,40 +153,21 @@ export function useColumns<T = TenantInfo>(
       align: 'center',
     },
     {
-      cellRender: {
-        name: 'CellTag',
-        props: ({ row }: { row: TenantInfo }) => {
-          if (!row.expiresAt) return { color: 'success' };
-          const isExpired = new Date(row.expiresAt) < new Date();
-          const isNearExpiry =
-            !isExpired &&
-            new Date(row.expiresAt) <
-              new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-          let color: string;
-          if (isExpired) {
-            color = 'error';
-          } else if (isNearExpiry) {
-            color = 'warning';
-          } else {
-            color = 'default';
-          }
-          return { color };
-        },
-      },
       field: 'expiresAt',
-      formatter: ({ cellValue }) => {
-        if (!cellValue) return $t('admin.tenant.expiryStatus.permanent');
-        return formatDateOnly(cellValue);
-      },
       title: $t('admin.tenant.expiresAt'),
       width: 120,
       align: 'center',
+      slots: {
+        default: 'expiresAt_cell',
+      },
     },
     {
       field: 'createdAt',
-      formatter: ({ cellValue }) => formatDate(cellValue),
       title: $t('admin.tenant.createdAt'),
-      width: 170,
+      width: 130,
+      slots: {
+        default: 'createdAt_cell',
+      },
     },
     {
       align: 'center',
@@ -263,6 +250,7 @@ export function useGridFormSchema(): VbenFormSchema[] {
       component: 'Select',
       componentProps: {
         allowClear: true,
+        class: 'w-full',
         options: [
           { label: $t('admin.common.enabled'), value: true },
           { label: $t('admin.common.disabled'), value: false },
@@ -273,13 +261,22 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: $t('admin.tenant.status'),
     },
     {
-      component: 'Select',
+      component: 'ApiSelect',
       componentProps: {
         allowClear: true,
-        options: getPlanOptions(),
+        api: getTenantPlanSelectApi,
+        class: 'w-full',
+        filterOption: false,
+        params: { is_active: 'true' },
         placeholder: $t('admin.tenant.placeholder.allPlan'),
+        resultField: 'items',
+        showSearch: true,
+        pagination: true,
+        clickPagination: true,
+        pageSize: 10,
+        optionRightField: 'extra.code',
       },
-      fieldName: 'filter[plan]',
+      fieldName: 'filter[plan_id]',
       label: $t('admin.tenant.planField'),
     },
   ];
@@ -341,11 +338,20 @@ export function useFormSchema(isEdit: boolean = false): VbenFormSchema[] {
       label: $t('admin.tenant.contactEmail'),
     },
     {
-      component: 'Select',
+      component: 'ApiSelect',
       componentProps: {
         allowClear: true,
-        options: [], // 由 form.vue 动态加载
+        api: getTenantPlanSelectApi,
+        class: 'w-full',
+        filterOption: false,
+        params: { is_active: 'true' },
         placeholder: $t('admin.tenant.placeholder.selectPlanId'),
+        resultField: 'items',
+        showSearch: true,
+        pagination: true,
+        clickPagination: true,
+        pageSize: 10,
+        optionRightField: 'extra.code',
       },
       fieldName: 'plan_id',
       label: $t('admin.tenant.planId'),
@@ -353,6 +359,7 @@ export function useFormSchema(isEdit: boolean = false): VbenFormSchema[] {
     {
       component: 'DatePicker',
       componentProps: {
+        class: 'w-full',
         format: 'YYYY-MM-DD',
         placeholder: $t('admin.tenant.placeholder.selectExpiresAt'),
         valueFormat: 'YYYY-MM-DD',

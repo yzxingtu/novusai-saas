@@ -76,9 +76,12 @@ export function extractPermissionsFromMenus(
 /**
  * 转换组件路径
  * 将后端返回的组件路径转换为前端 views 目录下的实际路径
- * @param component 后端组件路径，如 /dashboard/Index.vue
+ * 支持两种结构：
+ *   - 文件结构: tenant/List -> /admin/tenant/list.vue
+ *   - 目录结构: tenant/List -> /admin/tenant/list/index.vue (优先)
+ * @param component 后端组件路径，如 tenant/List
  * @param endpoint 端类型
- * @returns 前端组件路径，如 /admin/dashboard/index.vue
+ * @returns 前端组件路径
  */
 function transformComponentPath(
   component: string | undefined,
@@ -94,32 +97,36 @@ function transformComponentPath(
   // 标准化路径：确保以 / 开头
   let path = component.startsWith('/') ? component : `/${component}`;
 
-  // 处理文件扩展名和大小写
-  // 后端可能返回 Index.vue，但前端文件通常是 index.vue
+  // 割离目录和文件名
   const lastSlash = path.lastIndexOf('/');
-  if (path.endsWith('.vue')) {
-    // 将文件名转为小写（如 Index.vue -> index.vue）
-    const fileName = path.slice(lastSlash + 1);
-    path = path.slice(0, lastSlash + 1) + fileName.toLowerCase();
-  } else {
-    // 没有扩展名的，添加 .vue 并确保文件名小写（保持目录路径不变）
-    const dirPath = path.slice(0, lastSlash + 1);
-    const fileName = path.slice(lastSlash + 1);
-    path = `${dirPath}${fileName.toLowerCase()}.vue`;
+  const dirPath = path.slice(0, lastSlash + 1);
+  let fileName = path.slice(lastSlash + 1);
+
+  // 移除 .vue 后缀（如果有）
+  if (fileName.endsWith('.vue')) {
+    fileName = fileName.slice(0, -4);
   }
+
+  // 文件名转小写
+  fileName = fileName.toLowerCase();
 
   // 根据端类型添加前缀
-  // 前端 views 目录结构：views/admin/xxx, views/tenant/xxx
-  // 后端返回：/dashboard/index.vue
-  // 需要转换为：/admin/dashboard/index.vue 或 /tenant/dashboard/index.vue
+  let prefix = '';
   if (endpoint === 'admin' && !path.startsWith('/admin/')) {
-    path = `/admin${path}`;
+    prefix = '/admin';
   } else if (endpoint === 'tenant' && !path.startsWith('/tenant/')) {
-    path = `/tenant${path}`;
+    prefix = '/tenant';
   }
-  // user 端暂不添加前缀，可根据实际目录结构调整
 
-  return path;
+  // 优先尝试目录结构: /admin/tenant/list/index.vue
+  const dirStructurePath = `${prefix}${dirPath}${fileName}/index.vue`;
+  if (componentExists(dirStructurePath)) {
+    return dirStructurePath;
+  }
+
+  // 回退到文件结构: /admin/tenant/list.vue
+  const fileStructurePath = `${prefix}${dirPath}${fileName}.vue`;
+  return fileStructurePath;
 }
 
 /**
@@ -393,3 +400,4 @@ export function needsTransform(menus: any[]): boolean {
         'affix_tab' in firstItem.meta))
   );
 }
+

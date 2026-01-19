@@ -3,9 +3,9 @@ import type { Component } from 'vue';
 
 import type { AnyPromiseFunction } from '@vben/types';
 
-import { computed, nextTick, ref, unref, useAttrs, watch } from 'vue';
+import { computed, h, nextTick, ref, unref, useAttrs, watch } from 'vue';
 
-import { LoaderCircle } from '@vben/icons';
+import { ChevronLeft, ChevronRight, LoaderCircle } from '@vben/icons';
 
 import { cloneDeep, get, isEqual, isFunction } from '@vben-core/shared/utils';
 
@@ -70,6 +70,28 @@ interface Props {
     | 'one'
     | ((item: OptionsItem[]) => OptionsItem)
     | false;
+  /** 搜索参数名（远程搜索） */
+  searchParamName?: string;
+  /** 是否启用分页（下拉滚动加载更多） */
+  pagination?: boolean;
+  /** 是否启用点击翻页（在下拉底部渲染加载更多/上一页-下一页） */
+  clickPagination?: boolean;
+  /** 点击翻页模式：'load-more' 或 'prev-next' */
+  pagerMode?: 'load-more' | 'prev-next';
+  /** 分页参数名 */
+  pageParamName?: string;
+  /** 分页大小参数名 */
+  pageSizeParamName?: string;
+  /** 每页数量 */
+  pageSize?: number;
+  /** 是否还有更多数据字段名（从响应中解析） */
+  hasMoreField?: string;
+  /** 总数字段名（用于兜底计算 hasMore） */
+  totalField?: string;
+  /** 当前页字段名（用于兜底计算 hasMore） */
+  pageFieldInResponse?: string;
+  /** 每页数量字段名（用于兜底计算 hasMore） */
+  pageSizeFieldInResponse?: string;
 }
 
 defineOptions({ name: 'ApiComponent', inheritAttrs: false });
@@ -93,6 +115,17 @@ const props = withDefaults(defineProps<Props>(), {
   api: undefined,
   autoSelect: false,
   options: () => [],
+  searchParamName: 'search',
+  pagination: false,
+  pageParamName: 'page',
+  pageSizeParamName: 'page_size',
+  pageSize: 10,
+  hasMoreField: 'has_more',
+  clickPagination: false,
+  pagerMode: 'load-more',
+  totalField: 'total',
+  pageFieldInResponse: 'page',
+  pageSizeFieldInResponse: 'page_size',
 });
 
 const emit = defineEmits<{
@@ -102,13 +135,16 @@ const emit = defineEmits<{
 const modelValue = defineModel<any>({ default: undefined });
 
 const attrs = useAttrs();
-const innerParams = ref({});
+const innerParams = ref<Record<string, any>>({});
 const refOptions = ref<OptionsItem[]>([]);
 const loading = ref(false);
 // 首次是否加载过了
 const isFirstLoaded = ref(false);
 // 标记是否有待处理的请求
 const hasPendingRequest = ref(false);
+// 分页状态
+const currentPage = ref(1);
+const hasMore = ref(false);
 
 const getOptions = computed(() => {
   const {
@@ -124,16 +160,18 @@ const getOptions = computed(() => {
   function transformData(data: OptionsItem[]): OptionsItem[] {
     return data.map((item) => {
       const value = get(item, valueField);
-      const disabled = get(item, disabledField);
-      return {
-        ...objectOmit(item, [labelField, valueField, disabled, childrenField]),
+      const result: OptionsItem = {
         label: get(item, labelField),
         value: numberToString ? `${value}` : value,
         disabled: get(item, disabledField),
-        ...(childrenField && item[childrenField]
-          ? { children: transformData(item[childrenField]) }
-          : {}),
       };
+      
+      // 只有在有 children 时才添加 children 字段
+      if (childrenField && item[childrenField]) {
+        result.children = transformData(item[childrenField]);
+      }
+      
+      return result;
     });
   }
 
@@ -143,13 +181,159 @@ const getOptions = computed(() => {
 });
 
 const bindProps = computed(() => {
+  // 保留用户自定义 onSearch/onPopupScroll
+  const userOnSearch = (attrs as any)?.onSearch as ((val: string) => void) | undefined;
+  const userOnPopupScroll = (attrs as any)?.onPopupScroll as ((e: any) => void) | undefined;
+
+  // 构建带分页的下拉渲染函数
+  const buildDropdownRender = (menu: any) => {
+    const isPrevDisabled = loading.value || unref(currentPage) <= 1;
+    const isNextDisabled = loading.value || !unref(hasMore);
+    const pageText = loading.value ? '...' : String(unref(currentPage) || 1);
+    
+    const handlePrev = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isPrevDisabled) return;
+      const prev = Math.max(1, (unref(currentPage) || 1) - 1);
+      currentPage.value = prev;
+      innerParams.value = {
+        ...unref(innerParams),
+        [props.pageParamName!]: prev,
+        [props.pageSizeParamName!]: props.pageSize,
+      };
+    };
+    
+    const handleNext = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isNextDisabled) return;
+      const next = (unref(currentPage) || 1) + 1;
+      currentPage.value = next;
+      innerParams.value = {
+        ...unref(innerParams),
+        [props.pageParamName!]: next,
+        [props.pageSizeParamName!]: props.pageSize,
+      };
+    };
+    
+    // 分页控制栏
+    const pager = h(
+      'div',
+      {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '4px',
+          padding: '6px 8px',
+          borderTop: '1px solid #d9d9d9',
+        },
+      },
+      [
+        h(
+          'button',
+          {
+            type: 'button',
+            disabled: isPrevDisabled,
+            style: {
+              padding: '4px',
+              cursor: isPrevDisabled ? 'not-allowed' : 'pointer',
+              opacity: isPrevDisabled ? '0.4' : '1',
+              border: 'none',
+              background: 'transparent',
+              display: 'flex',
+              alignItems: 'center',
+            },
+            title: '上一页',
+            onMousedown: handlePrev,
+          },
+          [h(ChevronLeft, { style: { width: '16px', height: '16px' } })],
+        ),
+        h(
+          'span',
+          {
+            style: {
+              fontSize: '12px',
+              color: '#999',
+              minWidth: '2rem',
+              textAlign: 'center',
+            },
+          },
+          pageText,
+        ),
+        h(
+          'button',
+          {
+            type: 'button',
+            disabled: isNextDisabled,
+            style: {
+              padding: '4px',
+              cursor: isNextDisabled ? 'not-allowed' : 'pointer',
+              opacity: isNextDisabled ? '0.4' : '1',
+              border: 'none',
+              background: 'transparent',
+              display: 'flex',
+              alignItems: 'center',
+            },
+            title: '下一页',
+            onMousedown: handleNext,
+          },
+          [h(ChevronRight, { style: { width: '16px', height: '16px' } })],
+        ),
+      ],
+    );
+    
+    // 返回包含原始菜单和分页器的容器
+    // 注意：在 Vue 3 中，h() 第三个参数可以是数组或对象
+    return h('div', null, [menu, pager]);
+  };
+
+  const finalOptions = unref(getOptions);
+  
   return {
     [props.modelPropName]: unref(modelValue),
-    [props.optionsPropName]: unref(getOptions),
+    [props.optionsPropName]: finalOptions,
     [`onUpdate:${props.modelPropName}`]: (val: string) => {
       modelValue.value = val;
     },
-    ...objectOmit(attrs, [`onUpdate:${props.modelPropName}`]),
+    // 远程搜索：拦截 onSearch 更新内部参数（并透传给用户回调）
+    onSearch: (val: string) => {
+      if (props.searchParamName) {
+        // 重置到第 1 页
+        currentPage.value = props.pagination ? 1 : 0;
+        innerParams.value = {
+          ...unref(innerParams),
+          [props.searchParamName]: val,
+          ...(props.pagination
+            ? {
+                [props.pageParamName]: 1,
+                [props.pageSizeParamName]: props.pageSize,
+              }
+            : {}),
+        };
+      }
+      userOnSearch?.(val);
+    },
+    // 下拉滚动加载更多
+    onPopupScroll: (e: any) => {
+      if (!props.pagination) return userOnPopupScroll?.(e);
+      const target = e?.target as HTMLElement | undefined;
+      if (!target || loading.value) return userOnPopupScroll?.(e);
+      const nearBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 24;
+      if (nearBottom && unref(hasMore)) {
+        const nextPage = (unref(currentPage) || 1) + 1;
+        currentPage.value = nextPage;
+        innerParams.value = {
+          ...unref(innerParams),
+          [props.pageParamName]: nextPage,
+          [props.pageSizeParamName]: props.pageSize,
+        };
+      }
+      userOnPopupScroll?.(e);
+    },
+    ...(props.clickPagination ? { dropdownRender: (origin: any) => buildDropdownRender(origin) } : {}),
+    ...objectOmit(attrs, [`onUpdate:${props.modelPropName}`, 'onSearch', 'onPopupScroll', 'dropdownRender']),
     ...(props.visibleEvent
       ? {
           [props.visibleEvent]: handleFetchForVisible,
@@ -171,26 +355,52 @@ async function fetchApi() {
     return;
   }
 
-  refOptions.value = [];
   try {
     loading.value = true;
     let finalParams = unref(mergedParams);
     if (beforeFetch && isFunction(beforeFetch)) {
       finalParams = (await beforeFetch(cloneDeep(finalParams))) || finalParams;
     }
+    const isAppend = !!props.pagination && (finalParams?.[props.pageParamName!] ?? 1) > 1;
     let res = await api(finalParams);
     if (afterFetch && isFunction(afterFetch)) {
       res = (await afterFetch(res)) || res;
     }
     isFirstLoaded.value = true;
+
+    let items: OptionsItem[] = [];
     if (Array.isArray(res)) {
-      refOptions.value = res;
-      emitChange();
-      return;
+      items = res as OptionsItem[];
+    } else if (resultField) {
+      items = (get(res as any, resultField) as OptionsItem[]) || [];
     }
-    if (resultField) {
-      refOptions.value = get(res, resultField) || [];
+
+    // 处理 hasMore（优先 hasMoreField，其次用 total/page/page_size 推导）
+    if (props.pagination) {
+      const total = (res as any)?.[props.totalField!];
+      const respPage = (res as any)?.[props.pageFieldInResponse!];
+      const respPageSize = (res as any)?.[props.pageSizeFieldInResponse!];
+      const hm = (res as any)?.[props.hasMoreField!];
+      if (typeof hm === 'boolean') {
+        hasMore.value = hm;
+      } else if (
+        typeof total === 'number' && typeof respPage === 'number' && typeof respPageSize === 'number'
+      ) {
+        hasMore.value = respPage * respPageSize < total;
+      } else {
+        hasMore.value = items?.length >= (finalParams?.[props.pageSizeParamName!] ?? props.pageSize);
+      }
+    } else {
+      hasMore.value = false;
     }
+
+    // 合并或替换选项
+    if (isAppend) {
+      refOptions.value = [...unref(refOptions), ...(items || [])];
+    } else {
+      refOptions.value = items || [];
+    }
+
     emitChange();
   } catch (error) {
     console.warn(error);
@@ -210,6 +420,15 @@ async function fetchApi() {
 
 async function handleFetchForVisible(visible: boolean) {
   if (visible) {
+    // 首次展开时，重置分页
+    if (props.pagination) {
+      currentPage.value = 1;
+      innerParams.value = {
+        ...unref(innerParams),
+        [props.pageParamName!]: 1,
+        [props.pageSizeParamName!]: props.pageSize,
+      };
+    }
     if (props.alwaysLoad) {
       await fetchApi();
     } else if (!props.immediate && !unref(isFirstLoaded)) {

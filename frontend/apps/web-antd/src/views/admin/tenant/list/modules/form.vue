@@ -4,10 +4,9 @@
  */
 import type { adminApi } from '#/api';
 
-import { computed, onMounted } from 'vue';
+import { computed } from 'vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { getTenantPlanSelectApi } from '#/api/admin/plan';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
@@ -17,32 +16,10 @@ type TenantInfo = adminApi.TenantInfo;
 
 const emits = defineEmits<{ success: [] }>();
 
-// 表单
+// 表单（套餐下拉由 ApiSelect 自动加载）
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(false),
   showDefaultActions: false,
-});
-
-// 加载套餐选项
-onMounted(async () => {
-  try {
-    const plans = await getTenantPlanSelectApi({ is_active: 'true' });
-    const options = plans.map((p) => ({
-      label: p.name,
-      value: p.id,
-    }));
-    // 更新表单 schema 中的套餐选项
-    formApi.updateSchema([
-      {
-        fieldName: 'plan_id',
-        componentProps: {
-          options,
-        },
-      },
-    ]);
-  } catch (error) {
-    console.error('Failed to load plan options:', error);
-  }
 });
 
 // CRUD 抽屉

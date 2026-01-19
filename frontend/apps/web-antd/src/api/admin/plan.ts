@@ -163,10 +163,17 @@ export interface TenantPlanListResponse {
   total: number;
 }
 
-/** 下拉选项 */
+/** 下拉选项（遵循通用远程下拉方案） */
 export interface TenantPlanSelectOption {
-  id: number;
-  name: string;
+  label: string;
+  value: number;
+  extra?: {
+    code?: string;
+    billing_cycle?: string;
+  } | null;
+  disabled?: boolean;
+  children?: null;
+  is_leaf?: boolean | null;
 }
 
 // ============================================================
@@ -335,17 +342,26 @@ export async function toggleTenantPlanStatusApi(
   return transformTenantPlanInfo(raw);
 }
 
+/** 套餐下拉选项响应 */
+export interface TenantPlanSelectResponse {
+  items: TenantPlanSelectOption[];
+  total?: number;
+  page?: number;
+  page_size?: number;
+  has_more?: boolean;
+}
+
 /**
  * 获取套餐下拉选项
  * GET /admin/plans/select
+ *
+ * 返回结构遵循《通用远程下拉方案》: { data: { items: [{label, value, extra}] } }
  */
 export async function getTenantPlanSelectApi(
-  params?: { is_active?: string; search?: string },
-  options?: ApiRequestOptions,
-): Promise<TenantPlanSelectOption[]> {
-  return requestClient.get<TenantPlanSelectOption[]>(`${API_PREFIX}/select`, {
+  params?: { is_active?: string; page?: number; page_size?: number; search?: string },
+): Promise<TenantPlanSelectResponse> {
+  return requestClient.get<TenantPlanSelectResponse>(`${API_PREFIX}/select`, {
     params,
-    ...options,
   });
 }
 

@@ -181,6 +181,7 @@
     "enabled": "Enabled",
     "disabled": "Disabled",
     "notAssigned": "Not Assigned",
+    "notSet": "Not Set",
     "basicInfo": "Basic Info",
     "contactInfo": "Contact Info",
     "permissionSettings": "Permission Settings",

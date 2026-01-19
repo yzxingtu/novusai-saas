@@ -27,6 +27,8 @@ import {
 } from 'vue';
 
 import { ApiComponent, globalShareState, IconPicker } from '@vben/common-ui';
+
+import { ApiSelect } from '#/components/business/api-select';
 import { IconifyIcon } from '@vben/icons';
 import { $t } from '@vben/locales';
 import { isEmpty } from '@vben/utils';
@@ -384,19 +386,7 @@ async function initComponentAdapter() {
       modelPropName: 'value',
       visibleEvent: 'onVisibleChange',
     }),
-    ApiSelect: withDefaultPlaceholder(
-      {
-        ...ApiComponent,
-        name: 'ApiSelect',
-      },
-      'select',
-      {
-        component: Select,
-        loadingSlot: 'suffixIcon',
-        visibleEvent: 'onDropdownVisibleChange',
-        modelPropName: 'value',
-      },
-    ),
+    ApiSelect,
     ApiTreeSelect: withDefaultPlaceholder(
       {
         ...ApiComponent,
