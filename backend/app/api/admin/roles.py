@@ -80,14 +80,20 @@ class AdminRoleController(GlobalController):
             is_active: str = Query("", description="筛选状态，默认仅启用"),
             tree: bool = Query(False, description="是否返回树型结构"),
             parent_id: int | None = Query(None, description="父节点ID（树型模式下用于懒加载）"),
+            page: int = Query(0, ge=0, description="页码（0=不分页，>=1=分页）"),
+            page_size: int = Query(20, ge=1, le=100, description="每页数量"),
         ):
             """
             获取角色下拉选项
             
             支持列表和树型两种模式：
-            - tree=false（默认）: 返回扁平列表
-            - tree=true: 返回树型结构
+            - tree=false（默认）: 返回扁平列表（支持分页）
+            - tree=true: 返回树型结构（不支持分页）
             - tree=true + parent_id: 懒加载指定父节点的子节点
+            
+            分页模式：
+            - page=0: 不分页，返回全部数据（受 limit 限制）
+            - page>=1: 分页模式，返回分页信息（total, has_more）
             
             权限: organization:select
             """
@@ -99,15 +105,17 @@ class AdminRoleController(GlobalController):
                 active_filter = True
             
             service = AdminRoleService(db)
-            options = await service.get_select_options(
+            response = await service.get_select_options(
                 search=search,
                 limit=500 if tree else 50,  # 树型模式需要更大的 limit
                 is_active=active_filter,
                 tree=tree,
                 parent_id=parent_id,
+                page=page,
+                page_size=page_size,
             )
             return success(
-                data=SelectResponse(items=options),
+                data=response,
                 message=_("common.success"),
             )
         

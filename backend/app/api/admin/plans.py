@@ -87,11 +87,17 @@ class AdminPlanController(GlobalController):
             current_admin: ActiveAdmin,
             search: str = Query("", description="搜索关键词"),
             is_active: str = Query("true", description="筛选状态，默认仅启用"),
+            page: int = Query(0, ge=0, description="页码（0=不分页，>=1=分页）"),
+            page_size: int = Query(20, ge=1, le=100, description="每页数量"),
         ):
             """
             获取套餐下拉选项
             
             用于筛选器或表单中的套餐选择组件
+            
+            分页模式：
+            - page=0: 不分页，返回全部数据（受 limit 限制）
+            - page>=1: 分页模式，返回分页信息（total, has_more）
             
             权限: tenant_plan:select
             """
@@ -106,19 +112,23 @@ class AdminPlanController(GlobalController):
             
             # 根据是否筛选状态获取选项
             if active_filter is not None:
-                options = await service.get_select_options(
+                response = await service.get_select_options(
                     search=search,
                     limit=50,
                     is_active=active_filter,
+                    page=page,
+                    page_size=page_size,
                 )
             else:
-                options = await service.get_select_options(
+                response = await service.get_select_options(
                     search=search,
                     limit=50,
+                    page=page,
+                    page_size=page_size,
                 )
             
             return success(
-                data=SelectResponse(items=options),
+                data=response,
                 message=_("common.success"),
             )
         

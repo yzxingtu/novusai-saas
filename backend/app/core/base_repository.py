@@ -572,21 +572,29 @@ class BaseRepository(Generic[ModelType]):
         filters: dict[str, Any] | None = None,
         tree: bool = False,
         parent_id: int | None = None,
-    ) -> list[SelectOption]:
+        page: int = 0,
+        page_size: int = 20,
+    ) -> tuple[list[SelectOption], int]:
         """
         获取下拉选项列表
         
         根据模型的 __selectable__ 配置自动构建查询，支持列表和树型两种模式
         
+        分页模式:
+            - page >= 1 时启用分页，返回指定页的数据和总数
+            - page = 0 时不分页，返回全部数据（受 limit 限制）
+        
         Args:
             search: 搜索关键词
-            limit: 最大返回数量
+            limit: 最大返回数量（仅非分页模式有效）
             filters: 额外过滤条件（如 is_active=True）
             tree: 是否返回树型结构
             parent_id: 父节点 ID（树型模式下用于懒加载）
+            page: 页码（0=不分页，>=1=分页）
+            page_size: 每页数量（分页模式有效）
         
         Returns:
-            SelectOption 列表（列表模式或树型模式）
+            (SelectOption 列表, 总数)
         
         __selectable__ 配置示例:
             __selectable__ = {
@@ -614,14 +622,14 @@ class BaseRepository(Generic[ModelType]):
         search_fields = selectable.get("search", [label_field])
         extra_fields = selectable.get("extra", [])
         
-        # 树型模式处理
+        # 树型模式处理（不支持分页）
         if tree:
             tree_config = selectable.get("tree")
             if not tree_config:
                 raise ValueError(
                     f"Model {self.model.__name__} does not have tree configuration in __selectable__"
                 )
-            return await self._get_tree_select_options(
+            items = await self._get_tree_select_options(
                 selectable=selectable,
                 tree_config=tree_config,
                 search=search,
@@ -629,8 +637,10 @@ class BaseRepository(Generic[ModelType]):
                 filters=filters,
                 parent_id=parent_id,
             )
+            # 树型模式不支持分页，total 返回 items 数量
+            return items, len(items)
         
-        # 列表模式（原有逻辑）
+        # 列表模式
         query = select(self.model).where(self.model.is_deleted == False)
         
         # 应用额外过滤条件
@@ -649,17 +659,30 @@ class BaseRepository(Generic[ModelType]):
             if search_predicates:
                 query = query.where(or_(*search_predicates))
         
-        # 排序和限制
+        # 查询总数
+        count_query = select(func.count()).select_from(query.subquery())
+        count_result = await self.db.execute(count_query)
+        total = count_result.scalar() or 0
+        
+        # 排序
         if hasattr(self.model, label_field):
             query = query.order_by(asc(getattr(self.model, label_field)))
-        query = query.limit(limit)
+        
+        # 分页或限制
+        if page >= 1:
+            # 分页模式
+            offset = (page - 1) * page_size
+            query = query.offset(offset).limit(page_size)
+        else:
+            # 非分页模式，使用 limit
+            query = query.limit(limit)
         
         # 执行查询
         result = await self.db.execute(query)
         items = list(result.scalars().all())
         
         # 构建 SelectOption 列表
-        return self._build_select_options(items, selectable)
+        return self._build_select_options(items, selectable), total
     
     async def _get_tree_select_options(
         self,
@@ -972,7 +995,9 @@ class TenantRepository(BaseRepository[ModelType]):
         filters: dict[str, Any] | None = None,
         tree: bool = False,
         parent_id: int | None = None,
-    ) -> list[SelectOption]:
+        page: int = 0,
+        page_size: int = 20,
+    ) -> tuple[list[SelectOption], int]:
         """
         租户级下拉选项列表
         
@@ -980,10 +1005,15 @@ class TenantRepository(BaseRepository[ModelType]):
         
         Args:
             search: 搜索关键词
-            limit: 最大返回数量
+            limit: 最大返回数量（仅非分页模式有效）
             filters: 额外过滤条件
             tree: 是否返回树型结构
             parent_id: 父节点 ID（树型模式下用于懒加载）
+            page: 页码（0=不分页，>=1=分页）
+            page_size: 每页数量（分页模式有效）
+        
+        Returns:
+            (SelectOption 列表, 总数)
         """
         # 自动添加租户过滤
         all_filters = filters.copy() if filters else {}
@@ -995,6 +1025,8 @@ class TenantRepository(BaseRepository[ModelType]):
             filters=all_filters,
             tree=tree,
             parent_id=parent_id,
+            page=page,
+            page_size=page_size,
         )
 
 

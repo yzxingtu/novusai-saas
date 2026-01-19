@@ -15,7 +15,7 @@ from app.core.base_model import BaseModel
 from app.core.base_repository import BaseRepository, TenantRepository
 from app.core.base_schema import PageParams, PageResponse
 from app.schemas.common.query import QuerySpec, FilterRule
-from app.schemas.common.select import SelectOption
+from app.schemas.common.select import SelectOption, SelectResponse
 
 # 泛型类型变量
 ModelType = TypeVar("ModelType", bound=BaseModel)
@@ -245,30 +245,55 @@ class BaseService(Generic[ModelType, RepoType]):
         limit: int = 50,
         tree: bool = False,
         parent_id: int | None = None,
+        page: int = 0,
+        page_size: int = 20,
         **filters: Any,
-    ) -> list[SelectOption]:
+    ) -> SelectResponse:
         """
         获取下拉选项列表
         
-        支持列表和树型两种模式
+        支持列表和树型两种模式，列表模式支持分页
+        
+        分页模式:
+            - page >= 1 时启用分页，返回指定页的数据和分页信息
+            - page = 0 时不分页，返回全部数据（受 limit 限制）
         
         Args:
             search: 搜索关键词
-            limit: 最大返回数量
-            tree: 是否返回树型结构
+            limit: 最大返回数量（仅非分页模式有效）
+            tree: 是否返回树型结构（不支持分页）
             parent_id: 父节点 ID（树型模式下用于懒加载）
+            page: 页码（0=不分页，>=1=分页）
+            page_size: 每页数量（分页模式有效）
             **filters: 额外过滤条件
         
         Returns:
-            SelectOption 列表（列表模式或树型模式）
+            SelectResponse 响应（包含 items 和分页信息）
         """
-        return await self.repo.get_select_options(
+        items, total = await self.repo.get_select_options(
             search=search,
             limit=limit,
             filters=filters if filters else None,
             tree=tree,
             parent_id=parent_id,
+            page=page,
+            page_size=page_size,
         )
+        
+        # 构建响应
+        if page >= 1:
+            # 分页模式，返回分页信息
+            has_more = (page * page_size) < total
+            return SelectResponse(
+                items=items,
+                total=total,
+                page=page,
+                page_size=page_size,
+                has_more=has_more,
+            )
+        else:
+            # 非分页模式，不返回分页信息
+            return SelectResponse(items=items)
     
     # ========================================
     # 钩子方法（子类可重写）

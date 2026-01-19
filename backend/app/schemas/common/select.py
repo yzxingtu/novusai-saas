@@ -59,11 +59,31 @@ class SelectOption(BaseModel):
 
 class SelectResponse(BaseModel):
     """
-    下拉选项列表响应
+    下拉选项列表响应（支持分页）
+    
+    分页模式:
+        当启用分页时（page >= 1），返回带分页信息的响应
+        前端可根据 has_more 决定是否继续加载
+    
+    非分页模式:
+        page=0 时不分页，返回全部数据（受 limit 限制）
     """
     
     items: list[SelectOption]
     """选项列表（列表模式或树型模式）"""
+    
+    # ========== 分页字段（仅分页模式返回） ==========
+    total: int | None = None
+    """总记录数（仅分页模式返回）"""
+    
+    page: int | None = None
+    """当前页码（仅分页模式返回）"""
+    
+    page_size: int | None = None
+    """每页数量（仅分页模式返回）"""
+    
+    has_more: bool | None = None
+    """是否有更多数据（仅分页模式返回）"""
 
 
 __all__ = ["SelectOption", "SelectResponse"]
