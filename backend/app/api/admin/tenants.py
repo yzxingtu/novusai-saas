@@ -198,7 +198,6 @@ class AdminTenantController(GlobalController):
                 contact_phone=data.contact_phone,
                 contact_email=data.contact_email,
                 plan_id=data.plan_id,
-                plan=data.plan,
                 quota=data.quota,
                 expires_at=data.expires_at,
                 remark=data.remark,
