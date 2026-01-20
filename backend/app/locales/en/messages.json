@@ -66,7 +66,8 @@
     "status_updated": "Tenant status updated successfully",
     "settings_updated": "Tenant settings updated successfully",
     "identification_failed": "Unable to identify tenant",
-    "owner_not_found": "Tenant owner not found"
+    "owner_not_found": "Tenant owner not found",
+    "owner_password_reset": "Tenant owner password reset successfully"
   },
   "tenant_plan": {
     "not_found": "Plan not found",
@@ -215,7 +216,8 @@
       "delete": "Delete Tenant",
       "toggle_status": "Toggle Tenant Status",
       "impersonate": "Login as Tenant",
-      "select": "Tenant Remote Select"
+      "select": "Tenant Remote Select",
+      "reset_owner_password": "Reset Tenant Owner Password"
     },
     "tenant_settings": {
       "view": "View Tenant Settings",

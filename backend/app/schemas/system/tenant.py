@@ -165,4 +165,5 @@ __all__ = [
     "TenantStatusRequest",
     "TenantImpersonateRequest",
     "TenantImpersonateResponse",
+    "TenantResetOwnerPasswordRequest",
 ]

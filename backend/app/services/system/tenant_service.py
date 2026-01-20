@@ -215,6 +215,54 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         
         return owner
     
+    async def reset_owner_password(
+        self,
+        tenant_id: int,
+        new_password: str,
+    ) -> TenantAdmin:
+        """
+        重置租户超级管理员密码
+        
+        Args:
+            tenant_id: 租户 ID
+            new_password: 新密码（明文）
+        
+        Returns:
+            更新后的管理员
+        
+        Raises:
+            NotFoundException: 租户或超级管理员不存在
+        """
+        from sqlalchemy import select
+        
+        # 检查租户是否存在
+        tenant = await self.get_by_id(tenant_id)
+        if not tenant:
+            raise NotFoundException(
+                message=_("tenant.not_found"),
+            )
+        
+        # 查找租户的超级管理员（owner）
+        result = await self.db.execute(
+            select(TenantAdmin).where(
+                TenantAdmin.tenant_id == tenant_id,
+                TenantAdmin.is_owner == True,
+                TenantAdmin.is_deleted == False,
+            )
+        )
+        owner = result.scalar_one_or_none()
+        
+        if not owner:
+            raise NotFoundException(
+                message=_("tenant.owner_not_found"),
+            )
+        
+        # 更新密码
+        owner.password_hash = get_password_hash(new_password)
+        await self.db.flush()
+        
+        return owner
+    
     async def update_tenant(
         self,
         tenant_id: int,

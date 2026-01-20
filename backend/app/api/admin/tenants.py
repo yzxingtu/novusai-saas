@@ -37,6 +37,7 @@ from app.schemas.system import (
     TenantStatusRequest,
     TenantImpersonateRequest,
     TenantImpersonateResponse,
+    TenantResetOwnerPasswordRequest,
 )
 from app.schemas.common.select import SelectResponse
 from app.services.system import TenantService
@@ -370,6 +371,28 @@ class AdminTenantController(GlobalController):
                 ),
                 message=_("common.success"),
             )
+        
+        @router.put("/{tenant_id}/reset-owner-password", summary="重置租户超级管理员密码")
+        @permission_action("reset_owner_password", "action.tenant.reset_owner_password")
+        async def reset_owner_password(
+            request: Request,
+            db: DbSession,
+            tenant_id: int,
+            data: TenantResetOwnerPasswordRequest,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            重置租户超级管理员（owner）密码
+            
+            - 用于租户管理员忘记密码或安全事件处理
+            
+            权限: tenant:reset_owner_password
+            """
+            service = TenantService(db)
+            await service.reset_owner_password(tenant_id, data.new_password)
+            await db.commit()
+            
+            return success(message=_("tenant.owner_password_reset"))
 
 
 # 导出路由器

@@ -66,7 +66,8 @@
     "status_updated": "租户状态更新成功",
     "settings_updated": "租户设置更新成功",
     "identification_failed": "无法识别租户",
-    "owner_not_found": "租户所有者不存在"
+    "owner_not_found": "租户所有者不存在",
+    "owner_password_reset": "租户超级管理员密码重置成功"
   },
   "tenant_plan": {
     "not_found": "套餐不存在",
@@ -215,7 +216,8 @@
       "delete": "删除租户",
       "toggle_status": "切换租户状态",
       "impersonate": "一键登录租户后台",
-      "select": "租户远程下拉"
+      "select": "租户远程下拉",
+      "reset_owner_password": "重置租户超级管理员密码"
     },
     "tenant_settings": {
       "view": "查看租户设置",
