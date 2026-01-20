@@ -391,6 +391,44 @@ class BaseRepository(Generic[ModelType]):
         
         return base
     
+    def _cast_value(self, col: InstrumentedAttribute, value: Any) -> Any:
+        """
+        根据列类型转换值
+        
+        Args:
+            col: SQLAlchemy 列对象
+            value: 原始值
+        
+        Returns:
+            转换后的值
+        """
+        if value is None:
+            return None
+        
+        try:
+            # 获取列的 Python 类型
+            col_type = col.type.python_type
+            
+            # 如果已经是正确类型，直接返回
+            if isinstance(value, col_type):
+                return value
+            
+            # 处理布尔类型
+            if col_type is bool:
+                if isinstance(value, str):
+                    return value.lower() in ("true", "1", "yes")
+                return bool(value)
+            
+            # 处理整数类型
+            if col_type is int:
+                return int(value)
+            
+            # 其他类型尝试直接转换
+            return col_type(value)
+        except (ValueError, TypeError, AttributeError):
+            # 转换失败，返回原值
+            return value
+    
     def _apply_filters(
         self,
         query: Select,
@@ -419,7 +457,9 @@ class BaseRepository(Generic[ModelType]):
                 raise ValueError("errors.filters.unknown_field")
             
             col = allowed_fields[rule.field]
-            v1, v2 = rule.value, rule.value2
+            # 根据列类型转换值
+            v1 = self._cast_value(col, rule.value)
+            v2 = self._cast_value(col, rule.value2)
             
             # 根据操作符构建条件
             match rule.op:

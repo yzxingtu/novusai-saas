@@ -93,29 +93,6 @@ class TenantPermissionController(TenantController):
             menus = await perm_service.get_tenant_admin_menus(current_admin)
             return success(data=menus, message=_("common.success"))
         
-        @router.get("/list", summary="获取权限列表（平铺）")
-        @action_read("action.permission.list")
-        async def get_permission_list(
-            request: Request,
-            db: DbSession,
-            current_admin: ActiveTenantAdmin,
-            type: str | None = None,
-        ):
-            """
-            获取权限列表（非树形）
-            
-            层级权限控制：
-            - 租户所有者：返回所有权限
-            - 普通管理员：返回自己拥有的权限（含继承）
-            
-            - type: 可选过滤，menu/operation
-            
-            权限: permission:read
-            """
-            perm_service = PermissionService(db)
-            data = await perm_service.get_tenant_permission_list(current_admin, perm_type=type)
-            return success(data=data, message=_("common.success"))
-
 
 # 导出路由器
 router = TenantPermissionController.get_router()

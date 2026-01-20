@@ -29,11 +29,8 @@ from app.rbac.decorators import (
 from app.schemas.tenant import (
     TenantAdminRoleResponse,
     TenantAdminRoleDetailResponse,
-    TenantAdminRoleTreeNode,
     TenantAdminRoleCreateRequest,
     TenantAdminRoleUpdateRequest,
-    TenantAdminRolePermissionsRequest,
-    TenantAdminRoleMoveRequest,
     TenantAdminRoleSetLeaderRequest,
     TenantAdminRoleAddMemberRequest,
     TenantAdminRoleMemberResponse,
@@ -41,7 +38,6 @@ from app.schemas.tenant import (
 from app.schemas.common import PermissionResponse
 from app.services.tenant.tenant_admin_role_service import TenantAdminRoleService
 from app.services.common.role_hierarchy_validator import TenantAdminRoleHierarchyValidator
-from app.schemas.common.select import SelectResponse
 
 
 @permission_resource(
@@ -69,100 +65,6 @@ class TenantRoleController(TenantController):
     def _register_routes(self) -> None:
         """注册路由"""
         router = self.router
-        
-        @router.get("/select", summary="获取角色下拉选项")
-        @action_read("action.organization.select")
-        async def select_roles(
-            request: Request,
-            db: DbSession,
-            current_admin: ActiveTenantAdmin,
-            search: str = Query("", description="搜索关键词"),
-            is_active: str = Query("", description="筛选状态，默认仅启用"),
-            tree: bool = Query(False, description="是否返回树型结构"),
-            parent_id: int | None = Query(None, description="父节点ID（树型模式下用于懒加载）"),
-            page: int = Query(0, ge=0, description="页码（0=不分页，>=1=分页）"),
-            page_size: int = Query(20, ge=1, le=100, description="每页数量"),
-        ):
-            """
-            获取角色下拉选项
-            
-            支持列表和树型两种模式：
-            - tree=false（默认）: 返回扁平列表（支持分页）
-            - tree=true: 返回树型结构（不支持分页）
-            - tree=true + parent_id: 懒加载指定父节点的子节点
-            
-            分页模式：
-            - page=0: 不分页，返回全部数据（受 limit 限制）
-            - page>=1: 分页模式，返回分页信息（total, has_more）
-            
-            权限: organization:select
-            """
-            # 解析 is_active 参数
-            active_filter = True  # 默认仅启用
-            if is_active.lower() == "false":
-                active_filter = False
-            elif is_active.lower() == "true":
-                active_filter = True
-            
-            service = TenantAdminRoleService(db, current_admin.tenant_id)
-            response = await service.get_select_options(
-                search=search,
-                limit=500 if tree else 50,  # 树型模式需要更大的 limit
-                is_active=active_filter,
-                tree=tree,
-                parent_id=parent_id,
-                page=page,
-                page_size=page_size,
-            )
-            return success(
-                data=response,
-                message=_("common.success"),
-            )
-        
-        @router.get("", summary="获取角色列表")
-        @action_read("action.organization.list")
-        async def list_roles(
-            request: Request,
-            db: DbSession,
-            current_admin: ActiveTenantAdmin,
-        ):
-            """
-            获取租户角色列表
-            
-            层级权限控制：
-            - 租户所有者可以看到所有角色
-            - 普通管理员只能看到自己的角色及其下级角色
-            
-            权限: role:list
-            """
-            # 获取可见角色 ID
-            validator = TenantAdminRoleHierarchyValidator(db, current_admin)
-            visible_ids = await validator.get_visible_role_ids()
-            
-            if not visible_ids:
-                return success(data=[], message=_("common.success"))
-            
-            # 查询可见角色
-            result = await db.execute(
-                select(TenantAdminRole)
-                .where(
-                    TenantAdminRole.tenant_id == current_admin.tenant_id,
-                    TenantAdminRole.is_deleted == False,
-                    TenantAdminRole.id.in_(visible_ids),
-                )
-                .options(
-                    selectinload(TenantAdminRole.children),
-                    selectinload(TenantAdminRole.admins),
-                    selectinload(TenantAdminRole.permissions),
-                )
-                .order_by(TenantAdminRole.sort_order)
-            )
-            roles = result.scalars().all()
-            
-            return success(
-                data=[TenantAdminRoleResponse.model_validate(r, from_attributes=True) for r in roles],
-                message=_("common.success"),
-            )
         
         @router.get("/tree", summary="获取角色树")
         @action_read("action.organization.tree")
@@ -582,74 +484,6 @@ class TenantRoleController(TenantController):
                     detail=str(e.message),
                 )
         
-        @router.put("/{role_id}/move", summary="移动角色")
-        @action_update("action.organization.move")
-        async def move_role(
-            request: Request,
-            db: DbSession,
-            role_id: int,
-            data: TenantAdminRoleMoveRequest,
-            current_admin: ActiveTenantAdmin,
-        ):
-            """
-            移动角色到新的父节点
-            
-            层级权限控制：
-            - 只能移动自己的下级角色
-            - 目标父角色必须是自己的角色或其下级
-            
-            权限: role:update
-            """
-            validator = TenantAdminRoleHierarchyValidator(db, current_admin)
-            
-            # 校验角色可管理性
-            if not await validator.can_manage_role(role_id):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=_("role.no_permission_to_manage"),
-                )
-            
-            # 校验目标父角色
-            if data.new_parent_id is not None:
-                if not await validator.can_create_under_parent(data.new_parent_id):
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail=_("role.parent_must_be_visible"),
-                    )
-            
-            service = TenantAdminRoleService(db, current_admin.tenant_id)
-            
-            try:
-                role = await service.move_node(role_id, data.new_parent_id)
-                await db.commit()
-                
-                # 重新加载角色以获取完整关联
-                result = await db.execute(
-                    select(TenantAdminRole)
-                    .where(TenantAdminRole.id == role.id)
-                    .options(
-                        selectinload(TenantAdminRole.children),
-                        selectinload(TenantAdminRole.admins),
-                    )
-                )
-                role = result.scalar_one()
-                
-                return success(
-                    data=TenantAdminRoleResponse.model_validate(role, from_attributes=True),
-                    message=_("role.moved"),
-                )
-                
-            except NotFoundException as e:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=str(e.message),
-                )
-            except BusinessException as e:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=str(e.message),
-                )
-        
         @router.delete("/{role_id}", summary="删除角色")
         @action_delete("action.organization.delete")
         async def delete_role(
@@ -704,69 +538,6 @@ class TenantRoleController(TenantController):
             except BusinessException as e:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=str(e.message),
-                )
-        
-        @router.put("/{role_id}/permissions", summary="分配角色权限")
-        @action_update("action.organization.assign_permissions")
-        async def assign_permissions(
-            request: Request,
-            db: DbSession,
-            role_id: int,
-            data: TenantAdminRolePermissionsRequest,
-            current_admin: ActiveTenantAdmin,
-        ):
-            """
-            分配角色权限
-            
-            层级权限控制：
-            - 只能给自己的下级角色分配权限
-            - 只能分配自己已拥有的权限
-            
-            权限: role:update
-            """
-            validator = TenantAdminRoleHierarchyValidator(db, current_admin)
-            
-            # 校验角色可管理性
-            if not await validator.can_manage_role(role_id):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=_("role.no_permission_to_manage"),
-                )
-            
-            # 校验权限分配
-            if data.permission_ids:
-                unassignable = await validator.get_unassignable_permissions(data.permission_ids)
-                if unassignable:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail=_("role.cannot_assign_permission"),
-                    )
-            
-            service = TenantAdminRoleService(db, current_admin.tenant_id)
-            
-            try:
-                # 过滤只保留租户端权限
-                perm_result = await db.execute(
-                    select(Permission.id).where(
-                        Permission.id.in_(data.permission_ids),
-                        Permission.scope.in_(["tenant", "both"]),
-                        Permission.is_enabled == True,
-                        Permission.is_deleted == False,
-                    )
-                )
-                valid_perm_ids = [p for p in perm_result.scalars().all()]
-                
-                await service.assign_permissions(role_id, valid_perm_ids)
-                await db.commit()
-                
-                return success(
-                    message=_("role.permissions_updated"),
-                )
-                
-            except NotFoundException as e:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
                     detail=str(e.message),
                 )
         
