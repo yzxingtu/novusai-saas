@@ -136,6 +136,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             username=admin_username,
             email=admin_email,
             password=admin_password,
+            phone=contact_phone,
             root_node=root_node,
         )
         
@@ -182,6 +183,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         email: str,
         password: str,
         root_node: TenantAdminRole,
+        phone: str | None = None,
     ) -> TenantAdmin:
         """
         为租户创建超级管理员（owner）
@@ -192,6 +194,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             email: 邮箱
             password: 明文密码
             root_node: 租户根节点
+            phone: 手机号
         
         Returns:
             创建的管理员
@@ -200,6 +203,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             tenant_id=tenant_id,
             username=username,
             email=email,
+            phone=phone,
             password_hash=get_password_hash(password),
             is_active=True,
             is_owner=True,
