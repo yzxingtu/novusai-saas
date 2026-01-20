@@ -62,7 +62,11 @@ const hasToolbarToolsSlot = computed(() => 'toolbar-tools' in slots);
 
     <!-- 工具栏插槽：添加导出按钮 -->
     <template #toolbar-tools="slotProps">
-      <slot v-if="hasToolbarToolsSlot" name="toolbar-tools" v-bind="slotProps || {}" />
+      <slot
+        v-if="hasToolbarToolsSlot"
+        name="toolbar-tools"
+        v-bind="slotProps || {}"
+      />
       <Tooltip v-if="showExport" :title="$t('common.export')">
         <Button
           type="primary"
