@@ -93,6 +93,34 @@
     "title": "System Configs",
     "description": "Manage tenant-level configurations"
   },
+  "operationLog": {
+    "title": "Operation Logs",
+    "list": "Operation Log List",
+    "detail": "Log Detail",
+    "username": "Operator",
+    "userType": "User Type",
+    "module": "Module",
+    "action": "Action",
+    "method": "Method",
+    "path": "Path",
+    "statusCode": "Status Code",
+    "responseCode": "Response Code",
+    "ip": "IP Address",
+    "durationMs": "Duration (ms)",
+    "createdAt": "Operation Time",
+    "userInfo": "User Info",
+    "requestInfo": "Request Info",
+    "responseInfo": "Response Info",
+    "clientInfo": "Client Info",
+    "placeholder": {
+      "searchUsername": "Search operator",
+      "searchModule": "Search module",
+      "searchAction": "Search action",
+      "searchIp": "Search IP address",
+      "startDate": "Start date",
+      "endDate": "End date"
+    }
+  },
   "organization": {
     "title": "Organization Management",
     "tree": "Organization",

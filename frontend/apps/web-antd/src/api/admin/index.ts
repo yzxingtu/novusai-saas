@@ -8,3 +8,5 @@ export * from './tenant';
 export * from './tenant-domain';
 export * from './configs';
 export * from './plan';
+export * from './operation-log';
+export * from './system-log';

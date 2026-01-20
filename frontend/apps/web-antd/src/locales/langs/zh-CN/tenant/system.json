@@ -93,6 +93,34 @@
     "title": "系统配置",
     "description": "管理租户级配置项"
   },
+  "operationLog": {
+    "title": "操作日志",
+    "list": "操作日志列表",
+    "detail": "日志详情",
+    "username": "操作用户",
+    "userType": "用户类型",
+    "module": "模块",
+    "action": "操作类型",
+    "method": "请求方法",
+    "path": "请求路径",
+    "statusCode": "状态码",
+    "responseCode": "响应码",
+    "ip": "IP地址",
+    "durationMs": "耗时(ms)",
+    "createdAt": "操作时间",
+    "userInfo": "用户信息",
+    "requestInfo": "请求信息",
+    "responseInfo": "响应信息",
+    "clientInfo": "客户端信息",
+    "placeholder": {
+      "searchUsername": "搜索操作用户",
+      "searchModule": "搜索模块",
+      "searchAction": "搜索操作类型",
+      "searchIp": "搜索IP地址",
+      "startDate": "开始日期",
+      "endDate": "结束日期"
+    }
+  },
   "organization": {
     "title": "组织架构管理",
     "tree": "组织架构",

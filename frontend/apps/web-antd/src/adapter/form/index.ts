@@ -11,6 +11,7 @@ export {
   dividerField,
   inputField,
   numberField,
+  searchDateRange,
   searchInput,
   // 通用辅助函数
   select,
@@ -21,6 +22,7 @@ export {
 // 类型导出
 export type {
   ApiSelectOptions,
+  SearchDateRangeOptions,
   SearchInputOptions,
   StatusSelectOptions,
 } from './schema-helpers';

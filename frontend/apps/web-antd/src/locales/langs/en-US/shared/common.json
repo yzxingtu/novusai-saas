@@ -75,5 +75,14 @@
     "unknownSortField": "Unknown sort field",
     "invalidPage": "Invalid page number",
     "sizeExceeded": "Page size exceeded limit"
+  },
+  "dateRange": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "last3Days": "Last 3 Days",
+    "last7Days": "Last 7 Days",
+    "lastMonth": "Last Month",
+    "last2Months": "Last 2 Months",
+    "last3Months": "Last 3 Months"
   }
 }

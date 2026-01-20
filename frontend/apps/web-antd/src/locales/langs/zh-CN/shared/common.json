@@ -77,5 +77,14 @@
     "unknownSortField": "未知的排序字段",
     "invalidPage": "无效的页码",
     "sizeExceeded": "超出每页数量上限"
+  },
+  "dateRange": {
+    "today": "今日",
+    "yesterday": "昨日",
+    "last3Days": "最近三天",
+    "last7Days": "最近七天",
+    "lastMonth": "最近一个月",
+    "last2Months": "最近两个月",
+    "last3Months": "最近三个月"
   }
 }

@@ -283,6 +283,36 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     export: false, // 禁用原生导出，使用自定义导出按钮
   };
 
+  /**
+   * 处理表单参数，转换日期范围等特殊字段
+   */
+  function processFormValues(formValues: Record<string, any>) {
+    const result: Record<string, any> = {};
+
+    for (const [key, value] of Object.entries(formValues)) {
+      // 处理日期范围字段: _dateRange_xxx -> filter[xxx][gte] / filter[xxx][lte]
+      if (key.startsWith('_dateRange_') && Array.isArray(value)) {
+        const field = key.replace('_dateRange_', '');
+        const [startDate, endDate] = value;
+        if (startDate) {
+          result[`filter[${field}][gte]`] = startDate;
+        }
+        if (endDate) {
+          // 如果是日期格式（不包含时间），结束日期加上 23:59:59
+          const isDateOnly = endDate.length === 10; // YYYY-MM-DD
+          result[`filter[${field}][lte]`] = isDateOnly
+            ? `${endDate} 23:59:59`
+            : endDate;
+        }
+      } else if (value !== undefined && value !== null && value !== '') {
+        // 过滤空值
+        result[key] = value;
+      }
+    }
+
+    return result;
+  }
+
   const gridOptions = {
     columns: columns(handleActionClick, handleToggleStatus),
     stripe,
@@ -291,8 +321,9 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     proxyConfig: {
       ajax: {
         query: async ({ page }: any, formValues: any) => {
+          const processedValues = processFormValues(formValues);
           return await api.list({
-            ...formValues,
+            ...processedValues,
             'page[number]': page.currentPage,
             'page[size]': page.pageSize,
             sort: defaultSort,
@@ -316,20 +347,26 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   // 赋值给闭包引用
   gridApi = _gridApi;
 
-  // 包装 Grid 组件，自动添加导出按钮
+  // 包装 Grid 组件，自动添加导出按钮和导出弹窗
   const Grid = defineComponent({
     name: 'CrudPageGrid',
-    setup(_, { slots }) {
+    inheritAttrs: false,
+    setup(_, { attrs, slots }) {
       return () =>
-        h(
-          CrudGrid,
-          {
-            grid: OriginalGrid,
-            showExport: showExportButton,
-            onExport: openExportModal,
-          },
-          slots,
-        );
+        h('div', { class: 'crud-page-grid h-full' }, [
+          h(
+            CrudGrid,
+            {
+              grid: OriginalGrid,
+              showExport: showExportButton,
+              onExport: openExportModal,
+              ...attrs, // 传递所有属性和事件监听器
+            },
+            slots,
+          ),
+          // 渲染导出弹窗组件
+          h(ExportModal),
+        ]);
     },
   });
 

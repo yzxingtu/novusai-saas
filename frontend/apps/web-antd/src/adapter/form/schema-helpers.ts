@@ -28,7 +28,11 @@
  * ```
  */
 
+import type { Dayjs } from 'dayjs';
+
 import type { VbenFormSchema } from './setup';
+
+import dayjs from 'dayjs';
 
 import { $t } from '#/locales';
 
@@ -327,6 +331,120 @@ export function dateField(
     fieldName,
     label,
     ...(required ? { rules: 'selectRequired' } : {}),
+  };
+}
+
+/** 日期范围搜索配置 */
+export interface SearchDateRangeOptions {
+  /** 开始日期字段名，默认 'created_at' */
+  field?: string;
+  /** 标签 */
+  label?: string;
+  /** 占位符 [start, end] */
+  placeholder?: [string, string];
+  /** 是否显示时间，默认 true */
+  showTime?: boolean;
+  /** 是否显示快捷选项，默认 true */
+  showPresets?: boolean;
+}
+
+/**
+ * 获取日期范围快捷选项（使用 dayjs 对象）
+ * @param withTime 是否包含时间（开始 00:00:00，结束 23:59:59）
+ */
+function getDateRangePresets(
+  withTime = false,
+): Array<{ label: string; value: [Dayjs, Dayjs] }> {
+  const today = dayjs().startOf('day');
+
+  // 根据是否显示时间，设置开始和结束时间
+  const toStart = (d: Dayjs): Dayjs =>
+    withTime ? d.startOf('day') : d.startOf('day');
+  const toEnd = (d: Dayjs): Dayjs =>
+    withTime ? d.endOf('day') : d.startOf('day');
+
+  return [
+    {
+      label: $t('shared.common.dateRange.today'),
+      value: [toStart(today), toEnd(today)],
+    },
+    {
+      label: $t('shared.common.dateRange.yesterday'),
+      value: [
+        toStart(today.subtract(1, 'day')),
+        toEnd(today.subtract(1, 'day')),
+      ],
+    },
+    {
+      label: $t('shared.common.dateRange.last3Days'),
+      value: [toStart(today.subtract(2, 'day')), toEnd(today)],
+    },
+    {
+      label: $t('shared.common.dateRange.last7Days'),
+      value: [toStart(today.subtract(6, 'day')), toEnd(today)],
+    },
+    {
+      label: $t('shared.common.dateRange.lastMonth'),
+      value: [toStart(today.subtract(1, 'month')), toEnd(today)],
+    },
+    {
+      label: $t('shared.common.dateRange.last2Months'),
+      value: [toStart(today.subtract(2, 'month')), toEnd(today)],
+    },
+    {
+      label: $t('shared.common.dateRange.last3Months'),
+      value: [toStart(today.subtract(3, 'month')), toEnd(today)],
+    },
+  ];
+}
+
+/**
+ * 创建日期范围搜索 schema
+ *
+ * 自动转换为 JSON:API 格式的 filter 参数
+ * 默认显示时间选择器，开始时间 00:00:00，结束时间 23:59:59
+ *
+ * @example
+ * ```ts
+ * searchDateRange()
+ * // => 默认 created_at 字段，显示时分秒
+ *
+ * searchDateRange({ field: 'updated_at', label: '更新时间', showTime: false })
+ * // => 仅日期选择
+ * ```
+ */
+export function searchDateRange(
+  options: SearchDateRangeOptions = {},
+): VbenFormSchema {
+  const {
+    field = 'created_at',
+    label = '时间范围',
+    placeholder = ['开始时间', '结束时间'],
+    showTime = true,
+    showPresets = true,
+  } = options;
+
+  return {
+    component: 'RangePicker',
+    componentProps: {
+      allowClear: true,
+      class: 'w-full',
+      format: showTime ? 'YYYY-MM-DD HH:mm:ss' : 'YYYY-MM-DD',
+      placeholder,
+      valueFormat: showTime ? 'YYYY-MM-DD HH:mm:ss' : 'YYYY-MM-DD',
+      showTime: showTime
+        ? {
+            defaultValue: [
+              dayjs('00:00:00', 'HH:mm:ss'),
+              dayjs('23:59:59', 'HH:mm:ss'),
+            ],
+            format: 'HH:mm:ss',
+          }
+        : false,
+      ...(showPresets ? { presets: getDateRangePresets(showTime) } : {}),
+    },
+    fieldName: `_dateRange_${field}`,
+    label,
   };
 }
 

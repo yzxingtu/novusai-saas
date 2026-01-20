@@ -4,7 +4,7 @@
  *
  * 在 toolbar-tools 插槽中自动添加导出按钮
  */
-import { computed, useSlots } from 'vue';
+import { computed, useAttrs, useSlots } from 'vue';
 
 import { Download } from '@vben/icons';
 
@@ -14,6 +14,7 @@ import { $t } from '#/locales';
 
 defineOptions({
   name: 'CrudGrid',
+  inheritAttrs: false,
 });
 
 interface Props {
@@ -28,6 +29,8 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   showExport: true,
 });
+
+const attrs = useAttrs();
 
 const slots = useSlots();
 
@@ -47,7 +50,7 @@ const hasToolbarToolsSlot = computed(() => 'toolbar-tools' in slots);
 </script>
 
 <template>
-  <component :is="grid">
+  <component :is="grid" v-bind="attrs">
     <!-- 透传除 toolbar-tools 外的所有插槽 -->
     <template
       v-for="name in Object.keys(filteredSlots)"
