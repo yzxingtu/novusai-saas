@@ -300,8 +300,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         """
         验证域名
         
-        实际的 DNS 验证逻辑需要另外实现（检查 TXT 记录）
-        此方法用于手动标记域名为已验证
+        查询 DNS TXT 记录验证域名所有权
         
         Args:
             domain_id: 域名 ID
@@ -311,7 +310,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         
         Raises:
             NotFoundException: 域名不存在
-            BusinessException: 域名已验证
+            BusinessException: 域名已验证或验证失败
         """
         domain = await self.get_by_id(domain_id)
         if not domain:
@@ -326,6 +325,15 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
                 code=ErrorCode.VALIDATION_ERROR,
             )
         
+        # 执行真实的 DNS TXT 记录验证
+        is_valid = await self._verify_dns_txt_record(domain)
+        
+        if not is_valid:
+            raise BusinessException(
+                message=_("tenant_domain.verify_failed"),
+                code=ErrorCode.VALIDATION_ERROR,
+            )
+        
         # 标记为已验证
         result = await self.update(domain_id, {
             "is_verified": True,
@@ -335,6 +343,51 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         if not result:
             raise NotFoundException(message=_("tenant_domain.not_found"))
         return result
+    
+    async def _verify_dns_txt_record(self, domain: TenantDomain) -> bool:
+        """
+        验证 DNS TXT 记录
+        
+        Args:
+            domain: 域名实例
+        
+        Returns:
+            验证是否通过
+        """
+        import dns.resolver
+        
+        # 获取验证前缀
+        prefix = await self._get_verification_prefix()
+        
+        # 构建验证记录名称
+        txt_record_name = f"{prefix}.{domain.domain}"
+        expected_value = domain.verification_token
+        
+        try:
+            # 查询 TXT 记录
+            answers = dns.resolver.resolve(txt_record_name, "TXT")
+            
+            for rdata in answers:
+                # TXT 记录值可能被引号包裹
+                txt_value = str(rdata).strip('"').strip()
+                if txt_value == expected_value:
+                    return True
+            
+            # 没有匹配的记录
+            return False
+            
+        except dns.resolver.NXDOMAIN:
+            # 域名不存在
+            return False
+        except dns.resolver.NoAnswer:
+            # 没有 TXT 记录
+            return False
+        except dns.resolver.NoNameservers:
+            # 无法连接到 DNS 服务器
+            return False
+        except Exception:
+            # 其他异常
+            return False
     
     async def get_tenant_domains(self, tenant_id: int) -> list[TenantDomain]:
         """

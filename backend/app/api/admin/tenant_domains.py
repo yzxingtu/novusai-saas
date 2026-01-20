@@ -23,6 +23,7 @@ from app.rbac.decorators import (
 )
 from app.schemas.tenant import (
     TenantDomainResponse,
+    TenantDomainVerificationInfo,
     TenantDomainCreateRequest,
     TenantDomainUpdateRequest,
 )
@@ -90,9 +91,23 @@ class AdminTenantDomainController(GlobalController):
             service = TenantDomainService(db)
             items, total = await service.query_list(spec, scope="admin")
             
+            # 为每个域名添加验证信息
+            domain_responses = []
+            for item in items:
+                resp = TenantDomainResponse.model_validate(item, from_attributes=True)
+                # 未验证的域名添加验证 DNS 信息
+                if not item.is_verified and item.verification_token:
+                    verification_record = await service.get_verification_record(item)
+                    resp.verification_info = TenantDomainVerificationInfo(
+                        dns_type=verification_record["type"],
+                        dns_name=verification_record["name"],
+                        dns_value=verification_record["value"],
+                    )
+                domain_responses.append(resp)
+            
             return success(
                 data=PageResponse.create(
-                    items=[TenantDomainResponse.model_validate(item, from_attributes=True) for item in items],
+                    items=domain_responses,
                     total=total,
                     page=spec.page,
                     page_size=spec.size,
@@ -131,8 +146,18 @@ class AdminTenantDomainController(GlobalController):
             
             await db.commit()
             
+            # 添加验证 DNS 信息
+            resp = TenantDomainResponse.model_validate(domain, from_attributes=True)
+            if not domain.is_verified and domain.verification_token:
+                verification_record = await service.get_verification_record(domain)
+                resp.verification_info = TenantDomainVerificationInfo(
+                    dns_type=verification_record["type"],
+                    dns_name=verification_record["name"],
+                    dns_value=verification_record["value"],
+                )
+            
             return success(
-                data=TenantDomainResponse.model_validate(domain, from_attributes=True),
+                data=resp,
                 message=_("tenant_domain.created"),
             )
         
@@ -161,8 +186,18 @@ class AdminTenantDomainController(GlobalController):
                     detail=_("tenant_domain.not_found"),
                 )
             
+            # 添加验证 DNS 信息
+            resp = TenantDomainResponse.model_validate(domain, from_attributes=True)
+            if not domain.is_verified and domain.verification_token:
+                verification_record = await service.get_verification_record(domain)
+                resp.verification_info = TenantDomainVerificationInfo(
+                    dns_type=verification_record["type"],
+                    dns_name=verification_record["name"],
+                    dns_value=verification_record["value"],
+                )
+            
             return success(
-                data=TenantDomainResponse.model_validate(domain, from_attributes=True),
+                data=resp,
                 message=_("common.success"),
             )
         
@@ -277,8 +312,7 @@ class AdminTenantDomainController(GlobalController):
                     detail=_("tenant_domain.not_found"),
                 )
             
-            # TODO: 实际的 DNS 验证逻辑
-            # 目前先手动标记为已验证
+            # 执行 DNS TXT 记录验证
             domain = await service.verify_domain(domain_id)
             await db.commit()
             

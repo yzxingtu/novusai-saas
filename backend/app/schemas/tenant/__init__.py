@@ -32,6 +32,7 @@ from app.schemas.tenant.role import (
 )
 from app.schemas.tenant.domain import (
     TenantDomainSimpleResponse,
+    TenantDomainVerificationInfo,
     TenantDomainResponse,
     TenantDomainCreateRequest,
     TenantDomainUpdateRequest,
@@ -76,6 +77,7 @@ __all__ = [
     "TenantAdminRoleMemberResponse",
     # Domain
     "TenantDomainSimpleResponse",
+    "TenantDomainVerificationInfo",
     "TenantDomainResponse",
     "TenantDomainCreateRequest",
     "TenantDomainUpdateRequest",
