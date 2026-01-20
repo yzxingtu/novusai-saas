@@ -285,6 +285,27 @@ export async function toggleTenantStatusApi(
   return transformTenantInfo(raw);
 }
 
+/** 重置租户管理员密码请求 */
+export interface ResetTenantOwnerPasswordRequest {
+  new_password: string;
+}
+
+/**
+ * 重置租户管理员密码
+ * PUT /admin/tenants/{tenant_id}/reset-owner-password
+ */
+export async function resetTenantOwnerPasswordApi(
+  tenantId: number,
+  data: ResetTenantOwnerPasswordRequest,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.put(
+    `${API_PREFIX}/${tenantId}/reset-owner-password`,
+    data,
+    options,
+  );
+}
+
 // ============================================================
 // 一键登录相关
 // ============================================================

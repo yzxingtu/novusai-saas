@@ -6,14 +6,26 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { adminApi } from '#/api';
 
+import {
+  dateField,
+  dividerField,
+  inputField,
+  searchInput,
+  select,
+  statusSelect,
+  textareaField,
+  z,
+} from '#/adapter/form';
 import { getTenantPlanSelectApi } from '#/api/admin/plan';
 import { $t } from '#/locales';
 
 type TenantInfo = adminApi.TenantInfo;
 type TenantPlan = adminApi.TenantPlan;
 
+// ============ 业务预设 ============
+
 /**
- * 套餐选项
+ * 获取套餐选项列表（用于下拉选择）
  */
 export function getPlanOptions(): { label: string; value: TenantPlan }[] {
   return [
@@ -187,6 +199,12 @@ export function useColumns<T = TenantInfo>(
             accessCodes: ['tenant:update'], // 域名管理需要更新权限
           },
           {
+            code: 'resetPassword',
+            text: $t('admin.tenant.resetPassword'),
+            icon: 'lucide:key-round',
+            accessCodes: ['tenant:update'], // 重置密码需要更新权限
+          },
+          {
             code: 'impersonate',
             text: $t('admin.tenant.enterBackend'),
             icon: 'lucide:log-in',
@@ -204,81 +222,47 @@ export function useColumns<T = TenantInfo>(
   ];
 }
 
+// ============ 业务预设 ============
+
+/** 套餐选择器 */
+export function planSelect(
+  options: { required?: boolean; search?: boolean } = {},
+): VbenFormSchema {
+  const { search = false, required = false } = options;
+  return select(
+    search ? 'filter[plan_id]' : 'plan_id',
+    $t('admin.tenant.planField'),
+    {
+      api: getTenantPlanSelectApi,
+      params: { is_active: 'true' },
+      extraField: 'code',
+      required,
+      placeholder: search
+        ? $t('admin.tenant.placeholder.allPlan')
+        : $t('admin.tenant.placeholder.selectPlanId'),
+    },
+  );
+}
+
 /**
  * 搜索表单 Schema
- * 字段名直接使用 JSON:API 格式
  */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
-    {
-      component: 'Input',
-      componentProps: {
-        allowClear: true,
-        placeholder: $t('admin.tenant.placeholder.searchCode'),
-      },
-      fieldName: 'filter[code][ilike]',
-      label: $t('admin.tenant.code'),
-    },
-    {
-      component: 'Input',
-      componentProps: {
-        allowClear: true,
-        placeholder: $t('admin.tenant.placeholder.searchName'),
-      },
-      fieldName: 'filter[name][ilike]',
-      label: $t('admin.tenant.name'),
-    },
-    {
-      component: 'Input',
-      componentProps: {
-        allowClear: true,
-        placeholder: $t('admin.tenant.placeholder.searchContact'),
-      },
-      fieldName: 'filter[contact_name][ilike]',
-      label: $t('admin.tenant.contactName'),
-    },
-    {
-      component: 'Input',
-      componentProps: {
-        allowClear: true,
-        placeholder: $t('admin.tenant.placeholder.searchPhone'),
-      },
-      fieldName: 'filter[contact_phone][ilike]',
-      label: $t('admin.tenant.contactPhone'),
-    },
-    {
-      component: 'Select',
-      componentProps: {
-        allowClear: true,
-        class: 'w-full',
-        options: [
-          { label: $t('admin.common.enabled'), value: true },
-          { label: $t('admin.common.disabled'), value: false },
-        ],
-        placeholder: $t('admin.tenant.placeholder.allStatus'),
-      },
-      fieldName: 'filter[is_active]',
-      label: $t('admin.tenant.status'),
-    },
-    {
-      component: 'ApiSelect',
-      componentProps: {
-        allowClear: true,
-        api: getTenantPlanSelectApi,
-        class: 'w-full',
-        filterOption: false,
-        params: { is_active: 'true' },
-        placeholder: $t('admin.tenant.placeholder.allPlan'),
-        resultField: 'items',
-        showSearch: true,
-        pagination: true,
-        clickPagination: true,
-        pageSize: 10,
-        optionRightField: 'extra.code',
-      },
-      fieldName: 'filter[plan_id]',
-      label: $t('admin.tenant.planField'),
-    },
+    searchInput('code', $t('admin.tenant.code'), {
+      placeholder: $t('admin.tenant.placeholder.searchCode'),
+    }),
+    searchInput('name', $t('admin.tenant.name'), {
+      placeholder: $t('admin.tenant.placeholder.searchName'),
+    }),
+    searchInput('contact_name', $t('admin.tenant.contactName'), {
+      placeholder: $t('admin.tenant.placeholder.searchContact'),
+    }),
+    searchInput('contact_phone', $t('admin.tenant.contactPhone'), {
+      placeholder: $t('admin.tenant.placeholder.searchPhone'),
+    }),
+    statusSelect(),
+    planSelect({ search: true }),
   ];
 }
 
@@ -287,96 +271,110 @@ export function useGridFormSchema(): VbenFormSchema[] {
  * @param isEdit 是否编辑模式
  */
 export function useFormSchema(isEdit: boolean = false): VbenFormSchema[] {
-  const schema: VbenFormSchema[] = [];
+  return [
+    // 编辑模式时显示租户编码（只读）
+    ...(isEdit
+      ? [inputField('code', $t('admin.tenant.code'), { disabled: true })]
+      : []),
+    inputField('name', $t('admin.tenant.name'), {
+      required: true,
+      maxLength: 100,
+      placeholder: $t('admin.tenant.placeholder.inputName'),
+    }),
+    inputField('contact_name', $t('admin.tenant.contactName'), {
+      placeholder: $t('admin.tenant.placeholder.inputContactName'),
+    }),
+    inputField('contact_phone', $t('admin.tenant.contactPhone'), {
+      placeholder: $t('admin.tenant.placeholder.inputContactPhone'),
+    }),
+    inputField('contact_email', $t('admin.tenant.contactEmail'), {
+      placeholder: $t('admin.tenant.placeholder.inputContactEmail'),
+    }),
+    planSelect(),
+    dateField('expires_at', $t('admin.tenant.expiresAt'), {
+      placeholder: $t('admin.tenant.placeholder.selectExpiresAt'),
+    }),
+    textareaField('remark', $t('admin.tenant.remark'), {
+      placeholder: $t('admin.tenant.placeholder.inputRemark'),
+    }),
+    // 新建时显示管理员信息
+    ...(isEdit
+      ? []
+      : [
+          dividerField('_admin_divider', $t('admin.tenant.adminInfo')),
+          {
+            component: 'Input',
+            componentProps: {
+              maxLength: 50,
+              placeholder: $t('admin.tenant.placeholder.inputAdminUsername'),
+            },
+            fieldName: 'admin_username',
+            label: $t('admin.tenant.adminUsername'),
+            rules: z
+              .string()
+              .min(2, $t('admin.tenant.validation.usernameMin'))
+              .max(50, $t('admin.tenant.validation.usernameMax')),
+          } as VbenFormSchema,
+          {
+            component: 'Input',
+            componentProps: {
+              placeholder: $t('admin.tenant.placeholder.inputAdminEmail'),
+              type: 'email',
+            },
+            fieldName: 'admin_email',
+            label: $t('admin.tenant.adminEmail'),
+            rules: z.string().email($t('admin.tenant.validation.emailInvalid')),
+          } as VbenFormSchema,
+          {
+            component: 'InputPassword',
+            componentProps: {
+              placeholder: $t('admin.tenant.placeholder.inputAdminPassword'),
+            },
+            fieldName: 'admin_password',
+            label: $t('admin.tenant.adminPassword'),
+            rules: z
+              .string()
+              .min(6, $t('admin.tenant.validation.passwordMin'))
+              .max(100, $t('admin.tenant.validation.passwordMax')),
+          } as VbenFormSchema,
+        ]),
+  ];
+}
 
-  // 编辑模式时显示租户编码（只读）
-  if (isEdit) {
-    schema.push({
-      component: 'Input',
-      componentProps: {
-        disabled: true,
-      },
-      fieldName: 'code',
-      label: $t('admin.tenant.code'),
-    });
-  }
-
-  schema.push(
+/**
+ * 重置租户管理员密码表单 Schema
+ */
+export function useResetPasswordSchema(): VbenFormSchema[] {
+  return [
     {
-      component: 'Input',
+      component: 'InputPassword',
       componentProps: {
-        maxLength: 100,
-        placeholder: $t('admin.tenant.placeholder.inputName'),
+        placeholder: $t('admin.tenant.placeholder.inputNewPassword'),
       },
-      fieldName: 'name',
-      label: $t('admin.tenant.name'),
-      rules: 'required',
+      fieldName: 'new_password',
+      label: $t('admin.tenant.newPassword'),
+      rules: z
+        .string()
+        .min(6, $t('admin.tenant.validation.passwordMin'))
+        .max(100, $t('admin.tenant.validation.passwordMax')),
     },
     {
-      component: 'Input',
+      component: 'InputPassword',
       componentProps: {
-        placeholder: $t('admin.tenant.placeholder.inputContactName'),
+        placeholder: $t('admin.tenant.placeholder.confirmPassword'),
       },
-      fieldName: 'contact_name',
-      label: $t('admin.tenant.contactName'),
-    },
-    {
-      component: 'Input',
-      componentProps: {
-        placeholder: $t('admin.tenant.placeholder.inputContactPhone'),
+      fieldName: 'confirm_password',
+      label: $t('admin.tenant.confirmPassword'),
+      dependencies: {
+        triggerFields: ['new_password'],
+        rules: (values) =>
+          z
+            .string()
+            .min(1, $t('admin.tenant.validation.confirmRequired'))
+            .refine((v) => v === values.new_password, {
+              message: $t('admin.tenant.messages.passwordMismatch'),
+            }),
       },
-      fieldName: 'contact_phone',
-      label: $t('admin.tenant.contactPhone'),
     },
-    {
-      component: 'Input',
-      componentProps: {
-        placeholder: $t('admin.tenant.placeholder.inputContactEmail'),
-        type: 'email',
-      },
-      fieldName: 'contact_email',
-      label: $t('admin.tenant.contactEmail'),
-    },
-    {
-      component: 'ApiSelect',
-      componentProps: {
-        allowClear: true,
-        api: getTenantPlanSelectApi,
-        class: 'w-full',
-        filterOption: false,
-        params: { is_active: 'true' },
-        placeholder: $t('admin.tenant.placeholder.selectPlanId'),
-        resultField: 'items',
-        showSearch: true,
-        pagination: true,
-        clickPagination: true,
-        pageSize: 10,
-        optionRightField: 'extra.code',
-      },
-      fieldName: 'plan_id',
-      label: $t('admin.tenant.planId'),
-    },
-    {
-      component: 'DatePicker',
-      componentProps: {
-        class: 'w-full',
-        format: 'YYYY-MM-DD',
-        placeholder: $t('admin.tenant.placeholder.selectExpiresAt'),
-        valueFormat: 'YYYY-MM-DD',
-      },
-      fieldName: 'expires_at',
-      label: $t('admin.tenant.expiresAt'),
-    },
-    {
-      component: 'Textarea',
-      componentProps: {
-        placeholder: $t('admin.tenant.placeholder.inputRemark'),
-        rows: 3,
-      },
-      fieldName: 'remark',
-      label: $t('admin.tenant.remark'),
-    },
-  );
-
-  return schema;
+  ];
 }

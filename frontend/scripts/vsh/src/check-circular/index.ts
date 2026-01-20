@@ -19,6 +19,8 @@ const DEFAULT_CONFIG = {
     'packages/effects/request/src/',
     'packages/@core/ui-kit/menu-ui/src/',
     'packages/@core/ui-kit/popup-ui/src/',
+    'packages/@core/ui-kit/form-ui/src/',
+    'packages/effects/plugins/src/vxe-table/',
   ],
   threshold: 0, // 循环依赖的阈值
 } as const;

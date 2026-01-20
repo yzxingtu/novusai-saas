@@ -26,12 +26,20 @@ import {
   Textarea,
 } from 'ant-design-vue';
 
-import { getPermissionTreeApi } from '#/api/admin/permission';
+// Admin API
+import { getPermissionTreeApi as adminGetPermissionTreeApi } from '#/api/admin/permission';
 import {
-  createRoleApi,
-  getRoleDetailApi,
-  updateRoleApi,
+  createRoleApi as adminCreateRoleApi,
+  getRoleDetailApi as adminGetRoleDetailApi,
+  updateRoleApi as adminUpdateRoleApi,
 } from '#/api/admin/role';
+// Tenant API
+import { getTenantPermissionTreeApi } from '#/api/tenant/permission';
+import {
+  createTenantRoleApi,
+  getTenantRoleDetailApi,
+  updateTenantRoleApi,
+} from '#/api/tenant/role';
 import { PermissionSelector } from '#/components/business/permission-selector';
 
 import {
@@ -98,6 +106,24 @@ const formData = ref<OrgNodeFormData>({
   permissionIds: [],
 });
 
+// 根据 apiPrefix 选择 API
+const api = computed(() => {
+  if (props.apiPrefix === 'tenant') {
+    return {
+      getPermissionTree: getTenantPermissionTreeApi,
+      getRoleDetail: getTenantRoleDetailApi,
+      createRole: createTenantRoleApi,
+      updateRole: updateTenantRoleApi,
+    };
+  }
+  return {
+    getPermissionTree: adminGetPermissionTreeApi,
+    getRoleDetail: adminGetRoleDetailApi,
+    createRole: adminCreateRoleApi,
+    updateRole: adminUpdateRoleApi,
+  };
+});
+
 /** 弹窗标题 */
 const dialogTitle = computed(() => {
   if (props.mode === 'edit') {
@@ -130,7 +156,7 @@ const canCreateChild = computed(() => {
 async function loadPermissionTree() {
   permissionLoading.value = true;
   try {
-    permissionTree.value = await getPermissionTreeApi();
+    permissionTree.value = await api.value.getPermissionTree();
   } catch (error) {
     console.error('Failed to load permission tree:', error);
     permissionTree.value = [];
@@ -145,7 +171,7 @@ async function loadNodeDetail() {
 
   loading.value = true;
   try {
-    const detail = await getRoleDetailApi(props.nodeId);
+    const detail = await api.value.getRoleDetail(props.nodeId);
     formData.value = {
       name: detail.name,
       description: detail.description || '',
@@ -210,8 +236,8 @@ async function handleSubmit() {
     };
 
     const result = await (props.mode === 'edit' && props.nodeId
-      ? updateRoleApi(props.nodeId, requestData)
-      : createRoleApi(requestData));
+      ? api.value.updateRole(props.nodeId, requestData)
+      : api.value.createRole(requestData));
 
     emit('success', {
       id: result.id,

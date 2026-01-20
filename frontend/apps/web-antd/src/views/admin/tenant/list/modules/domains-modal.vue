@@ -85,7 +85,9 @@ async function loadDomains() {
 
   loading.value = true;
   try {
-    const result = await admin.getTenantDomainsApi(currentTenant.value.tenantId);
+    const result = await admin.getTenantDomainsApi(
+      currentTenant.value.tenantId,
+    );
     domains.value = result.items;
   } catch (error) {
     console.error('Failed to load domains:', error);
@@ -104,7 +106,8 @@ async function onAddDomain() {
   }
 
   // 简单的域名格式验证
-  const domainPattern = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
+  const domainPattern =
+    /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
   if (!domainPattern.test(newDomain.value.trim())) {
     message.warning($t('admin.tenant.domain.domainInvalid'));
     return;
@@ -199,11 +202,11 @@ function getSslColor(status: string): string {
     case 'active': {
       return 'success';
     }
-    case 'pending': {
-      return 'processing';
-    }
     case 'failed': {
       return 'error';
+    }
+    case 'pending': {
+      return 'processing';
     }
     default: {
       return 'default';
@@ -219,11 +222,11 @@ function getSslText(status: string): string {
     case 'active': {
       return $t('admin.tenant.domain.sslActive');
     }
-    case 'pending': {
-      return $t('admin.tenant.domain.sslPending');
-    }
     case 'failed': {
       return $t('admin.tenant.domain.sslFailed');
+    }
+    case 'pending': {
+      return $t('admin.tenant.domain.sslPending');
     }
     default: {
       return status;
@@ -311,11 +314,7 @@ defineExpose({ open });
               />
             </FormItem>
             <FormItem class="mb-0">
-              <Button
-                type="primary"
-                :loading="submitting"
-                @click="onAddDomain"
-              >
+              <Button type="primary" :loading="submitting" @click="onAddDomain">
                 {{ $t('admin.tenant.domain.addDomain') }}
               </Button>
             </FormItem>
@@ -344,7 +343,9 @@ defineExpose({ open });
 
             <!-- 类型列 -->
             <template v-else-if="column.key === 'type'">
-              <Tag :color="record.domainType === 'default' ? 'default' : 'blue'">
+              <Tag
+                :color="record.domainType === 'default' ? 'default' : 'blue'"
+              >
                 {{
                   record.domainType === 'default'
                     ? $t('admin.tenant.domain.defaultDomain')
@@ -376,7 +377,10 @@ defineExpose({ open });
               <div class="flex items-center justify-center gap-1">
                 <!-- 设为主域名 -->
                 <Tooltip
-                  v-if="!asDomain(record).isPrimary && asDomain(record).verificationStatus === 'verified'"
+                  v-if="
+                    !asDomain(record).isPrimary &&
+                    asDomain(record).verificationStatus === 'verified'
+                  "
                   :title="$t('admin.tenant.domain.setPrimary')"
                 >
                   <Button
@@ -404,8 +408,15 @@ defineExpose({ open });
 
                 <!-- 删除域名（仅自定义域名且非主域名可删除） -->
                 <Popconfirm
-                  v-if="asDomain(record).domainType === 'custom' && !asDomain(record).isPrimary"
-                  :title="$t('admin.tenant.domain.confirmDelete', { domain: asDomain(record).domain })"
+                  v-if="
+                    asDomain(record).domainType === 'custom' &&
+                    !asDomain(record).isPrimary
+                  "
+                  :title="
+                    $t('admin.tenant.domain.confirmDelete', {
+                      domain: asDomain(record).domain,
+                    })
+                  "
                   @confirm="onDeleteDomain(asDomain(record))"
                 >
                   <Button type="link" size="small" danger>
@@ -419,7 +430,12 @@ defineExpose({ open });
 
         <!-- DNS 验证提示 -->
         <Alert
-          v-if="domains.some((d) => d.verificationStatus === 'pending' && d.domainType === 'custom')"
+          v-if="
+            domains.some(
+              (d) =>
+                d.verificationStatus === 'pending' && d.domainType === 'custom',
+            )
+          "
           type="info"
           show-icon
           class="mt-4"

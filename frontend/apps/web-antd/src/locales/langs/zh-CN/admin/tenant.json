@@ -43,7 +43,10 @@
     "updateSuccess": "更新成功",
     "impersonating": "正在进入「{name}」后台...",
     "impersonateSuccess": "正在打开租户后台",
-    "impersonateFailed": "一键登录失败，请重试"
+    "impersonateFailed": "一键登录失败，请重试",
+    "resetPasswordFor": "即将重置租户「{name}」的管理员密码",
+    "resetPasswordSuccess": "密码重置成功",
+    "passwordMismatch": "两次输入的密码不一致"
   },
   "placeholder": {
     "searchCode": "搜索租户编码",
@@ -60,7 +63,12 @@
     "selectPlan": "请选择套餐",
     "selectPlanId": "请选择关联套餐",
     "selectExpiresAt": "请选择到期时间",
-    "inputRemark": "请输入备注"
+    "inputRemark": "请输入备注",
+    "inputAdminUsername": "请输入管理员用户名",
+    "inputAdminEmail": "请输入管理员邮箱",
+    "inputAdminPassword": "请输入管理员密码",
+    "inputNewPassword": "请输入新密码",
+    "confirmPassword": "请确认新密码"
   },
   "help": {
     "codeFormat": "小写字母开头，只能包含小写字母、数字、下划线、中划线"
@@ -71,9 +79,22 @@
     "codeMaxLength": "租户编码最多 50 个字符",
     "codePattern": "租户编码必须小写字母开头，只能包含小写字母、数字、下划线、中划线",
     "nameRequired": "请输入租户名称",
-    "nameMaxLength": "租户名称最多 100 个字符"
+    "nameMaxLength": "租户名称最多 100 个字符",
+    "usernameMin": "用户名至少 2 个字符",
+    "usernameMax": "用户名最多 50 个字符",
+    "emailInvalid": "请输入有效的邮箱地址",
+    "passwordMin": "密码至少 6 个字符",
+    "passwordMax": "密码最多 100 个字符",
+    "confirmRequired": "请确认密码"
   },
   "tip": "管理平台租户，配置租户套餐和有效期",
+  "adminInfo": "管理员信息",
+  "adminUsername": "管理员用户名",
+  "adminEmail": "管理员邮箱",
+  "adminPassword": "管理员密码",
+  "resetPassword": "重置密码",
+  "newPassword": "新密码",
+  "confirmPassword": "确认密码",
   "domain": {
     "title": "域名管理",
     "domain": "域名",

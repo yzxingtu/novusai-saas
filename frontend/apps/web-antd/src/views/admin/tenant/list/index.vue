@@ -14,10 +14,17 @@ import { Card, message, Tag, Tooltip } from 'ant-design-vue';
 import { useCrudPage } from '#/adapter/vxe-table';
 import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
-
-import { copyToClipboard, formatDate, formatDateOnly, formatRelativeTime } from '#/utils/common';
+import {
+  copyToClipboard,
+  formatDate,
+  formatDateOnly,
+  formatRelativeTime,
+} from '#/utils/common';
 
 import { useColumns, useGridFormSchema } from './data';
+import DomainsModal from './modules/domains-modal.vue';
+import Form from './modules/form.vue';
+import ResetPasswordModal from './modules/reset-password-modal.vue';
 
 /** 获取名称首字（支持中英文） */
 function getFirstChar(name: string): string {
@@ -42,16 +49,19 @@ function getAvatarColor(name: string): string {
     'bg-indigo-500',
     'bg-teal-500',
   ];
-  const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const hash = name
+    .split('')
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return colors[hash % colors.length]!;
 }
-import DomainsModal from './modules/domains-modal.vue';
-import Form from './modules/form.vue';
 
 type TenantInfo = adminApi.TenantInfo;
 
 // 域名管理弹窗引用
 const domainsModalRef = ref<InstanceType<typeof DomainsModal>>();
+
+// 重置密码弹窗引用
+const resetPasswordModalRef = ref<InstanceType<typeof ResetPasswordModal>>();
 
 /**
  * 复制域名到剪贴板
@@ -73,6 +83,16 @@ function onManageDomains(row: TenantInfo) {
     tenantId: row.id,
     tenantName: row.name,
     tenantCode: row.code,
+  });
+}
+
+/**
+ * 重置租户管理员密码
+ */
+function onResetPassword(row: TenantInfo) {
+  resetPasswordModalRef.value?.open({
+    id: row.id,
+    name: row.name,
   });
 }
 
@@ -104,29 +124,31 @@ async function onImpersonate(row: TenantInfo) {
 }
 
 // 声明式 CRUD 页面（套餐下拉由 ApiSelect 自动加载，导出按钮自动添加）
-const { Grid, FormDrawer, ExportModal, onCreate, onRefresh } = useCrudPage<TenantInfo>({
-  api: {
-    list: admin.getTenantListApi,
-    resource: '/admin/tenants',
-    toggles: { is_active: admin.toggleTenantStatusApi },
-  },
-  columns: useColumns,
-  searchSchema: useGridFormSchema(),
-  formComponent: Form,
-  i18nPrefix: 'admin.tenant',
-  nameField: 'name',
-  customActions: {
-    impersonate: onImpersonate,
-    manageDomains: onManageDomains,
-  },
-});
-
+const { Grid, FormDrawer, ExportModal, onCreate, onRefresh } =
+  useCrudPage<TenantInfo>({
+    api: {
+      list: admin.getTenantListApi,
+      resource: '/admin/tenants',
+      toggles: { is_active: admin.toggleTenantStatusApi },
+    },
+    columns: useColumns,
+    searchSchema: useGridFormSchema(),
+    formComponent: Form,
+    i18nPrefix: 'admin.tenant',
+    nameField: 'name',
+    customActions: {
+      impersonate: onImpersonate,
+      manageDomains: onManageDomains,
+      resetPassword: onResetPassword,
+    },
+  });
 </script>
 
 <template>
   <Page auto-content-height content-class="flex flex-col gap-4">
     <FormDrawer @success="onRefresh" />
     <DomainsModal ref="domainsModalRef" @success="onRefresh" />
+    <ResetPasswordModal ref="resetPasswordModalRef" @success="onRefresh" />
     <ExportModal />
 
     <!-- 表格 -->
@@ -140,7 +162,10 @@ const { Grid, FormDrawer, ExportModal, onCreate, onRefresh } = useCrudPage<Tenan
               @click="onCopyDomain(row.code)"
             >
               {{ row.code }}
-              <IconifyIcon icon="lucide:copy" class="ml-1 inline-block size-3 opacity-50" />
+              <IconifyIcon
+                icon="lucide:copy"
+                class="ml-1 inline-block size-3 opacity-50"
+              />
             </span>
           </Tooltip>
         </template>
@@ -183,7 +208,10 @@ const { Grid, FormDrawer, ExportModal, onCreate, onRefresh } = useCrudPage<Tenan
               class="ml-1 text-gray-400 hover:text-primary"
               @click.stop
             >
-              <IconifyIcon icon="lucide:external-link" class="inline-block size-3" />
+              <IconifyIcon
+                icon="lucide:external-link"
+                class="inline-block size-3"
+              />
             </a>
             <span
               v-if="row.primaryDomain.verificationStatus === 'pending'"
@@ -192,19 +220,25 @@ const { Grid, FormDrawer, ExportModal, onCreate, onRefresh } = useCrudPage<Tenan
               <IconifyIcon icon="lucide:alert-circle" class="inline-block" />
             </span>
           </template>
-          <span v-else class="text-gray-300">{{ $t('admin.common.notSet') }}</span>
+          <span v-else class="text-gray-300">{{
+            $t('admin.common.notSet')
+          }}</span>
         </template>
 
         <!-- 联系人列 -->
         <template #contactName_cell="{ row }">
           <span v-if="row.contactName">{{ row.contactName }}</span>
-          <span v-else class="text-gray-300">{{ $t('admin.common.notSet') }}</span>
+          <span v-else class="text-gray-300">{{
+            $t('admin.common.notSet')
+          }}</span>
         </template>
 
         <!-- 联系电话列 -->
         <template #contactPhone_cell="{ row }">
           <span v-if="row.contactPhone">{{ row.contactPhone }}</span>
-          <span v-else class="text-gray-300">{{ $t('admin.common.notSet') }}</span>
+          <span v-else class="text-gray-300">{{
+            $t('admin.common.notSet')
+          }}</span>
         </template>
 
         <!-- 套餐列 -->
@@ -216,24 +250,29 @@ const { Grid, FormDrawer, ExportModal, onCreate, onRefresh } = useCrudPage<Tenan
               </Tag>
             </Tooltip>
           </template>
-          <span v-else class="text-gray-300">{{ $t('admin.common.notSet') }}</span>
+          <span v-else class="text-gray-300">{{
+            $t('admin.common.notSet')
+          }}</span>
         </template>
 
         <!-- 到期时间列 -->
         <template #expiresAt_cell="{ row }">
           <Tag v-if="!row.expiresAt" color="success">
-            <IconifyIcon icon="lucide:infinity" class="mr-1 inline-block size-3" />
+            <IconifyIcon
+              icon="lucide:infinity"
+              class="mr-1 inline-block size-3"
+            />
             {{ $t('admin.tenant.expiryStatus.permanent') }}
           </Tag>
           <template v-else>
-            <Tag
-              v-if="new Date(row.expiresAt) < new Date()"
-              color="error"
-            >
+            <Tag v-if="new Date(row.expiresAt) < new Date()" color="error">
               {{ $t('admin.tenant.expiryStatus.expired') }}
             </Tag>
             <Tag
-              v-else-if="new Date(row.expiresAt) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)"
+              v-else-if="
+                new Date(row.expiresAt) <
+                new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+              "
               color="warning"
             >
               {{ formatDateOnly(row.expiresAt) }}
@@ -247,7 +286,9 @@ const { Grid, FormDrawer, ExportModal, onCreate, onRefresh } = useCrudPage<Tenan
         <!-- 创建时间列 -->
         <template #createdAt_cell="{ row }">
           <Tooltip :title="formatDate(row.createdAt)">
-            <span class="text-gray-500">{{ formatRelativeTime(row.createdAt) }}</span>
+            <span class="text-gray-500">{{
+              formatRelativeTime(row.createdAt)
+            }}</span>
           </Tooltip>
         </template>
 
@@ -271,6 +312,6 @@ const { Grid, FormDrawer, ExportModal, onCreate, onRefresh } = useCrudPage<Tenan
           <!-- 导出按钮由 useCrudPage 自动添加 -->
         </template>
       </Grid>
-</Card>
+    </Card>
   </Page>
 </template>

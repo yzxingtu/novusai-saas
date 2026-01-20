@@ -5,27 +5,68 @@
  * - create/update 请求
  * - 表单重置
  * - Schema 切换
- * - 编辑模式数据填充
+ * - 编辑模式数据填充 (自动 camelCase ↔ snake_case)
  *
  * @example
  * ```ts
- * const { Drawer, drawerApi, isEdit } = useCrudDrawer<AdminInfo>({
+ * // 标准用法
+ * const { Drawer, isEdit } = useCrudDrawer<TenantInfo>({
  *   formApi,
  *   schema: useFormSchema,
- *   transform: (values, isEdit) => ({ ... }),
- *   toFormValues: (data) => ({ ... }),
+ *   // 只需定义字段名，自动处理映射
+ *   fields: ['name', 'contact_name', 'contact_phone', 'plan_id'],
  *   onSuccess: () => emits('success'),
  * });
  * ```
  */
 import type { FormMode } from '#/adapter/vxe-table';
 
-import { computed, nextTick, ref } from 'vue';
+import { computed, nextTick, ref, unref, type Ref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
 
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
+
+// ============ 字段映射工具函数 ============
+
+/** snake_case 转 camelCase */
+function snakeToCamel(str: string): string {
+  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+
+/**
+ * 根据字段列表生成 toFormValues 函数
+ * 后端 camelCase -> 表单 snake_case
+ */
+function createToFormValues<T>(fields: string[]): (data: T) => Record<string, any> {
+  return (data: T) => {
+    const result: Record<string, any> = {};
+    for (const field of fields) {
+      const camelField = snakeToCamel(field);
+      // @ts-ignore
+      result[field] = data[camelField] ?? data[field];
+    }
+    return result;
+  };
+}
+
+/**
+ * 根据字段列表生成 transform 函数
+ * 表单 snake_case -> API snake_case（空值转 null）
+ */
+function createTransform(fields: string[]): (values: Record<string, any>) => Record<string, any> {
+  return (values: Record<string, any>) => {
+    const result: Record<string, any> = {};
+    for (const field of fields) {
+      const value = values[field];
+      // 空字符串转为 null
+      result[field] = value === '' || value === undefined ? null : value;
+    }
+    return result;
+  };
+}
 
 /**
  * useCrudDrawer 配置选项
@@ -47,11 +88,35 @@ export interface UseCrudDrawerOptions<T = any> {
   schema: (isEdit: boolean) => any[];
 
   /**
+   * 字段列表（推荐）
+   *
+   * 提供字段列表后，自动处理：
+   * - 编辑模式：后端 camelCase -> 表单 snake_case
+   * - 提交时：表单 snake_case -> API snake_case（空值转 null）
+   *
+   * @example
+   * ```ts
+   * fields: ['name', 'contact_name', 'contact_phone', 'plan_id', 'expires_at']
+   * ```
+   */
+  fields?: string[];
+
+  /**
+   * API 资源路径（可选）
+   *
+   * 指定后，openNew/openEdit 会自动使用此路径，无需每次传递 _resource
+   */
+  apiPath?: Ref<string> | string | (() => string);
+
+  /**
    * 数据转换函数（表单值 -> API 请求体）
+   *
+   * 如果提供了 `fields`，则此项可省略
+   *
    * @param values 表单原始值
    * @param isEdit 是否编辑模式
    */
-  transform: (
+  transform?: (
     values: Record<string, any>,
     isEdit: boolean,
   ) => Record<string, any>;
@@ -64,6 +129,9 @@ export interface UseCrudDrawerOptions<T = any> {
 
   /**
    * 后端数据 -> 表单值（编辑模式）
+   *
+   * 如果提供了 `fields`，则此项可省略
+   *
    * @param data 后端返回的数据
    */
   toFormValues?: (data: T) => Record<string, any>;
@@ -80,19 +148,25 @@ export interface UseCrudDrawerOptions<T = any> {
 
 /**
  * 一体化 CRUD 抽屉
- * 整合 useVbenDrawer + useCrudForm，进一步简化表单组件
+ * 整合 useVbenDrawer + useCrudForm，简化表单组件
  */
 export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
   const {
     formApi,
     schema,
-    transform,
+    fields,
+    transform: customTransform,
     defaults,
-    toFormValues,
+    toFormValues: customToFormValues,
     onSuccess,
     onOpen,
     afterOpen,
+    apiPath,
   } = options;
+
+  // 如果提供了 fields，自动生成 transform 和 toFormValues
+  const transform = customTransform ?? (fields ? createTransform(fields) : (v: any) => v);
+  const toFormValues = customToFormValues ?? (fields ? createToFormValues<T>(fields) : undefined);
 
   const mode = ref<FormMode>('add');
   const recordId = ref<number | string>();
@@ -155,7 +229,11 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
         | undefined;
       mode.value = data?.mode ?? 'add';
       recordId.value = data?.id;
-      resource.value = data?._resource ?? '';
+      {
+        const p = unref(apiPath) as string | (() => string) | undefined;
+        const resolved = typeof p === 'function' ? p() : p;
+        resource.value = data?._resource ?? (resolved ?? '');
+      }
       rowData.value = data as T;
 
       // 重置表单
@@ -189,6 +267,40 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
     },
   });
 
+  /**
+   * 打开新建模式
+   * @param extraData 额外传递给 Drawer 的数据
+   */
+  function openNew(extraData?: Record<string, any>) {
+    const p = unref(apiPath) as string | (() => string) | undefined;
+    const path = typeof p === 'function' ? p() : p;
+    drawerApi
+      .setData({
+        mode: 'add',
+        ...(path ? { _resource: path } : {}),
+        ...extraData,
+      })
+      .open();
+  }
+
+  /**
+   * 打开编辑模式
+   * @param record 要编辑的记录
+   * @param extraData 额外传递给 Drawer 的数据
+   */
+  function openEdit(record: T, extraData?: Record<string, any>) {
+    const p = unref(apiPath) as string | (() => string) | undefined;
+    const path = typeof p === 'function' ? p() : p;
+    drawerApi
+      .setData({
+        ...record,
+        mode: 'edit',
+        ...(path ? { _resource: path } : {}),
+        ...extraData,
+      })
+      .open();
+  }
+
   return {
     Drawer,
     drawerApi,
@@ -197,5 +309,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
     recordId,
     resource,
     rowData,
+    openNew,
+    openEdit,
   };
 }

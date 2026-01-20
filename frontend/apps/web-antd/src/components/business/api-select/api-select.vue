@@ -495,15 +495,17 @@ defineExpose({
   border-radius: 4px;
 }
 
-/* 分页控件 */
+/* 分页控件 - 使用 container query 支持窄屏自适应 */
 .api-select-pagination {
+  container-type: inline-size;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px 8px;
   padding: 6px 12px;
-  border-top: 1px solid var(--ant-color-border, #d9d9d9);
-  background: var(--ant-color-bg-container, #fff);
+  border-top: 1px solid var(--ant-color-border);
+  background: var(--ant-color-bg-elevated);
   font-size: 12px;
 }
 
@@ -511,21 +513,23 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .api-select-pagination__right {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .api-select-pagination__total {
-  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.45));
+  color: var(--ant-color-text-secondary);
   white-space: nowrap;
 }
 
 .api-select-pagination__total b {
-  color: var(--ant-color-text, rgba(0, 0, 0, 0.88));
+  color: var(--ant-color-text);
   font-weight: 500;
 }
 
@@ -537,6 +541,13 @@ defineExpose({
   font-size: 12px !important;
 }
 
+/* 窄屏时隐藏每页条数选择器，保留核心分页功能 */
+@container (max-width: 200px) {
+  .api-select-pagination__size {
+    display: none;
+  }
+}
+
 .api-select-pagination__btn {
   display: flex;
   align-items: center;
@@ -544,17 +555,17 @@ defineExpose({
   width: 22px;
   height: 22px;
   padding: 0;
-  border: 1px solid var(--ant-color-border, #d9d9d9);
+  border: 1px solid var(--ant-color-border);
   border-radius: 4px;
-  background: var(--ant-color-bg-container, #fff);
-  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.45));
+  background: var(--ant-color-bg-container);
+  color: var(--ant-color-text-secondary);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .api-select-pagination__btn:hover:not(.is-disabled) {
-  border-color: var(--ant-color-primary, #1677ff);
-  color: var(--ant-color-primary, #1677ff);
+  border-color: var(--ant-color-primary);
+  color: var(--ant-color-primary);
 }
 
 .api-select-pagination__btn.is-disabled {
@@ -572,12 +583,12 @@ defineExpose({
   padding: 0 2px;
   font-size: 12px;
   text-align: center;
-  color: var(--ant-color-text, rgba(0, 0, 0, 0.88));
+  color: var(--ant-color-text);
   white-space: nowrap;
 }
 
 .api-select-pagination__sep {
-  color: var(--ant-color-text-quaternary, rgba(0, 0, 0, 0.25));
+  color: var(--ant-color-text-quaternary);
   margin: 0 1px;
 }
 
@@ -585,7 +596,7 @@ defineExpose({
 .api-select-arrow-icon {
   width: 12px;
   height: 12px;
-  color: var(--ant-color-text-quaternary, rgba(0, 0, 0, 0.25));
+  color: var(--ant-color-text-quaternary);
   transition: transform 0.3s;
 }
 
@@ -613,7 +624,7 @@ defineExpose({
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
-  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.45));
+  color: var(--ant-color-text-secondary);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 </style>

@@ -1,5 +1,7 @@
 {
   "operation": "操作",
+  "status": "状态",
+  "all": "全部",
   "enable": "启用",
   "disable": "禁用",
   "enabled": "启用",

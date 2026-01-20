@@ -5,18 +5,29 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { adminApi } from '#/api';
 
+import {
+  dividerField,
+  inputField,
+  numberField,
+  searchInput,
+  select,
+  statusSelect,
+  switchField,
+  textareaField,
+} from '#/adapter/form';
 import { checkboxColumn, dragColumn } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
 
-type TenantPlanInfo = adminApi.TenantPlanInfo;
-type BillingCycle = adminApi.BillingCycle;
+// ... (保留类型定义和辅助函数)
+
+// ... (保留 useColumns)
 
 /**
- * 计费周期选项
+ * 获取计费周期选项
  */
 export function getBillingCycleOptions(): {
   label: string;
-  value: BillingCycle;
+  value: adminApi.BillingCycle;
 }[] {
   return [
     {
@@ -45,7 +56,7 @@ export function getBillingCycleOptions(): {
 /**
  * 获取计费周期显示文本
  */
-export function getBillingCycleText(cycle: BillingCycle): string {
+export function getBillingCycleText(cycle: adminApi.BillingCycle): string {
   const key = `admin.tenant.plan.billingCycleOptions.${cycle}`;
   return $t(key);
 }
@@ -55,7 +66,7 @@ export function getBillingCycleText(cycle: BillingCycle): string {
  */
 export function formatPrice(
   price?: null | number | string,
-  cycle?: BillingCycle,
+  cycle?: adminApi.BillingCycle,
 ): string {
   if (price === null || price === undefined) return '-';
   const priceNum = typeof price === 'string' ? Number.parseFloat(price) : price;
@@ -71,7 +82,7 @@ export function formatPrice(
 /**
  * 表格列定义
  */
-export function useColumns<T = TenantPlanInfo>(
+export function useColumns<T = adminApi.TenantPlanInfo>(
   onActionClick: OnActionClickFn<T>,
   onStatusChange?: (newStatus: boolean, row: T) => Promise<boolean | undefined>,
 ): VxeTableGridOptions['columns'] {
@@ -174,38 +185,13 @@ export function useColumns<T = TenantPlanInfo>(
  */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
-    {
-      component: 'Input',
-      componentProps: {
-        allowClear: true,
-        placeholder: $t('admin.tenant.plan.placeholder.searchName'),
-      },
-      fieldName: 'filter[name][ilike]',
-      label: $t('admin.tenant.plan.name'),
-    },
-    {
-      component: 'Input',
-      componentProps: {
-        allowClear: true,
-        placeholder: $t('admin.tenant.plan.placeholder.searchCode'),
-      },
-      fieldName: 'filter[code][ilike]',
-      label: $t('admin.tenant.plan.code'),
-    },
-    {
-      component: 'Select',
-      componentProps: {
-        allowClear: true,
-        class: 'w-full',
-        options: [
-          { label: $t('admin.common.enabled'), value: true },
-          { label: $t('admin.common.disabled'), value: false },
-        ],
-        placeholder: $t('admin.tenant.plan.placeholder.allStatus'),
-      },
-      fieldName: 'filter[is_active]',
-      label: $t('admin.tenant.plan.isActive'),
-    },
+    searchInput('name', $t('admin.tenant.plan.name'), {
+      placeholder: $t('admin.tenant.plan.placeholder.searchName'),
+    }),
+    searchInput('code', $t('admin.tenant.plan.code'), {
+      placeholder: $t('admin.tenant.plan.placeholder.searchCode'),
+    }),
+    statusSelect({ label: $t('admin.tenant.plan.isActive') }),
   ];
 }
 
@@ -213,187 +199,96 @@ export function useGridFormSchema(): VbenFormSchema[] {
  * 新建/编辑表单 Schema
  */
 export function useFormSchema(_isEdit: boolean = false): VbenFormSchema[] {
-  const schema: VbenFormSchema[] = [];
-
-  // 套餐代码由后端自动生成，不需要在表单中填写
-
-  schema.push(
-    {
-      component: 'Input',
-      componentProps: {
-        maxLength: 100,
-        placeholder: $t('admin.tenant.plan.placeholder.inputName'),
-      },
-      fieldName: 'name',
-      label: $t('admin.tenant.plan.name'),
-      rules: 'required',
-    },
-    {
-      component: 'Textarea',
-      componentProps: {
-        maxLength: 500,
-        placeholder: $t('admin.tenant.plan.placeholder.inputDescription'),
-        rows: 2,
-      },
-      fieldName: 'description',
-      label: $t('admin.tenant.plan.description'),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        min: 0,
-        precision: 2,
-        placeholder: $t('admin.tenant.plan.placeholder.inputPrice'),
-        style: { width: '100%' },
-      },
-      fieldName: 'price',
-      label: $t('admin.tenant.plan.price'),
-    },
-    {
-      component: 'Select',
-      componentProps: {
-        class: 'w-full',
-        options: getBillingCycleOptions(),
-        placeholder: $t('admin.tenant.plan.placeholder.selectBillingCycle'),
-      },
-      defaultValue: 'monthly',
-      fieldName: 'billing_cycle',
-      label: $t('admin.tenant.plan.billingCycle'),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        min: 0,
-        placeholder: $t('admin.tenant.plan.placeholder.inputSortOrder'),
-        style: { width: '100%' },
-      },
+  return [
+    // 基本信息
+    inputField('name', $t('admin.tenant.plan.name'), {
+      required: true,
+      maxLength: 100,
+      placeholder: $t('admin.tenant.plan.placeholder.inputName'),
+    }),
+    textareaField('description', $t('admin.tenant.plan.description'), {
+      maxLength: 500,
+      rows: 2,
+      placeholder: $t('admin.tenant.plan.placeholder.inputDescription'),
+    }),
+    numberField('price', $t('admin.tenant.plan.price'), {
+      min: 0,
+      precision: 2,
+      placeholder: $t('admin.tenant.plan.placeholder.inputPrice'),
+    }),
+    select('billing_cycle', $t('admin.tenant.plan.billingCycle'), {
+      options: getBillingCycleOptions(),
+      placeholder: $t('admin.tenant.plan.placeholder.selectBillingCycle'),
+    }),
+    numberField('sort_order', $t('admin.tenant.plan.sortOrder'), {
+      min: 0,
       defaultValue: 0,
-      fieldName: 'sort_order',
-      label: $t('admin.tenant.plan.sortOrder'),
-    },
-    {
-      component: 'Switch',
+      placeholder: $t('admin.tenant.plan.placeholder.inputSortOrder'),
+    }),
+    switchField('is_active', $t('admin.tenant.plan.isActive'), {
       defaultValue: true,
-      fieldName: 'is_active',
-      label: $t('admin.tenant.plan.isActive'),
-    },
-    // 配额设置 - 分组显示
-    {
-      component: 'Divider',
-      componentProps: {
-        orientation: 'left',
-      },
-      fieldName: '_quota_divider',
-      label: $t('admin.tenant.plan.quota'),
-      renderComponentContent: () => ({
-        default: () => $t('admin.tenant.plan.quota'),
-      }),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        min: 0,
-        placeholder: $t('admin.tenant.plan.placeholder.unlimited'),
-        style: { width: '100%' },
-      },
-      fieldName: 'quota.storage_limit_gb',
-      label: $t('admin.tenant.plan.storageLimitGb'),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        min: 0,
-        placeholder: $t('admin.tenant.plan.placeholder.unlimited'),
-        style: { width: '100%' },
-      },
-      fieldName: 'quota.max_users',
-      label: $t('admin.tenant.plan.maxUsers'),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        min: 0,
-        placeholder: $t('admin.tenant.plan.placeholder.unlimited'),
-        style: { width: '100%' },
-      },
-      fieldName: 'quota.max_admins',
-      label: $t('admin.tenant.plan.maxAdmins'),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        min: 0,
-        placeholder: $t('admin.tenant.plan.placeholder.unlimited'),
-        style: { width: '100%' },
-      },
-      fieldName: 'quota.max_custom_domains',
-      label: $t('admin.tenant.plan.maxCustomDomains'),
-    },
-    {
-      component: 'Switch',
-      defaultValue: false,
-      fieldName: 'quota.allow_custom_domain',
-      label: $t('admin.tenant.plan.allowCustomDomain'),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        min: 0,
-        placeholder: $t('admin.tenant.plan.placeholder.unlimited'),
-        style: { width: '100%' },
-      },
-      fieldName: 'quota.api_calls_per_month',
-      label: $t('admin.tenant.plan.apiCallsPerMonth'),
-    },
-    {
-      component: 'InputNumber',
-      componentProps: {
-        min: 0,
-        placeholder: $t('admin.tenant.plan.placeholder.unlimited'),
-        style: { width: '100%' },
-      },
-      fieldName: 'quota.max_file_size_mb',
-      label: $t('admin.tenant.plan.maxFileSizeMb'),
-    },
-    // 特性标记 - 分组显示
-    {
-      component: 'Divider',
-      componentProps: {
-        orientation: 'left',
-      },
-      fieldName: '_features_divider',
-      label: $t('admin.tenant.plan.features'),
-      renderComponentContent: () => ({
-        default: () => $t('admin.tenant.plan.features'),
-      }),
-    },
-    {
-      component: 'Switch',
-      defaultValue: false,
-      fieldName: 'features.ai_enabled',
-      label: $t('admin.tenant.plan.aiEnabled'),
-    },
-    {
-      component: 'Switch',
-      defaultValue: false,
-      fieldName: 'features.advanced_analytics',
-      label: $t('admin.tenant.plan.advancedAnalytics'),
-    },
-    {
-      component: 'Switch',
-      defaultValue: false,
-      fieldName: 'features.white_label',
-      label: $t('admin.tenant.plan.whiteLabel'),
-    },
-    {
-      component: 'Switch',
-      defaultValue: false,
-      fieldName: 'features.priority_support',
-      label: $t('admin.tenant.plan.prioritySupport'),
-    },
-  );
+    }),
 
-  return schema;
+    // 配额设置
+    dividerField('_quota_divider', $t('admin.tenant.plan.quota')),
+    numberField(
+      'quota.storage_limit_gb',
+      $t('admin.tenant.plan.storageLimitGb'),
+      {
+        min: 0,
+        placeholder: $t('admin.tenant.plan.placeholder.unlimited'),
+      },
+    ),
+    numberField('quota.max_users', $t('admin.tenant.plan.maxUsers'), {
+      min: 0,
+      placeholder: $t('admin.tenant.plan.placeholder.unlimited'),
+    }),
+    numberField('quota.max_admins', $t('admin.tenant.plan.maxAdmins'), {
+      min: 0,
+      placeholder: $t('admin.tenant.plan.placeholder.unlimited'),
+    }),
+    numberField(
+      'quota.max_custom_domains',
+      $t('admin.tenant.plan.maxCustomDomains'),
+      {
+        min: 0,
+        placeholder: $t('admin.tenant.plan.placeholder.unlimited'),
+      },
+    ),
+    switchField(
+      'quota.allow_custom_domain',
+      $t('admin.tenant.plan.allowCustomDomain'),
+    ),
+    numberField(
+      'quota.api_calls_per_month',
+      $t('admin.tenant.plan.apiCallsPerMonth'),
+      {
+        min: 0,
+        placeholder: $t('admin.tenant.plan.placeholder.unlimited'),
+      },
+    ),
+    numberField(
+      'quota.max_file_size_mb',
+      $t('admin.tenant.plan.maxFileSizeMb'),
+      {
+        min: 0,
+        placeholder: $t('admin.tenant.plan.placeholder.unlimited'),
+      },
+    ),
+
+    // 特性标记
+    dividerField('_features_divider', $t('admin.tenant.plan.features')),
+    switchField('features.ai_enabled', $t('admin.tenant.plan.aiEnabled')),
+    switchField(
+      'features.advanced_analytics',
+      $t('admin.tenant.plan.advancedAnalytics'),
+    ),
+    switchField('features.white_label', $t('admin.tenant.plan.whiteLabel')),
+    switchField(
+      'features.priority_support',
+      $t('admin.tenant.plan.prioritySupport'),
+    ),
+  ];
 }
 
 /**

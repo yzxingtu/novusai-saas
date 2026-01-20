@@ -230,7 +230,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   }
 
   /**
-   * 切换 is_active 状态（快捷方法，向后兼容）
+   * 切换 is_active 状态
    */
   async function onToggleStatus(newStatus: boolean, row: T): Promise<boolean> {
     return onToggleField('is_active', newStatus, row);

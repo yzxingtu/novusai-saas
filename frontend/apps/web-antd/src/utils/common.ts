@@ -22,11 +22,12 @@ import { message, Modal } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
+// cspell:disable-next-line
 const SAFE_CHARS = {
   /** 小写字母（排除 l, o） */
-  lowercase: 'abcdefghjkmnpqrstuvwxyz',
+  lowercase: 'abcdefghjkmnpqrstuvwxyz', // cspell:disable-line
   /** 大写字母（排除 I, L, O） */
-  uppercase: 'ABCDEFGHJKMNPQRSTUVWXYZ',
+  uppercase: 'ABCDEFGHJKMNPQRSTUVWXYZ', // cspell:disable-line
   /** 数字（排除 0, 1） */
   numbers: '23456789',
 };

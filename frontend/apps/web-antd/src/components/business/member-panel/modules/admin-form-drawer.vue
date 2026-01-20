@@ -49,8 +49,14 @@ const [Form, formApi] = useVbenForm({
 });
 
 // CRUD 抽屉
-const { Drawer, drawerApi, isEdit } = useCrudDrawer<AdminInfo>({
+const {
+  Drawer,
+  isEdit,
+  openNew: openCreate,
+  openEdit,
+} = useCrudDrawer<AdminInfo>({
   formApi,
+  apiPath: resourcePath,
   schema: (edit) =>
     useAdminFormSchema({
       isEdit: edit,
@@ -97,32 +103,6 @@ const title = computed(() =>
     ? $t('admin.system.admin.edit')
     : $t('admin.system.admin.create'),
 );
-
-/**
- * 打开新建模式
- */
-function openCreate() {
-  drawerApi
-    .setData({
-      mode: 'add',
-      _resource: resourcePath.value,
-    })
-    .open();
-}
-
-/**
- * 打开编辑模式
- * @param record 要编辑的记录
- */
-function openEdit(record: AdminInfo) {
-  drawerApi
-    .setData({
-      ...record,
-      mode: 'edit',
-      _resource: resourcePath.value,
-    })
-    .open();
-}
 
 defineExpose({ openCreate, openEdit });
 </script>

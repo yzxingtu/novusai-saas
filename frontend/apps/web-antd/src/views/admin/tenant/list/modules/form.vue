@@ -1,6 +1,10 @@
 <script lang="ts" setup>
 /**
  * 租户新建/编辑表单抽屉
+ *
+ * 使用 fields 简化字段映射，自动处理：
+ * - 编辑模式：后端 camelCase -> 表单 snake_case
+ * - 提交时：表单 snake_case -> API snake_case（空值转 null）
  */
 import type { adminApi } from '#/api';
 
@@ -16,6 +20,24 @@ type TenantInfo = adminApi.TenantInfo;
 
 const emits = defineEmits<{ success: [] }>();
 
+// 基础字段
+const baseFields = [
+  'name',
+  'contact_name',
+  'contact_phone',
+  'contact_email',
+  'plan_id',
+  'expires_at',
+  'remark',
+  'code',
+];
+
+// 新建时额外的管理员字段
+const adminFields = ['admin_username', 'admin_email', 'admin_password'];
+
+// 所有字段
+const allFields = [...baseFields, ...adminFields];
+
 // 表单（套餐下拉由 ApiSelect 自动加载）
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(false),
@@ -26,25 +48,18 @@ const [Form, formApi] = useVbenForm({
 const { Drawer, isEdit } = useCrudDrawer<TenantInfo>({
   formApi,
   schema: useFormSchema,
-  transform: (values) => ({
-    name: values.name,
-    contact_name: values.contact_name || null,
-    contact_phone: values.contact_phone || null,
-    contact_email: values.contact_email || null,
-    plan_id: values.plan_id || null,
-    expires_at: values.expires_at || null,
-    remark: values.remark || null,
-  }),
-  toFormValues: (data) => ({
-    code: data.code,
-    name: data.name,
-    contact_name: data.contactName,
-    contact_phone: data.contactPhone,
-    contact_email: data.contactEmail,
-    plan_id: data.planId,
-    expires_at: data.expiresAt,
-    remark: data.remark,
-  }),
+  // 使用所有字段（新建时 schema 会包含管理员字段，编辑时不包含）
+  fields: allFields,
+  // 自定义 transform：编辑时排除管理员字段
+  transform: (values, editMode) => {
+    const fieldsToUse = editMode ? baseFields : allFields;
+    const result: Record<string, any> = {};
+    for (const field of fieldsToUse) {
+      const value = values[field];
+      result[field] = value === '' || value === undefined ? null : value;
+    }
+    return result;
+  },
   onSuccess: () => emits('success'),
 });
 
