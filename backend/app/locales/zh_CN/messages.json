@@ -460,6 +460,14 @@
         "name": "ICP 备案号",
         "desc": "中国大陆地区需要的备案号"
       },
+      "tenant_domain_suffix": {
+        "name": "租户默认域名后缀",
+        "desc": "租户默认域名格式为 {tenant_code}{suffix}，例如: demo.app.novusai.com"
+      },
+      "domain_verification_prefix": {
+        "name": "域名验证 DNS 前缀",
+        "desc": "用于验证自定义域名所有权的 DNS TXT 记录前缀"
+      },
       "maintenance_mode": {
         "name": "维护模式",
         "desc": "开启后用户将无法访问系统"

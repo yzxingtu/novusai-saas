@@ -7,13 +7,22 @@
 import secrets
 from datetime import datetime, timezone
 
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
+from app.configs.service import ConfigService
 from app.core.base_service import GlobalService
 from app.core.config import settings
 from app.core.i18n import _
 from app.enums import ErrorCode
 from app.exceptions import BusinessException, NotFoundException
+from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_domain import TenantDomain
 from app.repositories.tenant.tenant_domain_repository import TenantDomainRepository
+
+# 配置键名
+_CONFIG_KEY_DOMAIN_SUFFIX = "tenant_domain_suffix"
+_CONFIG_KEY_VERIFICATION_PREFIX = "domain_verification_prefix"
 
 
 class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
@@ -27,6 +36,66 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
     model = TenantDomain
     repository_class = TenantDomainRepository
     
+    async def _get_domain_suffix(self) -> str:
+        """
+        获取租户默认域名后缀
+        
+        优先从平台配置读取，回退到环境变量
+        """
+        config_service = ConfigService(self.db)
+        suffix = await config_service.get_platform_config(
+            _CONFIG_KEY_DOMAIN_SUFFIX,
+            default=settings.TENANT_DOMAIN_SUFFIX,
+        )
+        return suffix or settings.TENANT_DOMAIN_SUFFIX
+    
+    async def _get_verification_prefix(self) -> str:
+        """
+        获取域名验证 DNS 前缀
+        
+        优先从平台配置读取，回退到环境变量
+        """
+        config_service = ConfigService(self.db)
+        prefix = await config_service.get_platform_config(
+            _CONFIG_KEY_VERIFICATION_PREFIX,
+            default=settings.DOMAIN_VERIFICATION_PREFIX,
+        )
+        return prefix or settings.DOMAIN_VERIFICATION_PREFIX
+    
+    async def _get_tenant_with_plan(self, tenant_id: int) -> Tenant | None:
+        """
+        获取租户及其套餐信息
+        """
+        result = await self.db.execute(
+            select(Tenant)
+            .where(Tenant.id == tenant_id, Tenant.is_deleted == False)
+            .options(selectinload(Tenant.tenant_plan))
+        )
+        return result.scalar_one_or_none()
+    
+    async def _check_custom_domain_allowed(self, tenant_id: int) -> tuple[bool, int]:
+        """
+        检查租户是否允许添加自定义域名
+        
+        Args:
+            tenant_id: 租户 ID
+            
+        Returns:
+            (is_allowed, max_custom_domains) 元组
+        """
+        tenant = await self._get_tenant_with_plan(tenant_id)
+        if not tenant:
+            return False, 0
+        
+        # 从租户/套餐配额获取是否允许自定义域名
+        allow_custom_domain = tenant.get_quota_value("allow_custom_domain", False)
+        if not allow_custom_domain:
+            return False, 0
+        
+        # 获取最大自定义域名数量
+        max_custom_domains = tenant.get_quota_value("max_custom_domains", 0)
+        return True, max_custom_domains
+    
     async def create_default_domain(
         self,
         tenant_id: int,
@@ -35,7 +104,8 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         """
         创建租户默认域名
         
-        默认域名格式: {tenant_code}{TENANT_DOMAIN_SUFFIX}
+        默认域名格式: {tenant_code}{suffix}
+        后缀从平台配置读取（tenant_domain_suffix）
         自动标记为主域名、已验证
         
         Args:
@@ -45,8 +115,11 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         Returns:
             创建的默认域名
         """
+        # 从平台配置获取域名后缀
+        suffix = await self._get_domain_suffix()
+        
         # 构建默认域名
-        domain = f"{tenant_code}{settings.TENANT_DOMAIN_SUFFIX}"
+        domain = f"{tenant_code}{suffix}"
         
         # 检查域名是否已存在（理论上不应该存在）
         if await self.repo.domain_exists(domain):
@@ -88,8 +161,29 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             创建的域名
         
         Raises:
-            BusinessException: 域名已存在或配额超限
+            BusinessException: 域名已存在、配额超限或套餐不允许自定义域名
         """
+        # 检查套餐是否允许自定义域名
+        is_allowed, max_domains = await self._check_custom_domain_allowed(tenant_id)
+        if not is_allowed:
+            raise BusinessException(
+                message=_("domain.custom_domain_disabled"),
+                code=ErrorCode.FORBIDDEN,
+            )
+        
+        # 检查域名配额
+        current_count = await self.repo.count_tenant_domains(tenant_id)
+        # 扣除默认域名，只统计自定义域名
+        suffix = await self._get_domain_suffix()
+        domains = await self.repo.get_tenant_domains(tenant_id)
+        custom_count = sum(1 for d in domains if not d.domain.endswith(suffix))
+        
+        if max_domains > 0 and custom_count >= max_domains:
+            raise BusinessException(
+                message=_("domain.quota_exceeded"),
+                code=ErrorCode.QUOTA_EXCEEDED,
+            )
+        
         # 检查域名是否已存在
         if await self.repo.domain_exists(domain):
             raise BusinessException(
@@ -127,21 +221,24 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             NotFoundException: 域名不存在
             BusinessException: 不能删除主域名或默认域名
         """
-        domain = await self.get_by_id(domain_id)
-        if not domain:
+        domain_obj = await self.get_by_id(domain_id)
+        if not domain_obj:
             raise NotFoundException(
                 message=_("tenant_domain.not_found"),
             )
         
-        # 检查是否是默认域名（域名以 TENANT_DOMAIN_SUFFIX 结尾）
-        if domain.domain.endswith(settings.TENANT_DOMAIN_SUFFIX):
+        # 获取域名后缀配置
+        suffix = await self._get_domain_suffix()
+        
+        # 检查是否是默认域名（域名以配置的后缀结尾）
+        if domain_obj.domain.endswith(suffix):
             raise BusinessException(
                 message=_("tenant_domain.cannot_delete_default"),
                 code=ErrorCode.FORBIDDEN,
             )
         
         # 检查是否是主域名
-        if domain.is_primary:
+        if domain_obj.is_primary:
             raise BusinessException(
                 message=_("tenant_domain.cannot_delete_primary"),
                 code=ErrorCode.FORBIDDEN,
@@ -320,20 +417,21 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         """
         return secrets.token_hex(16)
     
-    def get_verification_record(self, domain: TenantDomain) -> dict:
+    async def get_verification_record(self, domain_obj: TenantDomain) -> dict:
         """
         获取 DNS 验证记录信息
         
         Args:
-            domain: 域名实例
+            domain_obj: 域名实例
         
         Returns:
             验证记录信息
         """
+        prefix = await self._get_verification_prefix()
         return {
             "type": "TXT",
-            "name": f"{settings.DOMAIN_VERIFICATION_PREFIX}.{domain.domain}",
-            "value": domain.verification_token,
+            "name": f"{prefix}.{domain_obj.domain}",
+            "value": domain_obj.verification_token,
         }
     
     def get_cname_record(self, domain: TenantDomain) -> dict:

@@ -460,6 +460,14 @@
         "name": "ICP Filing Number",
         "desc": "Required filing number for mainland China"
       },
+      "tenant_domain_suffix": {
+        "name": "Tenant Default Domain Suffix",
+        "desc": "Tenant default domain format is {tenant_code}{suffix}, e.g., demo.app.novusai.com"
+      },
+      "domain_verification_prefix": {
+        "name": "Domain Verification DNS Prefix",
+        "desc": "DNS TXT record prefix for verifying custom domain ownership"
+      },
       "maintenance_mode": {
         "name": "Maintenance Mode",
         "desc": "When enabled, users cannot access the system"

@@ -92,6 +92,42 @@ SITE_ICP = ConfigMeta(
 
 
 # ==========================================
+# 租户域名配置
+# ==========================================
+
+# 租户默认域名后缀
+TENANT_DOMAIN_SUFFIX = ConfigMeta(
+    key="tenant_domain_suffix",
+    name_key="config.platform.tenant_domain_suffix.name",
+    description_key="config.platform.tenant_domain_suffix.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.STRING,
+    default_value=".app.novusai.com",
+    is_required=True,
+    validation_rules=[
+        min_length(3, "validation.min_length"),
+        max_length(100, "validation.max_length"),
+    ],
+    sort_order=70,
+)
+
+# 域名验证 DNS 前缀
+DOMAIN_VERIFICATION_PREFIX = ConfigMeta(
+    key="domain_verification_prefix",
+    name_key="config.platform.domain_verification_prefix.name",
+    description_key="config.platform.domain_verification_prefix.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.STRING,
+    default_value="_novusai-verification",
+    validation_rules=[
+        min_length(1, "validation.min_length"),
+        max_length(50, "validation.max_length"),
+    ],
+    sort_order=80,
+)
+
+
+# ==========================================
 # 维护模式
 # ==========================================
 
@@ -132,6 +168,8 @@ PLATFORM_GENERAL_GROUP.configs = [
     SITE_FAVICON,
     SITE_COPYRIGHT,
     SITE_ICP,
+    TENANT_DOMAIN_SUFFIX,
+    DOMAIN_VERIFICATION_PREFIX,
     MAINTENANCE_MODE,
     MAINTENANCE_MESSAGE,
 ]
@@ -144,6 +182,8 @@ __all__ = [
     "SITE_FAVICON",
     "SITE_COPYRIGHT",
     "SITE_ICP",
+    "TENANT_DOMAIN_SUFFIX",
+    "DOMAIN_VERIFICATION_PREFIX",
     "MAINTENANCE_MODE",
     "MAINTENANCE_MESSAGE",
 ]
