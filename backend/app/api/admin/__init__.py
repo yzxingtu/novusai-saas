@@ -17,6 +17,8 @@ from app.api.admin.tenants import router as tenants_router, AdminTenantControlle
 from app.api.admin.tenant_domains import router as tenant_domains_router, AdminTenantDomainController
 from app.api.admin.configs import router as configs_router, AdminConfigController
 from app.api.admin.plans import router as plans_router, AdminPlanController
+from app.api.admin.operation_logs import router as operation_logs_router, AdminOperationLogController
+from app.api.admin.system_logs import router as system_logs_router, AdminSystemLogController
 
 # 创建平台管理后台路由器
 admin_router = APIRouter()
@@ -30,6 +32,8 @@ admin_router.include_router(tenants_router)
 admin_router.include_router(tenant_domains_router)
 admin_router.include_router(configs_router)
 admin_router.include_router(plans_router)
+admin_router.include_router(operation_logs_router)
+admin_router.include_router(system_logs_router)
 
 
 __all__ = [
@@ -42,4 +46,6 @@ __all__ = [
     "AdminTenantDomainController",
     "AdminConfigController",
     "AdminPlanController",
+    "AdminOperationLogController",
+    "AdminSystemLogController",
 ]

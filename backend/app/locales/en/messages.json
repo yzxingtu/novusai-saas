@@ -256,6 +256,19 @@
       "delete": "Delete Domain",
       "verify": "Verify Domain",
       "set_primary": "Set Primary Domain"
+    },
+    "operation_log": {
+      "list": "View Operation Log List",
+      "detail": "View Operation Log Details",
+      "delete": "Delete Operation Logs"
+    },
+    "system_log": {
+      "stats": "View Log Statistics",
+      "categories": "View Log Categories",
+      "files": "View Log File List",
+      "read": "Read Log Content",
+      "download": "Download Log File",
+      "delete": "Delete Log File"
     }
   },
   "role": {
@@ -357,6 +370,35 @@
       "yearly": "Yearly",
       "lifetime": "Lifetime",
       "custom": "Custom"
+    },
+    "user_type": {
+      "admin": "Platform Admin",
+      "tenant_admin": "Tenant Admin",
+      "tenant_user": "Tenant User",
+      "anonymous": "Anonymous"
+    },
+    "log_module": {
+      "auth": "Authentication",
+      "permission": "Permission",
+      "role": "Role",
+      "admin_user": "Platform User",
+      "tenant": "Tenant",
+      "tenant_admin": "Tenant Admin",
+      "tenant_user": "Tenant User",
+      "config": "Config",
+      "plan": "Plan",
+      "domain": "Domain",
+      "log": "Log",
+      "organization": "Organization",
+      "system": "System",
+      "other": "Other"
+    },
+    "log_category": {
+      "app": "Application Log",
+      "error": "Error Log",
+      "db": "Database Log",
+      "task": "Task Log",
+      "queue": "Queue Log"
     }
   },
   "config": {
@@ -655,5 +697,14 @@
       "external_service_error": "External service call failed",
       "service_unavailable": "Service temporarily unavailable"
     }
+  },
+  "operation_log": {
+    "not_found": "Operation log not found",
+    "deleted": "Operation log deleted successfully"
+  },
+  "system_log": {
+    "file_not_found": "Log file not found",
+    "deleted": "Log file deleted successfully",
+    "cannot_delete_current": "Cannot delete current active log file"
   }
 }

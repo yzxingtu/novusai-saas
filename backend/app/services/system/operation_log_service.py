@@ -1,0 +1,316 @@
+"""
+操作日志服务
+
+提供操作日志的业务逻辑
+"""
+
+import asyncio
+from datetime import datetime
+from typing import Any
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.base_service import GlobalService
+from app.core.database import async_session_factory
+from app.models.system.operation_log import OperationLog
+from app.repositories.system.operation_log_repository import OperationLogRepository
+from app.schemas.common.query import QuerySpec
+
+
+class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
+    """
+    操作日志服务
+    
+    提供操作日志的业务方法，包括：
+    - 异步写入日志
+    - 平台端日志查询
+    - 租户端日志查询（自动隔离）
+    - 批量删除日志
+    """
+    
+    model = OperationLog
+    repository_class = OperationLogRepository
+    
+    async def create_log(
+        self,
+        tenant_id: int | None,
+        user_type: str,
+        user_id: int | None,
+        username: str | None,
+        module: str | None,
+        action: str | None,
+        resource: str | None,
+        method: str,
+        path: str,
+        query_params: dict | None = None,
+        request_body: dict | None = None,
+        status_code: int | None = None,
+        response_code: int | None = None,
+        response_message: str | None = None,
+        ip: str | None = None,
+        user_agent: str | None = None,
+        duration_ms: int | None = None,
+    ) -> OperationLog:
+        """
+        创建操作日志记录
+        
+        Args:
+            tenant_id: 租户 ID（平台操作为 None）
+            user_type: 用户类型
+            user_id: 用户 ID
+            username: 用户名
+            module: 业务模块
+            action: 操作类型
+            resource: 资源标识
+            method: HTTP 方法
+            path: 请求路径
+            query_params: 查询参数
+            request_body: 请求体摘要（已脱敏）
+            status_code: HTTP 状态码
+            response_code: 业务响应码
+            response_message: 响应消息
+            ip: 客户端 IP
+            user_agent: User-Agent
+            duration_ms: 请求耗时（毫秒）
+        
+        Returns:
+            创建的日志实例
+        """
+        data = {
+            "tenant_id": tenant_id,
+            "user_type": user_type,
+            "user_id": user_id,
+            "username": username,
+            "module": module,
+            "action": action,
+            "resource": resource,
+            "method": method,
+            "path": path,
+            "query_params": query_params,
+            "request_body": request_body,
+            "status_code": status_code,
+            "response_code": response_code,
+            "response_message": response_message,
+            "ip": ip,
+            "user_agent": user_agent,
+            "duration_ms": duration_ms,
+        }
+        
+        return await self.repo.create_log(data)
+    
+    async def query_admin_logs(
+        self,
+        spec: QuerySpec,
+    ) -> tuple[list[OperationLog], int]:
+        """
+        平台端查询日志
+        
+        平台管理员可查看所有日志
+        
+        Args:
+            spec: 查询规格
+        
+        Returns:
+            (日志列表, 总数)
+        """
+        return await self.query_list(spec, scope="admin")
+    
+    async def query_tenant_logs(
+        self,
+        tenant_id: int,
+        spec: QuerySpec,
+    ) -> tuple[list[OperationLog], int]:
+        """
+        租户端查询日志
+        
+        自动添加租户隔离
+        
+        Args:
+            tenant_id: 租户 ID
+            spec: 查询规格
+        
+        Returns:
+            (日志列表, 总数)
+        """
+        return await self.repo.query_tenant_logs(tenant_id, spec)
+    
+    async def delete_logs(
+        self,
+        ids: list[int],
+        soft: bool = True,
+    ) -> int:
+        """
+        批量删除日志
+        
+        Args:
+            ids: 日志 ID 列表
+            soft: 是否软删除
+        
+        Returns:
+            删除的记录数
+        """
+        return await self.repo.delete_logs_by_ids(ids, soft=soft)
+    
+    async def get_stats_by_module(
+        self,
+        tenant_id: int | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        按模块统计日志
+        
+        Args:
+            tenant_id: 租户 ID（可选）
+            start_date: 开始日期
+            end_date: 结束日期
+        
+        Returns:
+            统计结果列表
+        """
+        return await self.repo.get_stats_by_module(
+            tenant_id=tenant_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    
+    async def get_stats_by_action(
+        self,
+        tenant_id: int | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        按操作类型统计日志
+        
+        Args:
+            tenant_id: 租户 ID（可选）
+            start_date: 开始日期
+            end_date: 结束日期
+        
+        Returns:
+            统计结果列表
+        """
+        return await self.repo.get_stats_by_action(
+            tenant_id=tenant_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+
+# ==================== 异步写入工具函数 ====================
+
+async def _write_log_async(log_data: dict[str, Any]) -> None:
+    """
+    异步写入日志的内部实现
+    
+    使用独立的数据库会话，不阻塞主请求
+    
+    Args:
+        log_data: 日志数据字典
+    """
+    try:
+        async with async_session_factory() as db:
+            service = OperationLogService(db)
+            await service.create_log(**log_data)
+            await db.commit()
+    except Exception as e:
+        # 日志写入失败不应影响主业务
+        # 记录到文件日志
+        from app.core.logging import get_logger
+        logger = get_logger(__name__)
+        logger.error(f"Failed to write operation log: {e}")
+
+
+def create_log_async(
+    tenant_id: int | None,
+    user_type: str,
+    user_id: int | None,
+    username: str | None,
+    module: str | None,
+    action: str | None,
+    resource: str | None,
+    method: str,
+    path: str,
+    query_params: dict | None = None,
+    request_body: dict | None = None,
+    status_code: int | None = None,
+    response_code: int | None = None,
+    response_message: str | None = None,
+    ip: str | None = None,
+    user_agent: str | None = None,
+    duration_ms: int | None = None,
+) -> None:
+    """
+    异步创建操作日志（不阻塞当前请求）
+    
+    使用 asyncio.create_task 在后台写入日志
+    
+    Args:
+        tenant_id: 租户 ID（平台操作为 None）
+        user_type: 用户类型
+        user_id: 用户 ID
+        username: 用户名
+        module: 业务模块
+        action: 操作类型
+        resource: 资源标识
+        method: HTTP 方法
+        path: 请求路径
+        query_params: 查询参数
+        request_body: 请求体摘要（已脱敏）
+        status_code: HTTP 状态码
+        response_code: 业务响应码
+        response_message: 响应消息
+        ip: 客户端 IP
+        user_agent: User-Agent
+        duration_ms: 请求耗时（毫秒）
+    
+    Example:
+        from app.services.system.operation_log_service import create_log_async
+        
+        create_log_async(
+            tenant_id=None,
+            user_type="admin",
+            user_id=1,
+            username="admin",
+            module="auth",
+            action="login",
+            resource="auth:login",
+            method="POST",
+            path="/admin/auth/login",
+            ip="127.0.0.1",
+        )
+    """
+    log_data = {
+        "tenant_id": tenant_id,
+        "user_type": user_type,
+        "user_id": user_id,
+        "username": username,
+        "module": module,
+        "action": action,
+        "resource": resource,
+        "method": method,
+        "path": path,
+        "query_params": query_params,
+        "request_body": request_body,
+        "status_code": status_code,
+        "response_code": response_code,
+        "response_message": response_message,
+        "ip": ip,
+        "user_agent": user_agent,
+        "duration_ms": duration_ms,
+    }
+    
+    # 获取当前事件循环并创建任务
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_write_log_async(log_data))
+    except RuntimeError:
+        # 如果没有运行的事件循环，同步执行（不常见）
+        asyncio.run(_write_log_async(log_data))
+
+
+__all__ = [
+    "OperationLogService",
+    "create_log_async",
+]

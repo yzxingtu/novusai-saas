@@ -10,10 +10,12 @@ from app.models.system.config import (
     SystemConfig,
     SystemConfigValue,
 )
+from app.models.system.operation_log import OperationLog
 
 __all__ = [
     "Admin",
     "SystemConfigGroup",
     "SystemConfig",
     "SystemConfigValue",
+    "OperationLog",
 ]

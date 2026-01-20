@@ -256,6 +256,19 @@
       "delete": "删除域名",
       "verify": "验证域名",
       "set_primary": "设置主域名"
+    },
+    "operation_log": {
+      "list": "查看操作日志列表",
+      "detail": "查看操作日志详情",
+      "delete": "删除操作日志"
+    },
+    "system_log": {
+      "stats": "查看日志统计",
+      "categories": "查看日志分类",
+      "files": "查看日志文件列表",
+      "read": "读取日志内容",
+      "download": "下载日志文件",
+      "delete": "删除日志文件"
     }
   },
   "role": {
@@ -357,6 +370,35 @@
       "yearly": "年付",
       "lifetime": "终身",
       "custom": "自定义"
+    },
+    "user_type": {
+      "admin": "平台管理员",
+      "tenant_admin": "租户管理员",
+      "tenant_user": "租户用户",
+      "anonymous": "匿名用户"
+    },
+    "log_module": {
+      "auth": "认证",
+      "permission": "权限",
+      "role": "角色",
+      "admin_user": "平台用户",
+      "tenant": "租户",
+      "tenant_admin": "租户管理员",
+      "tenant_user": "租户用户",
+      "config": "配置",
+      "plan": "套餐",
+      "domain": "域名",
+      "log": "日志",
+      "organization": "组织架构",
+      "system": "系统",
+      "other": "其他"
+    },
+    "log_category": {
+      "app": "应用日志",
+      "error": "错误日志",
+      "db": "数据库日志",
+      "task": "任务日志",
+      "queue": "队列日志"
     }
   },
   "config": {
@@ -655,5 +697,14 @@
       "external_service_error": "外部服务调用失败",
       "service_unavailable": "服务暂不可用"
     }
+  },
+  "operation_log": {
+    "not_found": "操作日志不存在",
+    "deleted": "操作日志删除成功"
+  },
+  "system_log": {
+    "file_not_found": "日志文件不存在",
+    "deleted": "日志文件删除成功",
+    "cannot_delete_current": "不能删除当前活动日志文件"
   }
 }

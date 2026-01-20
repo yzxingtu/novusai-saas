@@ -6,12 +6,14 @@
       "admin_user": "Users",
       "permission": "Permissions",
       "organization": "Organization",
+      "operation_log": "Operation Logs",
       "tenant_mgmt": "Tenants",
       "tenant": "Tenant List",
       "tenant_domain": "Tenant Domain Management",
       "tenant_plan": "Plans",
       "system_mgmt": "System Management",
-      "platform_config": "Platform Config"
+      "platform_config": "Platform Config",
+      "system_log": "System Logs"
     },
     "tenant": {
       "dashboard": "Dashboard",
@@ -19,6 +21,7 @@
       "tenant_user": "Users",
       "permission": "Permissions",
       "organization": "Organization",
+      "operation_log": "Operation Logs",
       "tenant_settings": "Settings",
       "system_mgmt": "System Management",
       "tenant_config": "System Config"

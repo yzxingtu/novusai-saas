@@ -23,6 +23,7 @@ from app.middleware.i18n import I18nMiddleware
 from app.middleware.permission import PermissionMiddleware
 from app.middleware.access_control import AccessControlMiddleware
 from app.middleware.tenant import TenantMiddleware
+from app.middleware.audit_log import AuditLogMiddleware
 
 
 @asynccontextmanager
@@ -121,6 +122,9 @@ def create_application() -> FastAPI:
     
     # RBAC 权限预加载中间件（加载用户权限到 request.state）
     app.add_middleware(PermissionMiddleware)
+    
+    # 审计日志中间件（记录所有 API 调用）
+    app.add_middleware(AuditLogMiddleware)
     
     # 访问控制中间件（实施“默认拒绝”安全策略）
     app.add_middleware(AccessControlMiddleware)

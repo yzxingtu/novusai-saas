@@ -31,6 +31,13 @@ from app.schemas.system.tenant import (
     TenantImpersonateRequest,
     TenantImpersonateResponse,
 )
+from app.schemas.system.operation_log import (
+    OperationLogResponse,
+    OperationLogListResponse,
+    OperationLogDeleteRequest,
+    LogStatsItem,
+    LogStatsResponse,
+)
 
 __all__ = [
     # Admin
@@ -57,4 +64,10 @@ __all__ = [
     "TenantStatusRequest",
     "TenantImpersonateRequest",
     "TenantImpersonateResponse",
+    # OperationLog
+    "OperationLogResponse",
+    "OperationLogListResponse",
+    "OperationLogDeleteRequest",
+    "LogStatsItem",
+    "LogStatsResponse",
 ]

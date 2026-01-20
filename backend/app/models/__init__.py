@@ -15,6 +15,7 @@ from app.models.system import (
     SystemConfigGroup,
     SystemConfig,
     SystemConfigValue,
+    OperationLog,
 )
 
 # 租户级模型
@@ -42,6 +43,7 @@ __all__ = [
     "SystemConfigGroup",
     "SystemConfig",
     "SystemConfigValue",
+    "OperationLog",
     # 租户级
     "Tenant",
     "TenantAdmin",
