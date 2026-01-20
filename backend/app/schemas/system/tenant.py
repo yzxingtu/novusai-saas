@@ -157,6 +157,12 @@ class TenantImpersonateResponse(BaseSchema):
     expires_in: int = Field(60, description="Token 有效期（秒）")
 
 
+class TenantResetOwnerPasswordRequest(BaseSchema):
+    """重置租户超级管理员密码请求"""
+    
+    new_password: str = Field(..., min_length=6, max_length=100, description="新密码")
+
+
 __all__ = [
     "TenantPlanInfo",
     "TenantResponse",
