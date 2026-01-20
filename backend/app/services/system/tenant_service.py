@@ -11,9 +11,11 @@ from typing import Any
 
 from app.core.base_service import GlobalService
 from app.core.i18n import _
+from app.core.security import get_password_hash
 from app.enums import ErrorCode, RoleType
 from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.tenant import Tenant
+from app.models.tenant.tenant_admin import TenantAdmin
 from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.repositories.system.tenant_repository import TenantRepository
 from app.services.tenant.tenant_domain_service import TenantDomainService
@@ -69,6 +71,9 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
     async def create_tenant(
         self,
         name: str,
+        admin_username: str,
+        admin_email: str,
+        admin_password: str,
         contact_name: str | None = None,
         contact_phone: str | None = None,
         contact_email: str | None = None,
@@ -83,6 +88,9 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         
         Args:
             name: 租户名称
+            admin_username: 租户超级管理员用户名
+            admin_email: 租户超级管理员邮箱
+            admin_password: 租户超级管理员密码
             contact_name: 联系人姓名
             contact_phone: 联系人电话
             contact_email: 联系人邮箱
@@ -120,7 +128,16 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         await domain_service.create_default_domain(tenant.id, tenant.code)
         
         # 创建租户组织架构根节点
-        await self._create_tenant_root_node(tenant.id, tenant.name)
+        root_node = await self._create_tenant_root_node(tenant.id, tenant.name)
+        
+        # 创建租户超级管理员（owner）
+        await self._create_tenant_owner(
+            tenant_id=tenant.id,
+            username=admin_username,
+            email=admin_email,
+            password=admin_password,
+            root_node=root_node,
+        )
         
         return tenant
     
@@ -157,6 +174,46 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         await self.db.flush()
         
         return root_node
+    
+    async def _create_tenant_owner(
+        self,
+        tenant_id: int,
+        username: str,
+        email: str,
+        password: str,
+        root_node: TenantAdminRole,
+    ) -> TenantAdmin:
+        """
+        为租户创建超级管理员（owner）
+        
+        Args:
+            tenant_id: 租户 ID
+            username: 用户名
+            email: 邮箱
+            password: 明文密码
+            root_node: 租户根节点
+        
+        Returns:
+            创建的管理员
+        """
+        owner = TenantAdmin(
+            tenant_id=tenant_id,
+            username=username,
+            email=email,
+            password_hash=get_password_hash(password),
+            is_active=True,
+            is_owner=True,
+            role_id=root_node.id,
+        )
+        
+        self.db.add(owner)
+        await self.db.flush()
+        
+        # 设置根节点的负责人为 owner
+        root_node.leader_id = owner.id
+        await self.db.flush()
+        
+        return owner
     
     async def update_tenant(
         self,

@@ -111,11 +111,13 @@ class TenantCreateRequest(BaseSchema):
     contact_email: str | None = Field(None, description="联系人邮箱")
     # 套餐 ID（新版）
     plan_id: int | None = Field(None, description="套餐 ID")
-    # 套餐类型（已废弃，保留向后兼容）
-    plan: str | None = Field(None, description="套餐类型（已废弃）")
     quota: dict[str, Any] | None = Field(None, description="配额配置（可覆盖套餐默认值）")
     expires_at: datetime | None = Field(None, description="到期时间")
     remark: str | None = Field(None, max_length=500, description="备注")
+    # 租户超级管理员账号（必填）
+    admin_username: str = Field(..., min_length=2, max_length=50, description="管理员用户名")
+    admin_email: str = Field(..., description="管理员邮箱")
+    admin_password: str = Field(..., min_length=6, max_length=100, description="管理员密码")
 
 
 class TenantUpdateRequest(BaseSchema):

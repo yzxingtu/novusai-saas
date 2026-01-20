@@ -190,6 +190,9 @@ class AdminTenantController(GlobalController):
             service = TenantService(db)
             tenant = await service.create_tenant(
                 name=data.name,
+                admin_username=data.admin_username,
+                admin_email=data.admin_email,
+                admin_password=data.admin_password,
                 contact_name=data.contact_name,
                 contact_phone=data.contact_phone,
                 contact_email=data.contact_email,
