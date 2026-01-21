@@ -10,9 +10,9 @@ import { useTitle } from '@vueuse/core';
 
 import { $t, setupI18n } from '#/locales';
 
-import { initComponentAdapter } from './adapter/component';
-import { initSetupVbenForm } from './adapter/form';
-import { setupVxeTable } from './adapter/vxe-table';
+import { initComponentAdapter } from '#/adapter/component';
+import { initSetupVbenForm } from '#/adapter/form';
+import { setupVxeTable } from '#/adapter/vxe-table';
 import App from './app.vue';
 import { registerCustomAccessDirective } from './directives/access';
 import { router } from './router';

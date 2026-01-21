@@ -21,11 +21,18 @@ import { $t } from '#/locales';
  */
 export interface DragSortConfig {
   /**
-   * 更新排序的 API 函数
+   * 更新排序的 API 函数 (单条模式)
    * @param id 记录 ID
-   * @param sortOrder 新的排序值（基于拖拽后的索引位置）
+   * @param sortOrder 新的排序值
+   * @deprecated 推荐使用 onBatchUpdate
    */
-  onUpdate: (id: number | string, sortOrder: number) => Promise<any>;
+  onUpdate?: (id: number | string, sortOrder: number) => Promise<any>;
+
+  /**
+   * 批量更新排序 API (推荐)
+   * @param ids 有序的 ID 列表
+   */
+  onBatchUpdate?: (ids: (number | string)[]) => Promise<any>;
 
   /**
    * 主键字段名
@@ -85,6 +92,7 @@ export function useTableDragSort(gridGetter: GridGetter, config: DragSortConfig)
   const {
     keyField = 'id',
     onUpdate,
+    onBatchUpdate,
     successMessage,
     errorMessage,
   } = config;
@@ -146,18 +154,24 @@ export function useTableDragSort(gridGetter: GridGetter, config: DragSortConfig)
     if (!movedItem) return;
     tableData.splice(newIndex, 0, movedItem);
 
-    // 更新移动范围内的所有记录
-    const minIdx = Math.min(oldIndex, newIndex);
-    const maxIdx = Math.max(oldIndex, newIndex);
-    const updates: Array<{ id: number | string; sortOrder: number }> = [];
-
-    for (let i = minIdx; i <= maxIdx; i++) {
-      const item = tableData[i];
-      updates.push({ id: (item as any)[keyField], sortOrder: i });
-    }
-
+    // 更新排序
     try {
-      await Promise.all(updates.map((u) => onUpdate(u.id, u.sortOrder)));
+      if (onBatchUpdate) {
+        // 批量模式：发送当前页所有 ID 的新顺序
+        const ids = tableData.map((item: any) => item[keyField]);
+        await onBatchUpdate(ids);
+      } else if (onUpdate) {
+        // 单条模式：仅更新受影响的行
+        const minIdx = Math.min(oldIndex, newIndex);
+        const maxIdx = Math.max(oldIndex, newIndex);
+        const updates: Array<{ id: number | string; sortOrder: number }> = [];
+
+        for (let i = minIdx; i <= maxIdx; i++) {
+          const item = tableData[i];
+          updates.push({ id: (item as any)[keyField], sortOrder: i });
+        }
+        await Promise.all(updates.map((u) => onUpdate(u.id, u.sortOrder)));
+      }
       message.success(successMessage || $t('shared.common.sortSuccess'));
     } catch {
       message.error(errorMessage || $t('shared.common.sortFailed'));

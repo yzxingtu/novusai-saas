@@ -76,8 +76,7 @@ const {
 
 // 拖拽排序（自动初始化）
 useAutoTableDragSort(() => gridApi.grid, {
-  onUpdate: (id, sortOrder) =>
-    admin.updateTenantPlanApi(id as number, { sort_order: sortOrder }),
+  onBatchUpdate: (ids) => admin.reorderTenantPlansApi(ids as number[]),
   keyField: 'id',
 });
 </script>

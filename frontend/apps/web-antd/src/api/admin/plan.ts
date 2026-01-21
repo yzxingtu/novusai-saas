@@ -325,6 +325,17 @@ export async function deleteTenantPlanApi(
 }
 
 /**
+ * 重新排序套餐
+ * PUT /admin/plans/reorder
+ */
+export async function reorderTenantPlansApi(
+  ids: number[],
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.put(`${API_PREFIX}/reorder`, { ids }, options);
+}
+
+/**
  * 切换套餐状态
  * PUT /admin/plans/{plan_id}/status (假设有此接口，否则使用 update)
  */
