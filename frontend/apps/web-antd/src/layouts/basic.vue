@@ -15,10 +15,15 @@ import {
   UserDropdown,
 } from '@vben/layouts';
 import { preferences } from '@vben/preferences';
-import { useAccessStore, useUserStore } from '@vben/stores';
+import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
 import { openWindow } from '@vben/utils';
 
+import { message } from 'ant-design-vue';
+
+import { getApiEndpoint } from '#/api';
 import { $t } from '#/locales';
+import { generateAccess } from '#/router/access';
+import { accessRoutes } from '#/router/routes';
 import { useMultiAuthStore } from '#/store';
 import LoginForm from '#/views/_core/authentication/login.vue';
 
@@ -79,6 +84,7 @@ const router = useRouter();
 const userStore = useUserStore();
 const multiAuthStore = useMultiAuthStore();
 const accessStore = useAccessStore();
+const tabbarStore = useTabbarStore();
 const { destroyWatermark, updateWatermark } = useWatermark();
 const showDot = computed(() =>
   notifications.value.some((item) => !item.isRead),
@@ -129,6 +135,69 @@ async function handleLogout() {
   await multiAuthStore.logout(false);
 }
 
+/**
+ * 语言切换时重新加载菜单
+ */
+async function handleLocaleChange() {
+  // 显示加载提示
+  const hideLoading = message.loading({
+    content: $t('common.loadingMenu'),
+    duration: 0,
+  });
+
+  try {
+    // 获取当前端类型
+    const currentEndpoint = getApiEndpoint(router.currentRoute.value.path);
+    const userRoles = userStore.userInfo?.roles ?? [];
+
+    // 重新获取菜单和路由
+    const { accessibleMenus, accessibleRoutes } = await generateAccess(
+      {
+        roles: userRoles,
+        router,
+        routes: accessRoutes,
+      },
+      currentEndpoint,
+    );
+
+    // 更新菜单和路由
+    accessStore.setAccessMenus(accessibleMenus);
+    accessStore.setAccessRoutes(accessibleRoutes);
+
+    // 更新所有已打开的 tabs 的 title
+    updateAllTabsTitles();
+  } finally {
+    hideLoading();
+  }
+}
+
+/**
+ * 更新所有已打开 tabs 的 title
+ */
+function updateAllTabsTitles() {
+  const tabs = tabbarStore.getTabs;
+  const routes = router.getRoutes();
+
+  // 创建路由路径到 meta.title 的映射
+  const routeTitleMap = new Map<string, string>();
+  for (const route of routes) {
+    if (route.meta?.title) {
+      routeTitleMap.set(route.path, route.meta.title as string);
+    }
+  }
+
+  // 更新每个 tab 的 title
+  for (const tab of tabs) {
+    const newTitle = routeTitleMap.get(tab.path);
+    if (newTitle && tab.meta) {
+      tab.meta.title = newTitle;
+    }
+  }
+
+  // 触发 tabbarStore 更新
+  tabbarStore.setUpdateTime();
+}
+
 function handleNoticeClear() {
   notifications.value = [];
 }
@@ -170,7 +239,10 @@ watch(
 </script>
 
 <template>
-  <BasicLayout @clear-preferences-and-logout="handleLogout">
+  <BasicLayout
+    @clear-preferences-and-logout="handleLogout"
+    @locale-change="handleLocaleChange"
+  >
     <template #user-dropdown>
       <UserDropdown
         :avatar

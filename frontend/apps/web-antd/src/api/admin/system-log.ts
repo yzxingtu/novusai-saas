@@ -14,7 +14,6 @@ import { requestClient } from '#/utils/request';
 export interface SystemLogStatsRaw {
   total_files: number;
   total_size: number;
-  total_size_formatted: string;
 }
 
 /** 日志统计信息（前端格式） */
@@ -26,15 +25,18 @@ export interface SystemLogStats {
 
 /** 日志分类信息（后端原始格式） */
 export interface SystemLogCategoryRaw {
+  code: string;
   name: string;
+  description?: string;
   file_count: number;
   total_size: number;
-  total_size_formatted: string;
 }
 
 /** 日志分类信息（前端格式） */
 export interface SystemLogCategory {
+  code: string;
   name: string;
+  description?: string;
   fileCount: number;
   totalSize: number;
   totalSizeFormatted: string;
@@ -42,11 +44,11 @@ export interface SystemLogCategory {
 
 /** 日志文件信息（后端原始格式） */
 export interface SystemLogFileRaw {
-  filename: string;
+  name: string;
   category: string;
   size: number;
-  size_formatted: string;
   modified_at: string;
+  is_current?: boolean;
 }
 
 /** 日志文件信息（前端格式） */
@@ -56,6 +58,7 @@ export interface SystemLogFile {
   size: number;
   sizeFormatted: string;
   modifiedAt: string;
+  isCurrent?: boolean;
 }
 
 /** 日志文件内容响应（后端原始格式） */
@@ -82,30 +85,42 @@ export interface SystemLogContent {
 // 转换函数
 // ============================================================
 
+/** 格式化文件大小 */
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
+}
+
 function transformStats(raw: SystemLogStatsRaw): SystemLogStats {
   return {
     totalFiles: raw.total_files,
     totalSize: raw.total_size,
-    totalSizeFormatted: raw.total_size_formatted,
+    totalSizeFormatted: formatFileSize(raw.total_size),
   };
 }
 
 function transformCategory(raw: SystemLogCategoryRaw): SystemLogCategory {
   return {
+    code: raw.code,
     name: raw.name,
+    description: raw.description,
     fileCount: raw.file_count,
     totalSize: raw.total_size,
-    totalSizeFormatted: raw.total_size_formatted,
+    totalSizeFormatted: formatFileSize(raw.total_size),
   };
 }
 
 function transformFile(raw: SystemLogFileRaw): SystemLogFile {
   return {
-    filename: raw.filename,
+    filename: raw.name,
     category: raw.category,
     size: raw.size,
-    sizeFormatted: raw.size_formatted,
+    sizeFormatted: formatFileSize(raw.size),
     modifiedAt: raw.modified_at,
+    isCurrent: raw.is_current,
   };
 }
 

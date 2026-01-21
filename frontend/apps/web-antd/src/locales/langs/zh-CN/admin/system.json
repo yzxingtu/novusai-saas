@@ -171,6 +171,7 @@
     "size": "大小",
     "modifiedAt": "修改时间",
     "category": "分类",
+    "current": "当前",
     "download": "下载",
     "delete": "删除",
     "refresh": "刷新",
@@ -179,10 +180,28 @@
     "noContent": "暂无日志内容",
     "loadMore": "加载更多",
     "allLoaded": "已加载全部",
+    "lines": "行",
+    "totalLines": "总行数",
+    "page": "页码",
+    "running": "运行中",
+    "searchFiles": "搜索文件",
+    "searchContent": "搜索内容...",
+    "autoScroll": "自动滚动",
+    "noSelectedFile": "未选择文件",
+    "selectFileTip": "请选择左侧日志文件查看内容",
+    "endOfLog": "已到底部",
+    "copyAll": "复制全部",
+    "copyLine": "复制此行",
+    "backToTop": "回到顶部",
+    "toggleTheme": "切换主题",
     "messages": {
       "deleteSuccess": "删除成功",
       "deleteConfirm": "确定要删除日志文件「{name}」吗？",
-      "downloadSuccess": "下载成功"
+      "downloadSuccess": "下载成功",
+      "copySuccess": "复制成功",
+      "copyAllSuccess": "已复制全部内容",
+      "copyFail": "复制失败",
+      "copyManual": "复制失败，请手动复制"
     }
   },
   "organization": {

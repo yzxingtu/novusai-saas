@@ -170,6 +170,7 @@
     "size": "Size",
     "modifiedAt": "Modified At",
     "category": "Category",
+    "current": "Current",
     "download": "Download",
     "delete": "Delete",
     "refresh": "Refresh",
@@ -178,10 +179,28 @@
     "noContent": "No log content",
     "loadMore": "Load More",
     "allLoaded": "All Loaded",
+    "lines": "Lines",
+    "totalLines": "Total Lines",
+    "page": "Page",
+    "running": "Running",
+    "searchFiles": "Search Files",
+    "searchContent": "Grep...",
+    "autoScroll": "Tail",
+    "noSelectedFile": "No File Selected",
+    "selectFileTip": "Select a log file to view content",
+    "endOfLog": "End of Log",
+    "copyAll": "Copy All",
+    "copyLine": "Copy Line",
+    "backToTop": "Back to Top",
+    "toggleTheme": "Toggle Theme",
     "messages": {
       "deleteSuccess": "Deleted successfully",
       "deleteConfirm": "Are you sure you want to delete log file \"{name}\"?",
-      "downloadSuccess": "Download successful"
+      "downloadSuccess": "Download successful",
+      "copySuccess": "Copied successfully",
+      "copyAllSuccess": "All content copied",
+      "copyFail": "Copy failed",
+      "copyManual": "Copy failed, please copy manually"
     }
   },
   "organization": {
