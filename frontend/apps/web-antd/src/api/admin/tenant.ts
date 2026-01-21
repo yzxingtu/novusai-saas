@@ -50,11 +50,17 @@ export interface TenantStatusRequest {
 /** 域名简要信息（后端原始格式） */
 export interface TenantDomainBriefRaw {
   id: number;
+  tenant_id: number;
   domain: string;
-  domain_type: 'custom' | 'default';
+  is_verified: boolean;
+  verified_at: string | null;
   is_primary: boolean;
-  verification_status: 'pending' | 'verified';
   ssl_status: 'active' | 'failed' | 'pending';
+  ssl_expires_at: string | null;
+  cname_target: string | null;
+  remark: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 /** 域名简要信息（前端格式） */
@@ -65,6 +71,7 @@ export interface TenantDomainBrief {
   isPrimary: boolean;
   verificationStatus: 'pending' | 'verified';
   sslStatus: 'active' | 'failed' | 'pending';
+  cnameTarget?: string | null;
 }
 
 /** 套餐简要信息（后端原始格式） */
@@ -146,10 +153,12 @@ function transformDomainBrief(
   return {
     id: raw.id,
     domain: raw.domain,
-    domainType: raw.domain_type,
+    // 根据 remark 或其他逻辑推断类型，因为后端未返回 domain_type
+    domainType: raw.remark?.includes('默认') ? 'default' : 'custom',
     isPrimary: raw.is_primary,
-    verificationStatus: raw.verification_status,
+    verificationStatus: raw.is_verified ? 'verified' : 'pending',
     sslStatus: raw.ssl_status,
+    cnameTarget: raw.cname_target,
   };
 }
 

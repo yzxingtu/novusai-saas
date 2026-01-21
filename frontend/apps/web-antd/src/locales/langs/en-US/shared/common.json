@@ -84,5 +84,10 @@
     "lastMonth": "Last Month",
     "last2Months": "Last 2 Months",
     "last3Months": "Last 3 Months"
-  }
+  },
+  "status": "Status",
+  "current": "Current",
+  "featureComingSoon": "Feature coming soon",
+  "yes": "Yes",
+  "no": "No"
 }

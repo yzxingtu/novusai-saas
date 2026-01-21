@@ -86,5 +86,9 @@
     "lastMonth": "最近一个月",
     "last2Months": "最近两个月",
     "last3Months": "最近三个月"
-  }
+  },
+  "current": "当前",
+  "featureComingSoon": "功能开发中，敬请期待",
+  "yes": "是",
+  "no": "否"
 }

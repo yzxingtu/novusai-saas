@@ -24,17 +24,18 @@ export interface TenantDomainInfoRaw {
   id: number;
   tenant_id: number;
   domain: string;
-  domain_type: DomainType;
+  is_verified: boolean;
   is_primary: boolean;
-  verification_status: VerificationStatus;
   ssl_status: SslStatus;
   cname_target?: string;
   txt_record?: string;
-  verified_at?: string;
+  verification_token?: string | null;
+  verification_info?: Record<string, any> | null;
+  verified_at?: string | null;
   ssl_expires_at?: string;
   remark?: string;
   created_at: string;
-  updated_at?: string;
+  updated_at: string;
 }
 
 /** 域名信息（前端格式 camelCase） */
@@ -48,11 +49,13 @@ export interface TenantDomainInfo {
   sslStatus: SslStatus;
   cnameTarget?: string;
   txtRecord?: string;
+  verificationToken?: string | null;
+  verificationInfo?: Record<string, any> | null;
   verifiedAt?: string;
   sslExpiresAt?: string;
   remark?: string;
   createdAt: string;
-  updatedAt?: string;
+  updatedAt: string;
 }
 
 /** 创建域名请求 */
@@ -89,13 +92,16 @@ function transformDomainInfo(raw: TenantDomainInfoRaw): TenantDomainInfo {
     id: raw.id,
     tenantId: raw.tenant_id,
     domain: raw.domain,
-    domainType: raw.domain_type,
+    // 推断 domainType
+    domainType: raw.remark?.includes('默认') ? 'default' : 'custom',
     isPrimary: raw.is_primary,
-    verificationStatus: raw.verification_status,
+    verificationStatus: raw.is_verified ? 'verified' : 'pending',
     sslStatus: raw.ssl_status,
     cnameTarget: raw.cname_target,
     txtRecord: raw.txt_record,
-    verifiedAt: raw.verified_at,
+    verificationToken: raw.verification_token,
+    verificationInfo: raw.verification_info,
+    verifiedAt: raw.verified_at || undefined,
     sslExpiresAt: raw.ssl_expires_at,
     remark: raw.remark,
     createdAt: raw.created_at,

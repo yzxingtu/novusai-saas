@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 /**
- * 租户域名管理弹窗
- * 管理租户的自定义域名
+ * 租户域名管理弹窗 - 主弹窗
+ * 展示域名列表，提供添加、详情、设为主域名、验证、删除等入口
  */
-import type { adminApi } from '#/api';
+import type { DnsGuideData, DomainModalData, TenantDomainInfo } from './domains-types';
 
 import { computed, ref } from 'vue';
 
@@ -11,15 +11,10 @@ import { useVbenModal } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
 import {
-  Alert,
   Button,
-  Form,
-  FormItem,
-  Input,
   message,
   Popconfirm,
   Spin,
-  Table,
   Tag,
   Tooltip,
 } from 'ant-design-vue';
@@ -27,14 +22,10 @@ import {
 import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
 
-type TenantDomainInfo = adminApi.TenantDomainInfo;
-
-// Props
-interface ModalData {
-  tenantId: number;
-  tenantName: string;
-  tenantCode: string;
-}
+import DomainsAddDrawer from './domains-add-drawer.vue';
+import DomainsDetailDrawer from './domains-detail-drawer.vue';
+import DomainsDnsGuideModal from './domains-dns-guide-modal.vue';
+import DomainsSslDrawer from './domains-ssl-drawer.vue';
 
 // Emits
 const emits = defineEmits<{
@@ -44,12 +35,13 @@ const emits = defineEmits<{
 // 状态
 const domains = ref<TenantDomainInfo[]>([]);
 const loading = ref(false);
-const submitting = ref(false);
-const currentTenant = ref<ModalData | null>(null);
+const currentTenant = ref<DomainModalData | null>(null);
 
-// 表单状态
-const newDomain = ref('');
-const newRemark = ref('');
+// 子组件引用
+const addDrawerRef = ref<InstanceType<typeof DomainsAddDrawer>>();
+const detailDrawerRef = ref<InstanceType<typeof DomainsDetailDrawer>>();
+const dnsGuideModalRef = ref<InstanceType<typeof DomainsDnsGuideModal>>();
+const sslDrawerRef = ref<InstanceType<typeof DomainsSslDrawer>>();
 
 // 计算标题
 const title = computed(() =>
@@ -62,7 +54,7 @@ const title = computed(() =>
 const [Modal, modalApi] = useVbenModal({
   async onOpenChange(isOpen) {
     if (isOpen) {
-      const data = modalApi.getData<ModalData>();
+      const data = modalApi.getData<DomainModalData>();
       if (data?.tenantId) {
         currentTenant.value = data;
         await loadDomains();
@@ -70,16 +62,12 @@ const [Modal, modalApi] = useVbenModal({
     } else {
       currentTenant.value = null;
       domains.value = [];
-      newDomain.value = '';
-      newRemark.value = '';
     }
   },
   footer: false,
 });
 
-/**
- * 加载域名列表
- */
+/** 加载域名列表 */
 async function loadDomains() {
   if (!currentTenant.value?.tenantId) return;
 
@@ -88,7 +76,7 @@ async function loadDomains() {
     const result = await admin.getTenantDomainsApi(
       currentTenant.value.tenantId,
     );
-    domains.value = result.items;
+    domains.value = result.items as TenantDomainInfo[];
   } catch (error) {
     console.error('Failed to load domains:', error);
   } finally {
@@ -96,60 +84,70 @@ async function loadDomains() {
   }
 }
 
-/**
- * 添加域名
- */
-async function onAddDomain() {
-  if (!currentTenant.value?.tenantId || !newDomain.value.trim()) {
-    message.warning($t('admin.tenant.domain.domainRequired'));
-    return;
-  }
+/** 打开添加域名抽屉 */
+function onOpenAddDrawer() {
+  if (!currentTenant.value) return;
+  addDrawerRef.value?.open(currentTenant.value.tenantId);
+}
 
-  // 简单的域名格式验证
-  const domainPattern =
-    /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
-  if (!domainPattern.test(newDomain.value.trim())) {
-    message.warning($t('admin.tenant.domain.domainInvalid'));
-    return;
-  }
-
-  submitting.value = true;
-  try {
-    await admin.createTenantDomainApi(currentTenant.value.tenantId, {
-      domain: newDomain.value.trim(),
-      remark: newRemark.value.trim() || undefined,
-    });
-    message.success($t('admin.tenant.domain.createSuccess'));
-    newDomain.value = '';
-    newRemark.value = '';
-    await loadDomains();
-    emits('success');
-  } catch (error) {
-    console.error('Failed to add domain:', error);
-  } finally {
-    submitting.value = false;
+/** 添加成功回调 */
+async function onAddSuccess(newDomain: TenantDomainInfo) {
+  await loadDomains();
+  emits('success');
+  // 打开 DNS 引导
+  if (newDomain.verificationStatus === 'pending' && currentTenant.value) {
+    const guideData: DnsGuideData = {
+      domain: newDomain.domain,
+      tenantId: currentTenant.value.tenantId,
+      domainId: newDomain.id,
+      verificationInfo: newDomain.verificationInfo,
+      verificationToken: newDomain.verificationToken,
+      cnameTarget: newDomain.cnameTarget,
+    };
+    dnsGuideModalRef.value?.open(guideData);
   }
 }
 
-/**
- * 删除域名
- */
-async function onDeleteDomain(domain: TenantDomainInfo) {
-  if (!currentTenant.value?.tenantId) return;
-
-  try {
-    await admin.deleteTenantDomainApi(currentTenant.value.tenantId, domain.id);
-    message.success($t('admin.tenant.domain.deleteSuccess'));
-    await loadDomains();
-    emits('success');
-  } catch (error) {
-    console.error('Failed to delete domain:', error);
-  }
+/** 打开详情抽屉 */
+function onOpenDetail(domain: TenantDomainInfo) {
+  if (!currentTenant.value) return;
+  detailDrawerRef.value?.open({
+    domainId: domain.id,
+    tenantId: currentTenant.value.tenantId,
+  });
 }
 
-/**
- * 设置主域名
- */
+/** 详情更新成功回调 */
+async function onDetailSuccess() {
+  await loadDomains();
+  emits('success');
+}
+
+/** 打开 DNS 引导 */
+function onOpenDnsGuide(domain: TenantDomainInfo) {
+  if (!currentTenant.value) return;
+  const guideData: DnsGuideData = {
+    domain: domain.domain,
+    tenantId: currentTenant.value.tenantId,
+    domainId: domain.id,
+    verificationInfo: domain.verificationInfo,
+    verificationToken: domain.verificationToken,
+    cnameTarget: domain.cnameTarget,
+  };
+  dnsGuideModalRef.value?.open(guideData);
+}
+
+/** 打开 SSL 管理抽屉 */
+function onOpenSslDrawer(domain: TenantDomainInfo) {
+  if (!currentTenant.value) return;
+  sslDrawerRef.value?.open({
+    domainId: domain.id,
+    tenantId: currentTenant.value.tenantId,
+    domain: domain.domain,
+  });
+}
+
+/** 设置主域名 */
 async function onSetPrimary(domain: TenantDomainInfo) {
   if (!currentTenant.value?.tenantId || domain.isPrimary) return;
 
@@ -163,9 +161,7 @@ async function onSetPrimary(domain: TenantDomainInfo) {
   }
 }
 
-/**
- * 验证域名
- */
+/** 验证域名 */
 async function onVerifyDomain(domain: TenantDomainInfo) {
   if (!currentTenant.value?.tenantId) return;
 
@@ -183,107 +179,58 @@ async function onVerifyDomain(domain: TenantDomainInfo) {
     emits('success');
   } catch (error) {
     console.error('Failed to verify domain:', error);
-    message.error($t('admin.tenant.domain.verifyFailed'));
   }
 }
 
-/**
- * 获取验证状态标签颜色
- */
-function getVerificationColor(status: string): string {
-  return status === 'verified' ? 'success' : 'warning';
+/** 删除域名 */
+async function onDeleteDomain(domain: TenantDomainInfo) {
+  if (!currentTenant.value?.tenantId) return;
+
+  try {
+    await admin.deleteTenantDomainApi(currentTenant.value.tenantId, domain.id);
+    message.success($t('admin.tenant.domain.deleteSuccess'));
+    await loadDomains();
+    emits('success');
+  } catch (error) {
+    console.error('Failed to delete domain:', error);
+  }
 }
 
-/**
- * 获取 SSL 状态标签颜色
- */
-function getSslColor(status: string): string {
+/** 获取验证状态标签配置 */
+function getVerificationTagConfig(status: string) {
   switch (status) {
-    case 'active': {
-      return 'success';
+    case 'verified': {
+      return { color: 'success', icon: 'lucide:check-circle', text: $t('admin.tenant.domain.verified') };
     }
     case 'failed': {
-      return 'error';
-    }
-    case 'pending': {
-      return 'processing';
+      return { color: 'error', icon: 'lucide:x-circle', text: $t('admin.tenant.domain.verifyFailed') };
     }
     default: {
-      return 'default';
+      return { color: 'warning', icon: 'lucide:clock', text: $t('admin.tenant.domain.pending') };
     }
   }
 }
 
-/**
- * 获取 SSL 状态显示文本
- */
-function getSslText(status: string): string {
+/** 获取 SSL 状态标签配置 */
+function getSslTagConfig(status: string) {
   switch (status) {
     case 'active': {
-      return $t('admin.tenant.domain.sslActive');
+      return { color: 'success', icon: 'lucide:shield-check', text: $t('admin.tenant.domain.ssl.status.active') };
     }
-    case 'failed': {
-      return $t('admin.tenant.domain.sslFailed');
+    case 'expired': {
+      return { color: 'error', icon: 'lucide:shield-off', text: $t('admin.tenant.domain.ssl.status.expired') };
     }
     case 'pending': {
-      return $t('admin.tenant.domain.sslPending');
+      return { color: 'processing', icon: 'lucide:shield', text: $t('admin.tenant.domain.ssl.status.pending') };
     }
     default: {
-      return status;
+      return { color: 'default', icon: 'lucide:shield-x', text: $t('admin.tenant.domain.ssl.status.none') };
     }
   }
 }
 
-/**
- * 表格列定义
- */
-const columns = [
-  {
-    title: $t('admin.tenant.domain.domain'),
-    dataIndex: 'domain',
-    key: 'domain',
-    width: 200,
-  },
-  {
-    title: $t('admin.tenant.domain.type'),
-    dataIndex: 'domainType',
-    key: 'type',
-    width: 100,
-    align: 'center' as const,
-  },
-  {
-    title: $t('admin.tenant.domain.verified'),
-    dataIndex: 'verificationStatus',
-    key: 'verification',
-    width: 100,
-    align: 'center' as const,
-  },
-  {
-    title: 'SSL',
-    dataIndex: 'sslStatus',
-    key: 'ssl',
-    width: 100,
-    align: 'center' as const,
-  },
-  {
-    title: $t('admin.common.operation'),
-    key: 'action',
-    width: 180,
-    align: 'center' as const,
-  },
-];
-
-/**
- * 类型转换 helper（解决 Table bodyCell slot 的 record 类型问题）
- */
-function asDomain(record: unknown): TenantDomainInfo {
-  return record as TenantDomainInfo;
-}
-
-/**
- * 打开弹窗
- */
-function open(data: ModalData) {
+/** 打开弹窗 */
+function open(data: DomainModalData) {
   modalApi.setData(data).open();
 }
 
@@ -294,171 +241,161 @@ defineExpose({ open });
   <Modal :title="title" :loading="loading" class="w-[800px]">
     <div class="min-h-[400px]">
       <Spin :spinning="loading">
-        <!-- 添加域名表单 -->
-        <div class="mb-4 rounded-lg border border-dashed border-gray-300 p-4">
-          <h4 class="mb-3 text-sm font-medium">
+        <!-- 添加域名按钮 -->
+        <div class="mb-4">
+          <Button type="primary" @click="onOpenAddDrawer">
+            <IconifyIcon icon="lucide:plus" class="mr-1 size-4" />
             {{ $t('admin.tenant.domain.addDomain') }}
-          </h4>
-          <Form layout="inline" class="flex flex-wrap gap-2">
-            <FormItem class="mb-0 flex-1">
-              <Input
-                v-model:value="newDomain"
-                :placeholder="$t('admin.tenant.domain.domainPlaceholder')"
-                @press-enter="onAddDomain"
-              />
-            </FormItem>
-            <FormItem class="mb-0 w-48">
-              <Input
-                v-model:value="newRemark"
-                :placeholder="$t('admin.tenant.domain.remarkPlaceholder')"
-              />
-            </FormItem>
-            <FormItem class="mb-0">
-              <Button type="primary" :loading="submitting" @click="onAddDomain">
-                {{ $t('admin.tenant.domain.addDomain') }}
-              </Button>
-            </FormItem>
-          </Form>
+          </Button>
         </div>
 
-        <!-- 域名列表 -->
-        <Table
-          :columns="columns"
-          :data-source="domains"
-          :pagination="false"
-          :loading="loading"
-          row-key="id"
-          size="small"
-        >
-          <!-- 域名列 -->
-          <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'domain'">
-              <div class="flex items-center gap-2">
-                <span class="font-mono">{{ record.domain }}</span>
-                <Tag v-if="record.isPrimary" color="blue" class="!mr-0">
+        <!-- 域名卡片列表 -->
+        <div class="flex flex-col gap-3">
+          <div
+            v-for="domain in domains"
+            :key="domain.id"
+            class="rounded-lg border border-gray-200 p-4 transition-all hover:border-primary hover:shadow-sm"
+          >
+            <!-- 域名信息头部 -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <IconifyIcon icon="lucide:globe" class="size-5 text-primary" />
+                <span class="font-mono text-base font-medium">{{ domain.domain }}</span>
+                <Tag v-if="domain.isPrimary" color="blue">
                   {{ $t('admin.tenant.domain.primaryDomain') }}
                 </Tag>
+                <Tag v-if="domain.domainType === 'default'" color="default">
+                  {{ $t('admin.tenant.domain.defaultDomain') }}
+                </Tag>
               </div>
-            </template>
-
-            <!-- 类型列 -->
-            <template v-else-if="column.key === 'type'">
-              <Tag
-                :color="record.domainType === 'default' ? 'default' : 'blue'"
-              >
-                {{
-                  record.domainType === 'default'
-                    ? $t('admin.tenant.domain.defaultDomain')
-                    : $t('admin.tenant.domain.customDomain')
-                }}
-              </Tag>
-            </template>
-
-            <!-- 验证状态列 -->
-            <template v-else-if="column.key === 'verification'">
-              <Tag :color="getVerificationColor(record.verificationStatus)">
-                {{
-                  record.verificationStatus === 'verified'
-                    ? $t('admin.tenant.domain.verified')
-                    : $t('admin.tenant.domain.pending')
-                }}
-              </Tag>
-            </template>
-
-            <!-- SSL 状态列 -->
-            <template v-else-if="column.key === 'ssl'">
-              <Tag :color="getSslColor(record.sslStatus)">
-                {{ getSslText(record.sslStatus) }}
-              </Tag>
-            </template>
-
-            <!-- 操作列 -->
-            <template v-else-if="column.key === 'action'">
-              <div class="flex items-center justify-center gap-1">
-                <!-- 设为主域名 -->
-                <Tooltip
-                  v-if="
-                    !asDomain(record).isPrimary &&
-                    asDomain(record).verificationStatus === 'verified'
-                  "
-                  :title="$t('admin.tenant.domain.setPrimary')"
-                >
-                  <Button
-                    type="link"
-                    size="small"
-                    @click="onSetPrimary(asDomain(record))"
-                  >
-                    <IconifyIcon icon="lucide:star" class="size-4" />
-                  </Button>
-                </Tooltip>
-
-                <!-- 验证域名 -->
-                <Tooltip
-                  v-if="asDomain(record).verificationStatus === 'pending'"
-                  :title="$t('admin.tenant.domain.verifyDomain')"
-                >
-                  <Button
-                    type="link"
-                    size="small"
-                    @click="onVerifyDomain(asDomain(record))"
-                  >
-                    <IconifyIcon icon="lucide:check-circle" class="size-4" />
-                  </Button>
-                </Tooltip>
-
-                <!-- 删除域名（仅自定义域名且非主域名可删除） -->
-                <Popconfirm
-                  v-if="
-                    asDomain(record).domainType === 'custom' &&
-                    !asDomain(record).isPrimary
-                  "
-                  :title="
-                    $t('admin.tenant.domain.confirmDelete', {
-                      domain: asDomain(record).domain,
-                    })
-                  "
-                  @confirm="onDeleteDomain(asDomain(record))"
-                >
-                  <Button type="link" size="small" danger>
-                    <IconifyIcon icon="lucide:trash-2" class="size-4" />
-                  </Button>
-                </Popconfirm>
-              </div>
-            </template>
-          </template>
-        </Table>
-
-        <!-- DNS 验证提示 -->
-        <Alert
-          v-if="
-            domains.some(
-              (d) =>
-                d.verificationStatus === 'pending' && d.domainType === 'custom',
-            )
-          "
-          type="info"
-          show-icon
-          class="mt-4"
-        >
-          <template #message>
-            <div class="text-sm">
-              <p class="mb-1">{{ $t('admin.tenant.domain.dnsHint') }}</p>
-              <code class="rounded bg-gray-100 px-2 py-1 text-xs">
-                {{ currentTenant?.tenantCode }}.your-platform.com
-              </code>
             </div>
-          </template>
-        </Alert>
+
+            <!-- 状态标签 -->
+            <div class="mt-3 flex flex-wrap items-center gap-4">
+              <!-- 域名类型 -->
+              <div class="flex items-center gap-1 text-sm text-gray-500">
+                <span>{{ $t('admin.tenant.domain.type') }}:</span>
+                <span>{{ domain.domainType === 'default' ? $t('admin.tenant.domain.defaultDomain') : $t('admin.tenant.domain.customDomain') }}</span>
+              </div>
+
+              <!-- 验证状态 -->
+              <div class="flex items-center gap-1">
+                <span class="text-sm text-gray-500">{{ $t('admin.tenant.domain.verificationStatus') }}:</span>
+                <Tag :color="getVerificationTagConfig(domain.verificationStatus).color">
+                  <IconifyIcon :icon="getVerificationTagConfig(domain.verificationStatus).icon" class="mr-1 size-3" />
+                  {{ getVerificationTagConfig(domain.verificationStatus).text }}
+                </Tag>
+              </div>
+
+              <!-- SSL 状态 (只显示自定义域名) -->
+              <div v-if="domain.domainType === 'custom'" class="flex items-center gap-1">
+                <span class="text-sm text-gray-500">SSL:</span>
+                <Tag :color="getSslTagConfig(domain.sslStatus).color">
+                  <IconifyIcon :icon="getSslTagConfig(domain.sslStatus).icon" class="mr-1 size-3" />
+                  {{ getSslTagConfig(domain.sslStatus).text }}
+                </Tag>
+              </div>
+            </div>
+
+            <!-- 备注 -->
+            <div v-if="domain.remark" class="mt-2 text-sm text-gray-500">
+              <span class="font-medium">{{ $t('admin.tenant.domain.remark') }}:</span>
+              <span class="ml-1">{{ domain.remark }}</span>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
+              <!-- 编辑域名 -->
+              <Button type="link" size="small" @click="onOpenDetail(domain)">
+                <IconifyIcon icon="lucide:pencil" class="mr-1 size-4" />
+                {{ $t('admin.tenant.domain.editDomain') }}
+              </Button>
+
+              <!-- SSL 管理 (已验证的自定义域名才显示) -->
+              <Button
+                v-if="domain.verificationStatus === 'verified' && domain.domainType === 'custom'"
+                type="link"
+                size="small"
+                @click="onOpenSslDrawer(domain)"
+              >
+                <IconifyIcon icon="lucide:shield" class="mr-1 size-4" />
+                {{ $t('admin.tenant.domain.ssl.manage') }}
+              </Button>
+
+              <!-- DNS 配置引导 (待验证才显示) -->
+              <Button
+                v-if="domain.verificationStatus === 'pending'"
+                type="link"
+                size="small"
+                @click="onOpenDnsGuide(domain)"
+              >
+                <IconifyIcon icon="lucide:info" class="mr-1 size-4" />
+                {{ $t('admin.tenant.domain.dnsGuide.title') }}
+              </Button>
+
+              <!-- 验证域名 (待验证才显示) -->
+              <Button
+                v-if="domain.verificationStatus === 'pending'"
+                type="link"
+                size="small"
+                @click="onVerifyDomain(domain)"
+              >
+                <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-4" />
+                {{ $t('admin.tenant.domain.verifyDomain') }}
+              </Button>
+
+              <!-- 设为主域名 (非主域名显示，未验证时禁用) -->
+              <Tooltip
+                v-if="!domain.isPrimary"
+                :title="domain.verificationStatus !== 'verified' ? $t('admin.tenant.domain.verifyFirst') : ''"
+              >
+                <Button
+                  type="link"
+                  size="small"
+                  :disabled="domain.verificationStatus !== 'verified'"
+                  @click="onSetPrimary(domain)"
+                >
+                  <IconifyIcon icon="lucide:star" class="mr-1 size-4" />
+                  {{ $t('admin.tenant.domain.setPrimary') }}
+                </Button>
+              </Tooltip>
+
+              <!-- 删除 (自定义域名且非主域名才显示) -->
+              <Popconfirm
+                v-if="domain.domainType === 'custom' && !domain.isPrimary"
+                :title="$t('admin.tenant.domain.confirmDelete', { domain: domain.domain })"
+                @confirm="onDeleteDomain(domain)"
+              >
+                <Button type="link" size="small" danger>
+                  <IconifyIcon icon="lucide:trash-2" class="mr-1 size-4" />
+                  {{ $t('admin.tenant.domain.deleteDomain') }}
+                </Button>
+              </Popconfirm>
+            </div>
+          </div>
+        </div>
 
         <!-- 空状态 -->
         <div
           v-if="!loading && domains.length === 0"
-          class="flex flex-col items-center justify-center py-10 text-muted-foreground"
+          class="flex flex-col items-center justify-center py-16 text-gray-400"
         >
-          <IconifyIcon icon="lucide:globe" class="mb-2 size-12 opacity-50" />
-          <span>{{ $t('admin.tenant.domain.noDomains') }}</span>
+          <IconifyIcon icon="lucide:globe" class="mb-3 size-16 opacity-30" />
+          <span class="text-sm">{{ $t('admin.tenant.domain.noDomains') }}</span>
         </div>
       </Spin>
     </div>
   </Modal>
+
+  <!-- 添加域名抽屉 -->
+  <DomainsAddDrawer ref="addDrawerRef" @success="onAddSuccess" />
+
+  <!-- 域名详情抽屉 -->
+  <DomainsDetailDrawer ref="detailDrawerRef" @success="onDetailSuccess" />
+
+  <!-- DNS 引导弹窗 -->
+  <DomainsDnsGuideModal ref="dnsGuideModalRef" @success="loadDomains" />
+
+  <!-- SSL 管理抽屉 -->
+  <DomainsSslDrawer ref="sslDrawerRef" />
 </template>

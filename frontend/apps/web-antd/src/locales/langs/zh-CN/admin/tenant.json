@@ -104,9 +104,12 @@
     "defaultDomain": "默认域名",
     "domainCount": "域名数",
     "addDomain": "添加域名",
+    "editDomain": "编辑域名",
     "deleteDomain": "删除域名",
     "setPrimary": "设为主域名",
+    "remark": "备注",
     "verifyDomain": "验证域名",
+    "verificationStatus": "验证状态",
     "verified": "已验证",
     "pending": "待验证",
     "sslActive": "SSL 有效",
@@ -129,7 +132,80 @@
     "deleteSuccess": "域名删除成功",
     "verifySuccess": "域名验证成功",
     "verifyFailed": "域名验证失败，请检查 DNS 配置",
-    "setPrimarySuccess": "主域名设置成功"
+    "setPrimarySuccess": "主域名设置成功",
+    "verifyFirst": "请先验证域名",
+    "detail": "域名详情",
+    "createdAt": "创建时间",
+    "verifiedAt": "验证时间",
+    "updatedAt": "更新时间",
+    "isPrimary": "是否主域名",
+    "updateSuccess": "域名信息更新成功",
+    "dnsGuide": {
+      "title": "DNS 配置指南",
+      "step1Title": "第一步：登录域名管理后台",
+      "step1Desc": "登录您的域名注册商（如阿里云、腾讯云、Cloudflare 等）的管理控制台",
+      "step2Title": "第二步：添加 CNAME 记录",
+      "step2Desc": "在 DNS 解析设置中，添加以下 CNAME 记录：",
+      "step3Title": "第三步：等待生效",
+      "step3Desc": "DNS 记录通常需要几分钟到 48 小时生效。生效后点击验证按钮完成验证。",
+      "recordType": "记录类型",
+      "hostRecord": "主机记录",
+      "recordValue": "记录值",
+      "noteTtl": "TTL 建议设置为 600 或更短",
+      "noteSubdomain": "如果是子域名（如 app.example.com），主机记录填 app",
+      "noteRoot": "如果是根域名（如 example.com），主机记录填 @",
+      "nextStep": "下一步",
+      "prevStep": "上一步",
+      "verifyHint": "配置完成后，点击下方按钮发起验证"
+    },
+    "ssl": {
+      "title": "SSL 证书管理",
+      "manage": "管理 SSL",
+      "currentStatus": "当前证书状态",
+      "type": {
+        "label": "证书类型",
+        "platform": "平台自动签发",
+        "custom": "自定义证书"
+      },
+      "status": {
+        "active": "有效",
+        "expired": "已过期",
+        "pending": "申请中",
+        "none": "未配置"
+      },
+      "info": {
+        "issuer": "签发机构",
+        "validFrom": "生效时间",
+        "validTo": "到期时间"
+      },
+      "autoRenew": {
+        "label": "自动续期",
+        "enabled": "已开启",
+        "disabled": "未开启",
+        "enable": "开启自动续期",
+        "disable": "关闭自动续期",
+        "nextRenew": "下次续期"
+      },
+      "certificate": {
+        "label": "证书内容",
+        "publicKey": "公钥证书 (CRT)",
+        "privateKey": "私钥 (KEY)",
+        "chain": "证书链",
+        "copy": "复制",
+        "copySuccess": "已复制到剪贴板"
+      },
+      "actions": {
+        "upload": "上传证书",
+        "reupload": "重新上传",
+        "edit": "编辑证书",
+        "delete": "删除证书"
+      },
+      "certManage": "证书管理",
+      "sourceSelect": "证书来源",
+      "platformHint": "由平台自动申请免费 SSL 证书，支持自动续期",
+      "uploadHint": "上传您自己的 SSL 证书文件",
+      "deleteHint": "删除证书后将回退到 HTTP 访问"
+    }
   },
   "manageDomains": "域名管理",
   "plan": {

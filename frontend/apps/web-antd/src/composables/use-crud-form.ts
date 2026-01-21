@@ -244,6 +244,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
             _resource?: string;
             id?: number | string;
             mode?: FormMode;
+            [key: string]: any;
           })
         | undefined;
       mode.value = data?.mode ?? 'add';

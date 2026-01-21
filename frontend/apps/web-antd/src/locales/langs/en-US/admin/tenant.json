@@ -83,8 +83,11 @@
     "defaultDomain": "Default Domain",
     "domainCount": "Domains",
     "addDomain": "Add Domain",
+    "editDomain": "Edit Domain",
     "deleteDomain": "Delete Domain",
+    "remark": "Remark",
     "setPrimary": "Set as Primary",
+    "verificationStatus": "Verification Status",
     "verifyDomain": "Verify Domain",
     "verified": "Verified",
     "pending": "Pending",
@@ -108,7 +111,80 @@
     "deleteSuccess": "Domain deleted successfully",
     "verifySuccess": "Domain verified successfully",
     "verifyFailed": "Domain verification failed, please check DNS configuration",
-    "setPrimarySuccess": "Primary domain set successfully"
+    "setPrimarySuccess": "Primary domain set successfully",
+    "verifyFirst": "Please verify the domain first",
+    "detail": "Domain Details",
+    "createdAt": "Created At",
+    "verifiedAt": "Verified At",
+    "updatedAt": "Updated At",
+    "isPrimary": "Is Primary",
+    "updateSuccess": "Domain info updated successfully",
+    "dnsGuide": {
+      "title": "DNS Configuration Guide",
+      "step1Title": "Step 1: Login to Domain Management",
+      "step1Desc": "Login to your domain registrar's management console (e.g., Cloudflare, GoDaddy, Namecheap)",
+      "step2Title": "Step 2: Add CNAME Record",
+      "step2Desc": "In DNS settings, add the following CNAME record:",
+      "step3Title": "Step 3: Wait for Propagation",
+      "step3Desc": "DNS changes typically take a few minutes to 48 hours to propagate. Once propagated, click the verify button.",
+      "recordType": "Record Type",
+      "hostRecord": "Host Record",
+      "recordValue": "Record Value",
+      "noteTtl": "TTL is recommended to be set to 600 or lower",
+      "noteSubdomain": "For subdomains (e.g., app.example.com), use 'app' as host record",
+      "noteRoot": "For root domains (e.g., example.com), use '@' as host record",
+      "nextStep": "Next",
+      "prevStep": "Previous",
+      "verifyHint": "After configuration, click the button below to verify"
+    },
+    "ssl": {
+      "title": "SSL Certificate Management",
+      "manage": "Manage SSL",
+      "currentStatus": "Current Certificate Status",
+      "type": {
+        "label": "Certificate Type",
+        "platform": "Platform Auto-Issue",
+        "custom": "Custom Certificate"
+      },
+      "status": {
+        "active": "Active",
+        "expired": "Expired",
+        "pending": "Pending",
+        "none": "Not Configured"
+      },
+      "info": {
+        "issuer": "Issuer",
+        "validFrom": "Valid From",
+        "validTo": "Valid To"
+      },
+      "autoRenew": {
+        "label": "Auto Renewal",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "enable": "Enable Auto Renewal",
+        "disable": "Disable Auto Renewal",
+        "nextRenew": "Next Renewal"
+      },
+      "certificate": {
+        "label": "Certificate Content",
+        "publicKey": "Public Key (CRT)",
+        "privateKey": "Private Key (KEY)",
+        "chain": "Certificate Chain",
+        "copy": "Copy",
+        "copySuccess": "Copied to clipboard"
+      },
+      "actions": {
+        "upload": "Upload Certificate",
+        "reupload": "Re-upload",
+        "edit": "Edit Certificate",
+        "delete": "Delete Certificate"
+      },
+      "certManage": "Certificate Management",
+      "sourceSelect": "Certificate Source",
+      "platformHint": "Platform auto-issues free SSL certificates with auto renewal support",
+      "uploadHint": "Upload your own SSL certificate files",
+      "deleteHint": "Deleting certificate will fall back to HTTP access"
+    }
   },
   "manageDomains": "Manage Domains",
   "plan": {
