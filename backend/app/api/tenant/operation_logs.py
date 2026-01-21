@@ -54,6 +54,10 @@ class TenantOperationLogController(TenantController):
             """
             获取当前租户的操作日志列表
             
+            基于当前管理员权限过滤：
+            - 租户所有者：可查看本租户所有日志
+            - 普通管理员：只能查看自己及其角色子树下用户的日志
+            
             支持 JSON:API 风格筛选参数:
             - filter[username][ilike]=xxx 用户名模糊搜索
             - filter[module]=AUTH 按模块筛选
@@ -67,8 +71,8 @@ class TenantOperationLogController(TenantController):
             权限: operation_log:list
             """
             service = OperationLogService(db)
-            items, total = await service.query_tenant_logs(
-                tenant_id=current_admin.tenant_id,
+            items, total = await service.query_tenant_logs_by_permission(
+                tenant_admin=current_admin,
                 spec=spec,
             )
             

@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy import select, func, delete
 
 from app.core.base_repository import BaseRepository
+from app.enums.log import UserTypeEnum
 from app.models.system.operation_log import OperationLog
 from app.schemas.common.query import FilterRule, QuerySpec
 
@@ -216,6 +217,97 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         rows = result.all()
         
         return [{"action": row.action, "count": row.count} for row in rows]
+    
+    async def query_admin_logs_with_hierarchy(
+        self,
+        spec: QuerySpec,
+        is_super: bool,
+        subordinate_user_ids: list[int] | None = None,
+    ) -> tuple[list[OperationLog], int]:
+        """
+        平台端带层级权限的日志查询
+        
+        Args:
+            spec: 查询规格
+            is_super: 是否超级管理员
+            subordinate_user_ids: 下属用户 ID 列表（非超管时必须）
+        
+        Returns:
+            (日志列表, 总数)
+        """
+        # 强制只查看平台端日志
+        user_type_filter = FilterRule(
+            field="user_type", 
+            value=UserTypeEnum.ADMIN.value,
+        )
+        forced_filters = [user_type_filter]
+        
+        # 非超管需要限制只能看下属的日志
+        if not is_super and subordinate_user_ids is not None:
+            user_id_filter = FilterRule(
+                field="user_id",
+                operator="in",
+                value=subordinate_user_ids,
+            )
+            forced_filters.append(user_id_filter)
+        
+        return await self.query_list(
+            spec=spec,
+            scope="admin",
+            forced_filters=forced_filters,
+        )
+    
+    async def query_tenant_logs_with_hierarchy(
+        self,
+        tenant_id: int,
+        spec: QuerySpec,
+        is_owner: bool,
+        subordinate_user_ids: list[int] | None = None,
+        include_tenant_users: bool = True,
+    ) -> tuple[list[OperationLog], int]:
+        """
+        租户端带层级权限的日志查询
+        
+        Args:
+            tenant_id: 租户 ID
+            spec: 查询规格
+            is_owner: 是否租户所有者
+            subordinate_user_ids: 下属用户 ID 列表（非所有者时必须）
+            include_tenant_users: 是否包含租户普通用户日志
+        
+        Returns:
+            (日志列表, 总数)
+        """
+        # 强制租户隔离
+        tenant_filter = FilterRule(field="tenant_id", value=tenant_id)
+        
+        # 限制只查看租户端日志（tenant_admin / tenant_user）
+        allowed_user_types = [UserTypeEnum.TENANT_ADMIN.value]
+        if include_tenant_users:
+            allowed_user_types.append(UserTypeEnum.TENANT_USER.value)
+        
+        user_type_filter = FilterRule(
+            field="user_type",
+            operator="in",
+            value=allowed_user_types,
+        )
+        
+        forced_filters = [tenant_filter, user_type_filter]
+        
+        # 非所有者需要限制只能看下属的日志
+        if not is_owner and subordinate_user_ids is not None:
+            user_id_filter = FilterRule(
+                field="user_id",
+                operator="in",
+                value=subordinate_user_ids,
+            )
+            forced_filters.append(user_id_filter)
+        
+        return await self.query_list(
+            spec=spec,
+            scope="tenant",
+            forced_filters=forced_filters,
+        )
 
 
 __all__ = ["OperationLogRepository"]

@@ -402,6 +402,8 @@ class BaseRepository(Generic[ModelType]):
         Returns:
             转换后的值
         """
+        from datetime import datetime, date
+        
         if value is None:
             return None
         
@@ -422,6 +424,35 @@ class BaseRepository(Generic[ModelType]):
             # 处理整数类型
             if col_type is int:
                 return int(value)
+            
+            # 处理日期时间类型
+            if col_type is datetime:
+                if isinstance(value, str):
+                    # 尝试多种日期时间格式
+                    for fmt in (
+                        "%Y-%m-%d %H:%M:%S",
+                        "%Y-%m-%dT%H:%M:%S",
+                        "%Y-%m-%dT%H:%M:%SZ",
+                        "%Y-%m-%dT%H:%M:%S.%f",
+                        "%Y-%m-%dT%H:%M:%S.%fZ",
+                        "%Y-%m-%d",
+                    ):
+                        try:
+                            return datetime.strptime(value, fmt)
+                        except ValueError:
+                            continue
+                    # 如果所有格式都失败，返回原值
+                    return value
+                return value
+            
+            # 处理日期类型
+            if col_type is date:
+                if isinstance(value, str):
+                    try:
+                        return datetime.strptime(value, "%Y-%m-%d").date()
+                    except ValueError:
+                        return value
+                return value
             
             # 其他类型尝试直接转换
             return col_type(value)

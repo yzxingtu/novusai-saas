@@ -62,11 +62,13 @@ class AdminOperationLogController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取操作日志列表
+            获取操作日志列表（仅平台端日志）
+            
+            基于当前管理员权限过滤：
+            - 超级管理员：可查看所有平台端日志
+            - 普通管理员：只能查看自己及其角色子树下用户的日志
             
             支持 JSON:API 风格筛选参数:
-            - filter[tenant_id]=1 按租户筛选
-            - filter[user_type]=admin 按用户类型筛选
             - filter[username][ilike]=xxx 用户名模糊搜索
             - filter[module]=auth 按模块筛选
             - filter[action]=login 按操作类型筛选
@@ -79,7 +81,10 @@ class AdminOperationLogController(GlobalController):
             权限: operation_log:list
             """
             service = OperationLogService(db)
-            items, total = await service.query_admin_logs(spec)
+            items, total = await service.query_admin_logs_by_permission(
+                admin=current_admin,
+                spec=spec,
+            )
             
             return success(
                 data=PageResponse.create(

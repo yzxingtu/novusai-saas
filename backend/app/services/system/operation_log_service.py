@@ -6,8 +6,9 @@
 
 import asyncio
 from datetime import datetime
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_service import GlobalService
@@ -15,6 +16,10 @@ from app.core.database import async_session_factory
 from app.models.system.operation_log import OperationLog
 from app.repositories.system.operation_log_repository import OperationLogRepository
 from app.schemas.common.query import QuerySpec
+
+if TYPE_CHECKING:
+    from app.models.system.admin import Admin
+    from app.models.tenant.tenant_admin import TenantAdmin
 
 
 class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
@@ -196,6 +201,179 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
             start_date=start_date,
             end_date=end_date,
         )
+    
+    # ==================== 基于权限的查询方法 ====================
+    
+    async def query_admin_logs_by_permission(
+        self,
+        admin: "Admin",
+        spec: QuerySpec,
+    ) -> tuple[list[OperationLog], int]:
+        """
+        平台端基于权限的日志查询
+        
+        - 超级管理员: 可查看所有平台端日志
+        - 普通管理员: 只能查看自己及其角色子树下用户的日志
+        
+        Args:
+            admin: 当前平台管理员
+            spec: 查询规格
+        
+        Returns:
+            (日志列表, 总数)
+        """
+        if admin.is_super:
+            # 超级管理员可查看所有平台端日志
+            return await self.repo.query_admin_logs_with_hierarchy(
+                spec=spec,
+                is_super=True,
+            )
+        
+        # 普通管理员：获取下属用户 ID 列表
+        subordinate_ids = await self._get_subordinate_admin_ids(admin)
+        
+        return await self.repo.query_admin_logs_with_hierarchy(
+            spec=spec,
+            is_super=False,
+            subordinate_user_ids=subordinate_ids,
+        )
+    
+    async def query_tenant_logs_by_permission(
+        self,
+        tenant_admin: "TenantAdmin",
+        spec: QuerySpec,
+    ) -> tuple[list[OperationLog], int]:
+        """
+        租户端基于权限的日志查询
+        
+        - 租户所有者: 可查看本租户所有日志
+        - 普通管理员: 只能查看自己及其角色子树下用户的日志
+        
+        Args:
+            tenant_admin: 当前租户管理员
+            spec: 查询规格
+        
+        Returns:
+            (日志列表, 总数)
+        """
+        if tenant_admin.is_owner:
+            # 租户所有者可查看本租户所有日志
+            return await self.repo.query_tenant_logs_with_hierarchy(
+                tenant_id=tenant_admin.tenant_id,
+                spec=spec,
+                is_owner=True,
+            )
+        
+        # 普通管理员：获取下属用户 ID 列表
+        subordinate_ids = await self._get_subordinate_tenant_admin_ids(tenant_admin)
+        
+        return await self.repo.query_tenant_logs_with_hierarchy(
+            tenant_id=tenant_admin.tenant_id,
+            spec=spec,
+            is_owner=False,
+            subordinate_user_ids=subordinate_ids,
+        )
+    
+    async def _get_subordinate_admin_ids(self, admin: "Admin") -> list[int]:
+        """
+        获取平台管理员的下属用户 ID 列表
+        
+        包含:
+        - 当前用户自己
+        - 当前角色子树下所有角色的成员
+        
+        Args:
+            admin: 当前平台管理员
+        
+        Returns:
+            下属用户 ID 列表
+        """
+        from app.models.system.admin import Admin as AdminModel
+        from app.models.auth.admin_role import AdminRole
+        
+        # 总是包含自己
+        user_ids = [admin.id]
+        
+        # 如果没有角色，只能看自己的日志
+        if not admin.role_id or not admin.role:
+            return user_ids
+        
+        # 获取当前角色的 path
+        current_role_path = admin.role.path or f"/{admin.role_id}/"
+        
+        # 查询所有子角色（path 以当前角色 path 开头的）
+        child_roles_query = select(AdminRole.id).where(
+            AdminRole.is_deleted == False,
+            AdminRole.path.like(f"{current_role_path}%"),
+        )
+        result = await self.db.execute(child_roles_query)
+        child_role_ids = [row[0] for row in result.all()]
+        
+        # 如果有子角色，查询这些角色下的所有成员
+        if child_role_ids:
+            admins_query = select(AdminModel.id).where(
+                AdminModel.is_deleted == False,
+                AdminModel.role_id.in_(child_role_ids),
+            )
+            result = await self.db.execute(admins_query)
+            for row in result.all():
+                if row[0] not in user_ids:
+                    user_ids.append(row[0])
+        
+        return user_ids
+    
+    async def _get_subordinate_tenant_admin_ids(
+        self, 
+        tenant_admin: "TenantAdmin",
+    ) -> list[int]:
+        """
+        获取租户管理员的下属用户 ID 列表
+        
+        包含:
+        - 当前用户自己
+        - 当前角色子树下所有角色的成员
+        
+        Args:
+            tenant_admin: 当前租户管理员
+        
+        Returns:
+            下属用户 ID 列表
+        """
+        from app.models.tenant.tenant_admin import TenantAdmin as TenantAdminModel
+        from app.models.auth.tenant_admin_role import TenantAdminRole
+        
+        # 总是包含自己
+        user_ids = [tenant_admin.id]
+        
+        # 如果没有角色，只能看自己的日志
+        if not tenant_admin.role_id or not tenant_admin.role:
+            return user_ids
+        
+        # 获取当前角色的 path
+        current_role_path = tenant_admin.role.path or f"/{tenant_admin.role_id}/"
+        
+        # 查询同租户内所有子角色（path 以当前角色 path 开头的）
+        child_roles_query = select(TenantAdminRole.id).where(
+            TenantAdminRole.is_deleted == False,
+            TenantAdminRole.tenant_id == tenant_admin.tenant_id,
+            TenantAdminRole.path.like(f"{current_role_path}%"),
+        )
+        result = await self.db.execute(child_roles_query)
+        child_role_ids = [row[0] for row in result.all()]
+        
+        # 如果有子角色，查询这些角色下的所有成员
+        if child_role_ids:
+            admins_query = select(TenantAdminModel.id).where(
+                TenantAdminModel.is_deleted == False,
+                TenantAdminModel.tenant_id == tenant_admin.tenant_id,
+                TenantAdminModel.role_id.in_(child_role_ids),
+            )
+            result = await self.db.execute(admins_query)
+            for row in result.all():
+                if row[0] not in user_ids:
+                    user_ids.append(row[0])
+        
+        return user_ids
 
 
 # ==================== 异步写入工具函数 ====================
