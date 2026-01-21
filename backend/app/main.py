@@ -124,6 +124,7 @@ def create_application() -> FastAPI:
     app.add_middleware(PermissionMiddleware)
     
     # 审计日志中间件（记录所有 API 调用）
+    # 注意：必须在 PermissionMiddleware 之后注册，这样才能从 state 获取用户信息
     app.add_middleware(AuditLogMiddleware)
     
     # 访问控制中间件（实施“默认拒绝”安全策略）

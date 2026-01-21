@@ -46,8 +46,9 @@ class PermissionMiddleware:
         # 创建 Request 对象来访问 state
         request = Request(scope, receive, send)
         
-        # 初始化 user_permissions
+        # 初始化 user_permissions 和 user
         request.state.user_permissions = set()
+        request.state.user = None
         
         # 从请求头获取 Token
         token = self._get_token_from_headers(scope)
@@ -101,6 +102,9 @@ class PermissionMiddleware:
             if admin is None or not admin.is_active:
                 return
             
+            # 将用户对象存入 state（供审计日志等使用）
+            request.state.user = admin
+            
             # 超级管理员拥有所有权限
             if admin.is_super:
                 request.state.user_permissions = {"*"}
@@ -139,6 +143,9 @@ class PermissionMiddleware:
             
             if tenant_admin is None or not tenant_admin.is_active:
                 return
+            
+            # 将用户对象存入 state（供审计日志等使用）
+            request.state.user = tenant_admin
             
             # 租户所有者拥有所有租户权限
             if tenant_admin.is_owner:

@@ -211,6 +211,16 @@ async def _write_log_async(log_data: dict[str, Any]) -> None:
     """
     try:
         async with async_session_factory() as db:
+            # 如果 username 为空但 user_id 存在，查询用户名
+            if not log_data.get("username") and log_data.get("user_id"):
+                username = await _fetch_username(
+                    db,
+                    user_type=log_data.get("user_type"),
+                    user_id=log_data.get("user_id"),
+                )
+                if username:
+                    log_data["username"] = username
+            
             service = OperationLogService(db)
             await service.create_log(**log_data)
             await db.commit()
@@ -220,6 +230,61 @@ async def _write_log_async(log_data: dict[str, Any]) -> None:
         from app.core.logging import get_logger
         logger = get_logger(__name__)
         logger.error(f"Failed to write operation log: {e}")
+
+
+async def _fetch_username(
+    db: AsyncSession,
+    user_type: str | None,
+    user_id: int | None,
+) -> str | None:
+    """
+    根据用户类型和 ID 查询用户名
+    
+    Args:
+        db: 数据库会话
+        user_type: 用户类型
+        user_id: 用户 ID
+    
+    Returns:
+        用户名或 None
+    """
+    from sqlalchemy import select
+    from app.enums.log import UserTypeEnum
+    
+    if not user_type or not user_id:
+        return None
+    
+    try:
+        if user_type == UserTypeEnum.ADMIN.value:
+            from app.models import Admin
+            result = await db.execute(
+                select(Admin.username).where(Admin.id == user_id)
+            )
+            row = result.first()
+            return row[0] if row else None
+        
+        elif user_type == UserTypeEnum.TENANT_ADMIN.value:
+            from app.models import TenantAdmin
+            result = await db.execute(
+                select(TenantAdmin.username).where(TenantAdmin.id == user_id)
+            )
+            row = result.first()
+            return row[0] if row else None
+        
+        elif user_type == UserTypeEnum.TENANT_USER.value:
+            # TenantUser 可能使用不同的字段名
+            from app.models import TenantUser
+            # 假设 TenantUser 使用 username 或 email 作为标识
+            result = await db.execute(
+                select(TenantUser.username).where(TenantUser.id == user_id)
+            )
+            row = result.first()
+            return row[0] if row else None
+    
+    except Exception:
+        pass
+    
+    return None
 
 
 def create_log_async(

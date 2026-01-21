@@ -203,6 +203,11 @@ class AuditLogMiddleware:
             await self.app(scope, receive, send)
             return
         
+        # 确保 scope 中有 state（供后续中间件使用）
+        if "state" not in scope:
+            from starlette.datastructures import State
+            scope["state"] = State()
+        
         # 获取请求信息
         path = scope.get("path", "")
         method = scope.get("method", "")
@@ -408,6 +413,17 @@ class AuditLogMiddleware:
         # 获取用户信息
         user_info = self._get_user_info(scope)
         
+        # 获取用户名
+        username = user_info.get("username")
+        
+        # 如果有 user_id，优先从 scope state 获取（由 PermissionMiddleware 注入）
+        if not username and user_info.get("user_id"):
+            if "state" in scope:
+                state = scope["state"]
+                user = getattr(state, "user", None)
+                if user and hasattr(user, "username"):
+                    username = user.username
+        
         # 提取模块和操作类型
         path = request_info.get("path", "")
         method = request_info.get("method", "")
@@ -432,7 +448,7 @@ class AuditLogMiddleware:
             tenant_id=user_info.get("tenant_id"),
             user_type=user_info.get("user_type", UserTypeEnum.ANONYMOUS.value),
             user_id=user_info.get("user_id"),
-            username=user_info.get("username"),
+            username=username,
             module=module,
             action=action,
             resource=resource,
