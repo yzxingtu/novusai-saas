@@ -338,11 +338,11 @@ onMounted(() => {
     <!-- 1. 顶部统计卡片 (重写) -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <!-- 文件总数 -->
-      <div class="relative overflow-hidden rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:shadow-md dark:border-gray-800 dark:bg-gray-900">
+      <div class="bg-card relative overflow-hidden rounded-xl border p-4 shadow-sm transition-all hover:shadow-md">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ $t('admin.system.systemLog.totalFiles') }}</p>
-            <h3 class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">
+            <p class="text-muted-foreground text-sm font-medium">{{ $t('admin.system.systemLog.totalFiles') }}</p>
+            <h3 class="text-foreground mt-2 text-2xl font-bold">
               <Spin v-if="statsLoading" size="small" />
               <span v-else>{{ stats?.totalFiles ?? 0 }}</span>
             </h3>
@@ -354,11 +354,11 @@ onMounted(() => {
       </div>
 
       <!-- 总大小 -->
-      <div class="relative overflow-hidden rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:shadow-md dark:border-gray-800 dark:bg-gray-900">
+      <div class="bg-card relative overflow-hidden rounded-xl border p-4 shadow-sm transition-all hover:shadow-md">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ $t('admin.system.systemLog.totalSize') }}</p>
-            <h3 class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">
+            <p class="text-muted-foreground text-sm font-medium">{{ $t('admin.system.systemLog.totalSize') }}</p>
+            <h3 class="text-foreground mt-2 text-2xl font-bold">
               <Spin v-if="statsLoading" size="small" />
               <span v-else>{{ stats?.totalSizeFormatted ?? '-' }}</span>
             </h3>
@@ -370,11 +370,11 @@ onMounted(() => {
       </div>
 
       <!-- 日志分类 -->
-      <div class="relative overflow-hidden rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:shadow-md dark:border-gray-800 dark:bg-gray-900">
+      <div class="bg-card relative overflow-hidden rounded-xl border p-4 shadow-sm transition-all hover:shadow-md">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ $t('admin.system.systemLog.categories') }}</p>
-            <h3 class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">
+            <p class="text-muted-foreground text-sm font-medium">{{ $t('admin.system.systemLog.categories') }}</p>
+            <h3 class="text-foreground mt-2 text-2xl font-bold">
               <Spin v-if="loading" size="small" />
               <span v-else>{{ categories.length }}</span>
             </h3>
@@ -387,13 +387,13 @@ onMounted(() => {
     </div>
 
     <!-- 2. 主内容区域 -->
-    <div class="flex flex-1 gap-4 overflow-hidden rounded-xl bg-white p-1 shadow-sm dark:bg-gray-900">
+    <div class="bg-card flex flex-1 gap-4 overflow-hidden rounded-xl p-1 shadow-sm">
       
       <!-- 左侧：文件列表 (折叠面板风格) -->
-      <div class="flex w-[320px] flex-shrink-0 flex-col border-r border-gray-100 dark:border-gray-800">
+      <div class="flex w-[320px] flex-shrink-0 flex-col border-r">
         <!-- 头部 -->
-        <div class="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-800">
-          <span class="font-semibold text-gray-700 dark:text-gray-200">{{ $t('admin.system.systemLog.files') }}</span>
+        <div class="flex items-center justify-between border-b p-3">
+          <span class="text-foreground font-semibold">{{ $t('admin.system.systemLog.files') }}</span>
           <Button type="text" size="small" :loading="loading" @click="onRefresh">
             <template #icon><IconifyIcon icon="lucide:refresh-cw" /></template>
           </Button>
@@ -406,19 +406,19 @@ onMounted(() => {
               <template v-for="cat in categories" :key="cat.code">
                 <!-- 分类标题 -->
                 <div 
-                  class="flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
-                  :class="activeCategory === cat.code ? 'bg-gray-100 dark:bg-gray-800 font-medium text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'"
+                  class="flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors hover:bg-accent"
+                  :class="activeCategory === cat.code ? 'bg-accent text-foreground font-medium' : 'text-muted-foreground'"
                   @click="activeCategory = cat.code"
                 >
                   <div class="flex items-center gap-2">
                     <IconifyIcon 
                       :icon="activeCategory === cat.code ? 'lucide:folder-open' : 'lucide:folder'" 
                       class="text-base"
-                      :class="activeCategory === cat.code ? 'text-primary' : 'text-gray-400'"
+                      :class="activeCategory === cat.code ? 'text-primary' : 'text-muted-foreground'"
                     />
                     <span>{{ cat.name }}</span>
                   </div>
-                  <Tag :bordered="false" class="!mr-0 !bg-white !text-gray-500 shadow-sm dark:!bg-gray-700 dark:!text-gray-300">
+                  <Tag :bordered="false" class="bg-accent text-muted-foreground !mr-0 shadow-sm">
                     {{ cat.fileCount }}
                   </Tag>
                 </div>
@@ -426,26 +426,31 @@ onMounted(() => {
                 <!-- 该分类下的文件列表 (仅当分类选中时显示) -->
                 <div v-show="activeCategory === cat.code" class="pl-4">
                   <!-- 文件加载中 -->
-                  <div v-if="loading && files.length === 0" class="py-2 text-center text-xs text-gray-400">
+                  <div v-if="loading && files.length === 0" class="text-muted-foreground py-2 text-center text-xs">
                     <Spin size="small" />
                   </div>
                   
                   <!-- 文件列表 -->
-                  <div v-else-if="files.length > 0" class="flex flex-col gap-1 border-l border-gray-100 py-1 pl-2 dark:border-gray-700">
+                  <div v-else-if="files.length > 0" class="flex flex-col gap-1 border-l py-1 pl-2">
                     <div 
                       v-for="file in files" 
                       :key="file.filename"
-                      class="group relative cursor-pointer rounded-md px-3 py-2 transition-all hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                      class="group relative cursor-pointer rounded-md px-3 py-2 transition-all hover:bg-primary/10"
                       :class="selectedFile?.filename === file.filename 
-                        ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' 
-                        : 'text-gray-600 dark:text-gray-400'"
+                        ? 'bg-primary/10 text-primary' 
+                        : 'text-muted-foreground'"
                       @click="onSelectFile(file)"
                     >
                       <div class="flex items-center justify-between">
                         <span class="truncate text-xs font-medium">{{ file.filename }}</span>
-                        <Tag v-if="file.isCurrent" color="green" class="!mr-0 !h-4 !px-1 !text-[10px] !leading-4">
-                          {{ $t('admin.system.systemLog.current') }}
-                        </Tag>
+                        <div class="flex items-center gap-1">
+                          <Tag v-if="file.isCurrent" color="processing" class="!mr-0 !h-4 !px-1 !text-[10px] !leading-4">
+                            {{ $t('admin.system.systemLog.running') }}
+                          </Tag>
+                          <Tag v-if="selectedFile?.filename === file.filename" color="green" class="!mr-0 !h-4 !px-1 !text-[10px] !leading-4">
+                            {{ $t('admin.system.systemLog.current') }}
+                          </Tag>
+                        </div>
                       </div>
                       
                       <div class="mt-1 flex items-center justify-between text-[10px] opacity-70">
@@ -454,11 +459,11 @@ onMounted(() => {
                       </div>
 
                       <!-- 悬停操作 -->
-                      <div class="absolute right-1 top-1.5 hidden gap-1 rounded bg-white/90 p-0.5 shadow-sm group-hover:flex dark:bg-gray-800/90">
+                      <div class="bg-card absolute right-1 top-1.5 hidden gap-1 rounded p-0.5 shadow-sm group-hover:flex">
                         <Tooltip :title="$t('admin.system.systemLog.download')">
                           <IconifyIcon 
                             icon="lucide:download" 
-                            class="cursor-pointer rounded p-1 hover:bg-gray-100 hover:text-primary dark:hover:bg-gray-700" 
+                            class="hover:bg-accent cursor-pointer rounded p-1 hover:text-primary" 
                             @click.stop="onDownload(file)"
                           />
                         </Tooltip>
@@ -466,7 +471,7 @@ onMounted(() => {
                           <Tooltip :title="$t('admin.system.systemLog.delete')">
                             <IconifyIcon 
                               icon="lucide:trash-2" 
-                              class="cursor-pointer rounded p-1 hover:bg-red-50 hover:text-red-500 dark:hover:bg-gray-700" 
+                              class="hover:bg-accent cursor-pointer rounded p-1 hover:text-red-500" 
                               @click.stop
                             />
                           </Tooltip>
@@ -476,7 +481,7 @@ onMounted(() => {
                   </div>
                   
                   <!-- 无文件 -->
-                  <div v-else class="py-2 text-center text-xs text-gray-400">
+                  <div v-else class="text-muted-foreground py-2 text-center text-xs">
                     {{ $t('admin.system.systemLog.noFiles') }}
                   </div>
                 </div>
@@ -487,11 +492,11 @@ onMounted(() => {
       </div>
 
       <!-- 右侧：日志详情 (重写) -->
-      <div class="flex flex-1 flex-col overflow-hidden bg-white dark:bg-gray-900">
+      <div class="bg-card flex flex-1 flex-col overflow-hidden">
         <!-- 头部工具栏 -->
-        <div class="flex h-14 items-center justify-between border-b border-gray-100 px-4 dark:border-gray-800">
+        <div class="flex h-14 items-center justify-between border-b px-4">
           <div class="flex items-center gap-3">
-             <div class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+             <div class="text-foreground flex items-center gap-2 text-sm font-medium">
                <IconifyIcon icon="lucide:terminal-square" class="text-primary" />
                {{ selectedFile?.filename || $t('admin.system.systemLog.noSelectedFile') }}
              </div>
@@ -510,7 +515,7 @@ onMounted(() => {
                <template #prefix><IconifyIcon icon="lucide:search" class="text-gray-400" /></template>
              </Input>
              
-             <div class="h-4 w-px bg-gray-200 dark:bg-gray-700"></div>
+             <div class="bg-border h-4 w-px"></div>
 
              <!-- 操作按钮组 -->
              <Tooltip :title="$t('admin.system.systemLog.toggleTheme')">
