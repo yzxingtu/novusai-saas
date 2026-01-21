@@ -181,7 +181,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         if max_domains > 0 and custom_count >= max_domains:
             raise BusinessException(
                 message=_("domain.quota_exceeded"),
-                code=ErrorCode.QUOTA_EXCEEDED,
+                code=ErrorCode.DOMAIN_QUOTA_EXCEEDED,
             )
         
         # 检查域名是否已存在

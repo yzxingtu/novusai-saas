@@ -5,6 +5,7 @@
     "created": "创建成功",
     "updated": "更新成功",
     "deleted": "删除成功",
+    "reorder_success": "排序更新成功",
     "not_found": "资源不存在",
     "invalid_request": "无效请求",
     "server_error": "服务器内部错误",
@@ -192,7 +193,8 @@
       "members": "查看节点成员",
       "add_member": "添加成员",
       "remove_member": "移除成员",
-      "set_leader": "设置负责人"
+      "set_leader": "设置负责人",
+      "reorder": "重新排序"
     },
     "admin": {
       "list": "查看管理员列表",
@@ -248,7 +250,8 @@
       "select": "套餐远程下拉",
       "permissions": "查看套餐权限",
       "assign_permissions": "分配套餐权限",
-      "available_permissions": "查看可分配权限"
+      "available_permissions": "查看可分配权限",
+      "reorder": "重新排序"
     },
     "tenant_domain": {
       "list": "查看域名列表",

@@ -305,10 +305,14 @@ class BaseService(Generic[ModelType, RepoType]):
         
         可用于：数据校验、默认值注入、权限检查等
         
+        自动处理:
+        - 如果模型配置了 __sortable__ 且未传入排序值，自动计算
+        
         Args:
             data: 创建数据字典（可修改）
         """
-        pass
+        # 自动计算排序值
+        await self._auto_set_sort_order(data)
     
     async def _after_create(self, instance: ModelType) -> None:
         """
@@ -365,6 +369,72 @@ class BaseService(Generic[ModelType, RepoType]):
             id: 已删除的记录 ID
         """
         pass
+    
+    # ========================================
+    # 通用排序方法
+    # ========================================
+    
+    def _get_sortable_config(self) -> dict[str, Any] | None:
+        """
+        获取模型的排序配置
+        
+        Returns:
+            排序配置字典或 None
+        """
+        return getattr(self.model, "__sortable__", None)
+    
+    async def _auto_set_sort_order(self, data: dict[str, Any]) -> None:
+        """
+        自动设置排序值
+        
+        如果模型配置了 __sortable__ 且未传入排序值（或为 0），自动计算
+        
+        Args:
+            data: 创建数据字典（可修改）
+        """
+        sortable = self._get_sortable_config()
+        if not sortable:
+            return
+        
+        sort_field = sortable.get("field", "sort_order")
+        scope_fields = sortable.get("scope_fields", [])
+        
+        # 检查是否已传入有效的排序值
+        current_value = data.get(sort_field)
+        if current_value is not None and current_value > 0:
+            return  # 已传入有效值，不自动计算
+        
+        # 构建作用域过滤条件
+        scope_filters = {}
+        for field in scope_fields:
+            if field in data:
+                scope_filters[field] = data[field]
+        
+        # 计算下一个排序值
+        next_value = await self.repo.get_next_sort_order(**scope_filters)
+        data[sort_field] = next_value
+    
+    async def reorder(
+        self,
+        ordered_ids: list[int],
+        **scope_filters: Any,
+    ) -> int:
+        """
+        批量重排序
+        
+        按 ordered_ids 顺序重新分配排序值
+        
+        Args:
+            ordered_ids: 有序的 ID 列表
+            **scope_filters: 作用域过滤条件
+        
+        Returns:
+            更新的记录数
+        
+        Raises:
+            ValueError: 模型未配置 __sortable__
+        """
+        return await self.repo.batch_update_sort_order(ordered_ids, **scope_filters)
 
 
 class TenantService(BaseService[ModelType, RepoType]):

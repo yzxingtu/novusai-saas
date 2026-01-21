@@ -27,6 +27,13 @@ class Permission(BaseModel):
         UniqueConstraint("code", "scope", name="uq_permissions_code_scope"),
     )
     
+    # 排序配置
+    __sortable__ = {
+        "field": "sort_order",      # 排序字段名
+        "step": 1000,               # 排序步长
+        "scope_fields": ["parent_id"],  # 同级权限内排序
+    }
+    
     # 权限代码（同一 scope 内唯一）
     code: Mapped[str] = mapped_column(
         String(100), index=True, comment="权限代码（如：user:create, menu:tenant.user）"

@@ -5,6 +5,7 @@
     "created": "Created successfully",
     "updated": "Updated successfully",
     "deleted": "Deleted successfully",
+    "reorder_success": "Reorder successful",
     "not_found": "Resource not found",
     "invalid_request": "Invalid request",
     "server_error": "Internal server error",
@@ -192,7 +193,8 @@
       "members": "View Node Members",
       "add_member": "Add Member",
       "remove_member": "Remove Member",
-      "set_leader": "Set Leader"
+      "set_leader": "Set Leader",
+      "reorder": "Reorder"
     },
     "admin": {
       "list": "View Admin List",
@@ -248,7 +250,8 @@
       "select": "Plan Remote Select",
       "permissions": "View Plan Permissions",
       "assign_permissions": "Assign Plan Permissions",
-      "available_permissions": "View Available Permissions"
+      "available_permissions": "View Available Permissions",
+      "reorder": "Reorder"
     },
     "tenant_domain": {
       "list": "View Domain List",

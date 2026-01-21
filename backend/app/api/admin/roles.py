@@ -35,7 +35,7 @@ from app.schemas.system import (
     AdminRoleAddMemberRequest,
     AdminRoleMemberResponse,
 )
-from app.schemas.common import PermissionResponse
+from app.schemas.common import PermissionResponse, ReorderRequest
 from app.services.system.admin_role_service import AdminRoleService
 from app.services.common.role_hierarchy_validator import AdminRoleHierarchyValidator
 
@@ -149,6 +149,63 @@ class AdminRoleController(GlobalController):
                 data=[AdminRoleResponse.model_validate(role, from_attributes=True)],
                 message=_("common.success"),
             )
+        
+        # ========== 排序管理 API ==========
+        
+        @router.put("/reorder", summary="批量重排序")
+        @action_update("action.organization.reorder")
+        async def reorder_roles(
+            request: Request,
+            db: DbSession,
+            data: ReorderRequest,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            批量重排序组织架构节点
+            
+            接收有序的 ID 列表，按顺序重新分配排序值。
+            
+            层级权限控制：
+            - 超级管理员：可重排所有节点
+            - 普通管理员：只能重排自己可管理的节点
+            
+            请求示例:
+                {
+                    "ids": [3, 1, 5, 2, 4],
+                    "parent_id": 1  // 可选，限定同级范围
+                }
+            
+            权限: organization:reorder
+            """
+            service = AdminRoleService(db)
+            validator = AdminRoleHierarchyValidator(db, current_admin)
+            
+            # 非超管需要校验每个节点的可管理性
+            if not current_admin.is_super:
+                for role_id in data.ids:
+                    if not await validator.can_manage_role(role_id):
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail=_("role.no_permission_to_manage"),
+                        )
+            
+            try:
+                updated_count = await service.reorder(
+                    ordered_ids=data.ids,
+                    parent_id=data.parent_id,
+                )
+                await db.commit()
+                
+                return success(
+                    data={"updated_count": updated_count},
+                    message=_("common.reorder_success"),
+                )
+                
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(e),
+                )
         
         @router.get("/{role_id}", summary="获取角色详情")
         @action_read("action.organization.detail")

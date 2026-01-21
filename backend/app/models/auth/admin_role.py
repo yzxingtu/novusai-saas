@@ -64,6 +64,13 @@ class AdminRole(BaseModel):
         },
     }
     
+    # 排序配置
+    __sortable__ = {
+        "field": "sort_order",      # 排序字段名
+        "step": 1000,               # 排序步长
+        "scope_fields": ["parent_id"],  # 同级兄弟节点内排序
+    }
+    
     # 角色名称
     name: Mapped[str] = mapped_column(
         String(50), comment="角色名称"

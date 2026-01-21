@@ -971,6 +971,131 @@ class BaseRepository(Generic[ModelType]):
                     parent_option.is_leaf = False  # 父节点不是叶子
         
         return root_options
+    
+    # ========================================
+    # 通用排序方法
+    # ========================================
+    
+    def _get_sortable_config(self) -> dict[str, Any] | None:
+        """
+        获取模型的排序配置
+        
+        Returns:
+            排序配置字典或 None
+        
+        __sortable__ 配置示例:
+            __sortable__ = {
+                "field": "sort_order",      # 排序字段名
+                "step": 1000,               # 排序步长
+                "scope_fields": [],         # 作用域字段，如 ["tenant_id", "parent_id"]
+            }
+        """
+        return getattr(self.model, "__sortable__", None)
+    
+    async def get_next_sort_order(self, **scope_filters: Any) -> int:
+        """
+        获取下一个排序值
+        
+        计算方式: 当前最大值 + 步长
+        
+        Args:
+            **scope_filters: 作用域过滤条件（如 tenant_id, parent_id）
+        
+        Returns:
+            下一个排序值
+        
+        Raises:
+            ValueError: 模型未配置 __sortable__
+        """
+        sortable = self._get_sortable_config()
+        if not sortable:
+            raise ValueError(
+                f"Model {self.model.__name__} does not have __sortable__ configuration"
+            )
+        
+        sort_field = sortable.get("field", "sort_order")
+        step = sortable.get("step", 1000)
+        scope_fields = sortable.get("scope_fields", [])
+        
+        # 检查排序字段是否存在
+        if not hasattr(self.model, sort_field):
+            raise ValueError(
+                f"Model {self.model.__name__} does not have field '{sort_field}'"
+            )
+        
+        # 构建查询
+        sort_column = getattr(self.model, sort_field)
+        query = select(func.coalesce(func.max(sort_column), 0)).where(
+            self.model.is_deleted == False
+        )
+        
+        # 应用作用域过滤
+        for field in scope_fields:
+            if field in scope_filters and hasattr(self.model, field):
+                query = query.where(
+                    getattr(self.model, field) == scope_filters[field]
+                )
+        
+        result = await self.db.execute(query)
+        max_value = result.scalar() or 0
+        
+        return max_value + step
+    
+    async def batch_update_sort_order(
+        self,
+        ordered_ids: list[int],
+        **scope_filters: Any,
+    ) -> int:
+        """
+        批量更新排序值
+        
+        按 ordered_ids 顺序分配排序值: step*1, step*2, step*3, ...
+        
+        Args:
+            ordered_ids: 有序的 ID 列表
+            **scope_filters: 作用域过滤条件（用于校验）
+        
+        Returns:
+            更新的记录数
+        
+        Raises:
+            ValueError: 模型未配置 __sortable__
+        """
+        if not ordered_ids:
+            return 0
+        
+        sortable = self._get_sortable_config()
+        if not sortable:
+            raise ValueError(
+                f"Model {self.model.__name__} does not have __sortable__ configuration"
+            )
+        
+        sort_field = sortable.get("field", "sort_order")
+        step = sortable.get("step", 1000)
+        
+        # 检查排序字段是否存在
+        if not hasattr(self.model, sort_field):
+            raise ValueError(
+                f"Model {self.model.__name__} does not have field '{sort_field}'"
+            )
+        
+        # 批量更新：使用 CASE WHEN 一次性更新所有记录
+        # 这比逐条更新效率更高
+        updated_count = 0
+        for index, record_id in enumerate(ordered_ids, start=1):
+            new_sort_value = step * index
+            stmt = (
+                update(self.model)
+                .where(
+                    self.model.id == record_id,
+                    self.model.is_deleted == False,
+                )
+                .values(**{sort_field: new_sort_value})
+            )
+            result = await self.db.execute(stmt)
+            updated_count += result.rowcount
+        
+        return updated_count
 
 
 class TenantRepository(BaseRepository[ModelType]):

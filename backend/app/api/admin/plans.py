@@ -48,6 +48,7 @@ from app.schemas.tenant.plan import (
     PermissionTreeSimpleResponse,
 )
 from app.schemas.common.select import SelectResponse
+from app.schemas.common import ReorderRequest
 from app.services.tenant import TenantPlanService
 from app.exceptions import NotFoundException
 
@@ -260,6 +261,47 @@ class AdminPlanController(GlobalController):
                 data=TenantPlanResponse.from_model(plan),
                 message=_("tenant_plan.created"),
             )
+        
+        # ========== 排序管理 API ==========
+        # 注意：/reorder 必须放在 /{plan_id} 之前，否则会被路径参数匹配
+        
+        @router.put("/reorder", summary="批量重排序")
+        @action_update("action.tenant_plan.reorder")
+        async def reorder_plans(
+            request: Request,
+            db: DbSession,
+            data: ReorderRequest,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            批量重排序套餐
+            
+            接收有序的 ID 列表，按顺序重新分配排序值。
+            
+            请求示例:
+                {
+                    "ids": [3, 1, 5, 2, 4]
+                }
+            
+            权限: tenant_plan:reorder
+            """
+            service = TenantPlanService(db)
+            
+            try:
+                updated_count = await service.reorder(ordered_ids=data.ids)
+                await db.commit()
+                
+                return success(
+                    data={"updated_count": updated_count},
+                    message=_("common.reorder_success"),
+                )
+                
+            except ValueError as e:
+                from fastapi import HTTPException, status
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(e),
+                )
         
         @router.put("/{plan_id}", summary="更新套餐")
         @action_update("action.tenant_plan.update")

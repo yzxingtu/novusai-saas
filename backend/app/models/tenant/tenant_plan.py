@@ -53,6 +53,13 @@ class TenantPlan(BaseModel):
         "extra": ["code", "billing_cycle"],
     }
     
+    # 排序配置
+    __sortable__ = {
+        "field": "sort_order",      # 排序字段名
+        "step": 1000,               # 排序步长
+        "scope_fields": [],         # 全局排序（套餐无作用域）
+    }
+    
     # ==================== 基本信息 ====================
     
     # 套餐代码（唯一标识）
