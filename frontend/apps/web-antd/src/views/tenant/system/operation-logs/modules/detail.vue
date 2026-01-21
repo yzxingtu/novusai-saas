@@ -118,9 +118,27 @@ const statusCodeType = computed(() => {
               :label="$t('tenant.system.operationLog.path')"
               :span="2"
             >
-              <code class="break-all rounded bg-gray-100 px-1 py-0.5 text-xs">
+              <code class="break-all rounded bg-accent px-1 py-0.5 text-xs">
                 {{ detail.path }}
               </code>
+            </DescriptionsItem>
+            <DescriptionsItem
+              :label="$t('tenant.system.operationLog.queryParams')"
+              :span="2"
+            >
+              <template v-if="detail.queryParams">
+                <pre class="m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-accent p-2 text-xs">{{ JSON.stringify(detail.queryParams, null, 2) }}</pre>
+              </template>
+              <span v-else class="text-muted-foreground">-</span>
+            </DescriptionsItem>
+            <DescriptionsItem
+              :label="$t('tenant.system.operationLog.requestBody')"
+              :span="2"
+            >
+              <template v-if="detail.requestBody">
+                <pre class="m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-accent p-2 text-xs">{{ JSON.stringify(detail.requestBody, null, 2) }}</pre>
+              </template>
+              <span v-else class="text-muted-foreground">-</span>
             </DescriptionsItem>
           </Descriptions>
         </div>
@@ -149,7 +167,7 @@ const statusCodeType = computed(() => {
             <DescriptionsItem
               :label="$t('tenant.system.operationLog.durationMs')"
             >
-              <span :class="detail.durationMs > 1000 ? 'text-warning' : ''">
+              <span :class="detail.durationMs > 1000 ? 'text-warning' : 'text-foreground'">
                 {{ detail.durationMs }} ms
               </span>
             </DescriptionsItem>
@@ -166,7 +184,7 @@ const statusCodeType = computed(() => {
           </div>
           <Descriptions :column="1" bordered size="small">
             <DescriptionsItem :label="$t('tenant.system.operationLog.ip')">
-              <code class="rounded bg-gray-100 px-1 py-0.5 text-xs">
+              <code class="rounded bg-accent px-1 py-0.5 text-xs">
                 {{ detail.ip }}
               </code>
             </DescriptionsItem>

@@ -18,6 +18,7 @@ export {
   statusSelect,
   switchField,
   textareaField,
+  treeSelect,
 } from './schema-helpers';
 // 类型导出
 export type {

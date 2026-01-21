@@ -4,16 +4,15 @@
  */
 import type { adminApi } from '#/api';
 
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 
-import { useVbenDrawer } from '@vben/common-ui';
+import { useCrudDrawer } from '#/composables';
 import { IconifyIcon } from '@vben/icons';
 
 import {
   Descriptions,
   DescriptionsItem,
   Divider,
-  Spin,
   Tag,
 } from 'ant-design-vue';
 
@@ -25,32 +24,12 @@ import { getMethodColor, getStatusColor } from '../data';
 
 type OperationLogInfo = adminApi.OperationLogInfo;
 
-const loading = ref(false);
-const detail = ref<null | OperationLogInfo>(null);
-
-const [Drawer, drawerApi] = useVbenDrawer({
-  onOpenChange: async (isOpen) => {
-    if (isOpen) {
-      const data = drawerApi.getData<{ id: number }>();
-      if (data?.id) {
-        await loadDetail(data.id);
-      }
-    } else {
-      detail.value = null;
-    }
-  },
+const {
+  Drawer,
+  detailData: detail,
+} = useCrudDrawer<OperationLogInfo>({
+  detailApi: (id) => getOperationLogDetailApi(id as number),
 });
-
-async function loadDetail(id: number) {
-  loading.value = true;
-  try {
-    detail.value = await getOperationLogDetailApi(id);
-  } catch {
-    detail.value = null;
-  } finally {
-    loading.value = false;
-  }
-}
 
 /**
  * 响应状态颜色映射
@@ -67,9 +46,8 @@ const statusCodeType = computed(() => {
     class="w-[600px]"
     :footer="false"
   >
-    <Spin :spinning="loading">
-      <template v-if="detail">
-        <!-- 用户信息 -->
+    <template v-if="detail">
+      <!-- 用户信息 -->
         <div class="mb-4">
           <div class="mb-2 flex items-center gap-2 text-base font-medium">
             <IconifyIcon icon="lucide:user" class="text-primary" />
@@ -114,9 +92,27 @@ const statusCodeType = computed(() => {
               :label="$t('admin.system.operationLog.path')"
               :span="2"
             >
-              <code class="break-all rounded bg-gray-100 px-1 py-0.5 text-xs">
+              <code class="break-all rounded bg-accent px-1 py-0.5 text-xs">
                 {{ detail.path }}
               </code>
+            </DescriptionsItem>
+            <DescriptionsItem
+              :label="$t('admin.system.operationLog.queryParams')"
+              :span="2"
+            >
+              <template v-if="detail.queryParams">
+                <pre class="m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-accent p-2 text-xs">{{ JSON.stringify(detail.queryParams, null, 2) }}</pre>
+              </template>
+              <span v-else class="text-muted-foreground">-</span>
+            </DescriptionsItem>
+            <DescriptionsItem
+              :label="$t('admin.system.operationLog.requestBody')"
+              :span="2"
+            >
+              <template v-if="detail.requestBody">
+                <pre class="m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-accent p-2 text-xs">{{ JSON.stringify(detail.requestBody, null, 2) }}</pre>
+              </template>
+              <span v-else class="text-muted-foreground">-</span>
             </DescriptionsItem>
           </Descriptions>
         </div>
@@ -145,7 +141,7 @@ const statusCodeType = computed(() => {
             <DescriptionsItem
               :label="$t('admin.system.operationLog.durationMs')"
             >
-              <span :class="detail.durationMs > 1000 ? 'text-warning' : ''">
+              <span :class="detail.durationMs > 1000 ? 'text-warning' : 'text-foreground'">
                 {{ detail.durationMs }} ms
               </span>
             </DescriptionsItem>
@@ -162,13 +158,17 @@ const statusCodeType = computed(() => {
           </div>
           <Descriptions :column="1" bordered size="small">
             <DescriptionsItem :label="$t('admin.system.operationLog.ip')">
-              <code class="rounded bg-gray-100 px-1 py-0.5 text-xs">
+              <code class="rounded bg-accent px-1 py-0.5 text-xs">
                 {{ detail.ip }}
               </code>
+            </DescriptionsItem>
+            <DescriptionsItem :label="$t('admin.system.operationLog.userAgent')">
+              <span class="break-all text-xs text-muted-foreground">
+                {{ detail.userAgent || '-' }}
+              </span>
             </DescriptionsItem>
           </Descriptions>
         </div>
       </template>
-    </Spin>
   </Drawer>
 </template>

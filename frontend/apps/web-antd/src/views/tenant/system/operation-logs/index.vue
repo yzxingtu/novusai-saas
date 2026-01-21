@@ -84,7 +84,7 @@ const { Grid } = useCrudPage<OperationLogInfo>({
         <template #path_cell="{ row }">
           <Tooltip :title="row.path">
             <code
-              class="max-w-[300px] truncate rounded bg-gray-100 px-1 py-0.5 text-xs"
+              class="max-w-[300px] truncate rounded bg-accent px-1 py-0.5 text-xs"
             >
               {{ row.path }}
             </code>
@@ -104,7 +104,7 @@ const { Grid } = useCrudPage<OperationLogInfo>({
             :class="
               row.durationMs > 1000
                 ? 'font-medium text-warning'
-                : 'text-gray-500'
+                : 'text-muted-foreground'
             "
           >
             {{ row.durationMs }} ms
@@ -113,7 +113,7 @@ const { Grid } = useCrudPage<OperationLogInfo>({
 
         <!-- IP 地址列 -->
         <template #ip_cell="{ row }">
-          <code class="rounded bg-gray-100 px-1 py-0.5 text-xs">
+          <code class="rounded bg-accent px-1 py-0.5 text-xs">
             {{ row.ip }}
           </code>
         </template>
@@ -121,7 +121,7 @@ const { Grid } = useCrudPage<OperationLogInfo>({
         <!-- 创建时间列 -->
         <template #createdAt_cell="{ row }">
           <Tooltip :title="formatDate(row.createdAt)">
-            <span class="text-gray-500">{{
+            <span class="text-muted-foreground">{{
               formatRelativeTime(row.createdAt)
             }}</span>
           </Tooltip>

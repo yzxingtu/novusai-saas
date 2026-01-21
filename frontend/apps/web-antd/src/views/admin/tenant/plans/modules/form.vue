@@ -7,6 +7,7 @@ import type { adminApi } from '#/api';
 import { computed } from 'vue';
 
 import { useVbenForm } from '#/adapter/form';
+import { getTenantPlanDetailApi } from '#/api/admin/plan';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
@@ -28,44 +29,26 @@ const { Drawer, isEdit } = useCrudDrawer<TenantPlanInfo>({
   schema: useFormSchema,
   defaults: getFormDefaults,
   transform: (values) => {
-    // 构建配额对象
-    const quota: Record<string, any> = {};
-    if (values['quota.storage_limit_gb'] !== undefined) {
-      quota.storage_limit_gb = values['quota.storage_limit_gb'];
-    }
-    if (values['quota.max_users'] !== undefined) {
-      quota.max_users = values['quota.max_users'];
-    }
-    if (values['quota.max_admins'] !== undefined) {
-      quota.max_admins = values['quota.max_admins'];
-    }
-    if (values['quota.max_custom_domains'] !== undefined) {
-      quota.max_custom_domains = values['quota.max_custom_domains'];
-    }
-    if (values['quota.allow_custom_domain'] !== undefined) {
-      quota.allow_custom_domain = values['quota.allow_custom_domain'];
-    }
-    if (values['quota.api_calls_per_month'] !== undefined) {
-      quota.api_calls_per_month = values['quota.api_calls_per_month'];
-    }
-    if (values['quota.max_file_size_mb'] !== undefined) {
-      quota.max_file_size_mb = values['quota.max_file_size_mb'];
-    }
+    // 解构嵌套对象
+    const quota = values.quota || {};
+    const features = values.features || {};
 
-    // 构建特性对象
-    const features: Record<string, any> = {};
-    if (values['features.ai_enabled'] !== undefined) {
-      features.ai_enabled = values['features.ai_enabled'];
-    }
-    if (values['features.advanced_analytics'] !== undefined) {
-      features.advanced_analytics = values['features.advanced_analytics'];
-    }
-    if (values['features.white_label'] !== undefined) {
-      features.white_label = values['features.white_label'];
-    }
-    if (values['features.priority_support'] !== undefined) {
-      features.priority_support = values['features.priority_support'];
-    }
+    // 修正配额对象（确保数值类型正确）
+    const finalQuota: Record<string, any> = {};
+    if (quota.storage_limit_gb !== undefined) finalQuota.storage_limit_gb = quota.storage_limit_gb;
+    if (quota.max_users !== undefined) finalQuota.max_users = quota.max_users;
+    if (quota.max_admins !== undefined) finalQuota.max_admins = quota.max_admins;
+    if (quota.max_custom_domains !== undefined) finalQuota.max_custom_domains = quota.max_custom_domains;
+    if (quota.allow_custom_domain !== undefined) finalQuota.allow_custom_domain = quota.allow_custom_domain;
+    if (quota.api_calls_per_month !== undefined) finalQuota.api_calls_per_month = quota.api_calls_per_month;
+    if (quota.max_file_size_mb !== undefined) finalQuota.max_file_size_mb = quota.max_file_size_mb;
+
+    // 修正特性对象
+    const finalFeatures: Record<string, any> = {};
+    if (features.ai_enabled !== undefined) finalFeatures.ai_enabled = features.ai_enabled;
+    if (features.advanced_analytics !== undefined) finalFeatures.advanced_analytics = features.advanced_analytics;
+    if (features.white_label !== undefined) finalFeatures.white_label = features.white_label;
+    if (features.priority_support !== undefined) finalFeatures.priority_support = features.priority_support;
 
     return {
       code: values.code,
@@ -75,8 +58,8 @@ const { Drawer, isEdit } = useCrudDrawer<TenantPlanInfo>({
       billing_cycle: values.billing_cycle || 'monthly',
       sort_order: values.sort_order || 0,
       is_active: values.is_active ?? true,
-      quota: Object.keys(quota).length > 0 ? quota : null,
-      features: Object.keys(features).length > 0 ? features : null,
+      quota: Object.keys(finalQuota).length > 0 ? finalQuota : null,
+      features: Object.keys(finalFeatures).length > 0 ? finalFeatures : null,
     };
   },
   toFormValues: (data) => {
@@ -88,24 +71,29 @@ const { Drawer, isEdit } = useCrudDrawer<TenantPlanInfo>({
       billing_cycle: data.billingCycle,
       sort_order: data.sortOrder,
       is_active: data.isActive,
-      // 配额字段
-      'quota.storage_limit_gb': data.quota?.storageLimitGb,
-      'quota.max_users': data.quota?.maxUsers,
-      'quota.max_admins': data.quota?.maxAdmins,
-      'quota.max_custom_domains': data.quota?.maxCustomDomains,
-      'quota.allow_custom_domain': data.quota?.allowCustomDomain ?? false,
-      'quota.api_calls_per_month': data.quota?.apiCallsPerMonth,
-      'quota.max_file_size_mb': data.quota?.maxFileSizeMb,
-      // 特性字段
-      'features.ai_enabled': data.features?.aiEnabled ?? false,
-      'features.advanced_analytics': data.features?.advancedAnalytics ?? false,
-      'features.white_label': data.features?.whiteLabel ?? false,
-      'features.priority_support': data.features?.prioritySupport ?? false,
+      // 配额字段（嵌套结构）
+      quota: {
+        storage_limit_gb: data.quota?.storageLimitGb,
+        max_users: data.quota?.maxUsers,
+        max_admins: data.quota?.maxAdmins,
+        max_custom_domains: data.quota?.maxCustomDomains,
+        allow_custom_domain: data.quota?.allowCustomDomain ?? false,
+        api_calls_per_month: data.quota?.apiCallsPerMonth,
+        max_file_size_mb: data.quota?.maxFileSizeMb,
+      },
+      // 特性字段（嵌套结构）
+      features: {
+        ai_enabled: data.features?.aiEnabled ?? false,
+        advanced_analytics: data.features?.advancedAnalytics ?? false,
+        white_label: data.features?.whiteLabel ?? false,
+        priority_support: data.features?.prioritySupport ?? false,
+      },
     };
   },
   onSuccess: () => {
     emits('success');
   },
+  detailApi: (id) => getTenantPlanDetailApi(id as number),
 });
 
 const title = computed(() =>

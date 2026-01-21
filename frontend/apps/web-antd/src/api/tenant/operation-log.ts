@@ -23,6 +23,8 @@ export interface OperationLogInfoRaw {
   action: string;
   method: string;
   path: string;
+  query_params: null | Record<string, unknown>;
+  request_body: null | Record<string, unknown>;
   status_code: number;
   response_code: number;
   ip: string;
@@ -40,6 +42,8 @@ export interface OperationLogInfo {
   action: string;
   method: string;
   path: string;
+  queryParams: null | Record<string, unknown>;
+  requestBody: null | Record<string, unknown>;
   statusCode: number;
   responseCode: number;
   ip: string;
@@ -70,6 +74,8 @@ function transformOperationLogInfo(raw: OperationLogInfoRaw): OperationLogInfo {
     action: raw.action,
     method: raw.method,
     path: raw.path,
+    queryParams: raw.query_params,
+    requestBody: raw.request_body,
     statusCode: raw.status_code,
     responseCode: raw.response_code,
     ip: raw.ip,

@@ -10,6 +10,7 @@ import {
   dateField,
   dividerField,
   inputField,
+  searchDateRange,
   searchInput,
   select,
   statusSelect,
@@ -263,6 +264,10 @@ export function useGridFormSchema(): VbenFormSchema[] {
     }),
     statusSelect(),
     planSelect({ search: true }),
+    searchDateRange({
+      field: 'created_at',
+      label: $t('admin.tenant.createdAt'),
+    }),
   ];
 }
 

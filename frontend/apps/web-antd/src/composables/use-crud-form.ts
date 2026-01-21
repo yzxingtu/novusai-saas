@@ -72,8 +72,8 @@ function createTransform(fields: string[]): (values: Record<string, any>) => Rec
  * useCrudDrawer 配置选项
  */
 export interface UseCrudDrawerOptions<T = any> {
-  /** Form API（由 useVbenForm 返回） */
-  formApi: {
+  /** Form API（由 useVbenForm 返回）- 详情页模式可不传 */
+  formApi?: {
     getValues: () => Promise<Record<string, any>>;
     resetForm: () => Promise<void>;
     setState: (state: { schema?: any[] }) => void;
@@ -85,7 +85,7 @@ export interface UseCrudDrawerOptions<T = any> {
    * Schema 工厂函数
    * @param isEdit 是否编辑模式
    */
-  schema: (isEdit: boolean) => any[];
+  schema?: (isEdit: boolean) => any[];
 
   /**
    * 字段列表（推荐）
@@ -144,6 +144,19 @@ export interface UseCrudDrawerOptions<T = any> {
 
   /** 打开后额外操作（如更新下拉选项） */
   afterOpen?: (formApi: any, isEdit: boolean) => Promise<void> | void;
+
+  /**
+   * 详情 API（可选）
+   *
+   * 提供后，编辑模式会调用此 API 获取完整数据，而不是使用列表传递的行数据
+   */
+  detailApi?: (id: number | string) => Promise<T>;
+
+  /**
+   * 主键字段名
+   * @default 'id'
+   */
+  idField?: string;
 }
 
 /**
@@ -162,6 +175,8 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
     onOpen,
     afterOpen,
     apiPath,
+    detailApi,
+    idField = 'id',
   } = options;
 
   // 如果提供了 fields，自动生成 transform 和 toFormValues
@@ -172,6 +187,8 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
   const recordId = ref<number | string>();
   const resource = ref<string>('');
   const rowData = ref<T>();
+  /** 详情数据（通过 detailApi 获取） */
+  const detailData = ref<T>();
 
   const isEdit = computed(() => mode.value === 'edit');
 
@@ -182,6 +199,8 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
     async onConfirm() {
       // 防抖：如果正在提交中，直接返回
       if (isSubmitting.value) return;
+
+      if (!formApi) return;
 
       const { valid } = await formApi.validate();
       if (!valid) return;
@@ -228,7 +247,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
           })
         | undefined;
       mode.value = data?.mode ?? 'add';
-      recordId.value = data?.id;
+      recordId.value = data?.[idField];
       {
         const p = unref(apiPath) as string | (() => string) | undefined;
         const resolved = typeof p === 'function' ? p() : p;
@@ -237,30 +256,45 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
       rowData.value = data as T;
 
       // 重置表单
-      await formApi.resetForm();
+      await formApi?.resetForm();
 
       // 执行 onOpen（如加载远程数据）
       await onOpen?.();
 
       // 更新 schema
-      formApi.setState({ schema: schema(isEdit.value) });
+      if (schema && formApi) {
+        formApi.setState({ schema: schema(isEdit.value) });
+      }
       await nextTick();
 
       // 执行 afterOpen（如更新下拉选项）
       await afterOpen?.(formApi, isEdit.value);
 
       // 填充表单数据
-      if (isEdit.value) {
-        // 编辑模式：填充后端数据
-        if (toFormValues && data) {
-          formApi.setValues(toFormValues(data as T));
+      if (isEdit.value || mode.value === 'view') {
+        // 编辑或查看模式：优先调用详情 API 获取完整数据
+        let fetchedData: T | undefined = data as T;
+        if (detailApi && recordId.value) {
+          try {
+            drawerApi.setState({ loading: true });
+            fetchedData = await detailApi(recordId.value);
+            detailData.value = fetchedData;
+          } catch {
+            // 详情加载失败，回退到行数据
+            fetchedData = data as T;
+          } finally {
+            drawerApi.setState({ loading: false });
+          }
+        }
+        if (toFormValues && fetchedData && formApi) {
+          formApi.setValues(toFormValues(fetchedData));
         }
       } else {
         // 新建模式：优先使用 _defaults（从 useCrudPage 传入），否则使用本地 defaults 配置
         const defaultValues =
           data?._defaults ??
           (typeof defaults === 'function' ? defaults() : defaults);
-        if (defaultValues) {
+        if (defaultValues && formApi) {
           formApi.setValues(defaultValues);
         }
       }
@@ -309,6 +343,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
     recordId,
     resource,
     rowData,
+    detailData,
     openNew,
     openEdit,
   };

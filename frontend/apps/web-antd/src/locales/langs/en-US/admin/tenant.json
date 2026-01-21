@@ -122,6 +122,7 @@
     "billingCycle": "Billing Cycle",
     "isActive": "Status",
     "sortOrder": "Sort Order",
+    "free": "Free",
     "quota": "Quota Settings",
     "features": "Features",
     "permissions": "Permissions",

@@ -143,6 +143,7 @@
     "billingCycle": "计费周期",
     "isActive": "状态",
     "sortOrder": "排序",
+    "free": "免费",
     "quota": "配额设置",
     "features": "特性标记",
     "permissions": "功能权限",

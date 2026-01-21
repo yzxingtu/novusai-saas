@@ -22,31 +22,6 @@ import PermissionsModal from './modules/permissions-modal.vue';
 
 type TenantPlanInfo = adminApi.TenantPlanInfo;
 
-/** 获取名称首字（支持中英文） */
-function getFirstChar(name: string): string {
-  if (!name) return '?';
-  if (/^[a-z]/i.test(name)) {
-    return name[0]!.toUpperCase();
-  }
-  return name[0] || '?';
-}
-
-/** 根据名称生成背景色 */
-function getAvatarColor(name: string): string {
-  const colors = [
-    'bg-blue-500',
-    'bg-green-500',
-    'bg-purple-500',
-    'bg-orange-500',
-    'bg-pink-500',
-    'bg-cyan-500',
-    'bg-indigo-500',
-    'bg-teal-500',
-  ];
-  const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return colors[hash % colors.length]!;
-}
-
 /** 复制编码到剪贴板 */
 async function onCopyCode(code: string) {
   const success = await copyToClipboard(code);
@@ -57,23 +32,11 @@ async function onCopyCode(code: string) {
   }
 }
 
-/** 获取计费周期 Tag 颜色 */
-function getBillingCycleColor(cycle: string): string {
-  switch (cycle) {
-    case 'lifetime': return 'purple';
-    case 'yearly': return 'gold';
-    case 'quarterly': return 'blue';
-    case 'monthly': return 'cyan';
-    case 'one_time': return 'green';
-    default: return 'default';
-  }
-}
-
 /** 格式化价格 */
 function formatPriceDisplay(price?: null | number | string): string {
-  if (price === null || price === undefined) return '免费';
+  if (price === null || price === undefined) return '-';
   const priceNum = typeof price === 'string' ? Number.parseFloat(price) : price;
-  if (Number.isNaN(priceNum) || priceNum === 0) return '免费';
+  if (Number.isNaN(priceNum) || priceNum === 0) return $t('admin.tenant.plan.free');
   return `¥${priceNum.toFixed(2)}`;
 }
 
@@ -130,17 +93,9 @@ useAutoTableDragSort(() => gridApi.grid, {
     <!-- 表格 -->
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
-        <!-- 套餐名称列：首字头像 + 名称 -->
+        <!-- 套餐名称列 -->
         <template #name_cell="{ row }">
-          <div class="flex items-center gap-2">
-            <span
-              class="flex size-7 shrink-0 items-center justify-center rounded-lg text-xs font-medium text-white"
-              :class="getAvatarColor(row.name)"
-            >
-              {{ getFirstChar(row.name) }}
-            </span>
-            <span class="truncate font-medium">{{ row.name }}</span>
-          </div>
+          <span class="font-medium">{{ row.name }}</span>
         </template>
 
         <!-- 套餐编码列：等宽字体 + 点击复制 -->
@@ -156,24 +111,17 @@ useAutoTableDragSort(() => gridApi.grid, {
           </Tooltip>
         </template>
 
-        <!-- 价格列：突出显示 -->
+        <!-- 价格列 -->
         <template #price_cell="{ row }">
-          <span
-            class="text-lg font-semibold"
-            :class="row.price && row.price > 0 ? 'text-orange-500' : 'text-green-500'"
-          >
-            {{ formatPriceDisplay(row.price) }}
-          </span>
+          {{ formatPriceDisplay(row.price) }}
         </template>
 
-        <!-- 计费周期列：Tag 标签 -->
+        <!-- 计费周期列 -->
         <template #billingCycle_cell="{ row }">
-          <Tag :color="getBillingCycleColor(row.billingCycle)">
-            {{ getBillingCycleText(row.billingCycle) }}
-          </Tag>
+          <Tag>{{ getBillingCycleText(row.billingCycle) }}</Tag>
         </template>
 
-        <!-- 创建时间列：相对时间 + Tooltip -->
+        <!-- 创建时间列 -->
         <template #createdAt_cell="{ row }">
           <Tooltip :title="formatDate(row.createdAt)">
             <span class="text-gray-500">{{ formatRelativeTime(row.createdAt) }}</span>
@@ -194,7 +142,6 @@ useAutoTableDragSort(() => gridApi.grid, {
               }}</span>
             </div>
           </Card>
-          <!-- 导出按钮由 useCrudPage 自动添加 -->
         </template>
       </Grid>
     </Card>

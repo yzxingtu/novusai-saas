@@ -9,6 +9,7 @@ import {
   dividerField,
   inputField,
   numberField,
+  searchDateRange,
   searchInput,
   select,
   statusSelect,
@@ -192,6 +193,10 @@ export function useGridFormSchema(): VbenFormSchema[] {
       placeholder: $t('admin.tenant.plan.placeholder.searchCode'),
     }),
     statusSelect({ label: $t('admin.tenant.plan.isActive') }),
+    searchDateRange({
+      field: 'created_at',
+      label: $t('admin.common.createdAt'),
+    }),
   ];
 }
 
@@ -299,10 +304,14 @@ export function getFormDefaults(): Record<string, any> {
     billing_cycle: 'monthly',
     is_active: true,
     sort_order: 0,
-    'quota.allow_custom_domain': false,
-    'features.ai_enabled': false,
-    'features.advanced_analytics': false,
-    'features.white_label': false,
-    'features.priority_support': false,
+    quota: {
+      allow_custom_domain: false,
+    },
+    features: {
+      ai_enabled: false,
+      advanced_analytics: false,
+      white_label: false,
+      priority_support: false,
+    },
   };
 }

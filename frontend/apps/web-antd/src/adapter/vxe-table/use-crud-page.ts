@@ -285,24 +285,25 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
 
   /**
    * 处理表单参数，转换日期范围等特殊字段
+   * 日期范围使用 between 操作符: filter[field][between]=start,end
    */
   function processFormValues(formValues: Record<string, any>) {
     const result: Record<string, any> = {};
 
     for (const [key, value] of Object.entries(formValues)) {
-      // 处理日期范围字段: _dateRange_xxx -> filter[xxx][gte] / filter[xxx][lte]
+      // 处理日期范围字段: _dateRange_xxx -> filter[xxx][between]=start,end
       if (key.startsWith('_dateRange_') && Array.isArray(value)) {
         const field = key.replace('_dateRange_', '');
         const [startDate, endDate] = value;
-        if (startDate) {
+        if (startDate && endDate) {
+          // 使用 between 操作符，格式: filter[field][between]=start,end
+          result[`filter[${field}][between]`] = `${startDate},${endDate}`;
+        } else if (startDate) {
+          // 只有开始日期，使用 gte
           result[`filter[${field}][gte]`] = startDate;
-        }
-        if (endDate) {
-          // 如果是日期格式（不包含时间），结束日期加上 23:59:59
-          const isDateOnly = endDate.length === 10; // YYYY-MM-DD
-          result[`filter[${field}][lte]`] = isDateOnly
-            ? `${endDate} 23:59:59`
-            : endDate;
+        } else if (endDate) {
+          // 只有结束日期，使用 lte
+          result[`filter[${field}][lte]`] = endDate;
         }
       } else if (value !== undefined && value !== null && value !== '') {
         // 过滤空值

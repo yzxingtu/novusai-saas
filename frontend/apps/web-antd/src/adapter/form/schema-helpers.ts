@@ -175,6 +175,90 @@ export function select(
   };
 }
 
+/**
+ * 树形选择器配置
+ */
+export interface TreeSelectOptions extends Omit<
+  ApiSelectOptions,
+  'api' | 'fieldName'
+> {
+  /** 远程 API */
+  api?: (...args: any[]) => Promise<any>;
+  /** 静态树数据 */
+  options?: any[];
+  /** 字段名 */
+  fieldName?: string;
+}
+
+/**
+ * 通用树形选择器
+ * 自动判断使用 ApiTreeSelect 或 TreeSelect
+ */
+export function treeSelect(
+  field: string,
+  label: string,
+  options: TreeSelectOptions = {},
+): VbenFormSchema {
+  const { api, options: staticOptions, ...rest } = options;
+
+  if (api) {
+    return apiTreeSelect({
+      api,
+      fieldName: field,
+      label,
+      ...rest,
+    });
+  }
+
+  const { required, placeholder, ...componentProps } = rest;
+
+  return {
+    component: 'TreeSelect',
+    componentProps: {
+      allowClear: true,
+      class: 'w-full',
+      placeholder: placeholder || `请选择${label}`,
+      showSearch: true,
+      treeData: staticOptions,
+      treeNodeFilterProp: 'label',
+      ...componentProps,
+    },
+    fieldName: field,
+    label,
+    ...(required ? { rules: 'selectRequired' } : {}),
+  };
+}
+
+/**
+ * 创建 ApiTreeSelect schema
+ */
+export function apiTreeSelect(options: ApiSelectOptions): VbenFormSchema {
+  const {
+    api,
+    fieldName,
+    label = '',
+    placeholder,
+    params = {},
+    required = false,
+    ...rest
+  } = options;
+
+  return {
+    component: 'ApiTreeSelect',
+    componentProps: {
+      api,
+      class: 'w-full',
+      params,
+      placeholder: placeholder || `请选择${label}`,
+      resultField: 'items',
+      ...rest,
+    },
+    fieldName,
+    label,
+    ...(required ? { rules: 'selectRequired' } : {}),
+  };
+}
+
 // ============ 核心辅助函数 ============
 
 /**

@@ -112,6 +112,8 @@
     "requestInfo": "Request Info",
     "responseInfo": "Response Info",
     "clientInfo": "Client Info",
+    "queryParams": "Query Params",
+    "requestBody": "Request Body",
     "placeholder": {
       "searchUsername": "Search operator",
       "searchModule": "Search module",

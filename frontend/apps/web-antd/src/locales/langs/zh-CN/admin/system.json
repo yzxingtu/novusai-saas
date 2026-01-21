@@ -138,6 +138,9 @@
     "requestInfo": "请求信息",
     "responseInfo": "响应信息",
     "clientInfo": "客户端信息",
+    "queryParams": "请求参数",
+    "requestBody": "请求体",
+    "userAgent": "User Agent",
     "batchDelete": "批量删除",
     "messages": {
       "deleteSuccess": "删除成功",

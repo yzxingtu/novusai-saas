@@ -11,6 +11,7 @@ import type { adminApi } from '#/api';
 import { computed } from 'vue';
 
 import { useVbenForm } from '#/adapter/form';
+import { getTenantDetailApi } from '#/api/admin/tenant';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
@@ -61,6 +62,7 @@ const { Drawer, isEdit } = useCrudDrawer<TenantInfo>({
     return result;
   },
   onSuccess: () => emits('success'),
+  detailApi: (id) => getTenantDetailApi(id as number),
 });
 
 const title = computed(() =>
