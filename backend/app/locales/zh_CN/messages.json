@@ -52,6 +52,7 @@
     "status_updated": "管理员状态更新成功",
     "cannot_delete_self": "不能删除自己",
     "cannot_delete_super": "不能删除超级管理员",
+    "cannot_remove_super": "不能删除超级管理员",
     "cannot_disable_self": "不能禁用自己",
     "cannot_modify_super": "不能修改超级管理员",
     "super_admin_required": "需要超级管理员权限"
@@ -117,7 +118,11 @@
     "min_length": "{field}长度不能少于{min}个字符",
     "max_length": "{field}长度不能超过{max}个字符",
     "invalid_format": "{field}格式不正确",
-    "out_of_range": "{field}超出有效范围"
+    "out_of_range": "{field}超出有效范围",
+    "min_value": "不能小于 {min}",
+    "max_value": "不能大于 {max}",
+    "pattern": "格式不正确",
+    "color_format": "颜色格式不正确，应为 #RRGGBB"
   },
   "pagination": {
     "invalid_page": "页码无效",
@@ -192,7 +197,7 @@
       "select": "组织远程下拉",
       "members": "查看节点成员",
       "assign_member": "分配成员",
-      "remove_member": "移除成员",
+      "remove_member": "删除成员",
       "set_leader": "设置负责人",
       "reorder": "重新排序",
       "create_member": "创建成员",
@@ -657,14 +662,6 @@
       }
     }
   },
-  "validation": {
-    "min_value": "不能小于 {min}",
-    "max_value": "不能大于 {max}",
-    "min_length": "长度不能少于 {min} 个字符",
-    "max_length": "长度不能超过 {max} 个字符",
-    "pattern": "格式不正确",
-    "color_format": "颜色格式不正确，应为 #RRGGBB"
-  },
   "error": {
     "unknown": "未知错误",
     "common": {
@@ -704,7 +701,11 @@
     "admin": {
       "username_exists": "用户名已被占用",
       "email_exists": "邮箱已被使用",
-      "phone_exists": "手机号已被使用"
+      "phone_exists": "手机号已被使用",
+      "cannot_remove_super": "不能移除超级管理员"
+    },
+    "tenant_admin": {
+      "cannot_remove_owner": "不能移除租户所有者"
     },
     "config": {
       "group_not_found": "配置分组不存在",

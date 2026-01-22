@@ -438,7 +438,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         admin_id: int,
     ) -> TenantAdminRole:
         """
-        从节点移除成员（租户内）
+        删除节点成员（租户内，软删除）
         
         Args:
             role_id: 角色/节点 ID
@@ -449,7 +449,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         
         Raises:
             NotFoundException: 角色或管理员不存在
-            BusinessException: 管理员不是该节点成员
+            BusinessException: 管理员不是该节点成员或不允许删除
         """
         role = await self.repo.get_by_id(role_id)
         if not role:
@@ -466,17 +466,26 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         if not admin:
             raise NotFoundException(message=_("admin.not_found"))
         
-        # 检查是否是该节点成员
+        # 检查是否是该节点或其子节点的成员
+        role_path = role.path + "/"
         if admin.role_id != role_id:
-            raise BusinessException(
-                message=_("role.member_not_in_node"),
-                code=ErrorCode.ROLE_MEMBER_NOT_IN_NODE,
-            )
+            # 可能在子节点中，检查路径
+            if admin.role and admin.role.path:
+                if not admin.role.path.startswith(role_path) and admin.role_id != role_id:
+                    raise BusinessException(
+                        message=_("role.member_not_in_node"),
+                        code=ErrorCode.ROLE_MEMBER_NOT_IN_NODE,
+                    )
+            else:
+                raise BusinessException(
+                    message=_("role.member_not_in_node"),
+                    code=ErrorCode.ROLE_MEMBER_NOT_IN_NODE,
+                )
         
-        # 保护租户所有者：不允许移除
+        # 保护租户所有者：不允许删除
         if admin.is_owner:
             raise BusinessException(
-                message=_("tenant_admin.cannot_remove_owner"),
+                message=_(ErrorCode.TENANT_ADMIN_CANNOT_REMOVE_OWNER.message_key),
                 code=ErrorCode.TENANT_ADMIN_CANNOT_REMOVE_OWNER,
             )
         
@@ -484,8 +493,8 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         if role.leader_id == admin_id:
             await self.repo.update(role_id, {"leader_id": None})
         
-        # 移除成员（将 role_id 设为 None）
-        admin.role_id = None
+        # 软删除成员
+        admin.is_deleted = True
         await self.db.flush()
         
         return await self.repo.get_by_id(role_id)

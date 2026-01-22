@@ -52,6 +52,7 @@
     "status_updated": "Admin status updated successfully",
     "cannot_delete_self": "Cannot delete yourself",
     "cannot_delete_super": "Cannot delete super admin",
+    "cannot_remove_super": "Cannot delete super admin",
     "cannot_disable_self": "Cannot disable yourself",
     "cannot_modify_super": "Cannot modify super admin",
     "super_admin_required": "Super admin privileges required"
@@ -117,7 +118,11 @@
     "min_length": "{field} must be at least {min} characters",
     "max_length": "{field} must not exceed {max} characters",
     "invalid_format": "Invalid {field} format",
-    "out_of_range": "{field} is out of valid range"
+    "out_of_range": "{field} is out of valid range",
+    "min_value": "Cannot be less than {min}",
+    "max_value": "Cannot be greater than {max}",
+    "pattern": "Invalid format",
+    "color_format": "Invalid color format, should be #RRGGBB"
   },
   "pagination": {
     "invalid_page": "Invalid page number",
@@ -192,7 +197,7 @@
       "select": "Organization Remote Select",
       "members": "View Node Members",
       "assign_member": "Assign Member",
-      "remove_member": "Remove Member",
+      "remove_member": "Delete Member",
       "set_leader": "Set Leader",
       "reorder": "Reorder",
       "create_member": "Create Member",
@@ -655,14 +660,6 @@
       }
     }
   },
-  "validation": {
-    "min_value": "Cannot be less than {min}",
-    "max_value": "Cannot be greater than {max}",
-    "min_length": "Length cannot be less than {min} characters",
-    "max_length": "Length cannot exceed {max} characters",
-    "pattern": "Invalid format",
-    "color_format": "Invalid color format, should be #RRGGBB"
-  },
   "error": {
     "unknown": "Unknown error",
     "common": {
@@ -702,7 +699,11 @@
     "admin": {
       "username_exists": "Username already taken",
       "email_exists": "Email already in use",
-      "phone_exists": "Phone number already in use"
+      "phone_exists": "Phone number already in use",
+      "cannot_remove_super": "Cannot remove super admin"
+    },
+    "tenant_admin": {
+      "cannot_remove_owner": "Cannot remove tenant owner"
     },
     "config": {
       "group_not_found": "Configuration group not found",
