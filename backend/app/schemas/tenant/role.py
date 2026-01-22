@@ -110,6 +110,39 @@ class TenantAdminRoleAddMemberRequest(BaseSchema):
     admin_id: int = Field(..., description="租户管理员 ID")
 
 
+class TenantAdminRoleCreateMemberRequest(BaseSchema):
+    """在节点下创建成员请求"""
+    
+    username: str = Field(..., min_length=2, max_length=50, description="用户名")
+    email: str = Field(..., description="邮箱")
+    password: str = Field(..., min_length=6, max_length=50, description="密码")
+    phone: str | None = Field(None, description="手机号")
+    nickname: str | None = Field(None, description="昵称")
+    is_active: bool = Field(True, description="是否激活")
+
+
+class TenantAdminRoleUpdateMemberRequest(BaseSchema):
+    """更新节点成员请求"""
+    
+    email: str | None = Field(None, description="邮箱")
+    phone: str | None = Field(None, description="手机号")
+    nickname: str | None = Field(None, description="昵称")
+    is_active: bool | None = Field(None, description="是否激活")
+    role_id: int | None = Field(None, description="新角色 ID（调整所属角色）")
+
+
+class TenantAdminRoleResetPasswordRequest(BaseSchema):
+    """重置节点成员密码请求"""
+    
+    new_password: str = Field(..., min_length=6, max_length=50, description="新密码")
+
+
+class TenantAdminRoleToggleStatusRequest(BaseSchema):
+    """切换节点成员状态请求"""
+    
+    is_active: bool = Field(..., description="是否激活")
+
+
 class TenantAdminRoleMemberResponse(BaseSchema):
     """节点成员响应"""
     
@@ -137,5 +170,9 @@ __all__ = [
     # 组织架构管理
     "TenantAdminRoleSetLeaderRequest",
     "TenantAdminRoleAddMemberRequest",
+    "TenantAdminRoleCreateMemberRequest",
+    "TenantAdminRoleUpdateMemberRequest",
+    "TenantAdminRoleResetPasswordRequest",
+    "TenantAdminRoleToggleStatusRequest",
     "TenantAdminRoleMemberResponse",
 ]

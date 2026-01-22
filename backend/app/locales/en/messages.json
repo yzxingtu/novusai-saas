@@ -191,10 +191,14 @@
       "assign_permissions": "Assign Permissions",
       "select": "Organization Remote Select",
       "members": "View Node Members",
-      "add_member": "Add Member",
+      "assign_member": "Assign Member",
       "remove_member": "Remove Member",
       "set_leader": "Set Leader",
-      "reorder": "Reorder"
+      "reorder": "Reorder",
+      "create_member": "Create Member",
+      "update_member": "Update Member",
+      "reset_password": "Reset Password",
+      "toggle_status": "Toggle Status"
     },
     "admin": {
       "list": "View Admin List",

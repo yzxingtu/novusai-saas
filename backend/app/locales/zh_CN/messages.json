@@ -191,10 +191,14 @@
       "assign_permissions": "分配权限",
       "select": "组织远程下拉",
       "members": "查看节点成员",
-      "add_member": "添加成员",
+      "assign_member": "分配成员",
       "remove_member": "移除成员",
       "set_leader": "设置负责人",
-      "reorder": "重新排序"
+      "reorder": "重新排序",
+      "create_member": "创建成员",
+      "update_member": "更新成员",
+      "reset_password": "重置密码",
+      "toggle_status": "切换状态"
     },
     "admin": {
       "list": "查看管理员列表",
@@ -305,6 +309,8 @@
     "member_exists": "成员已存在于该节点",
     "member_not_in_node": "成员不在该节点中",
     "member_added": "成员添加成功",
+    "member_created": "成员创建成功",
+    "member_updated": "成员更新成功",
     "member_removed": "成员移除成功",
     "leader_set": "负责人设置成功"
   },

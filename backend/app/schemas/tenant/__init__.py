@@ -28,6 +28,10 @@ from app.schemas.tenant.role import (
     TenantAdminRoleMoveRequest,
     TenantAdminRoleSetLeaderRequest,
     TenantAdminRoleAddMemberRequest,
+    TenantAdminRoleCreateMemberRequest,
+    TenantAdminRoleUpdateMemberRequest,
+    TenantAdminRoleResetPasswordRequest,
+    TenantAdminRoleToggleStatusRequest,
     TenantAdminRoleMemberResponse,
 )
 from app.schemas.tenant.domain import (
@@ -74,6 +78,10 @@ __all__ = [
     "TenantAdminRoleMoveRequest",
     "TenantAdminRoleSetLeaderRequest",
     "TenantAdminRoleAddMemberRequest",
+    "TenantAdminRoleCreateMemberRequest",
+    "TenantAdminRoleUpdateMemberRequest",
+    "TenantAdminRoleResetPasswordRequest",
+    "TenantAdminRoleToggleStatusRequest",
     "TenantAdminRoleMemberResponse",
     # Domain
     "TenantDomainSimpleResponse",
