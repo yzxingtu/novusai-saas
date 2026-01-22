@@ -136,7 +136,7 @@ defineExpose({ open });
             </Descriptions.Item>
             <Descriptions.Item :label="$t('admin.tenant.domain.dnsGuide.hostRecord')">
               <div class="flex items-center justify-between gap-2">
-                <code class="break-all rounded bg-gray-100 px-2 py-1 text-xs">
+                <code class="bg-accent text-foreground break-all rounded px-2 py-1 text-xs">
                   {{ guideData.verificationInfo?.host || '_verification' }}
                 </code>
                 <Button
@@ -150,7 +150,7 @@ defineExpose({ open });
             </Descriptions.Item>
             <Descriptions.Item :label="$t('admin.tenant.domain.dnsGuide.recordValue')">
               <div class="flex items-center justify-between gap-2">
-                <code class="break-all rounded bg-gray-100 px-2 py-1 text-xs">
+                <code class="bg-accent text-foreground break-all rounded px-2 py-1 text-xs">
                   {{ guideData.verificationInfo?.value || guideData.verificationToken || '-' }}
                 </code>
                 <Button
@@ -180,7 +180,7 @@ defineExpose({ open });
             </Descriptions.Item>
             <Descriptions.Item :label="$t('admin.tenant.domain.dnsGuide.hostRecord')">
               <div class="flex items-center justify-between gap-2">
-                <code class="break-all rounded bg-gray-100 px-2 py-1 text-xs">
+                <code class="bg-accent text-foreground break-all rounded px-2 py-1 text-xs">
                   {{ guideData.domain.split('.')[0] }}
                 </code>
                 <Button
@@ -194,7 +194,7 @@ defineExpose({ open });
             </Descriptions.Item>
             <Descriptions.Item :label="$t('admin.tenant.domain.dnsGuide.recordValue')">
               <div class="flex items-center justify-between gap-2">
-                <code class="break-all rounded bg-gray-100 px-2 py-1 text-xs">
+                <code class="bg-accent text-foreground break-all rounded px-2 py-1 text-xs">
                   {{ guideData.cnameTarget || 'cname.platform.com' }}
                 </code>
                 <Button
@@ -218,12 +218,12 @@ defineExpose({ open });
             class="mb-4"
           />
 
-          <div class="rounded-lg border border-gray-200 p-4">
+          <div class="rounded-lg border p-4">
             <div class="flex flex-col items-center gap-4 py-4">
               <IconifyIcon icon="lucide:shield-check" class="size-16 text-primary" />
               <div class="text-center">
-                <p class="text-base font-medium">{{ $t('admin.tenant.domain.dnsGuide.step3Title') }}</p>
-                <p class="mt-1 text-sm text-gray-500">{{ $t('admin.tenant.domain.dnsGuide.verifyHint') }}</p>
+                <p class="text-foreground text-base font-medium">{{ $t('admin.tenant.domain.dnsGuide.step3Title') }}</p>
+                <p class="text-muted-foreground mt-1 text-sm">{{ $t('admin.tenant.domain.dnsGuide.verifyHint') }}</p>
               </div>
             </div>
           </div>

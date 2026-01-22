@@ -387,10 +387,10 @@ onMounted(() => {
     </div>
 
     <!-- 2. 主内容区域 -->
-    <div class="bg-card flex flex-1 gap-4 overflow-hidden rounded-xl p-1 shadow-sm">
+    <div class="bg-card flex min-h-0 flex-1 gap-4 overflow-hidden rounded-xl p-1 shadow-sm">
       
       <!-- 左侧：文件列表 (折叠面板风格) -->
-      <div class="flex w-[320px] flex-shrink-0 flex-col border-r">
+      <div class="flex min-h-0 w-[320px] flex-shrink-0 flex-col border-r">
         <!-- 头部 -->
         <div class="flex items-center justify-between border-b p-3">
           <span class="text-foreground font-semibold">{{ $t('admin.system.systemLog.files') }}</span>
@@ -400,7 +400,7 @@ onMounted(() => {
         </div>
 
         <!-- 分类与文件列表 -->
-        <div class="flex-1 overflow-y-auto p-2">
+        <div class="min-h-0 flex-1 overflow-y-auto p-2">
           <Spin :spinning="loading && categories.length === 0">
             <div class="flex flex-col gap-1">
               <template v-for="cat in categories" :key="cat.code">
