@@ -27,13 +27,13 @@ import {
 } from 'vue';
 
 import { ApiComponent, globalShareState, IconPicker } from '@vben/common-ui';
-
-import { ApiSelect } from '#/components/business/api-select';
 import { IconifyIcon } from '@vben/icons';
 import { $t } from '@vben/locales';
 import { isEmpty } from '@vben/utils';
 
 import { message, notification } from 'ant-design-vue';
+
+import { ApiSelect } from '#/components/business/api-select';
 
 const AutoComplete = defineAsyncComponent(
   () => import('ant-design-vue/es/auto-complete'),

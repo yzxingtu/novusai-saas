@@ -84,7 +84,10 @@ export type GridGetter =
  * }, { immediate: true });
  * ```
  */
-export function useTableDragSort(gridGetter: GridGetter, config: DragSortConfig) {
+export function useTableDragSort(
+  gridGetter: GridGetter,
+  config: DragSortConfig,
+) {
   // 实例状态（闭包隔离，支持多表格）
   let sortableInstance: null | Sortable = null;
   let isInitialized = false;
@@ -138,7 +141,11 @@ export function useTableDragSort(gridGetter: GridGetter, config: DragSortConfig)
   /** 处理拖拽结束事件 */
   async function handleDragEnd(evt: Sortable.SortableEvent) {
     const { oldIndex, newIndex } = evt;
-    if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex) {
+    if (
+      oldIndex === undefined ||
+      newIndex === undefined ||
+      oldIndex === newIndex
+    ) {
       return;
     }
 
@@ -238,10 +245,13 @@ export function useTableDragSort(gridGetter: GridGetter, config: DragSortConfig)
  * );
  * ```
  */
-export function useAutoTableDragSort(gridGetter: GridGetter, config: DragSortConfig) {
+export function useAutoTableDragSort(
+  gridGetter: GridGetter,
+  config: DragSortConfig,
+) {
   const dragSort = useTableDragSort(gridGetter, config);
 
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let pollTimer: null | ReturnType<typeof setInterval> = null;
   let attempts = 0;
   const MAX_ATTEMPTS = 50; // 最多尝试 5 秒 (50 * 100ms)
 

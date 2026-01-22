@@ -95,7 +95,7 @@ function transformComponentPath(
   }
 
   // 标准化路径：确保以 / 开头
-  let path = component.startsWith('/') ? component : `/${component}`;
+  const path = component.startsWith('/') ? component : `/${component}`;
 
   // 割离目录和文件名
   const lastSlash = path.lastIndexOf('/');
@@ -400,4 +400,3 @@ export function needsTransform(menus: any[]): boolean {
         'affix_tab' in firstItem.meta))
   );
 }
-

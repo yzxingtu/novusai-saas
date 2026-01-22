@@ -1,10 +1,11 @@
-import type { ApiRequestOptions } from '#/utils/request';
-import { requestClient } from '#/utils/request';
 import type {
   ConfigGroupListItemMeta,
   ConfigGroupMeta,
   ConfigSubmitPayload,
 } from '#/types/config';
+import type { ApiRequestOptions } from '#/utils/request';
+
+import { requestClient } from '#/utils/request';
 
 /** 获取平台配置分组列表 */
 export async function getAdminConfigGroupsApi(
@@ -33,5 +34,9 @@ export async function updateAdminConfigGroupApi(
   configs: ConfigSubmitPayload,
   options?: ApiRequestOptions,
 ): Promise<void> {
-  await requestClient.put(`/admin/configs/groups/${groupCode}`, configs, options);
+  await requestClient.put(
+    `/admin/configs/groups/${groupCode}`,
+    configs,
+    options,
+  );
 }

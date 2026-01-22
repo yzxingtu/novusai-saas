@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { RoleTreeApi } from './data';
+
 import type { OrgMember } from '#/api/admin/organization';
 
 import { computed, ref, watch } from 'vue';
@@ -16,8 +18,6 @@ import {
   Switch,
   Tooltip,
 } from 'ant-design-vue';
-
-import type { RoleTreeApi } from './data';
 
 import AdminFormDrawer from './modules/admin-form-drawer.vue';
 import MemberItem from './modules/member-item.vue';
@@ -100,7 +100,6 @@ watch(
     searchText.value = '';
   },
 );
-
 
 /** 分页显示信息 */
 const paginationInfo = computed(() => {

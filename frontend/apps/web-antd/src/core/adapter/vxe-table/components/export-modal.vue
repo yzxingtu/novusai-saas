@@ -196,13 +196,9 @@ const isIndeterminate = computed(() => {
 });
 
 function toggleSelectAll(checked: boolean) {
-  if (checked) {
-    selectedColumns.value = columnOptions.value
-      .filter((c) => !c.disabled)
-      .map((c) => c.value);
-  } else {
-    selectedColumns.value = [];
-  }
+  selectedColumns.value = checked
+    ? columnOptions.value.filter((c) => !c.disabled).map((c) => c.value)
+    : [];
 }
 
 // 导出范围选项（常驻显示，未勾选时禁用“已选数据”）

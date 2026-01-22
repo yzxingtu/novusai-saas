@@ -127,7 +127,10 @@ const statusCodeType = computed(() => {
               :span="2"
             >
               <template v-if="detail.queryParams">
-                <pre class="m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-accent p-2 text-xs">{{ JSON.stringify(detail.queryParams, null, 2) }}</pre>
+                <pre
+                  class="m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-accent p-2 text-xs"
+                  >{{ JSON.stringify(detail.queryParams, null, 2) }}</pre
+                >
               </template>
               <span v-else class="text-muted-foreground">-</span>
             </DescriptionsItem>
@@ -136,7 +139,10 @@ const statusCodeType = computed(() => {
               :span="2"
             >
               <template v-if="detail.requestBody">
-                <pre class="m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-accent p-2 text-xs">{{ JSON.stringify(detail.requestBody, null, 2) }}</pre>
+                <pre
+                  class="m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-accent p-2 text-xs"
+                  >{{ JSON.stringify(detail.requestBody, null, 2) }}</pre
+                >
               </template>
               <span v-else class="text-muted-foreground">-</span>
             </DescriptionsItem>
@@ -167,7 +173,11 @@ const statusCodeType = computed(() => {
             <DescriptionsItem
               :label="$t('tenant.system.operationLog.durationMs')"
             >
-              <span :class="detail.durationMs > 1000 ? 'text-warning' : 'text-foreground'">
+              <span
+                :class="
+                  detail.durationMs > 1000 ? 'text-warning' : 'text-foreground'
+                "
+              >
                 {{ detail.durationMs }} ms
               </span>
             </DescriptionsItem>

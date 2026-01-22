@@ -76,9 +76,4 @@ const mainRoutes: RouteRecordRaw = {
 /** 租户管理端路由 */
 export const tenantRoutes: RouteRecordRaw[] = [authRoutes, mainRoutes];
 
-/** 租户管理端路由名称列表（不需要权限拦截） */
-export const tenantCoreRouteNames = [
-  'TenantAuthentication',
-  'TenantLogin',
-  'TenantImpersonate',
-];
+export { tenantCoreRouteNames } from './names';

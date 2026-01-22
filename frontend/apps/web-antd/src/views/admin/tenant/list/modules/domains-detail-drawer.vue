@@ -32,7 +32,7 @@ const emits = defineEmits<{
 
 // 状态
 const detailData = ref<DomainDetailData | null>(null);
-const domainDetail = ref<TenantDomainInfo | null>(null);
+const domainDetail = ref<null | TenantDomainInfo>(null);
 const loading = ref(false);
 const submitting = ref(false);
 const editMode = ref(false);
@@ -121,11 +121,11 @@ function onCopy(text?: string) {
 /** 获取验证状态标签配置 */
 function getVerificationTagConfig(status: string) {
   switch (status) {
-    case 'verified': {
-      return { color: 'success', text: $t('admin.tenant.domain.verified') };
-    }
     case 'failed': {
       return { color: 'error', text: $t('admin.tenant.domain.verifyFailed') };
+    }
+    case 'verified': {
+      return { color: 'success', text: $t('admin.tenant.domain.verified') };
     }
     default: {
       return { color: 'warning', text: $t('admin.tenant.domain.pending') };
@@ -137,16 +137,28 @@ function getVerificationTagConfig(status: string) {
 function getSslTagConfig(status: string) {
   switch (status) {
     case 'active': {
-      return { color: 'success', text: $t('admin.tenant.domain.ssl.status.active') };
+      return {
+        color: 'success',
+        text: $t('admin.tenant.domain.ssl.status.active'),
+      };
     }
     case 'expired': {
-      return { color: 'error', text: $t('admin.tenant.domain.ssl.status.expired') };
+      return {
+        color: 'error',
+        text: $t('admin.tenant.domain.ssl.status.expired'),
+      };
     }
     case 'pending': {
-      return { color: 'processing', text: $t('admin.tenant.domain.ssl.status.pending') };
+      return {
+        color: 'processing',
+        text: $t('admin.tenant.domain.ssl.status.pending'),
+      };
     }
     default: {
-      return { color: 'default', text: $t('admin.tenant.domain.ssl.status.none') };
+      return {
+        color: 'default',
+        text: $t('admin.tenant.domain.ssl.status.none'),
+      };
     }
   }
 }
@@ -175,16 +187,35 @@ defineExpose({ open });
           </Descriptions.Item>
 
           <Descriptions.Item :label="$t('admin.tenant.domain.type')">
-            <Tag :color="domainDetail.domainType === 'default' ? 'default' : 'blue'">
-              {{ domainDetail.domainType === 'default' ? $t('admin.tenant.domain.defaultDomain') : $t('admin.tenant.domain.customDomain') }}
+            <Tag
+              :color="
+                domainDetail.domainType === 'default' ? 'default' : 'blue'
+              "
+            >
+              {{
+                domainDetail.domainType === 'default'
+                  ? $t('admin.tenant.domain.defaultDomain')
+                  : $t('admin.tenant.domain.customDomain')
+              }}
             </Tag>
           </Descriptions.Item>
 
-          <Descriptions.Item :label="$t('admin.tenant.domain.verificationStatus')">
-            <Tag :color="getVerificationTagConfig(domainDetail.verificationStatus).color">
-              {{ getVerificationTagConfig(domainDetail.verificationStatus).text }}
+          <Descriptions.Item
+            :label="$t('admin.tenant.domain.verificationStatus')"
+          >
+            <Tag
+              :color="
+                getVerificationTagConfig(domainDetail.verificationStatus).color
+              "
+            >
+              {{
+                getVerificationTagConfig(domainDetail.verificationStatus).text
+              }}
             </Tag>
-            <span v-if="domainDetail.verifiedAt" class="ml-2 text-xs text-gray-400">
+            <span
+              v-if="domainDetail.verifiedAt"
+              class="ml-2 text-xs text-gray-400"
+            >
               {{ formatDate(domainDetail.verifiedAt) }}
             </span>
           </Descriptions.Item>
@@ -193,8 +224,12 @@ defineExpose({ open });
             <Tag :color="getSslTagConfig(domainDetail.sslStatus).color">
               {{ getSslTagConfig(domainDetail.sslStatus).text }}
             </Tag>
-            <span v-if="domainDetail.sslExpiresAt" class="ml-2 text-xs text-gray-400">
-              {{ $t('admin.tenant.domain.ssl.info.validTo') }}: {{ formatDate(domainDetail.sslExpiresAt) }}
+            <span
+              v-if="domainDetail.sslExpiresAt"
+              class="ml-2 text-xs text-gray-400"
+            >
+              {{ $t('admin.tenant.domain.ssl.info.validTo') }}:
+              {{ formatDate(domainDetail.sslExpiresAt) }}
             </span>
           </Descriptions.Item>
 
@@ -210,14 +245,24 @@ defineExpose({ open });
         <!-- DNS 配置信息 (待验证才显示) -->
         <template v-if="domainDetail.verificationStatus === 'pending'">
           <div class="mb-4">
-            <h4 class="mb-2 text-sm font-medium">{{ $t('admin.tenant.domain.dnsGuide.title') }}</h4>
+            <h4 class="mb-2 text-sm font-medium">
+              {{ $t('admin.tenant.domain.dnsGuide.title') }}
+            </h4>
             <Descriptions :column="1" bordered size="small">
-              <Descriptions.Item v-if="domainDetail.verificationInfo?.type" :label="$t('admin.tenant.domain.dnsGuide.recordType')">
+              <Descriptions.Item
+                v-if="domainDetail.verificationInfo?.type"
+                :label="$t('admin.tenant.domain.dnsGuide.recordType')"
+              >
                 <Tag>{{ domainDetail.verificationInfo.type }}</Tag>
               </Descriptions.Item>
-              <Descriptions.Item v-if="domainDetail.verificationInfo?.host" :label="$t('admin.tenant.domain.dnsGuide.hostRecord')">
+              <Descriptions.Item
+                v-if="domainDetail.verificationInfo?.host"
+                :label="$t('admin.tenant.domain.dnsGuide.hostRecord')"
+              >
                 <div class="flex items-center justify-between gap-2">
-                  <code class="break-all text-xs">{{ domainDetail.verificationInfo.host }}</code>
+                  <code class="break-all text-xs">{{
+                    domainDetail.verificationInfo.host
+                  }}</code>
                   <IconifyIcon
                     icon="lucide:copy"
                     class="size-4 shrink-0 cursor-pointer text-gray-400 hover:text-primary"
@@ -225,19 +270,36 @@ defineExpose({ open });
                   />
                 </div>
               </Descriptions.Item>
-              <Descriptions.Item v-if="domainDetail.verificationInfo?.value || domainDetail.verificationToken" :label="$t('admin.tenant.domain.dnsGuide.recordValue')">
+              <Descriptions.Item
+                v-if="
+                  domainDetail.verificationInfo?.value ||
+                  domainDetail.verificationToken
+                "
+                :label="$t('admin.tenant.domain.dnsGuide.recordValue')"
+              >
                 <div class="flex items-center justify-between gap-2">
-                  <code class="break-all text-xs">{{ domainDetail.verificationInfo?.value || domainDetail.verificationToken }}</code>
+                  <code class="break-all text-xs">{{
+                    domainDetail.verificationInfo?.value ||
+                    domainDetail.verificationToken
+                  }}</code>
                   <IconifyIcon
                     icon="lucide:copy"
                     class="size-4 shrink-0 cursor-pointer text-gray-400 hover:text-primary"
-                    @click="onCopy(domainDetail.verificationInfo?.value || domainDetail.verificationToken || '')"
+                    @click="
+                      onCopy(
+                        domainDetail.verificationInfo?.value ||
+                          domainDetail.verificationToken ||
+                          '',
+                      )
+                    "
                   />
                 </div>
               </Descriptions.Item>
               <Descriptions.Item v-if="domainDetail.cnameTarget" label="CNAME">
                 <div class="flex items-center justify-between gap-2">
-                  <code class="break-all text-xs">{{ domainDetail.cnameTarget }}</code>
+                  <code class="break-all text-xs">{{
+                    domainDetail.cnameTarget
+                  }}</code>
                   <IconifyIcon
                     icon="lucide:copy"
                     class="size-4 shrink-0 cursor-pointer text-gray-400 hover:text-primary"
@@ -252,8 +314,15 @@ defineExpose({ open });
         <!-- 备注编辑 -->
         <div class="rounded-lg border border-gray-200 p-4">
           <div class="mb-2 flex items-center justify-between">
-            <h4 class="text-sm font-medium">{{ $t('admin.tenant.domain.remark') }}</h4>
-            <Button v-if="!editMode" type="link" size="small" @click="onEnterEdit">
+            <h4 class="text-sm font-medium">
+              {{ $t('admin.tenant.domain.remark') }}
+            </h4>
+            <Button
+              v-if="!editMode"
+              type="link"
+              size="small"
+              @click="onEnterEdit"
+            >
               <IconifyIcon icon="lucide:edit" class="mr-1 size-3" />
               {{ $t('shared.common.edit') }}
             </Button>
@@ -265,13 +334,18 @@ defineExpose({ open });
                 <Input.TextArea
                   v-model:value="editRemark"
                   :rows="3"
-                  :maxLength="500"
+                  :max-length="500"
                   show-count
                   :placeholder="$t('admin.tenant.domain.remarkPlaceholder')"
                 />
               </FormItem>
               <div class="flex gap-2">
-                <Button type="primary" size="small" :loading="submitting" @click="onSaveRemark">
+                <Button
+                  type="primary"
+                  size="small"
+                  :loading="submitting"
+                  @click="onSaveRemark"
+                >
                   {{ $t('shared.common.save') }}
                 </Button>
                 <Button size="small" @click="onCancelEdit">

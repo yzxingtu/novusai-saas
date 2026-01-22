@@ -6,7 +6,7 @@
 
   "admin": {
     "_description": "平台管理端 API（/admin/*）",
-    
+
     "auth": {
       "_status": "部分使用",
       "POST /admin/auth/login": "管理员登录 [store/admin/auth.ts]",
@@ -200,7 +200,7 @@
   "dynamic_crud": {
     "_description": "useCrudPage/useCrudDrawer 自动构造的 CRUD 请求",
     "_note": "根据 api.resource 配置自动构造，实际使用的资源路径包括: /admin/tenants, /admin/plans, /admin/admins, /tenant/admins",
-    
+
     "operations": {
       "GET {resource}": "列表查询（useCrudPage gridApi.query）",
       "GET {resource}/{id}": "详情查询（useCrudDrawer toFormValues）",
@@ -227,9 +227,7 @@
       "PUT /tenant/roles/{role_id}/move（移动角色）",
       "GET /tenant/permissions/list（获取权限列表平铺）"
     ],
-    "user": [
-      "PUT /api/v1/auth/password（修改密码 - 修改密码页面未实现）"
-    ]
+    "user": ["PUT /api/v1/auth/password（修改密码 - 修改密码页面未实现）"]
   },
 
   "summary": {

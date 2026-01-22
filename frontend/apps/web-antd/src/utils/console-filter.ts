@@ -15,13 +15,19 @@ const originalConsoleError = console.error;
  * 解决：使用 MutationObserver 监听，当按钮展开时移除 aria-hidden 属性
  */
 export function setupAriaHiddenFix(): void {
-  if (typeof window === 'undefined' || typeof MutationObserver === 'undefined') {
+  if (
+    typeof window === 'undefined' ||
+    typeof MutationObserver === 'undefined'
+  ) {
     return;
   }
 
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
-      if (mutation.type !== 'attributes' || mutation.attributeName !== 'aria-expanded') {
+      if (
+        mutation.type !== 'attributes' ||
+        mutation.attributeName !== 'aria-expanded'
+      ) {
         continue;
       }
 

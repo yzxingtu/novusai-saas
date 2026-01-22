@@ -14,19 +14,24 @@
  */
 import type { SelectProps } from 'ant-design-vue';
 
-import { computed, ref, watch, useSlots } from 'vue';
+import { computed, ref, useSlots, watch } from 'vue';
 
-import { ChevronDown, ChevronLeft, ChevronRight, LoaderCircle } from '@vben/icons';
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  LoaderCircle,
+} from '@vben/icons';
 
-import { Select, SelectOption, Skeleton, Tooltip } from 'ant-design-vue';
 import { useDebounceFn } from '@vueuse/core';
+import { Select, SelectOption, Skeleton, Tooltip } from 'ant-design-vue';
 
 // 选项类型
 interface OptionItem {
   label: string;
   value: number | string;
   disabled?: boolean;
-  extra?: Record<string, any> | null;
+  extra?: null | Record<string, any>;
   [key: string]: any;
 }
 
@@ -39,6 +44,30 @@ interface ApiResponse {
   has_more?: boolean;
   [key: string]: any;
 }
+
+const props = withDefaults(defineProps<Props>(), {
+  options: () => [],
+  api: undefined,
+  params: () => ({}),
+  resultField: 'items',
+  labelField: 'label',
+  valueField: 'value',
+  optionRightField: '',
+  immediate: true,
+  pagination: false,
+  clickPagination: false,
+  pageSize: 10,
+  searchParamName: 'search',
+  pageParamName: 'page',
+  pageSizeParamName: 'page_size',
+  debounceTime: 300,
+  showSizeChanger: true,
+});
+
+const emit = defineEmits<{
+  optionsLoaded: [OptionItem[]];
+  'update:value': [number | string | undefined];
+}>();
 
 // 每页条数选项
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
@@ -77,30 +106,6 @@ interface Props {
   /** 是否显示每页条数选择器 */
   showSizeChanger?: boolean;
 }
-
-const props = withDefaults(defineProps<Props>(), {
-  options: () => [],
-  api: undefined,
-  params: () => ({}),
-  resultField: 'items',
-  labelField: 'label',
-  valueField: 'value',
-  optionRightField: '',
-  immediate: true,
-  pagination: false,
-  clickPagination: false,
-  pageSize: 10,
-  searchParamName: 'search',
-  pageParamName: 'page',
-  pageSizeParamName: 'page_size',
-  debounceTime: 300,
-  showSizeChanger: true,
-});
-
-const emit = defineEmits<{
-  optionsLoaded: [OptionItem[]];
-  'update:value': [number | string | undefined];
-}>();
 
 const slots = useSlots();
 
@@ -171,7 +176,10 @@ function extractItems(response: ApiResponse | OptionItem[]): OptionItem[] {
 }
 
 // 从响应中提取分页信息
-function extractPaginationInfo(response: ApiResponse | OptionItem[], itemCount: number) {
+function extractPaginationInfo(
+  response: ApiResponse | OptionItem[],
+  itemCount: number,
+) {
   if (Array.isArray(response)) {
     hasMore.value = itemCount >= currentPageSize.value;
     totalCount.value = 0;
@@ -204,7 +212,11 @@ function extractPaginationInfo(response: ApiResponse | OptionItem[], itemCount: 
 }
 
 // 加载数据
-async function fetchData(page: number = 1, append: boolean = false, newPageSize?: number) {
+async function fetchData(
+  page: number = 1,
+  append: boolean = false,
+  newPageSize?: number,
+) {
   if (!props.api || loading.value) return;
 
   try {
@@ -239,11 +251,8 @@ async function fetchData(page: number = 1, append: boolean = false, newPageSize?
     }
 
     // 更新选项
-    if (append && page > 1) {
-      remoteOptions.value = [...remoteOptions.value, ...items];
-    } else {
-      remoteOptions.value = items;
-    }
+    remoteOptions.value =
+      append && page > 1 ? [...remoteOptions.value, ...items] : items;
 
     emit('optionsLoaded', remoteOptions.value);
   } catch (error) {
@@ -299,12 +308,19 @@ function handlePageSizeChange(size: number) {
 
 // 滚动加载更多
 function handlePopupScroll(e: Event) {
-  if (!props.pagination || props.clickPagination || loading.value || !hasMore.value) return;
+  if (
+    !props.pagination ||
+    props.clickPagination ||
+    loading.value ||
+    !hasMore.value
+  )
+    return;
 
   const target = e.target as HTMLElement;
   if (!target) return;
 
-  const nearBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 24;
+  const nearBottom =
+    target.scrollTop + target.clientHeight >= target.scrollHeight - 24;
   if (nearBottom) {
     fetchData(currentPage.value + 1, true);
   }
@@ -343,10 +359,7 @@ defineExpose({
 </script>
 
 <template>
-  <Select
-    v-model:value="modelValue"
-    v-bind="{ ...$attrs, ...selectProps }"
-  >
+  <Select v-model:value="modelValue" v-bind="{ ...$attrs, ...selectProps }">
     <!-- 自定义选项渲染（当有 optionRightField 或 option 插槽时） -->
     <template v-if="needCustomOption">
       <SelectOption
@@ -359,7 +372,11 @@ defineExpose({
         <!-- 使用 option 插槽自定义渲染 -->
         <slot name="option" :option="option">
           <div class="api-select-option">
-            <Tooltip :title="option.label" placement="topLeft" :mouse-enter-delay="0.5">
+            <Tooltip
+              :title="option.label"
+              placement="topLeft"
+              :mouse-enter-delay="0.5"
+            >
               <span class="api-select-option__label">{{ option.label }}</span>
             </Tooltip>
             <span v-if="optionRightField" class="api-select-option__right">
@@ -382,7 +399,10 @@ defineExpose({
     <template #dropdownRender="{ menuNode }">
       <div class="api-select-dropdown">
         <!-- 骨架屏加载 -->
-        <div v-if="loading && (isFirstLoad || clickPagination)" class="api-select-skeleton">
+        <div
+          v-if="loading && (isFirstLoad || clickPagination)"
+          class="api-select-skeleton"
+        >
           <Skeleton
             v-for="i in 5"
             :key="i"
@@ -408,10 +428,17 @@ defineExpose({
             <Select
               v-if="showSizeChanger"
               :value="currentPageSize"
-              :options="PAGE_SIZE_OPTIONS.map(s => ({ value: s, label: `${s} 条/页` }))"
+              :options="
+                PAGE_SIZE_OPTIONS.map((s) => ({
+                  value: s,
+                  label: `${s} 条/页`,
+                }))
+              "
               size="small"
               :bordered="true"
-              :get-popup-container="(trigger: HTMLElement) => trigger.parentNode as HTMLElement"
+              :get-popup-container="
+                (trigger: HTMLElement) => trigger.parentNode as HTMLElement
+              "
               class="api-select-pagination__size"
               @change="(val: any) => handlePageSizeChange(val as number)"
               @mousedown.stop
@@ -454,18 +481,25 @@ defineExpose({
 </template>
 
 <style scoped>
-/* 加载图标旋转 */
-.api-select-loading-icon {
-  animation: spin 1s linear infinite;
-}
-
 @keyframes spin {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
+}
+
+/* 窄屏时隐藏每页条数选择器，保留核心分页功能 */
+@container (max-width: 200px) {
+  .api-select-pagination__size {
+    display: none;
+  }
+}
+
+.api-select-loading-icon {
+  animation: spin 1s linear infinite;
 }
 
 /* 下拉容器 */
@@ -497,30 +531,30 @@ defineExpose({
 
 /* 分页控件 - 使用 container query 支持窄屏自适应 */
 .api-select-pagination {
-  container-type: inline-size;
   display: flex;
   flex-wrap: wrap;
+  gap: 6px 8px;
   align-items: center;
   justify-content: space-between;
-  gap: 6px 8px;
   padding: 6px 12px;
-  border-top: 1px solid var(--ant-color-border);
-  background: var(--ant-color-bg-elevated);
+  container-type: inline-size;
   font-size: 12px;
+  background: var(--ant-color-bg-elevated);
+  border-top: 1px solid var(--ant-color-border);
 }
 
 .api-select-pagination__left {
   display: flex;
-  align-items: center;
-  gap: 8px;
   flex-shrink: 0;
+  gap: 8px;
+  align-items: center;
 }
 
 .api-select-pagination__right {
   display: flex;
-  align-items: center;
-  gap: 4px;
   flex-shrink: 0;
+  gap: 4px;
+  align-items: center;
 }
 
 .api-select-pagination__total {
@@ -529,8 +563,8 @@ defineExpose({
 }
 
 .api-select-pagination__total b {
-  color: var(--ant-color-text);
   font-weight: 500;
+  color: var(--ant-color-text);
 }
 
 .api-select-pagination__size {
@@ -541,13 +575,6 @@ defineExpose({
   font-size: 12px !important;
 }
 
-/* 窄屏时隐藏每页条数选择器，保留核心分页功能 */
-@container (max-width: 200px) {
-  .api-select-pagination__size {
-    display: none;
-  }
-}
-
 .api-select-pagination__btn {
   display: flex;
   align-items: center;
@@ -555,22 +582,22 @@ defineExpose({
   width: 22px;
   height: 22px;
   padding: 0;
-  border: 1px solid var(--ant-color-border);
-  border-radius: 4px;
-  background: var(--ant-color-bg-container);
   color: var(--ant-color-text-secondary);
   cursor: pointer;
+  background: var(--ant-color-bg-container);
+  border: 1px solid var(--ant-color-border);
+  border-radius: 4px;
   transition: all 0.15s;
 }
 
 .api-select-pagination__btn:hover:not(.is-disabled) {
-  border-color: var(--ant-color-primary);
   color: var(--ant-color-primary);
+  border-color: var(--ant-color-primary);
 }
 
 .api-select-pagination__btn.is-disabled {
-  opacity: 0.35;
   cursor: not-allowed;
+  opacity: 0.35;
 }
 
 .api-select-pagination__icon {
@@ -582,14 +609,14 @@ defineExpose({
   min-width: 36px;
   padding: 0 2px;
   font-size: 12px;
-  text-align: center;
   color: var(--ant-color-text);
+  text-align: center;
   white-space: nowrap;
 }
 
 .api-select-pagination__sep {
-  color: var(--ant-color-text-quaternary);
   margin: 0 1px;
+  color: var(--ant-color-text-quaternary);
 }
 
 /* 下拉箭头图标 */
@@ -603,10 +630,10 @@ defineExpose({
 /* 选项样式 */
 .api-select-option {
   display: flex;
+  gap: 8px;
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  gap: 8px;
 }
 
 .api-select-option__label {
@@ -622,9 +649,11 @@ defineExpose({
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
   color: var(--ant-color-text-secondary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: nowrap;
 }
+
+/* 加载图标旋转 */
 </style>

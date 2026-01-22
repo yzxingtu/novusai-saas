@@ -106,7 +106,7 @@ export interface UseOrgTreeReturn {
   /** 展开的节点 ID 集合 */
   expandedIds: import('vue').Ref<Set<number>>;
   /** 加载根节点，返回第一个根节点（用于自动选择） */
-  loadRootNodes: () => Promise<OrgTreeNodeData | null>;
+  loadRootNodes: () => Promise<null | OrgTreeNodeData>;
   /** 加载子节点 */
   loadChildren: (nodeId: number) => Promise<void>;
   /** 切换展开状态 */
@@ -118,7 +118,7 @@ export interface UseOrgTreeReturn {
   /** 检查节点是否展开 */
   isExpanded: (nodeId: number) => boolean;
   /** 刷新数据，返回第一个根节点 */
-  refresh: () => Promise<OrgTreeNodeData | null>;
+  refresh: () => Promise<null | OrgTreeNodeData>;
   /** 更新单个节点数据 */
   updateNode: (nodeId: number, data: Partial<OrgTreeNodeData>) => void;
   /** 删除节点 */

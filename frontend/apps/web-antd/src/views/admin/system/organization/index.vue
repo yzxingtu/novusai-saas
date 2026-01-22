@@ -27,9 +27,9 @@ import {
 import { deleteRoleApi, getRoleTreeApi } from '#/api/admin/role';
 import { MemberPanel } from '#/components/business/member-panel';
 import { OrgNodeDialog } from '#/components/business/org-node-dialog';
-import { PermissionPreview } from '#/components/business/permission-preview';
 import { OrgTreeNode, useOrgTree } from '#/components/business/org-tree';
 import { NODE_TYPE_CONFIG } from '#/components/business/org-tree/types';
+import { PermissionPreview } from '#/components/business/permission-preview';
 import { $t } from '#/locales';
 
 // ============================================================

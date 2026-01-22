@@ -1,92 +1,20 @@
-<template>
-  <Form
-    layout="vertical"
-    :model="formModel"
-    :rules="formRules"
-    ref="formRef"
-    :disabled="disabled"
-  >
-    <Form.Item
-      v-for="cfg in orderedConfigs"
-      :key="cfg.key"
-      :name="cfg.key"
-      :label="getConfigLabel(cfg)"
-      :extra="getConfigDesc(cfg)"
-    >
-      <!-- string -->
-      <Input v-if="cfg.value_type === 'string'" v-model:value="formModel[cfg.key]" />
-
-      <!-- number -->
-      <InputNumber
-        v-else-if="cfg.value_type === 'number'"
-        v-model:value="formModel[cfg.key]"
-        :style="{ width: '100%' }"
-        :min="getRuleNumber(cfg, 'min_value')"
-        :max="getRuleNumber(cfg, 'max_value')"
-      />
-
-      <!-- boolean -->
-      <Switch v-else-if="cfg.value_type === 'boolean'" v-model:checked="formModel[cfg.key]" />
-
-      <!-- select -->
-      <Select
-        v-else-if="cfg.value_type === 'select'"
-        v-model:value="formModel[cfg.key]"
-        :options="getSelectOptions(cfg)"
-      />
-
-      <!-- multi_select -->
-      <Select
-        v-else-if="cfg.value_type === 'multi_select'"
-        v-model:value="formModel[cfg.key]"
-        mode="multiple"
-        :options="getSelectOptions(cfg)"
-      />
-
-      <!-- text -->
-      <Input.TextArea v-else-if="cfg.value_type === 'text'" v-model:value="formModel[cfg.key]" :rows="4" />
-
-      <!-- password -->
-      <Input.Password
-        v-else-if="cfg.value_type === 'password'"
-        v-model:value="formModel[cfg.key]"
-        :autocomplete="'new-password'"
-        :placeholder="t('shared.config.page.password_placeholder')"
-      />
-
-      <!-- color -->
-      <div v-else-if="cfg.value_type === 'color'" class="flex items-center gap-2">
-        <input
-          type="color"
-          :value="formModel[cfg.key]"
-          class="h-8 w-8 cursor-pointer rounded border border-border"
-          @input="(e) => formModel[cfg.key] = (e.target as HTMLInputElement).value"
-        />
-        <Input v-model:value="formModel[cfg.key]" style="width: 120px" />
-      </div>
-
-      <!-- image -->
-      <ImageUpload v-else-if="cfg.value_type === 'image'" v-model="formModel[cfg.key]" />
-
-      <!-- json (fallback: textarea) -->
-      <Input.TextArea v-else v-model:value="formModel[cfg.key]" :rows="6" />
-    </Form.Item>
-  </Form>
-</template>
-
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
-import { $t as t } from '#/locales';
-import type { Rule } from 'ant-design-vue/es/form';
-import { Form, Input, InputNumber, Select, Switch } from 'ant-design-vue';
 import type { FormInstance } from 'ant-design-vue';
+import type { Rule } from 'ant-design-vue/es/form';
 
-import ImageUpload from '../image-upload/image-upload.vue';
 import type {
   ConfigItemMeta,
-  ValidationRuleMeta,
   ConfigSubmitPayload,
+  ValidationRuleMeta,
 } from '#/types/config';
+
+import { computed, reactive, ref, watch } from 'vue';
+
+import { Form, Input, InputNumber, Select, Switch } from 'ant-design-vue';
+
+import { $t as t } from '#/locales';
+
+import ImageUpload from '../image-upload/image-upload.vue';
 
 interface Props {
   configs: ConfigItemMeta[];
@@ -106,7 +34,8 @@ watch(
     const data: Record<string, any> = {};
     (list || []).forEach((cfg) => {
       const raw = cfg.value ?? cfg.default_value;
-      data[cfg.key] = cfg.value_type === 'password' && cfg.is_encrypted ? '******' : raw;
+      data[cfg.key] =
+        cfg.value_type === 'password' && cfg.is_encrypted ? '******' : raw;
     });
     // 清空旧数据再赋新值
     Object.keys(formModel).forEach((key) => delete formModel[key]);
@@ -118,7 +47,9 @@ watch(
 );
 
 const orderedConfigs = computed(() => {
-  return [...(props.configs || [])].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  return [...(props.configs || [])].sort(
+    (a, b) => (a.sort_order || 0) - (b.sort_order || 0),
+  );
 });
 
 // 获取配置项标签（优先使用 name，其次 name_key，最后 fallback）
@@ -134,7 +65,7 @@ function getConfigLabel(cfg: ConfigItemMeta): string {
   const platformKey = `shared.config.platform.${cfg.key}`;
   const platformTranslated = t(platformKey);
   if (platformTranslated !== platformKey) return platformTranslated;
-  
+
   const tenantKey = `shared.config.tenant.${cfg.key}`;
   const tenantTranslated = t(tenantKey);
   if (tenantTranslated !== tenantKey) return tenantTranslated;
@@ -163,7 +94,8 @@ function getSelectOptions(cfg: ConfigItemMeta) {
     // 2. 使用 label_key 翻译
     if (o.label_key) {
       const translated = t(o.label_key);
-      if (translated !== o.label_key) return { value: o.value, label: translated };
+      if (translated !== o.label_key)
+        return { value: o.value, label: translated };
     }
     // 3. fallback 到 value
     return { value: o.value, label: o.value };
@@ -182,31 +114,59 @@ function convertRules(cfg: ConfigItemMeta): Rule[] {
   const rules: Rule[] = [];
   if (cfg.is_required) {
     const fieldName = cfg.name_key ? t(cfg.name_key) : cfg.key;
-    rules.push({ required: true, message: t('shared.config.validation.required', { field: fieldName }) });
+    rules.push({
+      required: true,
+      message: t('shared.config.validation.required', { field: fieldName }),
+    });
   }
   (cfg.validation_rules || []).forEach((r: ValidationRuleMeta) => {
     switch (r.type) {
-      case 'min_length':
-        rules.push({ min: Number(r.value), message: r.message_key ? t(r.message_key, { min: r.value }) : '' });
+      case 'max_length': {
+        rules.push({
+          max: Number(r.value),
+          message: r.message_key ? t(r.message_key, { max: r.value }) : '',
+        });
         break;
-      case 'max_length':
-        rules.push({ max: Number(r.value), message: r.message_key ? t(r.message_key, { max: r.value }) : '' });
+      }
+      case 'max_value': {
+        rules.push({
+          type: 'number',
+          max: Number(r.value),
+          message: r.message_key ? t(r.message_key, { max: r.value }) : '',
+        });
         break;
-      case 'min_value':
-        rules.push({ type: 'number', min: Number(r.value), message: r.message_key ? t(r.message_key, { min: r.value }) : '' });
+      }
+      case 'min_length': {
+        rules.push({
+          min: Number(r.value),
+          message: r.message_key ? t(r.message_key, { min: r.value }) : '',
+        });
         break;
-      case 'max_value':
-        rules.push({ type: 'number', max: Number(r.value), message: r.message_key ? t(r.message_key, { max: r.value }) : '' });
+      }
+      case 'min_value': {
+        rules.push({
+          type: 'number',
+          min: Number(r.value),
+          message: r.message_key ? t(r.message_key, { min: r.value }) : '',
+        });
         break;
-      case 'pattern':
-        rules.push({ pattern: new RegExp(String(r.value)), message: r.message_key ? t(r.message_key) : '' });
+      }
+      case 'pattern': {
+        rules.push({
+          pattern: new RegExp(String(r.value)),
+          message: r.message_key ? t(r.message_key) : '',
+        });
         break;
+      }
     }
   });
   return rules;
 }
 
-function getRuleNumber(cfg: ConfigItemMeta, type: 'min_value' | 'max_value'): number | undefined {
+function getRuleNumber(
+  cfg: ConfigItemMeta,
+  type: 'max_value' | 'min_value',
+): number | undefined {
   const rule = (cfg.validation_rules || []).find((r) => r.type === type);
   return rule ? Number(rule.value) : undefined;
 }
@@ -245,8 +205,108 @@ function isDirty(): boolean {
 }
 
 // 暴露方法给父组件
-defineExpose({ validate, getValues, prepareSubmitData, reset, isDirty, formRef });
+defineExpose({
+  validate,
+  getValues,
+  prepareSubmitData,
+  reset,
+  isDirty,
+  formRef,
+});
 </script>
 
-<style scoped>
-</style>
+<template>
+  <Form
+    layout="vertical"
+    :model="formModel"
+    :rules="formRules"
+    ref="formRef"
+    :disabled="disabled"
+  >
+    <Form.Item
+      v-for="cfg in orderedConfigs"
+      :key="cfg.key"
+      :name="cfg.key"
+      :label="getConfigLabel(cfg)"
+      :extra="getConfigDesc(cfg)"
+    >
+      <!-- string -->
+      <Input
+        v-if="cfg.value_type === 'string'"
+        v-model:value="formModel[cfg.key]"
+      />
+
+      <!-- number -->
+      <InputNumber
+        v-else-if="cfg.value_type === 'number'"
+        v-model:value="formModel[cfg.key]"
+        :style="{ width: '100%' }"
+        :min="getRuleNumber(cfg, 'min_value')"
+        :max="getRuleNumber(cfg, 'max_value')"
+      />
+
+      <!-- boolean -->
+      <Switch
+        v-else-if="cfg.value_type === 'boolean'"
+        v-model:checked="formModel[cfg.key]"
+      />
+
+      <!-- select -->
+      <Select
+        v-else-if="cfg.value_type === 'select'"
+        v-model:value="formModel[cfg.key]"
+        :options="getSelectOptions(cfg)"
+      />
+
+      <!-- multi_select -->
+      <Select
+        v-else-if="cfg.value_type === 'multi_select'"
+        v-model:value="formModel[cfg.key]"
+        mode="multiple"
+        :options="getSelectOptions(cfg)"
+      />
+
+      <!-- text -->
+      <Input.TextArea
+        v-else-if="cfg.value_type === 'text'"
+        v-model:value="formModel[cfg.key]"
+        :rows="4"
+      />
+
+      <!-- password -->
+      <Input.Password
+        v-else-if="cfg.value_type === 'password'"
+        v-model:value="formModel[cfg.key]"
+        autocomplete="new-password"
+        :placeholder="t('shared.config.page.password_placeholder')"
+      />
+
+      <!-- color -->
+      <div
+        v-else-if="cfg.value_type === 'color'"
+        class="flex items-center gap-2"
+      >
+        <input
+          type="color"
+          :value="formModel[cfg.key]"
+          class="h-8 w-8 cursor-pointer rounded border border-border"
+          @input="
+            (e) => (formModel[cfg.key] = (e.target as HTMLInputElement).value)
+          "
+        />
+        <Input v-model:value="formModel[cfg.key]" style="width: 120px" />
+      </div>
+
+      <!-- image -->
+      <ImageUpload
+        v-else-if="cfg.value_type === 'image'"
+        v-model="formModel[cfg.key]"
+      />
+
+      <!-- json (fallback: textarea) -->
+      <Input.TextArea v-else v-model:value="formModel[cfg.key]" :rows="6" />
+    </Form.Item>
+  </Form>
+</template>
+
+<style scoped></style>

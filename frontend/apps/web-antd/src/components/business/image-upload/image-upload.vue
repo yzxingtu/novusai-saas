@@ -1,29 +1,11 @@
-<template>
-  <div class="image-upload">
-    <div v-if="modelValue" class="preview">
-      <img :src="modelValue" alt="preview" />
-      <div class="actions">
-<Button size="small" @click="emit('update:modelValue', '')">{{ t('shared.common.delete') }}</Button>
-      </div>
-    </div>
-    <Upload
-      v-else
-      :customRequest="handleCustomRequest"
-      :showUploadList="false"
-      accept="image/*"
-    >
-      <Button type="dashed">{{ t('shared.common.upload') }}</Button>
-    </Upload>
-  </div>
-</template>
-
 <script setup lang="ts">
-import { Upload, Button } from 'ant-design-vue';
+import { Button, Upload } from 'ant-design-vue';
+
 import { $t as t } from '#/locales';
 import { requestClient } from '#/utils/request';
 
 interface UploadRequestOption {
-  file: File | Blob | string;
+  file: Blob | File | string;
   onSuccess?: (body: any, xhr?: XMLHttpRequest) => void;
   onError?: (err: Error) => void;
   onProgress?: (e: { percent: number }) => void;
@@ -54,26 +36,49 @@ async function handleCustomRequest(options: UploadRequestOption) {
     const url = (data && (data.url || data.path || data.src)) as string;
     emit('update:modelValue', url);
     onSuccess && onSuccess(data as any, {} as any);
-  } catch (err) {
-    onError && onError(err as any);
+  } catch (error) {
+    onError && onError(error as any);
   }
 }
 </script>
+
+<template>
+  <div class="image-upload">
+    <div v-if="modelValue" class="preview">
+      <img :src="modelValue" alt="preview" />
+      <div class="actions">
+        <Button size="small" @click="emit('update:modelValue', '')">
+          {{ t('shared.common.delete') }}
+        </Button>
+      </div>
+    </div>
+    <Upload
+      v-else
+      :custom-request="handleCustomRequest"
+      :show-upload-list="false"
+      accept="image/*"
+    >
+      <Button type="dashed">{{ t('shared.common.upload') }}</Button>
+    </Upload>
+  </div>
+</template>
 
 <style scoped>
 .image-upload .preview {
   position: relative;
   width: 160px;
   height: 160px;
+  overflow: hidden;
   border: 1px solid var(--ant-color-border);
   border-radius: 6px;
-  overflow: hidden;
 }
+
 .image-upload .preview img {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
+
 .image-upload .preview .actions {
   position: absolute;
   right: 8px;

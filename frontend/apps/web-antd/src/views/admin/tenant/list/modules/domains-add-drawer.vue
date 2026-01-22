@@ -7,13 +7,12 @@ import type { TenantDomainInfo } from './domains-types';
 
 import { ref } from 'vue';
 
-import { useVbenForm } from '@vben/common-ui';
+import { useVbenDrawer, useVbenForm } from '@vben/common-ui';
 
 import { message } from 'ant-design-vue';
 
 import { inputField, textareaField } from '#/adapter/form';
 import { adminApi as admin } from '#/api';
-import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
 // Emits
@@ -48,20 +47,13 @@ const [FormComponent, formApi] = useVbenForm({
   showDefaultActions: false,
 });
 
-// CRUD Drawer
-const { Drawer, drawerApi } = useCrudDrawer<TenantDomainInfo>({
-  formApi,
-  schema: useFormSchema,
-  defaults: {
-    domain: '',
-    remark: '',
-  },
-  transform: (values) => ({
-    domain: values.domain?.trim(),
-    remark: values.remark?.trim() || null,
-  }),
-  onSuccess: async () => {
-    // 手动处理提交，不使用默认的 CRUD 逻辑
+// Drawer
+const [Drawer, drawerApi] = useVbenDrawer({
+  onConfirm: onSubmit,
+  onOpenChange(isOpen) {
+    if (!isOpen) {
+      formApi.resetForm();
+    }
   },
 });
 
@@ -78,23 +70,25 @@ async function onSubmit() {
     remark: values.remark?.trim() || null,
   };
 
-  drawerApi.lock();
+  drawerApi.setState({ loading: true, confirmLoading: true });
   try {
-    const result = await admin.createTenantDomainApi(tenantId.value, requestData);
+    const result = await admin.createTenantDomainApi(
+      tenantId.value,
+      requestData,
+    );
     message.success($t('admin.tenant.domain.createSuccess'));
     drawerApi.close();
     emits('success', result as TenantDomainInfo);
   } catch {
     // 错误由请求拦截器处理
   } finally {
-    drawerApi.unlock();
+    drawerApi.setState({ loading: false, confirmLoading: false });
   }
 }
 
 /** 打开抽屉 */
 function open(tid: number) {
   tenantId.value = tid;
-  formApi.resetForm();
   drawerApi.setData({ mode: 'add' }).open();
 }
 
@@ -105,7 +99,6 @@ defineExpose({ open });
   <Drawer
     :title="$t('admin.tenant.domain.addDomain')"
     :confirm-text="$t('shared.common.confirm')"
-    @confirm="onSubmit"
   >
     <FormComponent />
   </Drawer>

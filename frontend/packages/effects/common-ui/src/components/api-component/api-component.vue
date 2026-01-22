@@ -165,12 +165,12 @@ const getOptions = computed(() => {
         value: numberToString ? `${value}` : value,
         disabled: get(item, disabledField),
       };
-      
+
       // 只有在有 children 时才添加 children 字段
       if (childrenField && item[childrenField]) {
         result.children = transformData(item[childrenField]);
       }
-      
+
       return result;
     });
   }
@@ -182,15 +182,19 @@ const getOptions = computed(() => {
 
 const bindProps = computed(() => {
   // 保留用户自定义 onSearch/onPopupScroll
-  const userOnSearch = (attrs as any)?.onSearch as ((val: string) => void) | undefined;
-  const userOnPopupScroll = (attrs as any)?.onPopupScroll as ((e: any) => void) | undefined;
+  const userOnSearch = (attrs as any)?.onSearch as
+    | ((val: string) => void)
+    | undefined;
+  const userOnPopupScroll = (attrs as any)?.onPopupScroll as
+    | ((e: any) => void)
+    | undefined;
 
   // 构建带分页的下拉渲染函数
   const buildDropdownRender = (menu: any) => {
     const isPrevDisabled = loading.value || unref(currentPage) <= 1;
     const isNextDisabled = loading.value || !unref(hasMore);
     const pageText = loading.value ? '...' : String(unref(currentPage) || 1);
-    
+
     const handlePrev = (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
@@ -203,7 +207,7 @@ const bindProps = computed(() => {
         [props.pageSizeParamName!]: props.pageSize,
       };
     };
-    
+
     const handleNext = (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
@@ -216,7 +220,7 @@ const bindProps = computed(() => {
         [props.pageSizeParamName!]: props.pageSize,
       };
     };
-    
+
     // 分页控制栏
     const pager = h(
       'div',
@@ -283,14 +287,14 @@ const bindProps = computed(() => {
         ),
       ],
     );
-    
+
     // 返回包含原始菜单和分页器的容器
     // 注意：在 Vue 3 中，h() 第三个参数可以是数组或对象
     return h('div', null, [menu, pager]);
   };
 
   const finalOptions = unref(getOptions);
-  
+
   return {
     [props.modelPropName]: unref(modelValue),
     [props.optionsPropName]: finalOptions,
@@ -320,7 +324,8 @@ const bindProps = computed(() => {
       if (!props.pagination) return userOnPopupScroll?.(e);
       const target = e?.target as HTMLElement | undefined;
       if (!target || loading.value) return userOnPopupScroll?.(e);
-      const nearBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 24;
+      const nearBottom =
+        target.scrollTop + target.clientHeight >= target.scrollHeight - 24;
       if (nearBottom && unref(hasMore)) {
         const nextPage = (unref(currentPage) || 1) + 1;
         currentPage.value = nextPage;
@@ -332,8 +337,15 @@ const bindProps = computed(() => {
       }
       userOnPopupScroll?.(e);
     },
-    ...(props.clickPagination ? { dropdownRender: (origin: any) => buildDropdownRender(origin) } : {}),
-    ...objectOmit(attrs, [`onUpdate:${props.modelPropName}`, 'onSearch', 'onPopupScroll', 'dropdownRender']),
+    ...(props.clickPagination
+      ? { dropdownRender: (origin: any) => buildDropdownRender(origin) }
+      : {}),
+    ...objectOmit(attrs, [
+      `onUpdate:${props.modelPropName}`,
+      'onSearch',
+      'onPopupScroll',
+      'dropdownRender',
+    ]),
     ...(props.visibleEvent
       ? {
           [props.visibleEvent]: handleFetchForVisible,
@@ -361,7 +373,8 @@ async function fetchApi() {
     if (beforeFetch && isFunction(beforeFetch)) {
       finalParams = (await beforeFetch(cloneDeep(finalParams))) || finalParams;
     }
-    const isAppend = !!props.pagination && (finalParams?.[props.pageParamName!] ?? 1) > 1;
+    const isAppend =
+      !!props.pagination && (finalParams?.[props.pageParamName!] ?? 1) > 1;
     let res = await api(finalParams);
     if (afterFetch && isFunction(afterFetch)) {
       res = (await afterFetch(res)) || res;
@@ -384,22 +397,24 @@ async function fetchApi() {
       if (typeof hm === 'boolean') {
         hasMore.value = hm;
       } else if (
-        typeof total === 'number' && typeof respPage === 'number' && typeof respPageSize === 'number'
+        typeof total === 'number' &&
+        typeof respPage === 'number' &&
+        typeof respPageSize === 'number'
       ) {
         hasMore.value = respPage * respPageSize < total;
       } else {
-        hasMore.value = items?.length >= (finalParams?.[props.pageSizeParamName!] ?? props.pageSize);
+        hasMore.value =
+          items?.length >=
+          (finalParams?.[props.pageSizeParamName!] ?? props.pageSize);
       }
     } else {
       hasMore.value = false;
     }
 
     // 合并或替换选项
-    if (isAppend) {
-      refOptions.value = [...unref(refOptions), ...(items || [])];
-    } else {
-      refOptions.value = items || [];
-    }
+    refOptions.value = isAppend
+      ? [...unref(refOptions), ...(items || [])]
+      : items || [];
 
     emitChange();
   } catch (error) {

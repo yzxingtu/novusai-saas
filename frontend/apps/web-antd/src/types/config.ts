@@ -3,19 +3,19 @@
  */
 
 export type ConfigValueType =
-  | 'string'
-  | 'number'
   | 'boolean'
-  | 'select'
-  | 'multi_select'
-  | 'json'
-  | 'text'
-  | 'password'
   | 'color'
-  | 'image';
+  | 'image'
+  | 'json'
+  | 'multi_select'
+  | 'number'
+  | 'password'
+  | 'select'
+  | 'string'
+  | 'text';
 
 export interface ValidationRuleMeta {
-  type: 'min_length' | 'max_length' | 'min_value' | 'max_value' | 'pattern';
+  type: 'max_length' | 'max_value' | 'min_length' | 'min_value' | 'pattern';
   value: number | string;
   message_key: string;
 }

@@ -17,6 +17,10 @@ defineOptions({
   inheritAttrs: false,
 });
 
+const props = withDefaults(defineProps<Props>(), {
+  showExport: true,
+});
+
 interface Props {
   /** 原始 Grid 组件 */
   grid: any;
@@ -25,10 +29,6 @@ interface Props {
   /** 导出按钮点击回调 */
   onExport?: () => void;
 }
-
-const props = withDefaults(defineProps<Props>(), {
-  showExport: true,
-});
 
 const attrs = useAttrs();
 
@@ -57,7 +57,7 @@ const hasToolbarToolsSlot = computed(() => 'toolbar-tools' in slots);
       :key="name"
       #[name]="slotProps"
     >
-      <slot :name="name" v-bind="slotProps ?? {}" />
+      <slot :name="name" v-bind="slotProps ?? {}"></slot>
     </template>
 
     <!-- 工具栏插槽：添加导出按钮 -->
@@ -66,7 +66,7 @@ const hasToolbarToolsSlot = computed(() => 'toolbar-tools' in slots);
         v-if="hasToolbarToolsSlot"
         name="toolbar-tools"
         v-bind="slotProps || {}"
-      />
+      ></slot>
       <Tooltip v-if="showExport" :title="$t('common.export')">
         <Button
           type="primary"

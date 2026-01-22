@@ -5,7 +5,8 @@ import { traverseTreeValues } from '@vben/utils';
 // 各端路由模块
 import { adminCoreRouteNames, adminRoutes } from './admin';
 import { coreRoutes, fallbackNotFoundRoute } from './core';
-import { tenantCoreRouteNames, tenantRoutes } from './tenant';
+import { tenantRoutes } from './tenant';
+import { tenantCoreRouteNames } from './tenant/names';
 import { userCoreRouteNames, userRoutes } from './user';
 
 /** 路由列表，由基本路由、各端路由和 404 兖底路由组成 */

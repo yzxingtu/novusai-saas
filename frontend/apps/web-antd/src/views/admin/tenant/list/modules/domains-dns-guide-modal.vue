@@ -131,32 +131,54 @@ defineExpose({ open });
           />
 
           <Descriptions :column="1" bordered size="small">
-            <Descriptions.Item :label="$t('admin.tenant.domain.dnsGuide.recordType')">
+            <Descriptions.Item
+              :label="$t('admin.tenant.domain.dnsGuide.recordType')"
+            >
               <Tag color="blue">TXT</Tag>
             </Descriptions.Item>
-            <Descriptions.Item :label="$t('admin.tenant.domain.dnsGuide.hostRecord')">
+            <Descriptions.Item
+              :label="$t('admin.tenant.domain.dnsGuide.hostRecord')"
+            >
               <div class="flex items-center justify-between gap-2">
-                <code class="bg-accent text-foreground break-all rounded px-2 py-1 text-xs">
+                <code
+                  class="break-all rounded bg-accent px-2 py-1 text-xs text-foreground"
+                >
                   {{ guideData.verificationInfo?.host || '_verification' }}
                 </code>
                 <Button
                   type="link"
                   size="small"
-                  @click="onCopy(guideData.verificationInfo?.host || '_verification')"
+                  @click="
+                    onCopy(guideData.verificationInfo?.host || '_verification')
+                  "
                 >
                   <IconifyIcon icon="lucide:copy" class="size-4" />
                 </Button>
               </div>
             </Descriptions.Item>
-            <Descriptions.Item :label="$t('admin.tenant.domain.dnsGuide.recordValue')">
+            <Descriptions.Item
+              :label="$t('admin.tenant.domain.dnsGuide.recordValue')"
+            >
               <div class="flex items-center justify-between gap-2">
-                <code class="bg-accent text-foreground break-all rounded px-2 py-1 text-xs">
-                  {{ guideData.verificationInfo?.value || guideData.verificationToken || '-' }}
+                <code
+                  class="break-all rounded bg-accent px-2 py-1 text-xs text-foreground"
+                >
+                  {{
+                    guideData.verificationInfo?.value ||
+                    guideData.verificationToken ||
+                    '-'
+                  }}
                 </code>
                 <Button
                   type="link"
                   size="small"
-                  @click="onCopy(guideData.verificationInfo?.value || guideData.verificationToken || '')"
+                  @click="
+                    onCopy(
+                      guideData.verificationInfo?.value ||
+                        guideData.verificationToken ||
+                        '',
+                    )
+                  "
                 >
                   <IconifyIcon icon="lucide:copy" class="size-4" />
                 </Button>
@@ -175,12 +197,18 @@ defineExpose({ open });
           />
 
           <Descriptions :column="1" bordered size="small">
-            <Descriptions.Item :label="$t('admin.tenant.domain.dnsGuide.recordType')">
+            <Descriptions.Item
+              :label="$t('admin.tenant.domain.dnsGuide.recordType')"
+            >
               <Tag color="green">CNAME</Tag>
             </Descriptions.Item>
-            <Descriptions.Item :label="$t('admin.tenant.domain.dnsGuide.hostRecord')">
+            <Descriptions.Item
+              :label="$t('admin.tenant.domain.dnsGuide.hostRecord')"
+            >
               <div class="flex items-center justify-between gap-2">
-                <code class="bg-accent text-foreground break-all rounded px-2 py-1 text-xs">
+                <code
+                  class="break-all rounded bg-accent px-2 py-1 text-xs text-foreground"
+                >
                   {{ guideData.domain.split('.')[0] }}
                 </code>
                 <Button
@@ -192,9 +220,13 @@ defineExpose({ open });
                 </Button>
               </div>
             </Descriptions.Item>
-            <Descriptions.Item :label="$t('admin.tenant.domain.dnsGuide.recordValue')">
+            <Descriptions.Item
+              :label="$t('admin.tenant.domain.dnsGuide.recordValue')"
+            >
               <div class="flex items-center justify-between gap-2">
-                <code class="bg-accent text-foreground break-all rounded px-2 py-1 text-xs">
+                <code
+                  class="break-all rounded bg-accent px-2 py-1 text-xs text-foreground"
+                >
                   {{ guideData.cnameTarget || 'cname.platform.com' }}
                 </code>
                 <Button
@@ -220,10 +252,17 @@ defineExpose({ open });
 
           <div class="rounded-lg border p-4">
             <div class="flex flex-col items-center gap-4 py-4">
-              <IconifyIcon icon="lucide:shield-check" class="size-16 text-primary" />
+              <IconifyIcon
+                icon="lucide:shield-check"
+                class="size-16 text-primary"
+              />
               <div class="text-center">
-                <p class="text-foreground text-base font-medium">{{ $t('admin.tenant.domain.dnsGuide.step3Title') }}</p>
-                <p class="text-muted-foreground mt-1 text-sm">{{ $t('admin.tenant.domain.dnsGuide.verifyHint') }}</p>
+                <p class="text-base font-medium text-foreground">
+                  {{ $t('admin.tenant.domain.dnsGuide.step3Title') }}
+                </p>
+                <p class="mt-1 text-sm text-muted-foreground">
+                  {{ $t('admin.tenant.domain.dnsGuide.verifyHint') }}
+                </p>
               </div>
             </div>
           </div>
@@ -237,14 +276,19 @@ defineExpose({ open });
             <IconifyIcon icon="lucide:arrow-left" class="mr-1 size-4" />
             {{ $t('admin.tenant.domain.dnsGuide.prevStep') }}
           </Button>
-          <div v-else />
+          <div v-else></div>
 
           <div class="flex gap-2">
             <Button v-if="currentStep < 2" type="primary" @click="onNext">
               {{ $t('admin.tenant.domain.dnsGuide.nextStep') }}
               <IconifyIcon icon="lucide:arrow-right" class="ml-1 size-4" />
             </Button>
-            <Button v-else type="primary" :loading="verifying" @click="onVerify">
+            <Button
+              v-else
+              type="primary"
+              :loading="verifying"
+              @click="onVerify"
+            >
               <IconifyIcon icon="lucide:check" class="mr-1 size-4" />
               {{ $t('admin.tenant.domain.verifyDomain') }}
             </Button>

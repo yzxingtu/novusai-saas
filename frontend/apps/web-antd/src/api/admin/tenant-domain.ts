@@ -29,9 +29,9 @@ export interface TenantDomainInfoRaw {
   ssl_status: SslStatus;
   cname_target?: string;
   txt_record?: string;
-  verification_token?: string | null;
-  verification_info?: Record<string, any> | null;
-  verified_at?: string | null;
+  verification_token?: null | string;
+  verification_info?: null | Record<string, any>;
+  verified_at?: null | string;
   ssl_expires_at?: string;
   remark?: string;
   created_at: string;
@@ -49,8 +49,8 @@ export interface TenantDomainInfo {
   sslStatus: SslStatus;
   cnameTarget?: string;
   txtRecord?: string;
-  verificationToken?: string | null;
-  verificationInfo?: Record<string, any> | null;
+  verificationToken?: null | string;
+  verificationInfo?: null | Record<string, any>;
   verifiedAt?: string;
   sslExpiresAt?: string;
   remark?: string;

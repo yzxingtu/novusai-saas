@@ -8,11 +8,11 @@ import '@vben/styles/antd';
 
 import { useTitle } from '@vueuse/core';
 
-import { $t, setupI18n } from '#/locales';
-
 import { initComponentAdapter } from '#/adapter/component';
 import { initSetupVbenForm } from '#/adapter/form';
 import { setupVxeTable } from '#/adapter/vxe-table';
+import { $t, setupI18n } from '#/locales';
+
 import App from './app.vue';
 import { registerCustomAccessDirective } from './directives/access';
 import { router } from './router';

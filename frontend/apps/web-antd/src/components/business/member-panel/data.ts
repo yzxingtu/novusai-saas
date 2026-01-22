@@ -1,10 +1,10 @@
+import type { AnyPromiseFunction } from '@vben/types';
+
 /**
  * 成员管理 - 表单配置
  * 遵循 vben-admin 规范，独立于具体视图页面
  */
 import type { VbenFormSchema } from '#/adapter/form';
-
-import type { AnyPromiseFunction } from '@vben/types';
 
 import { z } from '#/adapter/form';
 import { $t } from '#/locales';
@@ -138,7 +138,7 @@ export function useAdminFormSchema(options: {
             rules: 'required',
           },
         ]
-      : nodeName
+      : (nodeName
         ? [
             {
               component: 'Input',
@@ -151,7 +151,7 @@ export function useAdminFormSchema(options: {
               help: $t('admin.system.admin.help.roleAutoBinding'),
             },
           ]
-        : []),
+        : [])),
     {
       component: 'RadioGroup',
       componentProps: {

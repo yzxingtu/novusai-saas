@@ -1,3 +1,5 @@
+import type { Ref } from 'vue';
+
 /**
  * 声明式 CRUD 抽屉/弹窗 Composable
  *
@@ -21,7 +23,7 @@
  */
 import type { FormMode } from '#/adapter/vxe-table';
 
-import { computed, nextTick, ref, unref, type Ref } from 'vue';
+import { computed, nextTick, ref, unref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
 
@@ -32,15 +34,16 @@ import { requestClient } from '#/utils/request';
 
 /** snake_case 转 camelCase */
 function snakeToCamel(str: string): string {
-  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+  return str.replaceAll(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 }
-
 
 /**
  * 根据字段列表生成 toFormValues 函数
  * 后端 camelCase -> 表单 snake_case
  */
-function createToFormValues<T>(fields: string[]): (data: T) => Record<string, any> {
+function createToFormValues<T>(
+  fields: string[],
+): (data: T) => Record<string, any> {
   return (data: T) => {
     const result: Record<string, any> = {};
     for (const field of fields) {
@@ -56,7 +59,9 @@ function createToFormValues<T>(fields: string[]): (data: T) => Record<string, an
  * 根据字段列表生成 transform 函数
  * 表单 snake_case -> API snake_case（空值转 null）
  */
-function createTransform(fields: string[]): (values: Record<string, any>) => Record<string, any> {
+function createTransform(
+  fields: string[],
+): (values: Record<string, any>) => Record<string, any> {
   return (values: Record<string, any>) => {
     const result: Record<string, any> = {};
     for (const field of fields) {
@@ -106,7 +111,7 @@ export interface UseCrudDrawerOptions<T = any> {
    *
    * 指定后，openNew/openEdit 会自动使用此路径，无需每次传递 _resource
    */
-  apiPath?: Ref<string> | string | (() => string);
+  apiPath?: (() => string) | Ref<string> | string;
 
   /**
    * 数据转换函数（表单值 -> API 请求体）
@@ -180,8 +185,10 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
   } = options;
 
   // 如果提供了 fields，自动生成 transform 和 toFormValues
-  const transform = customTransform ?? (fields ? createTransform(fields) : (v: any) => v);
-  const toFormValues = customToFormValues ?? (fields ? createToFormValues<T>(fields) : undefined);
+  const transform =
+    customTransform ?? (fields ? createTransform(fields) : (v: any) => v);
+  const toFormValues =
+    customToFormValues ?? (fields ? createToFormValues<T>(fields) : undefined);
 
   const mode = ref<FormMode>('add');
   const recordId = ref<number | string>();
@@ -240,19 +247,19 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
       // 从 drawerApi 获取数据
       const data = drawerApi.getData() as
         | (T & {
+            [key: string]: any;
             _defaults?: Record<string, any>;
             _resource?: string;
             id?: number | string;
             mode?: FormMode;
-            [key: string]: any;
           })
         | undefined;
       mode.value = data?.mode ?? 'add';
       recordId.value = data?.[idField];
       {
-        const p = unref(apiPath) as string | (() => string) | undefined;
+        const p = unref(apiPath) as (() => string) | string | undefined;
         const resolved = typeof p === 'function' ? p() : p;
-        resource.value = data?._resource ?? (resolved ?? '');
+        resource.value = data?._resource ?? resolved ?? '';
       }
       rowData.value = data as T;
 
@@ -307,7 +314,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
    * @param extraData 额外传递给 Drawer 的数据
    */
   function openNew(extraData?: Record<string, any>) {
-    const p = unref(apiPath) as string | (() => string) | undefined;
+    const p = unref(apiPath) as (() => string) | string | undefined;
     const path = typeof p === 'function' ? p() : p;
     drawerApi
       .setData({
@@ -324,7 +331,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
    * @param extraData 额外传递给 Drawer 的数据
    */
   function openEdit(record: T, extraData?: Record<string, any>) {
-    const p = unref(apiPath) as string | (() => string) | undefined;
+    const p = unref(apiPath) as (() => string) | string | undefined;
     const path = typeof p === 'function' ? p() : p;
     drawerApi
       .setData({

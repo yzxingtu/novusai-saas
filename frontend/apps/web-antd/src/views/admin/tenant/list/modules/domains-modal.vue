@@ -3,7 +3,11 @@
  * 租户域名管理弹窗 - 主弹窗
  * 展示域名列表，提供添加、详情、设为主域名、验证、删除等入口
  */
-import type { DnsGuideData, DomainModalData, TenantDomainInfo } from './domains-types';
+import type {
+  DnsGuideData,
+  DomainModalData,
+  TenantDomainInfo,
+} from './domains-types';
 
 import { computed, ref } from 'vue';
 
@@ -199,14 +203,26 @@ async function onDeleteDomain(domain: TenantDomainInfo) {
 /** 获取验证状态标签配置 */
 function getVerificationTagConfig(status: string) {
   switch (status) {
-    case 'verified': {
-      return { color: 'success', icon: 'lucide:check-circle', text: $t('admin.tenant.domain.verified') };
-    }
     case 'failed': {
-      return { color: 'error', icon: 'lucide:x-circle', text: $t('admin.tenant.domain.verifyFailed') };
+      return {
+        color: 'error',
+        icon: 'lucide:x-circle',
+        text: $t('admin.tenant.domain.verifyFailed'),
+      };
+    }
+    case 'verified': {
+      return {
+        color: 'success',
+        icon: 'lucide:check-circle',
+        text: $t('admin.tenant.domain.verified'),
+      };
     }
     default: {
-      return { color: 'warning', icon: 'lucide:clock', text: $t('admin.tenant.domain.pending') };
+      return {
+        color: 'warning',
+        icon: 'lucide:clock',
+        text: $t('admin.tenant.domain.pending'),
+      };
     }
   }
 }
@@ -215,16 +231,32 @@ function getVerificationTagConfig(status: string) {
 function getSslTagConfig(status: string) {
   switch (status) {
     case 'active': {
-      return { color: 'success', icon: 'lucide:shield-check', text: $t('admin.tenant.domain.ssl.status.active') };
+      return {
+        color: 'success',
+        icon: 'lucide:shield-check',
+        text: $t('admin.tenant.domain.ssl.status.active'),
+      };
     }
     case 'expired': {
-      return { color: 'error', icon: 'lucide:shield-off', text: $t('admin.tenant.domain.ssl.status.expired') };
+      return {
+        color: 'error',
+        icon: 'lucide:shield-off',
+        text: $t('admin.tenant.domain.ssl.status.expired'),
+      };
     }
     case 'pending': {
-      return { color: 'processing', icon: 'lucide:shield', text: $t('admin.tenant.domain.ssl.status.pending') };
+      return {
+        color: 'processing',
+        icon: 'lucide:shield',
+        text: $t('admin.tenant.domain.ssl.status.pending'),
+      };
     }
     default: {
-      return { color: 'default', icon: 'lucide:shield-x', text: $t('admin.tenant.domain.ssl.status.none') };
+      return {
+        color: 'default',
+        icon: 'lucide:shield-x',
+        text: $t('admin.tenant.domain.ssl.status.none'),
+      };
     }
   }
 }
@@ -260,7 +292,9 @@ defineExpose({ open });
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-3">
                 <IconifyIcon icon="lucide:globe" class="size-5 text-primary" />
-                <span class="font-mono text-base font-medium">{{ domain.domain }}</span>
+                <span class="font-mono text-base font-medium">{{
+                  domain.domain
+                }}</span>
                 <Tag v-if="domain.isPrimary" color="blue">
                   {{ $t('admin.tenant.domain.primaryDomain') }}
                 </Tag>
@@ -275,23 +309,42 @@ defineExpose({ open });
               <!-- 域名类型 -->
               <div class="flex items-center gap-1 text-sm text-gray-500">
                 <span>{{ $t('admin.tenant.domain.type') }}:</span>
-                <span>{{ domain.domainType === 'default' ? $t('admin.tenant.domain.defaultDomain') : $t('admin.tenant.domain.customDomain') }}</span>
+                <span>{{
+                  domain.domainType === 'default'
+                    ? $t('admin.tenant.domain.defaultDomain')
+                    : $t('admin.tenant.domain.customDomain')
+                }}</span>
               </div>
 
               <!-- 验证状态 -->
               <div class="flex items-center gap-1">
                 <span class="text-sm text-gray-500">{{ $t('admin.tenant.domain.verificationStatus') }}:</span>
-                <Tag :color="getVerificationTagConfig(domain.verificationStatus).color">
-                  <IconifyIcon :icon="getVerificationTagConfig(domain.verificationStatus).icon" class="mr-1 size-3" />
+                <Tag
+                  :color="
+                    getVerificationTagConfig(domain.verificationStatus).color
+                  "
+                >
+                  <IconifyIcon
+                    :icon="
+                      getVerificationTagConfig(domain.verificationStatus).icon
+                    "
+                    class="mr-1 size-3"
+                  />
                   {{ getVerificationTagConfig(domain.verificationStatus).text }}
                 </Tag>
               </div>
 
               <!-- SSL 状态 (只显示自定义域名) -->
-              <div v-if="domain.domainType === 'custom'" class="flex items-center gap-1">
+              <div
+                v-if="domain.domainType === 'custom'"
+                class="flex items-center gap-1"
+              >
                 <span class="text-sm text-gray-500">SSL:</span>
                 <Tag :color="getSslTagConfig(domain.sslStatus).color">
-                  <IconifyIcon :icon="getSslTagConfig(domain.sslStatus).icon" class="mr-1 size-3" />
+                  <IconifyIcon
+                    :icon="getSslTagConfig(domain.sslStatus).icon"
+                    class="mr-1 size-3"
+                  />
                   {{ getSslTagConfig(domain.sslStatus).text }}
                 </Tag>
               </div>
@@ -304,7 +357,9 @@ defineExpose({ open });
             </div>
 
             <!-- 操作按钮 -->
-            <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
+            <div
+              class="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3"
+            >
               <!-- 编辑域名 -->
               <Button type="link" size="small" @click="onOpenDetail(domain)">
                 <IconifyIcon icon="lucide:pencil" class="mr-1 size-4" />
@@ -313,7 +368,10 @@ defineExpose({ open });
 
               <!-- SSL 管理 (已验证的自定义域名才显示) -->
               <Button
-                v-if="domain.verificationStatus === 'verified' && domain.domainType === 'custom'"
+                v-if="
+                  domain.verificationStatus === 'verified' &&
+                  domain.domainType === 'custom'
+                "
                 type="link"
                 size="small"
                 @click="onOpenSslDrawer(domain)"
@@ -347,7 +405,11 @@ defineExpose({ open });
               <!-- 设为主域名 (非主域名显示，未验证时禁用) -->
               <Tooltip
                 v-if="!domain.isPrimary"
-                :title="domain.verificationStatus !== 'verified' ? $t('admin.tenant.domain.verifyFirst') : ''"
+                :title="
+                  domain.verificationStatus !== 'verified'
+                    ? $t('admin.tenant.domain.verifyFirst')
+                    : ''
+                "
               >
                 <Button
                   type="link"
@@ -363,7 +425,11 @@ defineExpose({ open });
               <!-- 删除 (自定义域名且非主域名才显示) -->
               <Popconfirm
                 v-if="domain.domainType === 'custom' && !domain.isPrimary"
-                :title="$t('admin.tenant.domain.confirmDelete', { domain: domain.domain })"
+                :title="
+                  $t('admin.tenant.domain.confirmDelete', {
+                    domain: domain.domain,
+                  })
+                "
                 @confirm="onDeleteDomain(domain)"
               >
                 <Button type="link" size="small" danger>

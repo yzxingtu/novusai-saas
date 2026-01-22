@@ -1,11 +1,11 @@
 <script lang="ts" setup>
+import type { RoleTreeApi } from '../data';
+
 /**
  * 管理员新建/编辑表单抽屉
  * 使用 useCrudDrawer 实现声明式 CRUD，自动处理 create/update 请求
  */
 import type { adminApi } from '#/api';
-
-import type { RoleTreeApi } from '../data';
 
 import { computed } from 'vue';
 
@@ -74,9 +74,9 @@ const {
     is_active: values.is_active ?? true,
     // 新建时使用 nodeId，编辑时可修改角色
     ...(edit
-      ? props.roleTreeApi
+      ? (props.roleTreeApi
         ? { role_id: values.role_id }
-        : {}
+        : {})
       : { role_id: props.nodeId }),
   }),
   // 编辑模式：后端数据 -> 表单值

@@ -53,12 +53,12 @@ export interface TenantDomainBriefRaw {
   tenant_id: number;
   domain: string;
   is_verified: boolean;
-  verified_at: string | null;
+  verified_at: null | string;
   is_primary: boolean;
   ssl_status: 'active' | 'failed' | 'pending';
-  ssl_expires_at: string | null;
-  cname_target: string | null;
-  remark: string | null;
+  ssl_expires_at: null | string;
+  cname_target: null | string;
+  remark: null | string;
   created_at: string;
   updated_at: string;
 }
@@ -71,7 +71,7 @@ export interface TenantDomainBrief {
   isPrimary: boolean;
   verificationStatus: 'pending' | 'verified';
   sslStatus: 'active' | 'failed' | 'pending';
-  cnameTarget?: string | null;
+  cnameTarget?: null | string;
 }
 
 /** 套餐简要信息（后端原始格式） */
@@ -98,7 +98,7 @@ export interface TenantInfoRaw {
   contact_email?: string;
   plan?: null | TenantPlan;
   plan_id?: null | number;
-  plan_info?: TenantPlanBriefRaw | null;
+  plan_info?: null | TenantPlanBriefRaw;
   quota?: Record<string, any>;
   is_active: boolean;
   expires_at?: string;
@@ -106,7 +106,7 @@ export interface TenantInfoRaw {
   created_at: string;
   updated_at?: string;
   // 域名信息
-  primary_domain?: TenantDomainBriefRaw | null;
+  primary_domain?: null | TenantDomainBriefRaw;
   domain_count?: number;
   domains?: TenantDomainBriefRaw[];
 }
@@ -121,7 +121,7 @@ export interface TenantInfo {
   contactEmail?: string;
   plan?: null | TenantPlan;
   planId?: null | number;
-  planInfo?: TenantPlanBrief | null;
+  planInfo?: null | TenantPlanBrief;
   quota?: Record<string, any>;
   isActive: boolean;
   expiresAt?: string;
@@ -129,7 +129,7 @@ export interface TenantInfo {
   createdAt: string;
   updatedAt?: string;
   // 域名信息
-  primaryDomain?: TenantDomainBrief | null;
+  primaryDomain?: null | TenantDomainBrief;
   domainCount?: number;
   domains?: TenantDomainBrief[];
 }
@@ -147,9 +147,7 @@ export interface TenantListResponse {
 // ============================================================
 
 /** 转换域名简要信息 */
-function transformDomainBrief(
-  raw: TenantDomainBriefRaw,
-): TenantDomainBrief {
+function transformDomainBrief(raw: TenantDomainBriefRaw): TenantDomainBrief {
   return {
     id: raw.id,
     domain: raw.domain,

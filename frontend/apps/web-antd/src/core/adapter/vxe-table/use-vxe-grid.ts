@@ -1,9 +1,9 @@
+import type { GridOptionsConfig } from './types';
+
 /**
  * 表格 Hook 和配置工厂
  */
 import type { VbenFormSchema } from '#/adapter/form';
-
-import type { GridOptionsConfig } from './types';
 
 import { useVbenVxeGrid as useGrid } from '@vben/plugins/vxe-table';
 

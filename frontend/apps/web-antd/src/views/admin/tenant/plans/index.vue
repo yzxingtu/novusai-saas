@@ -14,9 +14,18 @@ import { Card, message, Tag, Tooltip } from 'ant-design-vue';
 import { useAutoTableDragSort, useCrudPage } from '#/adapter/vxe-table';
 import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
-import { copyToClipboard, formatDate, formatRelativeTime } from '#/utils/common';
+import {
+  copyToClipboard,
+  formatDate,
+  formatRelativeTime,
+} from '#/utils/common';
 
-import { getBillingCycleText, getFormDefaults, useColumns, useGridFormSchema } from './data';
+import {
+  getBillingCycleText,
+  getFormDefaults,
+  useColumns,
+  useGridFormSchema,
+} from './data';
 import Form from './modules/form.vue';
 import PermissionsModal from './modules/permissions-modal.vue';
 
@@ -36,7 +45,8 @@ async function onCopyCode(code: string) {
 function formatPriceDisplay(price?: null | number | string): string {
   if (price === null || price === undefined) return '-';
   const priceNum = typeof price === 'string' ? Number.parseFloat(price) : price;
-  if (Number.isNaN(priceNum) || priceNum === 0) return $t('admin.tenant.plan.free');
+  if (Number.isNaN(priceNum) || priceNum === 0)
+    return $t('admin.tenant.plan.free');
   return `¥${priceNum.toFixed(2)}`;
 }
 
@@ -49,30 +59,24 @@ function handleSetPermissions(row: TenantPlanInfo) {
 }
 
 // 声明式 CRUD 页面（导出按钮自动添加）
-const {
-  Grid,
-  FormDrawer,
-  ExportModal,
-  gridApi,
-  onCreate,
-  onRefresh,
-} = useCrudPage<TenantPlanInfo>({
-  api: {
-    list: admin.getTenantPlanListApi,
-    resource: '/admin/plans',
-    toggles: { is_active: admin.toggleTenantPlanStatusApi },
-  },
-  columns: useColumns,
-  searchSchema: useGridFormSchema(),
-  formComponent: Form,
-  formDefaults: getFormDefaults,
-  i18nPrefix: 'admin.tenant.plan',
-  nameField: 'name',
-  defaultSort: 'sort_order',
-  customActions: {
-    permissions: handleSetPermissions,
-  },
-});
+const { Grid, FormDrawer, ExportModal, gridApi, onCreate, onRefresh } =
+  useCrudPage<TenantPlanInfo>({
+    api: {
+      list: admin.getTenantPlanListApi,
+      resource: '/admin/plans',
+      toggles: { is_active: admin.toggleTenantPlanStatusApi },
+    },
+    columns: useColumns,
+    searchSchema: useGridFormSchema(),
+    formComponent: Form,
+    formDefaults: getFormDefaults,
+    i18nPrefix: 'admin.tenant.plan',
+    nameField: 'name',
+    defaultSort: 'sort_order',
+    customActions: {
+      permissions: handleSetPermissions,
+    },
+  });
 
 // 拖拽排序（自动初始化）
 useAutoTableDragSort(() => gridApi.grid, {
@@ -105,7 +109,10 @@ useAutoTableDragSort(() => gridApi.grid, {
               @click="onCopyCode(row.code)"
             >
               {{ row.code }}
-              <IconifyIcon icon="lucide:copy" class="ml-1 inline-block size-3 opacity-50" />
+              <IconifyIcon
+                icon="lucide:copy"
+                class="ml-1 inline-block size-3 opacity-50"
+              />
             </span>
           </Tooltip>
         </template>
@@ -123,7 +130,9 @@ useAutoTableDragSort(() => gridApi.grid, {
         <!-- 创建时间列 -->
         <template #createdAt_cell="{ row }">
           <Tooltip :title="formatDate(row.createdAt)">
-            <span class="text-gray-500">{{ formatRelativeTime(row.createdAt) }}</span>
+            <span class="text-gray-500">{{
+              formatRelativeTime(row.createdAt)
+            }}</span>
           </Tooltip>
         </template>
 

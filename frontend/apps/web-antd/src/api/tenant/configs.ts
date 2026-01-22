@@ -1,10 +1,11 @@
-import type { ApiRequestOptions } from '#/utils/request';
-import { requestClient } from '#/utils/request';
 import type {
   ConfigGroupListItemMeta,
   ConfigGroupMeta,
   ConfigSubmitPayload,
 } from '#/types/config';
+import type { ApiRequestOptions } from '#/utils/request';
+
+import { requestClient } from '#/utils/request';
 
 /** 获取租户配置分组列表 */
 export async function getTenantConfigGroupsApi(
@@ -33,5 +34,9 @@ export async function updateTenantConfigGroupApi(
   configs: ConfigSubmitPayload,
   options?: ApiRequestOptions,
 ): Promise<void> {
-  await requestClient.put(`/tenant/configs/groups/${groupCode}`, configs, options);
+  await requestClient.put(
+    `/tenant/configs/groups/${groupCode}`,
+    configs,
+    options,
+  );
 }

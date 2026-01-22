@@ -167,10 +167,10 @@ export interface TenantPlanListResponse {
 export interface TenantPlanSelectOption {
   label: string;
   value: number;
-  extra?: {
-    code?: string;
+  extra?: null | {
     billing_cycle?: string;
-  } | null;
+    code?: string;
+  };
   disabled?: boolean;
   children?: null;
   is_leaf?: boolean | null;
@@ -368,9 +368,12 @@ export interface TenantPlanSelectResponse {
  *
  * 返回结构遵循《通用远程下拉方案》: { data: { items: [{label, value, extra}] } }
  */
-export async function getTenantPlanSelectApi(
-  params?: { is_active?: string; page?: number; page_size?: number; search?: string },
-): Promise<TenantPlanSelectResponse> {
+export async function getTenantPlanSelectApi(params?: {
+  is_active?: string;
+  page?: number;
+  page_size?: number;
+  search?: string;
+}): Promise<TenantPlanSelectResponse> {
   return requestClient.get<TenantPlanSelectResponse>(`${API_PREFIX}/select`, {
     params,
   });

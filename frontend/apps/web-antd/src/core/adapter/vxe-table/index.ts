@@ -4,6 +4,9 @@
  * 统一导出所有表格相关功能
  */
 
+// 导出弹窗组件
+export { ExportModal, useExportModal } from './components';
+
 // 拖拽排序
 export {
   dragColumn,
@@ -29,9 +32,6 @@ export {
   type ExportOptions,
   exportToExcel,
 } from './extensions';
-
-// 导出弹窗组件
-export { ExportModal, useExportModal } from './components';
 
 // 展开行
 export {

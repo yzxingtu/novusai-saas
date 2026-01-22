@@ -1,102 +1,20 @@
-<template>
-  <Page auto-content-height>
-    <div class="flex h-full gap-4 overflow-hidden">
-      <!-- 左侧：配置分组列表 -->
-      <Card
-        class="w-[260px] flex-shrink-0 overflow-hidden"
-        :body-style="{ padding: 0, height: 'calc(100% - 57px)', overflow: 'auto' }"
-      >
-        <template #title>
-          <div class="flex items-center gap-2">
-            <IconifyIcon icon="lucide:settings" class="h-4 w-4 text-primary" />
-            <span>{{ t('shared.config.page.title') }}</span>
-          </div>
-        </template>
-        <Spin :spinning="groupLoading" class="h-full">
-          <div class="py-2">
-            <div
-              v-for="g in sortedGroups"
-              :key="g.code"
-              :class="[
-                'group-item mx-2 mb-1 cursor-pointer rounded-lg px-3 py-2.5 transition-colors',
-                g.code === activeGroup
-                  ? 'bg-primary/10 text-primary'
-                  : 'hover:bg-accent',
-              ]"
-              @click="onSelectGroup(g.code)"
-            >
-              <div class="flex items-center gap-2 font-medium">
-                <IconifyIcon v-if="g.icon" :icon="g.icon" class="h-4 w-4 flex-shrink-0" />
-                <span>{{ getGroupName(g) }}</span>
-              </div>
-              <div
-                v-if="getGroupDesc(g)"
-                class="mt-0.5 text-xs text-muted-foreground"
-                :class="g.icon ? 'ml-6' : ''"
-              >
-                {{ getGroupDesc(g) }}
-              </div>
-            </div>
-            <Empty
-              v-if="!groupLoading && groups.length === 0"
-              :description="t('shared.common.noData')"
-              class="py-8"
-            />
-          </div>
-        </Spin>
-      </Card>
-
-      <!-- 右侧：配置表单 -->
-      <Card
-        class="min-w-0 flex-1 overflow-hidden"
-        :body-style="{ padding: '16px 24px', height: 'calc(100% - 57px)', overflow: 'auto' }"
-      >
-        <template #title>
-          <span>{{ activeGroupData ? getGroupName(activeGroupData) : '' }}</span>
-        </template>
-        <template #extra>
-          <Button
-            type="primary"
-            v-access:code="['tenant_config:update']"
-            :loading="saving"
-            :disabled="!activeGroup"
-            @click="onSave"
-          >
-            <template #icon>
-              <IconifyIcon icon="lucide:save" />
-            </template>
-            {{ t('shared.common.save') }}
-          </Button>
-        </template>
-
-        <Spin :spinning="loading">
-          <div v-if="activeGroup" class="max-w-[800px]">
-            <ConfigForm ref="formRef" :configs="configs" />
-          </div>
-          <Empty
-            v-else
-            :description="t('shared.config.page.select_group')"
-            class="py-16"
-          />
-        </Spin>
-      </Card>
-    </div>
-  </Page>
-</template>
-
 <script setup lang="ts">
+import type { ConfigGroupListItemMeta, ConfigItemMeta } from '#/types/config';
+
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { Button, Card, Empty, Modal, Spin } from 'ant-design-vue';
+
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
-import { $t as t } from '#/locales';
-import { ConfigForm } from '#/components';
-import type { ConfigGroupListItemMeta, ConfigItemMeta } from '#/types/config';
+
+import { Button, Card, Empty, Modal, Spin } from 'ant-design-vue';
+
 import {
-  getTenantConfigGroupsApi,
   getTenantConfigGroupDetailApi,
+  getTenantConfigGroupsApi,
   updateTenantConfigGroupApi,
 } from '#/api/tenant/configs';
+import { ConfigForm } from '#/components';
+import { $t as t } from '#/locales';
 
 const groups = ref<ConfigGroupListItemMeta[]>([]);
 const activeGroup = ref<string>('');
@@ -146,7 +64,7 @@ async function loadGroups() {
   groupLoading.value = true;
   try {
     groups.value = await getTenantConfigGroupsApi();
-    if (groups.value.length) {
+    if (groups.value.length > 0) {
       activeGroup.value = groups.value[0]!.code;
       await loadGroupDetail(activeGroup.value);
     }
@@ -223,6 +141,106 @@ onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', beforeUnloadHandler);
 });
 </script>
+
+<template>
+  <Page auto-content-height>
+    <div class="flex h-full gap-4 overflow-hidden">
+      <!-- 左侧：配置分组列表 -->
+      <Card
+        class="w-[260px] flex-shrink-0 overflow-hidden"
+        :body-style="{
+          padding: 0,
+          height: 'calc(100% - 57px)',
+          overflow: 'auto',
+        }"
+      >
+        <template #title>
+          <div class="flex items-center gap-2">
+            <IconifyIcon icon="lucide:settings" class="h-4 w-4 text-primary" />
+            <span>{{ t('shared.config.page.title') }}</span>
+          </div>
+        </template>
+        <Spin :spinning="groupLoading" class="h-full">
+          <div class="py-2">
+            <div
+              v-for="g in sortedGroups"
+              :key="g.code"
+              class="group-item mx-2 mb-1 cursor-pointer rounded-lg px-3 py-2.5 transition-colors"
+              :class="[
+                g.code === activeGroup
+                  ? 'bg-primary/10 text-primary'
+                  : 'hover:bg-accent',
+              ]"
+              @click="onSelectGroup(g.code)"
+            >
+              <div class="flex items-center gap-2 font-medium">
+                <IconifyIcon
+                  v-if="g.icon"
+                  :icon="g.icon"
+                  class="h-4 w-4 flex-shrink-0"
+                />
+                <span>{{ getGroupName(g) }}</span>
+              </div>
+              <div
+                v-if="getGroupDesc(g)"
+                class="mt-0.5 text-xs text-muted-foreground"
+                :class="g.icon ? 'ml-6' : ''"
+              >
+                {{ getGroupDesc(g) }}
+              </div>
+            </div>
+            <Empty
+              v-if="!groupLoading && groups.length === 0"
+              :description="t('shared.common.noData')"
+              class="py-8"
+            />
+          </div>
+        </Spin>
+      </Card>
+
+      <!-- 右侧：配置表单 -->
+      <Card
+        class="min-w-0 flex-1 overflow-hidden"
+        :body-style="{
+          padding: '16px 24px',
+          height: 'calc(100% - 57px)',
+          overflow: 'auto',
+        }"
+      >
+        <template #title>
+          <span>{{
+            activeGroupData ? getGroupName(activeGroupData) : ''
+          }}</span>
+        </template>
+        <template #extra>
+          <Button
+            type="primary"
+            v-access:code="['tenant_config:update']"
+            :loading="saving"
+            :disabled="!activeGroup"
+            @click="onSave"
+          >
+            <template #icon>
+              <IconifyIcon icon="lucide:save" />
+            </template>
+            {{ t('shared.common.save') }}
+          </Button>
+        </template>
+
+        <Spin :spinning="loading">
+          <div v-if="activeGroup" class="max-w-[800px]">
+            <ConfigForm ref="formRef" :configs="configs" />
+          </div>
+          <Empty
+            v-else
+            :description="t('shared.config.page.select_group')"
+            class="py-16"
+          />
+        </Spin>
+      </Card>
+    </div>
+  </Page>
+</template>
 
 <style scoped>
 .group-item.active {

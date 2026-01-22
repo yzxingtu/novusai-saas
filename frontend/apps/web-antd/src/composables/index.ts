@@ -13,7 +13,4 @@ export {
   type UseCrudPageOptions,
 } from '#/adapter/vxe-table';
 
-export {
-  useCrudDrawer,
-  type UseCrudDrawerOptions,
-} from './use-crud-form';
+export { useCrudDrawer, type UseCrudDrawerOptions } from './use-crud-form';

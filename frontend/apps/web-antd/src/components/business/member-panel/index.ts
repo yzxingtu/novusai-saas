@@ -3,11 +3,11 @@
  * @description 用于展示和管理组织节点的成员列表
  */
 
-// 组件导出
-export { default as MemberPanel } from './member-panel.vue';
-
 // 类型导出
 export type { RoleTreeApi } from './data';
+
+// 组件导出
+export { default as MemberPanel } from './member-panel.vue';
 export type {
   MemberPanelProps,
   UseMemberPanelOptions,

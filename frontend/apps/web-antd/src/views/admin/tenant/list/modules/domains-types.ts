@@ -25,12 +25,12 @@ export interface TenantDomainInfo {
   sslStatus: SslStatus;
   cnameTarget?: string;
   txtRecord?: string;
-  verificationToken?: string | null;
-  verificationInfo?: {
+  verificationToken?: null | string;
+  verificationInfo?: null | {
     host?: string;
     type?: string;
     value?: string;
-  } | null;
+  };
   verifiedAt?: string;
   sslExpiresAt?: string;
   remark?: string;
@@ -90,6 +90,6 @@ export interface DnsGuideData {
   tenantId: number;
   domainId: number;
   verificationInfo?: TenantDomainInfo['verificationInfo'];
-  verificationToken?: string | null;
+  verificationToken?: null | string;
   cnameTarget?: string;
 }

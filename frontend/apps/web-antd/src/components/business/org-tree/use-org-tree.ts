@@ -87,7 +87,7 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
    * 加载根节点
    * @returns 第一个根节点（用于自动选择）
    */
-  async function loadRootNodes(): Promise<OrgTreeNodeData | null> {
+  async function loadRootNodes(): Promise<null | OrgTreeNodeData> {
     loading.value = true;
     try {
       const nodes = await api.getRootNodes();
@@ -206,7 +206,7 @@ export function useOrgTree(options: UseOrgTreeOptions = {}): UseOrgTreeReturn {
    * 刷新数据
    * @returns 第一个根节点
    */
-  async function refresh(): Promise<OrgTreeNodeData | null> {
+  async function refresh(): Promise<null | OrgTreeNodeData> {
     // 保存当前展开状态
     const currentExpanded = new Set(expandedIds.value);
     const firstNode = await loadRootNodes();

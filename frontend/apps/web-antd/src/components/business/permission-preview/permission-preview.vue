@@ -9,8 +9,7 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Empty, Popover, Skeleton, Tag, Tree } from 'ant-design-vue';
 
-import { adminApi as admin } from '#/api';
-import { tenantApi as tenant } from '#/api';
+import { adminApi as admin, tenantApi as tenant } from '#/api';
 import { $t } from '#/locales';
 
 /** 权限节点通用类型 */
@@ -24,12 +23,12 @@ interface PermissionNode {
 }
 
 const props = defineProps<{
+  /** API 前缀: admin 或 tenant */
+  apiPrefix?: 'admin' | 'tenant';
   /** 节点 ID */
   nodeId: number;
   /** 权限数量 */
   permissionsCount: number;
-  /** API 前缀: admin 或 tenant */
-  apiPrefix?: 'admin' | 'tenant';
 }>();
 
 const open = ref(false);
@@ -55,12 +54,14 @@ async function loadPermissions() {
       // 租户端 API
       const detail = await tenant.getTenantRoleDetailApi(props.nodeId);
       // 优先使用 permissionIds，否则从 permissions 提取
-      permIds = detail.permissionIds || detail.permissions?.map((p) => p.id) || [];
+      permIds =
+        detail.permissionIds || detail.permissions?.map((p) => p.id) || [];
       permissionTree.value = await tenant.getTenantPermissionTreeApi();
     } else {
       // 平台端 API
       const detail = await admin.getRoleDetailApi(props.nodeId);
-      permIds = detail.permissionIds || detail.permissions?.map((p) => p.id) || [];
+      permIds =
+        detail.permissionIds || detail.permissions?.map((p) => p.id) || [];
       permissionTree.value = await admin.getPermissionTreeApi();
     }
 
@@ -68,8 +69,8 @@ async function loadPermissions() {
 
     // 默认展开所有节点
     expandedKeys.value = getAllKeys(permissionTree.value);
-  } catch (e) {
-    console.error('Load permissions error:', e);
+  } catch (error) {
+    console.error('Load permissions error:', error);
     permissionIdSet.value = new Set();
     permissionTree.value = [];
   } finally {
@@ -116,24 +117,26 @@ function filterPermissionTree(nodes: PermissionNode[]): any[] {
   return result;
 }
 
-const filteredTreeData = computed(() => filterPermissionTree(permissionTree.value));
+const filteredTreeData = computed(() =>
+  filterPermissionTree(permissionTree.value),
+);
 
 /**
  * 获取权限类型图标
  */
 function getTypeIcon(type: string): string {
   switch (type) {
-    case 'menu': {
-      return 'lucide:layout-dashboard';
-    }
-    case 'operation': {
-      return 'lucide:mouse-pointer-click';
-    }
     case 'api': {
       return 'mdi:api';
     }
     case 'button': {
       return 'lucide:square';
+    }
+    case 'menu': {
+      return 'lucide:layout-dashboard';
+    }
+    case 'operation': {
+      return 'lucide:mouse-pointer-click';
     }
     default: {
       return 'lucide:folder';
@@ -146,17 +149,17 @@ function getTypeIcon(type: string): string {
  */
 function getTypeColor(type: string): string {
   switch (type) {
-    case 'menu': {
-      return 'blue';
-    }
-    case 'operation': {
-      return 'green';
-    }
     case 'api': {
       return 'orange';
     }
     case 'button': {
       return 'cyan';
+    }
+    case 'menu': {
+      return 'blue';
+    }
+    case 'operation': {
+      return 'green';
     }
     default: {
       return 'default';
@@ -222,9 +225,16 @@ watch(
               class="flex items-center gap-1.5 whitespace-nowrap"
               :class="{ 'opacity-50': !hasPermission }"
             >
-              <IconifyIcon :icon="icon || getTypeIcon(type)" class="flex-shrink-0 text-sm" />
+              <IconifyIcon
+                :icon="icon || getTypeIcon(type)"
+                class="flex-shrink-0 text-sm"
+              />
               <span class="text-sm">{{ title }}</span>
-              <Tag v-if="hasPermission" :color="getTypeColor(type)" size="small">
+              <Tag
+                v-if="hasPermission"
+                :color="getTypeColor(type)"
+                size="small"
+              >
                 {{ type }}
               </Tag>
               <span v-if="hasPermission" class="text-xs text-muted-foreground">

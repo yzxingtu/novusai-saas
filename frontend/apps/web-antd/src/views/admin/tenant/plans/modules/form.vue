@@ -35,20 +35,30 @@ const { Drawer, isEdit } = useCrudDrawer<TenantPlanInfo>({
 
     // 修正配额对象（确保数值类型正确）
     const finalQuota: Record<string, any> = {};
-    if (quota.storage_limit_gb !== undefined) finalQuota.storage_limit_gb = quota.storage_limit_gb;
+    if (quota.storage_limit_gb !== undefined)
+      finalQuota.storage_limit_gb = quota.storage_limit_gb;
     if (quota.max_users !== undefined) finalQuota.max_users = quota.max_users;
-    if (quota.max_admins !== undefined) finalQuota.max_admins = quota.max_admins;
-    if (quota.max_custom_domains !== undefined) finalQuota.max_custom_domains = quota.max_custom_domains;
-    if (quota.allow_custom_domain !== undefined) finalQuota.allow_custom_domain = quota.allow_custom_domain;
-    if (quota.api_calls_per_month !== undefined) finalQuota.api_calls_per_month = quota.api_calls_per_month;
-    if (quota.max_file_size_mb !== undefined) finalQuota.max_file_size_mb = quota.max_file_size_mb;
+    if (quota.max_admins !== undefined)
+      finalQuota.max_admins = quota.max_admins;
+    if (quota.max_custom_domains !== undefined)
+      finalQuota.max_custom_domains = quota.max_custom_domains;
+    if (quota.allow_custom_domain !== undefined)
+      finalQuota.allow_custom_domain = quota.allow_custom_domain;
+    if (quota.api_calls_per_month !== undefined)
+      finalQuota.api_calls_per_month = quota.api_calls_per_month;
+    if (quota.max_file_size_mb !== undefined)
+      finalQuota.max_file_size_mb = quota.max_file_size_mb;
 
     // 修正特性对象
     const finalFeatures: Record<string, any> = {};
-    if (features.ai_enabled !== undefined) finalFeatures.ai_enabled = features.ai_enabled;
-    if (features.advanced_analytics !== undefined) finalFeatures.advanced_analytics = features.advanced_analytics;
-    if (features.white_label !== undefined) finalFeatures.white_label = features.white_label;
-    if (features.priority_support !== undefined) finalFeatures.priority_support = features.priority_support;
+    if (features.ai_enabled !== undefined)
+      finalFeatures.ai_enabled = features.ai_enabled;
+    if (features.advanced_analytics !== undefined)
+      finalFeatures.advanced_analytics = features.advanced_analytics;
+    if (features.white_label !== undefined)
+      finalFeatures.white_label = features.white_label;
+    if (features.priority_support !== undefined)
+      finalFeatures.priority_support = features.priority_support;
 
     return {
       code: values.code,
