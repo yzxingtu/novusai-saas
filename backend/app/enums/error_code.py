@@ -74,6 +74,11 @@ class ErrorCode(IntEnum):
     ADMIN_EMAIL_EXISTS = 4302
     ADMIN_PHONE_EXISTS = 4303
     
+    # ==================== 配置相关错误 (44xx) ====================
+    CONFIG_GROUP_NOT_FOUND = 4401
+    CONFIG_INVALID_KEYS = 4402
+    CONFIG_VALIDATION_FAILED = 4403
+    
     # ==================== 服务端错误 (5xxx) ====================
     SERVER_ERROR = 5000
     EXTERNAL_SERVICE_ERROR = 5020
@@ -130,6 +135,11 @@ ERROR_CODE_MESSAGES: dict[int, str] = {
     ErrorCode.ADMIN_USERNAME_EXISTS: "error.admin.username_exists",
     ErrorCode.ADMIN_EMAIL_EXISTS: "error.admin.email_exists",
     ErrorCode.ADMIN_PHONE_EXISTS: "error.admin.phone_exists",
+    
+    # 配置相关
+    ErrorCode.CONFIG_GROUP_NOT_FOUND: "error.config.group_not_found",
+    ErrorCode.CONFIG_INVALID_KEYS: "error.config.invalid_keys",
+    ErrorCode.CONFIG_VALIDATION_FAILED: "error.config.validation_failed",
     
     # 服务端错误
     ErrorCode.SERVER_ERROR: "error.server.internal_error",

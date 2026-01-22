@@ -373,31 +373,91 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
     async def get_members(
         self,
         role_id: int,
+        search: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+        include_descendants: bool = True,
         include_deleted: bool = False,
-    ) -> list:
+    ) -> tuple[list, int]:
         """
-        获取节点成员列表
+        获取节点成员列表（分页 + 搜索 + 递归子节点）
         
         Args:
             role_id: 角色/节点 ID
+            search: 搜索关键词（匹配用户名/昵称/邮箱）
+            page: 页码
+            page_size: 每页数量
+            include_descendants: 是否包含子节点成员（默认 True）
             include_deleted: 是否包含已删除记录
         
         Returns:
-            成员列表 (Admin)
+            (成员列表, 总数)
         """
         from app.models.system.admin import Admin
+        from sqlalchemy import or_
+        from sqlalchemy.orm import selectinload
         
-        query = select(Admin).where(
-            Admin.role_id == role_id
-        )
+        # 确定查询的角色 ID 范围
+        if include_descendants:
+            # 获取当前节点的 path
+            role = await self.get_by_id(role_id, include_deleted=include_deleted)
+            if not role:
+                return [], 0
+            
+            # 查询所有子节点 ID（包含自身）
+            # 子节点的 path 以当前节点的 path 为前缀，如当前节点 path=/155/，子节点 path=/155/xxx/
+            path_prefix = role.path or f"/{role_id}/"
+            role_ids_query = select(self.model.id).where(
+                or_(
+                    self.model.id == role_id,  # 包含当前节点自身
+                    self.model.path.like(f"{path_prefix}%"),  # 所有以当前 path 为前缀的子节点
+                )
+            )
+            if not include_deleted:
+                role_ids_query = role_ids_query.where(self.model.is_deleted == False)
+            
+            role_ids_result = await self.db.execute(role_ids_query)
+            role_ids = [r for r in role_ids_result.scalars().all()]
+            
+            if not role_ids:
+                return [], 0
+            
+            # 基础查询条件：所有子节点的成员
+            base_conditions = [Admin.role_id.in_(role_ids)]
+        else:
+            # 仅查询当前节点的成员
+            base_conditions = [Admin.role_id == role_id]
         
         if not include_deleted:
-            query = query.where(Admin.is_deleted == False)
+            base_conditions.append(Admin.is_deleted == False)
         
+        # 搜索条件
+        if search:
+            search_pattern = f"%{search}%"
+            base_conditions.append(
+                or_(
+                    Admin.username.ilike(search_pattern),
+                    Admin.nickname.ilike(search_pattern),
+                    Admin.email.ilike(search_pattern),
+                )
+            )
+        
+        # 统计总数
+        count_query = select(func.count(Admin.id)).where(*base_conditions)
+        count_result = await self.db.execute(count_query)
+        total = count_result.scalar() or 0
+        
+        # 分页查询，并加载角色关联
+        offset = (page - 1) * page_size
+        query = select(Admin).where(*base_conditions)
+        query = query.options(selectinload(Admin.role))  # 加载角色关联
         query = query.order_by(Admin.id.asc())
+        query = query.offset(offset).limit(page_size)
         
         result = await self.db.execute(query)
-        return list(result.scalars().all())
+        members = list(result.scalars().all())
+        
+        return members, total
     
     async def count_members(
         self,

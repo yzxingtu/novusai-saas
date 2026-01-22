@@ -37,6 +37,7 @@ from app.schemas.system import (
     TenantStatusRequest,
     TenantImpersonateRequest,
     TenantImpersonateResponse,
+    TenantResetOwnerPasswordRequest,
 )
 from app.schemas.common.select import SelectResponse
 from app.services.system import TenantService
@@ -80,11 +81,17 @@ class AdminTenantController(GlobalController):
             current_admin: ActiveAdmin,
             search: str = Query("", description="搜索关键词"),
             is_active: str = Query("", description="筛选状态，默认仅启用"),
+            page: int = Query(0, ge=0, description="页码（0=不分页，>=1=分页）"),
+            page_size: int = Query(20, ge=1, le=100, description="每页数量"),
         ):
             """
             获取租户下拉选项
             
             用于筛选器或表单中的租户选择组件
+            
+            分页模式：
+            - page=0: 不分页，返回全部数据（受 limit 限制）
+            - page>=1: 分页模式，返回分页信息（total, has_more）
             
             权限: tenant:select
             """
@@ -96,13 +103,15 @@ class AdminTenantController(GlobalController):
                 active_filter = True
             
             service = TenantService(db)
-            options = await service.get_select_options(
+            response = await service.get_select_options(
                 search=search,
                 limit=50,
                 is_active=active_filter,
+                page=page,
+                page_size=page_size,
             )
             return success(
-                data=SelectResponse(items=options),
+                data=response,
                 message=_("common.success"),
             )
         
@@ -182,10 +191,13 @@ class AdminTenantController(GlobalController):
             service = TenantService(db)
             tenant = await service.create_tenant(
                 name=data.name,
+                admin_username=data.admin_username,
+                admin_email=data.admin_email,
+                admin_password=data.admin_password,
                 contact_name=data.contact_name,
                 contact_phone=data.contact_phone,
                 contact_email=data.contact_email,
-                plan=data.plan,
+                plan_id=data.plan_id,
                 quota=data.quota,
                 expires_at=data.expires_at,
                 remark=data.remark,
@@ -358,6 +370,28 @@ class AdminTenantController(GlobalController):
                 ),
                 message=_("common.success"),
             )
+        
+        @router.put("/{tenant_id}/reset-owner-password", summary="重置租户超级管理员密码")
+        @permission_action("reset_owner_password", "action.tenant.reset_owner_password")
+        async def reset_owner_password(
+            request: Request,
+            db: DbSession,
+            tenant_id: int,
+            data: TenantResetOwnerPasswordRequest,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            重置租户超级管理员（owner）密码
+            
+            - 用于租户管理员忘记密码或安全事件处理
+            
+            权限: tenant:reset_owner_password
+            """
+            service = TenantService(db)
+            await service.reset_owner_password(tenant_id, data.new_password)
+            await db.commit()
+            
+            return success(message=_("tenant.owner_password_reset"))
 
 
 # 导出路由器

@@ -6,12 +6,15 @@
 
 from typing import Any
 
+from sqlalchemy import select
+
 from app.core.base_service import TenantService
 from app.core.i18n import _
 from app.core.security import get_password_hash, verify_password
 from app.enums import ErrorCode
 from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.tenant_admin import TenantAdmin
+from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.repositories.tenant.tenant_admin_repository import TenantAdminRepository
 
 
@@ -115,6 +118,14 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
                 code=ErrorCode.ADMIN_PHONE_EXISTS,
             )
         
+        # 如果是租户所有者，获取根节点
+        root_node = None
+        if is_owner:
+            root_node = await self._get_tenant_root_node()
+            # 如果未指定角色，自动关联到根节点
+            if root_node and role_id is None:
+                role_id = root_node.id
+        
         # 创建管理员（tenant_id 由 TenantService 自动注入）
         data = {
             "username": username,
@@ -127,7 +138,14 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             "role_id": role_id,
         }
         
-        return await self.create(data)
+        admin = await self.create(data)
+        
+        # 如果是租户所有者，设为根节点负责人
+        if is_owner and root_node and root_node.leader_id is None:
+            root_node.leader_id = admin.id
+            await self.db.flush()
+        
+        return admin
     
     async def update_admin(
         self,
@@ -277,6 +295,23 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         if not result:
             raise NotFoundException(message=_("tenant_admin.not_found"))
         return result
+    
+    async def _get_tenant_root_node(self) -> TenantAdminRole | None:
+        """
+        获取租户的组织架构根节点
+        
+        Returns:
+            根节点实例或 None
+        """
+        result = await self.db.execute(
+            select(TenantAdminRole).where(
+                TenantAdminRole.tenant_id == self.tenant_id,
+                TenantAdminRole.code == "tenant_root",
+                TenantAdminRole.is_system == True,
+                TenantAdminRole.is_deleted == False,
+            )
+        )
+        return result.scalar_one_or_none()
 
 
 __all__ = ["TenantAdminService"]

@@ -5,6 +5,7 @@
     "created": "创建成功",
     "updated": "更新成功",
     "deleted": "删除成功",
+    "reorder_success": "排序更新成功",
     "not_found": "资源不存在",
     "invalid_request": "无效请求",
     "server_error": "服务器内部错误",
@@ -66,7 +67,33 @@
     "status_updated": "租户状态更新成功",
     "settings_updated": "租户设置更新成功",
     "identification_failed": "无法识别租户",
-    "owner_not_found": "租户所有者不存在"
+    "owner_not_found": "租户所有者不存在",
+    "owner_password_reset": "租户超级管理员密码重置成功"
+  },
+  "tenant_plan": {
+    "not_found": "套餐不存在",
+    "code_exists": "套餐代码已存在",
+    "created": "套餐创建成功",
+    "updated": "套餐更新成功",
+    "deleted": "套餐删除成功",
+    "has_tenants": "套餐正在被租户使用，无法删除",
+    "permissions_updated": "套餐权限更新成功"
+  },
+  "tenant_domain": {
+    "not_found": "域名不存在",
+    "already_exists": "域名已被使用",
+    "already_verified": "域名已验证",
+    "not_verified": "域名未验证，请先完成验证",
+    "created": "域名添加成功",
+    "updated": "域名更新成功",
+    "deleted": "域名删除成功",
+    "verified": "域名验证成功",
+    "verify_failed": "域名验证失败，请检查 DNS 配置",
+    "primary_set": "已设置为主域名",
+    "cannot_delete_primary": "不能删除主域名，请先设置其他域名为主域名",
+    "cannot_delete_default": "不能删除系统默认域名",
+    "quota_exceeded": "自定义域名数量已达上限",
+    "default_domain_remark": "系统自动生成的默认域名"
   },
   "domain": {
     "not_found": "域名不存在",
@@ -150,18 +177,24 @@
     "import": "导入"
   },
   "action": {
-    "role": {
-      "list": "查看角色列表",
-      "tree": "查看角色树",
-      "detail": "查看角色详情",
-      "children": "查看子角色",
+    "organization": {
+      "list": "查看组织列表",
+      "tree": "查看组织树",
+      "organization": "查看组织架构",
+      "detail": "查看节点详情",
+      "children": "查看子节点",
       "effective_permissions": "查看有效权限",
-      "create": "创建角色",
-      "update": "更新角色",
-      "move": "移动角色",
-      "delete": "删除角色",
-      "assign_permissions": "分配角色权限",
-      "select": "角色远程下拉"
+      "create": "创建节点",
+      "update": "更新节点",
+      "move": "移动节点",
+      "delete": "删除节点",
+      "assign_permissions": "分配权限",
+      "select": "组织远程下拉",
+      "members": "查看节点成员",
+      "add_member": "添加成员",
+      "remove_member": "移除成员",
+      "set_leader": "设置负责人",
+      "reorder": "重新排序"
     },
     "admin": {
       "list": "查看管理员列表",
@@ -185,7 +218,8 @@
       "delete": "删除租户",
       "toggle_status": "切换租户状态",
       "impersonate": "一键登录租户后台",
-      "select": "租户远程下拉"
+      "select": "租户远程下拉",
+      "reset_owner_password": "重置租户超级管理员密码"
     },
     "tenant_settings": {
       "view": "查看租户设置",
@@ -196,12 +230,58 @@
       "domain_update": "更新域名设置",
       "domain_delete": "删除自定义域名",
       "domain_verify": "验证域名"
+    },
+    "platform_config": {
+      "groups": "查看配置分组",
+      "detail": "查看配置详情",
+      "update": "更新配置"
+    },
+    "tenant_config": {
+      "groups": "查看配置分组",
+      "detail": "查看配置详情",
+      "update": "更新配置"
+    },
+    "tenant_plan": {
+      "list": "查看套餐列表",
+      "detail": "查看套餐详情",
+      "create": "创建套餐",
+      "update": "更新套餐",
+      "delete": "删除套餐",
+      "select": "套餐远程下拉",
+      "permissions": "查看套餐权限",
+      "assign_permissions": "分配套餐权限",
+      "available_permissions": "查看可分配权限",
+      "reorder": "重新排序"
+    },
+    "tenant_domain": {
+      "list": "查看域名列表",
+      "detail": "查看域名详情",
+      "create": "添加域名",
+      "update": "更新域名",
+      "delete": "删除域名",
+      "verify": "验证域名",
+      "set_primary": "设置主域名"
+    },
+    "operation_log": {
+      "list": "查看操作日志列表",
+      "detail": "查看操作日志详情",
+      "delete": "删除操作日志"
+    },
+    "system_log": {
+      "stats": "查看日志统计",
+      "categories": "查看日志分类",
+      "files": "查看日志文件列表",
+      "read": "读取日志内容",
+      "download": "下载日志文件",
+      "delete": "删除日志文件"
     }
   },
   "role": {
     "not_found": "角色不存在",
     "code_exists": "角色代码已存在",
     "created": "角色创建成功",
+    "tenant_root_description": "租户组织架构根节点，不可删除",
+    "platform_root_description": "平台组织架构根节点，不可删除",
     "updated": "角色更新成功",
     "deleted": "角色删除成功",
     "system_role_cannot_modify": "系统内置角色不可修改",
@@ -289,7 +369,295 @@
       "department": "部门",
       "position": "岗位",
       "role": "职能角色"
+    },
+    "billing_cycle": {
+      "monthly": "月付",
+      "yearly": "年付",
+      "lifetime": "终身",
+      "custom": "自定义"
+    },
+    "user_type": {
+      "admin": "平台管理员",
+      "tenant_admin": "租户管理员",
+      "tenant_user": "租户用户",
+      "anonymous": "匿名用户"
+    },
+    "log_module": {
+      "auth": "认证",
+      "permission": "权限",
+      "role": "角色",
+      "admin_user": "平台用户",
+      "tenant": "租户",
+      "tenant_admin": "租户管理员",
+      "tenant_user": "租户用户",
+      "config": "配置",
+      "plan": "套餐",
+      "domain": "域名",
+      "log": "日志",
+      "organization": "组织架构",
+      "system": "系统",
+      "other": "其他"
+    },
+    "log_category": {
+      "app": "应用日志",
+      "error": "错误日志",
+      "db": "数据库日志",
+      "task": "任务日志",
+      "queue": "队列日志"
     }
+  },
+  "config": {
+    "group_not_found": "配置分组不存在",
+    "invalid_keys": "无效的配置键: {keys}",
+    "updated": "配置更新成功",
+    "group": {
+      "platform_general": {
+        "name": "通用设置",
+        "desc": "站点基本信息、维护模式等配置"
+      },
+      "platform_security": {
+        "name": "安全设置",
+        "desc": "密码策略、登录安全、会话设置"
+      },
+      "platform_email": {
+        "name": "邮件设置",
+        "desc": "SMTP 服务器配置、发件人信息"
+      },
+      "platform_storage": {
+        "name": "存储设置",
+        "desc": "文件存储和对象存储配置"
+      },
+      "tenant_general": {
+        "name": "基础设置",
+        "desc": "登录安全、密码策略、会话设置"
+      },
+      "tenant_appearance": {
+        "name": "外观设置",
+        "desc": "Logo、主题色、登录页定制"
+      },
+      "tenant_features": {
+        "name": "功能设置",
+        "desc": "功能模块的启用和禁用"
+      }
+    },
+    "platform": {
+      "site_name": {
+        "name": "站点名称",
+        "desc": "显示在浏览器标题栏和页面顶部的名称"
+      },
+      "site_description": {
+        "name": "站点描述",
+        "desc": "用于 SEO 和站点介绍"
+      },
+      "site_logo": {
+        "name": "站点 Logo",
+        "desc": "显示在页面顶部的 Logo 图片"
+      },
+      "site_favicon": {
+        "name": "站点图标",
+        "desc": "显示在浏览器标签页的小图标"
+      },
+      "site_copyright": {
+        "name": "版权信息",
+        "desc": "显示在页面底部的版权声明"
+      },
+      "site_icp": {
+        "name": "ICP 备案号",
+        "desc": "中国大陆地区需要的备案号"
+      },
+      "tenant_domain_suffix": {
+        "name": "租户默认域名后缀",
+        "desc": "租户默认域名格式为 {tenant_code}{suffix}，例如: demo.app.novusai.com"
+      },
+      "domain_verification_prefix": {
+        "name": "域名验证 DNS 前缀",
+        "desc": "用于验证自定义域名所有权的 DNS TXT 记录前缀"
+      },
+      "maintenance_mode": {
+        "name": "维护模式",
+        "desc": "开启后用户将无法访问系统"
+      },
+      "maintenance_message": {
+        "name": "维护提示",
+        "desc": "维护模式下显示给用户的提示信息"
+      },
+      "password_min_length": {
+        "name": "密码最小长度",
+        "desc": "用户密码的最小字符数要求"
+      },
+      "password_complexity": {
+        "name": "密码复杂度",
+        "desc": "密码必须包含的字符类型要求",
+        "low": "低（仅限制长度）",
+        "medium": "中（字母+数字）",
+        "high": "高（字母+数字+特殊字符）"
+      },
+      "password_expiry_days": {
+        "name": "密码过期天数",
+        "desc": "密码有效期，0 表示永不过期"
+      },
+      "login_max_attempts": {
+        "name": "登录失败锁定次数",
+        "desc": "连续登录失败达到此次数后锁定账户"
+      },
+      "login_lockout_minutes": {
+        "name": "账户锁定时长",
+        "desc": "账户被锁定后的等待时间（分钟）"
+      },
+      "login_captcha_enabled": {
+        "name": "启用验证码",
+        "desc": "登录时是否需要验证码"
+      },
+      "session_timeout_minutes": {
+        "name": "会话超时时间",
+        "desc": "用户无操作后自动退出的时间（分钟）"
+      },
+      "session_max_devices": {
+        "name": "最大登录设备数",
+        "desc": "允许同时登录的设备数量，0 表示不限制"
+      },
+      "email_smtp_host": {
+        "name": "SMTP 服务器",
+        "desc": "邮件服务器地址"
+      },
+      "email_smtp_port": {
+        "name": "SMTP 端口",
+        "desc": "邮件服务器端口号"
+      },
+      "email_smtp_encryption": {
+        "name": "加密方式",
+        "desc": "SMTP 连接加密方式",
+        "none": "无加密",
+        "ssl": "SSL",
+        "tls": "TLS"
+      },
+      "email_smtp_username": {
+        "name": "SMTP 用户名",
+        "desc": "邮件服务器认证用户名"
+      },
+      "email_smtp_password": {
+        "name": "SMTP 密码",
+        "desc": "邮件服务器认证密码"
+      },
+      "email_from_address": {
+        "name": "发件人邮箱",
+        "desc": "系统发送邮件使用的邮箱地址"
+      },
+      "email_from_name": {
+        "name": "发件人名称",
+        "desc": "系统发送邮件显示的发件人名称"
+      },
+      "email_enabled": {
+        "name": "启用邮件发送",
+        "desc": "是否启用邮件发送功能"
+      }
+    },
+    "tenant": {
+      "logo": {
+        "name": "租户 Logo",
+        "desc": "租户管理后台显示的 Logo"
+      },
+      "favicon": {
+        "name": "租户图标",
+        "desc": "租户页面浏览器标签图标"
+      },
+      "login_bg": {
+        "name": "登录页背景",
+        "desc": "登录页面的背景图片"
+      },
+      "primary_color": {
+        "name": "主题主色",
+        "desc": "界面的主要颜色"
+      },
+      "accent_color": {
+        "name": "主题强调色",
+        "desc": "用于强调和高亮的颜色"
+      },
+      "login_title": {
+        "name": "登录页标题",
+        "desc": "登录页面显示的标题文字"
+      },
+      "login_subtitle": {
+        "name": "登录页副标题",
+        "desc": "登录页面显示的副标题文字"
+      },
+      "footer_copyright": {
+        "name": "页脚版权",
+        "desc": "页面底部显示的版权信息"
+      },
+      "captcha_enabled": {
+        "name": "启用验证码",
+        "desc": "租户登录时是否需要验证码"
+      },
+      "login_methods": {
+        "name": "登录方式",
+        "desc": "允许的用户登录方式",
+        "password": "密码登录",
+        "sms": "短信验证码",
+        "email": "邮箱验证码",
+        "wechat": "微信登录",
+        "dingtalk": "钉钉登录"
+      },
+      "login_max_attempts": {
+        "name": "登录失败锁定次数",
+        "desc": "连续登录失败达到此次数后锁定账户"
+      },
+      "login_lockout_minutes": {
+        "name": "账户锁定时长",
+        "desc": "账户被锁定后的等待时间（分钟）"
+      },
+      "password_min_length": {
+        "name": "密码最小长度",
+        "desc": "用户密码的最小字符数要求"
+      },
+      "password_complexity": {
+        "name": "密码复杂度",
+        "desc": "密码必须包含的字符类型要求",
+        "low": "低（仅限制长度）",
+        "medium": "中（字母+数字）",
+        "high": "高（字母+数字+特殊字符）"
+      },
+      "session_timeout": {
+        "name": "会话超时时间",
+        "desc": "用户无操作后自动退出的时间（分钟）"
+      },
+      "allow_registration": {
+        "name": "允许用户注册",
+        "desc": "是否允许用户自助注册账号"
+      },
+      "registration_approval": {
+        "name": "新用户需要审批",
+        "desc": "新注册用户是否需要管理员审批"
+      },
+      "allow_profile_edit": {
+        "name": "允许修改资料",
+        "desc": "是否允许用户修改自己的个人资料"
+      },
+      "email_notification": {
+        "name": "邮件通知",
+        "desc": "是否启用邮件通知功能"
+      },
+      "sms_notification": {
+        "name": "短信通知",
+        "desc": "是否启用短信通知功能"
+      },
+      "api_access": {
+        "name": "API 访问",
+        "desc": "是否允许通过 API 访问系统"
+      },
+      "file_upload": {
+        "name": "文件上传",
+        "desc": "是否允许用户上传文件"
+      }
+    }
+  },
+  "validation": {
+    "min_value": "不能小于 {min}",
+    "max_value": "不能大于 {max}",
+    "min_length": "长度不能少于 {min} 个字符",
+    "max_length": "长度不能超过 {max} 个字符",
+    "pattern": "格式不正确",
+    "color_format": "颜色格式不正确，应为 #RRGGBB"
   },
   "error": {
     "unknown": "未知错误",
@@ -332,10 +700,24 @@
       "email_exists": "邮箱已被使用",
       "phone_exists": "手机号已被使用"
     },
+    "config": {
+      "group_not_found": "配置分组不存在",
+      "invalid_keys": "无效的配置键",
+      "validation_failed": "配置值验证失败"
+    },
     "server": {
       "internal_error": "服务器内部错误",
       "external_service_error": "外部服务调用失败",
       "service_unavailable": "服务暂不可用"
     }
+  },
+  "operation_log": {
+    "not_found": "操作日志不存在",
+    "deleted": "操作日志删除成功"
+  },
+  "system_log": {
+    "file_not_found": "日志文件不存在",
+    "deleted": "日志文件删除成功",
+    "cannot_delete_current": "不能删除当前活动日志文件"
   }
 }

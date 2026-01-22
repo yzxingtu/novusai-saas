@@ -52,6 +52,9 @@ dependencies = [
     # Utils
     "python-dotenv>=1.0.0",
     "orjson>=3.9.12",
+    
+    # DNS
+    "dnspython>=2.4.0",
 ]
 
 [project.optional-dependencies]

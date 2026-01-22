@@ -60,7 +60,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # 子菜单由控制器声明:
     # - menu:admin.admin_user (用户管理)
     # - menu:admin.permission (权限管理) - 可选，一般隐藏
-    # - menu:admin.role (角色管理)
+    # - menu:admin.organization (组织架构) - 由 roles.py 控制器声明
     
     # ========================================
     # 租户管理（目录）
@@ -78,6 +78,23 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     ),
     # 子菜单由控制器声明:
     # - menu:admin.tenant (租户列表)
+    
+    # ========================================
+    # 系统管理（目录）
+    # ========================================
+    PermissionMeta(
+        code="menu:admin.system_mgmt",
+        name="menu.admin.system_mgmt",  # i18n key
+        type=PermissionType.MENU,
+        scope=PermissionScope.ADMIN,
+        resource="menu",
+        action="admin.system_mgmt",
+        icon="lucide:wrench",
+        path="/system-mgmt",
+        sort_order=30,
+    ),
+    # 子菜单由控制器声明:
+    # - menu:admin.platform_config (平台配置)
 ]
 
 

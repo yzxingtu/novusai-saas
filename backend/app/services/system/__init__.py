@@ -7,10 +7,26 @@
 from app.services.system.admin_service import AdminService
 from app.services.system.admin_role_service import AdminRoleService
 from app.services.system.tenant_service import TenantService
+from app.services.system.operation_log_service import (
+    OperationLogService,
+    create_log_async,
+)
+from app.services.system.system_log_service import (
+    SystemLogService,
+    LogFileInfo,
+    LogCategoryInfo,
+    LogContentPage,
+)
 
 
 __all__ = [
     "AdminService",
     "AdminRoleService",
     "TenantService",
+    "OperationLogService",
+    "create_log_async",
+    "SystemLogService",
+    "LogFileInfo",
+    "LogCategoryInfo",
+    "LogContentPage",
 ]

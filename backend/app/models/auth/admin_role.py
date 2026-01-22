@@ -10,7 +10,7 @@ from sqlalchemy import Boolean, String, Integer, Text, Table, Column, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import BaseModel, Base
-from app.enums import RoleType
+from app.enums.role import RoleType
 
 
 # 角色-权限关联表（多对多）
@@ -41,6 +41,7 @@ class AdminRole(BaseModel):
         "code": "code",
         "is_system": "is_system",
         "is_active": "is_active",
+        "sort_order": "sort_order",
         "parent_id": "parent_id",
         "level": "level",
         "type": "type",
@@ -54,7 +55,20 @@ class AdminRole(BaseModel):
         "label": "name",
         "value": "id",
         "search": ["name", "code"],
-        "extra": ["code"],
+        "extra": ["code", "type", "level"],
+        # 树型配置
+        "tree": {
+            "parent_field": "parent_id",
+            "children_field": "children",
+            "order_by": "sort_order",
+        },
+    }
+    
+    # 排序配置
+    __sortable__ = {
+        "field": "sort_order",      # 排序字段名
+        "step": 1000,               # 排序步长
+        "scope_fields": ["parent_id"],  # 同级兄弟节点内排序
     }
     
     # 角色名称

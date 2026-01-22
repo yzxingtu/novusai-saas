@@ -23,6 +23,7 @@ from app.middleware.i18n import I18nMiddleware
 from app.middleware.permission import PermissionMiddleware
 from app.middleware.access_control import AccessControlMiddleware
 from app.middleware.tenant import TenantMiddleware
+from app.middleware.audit_log import AuditLogMiddleware
 
 
 @asynccontextmanager
@@ -57,6 +58,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             f"created={sync_result['created']}, "
             f"updated={sync_result['updated']}, "
             f"disabled={sync_result['disabled']}"
+        )
+    
+    # 同步配置到数据库（将代码定义的配置项同步到 DB）
+    # 导入配置定义模块（触发配置注册到 registry）
+    import app.configs.definitions  # noqa: F401
+    from app.configs.sync import sync_configs_on_startup
+    
+    async with async_session_factory() as db:
+        config_sync_result = await sync_configs_on_startup(db)
+        logger.info(
+            f"✅ Configs synced: "
+            f"groups={config_sync_result['groups']}, "
+            f"configs={config_sync_result['configs']}"
         )
     
     # TODO: 初始化 Redis 连接
@@ -109,6 +123,10 @@ def create_application() -> FastAPI:
     # RBAC 权限预加载中间件（加载用户权限到 request.state）
     app.add_middleware(PermissionMiddleware)
     
+    # 审计日志中间件（记录所有 API 调用）
+    # 注意：必须在 PermissionMiddleware 之后注册，这样才能从 state 获取用户信息
+    app.add_middleware(AuditLogMiddleware)
+    
     # 访问控制中间件（实施“默认拒绝”安全策略）
     app.add_middleware(AccessControlMiddleware)
     
@@ -119,12 +137,26 @@ def create_application() -> FastAPI:
     # 注册异常处理器
     # ========================================
     
+    def _get_cors_headers(request: Request) -> dict[str, str]:
+        """获取 CORS 响应头"""
+        origin = request.headers.get("origin", "")
+        # 检查 origin 是否在允许列表中
+        if "*" in settings.CORS_ORIGINS or origin in settings.CORS_ORIGINS:
+            return {
+                "Access-Control-Allow-Origin": origin or "*",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "*",
+                "Access-Control-Allow-Headers": "*",
+            }
+        return {}
+    
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
         """应用异常处理器"""
         return JSONResponse(
             status_code=exc.status_code,
             content=exc.to_dict(),
+            headers=_get_cors_headers(request),
         )
     
     @app.exception_handler(RequestValidationError)
@@ -141,7 +173,9 @@ def create_application() -> FastAPI:
             for err in exc.errors()
         ]
         # validation_error() 返回 JSONResponse
-        return validation_error(errors=errors)
+        response = validation_error(errors=errors)
+        response.headers.update(_get_cors_headers(request))
+        return response
     
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(
@@ -164,11 +198,13 @@ def create_application() -> FastAPI:
         }
         code = status_code_map.get(exc.status_code, exc.status_code * 10)
         # error() 返回 JSONResponse，但需要指定正确的 status_code
-        return error(
+        response = error(
             message=str(exc.detail) if exc.detail else None,
             code=code,
             status_code=exc.status_code,
         )
+        response.headers.update(_get_cors_headers(request))
+        return response
     
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -188,12 +224,14 @@ def create_application() -> FastAPI:
                 "traceback": traceback.format_exc(),
             }
         
-        return error(
+        response = error(
             message=_("common.server_error"),
             code=5000,
             status_code=500,
             data=error_data,
         )
+        response.headers.update(_get_cors_headers(request))
+        return response
     
     # ========================================  
     # 注册路由

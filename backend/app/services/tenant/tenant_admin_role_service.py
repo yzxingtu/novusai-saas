@@ -486,15 +486,23 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
     async def get_members(
         self,
         role_id: int,
-    ) -> list[TenantAdmin]:
+        search: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+        include_descendants: bool = True,
+    ) -> tuple[list[TenantAdmin], int]:
         """
-        获取节点成员列表（租户内）
+        获取节点成员列表（租户内，分页 + 搜索 + 递归子节点）
         
         Args:
             role_id: 角色/节点 ID
+            search: 搜索关键词
+            page: 页码
+            page_size: 每页数量
+            include_descendants: 是否包含子节点成员（默认 True）
         
         Returns:
-            成员列表
+            (成员列表, 总数)
         
         Raises:
             NotFoundException: 角色不存在
@@ -503,7 +511,13 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         if not role:
             raise NotFoundException(message=_("role.not_found"))
         
-        return await self.repo.get_members(role_id)
+        return await self.repo.get_members(
+            role_id,
+            search=search,
+            page=page,
+            page_size=page_size,
+            include_descendants=include_descendants,
+        )
 
 
 __all__ = ["TenantAdminRoleService"]

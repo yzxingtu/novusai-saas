@@ -12,7 +12,7 @@ from typing import Optional
 from pydantic import Field
 
 from app.core.base_schema import BaseSchema
-from app.enums import RoleType
+from app.enums.role import RoleType
 
 
 class TenantAdminRoleResponse(BaseSchema):
@@ -118,7 +118,12 @@ class TenantAdminRoleMemberResponse(BaseSchema):
     nickname: str | None = Field(None, description="昵称")
     avatar: str | None = Field(None, description="头像")
     email: str = Field(..., description="邮箱")
+    is_active: bool = Field(True, description="是否启用")
     is_leader: bool = Field(False, description="是否是负责人")
+    role_id: int | None = Field(None, description="角色/节点 ID")
+    role_name: str | None = Field(None, description="角色/节点名称")
+    created_at: datetime | None = Field(None, description="创建时间")
+    updated_at: datetime | None = Field(None, description="更新时间")
 
 
 __all__ = [

@@ -5,17 +5,26 @@
       "system": "权限管理",
       "admin_user": "用户管理",
       "permission": "权限查看",
-      "role": "角色管理",
+      "organization": "组织架构",
+      "operation_log": "操作日志",
       "tenant_mgmt": "租户管理",
-      "tenant": "租户列表"
+      "tenant": "租户列表",
+      "tenant_domain": "租户域名管理",
+      "tenant_plan": "套餐管理",
+      "system_mgmt": "系统管理",
+      "platform_config": "平台配置",
+      "system_log": "系统日志"
     },
     "tenant": {
       "dashboard": "仪表板",
       "system": "权限管理",
       "tenant_user": "用户管理",
       "permission": "权限查看",
-      "role": "角色管理",
-      "tenant_settings": "租户设置"
+      "organization": "组织架构",
+      "operation_log": "操作日志",
+      "tenant_settings": "租户设置",
+      "system_mgmt": "系统管理",
+      "tenant_config": "系统配置"
     }
   }
 }

@@ -31,12 +31,24 @@ from app.schemas.tenant.role import (
     TenantAdminRoleMemberResponse,
 )
 from app.schemas.tenant.domain import (
+    TenantDomainSimpleResponse,
+    TenantDomainVerificationInfo,
     TenantDomainResponse,
     TenantDomainCreateRequest,
     TenantDomainUpdateRequest,
     TenantDomainVerifyRequest,
     TenantSettingsResponse,
     TenantSettingsUpdateRequest,
+)
+from app.schemas.tenant.plan import (
+    QuotaSchema,
+    FeaturesSchema,
+    TenantPlanResponse,
+    TenantPlanDetailResponse,
+    PermissionSimpleResponse,
+    TenantPlanCreateRequest,
+    TenantPlanUpdateRequest,
+    TenantPlanPermissionsRequest,
 )
 
 __all__ = [
@@ -64,10 +76,21 @@ __all__ = [
     "TenantAdminRoleAddMemberRequest",
     "TenantAdminRoleMemberResponse",
     # Domain
+    "TenantDomainSimpleResponse",
+    "TenantDomainVerificationInfo",
     "TenantDomainResponse",
     "TenantDomainCreateRequest",
     "TenantDomainUpdateRequest",
     "TenantDomainVerifyRequest",
     "TenantSettingsResponse",
     "TenantSettingsUpdateRequest",
+    # Plan
+    "QuotaSchema",
+    "FeaturesSchema",
+    "TenantPlanResponse",
+    "TenantPlanDetailResponse",
+    "PermissionSimpleResponse",
+    "TenantPlanCreateRequest",
+    "TenantPlanUpdateRequest",
+    "TenantPlanPermissionsRequest",
 ]

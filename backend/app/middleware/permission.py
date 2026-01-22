@@ -20,8 +20,6 @@ from app.core.security import (
 from app.models import Admin, TenantAdmin
 from app.models.auth.admin_role import AdminRole
 from app.models.auth.tenant_admin_role import TenantAdminRole
-from app.repositories.system.admin_role_repository import AdminRoleRepository
-from app.repositories.tenant.tenant_role_repository import TenantRoleRepository
 
 
 class PermissionMiddleware:
@@ -48,8 +46,9 @@ class PermissionMiddleware:
         # 创建 Request 对象来访问 state
         request = Request(scope, receive, send)
         
-        # 初始化 user_permissions
+        # 初始化 user_permissions 和 user
         request.state.user_permissions = set()
+        request.state.user = None
         
         # 从请求头获取 Token
         token = self._get_token_from_headers(scope)
@@ -103,6 +102,9 @@ class PermissionMiddleware:
             if admin is None or not admin.is_active:
                 return
             
+            # 将用户对象存入 state（供审计日志等使用）
+            request.state.user = admin
+            
             # 超级管理员拥有所有权限
             if admin.is_super:
                 request.state.user_permissions = {"*"}
@@ -127,22 +129,6 @@ class PermissionMiddleware:
                     if p.is_enabled and not p.is_deleted:
                         permissions.add(p.code)
             
-            # 获取祖先角色的权限（继承）
-            repo = AdminRoleRepository(db)
-            ancestors = await repo.get_ancestors(admin.role_id)
-            for ancestor in ancestors:
-                if ancestor.is_active:
-                    result = await db.execute(
-                        select(AdminRole)
-                        .where(AdminRole.id == ancestor.id)
-                        .options(selectinload(AdminRole.permissions))
-                    )
-                    ancestor_with_perms = result.scalar_one_or_none()
-                    if ancestor_with_perms:
-                        for p in ancestor_with_perms.permissions:
-                            if p.is_enabled and not p.is_deleted:
-                                permissions.add(p.code)
-            
             request.state.user_permissions = permissions
     
     async def _load_tenant_admin_permissions(
@@ -157,6 +143,9 @@ class PermissionMiddleware:
             
             if tenant_admin is None or not tenant_admin.is_active:
                 return
+            
+            # 将用户对象存入 state（供审计日志等使用）
+            request.state.user = tenant_admin
             
             # 租户所有者拥有所有租户权限
             if tenant_admin.is_owner:
@@ -181,21 +170,5 @@ class PermissionMiddleware:
                 for p in role.permissions:
                     if p.is_enabled and not p.is_deleted:
                         permissions.add(p.code)
-            
-            # 获取祖先角色的权限（继承）
-            repo = TenantRoleRepository(db, tenant_admin.tenant_id)
-            ancestors = await repo.get_ancestors(tenant_admin.role_id)
-            for ancestor in ancestors:
-                if ancestor.is_active:
-                    result = await db.execute(
-                        select(TenantAdminRole)
-                        .where(TenantAdminRole.id == ancestor.id)
-                        .options(selectinload(TenantAdminRole.permissions))
-                    )
-                    ancestor_with_perms = result.scalar_one_or_none()
-                    if ancestor_with_perms:
-                        for p in ancestor_with_perms.permissions:
-                            if p.is_enabled and not p.is_deleted:
-                                permissions.add(p.code)
             
             request.state.user_permissions = permissions

@@ -12,6 +12,24 @@ from pydantic import Field, field_validator
 from app.core.base_schema import BaseSchema
 
 
+class TenantDomainSimpleResponse(BaseSchema):
+    """域名简略响应（用于租户响应嵌套）"""
+    
+    id: int = Field(..., description="域名 ID")
+    domain: str = Field(..., description="域名")
+    is_primary: bool = Field(..., description="是否主域名")
+    is_verified: bool = Field(..., description="是否已验证")
+    ssl_status: str = Field(..., description="SSL 状态")
+
+
+class TenantDomainVerificationInfo(BaseSchema):
+    """域名验证 DNS 记录信息"""
+    
+    dns_type: str = Field("TXT", description="DNS 记录类型")
+    dns_name: str = Field(..., description="DNS 记录名称")
+    dns_value: str = Field(..., description="DNS 记录值")
+
+
 class TenantDomainResponse(BaseSchema):
     """租户域名响应"""
     
@@ -23,8 +41,12 @@ class TenantDomainResponse(BaseSchema):
     is_primary: bool = Field(..., description="是否主域名")
     ssl_status: str = Field(..., description="SSL 状态")
     ssl_expires_at: datetime | None = Field(None, description="SSL 到期时间")
+    verification_token: str | None = Field(None, description="验证 Token")
+    verification_info: TenantDomainVerificationInfo | None = Field(None, description="DNS 验证记录信息")
+    remark: str | None = Field(None, description="备注")
     cname_target: str | None = Field(None, description="CNAME 解析目标")
     created_at: datetime = Field(..., description="创建时间")
+    updated_at: datetime = Field(..., description="更新时间")
 
 
 class TenantDomainCreateRequest(BaseSchema):
@@ -145,6 +167,8 @@ class TenantSettingsUpdateRequest(BaseSchema):
 
 
 __all__ = [
+    "TenantDomainSimpleResponse",
+    "TenantDomainVerificationInfo",
     "TenantDomainResponse",
     "TenantDomainCreateRequest",
     "TenantDomainUpdateRequest",

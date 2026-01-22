@@ -10,10 +10,23 @@
 """
 
 # 平台级模型
-from app.models.system import Admin
+from app.models.system import (
+    Admin,
+    SystemConfigGroup,
+    SystemConfig,
+    SystemConfigValue,
+    OperationLog,
+)
 
 # 租户级模型
-from app.models.tenant import Tenant, TenantAdmin, TenantUser, TenantDomain
+from app.models.tenant import (
+    Tenant,
+    TenantAdmin,
+    TenantUser,
+    TenantDomain,
+    TenantPlan,
+    tenant_plan_permissions,
+)
 
 # RBAC 模型
 from app.models.auth import (
@@ -27,11 +40,17 @@ from app.models.auth import (
 __all__ = [
     # 平台级
     "Admin",
+    "SystemConfigGroup",
+    "SystemConfig",
+    "SystemConfigValue",
+    "OperationLog",
     # 租户级
     "Tenant",
     "TenantAdmin",
     "TenantUser",
     "TenantDomain",
+    "TenantPlan",
+    "tenant_plan_permissions",
     # RBAC
     "Permission",
     "AdminRole",

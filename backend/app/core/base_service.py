@@ -15,7 +15,7 @@ from app.core.base_model import BaseModel
 from app.core.base_repository import BaseRepository, TenantRepository
 from app.core.base_schema import PageParams, PageResponse
 from app.schemas.common.query import QuerySpec, FilterRule
-from app.schemas.common.select import SelectOption
+from app.schemas.common.select import SelectOption, SelectResponse
 
 # 泛型类型变量
 ModelType = TypeVar("ModelType", bound=BaseModel)
@@ -243,24 +243,57 @@ class BaseService(Generic[ModelType, RepoType]):
         self,
         search: str = "",
         limit: int = 50,
+        tree: bool = False,
+        parent_id: int | None = None,
+        page: int = 0,
+        page_size: int = 20,
         **filters: Any,
-    ) -> list[SelectOption]:
+    ) -> SelectResponse:
         """
         获取下拉选项列表
         
+        支持列表和树型两种模式，列表模式支持分页
+        
+        分页模式:
+            - page >= 1 时启用分页，返回指定页的数据和分页信息
+            - page = 0 时不分页，返回全部数据（受 limit 限制）
+        
         Args:
             search: 搜索关键词
-            limit: 最大返回数量
+            limit: 最大返回数量（仅非分页模式有效）
+            tree: 是否返回树型结构（不支持分页）
+            parent_id: 父节点 ID（树型模式下用于懒加载）
+            page: 页码（0=不分页，>=1=分页）
+            page_size: 每页数量（分页模式有效）
             **filters: 额外过滤条件
         
         Returns:
-            SelectOption 列表
+            SelectResponse 响应（包含 items 和分页信息）
         """
-        return await self.repo.get_select_options(
+        items, total = await self.repo.get_select_options(
             search=search,
             limit=limit,
             filters=filters if filters else None,
+            tree=tree,
+            parent_id=parent_id,
+            page=page,
+            page_size=page_size,
         )
+        
+        # 构建响应
+        if page >= 1:
+            # 分页模式，返回分页信息
+            has_more = (page * page_size) < total
+            return SelectResponse(
+                items=items,
+                total=total,
+                page=page,
+                page_size=page_size,
+                has_more=has_more,
+            )
+        else:
+            # 非分页模式，不返回分页信息
+            return SelectResponse(items=items)
     
     # ========================================
     # 钩子方法（子类可重写）
@@ -272,10 +305,14 @@ class BaseService(Generic[ModelType, RepoType]):
         
         可用于：数据校验、默认值注入、权限检查等
         
+        自动处理:
+        - 如果模型配置了 __sortable__ 且未传入排序值，自动计算
+        
         Args:
             data: 创建数据字典（可修改）
         """
-        pass
+        # 自动计算排序值
+        await self._auto_set_sort_order(data)
     
     async def _after_create(self, instance: ModelType) -> None:
         """
@@ -332,6 +369,72 @@ class BaseService(Generic[ModelType, RepoType]):
             id: 已删除的记录 ID
         """
         pass
+    
+    # ========================================
+    # 通用排序方法
+    # ========================================
+    
+    def _get_sortable_config(self) -> dict[str, Any] | None:
+        """
+        获取模型的排序配置
+        
+        Returns:
+            排序配置字典或 None
+        """
+        return getattr(self.model, "__sortable__", None)
+    
+    async def _auto_set_sort_order(self, data: dict[str, Any]) -> None:
+        """
+        自动设置排序值
+        
+        如果模型配置了 __sortable__ 且未传入排序值（或为 0），自动计算
+        
+        Args:
+            data: 创建数据字典（可修改）
+        """
+        sortable = self._get_sortable_config()
+        if not sortable:
+            return
+        
+        sort_field = sortable.get("field", "sort_order")
+        scope_fields = sortable.get("scope_fields", [])
+        
+        # 检查是否已传入有效的排序值
+        current_value = data.get(sort_field)
+        if current_value is not None and current_value > 0:
+            return  # 已传入有效值，不自动计算
+        
+        # 构建作用域过滤条件
+        scope_filters = {}
+        for field in scope_fields:
+            if field in data:
+                scope_filters[field] = data[field]
+        
+        # 计算下一个排序值
+        next_value = await self.repo.get_next_sort_order(**scope_filters)
+        data[sort_field] = next_value
+    
+    async def reorder(
+        self,
+        ordered_ids: list[int],
+        **scope_filters: Any,
+    ) -> int:
+        """
+        批量重排序
+        
+        按 ordered_ids 顺序重新分配排序值
+        
+        Args:
+            ordered_ids: 有序的 ID 列表
+            **scope_filters: 作用域过滤条件
+        
+        Returns:
+            更新的记录数
+        
+        Raises:
+            ValueError: 模型未配置 __sortable__
+        """
+        return await self.repo.batch_update_sort_order(ordered_ids, **scope_filters)
 
 
 class TenantService(BaseService[ModelType, RepoType]):

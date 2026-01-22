@@ -7,8 +7,6 @@
 from enum import Enum
 from typing import Any, TypeVar
 
-from app.core.i18n import _
-
 T = TypeVar("T", bound="LabeledEnum")
 
 
@@ -44,6 +42,9 @@ class LabeledEnum(Enum):
     @property
     def label(self) -> str:
         """获取国际化标签"""
+        # 延迟导入以避免循环依赖
+        from app.core.i18n import _
+        
         label_key = getattr(self, "_label_key", "")
         if label_key:
             return _(label_key)

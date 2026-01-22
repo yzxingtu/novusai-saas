@@ -23,6 +23,26 @@ class TenantDomain(BaseModel):
     
     __tablename__ = "tenant_domains"
     
+    # 允许前端筛选的字段
+    __filterable__ = {
+        "id": "id",
+        "tenant_id": "tenant_id",
+        "domain": "domain",
+        "is_verified": "is_verified",
+        "is_primary": "is_primary",
+        "ssl_status": "ssl_status",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+    }
+    
+    # 下拉选项配置
+    __selectable__ = {
+        "label": "domain",
+        "value": "id",
+        "search": ["domain"],
+        "extra": ["is_primary", "is_verified", "ssl_status"],
+    }
+    
     # 关联租户
     tenant_id: Mapped[int] = mapped_column(
         Integer,

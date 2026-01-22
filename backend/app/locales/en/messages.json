@@ -5,6 +5,7 @@
     "created": "Created successfully",
     "updated": "Updated successfully",
     "deleted": "Deleted successfully",
+    "reorder_success": "Reorder successful",
     "not_found": "Resource not found",
     "invalid_request": "Invalid request",
     "server_error": "Internal server error",
@@ -66,7 +67,33 @@
     "status_updated": "Tenant status updated successfully",
     "settings_updated": "Tenant settings updated successfully",
     "identification_failed": "Unable to identify tenant",
-    "owner_not_found": "Tenant owner not found"
+    "owner_not_found": "Tenant owner not found",
+    "owner_password_reset": "Tenant owner password reset successfully"
+  },
+  "tenant_plan": {
+    "not_found": "Plan not found",
+    "code_exists": "Plan code already exists",
+    "created": "Plan created successfully",
+    "updated": "Plan updated successfully",
+    "deleted": "Plan deleted successfully",
+    "has_tenants": "Plan is in use by tenants and cannot be deleted",
+    "permissions_updated": "Plan permissions updated successfully"
+  },
+  "tenant_domain": {
+    "not_found": "Domain not found",
+    "already_exists": "Domain is already in use",
+    "already_verified": "Domain is already verified",
+    "not_verified": "Domain is not verified, please complete verification first",
+    "created": "Domain added successfully",
+    "updated": "Domain updated successfully",
+    "deleted": "Domain deleted successfully",
+    "verified": "Domain verified successfully",
+    "verify_failed": "Domain verification failed, please check DNS configuration",
+    "primary_set": "Set as primary domain",
+    "cannot_delete_primary": "Cannot delete primary domain, please set another domain as primary first",
+    "cannot_delete_default": "Cannot delete system default domain",
+    "quota_exceeded": "Custom domain limit reached",
+    "default_domain_remark": "System generated default domain"
   },
   "domain": {
     "not_found": "Domain not found",
@@ -150,18 +177,24 @@
     "import": "Import"
   },
   "action": {
-    "role": {
-      "list": "View Role List",
-      "tree": "View Role Tree",
-      "detail": "View Role Details",
-      "children": "View Child Roles",
+    "organization": {
+      "list": "View Organization List",
+      "tree": "View Organization Tree",
+      "organization": "View Organization Structure",
+      "detail": "View Node Details",
+      "children": "View Child Nodes",
       "effective_permissions": "View Effective Permissions",
-      "create": "Create Role",
-      "update": "Update Role",
-      "move": "Move Role",
-      "delete": "Delete Role",
-      "assign_permissions": "Assign Role Permissions",
-      "select": "Role Remote Select"
+      "create": "Create Node",
+      "update": "Update Node",
+      "move": "Move Node",
+      "delete": "Delete Node",
+      "assign_permissions": "Assign Permissions",
+      "select": "Organization Remote Select",
+      "members": "View Node Members",
+      "add_member": "Add Member",
+      "remove_member": "Remove Member",
+      "set_leader": "Set Leader",
+      "reorder": "Reorder"
     },
     "admin": {
       "list": "View Admin List",
@@ -185,7 +218,8 @@
       "delete": "Delete Tenant",
       "toggle_status": "Toggle Tenant Status",
       "impersonate": "Login as Tenant",
-      "select": "Tenant Remote Select"
+      "select": "Tenant Remote Select",
+      "reset_owner_password": "Reset Tenant Owner Password"
     },
     "tenant_settings": {
       "view": "View Tenant Settings",
@@ -196,12 +230,58 @@
       "domain_update": "Update Domain Settings",
       "domain_delete": "Delete Custom Domain",
       "domain_verify": "Verify Domain"
+    },
+    "platform_config": {
+      "groups": "View Config Groups",
+      "detail": "View Config Details",
+      "update": "Update Config"
+    },
+    "tenant_config": {
+      "groups": "View Config Groups",
+      "detail": "View Config Details",
+      "update": "Update Config"
+    },
+    "tenant_plan": {
+      "list": "View Plan List",
+      "detail": "View Plan Details",
+      "create": "Create Plan",
+      "update": "Update Plan",
+      "delete": "Delete Plan",
+      "select": "Plan Remote Select",
+      "permissions": "View Plan Permissions",
+      "assign_permissions": "Assign Plan Permissions",
+      "available_permissions": "View Available Permissions",
+      "reorder": "Reorder"
+    },
+    "tenant_domain": {
+      "list": "View Domain List",
+      "detail": "View Domain Details",
+      "create": "Add Domain",
+      "update": "Update Domain",
+      "delete": "Delete Domain",
+      "verify": "Verify Domain",
+      "set_primary": "Set Primary Domain"
+    },
+    "operation_log": {
+      "list": "View Operation Log List",
+      "detail": "View Operation Log Details",
+      "delete": "Delete Operation Logs"
+    },
+    "system_log": {
+      "stats": "View Log Statistics",
+      "categories": "View Log Categories",
+      "files": "View Log File List",
+      "read": "Read Log Content",
+      "download": "Download Log File",
+      "delete": "Delete Log File"
     }
   },
   "role": {
     "not_found": "Role not found",
     "code_exists": "Role code already exists",
     "created": "Role created successfully",
+    "tenant_root_description": "Tenant organization root node, cannot be deleted",
+    "platform_root_description": "Platform organization root node, cannot be deleted",
     "updated": "Role updated successfully",
     "deleted": "Role deleted successfully",
     "system_role_cannot_modify": "System role cannot be modified",
@@ -289,7 +369,295 @@
       "department": "Department",
       "position": "Position",
       "role": "Functional Role"
+    },
+    "billing_cycle": {
+      "monthly": "Monthly",
+      "yearly": "Yearly",
+      "lifetime": "Lifetime",
+      "custom": "Custom"
+    },
+    "user_type": {
+      "admin": "Platform Admin",
+      "tenant_admin": "Tenant Admin",
+      "tenant_user": "Tenant User",
+      "anonymous": "Anonymous"
+    },
+    "log_module": {
+      "auth": "Authentication",
+      "permission": "Permission",
+      "role": "Role",
+      "admin_user": "Platform User",
+      "tenant": "Tenant",
+      "tenant_admin": "Tenant Admin",
+      "tenant_user": "Tenant User",
+      "config": "Config",
+      "plan": "Plan",
+      "domain": "Domain",
+      "log": "Log",
+      "organization": "Organization",
+      "system": "System",
+      "other": "Other"
+    },
+    "log_category": {
+      "app": "Application Log",
+      "error": "Error Log",
+      "db": "Database Log",
+      "task": "Task Log",
+      "queue": "Queue Log"
     }
+  },
+  "config": {
+    "group_not_found": "Configuration group not found",
+    "invalid_keys": "Invalid configuration keys: {keys}",
+    "updated": "Configuration updated successfully",
+    "group": {
+      "platform_general": {
+        "name": "General Settings",
+        "desc": "Site information, maintenance mode, etc."
+      },
+      "platform_security": {
+        "name": "Security Settings",
+        "desc": "Password policy, login security, session settings"
+      },
+      "platform_email": {
+        "name": "Email Settings",
+        "desc": "SMTP server configuration, sender information"
+      },
+      "platform_storage": {
+        "name": "Storage Settings",
+        "desc": "File storage and object storage configuration"
+      },
+      "tenant_general": {
+        "name": "General Settings",
+        "desc": "Login security, password policy, session settings"
+      },
+      "tenant_appearance": {
+        "name": "Appearance Settings",
+        "desc": "Logo, theme colors, login page customization"
+      },
+      "tenant_features": {
+        "name": "Feature Settings",
+        "desc": "Enable or disable feature modules"
+      }
+    },
+    "platform": {
+      "site_name": {
+        "name": "Site Name",
+        "desc": "Name displayed in browser title bar and page header"
+      },
+      "site_description": {
+        "name": "Site Description",
+        "desc": "Used for SEO and site introduction"
+      },
+      "site_logo": {
+        "name": "Site Logo",
+        "desc": "Logo image displayed in page header"
+      },
+      "site_favicon": {
+        "name": "Site Favicon",
+        "desc": "Small icon displayed in browser tab"
+      },
+      "site_copyright": {
+        "name": "Copyright Notice",
+        "desc": "Copyright statement displayed in page footer"
+      },
+      "site_icp": {
+        "name": "ICP Filing Number",
+        "desc": "Required filing number for mainland China"
+      },
+      "tenant_domain_suffix": {
+        "name": "Tenant Default Domain Suffix",
+        "desc": "Tenant default domain format is {tenant_code}{suffix}, e.g., demo.app.novusai.com"
+      },
+      "domain_verification_prefix": {
+        "name": "Domain Verification DNS Prefix",
+        "desc": "DNS TXT record prefix for verifying custom domain ownership"
+      },
+      "maintenance_mode": {
+        "name": "Maintenance Mode",
+        "desc": "When enabled, users cannot access the system"
+      },
+      "maintenance_message": {
+        "name": "Maintenance Message",
+        "desc": "Message displayed to users during maintenance"
+      },
+      "password_min_length": {
+        "name": "Minimum Password Length",
+        "desc": "Minimum number of characters required for passwords"
+      },
+      "password_complexity": {
+        "name": "Password Complexity",
+        "desc": "Character type requirements for passwords",
+        "low": "Low (length only)",
+        "medium": "Medium (letters + numbers)",
+        "high": "High (letters + numbers + special characters)"
+      },
+      "password_expiry_days": {
+        "name": "Password Expiry Days",
+        "desc": "Password validity period, 0 means never expires"
+      },
+      "login_max_attempts": {
+        "name": "Max Login Attempts",
+        "desc": "Lock account after this many consecutive failed attempts"
+      },
+      "login_lockout_minutes": {
+        "name": "Account Lockout Duration",
+        "desc": "Time to wait after account is locked (minutes)"
+      },
+      "login_captcha_enabled": {
+        "name": "Enable CAPTCHA",
+        "desc": "Require CAPTCHA for login"
+      },
+      "session_timeout_minutes": {
+        "name": "Session Timeout",
+        "desc": "Auto logout after inactivity (minutes)"
+      },
+      "session_max_devices": {
+        "name": "Max Login Devices",
+        "desc": "Maximum simultaneous login devices, 0 means unlimited"
+      },
+      "email_smtp_host": {
+        "name": "SMTP Server",
+        "desc": "Email server address"
+      },
+      "email_smtp_port": {
+        "name": "SMTP Port",
+        "desc": "Email server port number"
+      },
+      "email_smtp_encryption": {
+        "name": "Encryption",
+        "desc": "SMTP connection encryption method",
+        "none": "None",
+        "ssl": "SSL",
+        "tls": "TLS"
+      },
+      "email_smtp_username": {
+        "name": "SMTP Username",
+        "desc": "Email server authentication username"
+      },
+      "email_smtp_password": {
+        "name": "SMTP Password",
+        "desc": "Email server authentication password"
+      },
+      "email_from_address": {
+        "name": "Sender Email",
+        "desc": "Email address used for sending system emails"
+      },
+      "email_from_name": {
+        "name": "Sender Name",
+        "desc": "Display name for system emails"
+      },
+      "email_enabled": {
+        "name": "Enable Email",
+        "desc": "Enable email sending functionality"
+      }
+    },
+    "tenant": {
+      "logo": {
+        "name": "Tenant Logo",
+        "desc": "Logo displayed in tenant admin panel"
+      },
+      "favicon": {
+        "name": "Tenant Favicon",
+        "desc": "Browser tab icon for tenant pages"
+      },
+      "login_bg": {
+        "name": "Login Background",
+        "desc": "Background image for login page"
+      },
+      "primary_color": {
+        "name": "Primary Color",
+        "desc": "Main color of the interface"
+      },
+      "accent_color": {
+        "name": "Accent Color",
+        "desc": "Color for emphasis and highlights"
+      },
+      "login_title": {
+        "name": "Login Title",
+        "desc": "Title text displayed on login page"
+      },
+      "login_subtitle": {
+        "name": "Login Subtitle",
+        "desc": "Subtitle text displayed on login page"
+      },
+      "footer_copyright": {
+        "name": "Footer Copyright",
+        "desc": "Copyright information in page footer"
+      },
+      "captcha_enabled": {
+        "name": "Enable CAPTCHA",
+        "desc": "Require CAPTCHA for tenant login"
+      },
+      "login_methods": {
+        "name": "Login Methods",
+        "desc": "Allowed user login methods",
+        "password": "Password",
+        "sms": "SMS Code",
+        "email": "Email Code",
+        "wechat": "WeChat",
+        "dingtalk": "DingTalk"
+      },
+      "login_max_attempts": {
+        "name": "Max Login Attempts",
+        "desc": "Lock account after this many consecutive failed attempts"
+      },
+      "login_lockout_minutes": {
+        "name": "Account Lockout Duration",
+        "desc": "Time to wait after account is locked (minutes)"
+      },
+      "password_min_length": {
+        "name": "Minimum Password Length",
+        "desc": "Minimum number of characters required for passwords"
+      },
+      "password_complexity": {
+        "name": "Password Complexity",
+        "desc": "Character type requirements for passwords",
+        "low": "Low (length only)",
+        "medium": "Medium (letters + numbers)",
+        "high": "High (letters + numbers + special characters)"
+      },
+      "session_timeout": {
+        "name": "Session Timeout",
+        "desc": "Auto logout after inactivity (minutes)"
+      },
+      "allow_registration": {
+        "name": "Allow Registration",
+        "desc": "Allow users to self-register"
+      },
+      "registration_approval": {
+        "name": "Require Approval",
+        "desc": "New registrations require admin approval"
+      },
+      "allow_profile_edit": {
+        "name": "Allow Profile Edit",
+        "desc": "Allow users to edit their profile"
+      },
+      "email_notification": {
+        "name": "Email Notifications",
+        "desc": "Enable email notification feature"
+      },
+      "sms_notification": {
+        "name": "SMS Notifications",
+        "desc": "Enable SMS notification feature"
+      },
+      "api_access": {
+        "name": "API Access",
+        "desc": "Allow API access to the system"
+      },
+      "file_upload": {
+        "name": "File Upload",
+        "desc": "Allow users to upload files"
+      }
+    }
+  },
+  "validation": {
+    "min_value": "Cannot be less than {min}",
+    "max_value": "Cannot be greater than {max}",
+    "min_length": "Length cannot be less than {min} characters",
+    "max_length": "Length cannot exceed {max} characters",
+    "pattern": "Invalid format",
+    "color_format": "Invalid color format, should be #RRGGBB"
   },
   "error": {
     "unknown": "Unknown error",
@@ -332,10 +700,24 @@
       "email_exists": "Email already in use",
       "phone_exists": "Phone number already in use"
     },
+    "config": {
+      "group_not_found": "Configuration group not found",
+      "invalid_keys": "Invalid configuration keys",
+      "validation_failed": "Configuration value validation failed"
+    },
     "server": {
       "internal_error": "Internal server error",
       "external_service_error": "External service call failed",
       "service_unavailable": "Service temporarily unavailable"
     }
+  },
+  "operation_log": {
+    "not_found": "Operation log not found",
+    "deleted": "Operation log deleted successfully"
+  },
+  "system_log": {
+    "file_not_found": "Log file not found",
+    "deleted": "Log file deleted successfully",
+    "cannot_delete_current": "Cannot delete current active log file"
   }
 }

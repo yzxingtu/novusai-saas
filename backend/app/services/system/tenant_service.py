@@ -11,10 +11,14 @@ from typing import Any
 
 from app.core.base_service import GlobalService
 from app.core.i18n import _
-from app.enums import ErrorCode
+from app.core.security import get_password_hash
+from app.enums import ErrorCode, RoleType
 from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.tenant import Tenant
+from app.models.tenant.tenant_admin import TenantAdmin
+from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.repositories.system.tenant_repository import TenantRepository
+from app.services.tenant.tenant_domain_service import TenantDomainService
 
 
 class TenantService(GlobalService[Tenant, TenantRepository]):
@@ -67,10 +71,14 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
     async def create_tenant(
         self,
         name: str,
+        admin_username: str,
+        admin_email: str,
+        admin_password: str,
         contact_name: str | None = None,
         contact_phone: str | None = None,
         contact_email: str | None = None,
-        plan: str = "free",
+        plan_id: int | None = None,
+        plan: str | None = None,
         quota: dict | None = None,
         expires_at: datetime | None = None,
         remark: str | None = None,
@@ -80,11 +88,15 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         
         Args:
             name: 租户名称
+            admin_username: 租户超级管理员用户名
+            admin_email: 租户超级管理员邮箱
+            admin_password: 租户超级管理员密码
             contact_name: 联系人姓名
             contact_phone: 联系人电话
             contact_email: 联系人邮箱
-            plan: 套餐类型
-            quota: 配额配置
+            plan_id: 套餐 ID（新版）
+            plan: 套餐类型（已废弃，保留向后兼容）
+            quota: 配额配置（可覆盖套餐默认值）
             expires_at: 到期时间
             remark: 备注
         
@@ -101,6 +113,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             "contact_name": contact_name,
             "contact_phone": contact_phone,
             "contact_email": contact_email,
+            "plan_id": plan_id,
             "plan": plan,
             "quota": quota,
             "expires_at": expires_at,
@@ -108,7 +121,151 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             "is_active": True,
         }
         
-        return await self.create(data)
+        tenant = await self.create(data)
+        
+        # 创建默认域名
+        domain_service = TenantDomainService(self.db)
+        await domain_service.create_default_domain(tenant.id, tenant.code)
+        
+        # 创建租户组织架构根节点
+        root_node = await self._create_tenant_root_node(tenant.id, tenant.name)
+        
+        # 创建租户超级管理员（owner）
+        await self._create_tenant_owner(
+            tenant_id=tenant.id,
+            username=admin_username,
+            email=admin_email,
+            password=admin_password,
+            phone=contact_phone,
+            root_node=root_node,
+        )
+        
+        return tenant
+    
+    async def _create_tenant_root_node(self, tenant_id: int, tenant_name: str) -> TenantAdminRole:
+        """
+        为租户创建组织架构根节点
+        
+        Args:
+            tenant_id: 租户 ID
+            tenant_name: 租户名称（用作根节点名称）
+        
+        Returns:
+            创建的根节点
+        """
+        root_node = TenantAdminRole(
+            tenant_id=tenant_id,
+            name=tenant_name,
+            code="tenant_root",
+            description=_("role.tenant_root_description"),
+            is_system=True,
+            is_active=True,
+            sort_order=0,
+            parent_id=None,
+            level=1,
+            type=RoleType.DEPARTMENT.value,
+            allow_members=True,
+        )
+        
+        self.db.add(root_node)
+        await self.db.flush()
+        
+        # 更新 path
+        root_node.path = f"/{root_node.id}/"
+        await self.db.flush()
+        
+        return root_node
+    
+    async def _create_tenant_owner(
+        self,
+        tenant_id: int,
+        username: str,
+        email: str,
+        password: str,
+        root_node: TenantAdminRole,
+        phone: str | None = None,
+    ) -> TenantAdmin:
+        """
+        为租户创建超级管理员（owner）
+        
+        Args:
+            tenant_id: 租户 ID
+            username: 用户名
+            email: 邮箱
+            password: 明文密码
+            root_node: 租户根节点
+            phone: 手机号
+        
+        Returns:
+            创建的管理员
+        """
+        owner = TenantAdmin(
+            tenant_id=tenant_id,
+            username=username,
+            email=email,
+            phone=phone,
+            password_hash=get_password_hash(password),
+            is_active=True,
+            is_owner=True,
+            role_id=root_node.id,
+        )
+        
+        self.db.add(owner)
+        await self.db.flush()
+        
+        # 设置根节点的负责人为 owner
+        root_node.leader_id = owner.id
+        await self.db.flush()
+        
+        return owner
+    
+    async def reset_owner_password(
+        self,
+        tenant_id: int,
+        new_password: str,
+    ) -> TenantAdmin:
+        """
+        重置租户超级管理员密码
+        
+        Args:
+            tenant_id: 租户 ID
+            new_password: 新密码（明文）
+        
+        Returns:
+            更新后的管理员
+        
+        Raises:
+            NotFoundException: 租户或超级管理员不存在
+        """
+        from sqlalchemy import select
+        
+        # 检查租户是否存在
+        tenant = await self.get_by_id(tenant_id)
+        if not tenant:
+            raise NotFoundException(
+                message=_("tenant.not_found"),
+            )
+        
+        # 查找租户的超级管理员（owner）
+        result = await self.db.execute(
+            select(TenantAdmin).where(
+                TenantAdmin.tenant_id == tenant_id,
+                TenantAdmin.is_owner == True,
+                TenantAdmin.is_deleted == False,
+            )
+        )
+        owner = result.scalar_one_or_none()
+        
+        if not owner:
+            raise NotFoundException(
+                message=_("tenant.owner_not_found"),
+            )
+        
+        # 更新密码
+        owner.password_hash = get_password_hash(new_password)
+        await self.db.flush()
+        
+        return owner
     
     async def update_tenant(
         self,
