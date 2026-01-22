@@ -473,6 +473,13 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
                 code=ErrorCode.ROLE_MEMBER_NOT_IN_NODE,
             )
         
+        # 保护租户所有者：不允许移除
+        if admin.is_owner:
+            raise BusinessException(
+                message=_("tenant_admin.cannot_remove_owner"),
+                code=ErrorCode.TENANT_ADMIN_CANNOT_REMOVE_OWNER,
+            )
+        
         # 如果是负责人，先取消负责人
         if role.leader_id == admin_id:
             await self.repo.update(role_id, {"leader_id": None})

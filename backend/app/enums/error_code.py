@@ -73,6 +73,8 @@ class ErrorCode(IntEnum):
     ADMIN_USERNAME_EXISTS = 4301
     ADMIN_EMAIL_EXISTS = 4302
     ADMIN_PHONE_EXISTS = 4303
+    ADMIN_CANNOT_REMOVE_SUPER = 4304
+    TENANT_ADMIN_CANNOT_REMOVE_OWNER = 4305
     
     # ==================== 配置相关错误 (44xx) ====================
     CONFIG_GROUP_NOT_FOUND = 4401
@@ -135,6 +137,8 @@ ERROR_CODE_MESSAGES: dict[int, str] = {
     ErrorCode.ADMIN_USERNAME_EXISTS: "error.admin.username_exists",
     ErrorCode.ADMIN_EMAIL_EXISTS: "error.admin.email_exists",
     ErrorCode.ADMIN_PHONE_EXISTS: "error.admin.phone_exists",
+    ErrorCode.ADMIN_CANNOT_REMOVE_SUPER: "error.admin.cannot_remove_super",
+    ErrorCode.TENANT_ADMIN_CANNOT_REMOVE_OWNER: "error.tenant_admin.cannot_remove_owner",
     
     # 配置相关
     ErrorCode.CONFIG_GROUP_NOT_FOUND: "error.config.group_not_found",

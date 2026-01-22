@@ -727,6 +727,13 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
                 code=ErrorCode.ROLE_MEMBER_NOT_IN_NODE,
             )
         
+        # 保护超级管理员：不允许移除
+        if admin.is_super:
+            raise BusinessException(
+                message=_("admin.cannot_remove_super"),
+                code=ErrorCode.ADMIN_CANNOT_REMOVE_SUPER,
+            )
+        
         # 如果是负责人，先取消负责人
         if role.leader_id == admin_id:
             await self.repo.update(role_id, {"leader_id": None})
