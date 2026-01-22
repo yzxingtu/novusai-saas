@@ -71,7 +71,7 @@ function transformPermissionNode(raw: PermissionNodeRaw): PermissionNode {
     parentId: raw.parent_id,
     sortOrder: raw.sort_order,
     icon: raw.icon,
-    children: raw.children?.map(transformPermissionNode),
+    children: raw.children?.map((item) => transformPermissionNode(item)),
   };
 }
 
@@ -104,7 +104,7 @@ export async function getPermissionTreeApi(
     API_PREFIX,
     options,
   );
-  return response.map(transformPermissionNode);
+  return response.map((item) => transformPermissionNode(item));
 }
 
 /**
@@ -118,5 +118,5 @@ export async function getPermissionListApi(
     `${API_PREFIX}/list`,
     options,
   );
-  return response.map(transformPermissionItem);
+  return response.map((item) => transformPermissionItem(item));
 }

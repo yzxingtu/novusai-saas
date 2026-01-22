@@ -21,6 +21,8 @@
     "deleteConfirm": "确定删除 {0} 吗？",
     "deleting": "正在删除 {0} ...",
     "deleteSuccess": "{0} 删除成功",
+    "createSuccess": "创建成功",
+    "updateSuccess": "更新成功",
     "operationSuccess": "操作成功",
     "operationFailed": "操作失败"
   },
@@ -66,13 +68,17 @@
     "offlineErrorDesc": "抱歉，无法连接到互联网，请检查您的网络连接并重试。",
     "comingSoon": "即将推出",
     "http": {
+      "loading": "请求中...",
       "requestTimeout": "请求超时，请稍后再试。",
       "networkError": "网络异常，请检查您的网络连接后重试。",
       "badRequest": "请求错误。请检查您的输入并重试。",
       "unauthorized": "登录认证过期，请重新登录后继续。",
       "forbidden": "禁止访问, 您没有权限访问此资源。",
       "notFound": "未找到, 请求的资源不存在。",
-      "internalServerError": "内部服务器错误，请稍后再试。"
+      "internalServerError": "内部服务器错误，请稍后再试。",
+      "badGateway": "网关错误，请稍后再试。",
+      "serviceUnavailable": "服务暂不可用，请稍后再试。",
+      "gatewayTimeout": "网关超时，请稍后再试。"
     }
   },
   "widgets": {

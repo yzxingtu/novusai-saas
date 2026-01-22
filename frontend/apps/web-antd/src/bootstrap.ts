@@ -8,16 +8,16 @@ import '@vben/styles/antd';
 
 import { useTitle } from '@vueuse/core';
 
+import { initComponentAdapter } from '#/adapter/component';
+import { initSetupVbenForm } from '#/adapter/form';
+import { setupVxeTable } from '#/adapter/vxe-table';
 import { $t, setupI18n } from '#/locales';
 
-import { initComponentAdapter } from './adapter/component';
-import { initSetupVbenForm } from './adapter/form';
-import { setupVxeTable } from './adapter/vxe-table';
 import App from './app.vue';
 import { registerCustomAccessDirective } from './directives/access';
 import { router } from './router';
 import { TokenStorage } from './store/shared/token-storage';
-import { setupConsoleFilter } from './utils/console-filter';
+import { setupAriaHiddenFix, setupConsoleFilter } from './utils/console-filter';
 
 async function bootstrap(namespace: string) {
   // 初始化 TokenStorage（多端 Token 分离存储）
@@ -25,6 +25,9 @@ async function bootstrap(namespace: string) {
 
   // 设置控制台过滤器，过滤框架的组件错误输出
   setupConsoleFilter();
+
+  // 修复 Ant Design Tabs 的 aria-hidden 警告
+  setupAriaHiddenFix();
 
   // 初始化组件适配器
   await initComponentAdapter();

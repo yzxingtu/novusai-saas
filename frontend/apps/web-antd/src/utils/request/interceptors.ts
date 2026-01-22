@@ -39,8 +39,8 @@ const loadingState = {
 
 /** Token 获取器 */
 export interface TokenGetter {
-  getToken: (endpoint: ApiEndpoint) => string | null;
-  getRefreshToken: (endpoint: ApiEndpoint) => string | null;
+  getToken: (endpoint: ApiEndpoint) => null | string;
+  getRefreshToken: (endpoint: ApiEndpoint) => null | string;
 }
 
 /** 认证处理器 */
@@ -81,7 +81,7 @@ export function getEndpointByPath(path: string): ApiEndpoint {
 /**
  * 格式化 Token
  */
-function formatToken(token: string | null): string | null {
+function formatToken(token: null | string): null | string {
   return token ? `Bearer ${token}` : null;
 }
 
@@ -150,13 +150,17 @@ function closeLoading() {
 
 /**
  * 创建 Loading 响应拦截器
- * 请求完成后关闭 Loading
+ * 请求完成后关闭 Loading 并清理 pending
  */
-export function createLoadingInterceptor() {
+export function createLoadingInterceptor(client: RequestClient) {
   return {
     fulfilled: (response: AxiosResponse) => {
       const config = response.config as ExtendedConfig;
       const options = config?.__options || {};
+
+      // 清理 pending 请求
+      client.removePending(config);
+
       if (options.loading) {
         closeLoading();
       }
@@ -165,6 +169,12 @@ export function createLoadingInterceptor() {
     rejected: (error: any) => {
       const config = error.config as ExtendedConfig;
       const options = config?.__options || {};
+
+      // 清理 pending 请求（即使失败也要清理）
+      if (config) {
+        client.removePending(config);
+      }
+
       if (options?.loading) {
         closeLoading();
       }
@@ -253,6 +263,11 @@ export function createAuthInterceptor(
 ) {
   return {
     rejected: async (error: any) => {
+      // 取消的请求不处理
+      if (axios.isCancel(error)) {
+        throw error;
+      }
+
       const { config, response } = error;
 
       // 非 401 HTTP 状态码，继续传递
@@ -273,7 +288,11 @@ export function createAuthInterceptor(
       }
 
       // 4010 UNAUTHORIZED 或未启用刷新或已是重试请求 -> 直接重新认证
-      if (businessCode === 4010 || !enableRefreshToken || config?.__isRetryRequest) {
+      if (
+        businessCode === 4010 ||
+        !enableRefreshToken ||
+        config?.__isRetryRequest
+      ) {
         await authHandler.doReAuthenticate();
         throw error;
       }
@@ -282,10 +301,15 @@ export function createAuthInterceptor(
 
       // 正在刷新中，加入队列等待
       if (client.isRefreshing) {
-        return new Promise((resolve) => {
-          client.refreshTokenQueue.push((newToken: string) => {
-            config.headers.Authorization = formatToken(newToken);
-            resolve(client.instance.request(config));
+        return new Promise((resolve, reject) => {
+          client.refreshTokenQueue.push({
+            resolve: (newToken: string) => {
+              config.headers.Authorization = formatToken(newToken);
+              resolve(client.instance.request(config));
+            },
+            reject: (err: any) => {
+              reject(err);
+            },
           });
         });
       }
@@ -297,16 +321,16 @@ export function createAuthInterceptor(
       try {
         const newToken = await authHandler.doRefreshToken();
 
-        // 处理队列中的请求
-        client.refreshTokenQueue.forEach((callback) => callback(newToken));
+        // 刷新成功，处理队列中的请求
+        client.refreshTokenQueue.forEach((item) => item.resolve(newToken));
         client.refreshTokenQueue = [];
 
         // 重试原请求
         config.headers.Authorization = formatToken(newToken);
         return client.instance.request(config);
       } catch (refreshError) {
-        // 刷新失败，清空队列并重新认证
-        client.refreshTokenQueue.forEach((callback) => callback(''));
+        // 刷新失败，reject 队列中所有等待的请求
+        client.refreshTokenQueue.forEach((item) => item.reject(refreshError));
         client.refreshTokenQueue = [];
         await authHandler.doReAuthenticate();
         throw refreshError;
@@ -325,9 +349,7 @@ export function createAuthInterceptor(
  * 创建错误消息拦截器
  * 注意：如果响应中有业务错误消息，则不显示 HTTP 错误消息
  */
-export function createErrorMessageInterceptor(
-  messageHandler: MessageHandler,
-) {
+export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
   return {
     rejected: (error: any) => {
       // 取消的请求不处理
@@ -342,7 +364,10 @@ export function createErrorMessageInterceptor(
       const errStr = error?.toString?.() ?? '';
       if (errStr.includes('Network Error')) {
         if (options.showErrorMessage !== false) {
-          messageHandler.showMessage('error', messageHandler.t('ui.fallback.http.networkError'));
+          messageHandler.showMessage(
+            'error',
+            messageHandler.t('ui.fallback.http.networkError'),
+          );
         }
         return Promise.reject(error);
       }
@@ -350,14 +375,18 @@ export function createErrorMessageInterceptor(
       // 超时错误
       if (error?.message?.includes?.('timeout')) {
         if (options.showErrorMessage !== false) {
-          messageHandler.showMessage('error', messageHandler.t('ui.fallback.http.requestTimeout'));
+          messageHandler.showMessage(
+            'error',
+            messageHandler.t('ui.fallback.http.requestTimeout'),
+          );
         }
         return Promise.reject(error);
       }
 
       // 如果有业务错误消息，跳过 HTTP 错误消息（已由 BusinessErrorInterceptor 处理）
       const responseData = error?.response?.data;
-      const hasBusinessMessage = responseData?.message || responseData?.error || responseData?.msg;
+      const hasBusinessMessage =
+        responseData?.message || responseData?.error || responseData?.msg;
       if (hasBusinessMessage) {
         return Promise.reject(error);
       }
@@ -376,7 +405,8 @@ export function createErrorMessageInterceptor(
           503: 'ui.fallback.http.serviceUnavailable',
           504: 'ui.fallback.http.gatewayTimeout',
         };
-        const messageKey = statusMessages[status] || 'ui.fallback.http.internalServerError';
+        const messageKey =
+          statusMessages[status] || 'ui.fallback.http.internalServerError';
         messageHandler.showMessage('error', messageHandler.t(messageKey));
       }
 
@@ -392,18 +422,22 @@ export function createErrorMessageInterceptor(
 /**
  * 创建业务错误消息拦截器
  */
-export function createBusinessErrorInterceptor(
-  messageHandler: MessageHandler,
-) {
+export function createBusinessErrorInterceptor(messageHandler: MessageHandler) {
   return {
     rejected: (error: any) => {
+      // 取消的请求不处理
+      if (axios.isCancel(error)) {
+        return Promise.reject(error);
+      }
+
       const config = error.config as ExtendedConfig;
       const options = config?.__options || {};
       const responseData = error?.response?.data;
 
       // 显示业务错误消息
       if (options.showCodeMessage !== false && responseData) {
-        const errorMessage = responseData.message || responseData.error || responseData.msg;
+        const errorMessage =
+          responseData.message || responseData.error || responseData.msg;
         if (errorMessage) {
           messageHandler.showMessage('error', errorMessage);
         }
@@ -423,16 +457,29 @@ export function createBusinessErrorInterceptor(
  */
 export function createSuccessMessageInterceptor(
   messageHandler: MessageHandler,
-  defaultSuccessMessage: string = '操作成功',
+  defaultSuccessMessage?: string,
 ) {
   return {
-    fulfilled: (response: AxiosResponse) => {
+    fulfilled: (response: AxiosResponse | null | undefined) => {
+      // 处理 data 模式下返回 null/undefined 的情况（如 DELETE 接口返回 data: null）
+      if (response === null || response === undefined) {
+        return response;
+      }
+
+      // 如果是解构后的数据（非 AxiosResponse），直接返回
+      if (typeof response !== 'object' || !('config' in response)) {
+        return response;
+      }
+
       const config = response.config as ExtendedConfig;
       const options = config?.__options || {};
 
       // 显示成功消息
       if (options.showSuccessMessage) {
-        const message = options.successMessage || defaultSuccessMessage;
+        const message =
+          options.successMessage ||
+          defaultSuccessMessage ||
+          messageHandler.t('ui.fallback.http.operationSuccess');
         messageHandler.showMessage('success', message);
       }
 

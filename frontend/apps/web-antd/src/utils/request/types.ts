@@ -80,7 +80,8 @@ export interface RequestOptions {
 /**
  * 完整的请求配置（Axios 配置 + 扩展选项）
  */
-export type RequestClientConfig<D = any> = AxiosRequestConfig<D> & RequestOptions;
+export type RequestClientConfig<D = any> = AxiosRequestConfig<D> &
+  RequestOptions;
 
 /**
  * API 函数使用的请求选项（简化版）
@@ -204,11 +205,15 @@ export type BusinessErrorHandler = (
 /**
  * SSE 请求选项
  */
-export interface SseRequestOptions extends RequestInit {
+export interface SseRequestOptions extends Omit<RequestInit, 'signal'> {
   /** 消息回调 */
   onMessage?: (message: string) => void;
   /** 结束回调 */
   onEnd?: () => void;
+  /** 错误回调 */
+  onError?: (error: Error) => void;
+  /** 用于取消请求的 AbortController */
+  abortController?: AbortController;
 }
 
 // ============================================================
@@ -227,8 +232,8 @@ export interface UploadFileData extends Record<string, any> {
  */
 export type UploadProgressCallback = (progress: {
   loaded: number;
-  total: number;
   percent: number;
+  total: number;
 }) => void;
 
 // ============================================================

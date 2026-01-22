@@ -4,6 +4,11 @@ export default defineConfig(async () => {
   return {
     application: {},
     vite: {
+      resolve: {
+        alias: {
+          '#/adapter': '/src/core/adapter',
+        },
+      },
       server: {
         proxy: {
           '/api': {

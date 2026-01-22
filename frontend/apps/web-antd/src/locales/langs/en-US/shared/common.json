@@ -30,6 +30,7 @@
   "refresh": "Refresh",
   "export": "Export",
   "import": "Import",
+  "upload": "Upload",
   "back": "Back",
   "loading": "Loading...",
   "noData": "No Data",
@@ -42,6 +43,17 @@
   "sortFailed": "Sort update failed",
   "exportSuccess": "Export successful",
   "exportFailed": "Export failed",
+  "exportModal": {
+    "title": "Export Data",
+    "filename": "Filename",
+    "sheetName": "Sheet Name",
+    "scope": "Export Scope",
+    "currentPage": "Current Page",
+    "selectedData": "Selected Data",
+    "allData": "All Data",
+    "columns": "Export Columns",
+    "selectAtLeastOneColumn": "Please select at least one column"
+  },
   "confirmBatchDelete": "Are you sure to delete {count} selected records?",
   "batchDeleteSuccess": "Batch delete successful",
   "pleaseSelectData": "Please select data first",
@@ -53,6 +65,9 @@
   "deleteConfirm": "Are you sure to delete {name}? This action cannot be undone.",
   "deleting": "Deleting {name}...",
   "deleteSuccess": "Deleted successfully",
+  "deleteFailed": "Delete failed",
+  "createdAt": "Created At",
+  "updatedAt": "Updated At",
   "filter": {
     "unknownField": "Unknown filter field",
     "opNotAllowed": "Operator not allowed",
@@ -60,5 +75,19 @@
     "unknownSortField": "Unknown sort field",
     "invalidPage": "Invalid page number",
     "sizeExceeded": "Page size exceeded limit"
-  }
+  },
+  "dateRange": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "last3Days": "Last 3 Days",
+    "last7Days": "Last 7 Days",
+    "lastMonth": "Last Month",
+    "last2Months": "Last 2 Months",
+    "last3Months": "Last 3 Months"
+  },
+  "status": "Status",
+  "current": "Current",
+  "featureComingSoon": "Feature coming soon",
+  "yes": "Yes",
+  "no": "No"
 }

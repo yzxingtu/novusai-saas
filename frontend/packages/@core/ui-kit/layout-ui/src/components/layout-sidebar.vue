@@ -115,7 +115,7 @@ const isLocked = useScrollLock(document.body);
 const slots = useSlots();
 
 const asideRef = shallowRef<HTMLDivElement | null>();
-void asideRef; // Reserved for future use
+void asideRef.value; // Reserved for future use
 
 const hiddenSideStyle = computed((): CSSProperties => calcMenuWidthStyle(true));
 

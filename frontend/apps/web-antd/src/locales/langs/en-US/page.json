@@ -12,5 +12,9 @@
     "title": "Dashboard",
     "analytics": "Analytics",
     "workspace": "Workspace"
+  },
+  "tenant": {
+    "authentication": "Tenant Authentication",
+    "root": "Tenant Root"
   }
 }

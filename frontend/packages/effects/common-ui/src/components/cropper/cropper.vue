@@ -41,11 +41,11 @@ type DragAction =
 const containerRef = ref<HTMLDivElement | null>(null);
 const bgImageRef = ref<HTMLImageElement | null>(null);
 const maskRef = ref<HTMLDivElement | null>(null);
-void maskRef; // Reserved for future use
+void maskRef.value; // Reserved for future use
 const maskViewRef = ref<HTMLDivElement | null>(null);
 const cropperRef = ref<HTMLDivElement | null>(null);
 const cropperViewRef = ref<HTMLDivElement | null>(null);
-void cropperViewRef; // Reserved for future use
+void cropperViewRef.value; // Reserved for future use
 
 // 响应式数据
 const isCropperVisible = ref<boolean>(false);

@@ -77,9 +77,7 @@ const treeData = computed(() =>
 );
 
 // 计算属性：所有权限 ID
-const allPermissionIds = computed(() =>
-  getAllPermissionIds(props.permissions),
-);
+const allPermissionIds = computed(() => getAllPermissionIds(props.permissions));
 
 // 计算属性：可选权限 ID（排除继承权限）
 const selectableIds = computed(() =>
@@ -203,7 +201,7 @@ function getKeysByLevel(nodes: AntTreeNode[], level = 0): Map<number, Key[]> {
  */
 function expandAll() {
   const levelMap = getKeysByLevel(treeData.value);
-  const levels = Array.from(levelMap.keys()).sort((a, b) => a - b);
+  const levels = [...levelMap.keys()].toSorted((a, b) => a - b);
 
   // 逐层展开，每层间隔 80ms
   let currentKeys: Key[] = [];
@@ -220,7 +218,7 @@ function expandAll() {
  */
 function collapseAll() {
   const levelMap = getKeysByLevel(treeData.value);
-  const levels = Array.from(levelMap.keys()).sort((a, b) => b - a); // 从最深层开始折叠
+  const levels = [...levelMap.keys()].toSorted((a, b) => b - a); // 从最深层开始折叠
 
   // 逐层折叠，每层间隔 60ms
   let currentKeys = [...expandedKeys.value];
@@ -263,7 +261,12 @@ defineExpose({
             }}
           </Button>
           <span class="text-xs text-muted-foreground">
-            {{ $t('component.permissionSelector.selectedSummary', { selected: selectedCount, total: totalCount }) }}
+            {{
+              $t('component.permissionSelector.selectedSummary', {
+                selected: selectedCount,
+                total: totalCount,
+              })
+            }}
           </span>
         </div>
         <div class="flex gap-2">

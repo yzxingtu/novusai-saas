@@ -13,7 +13,7 @@ const authRoutes: RouteRecordRaw = {
   component: AuthPageLayout,
   meta: {
     hideInTab: true,
-    title: 'Tenant Authentication',
+    title: $t('page.tenant.authentication'),
   },
   name: 'TenantAuthentication',
   path: '/tenant/auth',
@@ -43,7 +43,7 @@ const mainRoutes: RouteRecordRaw = {
   component: BasicLayout,
   meta: {
     hideInBreadcrumb: true,
-    title: 'Tenant Root',
+    title: $t('page.tenant.root'),
   },
   name: 'TenantRoot',
   path: '/tenant',
@@ -59,25 +59,16 @@ const mainRoutes: RouteRecordRaw = {
         title: $t('page.dashboard.title'),
       },
     },
-    // 系统管理
+    // Fallback 静态注册：系统配置（后端菜单动态路由优先生效）
     {
-      name: 'TenantSystem',
-      path: 'system',
+      name: 'TenantSystemConfigs',
+      path: 'system/configs',
+      component: () => import('#/views/tenant/system/configs/list.vue'),
       meta: {
+        hideInMenu: true,
         icon: 'lucide:settings',
-        title: $t('tenant.system.title'),
+        title: $t('tenant.system.configs.title'),
       },
-      children: [
-        {
-          name: 'TenantSystemRole',
-          path: 'role',
-          component: () => import('#/views/tenant/system/role/list.vue'),
-          meta: {
-            icon: 'lucide:shield',
-            title: $t('tenant.system.role.title'),
-          },
-        },
-      ],
     },
   ],
 };
@@ -85,9 +76,4 @@ const mainRoutes: RouteRecordRaw = {
 /** 租户管理端路由 */
 export const tenantRoutes: RouteRecordRaw[] = [authRoutes, mainRoutes];
 
-/** 租户管理端路由名称列表（不需要权限拦截） */
-export const tenantCoreRouteNames = [
-  'TenantAuthentication',
-  'TenantLogin',
-  'TenantImpersonate',
-];
+export { tenantCoreRouteNames } from './names';

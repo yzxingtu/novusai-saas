@@ -7,6 +7,54 @@
 const originalConsoleError = console.error;
 
 /**
+ * 修复 Ant Design Tabs 的 aria-hidden 警告
+ *
+ * 问题：ant-tabs-nav-more 按钮在展开下拉时同时设置了 aria-hidden="true"
+ * 和 aria-expanded="true"，导致浏览器警告焦点元素被隐藏
+ *
+ * 解决：使用 MutationObserver 监听，当按钮展开时移除 aria-hidden 属性
+ */
+export function setupAriaHiddenFix(): void {
+  if (
+    typeof window === 'undefined' ||
+    typeof MutationObserver === 'undefined'
+  ) {
+    return;
+  }
+
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      if (
+        mutation.type !== 'attributes' ||
+        mutation.attributeName !== 'aria-expanded'
+      ) {
+        continue;
+      }
+
+      const target = mutation.target as HTMLElement;
+      // 检查是否是 Tabs 的 more 按钮
+      if (!target.classList?.contains('ant-tabs-nav-more')) {
+        continue;
+      }
+
+      // 当按钮展开时，移除 aria-hidden 属性
+      if (target.getAttribute('aria-expanded') === 'true') {
+        target.removeAttribute('aria-hidden');
+      }
+    }
+  });
+
+  // 延迟启动观察，等待 DOM 准备好
+  setTimeout(() => {
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['aria-expanded'],
+      subtree: true,
+    });
+  }, 0);
+}
+
+/**
  * 需要过滤的错误消息模式
  * 这些错误会被转换为更友好的提示，或直接忽略
  */

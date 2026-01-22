@@ -40,8 +40,14 @@ const formSchema = computed((): VbenFormSchema[] => {
         rules(values) {
           const { newPassword } = values;
           return z
-            .string({ required_error: $t('shared.profile.placeholder.confirmNewPassword') })
-            .min(1, { message: $t('shared.profile.placeholder.confirmNewPassword') })
+            .string({
+              required_error: $t(
+                'shared.profile.placeholder.confirmNewPassword',
+              ),
+            })
+            .min(1, {
+              message: $t('shared.profile.placeholder.confirmNewPassword'),
+            })
             .refine((value) => value === newPassword, {
               message: $t('shared.profile.validation.passwordMismatch'),
             });

@@ -65,11 +65,33 @@ export function useTabbar() {
   );
 
   /**
+   * 获取当前路由的端前缀（admin/tenant/user）
+   */
+  const getCurrentRoutePrefix = () => {
+    const path = route.path;
+    if (path.startsWith('/admin')) return '/admin';
+    if (path.startsWith('/tenant')) return '/tenant';
+    return ''; // user 端没有前缀
+  };
+
+  /**
    * 初始化固定标签页
+   * 只添加当前端（admin/tenant/user）的固定标签
    */
   const initAffixTabs = () => {
-    const affixTabs = filterTree(router.getRoutes(), (route) => {
-      return !!route.meta?.affixTab;
+    const currentPrefix = getCurrentRoutePrefix();
+    const affixTabs = filterTree(router.getRoutes(), (routeItem) => {
+      // 只添加有 affixTab 标记的路由
+      if (!routeItem.meta?.affixTab) return false;
+      // 只添加当前端的路由（路径前缀匹配）
+      if (currentPrefix) {
+        return routeItem.path.startsWith(currentPrefix);
+      }
+      // user 端：排除 admin 和 tenant 的路由
+      return (
+        !routeItem.path.startsWith('/admin') &&
+        !routeItem.path.startsWith('/tenant')
+      );
     });
     tabbarStore.setAffixTabs(affixTabs);
   };

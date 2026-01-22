@@ -21,6 +21,8 @@
     "deleteConfirm": "Are you sure to delete {0}?",
     "deleting": "Deleting {0} ...",
     "deleteSuccess": "{0} deleted successfully",
+    "createSuccess": "Created successfully",
+    "updateSuccess": "Updated successfully",
     "operationSuccess": "Operation succeeded",
     "operationFailed": "Operation failed"
   },
@@ -66,13 +68,17 @@
     "offlineErrorDesc": "Sorry, can't connect to the internet. Check your connection.",
     "comingSoon": "Coming Soon",
     "http": {
+      "loading": "Loading...",
       "requestTimeout": "The request timed out. Please try again later.",
       "networkError": "A network error occurred. Please check your internet connection and try again.",
       "badRequest": "Bad Request. Please check your input and try again.",
       "unauthorized": "Unauthorized. Please log in to continue.",
       "forbidden": "Forbidden. You do not have permission to access this resource.",
       "notFound": "Not Found. The requested resource could not be found.",
-      "internalServerError": "Internal Server Error. Something went wrong on our end. Please try again later."
+      "internalServerError": "Internal Server Error. Something went wrong on our end. Please try again later.",
+      "badGateway": "Bad Gateway. Please try again later.",
+      "serviceUnavailable": "Service Unavailable. Please try again later.",
+      "gatewayTimeout": "Gateway Timeout. Please try again later."
     }
   },
   "widgets": {

@@ -131,10 +131,12 @@ export interface PermissionSelectorProps {
 /**
  * PermissionSelector 组件 Emits
  */
+/* eslint-disable @typescript-eslint/unified-signatures */
 export interface PermissionSelectorEmits {
   (e: 'update:modelValue', value: number[]): void;
   (e: 'change', value: number[]): void;
 }
+/* eslint-enable @typescript-eslint/unified-signatures */
 
 /**
  * 将权限树转换为 Ant Tree 格式

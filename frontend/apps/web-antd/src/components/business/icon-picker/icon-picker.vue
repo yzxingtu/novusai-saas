@@ -1,4 +1,7 @@
+<!-- eslint-disable vue/html-closing-bracket-newline -->
 <script lang="ts" setup>
+import type { IconCategory } from './icons-data';
+
 /**
  * 图标选择器组件
  * 支持 Lucide 图标和项目自定义 SVG 图标
@@ -9,12 +12,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { setupIconPickerIcons } from './setup-icons';
-
-// 预加载 Lucide 图标集，确保图标能够离线显示
-setupIconPickerIcons();
 import { useVirtualList } from '@vueuse/core';
-
 import { Input, message, Modal, Segmented, Tooltip } from 'ant-design-vue';
 
 import { copyToClipboard } from '#/utils/common';
@@ -22,18 +20,21 @@ import { copyToClipboard } from '#/utils/common';
 import {
   ALL_CATEGORIES,
   ALL_ICONS_WITH_PREFIX,
-  type IconCategory,
   getFullIconName,
 } from './icons-data';
+import { setupIconPickerIcons } from './setup-icons';
 
 defineProps<{
   open: boolean;
 }>();
 
 const emit = defineEmits<{
-  'update:open': [value: boolean];
   select: [icon: string];
+  'update:open': [value: boolean];
 }>();
+
+// 预加载 Lucide 图标集，确保图标能够离线显示
+setupIconPickerIcons();
 
 // 搜索关键词
 const searchKeyword = ref('');
@@ -117,13 +118,14 @@ const iconRows = computed(() => {
 });
 
 // 虚拟滚动
-const { list: virtualRows, containerProps, wrapperProps } = useVirtualList(
-  iconRows,
-  {
-    itemHeight: ITEM_HEIGHT,
-    overscan: 3, // 额外渲染的行数
-  },
-);
+const {
+  list: virtualRows,
+  containerProps,
+  wrapperProps,
+} = useVirtualList(iconRows, {
+  itemHeight: ITEM_HEIGHT,
+  overscan: 3, // 额外渲染的行数
+});
 
 // 监听分类/搜索变化，重置滚动位置
 watch([activeCategory, searchKeyword], () => {
@@ -191,7 +193,9 @@ function onClose() {
       </div>
 
       <!-- 图标统计 -->
-      <div class="flex items-center justify-between text-sm text-muted-foreground">
+      <div
+        class="flex items-center justify-between text-sm text-muted-foreground"
+      >
         <span>
           共 {{ filteredIcons.length }} 个图标
           <span v-if="searchKeyword" class="ml-1">
@@ -200,11 +204,11 @@ function onClose() {
         </span>
         <span class="text-xs">
           <span class="mr-3 inline-flex items-center gap-1">
-            <span class="size-2 rounded-full bg-success" />
+            <span class="size-2 rounded-full bg-success"></span>
             项目图标 (svg:)
           </span>
           <span class="inline-flex items-center gap-1">
-            <span class="size-2 rounded-full bg-primary" />
+            <span class="size-2 rounded-full bg-primary"></span>
             Lucide (lucide:)
           </span>
         </span>
@@ -263,7 +267,9 @@ function onClose() {
                   :icon="item.fullName"
                   class="size-7 text-gray-700 transition-transform duration-150 group-hover:scale-110 group-hover:text-primary dark:text-gray-300"
                 />
-                <span class="w-full truncate text-center text-[10px] leading-tight text-gray-500 dark:text-gray-400">
+                <span
+                  class="w-full truncate text-center text-[10px] leading-tight text-gray-500 dark:text-gray-400"
+                >
                   {{ item.name }}
                 </span>
                 <!-- 复制按钮 -->
@@ -272,7 +278,10 @@ function onClose() {
                   title="复制图标名称"
                   @click="onCopyIcon(item.fullName, $event)"
                 >
-                  <IconifyIcon icon="lucide:copy" class="size-3.5 text-gray-400" />
+                  <IconifyIcon
+                    icon="lucide:copy"
+                    class="size-3.5 text-gray-400"
+                  />
                 </button>
               </div>
             </Tooltip>
@@ -281,20 +290,31 @@ function onClose() {
       </div>
 
       <!-- 使用说明开关 -->
-      <details class="group rounded-lg border border-gray-200 dark:border-gray-700">
-        <summary class="flex cursor-pointer items-center gap-2 rounded-lg bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+      <details
+        class="group rounded-lg border border-gray-200 dark:border-gray-700"
+      >
+        <summary
+          class="flex cursor-pointer items-center gap-2 rounded-lg bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+        >
           <IconifyIcon icon="lucide:book-open" class="size-4" />
           图标使用指南
-          <IconifyIcon icon="lucide:chevron-right" class="ml-auto size-4 transition-transform group-open:rotate-90" />
+          <IconifyIcon
+            icon="lucide:chevron-right"
+            class="ml-auto size-4 transition-transform group-open:rotate-90"
+          />
         </summary>
         <div class="space-y-3 p-4">
           <!-- Lucide 图标 -->
           <div class="rounded-lg bg-primary/5 p-3">
-            <p class="mb-2 text-sm font-medium text-primary">✅ Lucide 图标（已预加载，离线可用）</p>
+            <p class="mb-2 text-sm font-medium text-primary">
+              ✅ Lucide 图标（已预加载，离线可用）
+            </p>
             <div class="space-y-2 text-xs text-muted-foreground">
               <p>点击图标复制名称后直接使用：</p>
               <div class="rounded bg-muted p-2">
-                <code class="block text-foreground">&lt;IconifyIcon icon="lucide:user" class="size-5" /&gt;</code>
+                <code class="block text-foreground"
+                  >&lt;IconifyIcon icon="lucide:user" class="size-5" /&gt;</code
+                >
               </div>
               <p>Lucide 图标已全部预加载，无需联网。</p>
             </div>
@@ -302,50 +322,113 @@ function onClose() {
 
           <!-- Tailwind CSS 图标类 -->
           <div class="rounded-lg bg-accent/50 p-3">
-            <p class="mb-2 text-sm font-medium text-accent-foreground">✅ Tailwind CSS 图标类（离线可用）</p>
+            <p class="mb-2 text-sm font-medium text-accent-foreground">
+              ✅ Tailwind CSS 图标类（离线可用）
+            </p>
             <div class="space-y-1.5 text-xs text-muted-foreground">
               <div class="rounded bg-muted p-2">
-                <code class="block text-foreground">&lt;span class="icon-[lucide--user] size-5" /&gt;</code>
-                <code class="block text-foreground">&lt;span class="icon-[tabler--home] size-5" /&gt;</code>
+                <code class="block text-foreground"
+                  >&lt;span class="icon-[lucide--user] size-5" /&gt;</code
+                >
+                <code class="block text-foreground"
+                  >&lt;span class="icon-[tabler--home] size-5" /&gt;</code
+                >
               </div>
-              <p>格式：<code class="text-primary">icon-[图标集--图标名]</code>，用 <code class="text-primary">--</code> 代替 <code class="text-primary">:</code></p>
+              <p>
+                格式：<code class="text-primary">icon-[图标集--图标名]</code
+                >，用 <code class="text-primary">--</code> 代替
+                <code class="text-primary">:</code>
+              </p>
             </div>
           </div>
 
           <!-- 自定义 SVG -->
           <div class="rounded-lg bg-success/5 p-3">
-            <p class="mb-2 text-sm font-medium text-success">自定义 SVG / iconfont</p>
+            <p class="mb-2 text-sm font-medium text-success">
+              自定义 SVG / iconfont
+            </p>
             <div class="space-y-1.5 text-xs text-muted-foreground">
-              <p>将 SVG 放入 <code class="text-success">packages/icons/src/svg/icons/</code> 自动注册：</p>
+              <p>
+                将 SVG 放入
+                <code class="text-success">packages/icons/src/svg/icons/</code>
+                自动注册：
+              </p>
               <div class="rounded bg-muted p-2">
-                <code class="block text-foreground">// my-icon.svg → svg:my-icon</code>
-                <code class="block text-foreground">&lt;IconifyIcon icon="svg:my-icon" /&gt;</code>
+                <code class="block text-foreground"
+                  >// my-icon.svg → svg:my-icon</code
+                >
+                <code class="block text-foreground"
+                  >&lt;IconifyIcon icon="svg:my-icon" /&gt;</code
+                >
               </div>
-              <p>支持从 <a href="https://www.iconfont.cn" target="_blank" class="text-primary underline">iconfont.cn</a> 下载的 SVG</p>
+              <p>
+                支持从
+                <a
+                  href="https://www.iconfont.cn"
+                  target="_blank"
+                  class="text-primary underline"
+                  >iconfont.cn</a
+                >
+                下载的 SVG
+              </p>
             </div>
           </div>
 
           <!-- 其他图标集 -->
           <div class="rounded-lg bg-muted/50 p-3">
-            <p class="mb-2 text-sm font-medium text-foreground">其他 Iconify 图标集（需联网）</p>
+            <p class="mb-2 text-sm font-medium text-foreground">
+              其他 Iconify 图标集（需联网）
+            </p>
             <div class="space-y-1.5 text-xs text-muted-foreground">
               <div class="grid grid-cols-3 gap-1 text-[11px]">
-                <span><code class="text-foreground/70">tabler:</code> Tabler</span>
-                <span><code class="text-foreground/70">mdi:</code> Material Design</span>
-                <span><code class="text-foreground/70">ant-design:</code> Ant Design</span>
-                <span><code class="text-foreground/70">carbon:</code> Carbon</span>
-                <span><code class="text-foreground/70">ph:</code> Phosphor</span>
-                <span><code class="text-foreground/70">ri:</code> Remix Icon</span>
+                <span
+                  ><code class="text-foreground/70">tabler:</code> Tabler</span
+                >
+                <span
+                  ><code class="text-foreground/70">mdi:</code> Material
+                  Design</span
+                >
+                <span
+                  ><code class="text-foreground/70">ant-design:</code> Ant
+                  Design</span
+                >
+                <span
+                  ><code class="text-foreground/70">carbon:</code> Carbon</span
+                >
+                <span
+                  ><code class="text-foreground/70">ph:</code> Phosphor</span
+                >
+                <span
+                  ><code class="text-foreground/70">ri:</code> Remix Icon</span
+                >
               </div>
-              <p>非 Lucide 图标首次使用需联网加载，或使用 Tailwind 类方式离线使用。</p>
+              <p>
+                非 Lucide 图标首次使用需联网加载，或使用 Tailwind
+                类方式离线使用。
+              </p>
             </div>
           </div>
 
           <!-- 参考链接 -->
           <div class="flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <a href="https://lucide.dev/icons" target="_blank" class="text-primary underline">Lucide</a>
-            <a href="https://icon-sets.iconify.design" target="_blank" class="text-primary/80 underline">Iconify 图标集</a>
-            <a href="https://www.iconfont.cn" target="_blank" class="text-primary/80 underline">iconfont.cn</a>
+            <a
+              href="https://lucide.dev/icons"
+              target="_blank"
+              class="text-primary underline"
+              >Lucide</a
+            >
+            <a
+              href="https://icon-sets.iconify.design"
+              target="_blank"
+              class="text-primary/80 underline"
+              >Iconify 图标集</a
+            >
+            <a
+              href="https://www.iconfont.cn"
+              target="_blank"
+              class="text-primary/80 underline"
+              >iconfont.cn</a
+            >
           </div>
         </div>
       </details>

@@ -12,10 +12,11 @@ import type {
   TenantAdminInfo,
 } from '../shared/types';
 
-import { useAccessStore } from '@vben/stores';
-
 import type { ApiRequestOptions } from '#/utils/request';
 
+import { useAccessStore } from '@vben/stores';
+
+import { $t } from '#/locales';
 import { baseRequestClient, requestClient } from '#/utils/request';
 
 // Logout 使用 baseRequestClient 避免 401 时循环调用
@@ -49,11 +50,19 @@ export async function tenantRefreshTokenApi(
   refreshToken: string,
 ): Promise<RefreshTokenResult> {
   const response = await baseRequestClient.post<{
+    code: number;
     data: RefreshTokenResultRaw;
+    message: string;
   }>(`${API_PREFIX}/refresh`, {
     refresh_token: refreshToken,
   });
-  const raw = (response as any).data;
+  const responseData = response.data;
+  if (responseData.code !== 0) {
+    throw new Error(
+      responseData.message || $t('tenant.impersonate.refreshFailed'),
+    );
+  }
+  const raw = responseData.data;
   return {
     accessToken: raw.access_token,
     refreshToken: raw.refresh_token,
@@ -157,11 +166,18 @@ export interface ImpersonateTokenRequest {
 export async function impersonateLoginApi(
   impersonateToken: string,
 ): Promise<LoginResult> {
-  const response = await baseRequestClient.post<{ data: LoginResultRaw }>(
-    `${API_PREFIX}/impersonate`,
-    { impersonate_token: impersonateToken },
-  );
-  const raw = (response as any).data;
+  const response = await baseRequestClient.post<{
+    code: number;
+    data: LoginResultRaw;
+    message: string;
+  }>(`${API_PREFIX}/impersonate`, { impersonate_token: impersonateToken });
+  const responseData = response.data;
+  if (responseData.code !== 0) {
+    throw new Error(
+      responseData.message || $t('tenant.impersonate.loginFailed'),
+    );
+  }
+  const raw = responseData.data;
   return {
     accessToken: raw.access_token,
     refreshToken: raw.refresh_token,

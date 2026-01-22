@@ -33,9 +33,11 @@ export interface RoleTreeProps {
 }
 
 /** 角色树组件 Emits */
+/* eslint-disable @typescript-eslint/unified-signatures */
 export interface RoleTreeEmits {
   (e: 'edit', row: RoleTreeNodeData): void;
   (e: 'addChild', row: RoleTreeNodeData): void;
   (e: 'delete', row: RoleTreeNodeData): void;
   (e: 'refresh'): void;
 }
+/* eslint-enable @typescript-eslint/unified-signatures */

@@ -1,81 +1,142 @@
+import type { Ref } from 'vue';
+
 /**
- * CRUD 表单通用 Composable
+ * 声明式 CRUD 抽屉/弹窗 Composable
  *
  * 配合 useCrudPage 使用，自动处理：
  * - create/update 请求
  * - 表单重置
  * - Schema 切换
- * - 编辑模式数据填充
+ * - 编辑模式数据填充 (自动 camelCase ↔ snake_case)
  *
  * @example
  * ```ts
- * const [Drawer, drawerApi, crudForm] = useCrudDrawer<AdminInfo>({
+ * // 标准用法
+ * const { Drawer, isEdit } = useCrudDrawer<TenantInfo>({
  *   formApi,
  *   schema: useFormSchema,
- *   transform: (values, isEdit) => ({ ... }),
- *   toFormValues: (data) => ({ ... }),  // 编辑模式：后端数据 -> 表单值
+ *   // 只需定义字段名，自动处理映射
+ *   fields: ['name', 'contact_name', 'contact_phone', 'plan_id'],
  *   onSuccess: () => emits('success'),
  * });
  * ```
  */
 import type { FormMode } from '#/adapter/vxe-table';
 
-import { computed, nextTick, ref } from 'vue';
+import { computed, nextTick, ref, unref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
 
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export interface UseCrudFormOptions<_T = any> {
-  /** Drawer/Modal API */
-  drawerApi: {
-    getData: <D = any>() => D | undefined;
-    lock: () => void;
-    unlock: () => void;
-    close: () => void;
-  } | any;
+// ============ 字段映射工具函数 ============
 
-  /** Form API */
-  formApi: {
-    validate: () => Promise<{ valid: boolean }>;
-    getValues: () => Promise<Record<string, any>>;
-    resetForm: () => Promise<void>;
-    setValues: (values: Record<string, any>) => void;
-  } | any;
+/** snake_case 转 camelCase */
+function snakeToCamel(str: string): string {
+  return str.replaceAll(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
 
-  /**
-   * 数据转换函数（表单值 -> API 请求体）
-   * @param values 表单原始值
-   * @param isEdit 是否编辑模式
-   */
-  transform: (values: Record<string, any>, isEdit: boolean) => Record<string, any>;
+/**
+ * 根据字段列表生成 toFormValues 函数
+ * 后端 camelCase -> 表单 snake_case
+ */
+function createToFormValues<T>(
+  fields: string[],
+): (data: T) => Record<string, any> {
+  return (data: T) => {
+    const result: Record<string, any> = {};
+    for (const field of fields) {
+      const camelField = snakeToCamel(field);
+      // @ts-ignore
+      result[field] = data[camelField] ?? data[field];
+    }
+    return result;
+  };
+}
 
-  /** 成功回调 */
-  onSuccess?: () => void;
+/**
+ * 根据字段列表生成 transform 函数
+ * 表单 snake_case -> API snake_case（空值转 null）
+ */
+function createTransform(
+  fields: string[],
+): (values: Record<string, any>) => Record<string, any> {
+  return (values: Record<string, any>) => {
+    const result: Record<string, any> = {};
+    for (const field of fields) {
+      const value = values[field];
+      // 空字符串转为 null
+      result[field] = value === '' || value === undefined ? null : value;
+    }
+    return result;
+  };
 }
 
 /**
  * useCrudDrawer 配置选项
  */
 export interface UseCrudDrawerOptions<T = any> {
-  /** Form API */
-  formApi: any;
+  /** Form API（由 useVbenForm 返回）- 详情页模式可不传 */
+  formApi?: {
+    getValues: () => Promise<Record<string, any>>;
+    resetForm: () => Promise<void>;
+    setState: (state: { schema?: any[] }) => void;
+    setValues: (values: Record<string, any>) => void;
+    validate: () => Promise<{ valid: boolean }>;
+  };
 
   /**
    * Schema 工厂函数
    * @param isEdit 是否编辑模式
    */
-  schema: (isEdit: boolean) => any[];
+  schema?: (isEdit: boolean) => any[];
+
+  /**
+   * 字段列表（推荐）
+   *
+   * 提供字段列表后，自动处理：
+   * - 编辑模式：后端 camelCase -> 表单 snake_case
+   * - 提交时：表单 snake_case -> API snake_case（空值转 null）
+   *
+   * @example
+   * ```ts
+   * fields: ['name', 'contact_name', 'contact_phone', 'plan_id', 'expires_at']
+   * ```
+   */
+  fields?: string[];
+
+  /**
+   * API 资源路径（可选）
+   *
+   * 指定后，openNew/openEdit 会自动使用此路径，无需每次传递 _resource
+   */
+  apiPath?: (() => string) | Ref<string> | string;
 
   /**
    * 数据转换函数（表单值 -> API 请求体）
+   *
+   * 如果提供了 `fields`，则此项可省略
+   *
+   * @param values 表单原始值
+   * @param isEdit 是否编辑模式
    */
-  transform: (values: Record<string, any>, isEdit: boolean) => Record<string, any>;
+  transform?: (
+    values: Record<string, any>,
+    isEdit: boolean,
+  ) => Record<string, any>;
 
   /**
-   * 后端数据 -> 表单值（编辑模式填充）
+   * 新建模式的表单默认值
+   * 可以是静态对象或工厂函数
+   */
+  defaults?: (() => Record<string, any>) | Record<string, any>;
+
+  /**
+   * 后端数据 -> 表单值（编辑模式）
+   *
+   * 如果提供了 `fields`，则此项可省略
+   *
    * @param data 后端返回的数据
    */
   toFormValues?: (data: T) => Record<string, any>;
@@ -88,99 +149,53 @@ export interface UseCrudDrawerOptions<T = any> {
 
   /** 打开后额外操作（如更新下拉选项） */
   afterOpen?: (formApi: any, isEdit: boolean) => Promise<void> | void;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export interface UseCrudFormReturn<_T = any> {
-  /** 提交表单 */
-  submit: () => Promise<void>;
-  /** 是否编辑模式 */
-  isEdit: ReturnType<typeof computed<boolean>>;
-  /** 当前模式 */
-  mode: ReturnType<typeof ref<FormMode>>;
-  /** 记录 ID（编辑模式） */
-  recordId: ReturnType<typeof ref<number | string | undefined>>;
-  /** 资源路径 */
-  resource: ReturnType<typeof ref<string>>;
-}
-
-export function useCrudForm<T = any>(
-  options: UseCrudFormOptions<T>,
-): UseCrudFormReturn<T> {
-  const { drawerApi, formApi, transform, onSuccess } = options;
-
-  const mode = ref<FormMode>('add');
-  const recordId = ref<number | string>();
-  const resource = ref<string>('');
-
-  const isEdit = computed(() => mode.value === 'edit');
 
   /**
-   * 初始化表单数据（在 onOpenChange 中调用）
+   * 详情 API（可选）
+   *
+   * 提供后，编辑模式会调用此 API 获取完整数据，而不是使用列表传递的行数据
    */
-  function initFromDrawerData() {
-    const data = drawerApi.getData() as (T & { mode?: FormMode; _resource?: string; id?: number | string }) | undefined;
-    mode.value = data?.mode ?? 'add';
-    recordId.value = data?.id;
-    resource.value = data?._resource ?? '';
-    return data;
-  }
+  detailApi?: (id: number | string) => Promise<T>;
 
   /**
-   * 提交表单
+   * 主键字段名
+   * @default 'id'
    */
-  async function submit() {
-    const { valid } = await formApi.validate();
-    if (!valid) return;
-
-    const values = await formApi.getValues();
-    const requestData = transform(values, isEdit.value);
-
-    drawerApi.lock();
-
-    try {
-      if (isEdit.value && recordId.value) {
-        // 编辑模式：PUT {resource}/{id}
-        await requestClient.put(`${resource.value}/${recordId.value}`, requestData, {
-          showSuccessMessage: true,
-          successMessage: $t('ui.actionMessage.updateSuccess'),
-        });
-      } else {
-        // 新建模式：POST {resource}
-        await requestClient.post(resource.value, requestData, {
-          showSuccessMessage: true,
-          successMessage: $t('ui.actionMessage.createSuccess'),
-        });
-      }
-      onSuccess?.();
-      drawerApi.close();
-    } catch {
-      drawerApi.unlock();
-    }
-  }
-
-  return {
-    submit,
-    isEdit,
-    mode,
-    recordId,
-    resource,
-    /** 内部方法，供 onOpenChange 使用 */
-    _initFromDrawerData: initFromDrawerData,
-  } as UseCrudFormReturn<T> & { _initFromDrawerData: typeof initFromDrawerData };
+  idField?: string;
 }
 
 /**
  * 一体化 CRUD 抽屉
- * 整合 useVbenDrawer + useCrudForm，进一步简化表单组件
+ * 整合 useVbenDrawer + useCrudForm，简化表单组件
  */
 export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
-  const { formApi, schema, transform, toFormValues, onSuccess, onOpen, afterOpen } = options;
+  const {
+    formApi,
+    schema,
+    fields,
+    transform: customTransform,
+    defaults,
+    toFormValues: customToFormValues,
+    onSuccess,
+    onOpen,
+    afterOpen,
+    apiPath,
+    detailApi,
+    idField = 'id',
+  } = options;
+
+  // 如果提供了 fields，自动生成 transform 和 toFormValues
+  const transform =
+    customTransform ?? (fields ? createTransform(fields) : (v: any) => v);
+  const toFormValues =
+    customToFormValues ?? (fields ? createToFormValues<T>(fields) : undefined);
 
   const mode = ref<FormMode>('add');
   const recordId = ref<number | string>();
   const resource = ref<string>('');
   const rowData = ref<T>();
+  /** 详情数据（通过 detailApi 获取） */
+  const detailData = ref<T>();
 
   const isEdit = computed(() => mode.value === 'edit');
 
@@ -192,6 +207,8 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
       // 防抖：如果正在提交中，直接返回
       if (isSubmitting.value) return;
 
+      if (!formApi) return;
+
       const { valid } = await formApi.validate();
       if (!valid) return;
 
@@ -202,18 +219,20 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
       drawerApi.lock();
 
       try {
-        if (isEdit.value && recordId.value) {
-          await requestClient.put(`${resource.value}/${recordId.value}`, requestData, {
-            showSuccessMessage: true,
-            successMessage: $t('ui.actionMessage.updateSuccess'),
-          });
-        } else {
-          await requestClient.post(resource.value, requestData, {
-            showSuccessMessage: true,
-            successMessage: $t('ui.actionMessage.createSuccess'),
-          });
-        }
-        onSuccess?.();
+        await (isEdit.value && recordId.value
+          ? requestClient.put(
+              `${resource.value}/${recordId.value}`,
+              requestData,
+              {
+                showSuccessMessage: true,
+                successMessage: $t('ui.actionMessage.updateSuccess'),
+              },
+            )
+          : requestClient.post(resource.value, requestData, {
+              showSuccessMessage: true,
+              successMessage: $t('ui.actionMessage.createSuccess'),
+            }));
+        await onSuccess?.();
         drawerApi.close();
       } catch {
         drawerApi.unlock();
@@ -226,31 +245,103 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
       if (!isOpen) return;
 
       // 从 drawerApi 获取数据
-      const data = drawerApi.getData() as (T & { mode?: FormMode; _resource?: string; id?: number | string }) | undefined;
+      const data = drawerApi.getData() as
+        | (T & {
+            [key: string]: any;
+            _defaults?: Record<string, any>;
+            _resource?: string;
+            id?: number | string;
+            mode?: FormMode;
+          })
+        | undefined;
       mode.value = data?.mode ?? 'add';
-      recordId.value = data?.id;
-      resource.value = data?._resource ?? '';
+      recordId.value = data?.[idField];
+      {
+        const p = unref(apiPath) as (() => string) | string | undefined;
+        const resolved = typeof p === 'function' ? p() : p;
+        resource.value = data?._resource ?? resolved ?? '';
+      }
       rowData.value = data as T;
 
       // 重置表单
-      await formApi.resetForm();
+      await formApi?.resetForm();
 
       // 执行 onOpen（如加载远程数据）
       await onOpen?.();
 
       // 更新 schema
-      formApi.setState({ schema: schema(isEdit.value) });
+      if (schema && formApi) {
+        formApi.setState({ schema: schema(isEdit.value) });
+      }
       await nextTick();
 
       // 执行 afterOpen（如更新下拉选项）
       await afterOpen?.(formApi, isEdit.value);
 
-      // 编辑模式填充数据
-      if (data && isEdit.value && toFormValues) {
-        formApi.setValues(toFormValues(data as T));
+      // 填充表单数据
+      if (isEdit.value || mode.value === 'view') {
+        // 编辑或查看模式：优先调用详情 API 获取完整数据
+        let fetchedData: T | undefined = data as T;
+        if (detailApi && recordId.value) {
+          try {
+            drawerApi.setState({ loading: true });
+            fetchedData = await detailApi(recordId.value);
+            detailData.value = fetchedData;
+          } catch {
+            // 详情加载失败，回退到行数据
+            fetchedData = data as T;
+          } finally {
+            drawerApi.setState({ loading: false });
+          }
+        }
+        if (toFormValues && fetchedData && formApi) {
+          formApi.setValues(toFormValues(fetchedData));
+        }
+      } else {
+        // 新建模式：优先使用 _defaults（从 useCrudPage 传入），否则使用本地 defaults 配置
+        const defaultValues =
+          data?._defaults ??
+          (typeof defaults === 'function' ? defaults() : defaults);
+        if (defaultValues && formApi) {
+          formApi.setValues(defaultValues);
+        }
       }
     },
   });
+
+  /**
+   * 打开新建模式
+   * @param extraData 额外传递给 Drawer 的数据
+   */
+  function openNew(extraData?: Record<string, any>) {
+    const p = unref(apiPath) as (() => string) | string | undefined;
+    const path = typeof p === 'function' ? p() : p;
+    drawerApi
+      .setData({
+        mode: 'add',
+        ...(path ? { _resource: path } : {}),
+        ...extraData,
+      })
+      .open();
+  }
+
+  /**
+   * 打开编辑模式
+   * @param record 要编辑的记录
+   * @param extraData 额外传递给 Drawer 的数据
+   */
+  function openEdit(record: T, extraData?: Record<string, any>) {
+    const p = unref(apiPath) as (() => string) | string | undefined;
+    const path = typeof p === 'function' ? p() : p;
+    drawerApi
+      .setData({
+        ...record,
+        mode: 'edit',
+        ...(path ? { _resource: path } : {}),
+        ...extraData,
+      })
+      .open();
+  }
 
   return {
     Drawer,
@@ -260,5 +351,8 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
     recordId,
     resource,
     rowData,
+    detailData,
+    openNew,
+    openEdit,
   };
 }

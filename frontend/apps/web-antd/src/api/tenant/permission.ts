@@ -73,7 +73,7 @@ function transformPermissionNode(
     parentId: raw.parent_id,
     sortOrder: raw.sort_order,
     icon: raw.icon,
-    children: raw.children?.map(transformPermissionNode),
+    children: raw.children?.map((item) => transformPermissionNode(item)),
   };
 }
 
@@ -108,11 +108,11 @@ export async function getTenantPermissionTreeApi(
     API_PREFIX,
     options,
   );
-  return response.map(transformPermissionNode);
+  return response.map((item) => transformPermissionNode(item));
 }
 
 /**
- * 获取权限列表（平铺）
+ * 获取权限列表
  * GET /tenant/permissions/list
  */
 export async function getTenantPermissionListApi(
@@ -122,5 +122,5 @@ export async function getTenantPermissionListApi(
     `${API_PREFIX}/list`,
     options,
   );
-  return response.map(transformPermissionItem);
+  return response.map((item) => transformPermissionItem(item));
 }

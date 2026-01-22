@@ -52,7 +52,7 @@ const mainRoutes: RouteRecordRaw = {
     {
       name: 'UserDashboard',
       path: 'dashboard',
-      component: () => import('#/views/dashboard/analytics/index.vue'),
+      component: () => import('#/views/user/dashboard/index.vue'),
       meta: {
         affixTab: true,
         icon: 'lucide:layout-dashboard',

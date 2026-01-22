@@ -3,7 +3,7 @@ import type { Router } from 'vue-router';
 import type { ApiEndpoint } from '#/api';
 
 import { preferences } from '@vben/preferences';
-import { useAccessStore, useUserStore } from '@vben/stores';
+import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
 import { startProgress, stopProgress } from '@vben/utils';
 
 import { getApiEndpoint } from '#/api';
@@ -192,6 +192,39 @@ function setupAccessGuard(router: Router) {
 }
 
 /**
+ * 标签页守卫配置
+ * 处理多端标签页隔离
+ * @param router
+ */
+function setupTabbarGuard(router: Router) {
+  router.beforeEach(async (to) => {
+    const tabbarStore = useTabbarStore();
+    const currentEndpoint = getApiEndpoint(to.path);
+
+    // 获取当前不需要显示的标签页（非当前端）
+    const tabs = tabbarStore.getTabs;
+    const invalidTabs = tabs.filter((tab) => {
+      const tabEndpoint = getApiEndpoint(tab.path);
+      // 忽略 core 路由（如 login, 404 等），它们可能被视为 'user' 但在各端都可能出现
+      // 但实际上 login 页面有明确的端路径 (/admin/login, /tenant/login)
+      // 只有 404 或 root 可能是通用的
+      // 这里简单判断：如果 tabEndpoint 不等于 currentEndpoint，且不是公共路由，则关闭
+      return tabEndpoint !== currentEndpoint;
+    });
+
+    // 批量关闭非当前端的标签页
+    if (invalidTabs.length > 0) {
+      const keys = invalidTabs.map((tab) => tab.key as string).filter(Boolean);
+      if (keys.length > 0) {
+        await tabbarStore._bulkCloseByKeys(keys);
+      }
+    }
+
+    return true;
+  });
+}
+
+/**
  * 项目守卫配置
  * @param router
  */
@@ -200,6 +233,8 @@ function createRouterGuard(router: Router) {
   setupCommonGuard(router);
   /** 权限访问 */
   setupAccessGuard(router);
+  /** 标签页隔离 */
+  setupTabbarGuard(router);
 }
 
 export { createRouterGuard };

@@ -27,7 +27,7 @@ const isDisabled = computed(() => {
 </script>
 
 <template>
-<Primitive
+  <Primitive
     :as="as"
     :as-child="asChild"
     :class="cn(buttonVariants({ variant, size }), props.class)"

@@ -47,6 +47,47 @@ export interface TenantStatusRequest {
   is_active: boolean;
 }
 
+/** 域名简要信息（后端原始格式） */
+export interface TenantDomainBriefRaw {
+  id: number;
+  tenant_id: number;
+  domain: string;
+  is_verified: boolean;
+  verified_at: null | string;
+  is_primary: boolean;
+  ssl_status: 'active' | 'failed' | 'pending';
+  ssl_expires_at: null | string;
+  cname_target: null | string;
+  remark: null | string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 域名简要信息（前端格式） */
+export interface TenantDomainBrief {
+  id: number;
+  domain: string;
+  domainType: 'custom' | 'default';
+  isPrimary: boolean;
+  verificationStatus: 'pending' | 'verified';
+  sslStatus: 'active' | 'failed' | 'pending';
+  cnameTarget?: null | string;
+}
+
+/** 套餐简要信息（后端原始格式） */
+export interface TenantPlanBriefRaw {
+  id: number;
+  code: string;
+  name: string;
+}
+
+/** 套餐简要信息（前端格式） */
+export interface TenantPlanBrief {
+  id: number;
+  code: string;
+  name: string;
+}
+
 /** 租户信息（后端原始格式 snake_case） */
 export interface TenantInfoRaw {
   id: number;
@@ -55,13 +96,19 @@ export interface TenantInfoRaw {
   contact_name?: string;
   contact_phone?: string;
   contact_email?: string;
-  plan: TenantPlan;
+  plan?: null | TenantPlan;
+  plan_id?: null | number;
+  plan_info?: null | TenantPlanBriefRaw;
   quota?: Record<string, any>;
   is_active: boolean;
   expires_at?: string;
   remark?: string;
   created_at: string;
   updated_at?: string;
+  // 域名信息
+  primary_domain?: null | TenantDomainBriefRaw;
+  domain_count?: number;
+  domains?: TenantDomainBriefRaw[];
 }
 
 /** 租户信息（前端格式 camelCase） */
@@ -72,13 +119,19 @@ export interface TenantInfo {
   contactName?: string;
   contactPhone?: string;
   contactEmail?: string;
-  plan: TenantPlan;
+  plan?: null | TenantPlan;
+  planId?: null | number;
+  planInfo?: null | TenantPlanBrief;
   quota?: Record<string, any>;
   isActive: boolean;
   expiresAt?: string;
   remark?: string;
   createdAt: string;
   updatedAt?: string;
+  // 域名信息
+  primaryDomain?: null | TenantDomainBrief;
+  domainCount?: number;
+  domains?: TenantDomainBrief[];
 }
 
 /** 分页列表响应 */
@@ -93,6 +146,20 @@ export interface TenantListResponse {
 // 转换函数
 // ============================================================
 
+/** 转换域名简要信息 */
+function transformDomainBrief(raw: TenantDomainBriefRaw): TenantDomainBrief {
+  return {
+    id: raw.id,
+    domain: raw.domain,
+    // 根据 remark 或其他逻辑推断类型，因为后端未返回 domain_type
+    domainType: raw.remark?.includes('默认') ? 'default' : 'custom',
+    isPrimary: raw.is_primary,
+    verificationStatus: raw.is_verified ? 'verified' : 'pending',
+    sslStatus: raw.ssl_status,
+    cnameTarget: raw.cname_target,
+  };
+}
+
 /** 将后端 snake_case 转换为前端 camelCase */
 function transformTenantInfo(raw: TenantInfoRaw): TenantInfo {
   return {
@@ -103,12 +170,20 @@ function transformTenantInfo(raw: TenantInfoRaw): TenantInfo {
     contactPhone: raw.contact_phone,
     contactEmail: raw.contact_email,
     plan: raw.plan,
+    planId: raw.plan_id,
+    planInfo: raw.plan_info || null,
     quota: raw.quota,
     isActive: raw.is_active,
     expiresAt: raw.expires_at,
     remark: raw.remark,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
+    // 域名信息
+    primaryDomain: raw.primary_domain
+      ? transformDomainBrief(raw.primary_domain)
+      : null,
+    domainCount: raw.domain_count,
+    domains: raw.domains?.map((d) => transformDomainBrief(d)),
   };
 }
 
@@ -134,7 +209,7 @@ export async function getTenantListApi(
   }>(API_PREFIX, { params, ...options });
 
   return {
-    items: response.items.map(transformTenantInfo),
+    items: response.items.map((item) => transformTenantInfo(item)),
     total: response.total,
     page: response.page,
     page_size: response.page_size,
@@ -164,7 +239,11 @@ export async function createTenantApi(
   data: TenantCreateRequest,
   options?: ApiRequestOptions,
 ): Promise<TenantInfo> {
-  const raw = await requestClient.post<TenantInfoRaw>(API_PREFIX, data, options);
+  const raw = await requestClient.post<TenantInfoRaw>(
+    API_PREFIX,
+    data,
+    options,
+  );
   return transformTenantInfo(raw);
 }
 
@@ -211,6 +290,27 @@ export async function toggleTenantStatusApi(
     options,
   );
   return transformTenantInfo(raw);
+}
+
+/** 重置租户管理员密码请求 */
+export interface ResetTenantOwnerPasswordRequest {
+  new_password: string;
+}
+
+/**
+ * 重置租户管理员密码
+ * PUT /admin/tenants/{tenant_id}/reset-owner-password
+ */
+export async function resetTenantOwnerPasswordApi(
+  tenantId: number,
+  data: ResetTenantOwnerPasswordRequest,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.put(
+    `${API_PREFIX}/${tenantId}/reset-owner-password`,
+    data,
+    options,
+  );
 }
 
 // ============================================================

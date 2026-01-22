@@ -1,5 +1,7 @@
 {
   "operation": "操作",
+  "status": "状态",
+  "all": "全部",
   "enable": "启用",
   "disable": "禁用",
   "enabled": "启用",
@@ -30,6 +32,7 @@
   "refresh": "刷新",
   "export": "导出",
   "import": "导入",
+  "upload": "上传",
   "back": "返回",
   "loading": "加载中...",
   "noData": "暂无数据",
@@ -42,6 +45,17 @@
   "sortFailed": "排序更新失败",
   "exportSuccess": "导出成功",
   "exportFailed": "导出失败",
+  "exportModal": {
+    "title": "导出数据",
+    "filename": "文件名",
+    "sheetName": "工作表名称",
+    "scope": "导出范围",
+    "currentPage": "当前页数据",
+    "selectedData": "已选数据",
+    "allData": "全部数据",
+    "columns": "导出列",
+    "selectAtLeastOneColumn": "请至少选择一列"
+  },
   "confirmBatchDelete": "确定要删除选中的 {count} 条记录吗？",
   "batchDeleteSuccess": "批量删除成功",
   "pleaseSelectData": "请先选择数据",
@@ -53,6 +67,9 @@
   "deleteConfirm": "确定要删除 {name} 吗？删除后无法恢复。",
   "deleting": "正在删除 {name}...",
   "deleteSuccess": "删除成功",
+  "deleteFailed": "删除失败",
+  "createdAt": "创建时间",
+  "updatedAt": "更新时间",
   "filter": {
     "unknownField": "未知的筛选字段",
     "opNotAllowed": "不允许的操作符",
@@ -60,5 +77,18 @@
     "unknownSortField": "未知的排序字段",
     "invalidPage": "无效的页码",
     "sizeExceeded": "超出每页数量上限"
-  }
+  },
+  "dateRange": {
+    "today": "今日",
+    "yesterday": "昨日",
+    "last3Days": "最近三天",
+    "last7Days": "最近七天",
+    "lastMonth": "最近一个月",
+    "last2Months": "最近两个月",
+    "last3Months": "最近三个月"
+  },
+  "current": "当前",
+  "featureComingSoon": "功能开发中，敬请期待",
+  "yes": "是",
+  "no": "否"
 }

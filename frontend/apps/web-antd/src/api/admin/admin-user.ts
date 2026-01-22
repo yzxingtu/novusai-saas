@@ -140,7 +140,7 @@ export async function getAdminListApi(
   }>(API_PREFIX, { params, ...options });
 
   return {
-    items: response.items.map(transformAdminInfo),
+    items: response.items.map((item) => transformAdminInfo(item)),
     total: response.total,
     page: response.page,
     page_size: response.page_size,

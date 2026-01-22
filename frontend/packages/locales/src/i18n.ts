@@ -87,12 +87,14 @@ function loadLocalesMapFromDir(
     const keys = path.split('/');
     let current = obj;
     for (let i = 0; i < keys.length - 1; i++) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const key = keys[i]!;
       if (!current[key]) {
         current[key] = {};
       }
       current = current[key];
     }
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const lastKey = keys[keys.length - 1]!;
     // Merge if both are objects, otherwise assign
     if (

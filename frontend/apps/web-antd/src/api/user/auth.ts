@@ -12,9 +12,9 @@ import type {
   TenantUserInfo,
 } from '../shared/types';
 
-import { useAccessStore } from '@vben/stores';
-
 import type { ApiRequestOptions } from '#/utils/request';
+
+import { useAccessStore } from '@vben/stores';
 
 import { baseRequestClient, requestClient } from '#/utils/request';
 
@@ -104,10 +104,7 @@ interface UserInfoRaw {
 export async function getUserInfoApi(
   options?: ApiRequestOptions,
 ): Promise<TenantUserInfo> {
-  const raw = await requestClient.get<UserInfoRaw>(
-    `${API_PREFIX}/me`,
-    options,
-  );
+  const raw = await requestClient.get<UserInfoRaw>(`${API_PREFIX}/me`, options);
   return {
     id: raw.id,
     username: raw.username,

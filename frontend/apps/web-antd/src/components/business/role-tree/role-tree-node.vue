@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { RoleTreeNodeData } from './types';
+
 /**
  * 角色树节点组件（递归）
  * 通用组件，支持 admin 和 tenant 两端
@@ -12,17 +14,15 @@ import { Button, Switch, Tooltip } from 'ant-design-vue';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
-import type { RoleTreeNodeData } from './types';
-
 const props = withDefaults(
   defineProps<{
-    node: RoleTreeNodeData;
-    level: number;
     expandedIds: Set<number>;
-    getLevelColor: (level: number) => { bar: string; badge: string };
-    isExpanded: (id: number) => boolean;
+    getLevelColor: (level: number) => { badge: string; bar: string };
     /** i18n 前缀，用于区分 admin/tenant */
     i18nPrefix?: 'admin' | 'tenant';
+    isExpanded: (id: number) => boolean;
+    level: number;
+    node: RoleTreeNodeData;
   }>(),
   {
     i18nPrefix: 'admin',
@@ -30,16 +30,25 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  toggle: [id: number];
-  edit: [row: RoleTreeNodeData];
   addChild: [row: RoleTreeNodeData];
   delete: [row: RoleTreeNodeData];
+  edit: [row: RoleTreeNodeData];
+  toggle: [id: number];
   toggleStatus: [row: RoleTreeNodeData, isActive: boolean];
 }>();
 
-const hasChildren = computed(() => props.node.children && props.node.children.length > 0);
+const hasChildren = computed(
+  () => props.node.children && props.node.children.length > 0,
+);
 const expanded = computed(() => props.isExpanded(props.node.id));
 const colors = computed(() => props.getLevelColor(props.level));
+</script>
+
+<script lang="ts">
+// 递归组件需要显式命名
+export default {
+  name: 'RoleTreeNode',
+};
 </script>
 
 <template>
@@ -54,12 +63,12 @@ const colors = computed(() => props.getLevelColor(props.level));
       <div
         class="absolute top-1/2 h-px bg-border/60"
         :style="{ left: `${(level - 1) * 28 + 14}px`, width: '14px' }"
-      />
+      ></div>
       <!-- 垂直连接线 -->
       <div
         class="absolute w-px bg-border/60"
         :style="{ left: `${(level - 1) * 28 + 14}px`, top: 0, height: '50%' }"
-      />
+      ></div>
     </div>
 
     <!-- 节点卡片 -->
@@ -71,14 +80,14 @@ const colors = computed(() => props.getLevelColor(props.level));
       <div
         class="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full transition-[height] duration-200 group-hover:h-10"
         :class="colors.bar"
-      />
+      ></div>
 
       <!-- 展开按钮 -->
       <button
         class="flex size-7 flex-shrink-0 items-center justify-center rounded-lg transition-transform duration-150"
         :class="
           hasChildren
-            ? 'bg-accent/50 hover:bg-primary/10 text-muted-foreground hover:text-primary cursor-pointer hover:scale-110'
+            ? 'cursor-pointer bg-accent/50 text-muted-foreground hover:scale-110 hover:bg-primary/10 hover:text-primary'
             : 'opacity-0'
         "
         @click.stop="hasChildren && emit('toggle', node.id)"
@@ -94,7 +103,9 @@ const colors = computed(() => props.getLevelColor(props.level));
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-3">
           <!-- 角色名称 -->
-          <span class="text-sm font-semibold text-foreground">{{ node.name }}</span>
+          <span class="text-sm font-semibold text-foreground">{{
+            node.name
+          }}</span>
           <!-- 层级徽章 -->
           <span
             v-if="level > 0"
@@ -104,11 +115,16 @@ const colors = computed(() => props.getLevelColor(props.level));
             L{{ level }}
           </span>
           <!-- 角色编码 -->
-          <code class="rounded bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+          <code
+            class="rounded bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
+          >
             {{ node.code }}
           </code>
         </div>
-        <p v-if="node.description" class="mt-1 truncate text-xs text-muted-foreground/80">
+        <p
+          v-if="node.description"
+          class="mt-1 truncate text-xs text-muted-foreground/80"
+        >
           {{ node.description }}
         </p>
       </div>
@@ -132,7 +148,13 @@ const colors = computed(() => props.getLevelColor(props.level));
 
       <!-- 状态开关 -->
       <div class="flex-shrink-0" @click.stop>
-        <Tooltip :title="node.isActive ? $t('shared.common.clickToDisable') : $t('shared.common.clickToEnable')">
+        <Tooltip
+          :title="
+            node.isActive
+              ? $t('shared.common.clickToDisable')
+              : $t('shared.common.clickToEnable')
+          "
+        >
           <Switch
             :checked="node.isActive"
             size="small"
@@ -144,7 +166,9 @@ const colors = computed(() => props.getLevelColor(props.level));
       </div>
 
       <!-- 时间 -->
-      <div class="w-32 flex-shrink-0 text-right text-xs text-muted-foreground/70">
+      <div
+        class="w-32 flex-shrink-0 text-right text-xs text-muted-foreground/70"
+      >
         {{ node.createdAt ? formatDate(node.createdAt) : '-' }}
       </div>
 
@@ -179,7 +203,10 @@ const colors = computed(() => props.getLevelColor(props.level));
             class="!size-8 !rounded-lg hover:!bg-destructive/10"
             @click.stop="emit('delete', node)"
           >
-            <IconifyIcon icon="lucide:trash-2" class="size-4 text-destructive" />
+            <IconifyIcon
+              icon="lucide:trash-2"
+              class="size-4 text-destructive"
+            />
           </Button>
         </Tooltip>
       </div>
@@ -192,7 +219,7 @@ const colors = computed(() => props.getLevelColor(props.level));
         <div
           class="absolute w-px bg-border/60"
           :style="{ left: `${level * 28 + 14}px`, top: 0, bottom: '50%' }"
-        />
+        ></div>
         <RoleTreeNode
           v-for="child in node.children"
           :key="child.id"
@@ -200,58 +227,53 @@ const colors = computed(() => props.getLevelColor(props.level));
           :level="level + 1"
           :expanded-ids="expandedIds"
           :get-level-color="getLevelColor"
-            :is-expanded="isExpanded"
-            :i18n-prefix="i18nPrefix"
+          :is-expanded="isExpanded"
+          :i18n-prefix="i18nPrefix"
           @toggle="(id) => emit('toggle', id)"
           @edit="(row) => emit('edit', row)"
           @add-child="(row) => emit('addChild', row)"
           @delete="(row) => emit('delete', row)"
-          @toggle-status="(row, isActive) => emit('toggleStatus', row, isActive)"
+          @toggle-status="
+            (row, isActive) => emit('toggleStatus', row, isActive)
+          "
         />
       </div>
     </Transition>
   </div>
 </template>
 
-<script lang="ts">
-// 递归组件需要显式命名
-export default {
-  name: 'RoleTreeNode',
-};
-</script>
-
 <style scoped>
 /* 展开/收起过渡动画 - 只过渡必要属性 */
 .tree-slide-enter-active,
 .tree-slide-leave-active {
+  overflow: hidden;
   transition:
     opacity 0.25s ease-out,
     max-height 0.25s ease-out,
     transform 0.25s ease-out;
-  overflow: hidden;
 }
 
 .tree-slide-enter-from {
-  opacity: 0;
   max-height: 0;
+  opacity: 0;
   transform: translateX(-12px);
 }
 
 .tree-slide-enter-to {
-  opacity: 1;
   max-height: 2000px;
+  opacity: 1;
   transform: translateX(0);
 }
 
 .tree-slide-leave-from {
-  opacity: 1;
   max-height: 2000px;
+  opacity: 1;
   transform: translateX(0);
 }
 
 .tree-slide-leave-to {
-  opacity: 0;
   max-height: 0;
+  opacity: 0;
   transform: translateX(-12px);
 }
 </style>

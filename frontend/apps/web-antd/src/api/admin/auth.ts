@@ -12,9 +12,9 @@ import type {
   RefreshTokenResultRaw,
 } from '../shared/types';
 
-import { useAccessStore } from '@vben/stores';
-
 import type { ApiRequestOptions } from '#/utils/request';
+
+import { useAccessStore } from '@vben/stores';
 
 import { baseRequestClient, requestClient } from '#/utils/request';
 

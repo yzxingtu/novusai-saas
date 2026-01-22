@@ -1,3 +1,5 @@
+import type { ApiEndpoint, RefreshTokenResultRaw } from './types';
+
 /**
  * 请求实例配置
  *
@@ -15,8 +17,6 @@ import { useAccessStore } from '@vben/stores';
 import { message } from 'ant-design-vue';
 
 import { LOGIN_PATHS, TokenStorage } from '#/store';
-
-import type { ApiEndpoint, RefreshTokenResultRaw } from './types';
 
 import {
   createAuthInterceptor,
@@ -49,7 +49,8 @@ const REFRESH_TOKEN_URLS: Record<ApiEndpoint, string> = {
 
 const tokenGetter = {
   getToken: (endpoint: ApiEndpoint) => TokenStorage.getToken(endpoint),
-  getRefreshToken: (endpoint: ApiEndpoint) => TokenStorage.getRefreshToken(endpoint),
+  getRefreshToken: (endpoint: ApiEndpoint) =>
+    TokenStorage.getRefreshToken(endpoint),
 };
 
 // ============================================================
@@ -106,10 +107,11 @@ async function doRefreshToken(): Promise<string> {
   // 使用 baseRequestClient 避免循环依赖
   // baseRequestClient 没有拦截器，返回原始 AxiosResponse
   // AxiosResponse.data = HttpResponse { code, message, data: RefreshTokenResultRaw }
-  const response = await baseRequestClient.post<{ code: number; data: RefreshTokenResultRaw; message: string }>(
-    REFRESH_TOKEN_URLS[endpoint],
-    { refresh_token: refreshToken },
-  );
+  const response = await baseRequestClient.post<{
+    code: number;
+    data: RefreshTokenResultRaw;
+    message: string;
+  }>(REFRESH_TOKEN_URLS[endpoint], { refresh_token: refreshToken });
 
   // 从响应中提取业务数据：response.data 是 HttpResponse，response.data.data 是实际数据
   const httpResponse = (response as any).data;
@@ -165,6 +167,7 @@ const messageHandler = {
       'ui.fallback.http.serviceUnavailable': '服务不可用',
       'ui.fallback.http.gatewayTimeout': '网关超时',
       'ui.fallback.http.loading': '加载中...',
+      'ui.fallback.http.operationSuccess': '操作成功',
     };
     return fallbacks[key] || key;
   },
@@ -177,7 +180,9 @@ const messageHandler = {
 /**
  * 创建配置好的请求客户端
  */
-function createConfiguredClient(withInterceptors: boolean = true): RequestClient {
+function createConfiguredClient(
+  withInterceptors: boolean = true,
+): RequestClient {
   const client = new RequestClient({
     baseURL: apiURL,
     timeout: 15_000,
@@ -195,8 +200,8 @@ function createConfiguredClient(withInterceptors: boolean = true): RequestClient
       ),
     );
 
-    // 响应拦截器：Loading 关闭
-    client.addResponseInterceptor(createLoadingInterceptor());
+    // 响应拦截器：Loading 关闭 + 清理 pending
+    client.addResponseInterceptor(createLoadingInterceptor(client));
 
     // 响应拦截器：数据格式解析
     client.addResponseInterceptor(

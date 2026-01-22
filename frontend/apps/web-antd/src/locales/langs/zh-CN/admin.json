@@ -181,9 +181,13 @@
     "enabled": "已启用",
     "disabled": "已禁用",
     "notAssigned": "未分配",
+    "notSet": "未设置",
     "basicInfo": "基本信息",
     "contactInfo": "联系方式",
     "permissionSettings": "权限设置",
-    "accountStatus": "账号状态"
+    "accountStatus": "账号状态",
+    "selectAll": "全选",
+    "unselectAll": "取消全选",
+    "createdAt": "创建时间"
   }
 }

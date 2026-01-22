@@ -51,11 +51,11 @@ const components = globalShareState.getComponents();
 
 const contentRef = ref();
 const wrapperRef = ref<HTMLElement>();
-void wrapperRef; // Reserved for scroll behavior
+void wrapperRef.value; // Reserved for scroll behavior
 const dialogRef = ref();
 const headerRef = ref();
 const footerRef = ref();
-void footerRef; // Reserved for future use
+void footerRef.value; // Reserved for future use
 
 const id = useId();
 

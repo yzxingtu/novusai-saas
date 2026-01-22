@@ -94,6 +94,8 @@ export const useUserAuthStore = defineStore('user-auth', () => {
           });
         }
       }
+    } catch {
+      // 错误已由 axios 拦截器处理并显示，此处仅捕获以防止冒泡到 Vue 事件处理器
     } finally {
       loginLoading.value = false;
     }

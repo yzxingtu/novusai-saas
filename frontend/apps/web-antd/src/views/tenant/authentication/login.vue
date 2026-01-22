@@ -44,9 +44,7 @@ async function handleLogin(values: Record<string, any>) {
   <div>
     <!-- 租户管理端标识 -->
     <div class="mb-6 flex items-center justify-center">
-      <div
-        class="flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2"
-      >
+      <div class="flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2">
         <span class="i-lucide-building-2 text-xl text-primary"></span>
         <span class="text-sm font-medium text-primary">
           {{ $t('authentication.tenantAdmin') }}

@@ -21,64 +21,20 @@
  * 业务错误码枚举
  */
 export enum ErrorCode {
+  /** 邮箱已被使用 */
+  ADMIN_EMAIL_EXISTS = 4302,
+  /** 手机号已被使用 */
+  ADMIN_PHONE_EXISTS = 4303,
   // ============================================================
-  // 通用错误 (40xx)
+  // 管理员相关错误 (43xx)
   // ============================================================
-  /** 数据验证失败 */
-  VALIDATION_ERROR = 4001,
-  /** 数据已存在 */
-  DUPLICATE_ENTRY = 4002,
-  /** 无效的参数 */
-  INVALID_PARAMETER = 4003,
-  /** 原密码不正确 */
-  OLD_PASSWORD_INCORRECT = 4004,
-
-  // ============================================================
-  // 认证授权错误 (401x/403x/404x/409x)
-  // ============================================================
-  /** 未认证 */
-  UNAUTHORIZED = 4010,
-  /** 令牌已过期 */
-  TOKEN_EXPIRED = 4011,
-  /** 无效的令牌 */
-  TOKEN_INVALID = 4012,
-  /** 禁止访问 */
-  FORBIDDEN = 4030,
-  /** 权限不足 */
-  PERMISSION_DENIED = 4031,
-  /** 资源不存在 */
-  NOT_FOUND = 4040,
+  /** 用户名已存在 */
+  ADMIN_USERNAME_EXISTS = 4301,
   /** 资源冲突 */
   CONFLICT = 4090,
 
-  // ============================================================
-  // 角色相关错误 (41xx)
-  // ============================================================
-  /** 不能将自己设为父节点 */
-  ROLE_CANNOT_SET_SELF_AS_PARENT = 4101,
-  /** 检测到循环引用 */
-  ROLE_CIRCULAR_REFERENCE = 4102,
-  /** 超过最大层级深度限制 */
-  ROLE_MAX_DEPTH_EXCEEDED = 4103,
-  /** 系统角色不能修改父级 */
-  ROLE_SYSTEM_CANNOT_CHANGE_PARENT = 4104,
-  /** 系统角色不能删除 */
-  ROLE_SYSTEM_CANNOT_DELETE = 4105,
-  /** 该节点下有子节点，无法删除 */
-  ROLE_HAS_CHILDREN = 4106,
-  /** 该角色下有用户，无法删除 */
-  ROLE_HAS_USERS = 4107,
-  /** 不允许的子节点类型 */
-  ROLE_INVALID_CHILD_TYPE = 4108,
-  /** 只有部门类型可以设置负责人 */
-  ROLE_ONLY_DEPARTMENT_CAN_SET_LEADER = 4109,
-  /** 该节点不允许添加成员 */
-  ROLE_CANNOT_ADD_MEMBER = 4110,
-  /** 该成员已在此节点 */
-  ROLE_MEMBER_EXISTS = 4111,
-  /** 该成员不在此节点 */
-  ROLE_MEMBER_NOT_IN_NODE = 4112,
-
+  /** 域名已被使用 */
+  DOMAIN_ALREADY_EXISTS = 4203,
   // ============================================================
   // 租户/域名相关错误 (42xx)
   // ============================================================
@@ -86,28 +42,72 @@ export enum ErrorCode {
   DOMAIN_CUSTOM_DISABLED = 4201,
   /** 域名数量已达上限 */
   DOMAIN_QUOTA_EXCEEDED = 4202,
-  /** 域名已被使用 */
-  DOMAIN_ALREADY_EXISTS = 4203,
+  /** 数据已存在 */
+  DUPLICATE_ENTRY = 4002,
+  /** 外部服务错误 */
+  EXTERNAL_SERVICE_ERROR = 5020,
+  /** 禁止访问 */
+  FORBIDDEN = 4030,
+  /** 无效的参数 */
+  INVALID_PARAMETER = 4003,
 
+  /** 资源不存在 */
+  NOT_FOUND = 4040,
+  /** 原密码不正确 */
+  OLD_PASSWORD_INCORRECT = 4004,
+  /** 权限不足 */
+  PERMISSION_DENIED = 4031,
+  /** 该节点不允许添加成员 */
+  ROLE_CANNOT_ADD_MEMBER = 4110,
   // ============================================================
-  // 管理员相关错误 (43xx)
+  // 角色相关错误 (41xx)
   // ============================================================
-  /** 用户名已存在 */
-  ADMIN_USERNAME_EXISTS = 4301,
-  /** 邮箱已被使用 */
-  ADMIN_EMAIL_EXISTS = 4302,
-  /** 手机号已被使用 */
-  ADMIN_PHONE_EXISTS = 4303,
+  /** 不能将自己设为父节点 */
+  ROLE_CANNOT_SET_SELF_AS_PARENT = 4101,
+  /** 检测到循环引用 */
+  ROLE_CIRCULAR_REFERENCE = 4102,
+  /** 该节点下有子节点，无法删除 */
+  ROLE_HAS_CHILDREN = 4106,
+  /** 该角色下有用户，无法删除 */
+  ROLE_HAS_USERS = 4107,
+  /** 不允许的子节点类型 */
+  ROLE_INVALID_CHILD_TYPE = 4108,
+  /** 超过最大层级深度限制 */
+  ROLE_MAX_DEPTH_EXCEEDED = 4103,
+  /** 该成员已在此节点 */
+  ROLE_MEMBER_EXISTS = 4111,
+  /** 该成员不在此节点 */
+  ROLE_MEMBER_NOT_IN_NODE = 4112,
+
+  /** 只有部门类型可以设置负责人 */
+  ROLE_ONLY_DEPARTMENT_CAN_SET_LEADER = 4109,
+  /** 系统角色不能修改父级 */
+  ROLE_SYSTEM_CANNOT_CHANGE_PARENT = 4104,
+  /** 系统角色不能删除 */
+  ROLE_SYSTEM_CANNOT_DELETE = 4105,
 
   // ============================================================
   // 服务端错误 (5xxx)
   // ============================================================
   /** 服务器内部错误 */
   SERVER_ERROR = 5000,
-  /** 外部服务错误 */
-  EXTERNAL_SERVICE_ERROR = 5020,
   /** 服务暂不可用 */
   SERVICE_UNAVAILABLE = 5030,
+  /** 令牌已过期 */
+  TOKEN_EXPIRED = 4011,
+
+  /** 无效的令牌 */
+  TOKEN_INVALID = 4012,
+  // ============================================================
+  // 认证授权错误 (401x/403x/404x/409x)
+  // ============================================================
+  /** 未认证 */
+  UNAUTHORIZED = 4010,
+  // ============================================================
+  // 通用错误 (40xx)
+  // ============================================================
+  /** 数据验证失败 */
+  VALIDATION_ERROR = 4001,
 }
 
 /**

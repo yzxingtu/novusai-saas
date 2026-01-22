@@ -4,6 +4,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
+      "#/adapter/*": ["./src/core/adapter/*"],
       "#/*": ["./src/*"]
     }
   },

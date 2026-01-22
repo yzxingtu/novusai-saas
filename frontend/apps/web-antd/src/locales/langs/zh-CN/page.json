@@ -12,5 +12,9 @@
     "title": "概览",
     "analytics": "分析页",
     "workspace": "工作台"
+  },
+  "tenant": {
+    "authentication": "租户认证",
+    "root": "租户后台"
   }
 }

@@ -29,9 +29,9 @@ const emit = defineEmits<{
 const active = defineModel<string>('active');
 
 const contentRef = ref();
-void contentRef; // Used in template
+void contentRef.value; // Used in template
 const tabRef = ref();
-void tabRef; // Used in template
+void tabRef.value; // Used in template
 
 const style = computed(() => {
   const { gap } = props;

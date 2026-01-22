@@ -13,7 +13,7 @@ import type { ApiEndpoint, BaseUserInfo } from '#/api';
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-import { useAccessStore, useUserStore } from '@vben/stores';
+import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
 
 import { notification } from 'ant-design-vue';
 import { defineStore } from 'pinia';
@@ -167,6 +167,8 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
           });
         }
       }
+    } catch {
+      // 错误已由 axios 拦截器处理并显示，此处仅捕获以防止冒泡到 Vue 事件处理器
     } finally {
       loginLoading.value = false;
     }
@@ -183,12 +185,18 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
     const ep = endpoint || currentEndpoint.value;
     const api = getAuthApi(ep);
     const loginPath = LOGIN_PATHS[ep];
+    const tabbarStore = useTabbarStore();
 
     try {
       await api.logout();
     } catch {
       // 忽略错误
     }
+
+    // 清除所有标签页（重置为空数组）
+    tabbarStore.$patch({ tabs: [], cachedTabs: new Set() });
+    // 清除 sessionStorage 中的标签页持久化数据
+    sessionStorage.removeItem('core-tabbar');
 
     // 仅清除当前端的 Token（不影响其他端的登录状态）
     TokenStorage.clearToken(ep);

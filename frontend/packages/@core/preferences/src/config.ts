@@ -27,7 +27,7 @@ const defaultPreferences: Preferences = {
     layout: 'sidebar-nav',
     locale: 'zh-CN',
     loginExpiredMode: 'page',
-    name: 'Vben Admin',
+    name: 'Novusai Saas',
     preferencesButtonPosition: 'auto',
     watermark: false,
     watermarkContent: '',
@@ -41,7 +41,7 @@ const defaultPreferences: Preferences = {
     styleType: 'normal',
   },
   copyright: {
-    companyName: 'Vben',
+    companyName: 'Novusai',
     companySiteLink: 'https://www.vben.pro',
     date: '2024',
     enable: true,
