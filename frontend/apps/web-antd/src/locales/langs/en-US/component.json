@@ -1,0 +1,9 @@
+{
+  "permissionSelector": {
+    "inherited": "Inherited",
+    "inheritedFrom": "Inherited from role \"{role}\"",
+    "ownPermission": "Own Permission",
+    "inheritedPermission": "Inherited Permission",
+    "selectedSummary": "{selected}/{total} selected"
+  }
+}

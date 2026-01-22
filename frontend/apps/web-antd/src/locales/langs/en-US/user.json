@@ -1,0 +1,56 @@
+{
+  "dashboard": {
+    "title": "Home",
+    "welcome": "Welcome back",
+    "recentOrders": "Recent Orders",
+    "notifications": "Notifications"
+  },
+  "profile": {
+    "title": "Profile",
+    "edit": "Edit Profile",
+    "avatar": "Avatar",
+    "username": "Username",
+    "nickname": "Nickname",
+    "email": "Email",
+    "phone": "Phone",
+    "changePassword": "Change Password",
+    "oldPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm New Password",
+    "messages": {
+      "updateSuccess": "Profile updated successfully",
+      "changePasswordSuccess": "Password changed successfully"
+    },
+    "placeholder": {
+      "inputNickname": "Please enter nickname",
+      "inputEmail": "Please enter email",
+      "inputPhone": "Please enter phone",
+      "inputOldPassword": "Please enter current password",
+      "inputNewPassword": "Please enter new password",
+      "inputConfirmPassword": "Please confirm new password"
+    }
+  },
+  "order": {
+    "title": "My Orders",
+    "list": "Order List",
+    "detail": "Order Detail",
+    "orderNo": "Order No",
+    "status": "Status",
+    "amount": "Amount",
+    "createdAt": "Order Time",
+    "payAt": "Payment Time",
+    "statusOptions": {
+      "pending": "Pending",
+      "paid": "Paid",
+      "shipped": "Shipped",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    }
+  },
+  "common": {
+    "operation": "Operation",
+    "viewDetail": "View Detail",
+    "submit": "Submit",
+    "save": "Save"
+  }
+}

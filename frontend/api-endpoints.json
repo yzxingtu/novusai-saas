@@ -1,0 +1,247 @@
+{
+  "_description": "前端 API 端点使用情况 - 深度检查结果",
+  "_generated_at": "2026-01-19",
+  "_last_verified": "2026-01-19",
+  "_note": "动态路径参数用 {param} 表示。本文件经过代码搜索验证，标注了实际使用状态。",
+
+  "admin": {
+    "_description": "平台管理端 API（/admin/*）",
+
+    "auth": {
+      "_status": "部分使用",
+      "POST /admin/auth/login": "管理员登录 [store/admin/auth.ts]",
+      "POST /admin/auth/refresh": "刷新 Token [request 拦截器]",
+      "POST /admin/auth/logout": "管理员登出 [store/admin/auth.ts]",
+      "GET /admin/auth/me": "获取当前管理员信息 [store/admin/auth.ts]",
+      "_未使用": {
+        "PUT /admin/auth/password": "修改密码 - 已定义但未使用"
+      }
+    },
+
+    "admins": {
+      "_status": "全部使用中",
+      "_note": "通过 useCrudPage/useCrudDrawer 和成员面板使用",
+      "GET /admin/admins": "获取管理员列表（useCrudPage 动态列表）",
+      "GET /admin/admins/{admin_id}": "获取管理员详情（useCrudDrawer 编辑）",
+      "POST /admin/admins": "创建管理员（useCrudDrawer 新建）",
+      "PUT /admin/admins/{admin_id}": "更新管理员（useCrudDrawer 保存）",
+      "DELETE /admin/admins/{admin_id}": "删除管理员（useCrudPage 删除）",
+      "PUT /admin/admins/{admin_id}/reset-password": "重置管理员密码 [member-panel/reset-password-modal.vue]"
+    },
+
+    "tenants": {
+      "_status": "全部使用中",
+      "GET /admin/tenants": "获取租户列表 [views/admin/tenant/list/data.ts - useCrudPage]",
+      "GET /admin/tenants/{tenant_id}": "获取租户详情（useCrudDrawer 编辑）",
+      "POST /admin/tenants": "创建租户（useCrudDrawer 新建）",
+      "PUT /admin/tenants/{tenant_id}": "更新租户（useCrudDrawer 保存）",
+      "DELETE /admin/tenants/{tenant_id}": "删除租户（useCrudPage 删除）",
+      "POST /admin/tenants/{tenant_id}/impersonate": "一键登录租户后台 [views/admin/tenant/list/index.vue]"
+    },
+
+    "tenant_domains": {
+      "_status": "全部使用中",
+      "_note": "domains-modal.vue 使用",
+      "GET /admin/tenants/{tenant_id}/domains": "获取租户域名列表",
+      "GET /admin/tenants/{tenant_id}/domains/{domain_id}": "获取域名详情",
+      "POST /admin/tenants/{tenant_id}/domains": "添加自定义域名",
+      "PUT /admin/tenants/{tenant_id}/domains/{domain_id}": "更新域名",
+      "DELETE /admin/tenants/{tenant_id}/domains/{domain_id}": "删除域名",
+      "POST /admin/tenants/{tenant_id}/domains/{domain_id}/verify": "验证域名",
+      "PUT /admin/tenants/{tenant_id}/domains/{domain_id}/primary": "设置主域名"
+    },
+
+    "plans": {
+      "_status": "全部使用中",
+      "GET /admin/plans": "获取套餐列表 [views/admin/tenant/plans/data.ts]",
+      "GET /admin/plans/{plan_id}": "获取套餐详情（useCrudDrawer）",
+      "POST /admin/plans": "创建套餐（useCrudDrawer）",
+      "PUT /admin/plans/{plan_id}": "更新套餐（useCrudDrawer）",
+      "DELETE /admin/plans/{plan_id}": "删除套餐（useCrudPage）",
+      "GET /admin/plans/select": "获取套餐下拉选项 [views/admin/tenant/list/data.ts - ApiSelect]",
+      "GET /admin/plans/available-permissions": "获取可分配权限 [permissions-modal.vue]",
+      "GET /admin/plans/{plan_id}/permissions": "获取套餐权限 [permissions-modal.vue]",
+      "PUT /admin/plans/{plan_id}/permissions": "设置套餐权限 [permissions-modal.vue]"
+    },
+
+    "roles": {
+      "_status": "部分使用",
+      "GET /admin/roles/{role_id}": "获取角色详情 [org-node-dialog.vue, permission-preview.vue]",
+      "POST /admin/roles": "创建角色 [org-node-dialog.vue]",
+      "PUT /admin/roles/{role_id}": "更新角色 [org-node-dialog.vue]",
+      "DELETE /admin/roles/{role_id}": "删除角色 [views/admin/system/organization/index.vue]",
+      "GET /admin/roles/tree": "获取角色树 [views/admin/system/organization/index.vue - member-panel]",
+      "GET /admin/roles/{role_id}/children": "获取子角色 [use-org-tree.ts 懒加载]",
+      "_未使用": {
+        "GET /admin/roles": "获取角色列表（平铺）- 已定义但未使用",
+        "PUT /admin/roles/{role_id}/permissions": "分配角色权限 - 已定义但未使用（通过节点编辑弹窗设置）",
+        "PUT /admin/roles/{role_id}/move": "移动角色 - 已定义但未使用",
+        "GET /admin/roles/select": "获取角色下拉 - 已定义但未使用"
+      }
+    },
+
+    "organization": {
+      "_status": "全部使用中",
+      "_note": "use-org-tree.ts 和 use-member-panel.ts 使用",
+      "GET /admin/roles/organization": "获取组织架构根节点",
+      "GET /admin/roles/{role_id}/members": "获取节点成员列表（分页）",
+      "POST /admin/roles/{role_id}/members": "添加成员到节点",
+      "DELETE /admin/roles/{role_id}/members/{admin_id}": "从节点移除成员",
+      "PUT /admin/roles/{role_id}/leader": "设置节点负责人"
+    },
+
+    "permissions": {
+      "_status": "部分使用",
+      "GET /admin/permissions": "获取权限树 [org-node-dialog.vue, permission-preview.vue]",
+      "GET /admin/permissions/menus": "获取当前管理员菜单列表 [router/access.ts]",
+      "_未使用": {
+        "GET /admin/permissions/list": "获取权限列表（平铺）- 已定义但未使用"
+      }
+    },
+
+    "configs": {
+      "_status": "全部使用中",
+      "_note": "views/admin/system/configs/list.vue 使用",
+      "GET /admin/configs/groups": "获取配置分组列表",
+      "GET /admin/configs/groups/{group_code}": "获取配置分组详情",
+      "PUT /admin/configs/groups/{group_code}": "更新配置分组"
+    }
+  },
+
+  "tenant": {
+    "_description": "租户管理端 API（/tenant/*）",
+
+    "auth": {
+      "_status": "部分使用",
+      "POST /tenant/auth/login": "租户管理员登录 [store/tenant/auth.ts]",
+      "POST /tenant/auth/refresh": "刷新 Token [request 拦截器]",
+      "POST /tenant/auth/logout": "租户管理员登出 [store/tenant/auth.ts]",
+      "GET /tenant/auth/me": "获取当前租户管理员信息 [store/tenant/auth.ts, impersonate.vue]",
+      "POST /tenant/auth/impersonate": "平台管理员一键登录验证 [views/tenant/authentication/impersonate.vue]",
+      "_未使用": {
+        "PUT /tenant/auth/password": "修改密码 - 已定义但未使用"
+      }
+    },
+
+    "admins": {
+      "_status": "全部使用中",
+      "_note": "通过 useCrudPage/useCrudDrawer 和成员面板使用",
+      "GET /tenant/admins": "获取管理员列表（useCrudPage）",
+      "GET /tenant/admins/{admin_id}": "获取管理员详情（useCrudDrawer）",
+      "POST /tenant/admins": "创建管理员（useCrudDrawer）",
+      "PUT /tenant/admins/{admin_id}": "更新管理员（useCrudDrawer）",
+      "DELETE /tenant/admins/{admin_id}": "删除管理员（useCrudPage）",
+      "PUT /tenant/admins/{admin_id}/reset-password": "重置管理员密码 [member-panel/reset-password-modal.vue]"
+    },
+
+    "roles": {
+      "_status": "部分使用",
+      "GET /tenant/roles/{role_id}": "获取角色详情 [permission-preview.vue]",
+      "POST /tenant/roles": "创建角色 [org-node-dialog 通过 apiPrefix='tenant']",
+      "PUT /tenant/roles/{role_id}": "更新角色 [org-node-dialog]",
+      "DELETE /tenant/roles/{role_id}": "删除角色 [views/tenant/system/organization/index.vue]",
+      "GET /tenant/roles/tree": "获取角色树 [views/tenant/system/organization/index.vue]",
+      "GET /tenant/roles/{role_id}/children": "获取子角色 [use-org-tree.ts 懒加载]",
+      "_未使用": {
+        "GET /tenant/roles": "获取角色列表（平铺）- 已定义但未使用",
+        "PUT /tenant/roles/{role_id}/permissions": "分配角色权限 - 已定义但未使用",
+        "PUT /tenant/roles/{role_id}/move": "移动角色 - 已定义但未使用"
+      }
+    },
+
+    "organization": {
+      "_status": "全部使用中",
+      "_note": "use-org-tree.ts 和 use-member-panel.ts 使用",
+      "GET /tenant/roles/organization": "获取组织架构根节点",
+      "GET /tenant/roles/{role_id}/members": "获取节点成员列表（分页）",
+      "POST /tenant/roles/{role_id}/members": "添加成员到节点",
+      "DELETE /tenant/roles/{role_id}/members/{admin_id}": "从节点移除成员",
+      "PUT /tenant/roles/{role_id}/leader": "设置节点负责人"
+    },
+
+    "permissions": {
+      "_status": "部分使用",
+      "GET /tenant/permissions": "获取权限树 [permission-preview.vue]",
+      "GET /tenant/permissions/menus": "获取当前租户管理员菜单列表 [router/access.ts]",
+      "_未使用": {
+        "GET /tenant/permissions/list": "获取权限列表（平铺）- 已定义但未使用"
+      }
+    },
+
+    "configs": {
+      "_status": "全部使用中",
+      "_note": "views/tenant/system/configs/list.vue 使用",
+      "GET /tenant/configs/groups": "获取配置分组列表",
+      "GET /tenant/configs/groups/{group_code}": "获取配置分组详情",
+      "PUT /tenant/configs/groups/{group_code}": "更新配置分组"
+    }
+  },
+
+  "user": {
+    "_description": "用户端 API（/api/v1/*）",
+
+    "auth": {
+      "_status": "部分使用",
+      "POST /api/v1/auth/login/json": "用户登录（JSON 格式）[store/user/auth.ts]",
+      "POST /api/v1/auth/refresh": "刷新 Token [request 拦截器]",
+      "POST /api/v1/auth/logout": "用户登出 [store/user/auth.ts]",
+      "GET /api/v1/auth/me": "获取当前用户信息 [store/user/auth.ts]",
+      "_未使用": {
+        "PUT /api/v1/auth/password": "修改密码 - 已定义但未使用"
+      }
+    },
+
+    "menus": {
+      "_status": "使用中",
+      "GET /api/v1/menus": "获取用户菜单列表 [router/access.ts]"
+    }
+  },
+
+  "dynamic_crud": {
+    "_description": "useCrudPage/useCrudDrawer 自动构造的 CRUD 请求",
+    "_note": "根据 api.resource 配置自动构造，实际使用的资源路径包括: /admin/tenants, /admin/plans, /admin/admins, /tenant/admins",
+
+    "operations": {
+      "GET {resource}": "列表查询（useCrudPage gridApi.query）",
+      "GET {resource}/{id}": "详情查询（useCrudDrawer toFormValues）",
+      "POST {resource}": "创建记录（useCrudDrawer 新建模式）",
+      "PUT {resource}/{id}": "更新记录（useCrudDrawer 编辑模式）",
+      "DELETE {resource}/{id}": "删除记录（useCrudPage 行删除）"
+    }
+  },
+
+  "unused_api_summary": {
+    "_description": "以下 API 在前端代码中已定义但未实际调用，后端可考虑删除或保留供将来使用",
+    "admin": [
+      "PUT /admin/auth/password（修改密码 - 修改密码页面未实现）",
+      "GET /admin/roles（获取角色列表平铺）",
+      "PUT /admin/roles/{role_id}/permissions（分配角色权限 - 权限在创建/编辑节点时设置）",
+      "PUT /admin/roles/{role_id}/move（移动角色）",
+      "GET /admin/roles/select（获取角色下拉选项）",
+      "GET /admin/permissions/list（获取权限列表平铺）"
+    ],
+    "tenant": [
+      "PUT /tenant/auth/password（修改密码 - 修改密码页面未实现）",
+      "GET /tenant/roles（获取角色列表平铺）",
+      "PUT /tenant/roles/{role_id}/permissions（分配角色权限）",
+      "PUT /tenant/roles/{role_id}/move（移动角色）",
+      "GET /tenant/permissions/list（获取权限列表平铺）"
+    ],
+    "user": ["PUT /api/v1/auth/password（修改密码 - 修改密码页面未实现）"]
+  },
+
+  "summary": {
+    "total_defined": 83,
+    "total_used": 71,
+    "total_unused": 12,
+    "breakdown": {
+      "admin_used": 35,
+      "admin_unused": 6,
+      "tenant_used": 26,
+      "tenant_unused": 5,
+      "user_used": 5,
+      "user_unused": 1,
+      "dynamic_crud_patterns": 5
+    }
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "system": {
+    "title": "System Management",
+    "user": {
+      "title": "User Management",
+      "list": "User List",
+      "create": "Create User",
+      "edit": "Edit User",
+      "username": "Username",
+      "nickname": "Nickname",
+      "email": "Email",
+      "phone": "Phone",
+      "avatar": "Avatar",
+      "role": "Role",
+      "status": "Status",
+      "createdAt": "Created At",
+      "lastLoginAt": "Last Login",
+      "password": "Password",
+      "confirmPassword": "Confirm Password",
+      "resetPassword": "Reset Password",
+      "newPassword": "New Password",
+      "stats": {
+        "total": "Total Users",
+        "active": "Active",
+        "inactive": "Inactive"
+      },
+      "messages": {
+        "toggleStatusConfirm": "Are you sure to {action} user \"{name}\"?",
+        "toggleStatusTitle": "Toggle Status",
+        "deleteConfirm": "Are you sure to delete user \"{name}\"? This action cannot be undone.",
+        "deleteTitle": "Delete Confirmation",
+        "deleting": "Deleting {name}...",
+        "deleteSuccess": "Deleted successfully",
+        "resetPasswordSuccess": "Password reset successfully",
+        "createSuccess": "Created successfully",
+        "updateSuccess": "Updated successfully"
+      },
+      "placeholder": {
+        "searchUsername": "Search username",
+        "searchEmail": "Search email",
+        "allStatus": "All Status",
+        "inputUsername": "Please enter username",
+        "inputNickname": "Please enter nickname",
+        "inputPassword": "Please enter password, at least 6 characters",
+        "inputEmail": "Please enter email",
+        "inputPhone": "Please enter phone",
+        "selectRole": "Please select role"
+      },
+      "help": {
+        "usernameEdit": "Username cannot be changed after creation",
+        "usernameCreate": "Username will be used for login",
+        "roleHelp": "Role determines user permissions"
+      }
+    },
+    "role": {
+      "title": "Role Management",
+      "list": "Role List",
+      "create": "Create Role",
+      "edit": "Edit Role",
+      "code": "Role Code",
+      "name": "Role Name",
+      "description": "Description",
+      "status": "Status",
+      "sortOrder": "Sort Order",
+      "permissions": "Permissions",
+      "createdAt": "Created At",
+      "stats": {
+        "total": "Total Roles",
+        "withPermissions": "With Permissions",
+        "withoutPermissions": "Without Permissions"
+      },
+      "messages": {
+        "deleteConfirm": "Are you sure to delete role \"{name}\"? This action cannot be undone.",
+        "deleteTitle": "Delete Confirmation",
+        "deleting": "Deleting {name}...",
+        "deleteSuccess": "Deleted successfully",
+        "createSuccess": "Created successfully",
+        "updateSuccess": "Updated successfully"
+      },
+      "placeholder": {
+        "inputCode": "Please enter role code",
+        "inputName": "Please enter role name",
+        "inputDescription": "Please enter role description"
+      },
+      "tip": "Manage tenant roles and configure permissions"
+    }
+  },
+  "dashboard": {
+    "title": "Tenant Admin Dashboard",
+    "welcome": "Welcome back",
+    "greeting": "Hello, {name}!",
+    "description": "This is the tenant management dashboard where you can manage your tenant resources.",
+    "stats": {
+      "users": "Users",
+      "orders": "Orders",
+      "revenue": "Revenue",
+      "growth": "Growth Rate",
+      "totalUsers": "Total Users",
+      "activeUsers": "Active Users",
+      "apiCalls": "API Calls",
+      "resourceUsage": "Resource Usage"
+    }
+  },
+  "common": {
+    "operation": "Operation",
+    "enable": "Enable",
+    "disable": "Disable",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "notAssigned": "Not Assigned",
+    "basicInfo": "Basic Info",
+    "contactInfo": "Contact Info",
+    "permissionSettings": "Permission Settings",
+    "accountStatus": "Account Status",
+    "admin": "Admin"
+  }
+}

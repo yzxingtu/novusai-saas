@@ -1,0 +1,117 @@
+{
+  "system": {
+    "title": "系统管理",
+    "user": {
+      "title": "用户管理",
+      "list": "用户列表",
+      "create": "新增用户",
+      "edit": "编辑用户",
+      "username": "用户名",
+      "nickname": "昵称",
+      "email": "邮箱",
+      "phone": "手机号",
+      "avatar": "头像",
+      "role": "角色",
+      "status": "状态",
+      "createdAt": "创建时间",
+      "lastLoginAt": "最后登录",
+      "password": "密码",
+      "confirmPassword": "确认密码",
+      "resetPassword": "重置密码",
+      "newPassword": "新密码",
+      "stats": {
+        "total": "总用户数",
+        "active": "已启用",
+        "inactive": "已禁用"
+      },
+      "messages": {
+        "toggleStatusConfirm": "确定要{action}用户「{name}」吗？",
+        "toggleStatusTitle": "切换状态",
+        "deleteConfirm": "确定要删除用户「{name}」吗？删除后不可恢复。",
+        "deleteTitle": "删除确认",
+        "deleting": "正在删除 {name}...",
+        "deleteSuccess": "删除成功",
+        "resetPasswordSuccess": "密码重置成功",
+        "createSuccess": "创建成功",
+        "updateSuccess": "更新成功"
+      },
+      "placeholder": {
+        "searchUsername": "搜索用户名",
+        "searchEmail": "搜索邮箱",
+        "allStatus": "全部状态",
+        "inputUsername": "请输入用户名",
+        "inputNickname": "请输入昵称",
+        "inputPassword": "请输入密码，至少6位",
+        "inputEmail": "请输入邮箱",
+        "inputPhone": "请输入手机号",
+        "selectRole": "请选择角色"
+      },
+      "help": {
+        "usernameEdit": "用户名创建后不可修改",
+        "usernameCreate": "用户名将用于登录",
+        "roleHelp": "角色决定用户的操作权限"
+      }
+    },
+    "role": {
+      "title": "角色管理",
+      "list": "角色列表",
+      "create": "新增角色",
+      "edit": "编辑角色",
+      "code": "角色代码",
+      "name": "角色名称",
+      "description": "描述",
+      "status": "状态",
+      "sortOrder": "排序",
+      "permissions": "权限配置",
+      "createdAt": "创建时间",
+      "stats": {
+        "total": "角色总数",
+        "withPermissions": "已配置权限",
+        "withoutPermissions": "未配置权限"
+      },
+      "messages": {
+        "deleteConfirm": "确定要删除角色「{name}」吗？删除后不可恢复。",
+        "deleteTitle": "删除确认",
+        "deleting": "正在删除 {name}...",
+        "deleteSuccess": "删除成功",
+        "createSuccess": "创建成功",
+        "updateSuccess": "更新成功"
+      },
+      "placeholder": {
+        "inputCode": "请输入角色代码",
+        "inputName": "请输入角色名称",
+        "inputDescription": "请输入角色描述"
+      },
+      "tip": "管理租户角色，配置角色对应的功能权限"
+    }
+  },
+  "dashboard": {
+    "title": "租户管理控制台",
+    "welcome": "欢迎回来",
+    "greeting": "您好，{name}！",
+    "description": "这是租户管理控制台，您可以在这里管理您的租户资源。",
+    "stats": {
+      "users": "用户数",
+      "orders": "订单数",
+      "revenue": "营收",
+      "growth": "增长率",
+      "totalUsers": "用户总数",
+      "activeUsers": "活跃用户",
+      "apiCalls": "API 调用",
+      "resourceUsage": "资源使用"
+    }
+  },
+  "common": {
+    "operation": "操作",
+    "enable": "启用",
+    "disable": "禁用",
+    "enabled": "已启用",
+    "disabled": "已禁用",
+    "notAssigned": "未分配",
+    "basicInfo": "基本信息",
+    "contactInfo": "联系方式",
+    "permissionSettings": "权限设置",
+    "accountStatus": "账号状态",
+    "admin": "管理员"
+  }
+}

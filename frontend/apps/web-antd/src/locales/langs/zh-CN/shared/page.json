@@ -1,0 +1,21 @@
+{
+  "auth": {
+    "login": "登录",
+    "register": "注册",
+    "codeLogin": "验证码登录",
+    "qrcodeLogin": "二维码登录",
+    "forgetPassword": "忘记密码",
+    "profile": "个人中心"
+  },
+  "dashboard": {
+    "title": "概览",
+    "analytics": "分析页",
+    "workspace": "工作台"
+  },
+  "error": {
+    "notFound": "页面不存在",
+    "forbidden": "无访问权限",
+    "serverError": "服务器错误",
+    "backHome": "返回首页"
+  }
+}

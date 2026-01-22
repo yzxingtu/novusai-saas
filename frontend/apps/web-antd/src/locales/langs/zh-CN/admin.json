@@ -1,0 +1,193 @@
+{
+  "system": {
+    "title": "系统管理",
+    "admin": {
+      "title": "管理员管理",
+      "list": "管理员列表",
+      "create": "新增管理员",
+      "edit": "编辑管理员",
+      "username": "用户名",
+      "nickname": "昵称",
+      "email": "邮箱",
+      "phone": "手机号",
+      "avatar": "头像",
+      "role": "角色",
+      "status": "状态",
+      "type": "类型",
+      "superAdmin": "超级管理员",
+      "normalAdmin": "普通管理员",
+      "createdAt": "创建时间",
+      "lastLoginAt": "最后登录",
+      "password": "密码",
+      "confirmPassword": "确认密码",
+      "resetPassword": "重置密码",
+      "newPassword": "新密码",
+      "stats": {
+        "total": "总管理员",
+        "active": "已启用",
+        "inactive": "已禁用",
+        "super": "超级管理员"
+      },
+      "messages": {
+        "toggleStatusConfirm": "确定要{action}用户「{name}」吗？",
+        "toggleStatusTitle": "切换状态",
+        "deleteConfirm": "确定要删除用户「{name}」吗？删除后不可恢复。",
+        "deleteTitle": "删除确认",
+        "deleting": "正在删除 {name}...",
+        "deleteSuccess": "删除成功",
+        "resetPasswordSuccess": "密码重置成功",
+        "resetPasswordFor": "正在为用户「{name}」重置密码",
+        "passwordMismatch": "两次输入的密码不一致",
+        "createSuccess": "创建成功",
+        "updateSuccess": "更新成功"
+      },
+      "placeholder": {
+        "searchUsername": "搜索用户名",
+        "searchEmail": "搜索邮箱",
+        "allStatus": "全部状态",
+        "inputUsername": "请输入用户名",
+        "inputNickname": "请输入昵称",
+        "inputPassword": "请输入密码，至少6位",
+        "inputEmail": "请输入邮箱",
+        "inputPhone": "请输入手机号",
+        "selectRole": "请选择角色",
+        "inputNewPassword": "请输入新密码",
+        "confirmPassword": "请再次输入新密码"
+      },
+      "help": {
+        "usernameEdit": "用户名创建后不可修改",
+        "usernameCreate": "用户名将用于登录",
+        "roleHelp": "角色决定用户的操作权限",
+        "superAdminHelp": "超级管理员拥有所有权限"
+      }
+    },
+    "role": {
+      "title": "角色管理",
+      "list": "角色列表",
+      "create": "新增角色",
+      "edit": "编辑角色",
+      "code": "角色代码",
+      "name": "角色名称",
+      "description": "描述",
+      "status": "状态",
+      "sortOrder": "排序",
+      "permissions": "权限配置",
+      "permissionCount": "个权限",
+      "noPermissions": "未配置权限",
+      "createdAt": "创建时间",
+      "stats": {
+        "total": "角色总数",
+        "withPermissions": "已配置权限",
+        "withoutPermissions": "未配置权限"
+      },
+      "messages": {
+        "deleteConfirm": "确定要删除角色「{name}」吗？删除后不可恢复。",
+        "deleteTitle": "删除确认",
+        "deleting": "正在删除 {name}...",
+        "deleteSuccess": "删除成功",
+        "createSuccess": "创建成功",
+        "updateSuccess": "更新成功",
+        "sortSuccess": "排序已保存",
+        "sortFailed": "排序保存失败"
+      },
+      "placeholder": {
+        "inputCode": "请输入角色代码",
+        "inputName": "请输入角色名称",
+        "inputDescription": "请输入角色描述",
+        "inputSortOrder": "请输入排序值"
+      },
+      "tip": "管理平台角色，配置角色对应的功能权限"
+    },
+    "permission": {
+      "title": "权限管理",
+      "list": "权限列表",
+      "description": "展示平台端所有权限配置，权限由后端代码定义，此页面仅供查看。",
+      "type": {
+        "menu": "菜单",
+        "button": "按钮",
+        "api": "接口"
+      },
+      "noData": "暂无权限数据"
+    }
+  },
+  "tenant": {
+    "title": "租户管理",
+    "list": "租户列表",
+    "create": "新增租户",
+    "edit": "编辑租户",
+    "code": "租户编码",
+    "name": "租户名称",
+    "contactName": "联系人",
+    "contactPhone": "联系电话",
+    "contactEmail": "联系邮箱",
+    "plan": "套餐",
+    "status": "状态",
+    "expiresAt": "到期时间",
+    "remark": "备注",
+    "createdAt": "创建时间",
+    "planOptions": {
+      "free": "免费版",
+      "basic": "基础版",
+      "pro": "专业版",
+      "enterprise": "企业版"
+    },
+    "expiryStatus": {
+      "permanent": "永久有效",
+      "expired": "已过期",
+      "nearExpiry": "即将过期"
+    },
+    "stats": {
+      "total": "租户总数",
+      "active": "活跃租户",
+      "expired": "已过期",
+      "inactive": "已禁用"
+    },
+    "messages": {
+      "toggleStatusConfirm": "确定要{action}租户「{name}」吗？",
+      "toggleStatusTitle": "切换状态",
+      "deleteConfirm": "确定要删除租户「{name}」吗？删除后该租户下所有数据将不可访问。",
+      "deleteTitle": "删除确认",
+      "deleting": "正在删除 {name}...",
+      "deleteSuccess": "删除成功",
+      "createSuccess": "创建成功",
+      "updateSuccess": "更新成功"
+    },
+    "placeholder": {
+      "searchName": "搜索租户名称",
+      "allStatus": "全部状态",
+      "allPlan": "全部套餐",
+      "inputCode": "请输入租户编码（小写字母开头）",
+      "inputName": "请输入租户名称",
+      "inputContactName": "请输入联系人姓名",
+      "inputContactPhone": "请输入联系人电话",
+      "inputContactEmail": "请输入联系人邮箱",
+      "selectPlan": "请选择套餐",
+      "selectExpiresAt": "请选择到期时间",
+      "inputRemark": "请输入备注"
+    },
+    "help": {
+      "codeFormat": "小写字母开头，只能包含小写字母、数字、下划线、中划线"
+    },
+    "tip": "管理平台租户，配置租户套餐和有效期"
+  },
+  "dashboard": {
+    "title": "控制台",
+    "welcome": "欢迎回来"
+  },
+  "common": {
+    "operation": "操作",
+    "enable": "启用",
+    "disable": "禁用",
+    "enabled": "已启用",
+    "disabled": "已禁用",
+    "notAssigned": "未分配",
+    "notSet": "未设置",
+    "basicInfo": "基本信息",
+    "contactInfo": "联系方式",
+    "permissionSettings": "权限设置",
+    "accountStatus": "账号状态",
+    "selectAll": "全选",
+    "unselectAll": "取消全选",
+    "createdAt": "创建时间"
+  }
+}

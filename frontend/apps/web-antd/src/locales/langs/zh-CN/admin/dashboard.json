@@ -1,0 +1,12 @@
+{
+  "title": "控制台",
+  "welcome": "欢迎回来",
+  "greeting": "您好，{name}！",
+  "description": "这是平台管理控制台，您可以在这里管理租户和系统配置。",
+  "stats": {
+    "totalTenants": "租户总数",
+    "activeTenants": "活跃租户",
+    "totalAdmins": "管理员数",
+    "systemHealth": "系统状态"
+  }
+}

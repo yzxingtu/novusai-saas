@@ -1,0 +1,57 @@
+{
+  "title": "个人中心",
+  "realName": "姓名",
+  "username": "用户名",
+  "nickname": "昵称",
+  "email": "邮箱",
+  "phone": "手机号",
+  "introduction": "个人简介",
+  "changePassword": "修改密码",
+  "oldPassword": "当前密码",
+  "newPassword": "新密码",
+  "confirmPassword": "确认密码",
+  "tabs": {
+    "basic": "基本设置",
+    "security": "安全设置",
+    "password": "修改密码",
+    "notice": "新消息提醒"
+  },
+  "security": {
+    "accountPassword": "账户密码",
+    "passwordStrength": "当前密码强度：强",
+    "securityPhone": "密保手机",
+    "phoneBound": "已绑定手机：138****8293",
+    "securityQuestion": "密保问题",
+    "questionNotSet": "未设置密保问题，密保问题可有效保护账户安全",
+    "securityEmail": "备用邮箱",
+    "emailBound": "已绑定邮箱：ant***sign.com",
+    "mfaDevice": "MFA 设备",
+    "mfaNotBound": "未绑定 MFA 设备，绑定后，可以进行二次确认"
+  },
+  "notification": {
+    "userMessage": "用户消息",
+    "userMessageDesc": "其他用户的消息将以站内信的形式通知",
+    "systemMessage": "系统消息",
+    "systemMessageDesc": "系统消息将以站内信的形式通知",
+    "todoTask": "待办任务",
+    "todoTaskDesc": "待办任务将以站内信的形式通知"
+  },
+  "messages": {
+    "updateSuccess": "资料更新成功",
+    "changePasswordSuccess": "密码修改成功"
+  },
+  "placeholder": {
+    "inputRealName": "请输入姓名",
+    "inputUsername": "请输入用户名",
+    "inputNickname": "请输入昵称",
+    "inputEmail": "请输入邮箱",
+    "inputPhone": "请输入手机号",
+    "inputIntroduction": "请输入个人简介",
+    "inputOldPassword": "请输入当前密码",
+    "inputNewPassword": "请输入新密码",
+    "confirmNewPassword": "请再次输入新密码"
+  },
+  "validation": {
+    "passwordMismatch": "两次输入的密码不一致"
+  }
+}

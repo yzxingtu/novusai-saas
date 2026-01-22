@@ -1,0 +1,16 @@
+{
+  "title": "租户管理控制台",
+  "welcome": "欢迎回来",
+  "greeting": "您好，{name}！",
+  "description": "这是租户管理控制台，您可以在这里管理您的租户资源。",
+  "stats": {
+    "users": "用户数",
+    "orders": "订单数",
+    "revenue": "营收",
+    "growth": "增长率",
+    "totalUsers": "用户总数",
+    "activeUsers": "活跃用户",
+    "apiCalls": "API 调用",
+    "resourceUsage": "资源使用"
+  }
+}

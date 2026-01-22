@@ -1,0 +1,56 @@
+{
+  "dashboard": {
+    "title": "首页",
+    "welcome": "欢迎回来",
+    "recentOrders": "最近订单",
+    "notifications": "通知消息"
+  },
+  "profile": {
+    "title": "个人中心",
+    "edit": "编辑资料",
+    "avatar": "头像",
+    "username": "用户名",
+    "nickname": "昵称",
+    "email": "邮箱",
+    "phone": "手机号",
+    "changePassword": "修改密码",
+    "oldPassword": "当前密码",
+    "newPassword": "新密码",
+    "confirmPassword": "确认新密码",
+    "messages": {
+      "updateSuccess": "资料更新成功",
+      "changePasswordSuccess": "密码修改成功"
+    },
+    "placeholder": {
+      "inputNickname": "请输入昵称",
+      "inputEmail": "请输入邮箱",
+      "inputPhone": "请输入手机号",
+      "inputOldPassword": "请输入当前密码",
+      "inputNewPassword": "请输入新密码",
+      "inputConfirmPassword": "请再次输入新密码"
+    }
+  },
+  "order": {
+    "title": "我的订单",
+    "list": "订单列表",
+    "detail": "订单详情",
+    "orderNo": "订单号",
+    "status": "状态",
+    "amount": "金额",
+    "createdAt": "下单时间",
+    "payAt": "支付时间",
+    "statusOptions": {
+      "pending": "待支付",
+      "paid": "已支付",
+      "shipped": "已发货",
+      "completed": "已完成",
+      "cancelled": "已取消"
+    }
+  },
+  "common": {
+    "operation": "操作",
+    "viewDetail": "查看详情",
+    "submit": "提交",
+    "save": "保存"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "permissionSelector": {
+    "inherited": "继承",
+    "inheritedFrom": "继承自角色「{role}」",
+    "ownPermission": "自有权限",
+    "inheritedPermission": "继承权限",
+    "selectedSummary": "已选 {selected}/{total} 项"
+  }
+}
