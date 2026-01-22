@@ -16,6 +16,7 @@ import type { ApiRequestOptions } from '#/utils/request';
 
 import { useAccessStore } from '@vben/stores';
 
+import { $t } from '#/locales';
 import { baseRequestClient, requestClient } from '#/utils/request';
 
 // Logout 使用 baseRequestClient 避免 401 时循环调用
@@ -57,7 +58,9 @@ export async function tenantRefreshTokenApi(
   });
   const responseData = response.data;
   if (responseData.code !== 0) {
-    throw new Error(responseData.message || 'Refresh failed');
+    throw new Error(
+      responseData.message || $t('tenant.impersonate.refreshFailed'),
+    );
   }
   const raw = responseData.data;
   return {
@@ -170,7 +173,9 @@ export async function impersonateLoginApi(
   }>(`${API_PREFIX}/impersonate`, { impersonate_token: impersonateToken });
   const responseData = response.data;
   if (responseData.code !== 0) {
-    throw new Error(responseData.message || 'Login failed');
+    throw new Error(
+      responseData.message || $t('tenant.impersonate.loginFailed'),
+    );
   }
   const raw = responseData.data;
   return {

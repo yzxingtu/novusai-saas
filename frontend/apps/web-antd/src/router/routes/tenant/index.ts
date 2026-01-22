@@ -13,7 +13,7 @@ const authRoutes: RouteRecordRaw = {
   component: AuthPageLayout,
   meta: {
     hideInTab: true,
-    title: 'Tenant Authentication',
+    title: $t('page.tenant.authentication'),
   },
   name: 'TenantAuthentication',
   path: '/tenant/auth',
@@ -43,7 +43,7 @@ const mainRoutes: RouteRecordRaw = {
   component: BasicLayout,
   meta: {
     hideInBreadcrumb: true,
-    title: 'Tenant Root',
+    title: $t('page.tenant.root'),
   },
   name: 'TenantRoot',
   path: '/tenant',

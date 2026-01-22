@@ -7,5 +7,6 @@
   "invalidLink": "Invalid login link",
   "tokenExpired": "Login link has expired, please request a new one",
   "loginFailed": "Login failed, please try again",
-  "backToLogin": "Back to Login"
+  "backToLogin": "Back to Login",
+  "refreshFailed": "Failed to refresh token, please login again"
 }

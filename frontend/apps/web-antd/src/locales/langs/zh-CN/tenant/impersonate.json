@@ -7,5 +7,6 @@
   "invalidLink": "无效的登录链接",
   "tokenExpired": "登录链接已过期，请重新获取",
   "loginFailed": "登录失败，请重试",
-  "backToLogin": "返回登录页"
+  "backToLogin": "返回登录页",
+  "refreshFailed": "刷新令牌失败，请重新登录"
 }
