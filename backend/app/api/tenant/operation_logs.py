@@ -116,7 +116,7 @@ class TenantOperationLogController(TenantController):
                 )
             
             return success(
-                data=OperationLogResponse.from_model(log, scope="tenant"),
+                data=OperationLogResponse.from_model(log),
                 message=_("common.success"),
             )
 
