@@ -177,6 +177,9 @@ class PermissionService:
         """
         获取租户套餐的权限集合
         
+        注意：套餐只分配菜单级权限，但会自动包含这些菜单下的所有子操作权限，
+        以便租户能够自行分配操作权限粒度。
+        
         Args:
             tenant_id: 租户 ID
         
@@ -204,10 +207,30 @@ class PermissionService:
         # 收集套餐权限（只包含启用且未删除的）
         plan_codes = set()
         plan_ids = set()
+        menu_ids = set()  # 套餐中的菜单权限 ID
+        
         for p in plan.permissions:
             if p.is_enabled and not p.is_deleted:
                 plan_codes.add(p.code)
                 plan_ids.add(p.id)
+                if p.type == "menu":
+                    menu_ids.add(p.id)
+        
+        # 查询套餐菜单权限下的所有子操作权限
+        # 这样租户可以自行分配操作权限粒度
+        if menu_ids:
+            child_result = await self.db.execute(
+                select(Permission)
+                .where(
+                    Permission.parent_id.in_(menu_ids),
+                    Permission.type == "operation",
+                    Permission.is_enabled == True,
+                    Permission.is_deleted == False,
+                )
+            )
+            for child in child_result.scalars().all():
+                plan_codes.add(child.code)
+                plan_ids.add(child.id)
         
         return plan_codes, plan_ids
     

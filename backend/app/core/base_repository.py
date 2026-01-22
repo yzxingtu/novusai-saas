@@ -407,6 +407,10 @@ class BaseRepository(Generic[ModelType]):
         if value is None:
             return None
         
+        # 列表类型不进行转换（用于 IN 操作符）
+        if isinstance(value, list):
+            return value
+        
         try:
             # 获取列的 Python 类型
             col_type = col.type.python_type
@@ -602,11 +606,10 @@ class BaseRepository(Generic[ModelType]):
             )
             items, total = await repo.query_list(spec, scope="admin")
         """
-        # 获取允许的字段
+        # 获取允许的字段（受 scope 限制）
         allowed_fields = self.get_allowed_fields(scope)
-        
-        # 合并强制过滤和用户过滤
-        all_filters = (forced_filters or []) + spec.filters
+        # 获取所有字段（不受 scope 限制，用于强制过滤条件）
+        all_fields = self.get_allowed_fields(None)
         
         # 构建基础查询
         query = select(self.model)
@@ -615,8 +618,13 @@ class BaseRepository(Generic[ModelType]):
         if not include_deleted:
             query = query.where(self.model.is_deleted == False)
         
-        # 应用筛选
-        query = self._apply_filters(query, all_filters, allowed_fields)
+        # 先应用强制过滤条件（不受 scope 限制）
+        if forced_filters:
+            query = self._apply_filters(query, forced_filters, all_fields)
+        
+        # 再应用用户过滤条件（受 scope 限制）
+        if spec.filters:
+            query = self._apply_filters(query, spec.filters, allowed_fields)
         
         # 查询总数
         count_query = select(func.count()).select_from(query.subquery())

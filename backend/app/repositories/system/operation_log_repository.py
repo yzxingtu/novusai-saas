@@ -12,7 +12,7 @@ from sqlalchemy import select, func, delete
 from app.core.base_repository import BaseRepository
 from app.enums.log import UserTypeEnum
 from app.models.system.operation_log import OperationLog
-from app.schemas.common.query import FilterRule, QuerySpec
+from app.schemas.common.query import FilterOp, FilterRule, QuerySpec
 
 
 class OperationLogRepository(BaseRepository[OperationLog]):
@@ -246,7 +246,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         if not is_super and subordinate_user_ids is not None:
             user_id_filter = FilterRule(
                 field="user_id",
-                operator="in",
+                op=FilterOp.in_,
                 value=subordinate_user_ids,
             )
             forced_filters.append(user_id_filter)
@@ -288,7 +288,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         
         user_type_filter = FilterRule(
             field="user_type",
-            operator="in",
+            op=FilterOp.in_,
             value=allowed_user_types,
         )
         
@@ -298,7 +298,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
         if not is_owner and subordinate_user_ids is not None:
             user_id_filter = FilterRule(
                 field="user_id",
-                operator="in",
+                op=FilterOp.in_,
                 value=subordinate_user_ids,
             )
             forced_filters.append(user_id_filter)

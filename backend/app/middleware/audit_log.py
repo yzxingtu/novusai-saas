@@ -15,7 +15,7 @@ from starlette.datastructures import Headers
 
 from app.core.config import settings
 from app.core.security import (
-    verify_token_with_scope,
+    get_token_payload,
     TOKEN_TYPE_ACCESS,
     TOKEN_SCOPE_ADMIN,
     TOKEN_SCOPE_TENANT_ADMIN,
@@ -359,36 +359,40 @@ class AuditLogMiddleware:
         
         token = auth_header[7:]
         
-        # 尝试验证为平台管理员
-        user_id, extra = verify_token_with_scope(
-            token, TOKEN_SCOPE_ADMIN, TOKEN_TYPE_ACCESS
-        )
-        if user_id:
+        # 获取完整的 token payload
+        payload = get_token_payload(token, TOKEN_TYPE_ACCESS)
+        if payload is None:
+            return user_info
+        
+        token_scope = payload.get("scope")
+        user_id = payload.get("sub")
+        tenant_id = payload.get("tenant_id")
+        impersonated_by = payload.get("impersonated_by")  # 一键登录标记
+        
+        if not user_id:
+            return user_info
+        
+        # 平台管理员一键登录租户的情况：
+        # token scope 是 tenant_admin，但有 impersonated_by 标记
+        # 这种情况应该记录为平台管理员的操作
+        if impersonated_by is not None:
+            user_info["user_type"] = UserTypeEnum.ADMIN.value
+            user_info["user_id"] = int(impersonated_by)  # 使用真实的平台管理员 ID
+            user_info["tenant_id"] = None  # 平台端日志不关联租户
+            return user_info
+        
+        # 根据 scope 判断用户类型
+        if token_scope == TOKEN_SCOPE_ADMIN:
             user_info["user_type"] = UserTypeEnum.ADMIN.value
             user_info["user_id"] = int(user_id)
-            return user_info
-        
-        # 尝试验证为租户管理员
-        user_id, extra = verify_token_with_scope(
-            token, TOKEN_SCOPE_TENANT_ADMIN, TOKEN_TYPE_ACCESS
-        )
-        if user_id:
+        elif token_scope == TOKEN_SCOPE_TENANT_ADMIN:
             user_info["user_type"] = UserTypeEnum.TENANT_ADMIN.value
             user_info["user_id"] = int(user_id)
-            if extra and "tenant_id" in extra:
-                user_info["tenant_id"] = extra["tenant_id"]
-            return user_info
-        
-        # 尝试验证为租户用户
-        user_id, extra = verify_token_with_scope(
-            token, TOKEN_SCOPE_TENANT_USER, TOKEN_TYPE_ACCESS
-        )
-        if user_id:
+            user_info["tenant_id"] = tenant_id
+        elif token_scope == TOKEN_SCOPE_TENANT_USER:
             user_info["user_type"] = UserTypeEnum.TENANT_USER.value
             user_info["user_id"] = int(user_id)
-            if extra and "tenant_id" in extra:
-                user_info["tenant_id"] = extra["tenant_id"]
-            return user_info
+            user_info["tenant_id"] = tenant_id
         
         return user_info
     
