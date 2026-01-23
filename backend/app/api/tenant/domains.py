@@ -35,7 +35,6 @@ from app.services.tenant.tenant_domain_service import TenantDomainService
     resource="tenant_domain",
     name="menu.tenant.domain",  # i18n key
     scope=PermissionScope.TENANT,
-    parent_resource="system_mgmt",  # 挂载到租户端系统管理菜单下
     menu=MenuConfig(
         icon="lucide:globe",
         path="/system-mgmt/domains",
