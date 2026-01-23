@@ -12,6 +12,26 @@ from pydantic import Field
 from app.core.base_schema import BaseSchema
 
 
+def _translate_log_field(key: str, prefix: str) -> str | None:
+    """
+    翻译日志字段
+    
+    Args:
+        key: 字段值，如 "auth", "create"
+        prefix: i18n key 前缀，如 "enum.log_module", "enum.operation"
+    
+    Returns:
+        翻译后的文本，无翻译时返回原值
+    """
+    if not key:
+        return None
+    from app.core.i18n import _
+    i18n_key = f"{prefix}.{key}"
+    translated = _(i18n_key)
+    # 如果翻译结果与 key 相同，说明无翻译，返回原值
+    return key if translated == i18n_key else translated
+
+
 class OperationLogResponse(BaseSchema):
     """操作日志响应"""
     
@@ -20,8 +40,11 @@ class OperationLogResponse(BaseSchema):
     user_type: str = Field(..., description="用户类型")
     user_id: int | None = Field(None, description="用户 ID")
     username: str | None = Field(None, description="用户名")
+    nickname: str | None = Field(None, description="用户昵称")
     module: str | None = Field(None, description="业务模块")
+    module_label: str | None = Field(None, description="业务模块（翻译后）")
     action: str | None = Field(None, description="操作类型")
+    action_label: str | None = Field(None, description="操作类型（翻译后）")
     resource: str | None = Field(None, description="资源标识")
     method: str = Field(..., description="HTTP 方法")
     path: str = Field(..., description="请求路径")
@@ -44,8 +67,11 @@ class OperationLogResponse(BaseSchema):
             user_type=log.user_type,
             user_id=log.user_id,
             username=log.username,
+            nickname=getattr(log, "nickname", None),
             module=log.module,
+            module_label=_translate_log_field(log.module, "enum.log_module"),
             action=log.action,
+            action_label=_translate_log_field(log.action, "enum.operation"),
             resource=log.resource,
             method=log.method,
             path=log.path,
@@ -68,8 +94,12 @@ class OperationLogListResponse(BaseSchema):
     tenant_id: int | None = Field(None, description="租户 ID")
     user_type: str = Field(..., description="用户类型")
     username: str | None = Field(None, description="用户名")
+    nickname: str | None = Field(None, description="用户昵称")
     module: str | None = Field(None, description="业务模块")
+    module_label: str | None = Field(None, description="业务模块（翻译后）")
     action: str | None = Field(None, description="操作类型")
+    action_label: str | None = Field(None, description="操作类型（翻译后）")
+    resource: str | None = Field(None, description="资源标识")
     method: str = Field(..., description="HTTP 方法")
     path: str = Field(..., description="请求路径")
     status_code: int | None = Field(None, description="HTTP 状态码")
@@ -86,8 +116,12 @@ class OperationLogListResponse(BaseSchema):
             tenant_id=log.tenant_id,
             user_type=log.user_type,
             username=log.username,
+            nickname=getattr(log, "nickname", None),
             module=log.module,
+            module_label=_translate_log_field(log.module, "enum.log_module"),
             action=log.action,
+            action_label=_translate_log_field(log.action, "enum.operation"),
+            resource=log.resource,
             method=log.method,
             path=log.path,
             status_code=log.status_code,

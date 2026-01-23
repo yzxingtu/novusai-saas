@@ -80,12 +80,13 @@ class PermissionService:
         Returns:
             权限 ID 集合
         """
-        # 超级管理员拥有所有权限
+        # 超级管理员拥有所有平台端权限（admin/both 作用域）
         if admin.is_super:
             result = await self.db.execute(
                 select(Permission.id).where(
                     Permission.is_enabled == True,
                     Permission.is_deleted == False,
+                    Permission.scope.in_(["admin", "both"]),
                 )
             )
             return set(result.scalars().all())
@@ -315,11 +316,12 @@ class PermissionService:
                 # 有套餐：返回套餐全部权限 ID
                 return plan_perms[1]
             else:
-                # 无套餐：保持原逻辑，返回所有租户端权限
+                # 无套餐：返回所有租户端权限（tenant/both 作用域）
                 result = await self.db.execute(
                     select(Permission.id).where(
                         Permission.is_enabled == True,
                         Permission.is_deleted == False,
+                        Permission.scope.in_(["tenant", "both"]),
                     )
                 )
                 return set(result.scalars().all())

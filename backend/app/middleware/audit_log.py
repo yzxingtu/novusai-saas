@@ -54,13 +54,21 @@ SENSITIVE_FIELDS = {
     "secret_key",
 }
 
-# HTTP 方法到操作类型的映射
+# HTTP 方法到操作类型的映射（仅作为回退）
 METHOD_ACTION_MAP = {
     "GET": "query",
     "POST": "create",
     "PUT": "update",
     "PATCH": "update",
     "DELETE": "delete",
+}
+
+# 特殊路径的操作类型映射
+SPECIAL_PATH_ACTIONS = {
+    "/auth/login": "login",
+    "/auth/logout": "logout",
+    "/export": "export",
+    "/import": "import",
 }
 
 
@@ -117,43 +125,59 @@ def sanitize_body(body: dict | list | Any) -> dict | list | Any:
     return body
 
 
-def extract_module_from_path(path: str) -> str | None:
+def extract_permission_from_route(scope: Scope) -> tuple[str | None, str | None, str | None]:
     """
-    从路径提取业务模块
+    从 FastAPI 路由提取权限信息
+    
+    通过匹配当前请求的路由，获取权限装饰器定义的 resource 和 action
     
     Args:
-        path: 请求路径，如 /admin/admins/1
+        scope: ASGI scope
     
     Returns:
-        模块名，如 admin_user
+        (module, action, resource) 元组
+        - module: 业务模块（如 organization, tenant）
+        - action: 操作类型（如 create, update）
+        - resource: 完整权限码（如 organization:create）
     """
-    # 路径到模块的映射
-    path_module_map = {
-        "/admin/auth": "auth",
-        "/admin/permissions": "permission",
-        "/admin/roles": "role",
-        "/admin/admins": "admin_user",
-        "/admin/tenants": "tenant",
-        "/admin/tenant-domains": "domain",
-        "/admin/configs": "config",
-        "/admin/plans": "plan",
-        "/admin/operation-logs": "log",
-        "/admin/system-logs": "log",
-        "/tenant/auth": "auth",
-        "/tenant/permissions": "permission",
-        "/tenant/roles": "role",
-        "/tenant/admins": "tenant_admin",
-        "/tenant/users": "tenant_user",
-        "/tenant/configs": "config",
-        "/tenant/operation-logs": "log",
-        "/api/v1/auth": "auth",
-    }
+    from starlette.routing import Match
     
-    for prefix, module in path_module_map.items():
-        if path.startswith(prefix):
-            return module
+    app = scope.get("app")
+    if not app:
+        return None, None, None
     
-    return "other"
+    # 遍历路由匹配
+    for route in getattr(app, "routes", []):
+        match, child_scope = route.matches(scope)
+        if match == Match.FULL:
+            endpoint = getattr(route, "endpoint", None)
+            if endpoint:
+                # 获取权限装饰器定义的信息
+                permission_resource = getattr(endpoint, "_permission_resource", None)
+                permission_action = getattr(endpoint, "_permission_action", None)
+                
+                if permission_resource and permission_action:
+                    action = permission_action.get("action") if isinstance(permission_action, dict) else None
+                    resource_code = f"{permission_resource}:{action}" if action else None
+                    return permission_resource, action, resource_code
+    
+    return None, None, None
+
+
+def get_special_action(path: str) -> str | None:
+    """
+    检查路径是否匹配特殊操作类型
+    
+    Args:
+        path: 请求路径
+    
+    Returns:
+        特殊操作类型或 None
+    """
+    for pattern, action in SPECIAL_PATH_ACTIONS.items():
+        if pattern in path:
+            return action
+    return None
 
 
 def get_client_ip(scope: Scope) -> str | None:
@@ -352,6 +376,7 @@ class AuditLogMiddleware:
             "user_type": UserTypeEnum.ANONYMOUS.value,
             "user_id": None,
             "username": None,
+            "nickname": None,
         }
         
         if not auth_header.startswith("Bearer "):
@@ -417,35 +442,36 @@ class AuditLogMiddleware:
         # 获取用户信息
         user_info = self._get_user_info(scope)
         
-        # 获取用户名
+        # 获取用户名和昵称
         username = user_info.get("username")
+        nickname = user_info.get("nickname")
         
         # 如果有 user_id，优先从 scope state 获取（由 PermissionMiddleware 注入）
-        if not username and user_info.get("user_id"):
-            if "state" in scope:
-                state = scope["state"]
-                user = getattr(state, "user", None)
-                if user and hasattr(user, "username"):
+        if user_info.get("user_id") and "state" in scope:
+            state = scope["state"]
+            user = getattr(state, "user", None)
+            if user:
+                if not username and hasattr(user, "username"):
                     username = user.username
+                if not nickname and hasattr(user, "nickname"):
+                    nickname = user.nickname
         
-        # 提取模块和操作类型
+        # 从路由提取权限信息（module, action, resource）
         path = request_info.get("path", "")
         method = request_info.get("method", "")
-        module = extract_module_from_path(path)
-        action = METHOD_ACTION_MAP.get(method, "other")
+        module, action, resource = extract_permission_from_route(scope)
         
-        # 特殊操作类型判断
-        if "/auth/login" in path:
-            action = "login"
-        elif "/auth/logout" in path:
-            action = "logout"
-        elif "/export" in path:
-            action = "export"
-        elif "/import" in path:
-            action = "import"
+        # 检查特殊操作类型（如 login, logout）
+        special_action = get_special_action(path)
+        if special_action:
+            action = special_action
+            # 特殊操作重新构建 resource
+            if module:
+                resource = f"{module}:{action}"
         
-        # 构建资源标识
-        resource = f"{module}:{action}" if module else None
+        # 如果未获取到 action，使用 HTTP 方法映射作为回退
+        if not action:
+            action = METHOD_ACTION_MAP.get(method, "other")
         
         # 异步写入
         create_log_async(
@@ -453,6 +479,7 @@ class AuditLogMiddleware:
             user_type=user_info.get("user_type", UserTypeEnum.ANONYMOUS.value),
             user_id=user_info.get("user_id"),
             username=username,
+            nickname=nickname,
             module=module,
             action=action,
             resource=resource,

@@ -84,6 +84,13 @@ class OperationLog(BaseModel):
         comment="用户名"
     )
     
+    # 用户昵称（冗余存储，便于展示）
+    nickname: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="用户昵称"
+    )
+    
     # ==================== 操作信息 ====================
     
     # 业务模块: auth / permission / role / admin_user / tenant / config / plan / ...
