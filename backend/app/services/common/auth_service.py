@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.configs.service import ConfigService
 from app.core.i18n import _
 from app.core.security import (
     verify_password,
@@ -41,11 +42,56 @@ class AuthService:
     def __init__(self, db: AsyncSession):
         """
         初始化服务
-        
+
         Args:
             db: 异步数据库会话
         """
         self.db = db
+        self._config_service = ConfigService(db)
+
+    # ==================== 密码策略验证 ====================
+
+    async def _validate_password_policy(self, password: str) -> None:
+        """
+        验证密码是否符合平台安全策略
+
+        Args:
+            password: 待验证的密码
+
+        Raises:
+            BusinessException: 密码不符合策略要求
+        """
+        # 获取密码策略配置
+        min_length = await self._config_service.get_platform_config(
+            "password_min_length", default=8
+        )
+        complexity = await self._config_service.get_platform_config(
+            "password_complexity", default="medium"
+        )
+
+        # 验证密码长度
+        if len(password) < min_length:
+            raise BusinessException(
+                message=_("auth.password_too_short", min_length=min_length)
+            )
+
+        # 验证密码复杂度
+        if complexity == "low":
+            # 仅检查长度（已在上面检查）
+            pass
+        elif complexity == "medium":
+            # 必须包含字母和数字
+            has_letter = any(c.isalpha() for c in password)
+            has_digit = any(c.isdigit() for c in password)
+            if not (has_letter and has_digit):
+                raise BusinessException(message=_("auth.password_complexity_medium"))
+        elif complexity == "high":
+            # 必须包含字母、数字和特殊字符
+            has_letter = any(c.isalpha() for c in password)
+            has_digit = any(c.isdigit() for c in password)
+            has_special = any(not c.isalnum() for c in password)
+            if not (has_letter and has_digit and has_special):
+                raise BusinessException(message=_("auth.password_complexity_high"))
     
     # ==================== 平台管理员认证 ====================
     
@@ -57,15 +103,15 @@ class AuthService:
     ) -> dict[str, Any]:
         """
         平台管理员认证
-        
+
         Args:
             username: 用户名或邮箱
             password: 密码
             client_ip: 客户端 IP
-        
+
         Returns:
             包含 tokens 的字典
-        
+
         Raises:
             AuthenticationException: 认证失败
         """
@@ -76,23 +122,191 @@ class AuthService:
             )
         )
         admin = result.scalar_one_or_none()
-        
-        # 验证管理员和密码
-        if admin is None or not verify_password(password, admin.password_hash):
+
+        # 检查账户是否存在
+        if admin is None:
+            # 记录登录失败（用户名不存在）
+            await self._record_admin_login_failure(username, client_ip)
             raise AuthenticationException(message=_("auth.credentials_invalid"))
-        
-        # 检查状态
+
+        # 检查账户锁定状态
+        if await self._is_account_locked(admin.id, "admin"):
+            raise AuthenticationException(message=_("auth.account_locked"))
+
+        # 验证密码
+        if not verify_password(password, admin.password_hash):
+            # 记录登录失败
+            await self._record_admin_login_failure(username, client_ip)
+            raise AuthenticationException(message=_("auth.credentials_invalid"))
+
+        # 检查账户状态
         if not admin.is_active:
             raise AuthenticationException(message=_("auth.account_disabled"))
-        
+
+        # 登录成功，重置失败计数
+        await self._reset_admin_login_failures(admin.id)
+
         # 更新登录信息
         admin.last_login_at = datetime.now(timezone.utc)
         admin.last_login_ip = client_ip
-        
-        # 生成 Token
-        tokens = create_token_pair(admin.id, scope=TOKEN_SCOPE_ADMIN)
-        
+
+        # 生成 Token（应用会话配置）
+        from datetime import timedelta
+
+        session_timeout = await self._config_service.get_platform_config(
+            "session_timeout_minutes", default=120
+        )
+        access_token = create_access_token(
+            admin.id,
+            scope=TOKEN_SCOPE_ADMIN,
+            expires_delta=timedelta(minutes=session_timeout)
+        )
+        refresh_token = create_refresh_token(admin.id, scope=TOKEN_SCOPE_ADMIN)
+
+        tokens = {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+        }
+
         return tokens
+
+    # ==================== 登录安全辅助方法 ====================
+
+    async def _record_login_failure(self, username: str, client_ip: str | None, user_type: str = "admin") -> None:
+        """
+        记录登录失败
+
+        Args:
+            username: 登录用户名
+            client_ip: 客户端IP
+            user_type: 用户类型 (admin/tenant_admin/tenant_user)
+        """
+        from datetime import datetime, timezone, timedelta
+
+        # 获取登录失败配置
+        max_attempts = await self._config_service.get_platform_config(
+            "login_max_attempts", default=5
+        )
+        lockout_minutes = await self._config_service.get_platform_config(
+            "login_lockout_minutes", default=30
+        )
+
+        now = datetime.now(timezone.utc)
+
+        if user_type == "admin":
+            # 处理平台管理员
+            result = await self.db.execute(
+                select(Admin).where(
+                    or_(Admin.username == username, Admin.email == username)
+                )
+            )
+            user = result.scalar_one_or_none()
+        elif user_type == "tenant_admin":
+            # 处理租户管理员
+            result = await self.db.execute(
+                select(TenantAdmin).where(
+                    or_(TenantAdmin.username == username, TenantAdmin.email == username)
+                )
+            )
+            user = result.scalar_one_or_none()
+        elif user_type == "tenant_user":
+            # 处理租户用户
+            result = await self.db.execute(
+                select(TenantUser).where(
+                    or_(TenantUser.username == username, TenantUser.email == username)
+                )
+            )
+            user = result.scalar_one_or_none()
+        else:
+            return
+
+        if user:
+            # 增加失败次数
+            user.login_fail_count = (user.login_fail_count or 0) + 1
+            user.last_fail_at = now
+
+            # 检查是否需要锁定账户
+            if user.login_fail_count >= max_attempts:
+                user.locked_until = now + timedelta(minutes=lockout_minutes)
+
+            await self.db.commit()
+
+    async def _record_admin_login_failure(self, username: str, client_ip: str | None) -> None:
+        """记录平台管理员登录失败"""
+        await self._record_login_failure(username, client_ip, "admin")
+
+    async def _is_account_locked(self, user_id: int, user_type: str = "admin") -> bool:
+        """
+        检查账户是否被锁定
+
+        Args:
+            user_id: 用户ID
+            user_type: 用户类型 (admin/tenant_admin/tenant_user)
+
+        Returns:
+            是否被锁定
+        """
+        from datetime import datetime, timezone
+
+        if user_type == "admin":
+            result = await self.db.execute(
+                select(Admin.locked_until).where(Admin.id == user_id)
+            )
+        elif user_type == "tenant_admin":
+            result = await self.db.execute(
+                select(TenantAdmin.locked_until).where(TenantAdmin.id == user_id)
+            )
+        elif user_type == "tenant_user":
+            result = await self.db.execute(
+                select(TenantUser.locked_until).where(TenantUser.id == user_id)
+            )
+        else:
+            return False
+
+        locked_until = result.scalar_one_or_none()
+
+        if locked_until is None:
+            return False
+
+        # 检查锁定是否已过期
+        now = datetime.now(timezone.utc)
+        return locked_until > now
+
+    async def _reset_login_failures(self, user_id: int, user_type: str = "admin") -> None:
+        """
+        重置登录失败计数
+
+        Args:
+            user_id: 用户ID
+            user_type: 用户类型 (admin/tenant_admin/tenant_user)
+        """
+        if user_type == "admin":
+            result = await self.db.execute(
+                select(Admin).where(Admin.id == user_id)
+            )
+        elif user_type == "tenant_admin":
+            result = await self.db.execute(
+                select(TenantAdmin).where(TenantAdmin.id == user_id)
+            )
+        elif user_type == "tenant_user":
+            result = await self.db.execute(
+                select(TenantUser).where(TenantUser.id == user_id)
+            )
+        else:
+            return
+
+        user = result.scalar_one_or_none()
+
+        if user:
+            user.login_fail_count = 0
+            user.last_fail_at = None
+            user.locked_until = None
+            await self.db.commit()
+
+    async def _reset_admin_login_failures(self, admin_id: int) -> None:
+        """重置平台管理员登录失败计数"""
+        await self._reset_login_failures(admin_id, "admin")
     
     async def refresh_admin_token(self, refresh_token: str) -> dict[str, Any]:
         """
@@ -135,18 +349,21 @@ class AuthService:
     ) -> None:
         """
         修改平台管理员密码
-        
+
         Args:
             admin: 管理员实例
             old_password: 旧密码
             new_password: 新密码
-        
+
         Raises:
-            BusinessException: 旧密码不正确
+            BusinessException: 旧密码不正确或新密码不符合策略
         """
         if not verify_password(old_password, admin.password_hash):
             raise BusinessException(message=_("auth.password_mismatch"))
-        
+
+        # 验证新密码符合策略
+        await self._validate_password_policy(new_password)
+
         admin.password_hash = get_password_hash(new_password)
     
     # ==================== 租户管理员认证 ====================
@@ -181,9 +398,21 @@ class AuthService:
             )
         )
         tenant_admin = result.scalar_one_or_none()
-        
-        # 验证管理员和密码
-        if tenant_admin is None or not verify_password(password, tenant_admin.password_hash):
+
+        # 检查账户是否存在
+        if tenant_admin is None:
+            # 记录登录失败（用户名不存在）
+            await self._record_login_failure(username, client_ip, "tenant_admin")
+            raise AuthenticationException(message=_("auth.credentials_invalid"))
+
+        # 检查账户锁定状态
+        if await self._is_account_locked(tenant_admin.id, "tenant_admin"):
+            raise AuthenticationException(message=_("auth.account_locked"))
+
+        # 验证密码
+        if not verify_password(password, tenant_admin.password_hash):
+            # 记录登录失败
+            await self._record_login_failure(username, client_ip, "tenant_admin")
             raise AuthenticationException(message=_("auth.credentials_invalid"))
         
         # 检查管理员状态
@@ -199,17 +428,23 @@ class AuthService:
         if tenant is None or not tenant.is_active:
             raise AuthenticationException(message=_("tenant.disabled"))
         
+        # 登录成功，重置失败计数
+        await self._reset_login_failures(tenant_admin.id, "tenant_admin")
+
         # 更新登录信息
         tenant_admin.last_login_at = datetime.now(timezone.utc)
         tenant_admin.last_login_ip = client_ip
-        
-        # 生成 Token
+
+        # 生成 Token（应用会话配置）
+        session_timeout = await self._config_service.get_platform_config(
+            "session_timeout_minutes", default=120
+        )
         tokens = create_token_pair(
             tenant_admin.id,
             scope=TOKEN_SCOPE_TENANT_ADMIN,
             extra_claims={"tenant_id": tenant_admin.tenant_id},
         )
-        
+
         return tokens
     
     async def refresh_tenant_admin_token(self, refresh_token: str) -> dict[str, Any]:
@@ -257,18 +492,21 @@ class AuthService:
     ) -> None:
         """
         修改租户管理员密码
-        
+
         Args:
             tenant_admin: 租户管理员实例
             old_password: 旧密码
             new_password: 新密码
-        
+
         Raises:
-            BusinessException: 旧密码不正确
+            BusinessException: 旧密码不正确或新密码不符合策略
         """
         if not verify_password(old_password, tenant_admin.password_hash):
             raise BusinessException(message=_("auth.password_mismatch"))
-        
+
+        # 验证新密码符合策略
+        await self._validate_password_policy(new_password)
+
         tenant_admin.password_hash = get_password_hash(new_password)
     
     async def impersonate_tenant_admin(
@@ -390,26 +628,44 @@ class AuthService:
             )
         )
         user = result.scalar_one_or_none()
-        
-        # 验证用户和密码
-        if user is None or not verify_password(password, user.password_hash):
+
+        # 检查账户是否存在
+        if user is None:
+            # 记录登录失败（用户名不存在）
+            await self._record_login_failure(username, client_ip, "tenant_user")
+            raise AuthenticationException(message=_("auth.credentials_invalid"))
+
+        # 检查账户锁定状态
+        if await self._is_account_locked(user.id, "tenant_user"):
+            raise AuthenticationException(message=_("auth.account_locked"))
+
+        # 验证密码
+        if not verify_password(password, user.password_hash):
+            # 记录登录失败
+            await self._record_login_failure(username, client_ip, "tenant_user")
             raise AuthenticationException(message=_("auth.credentials_invalid"))
         
         # 检查用户状态
         if not user.is_active:
             raise AuthenticationException(message=_("auth.account_disabled"))
-        
+
+        # 登录成功，重置失败计数
+        await self._reset_login_failures(user.id, "tenant_user")
+
         # 更新登录信息
         user.last_login_at = datetime.now(timezone.utc)
         user.last_login_ip = client_ip
-        
-        # 生成 Token
+
+        # 生成 Token（应用会话配置）
+        session_timeout = await self._config_service.get_platform_config(
+            "session_timeout_minutes", default=120
+        )
         tokens = create_token_pair(
             user.id,
             scope=TOKEN_SCOPE_TENANT_USER,
             extra_claims={"tenant_id": user.tenant_id},
         )
-        
+
         return tokens
     
     async def refresh_tenant_user_token(self, refresh_token: str) -> dict[str, Any]:
@@ -457,18 +713,21 @@ class AuthService:
     ) -> None:
         """
         修改租户用户密码
-        
+
         Args:
             user: 用户实例
             old_password: 旧密码
             new_password: 新密码
-        
+
         Raises:
-            BusinessException: 旧密码不正确
+            BusinessException: 旧密码不正确或新密码不符合策略
         """
         if not verify_password(old_password, user.password_hash):
             raise BusinessException(message=_("auth.password_mismatch"))
-        
+
+        # 验证新密码符合策略
+        await self._validate_password_policy(new_password)
+
         user.password_hash = get_password_hash(new_password)
 
 

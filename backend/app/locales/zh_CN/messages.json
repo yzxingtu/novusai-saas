@@ -26,6 +26,9 @@
     "refresh_token_invalid": "刷新令牌无效",
     "password_changed": "密码修改成功",
     "password_mismatch": "密码不匹配",
+    "password_too_short": "密码长度不能少于 {min_length} 个字符",
+    "password_complexity_medium": "密码必须包含字母和数字",
+    "password_complexity_high": "密码必须包含字母、数字和特殊字符",
     "impersonate_token_invalid": "一键登录令牌无效或已过期",
     "impersonate_success": "一键登录成功"
   },
