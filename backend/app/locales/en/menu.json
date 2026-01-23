@@ -24,7 +24,8 @@
       "operation_log": "Operation Logs",
       "tenant_settings": "Settings",
       "system_mgmt": "System Management",
-      "tenant_config": "System Config"
+      "tenant_config": "System Config",
+      "domain": "Domain Management"
     }
   }
 }

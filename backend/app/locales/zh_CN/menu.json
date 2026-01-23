@@ -24,7 +24,8 @@
       "operation_log": "操作日志",
       "tenant_settings": "租户设置",
       "system_mgmt": "系统管理",
-      "tenant_config": "系统配置"
+      "tenant_config": "系统配置",
+      "domain": "域名管理"
     }
   }
 }

@@ -309,15 +309,24 @@
     "cannot_assign_permission": "Cannot assign this permission, you can only assign permissions you have",
     "parent_must_be_visible": "Parent role must be your role or its descendant",
     "invalid_child_type": "Cannot add child of this type to current node",
-    "only_department_can_set_leader": "Only department nodes can have a leader",
-    "cannot_modify_own_leader_status": "Cannot modify your own leader status",
-    "cannot_add_member": "Cannot add members to this node type",
-    "member_exists": "Member already exists in this node",
-    "member_not_in_node": "Member is not in this node",
-    "member_added": "Member added successfully",
-    "member_removed": "Member removed successfully",
-    "leader_set": "Leader set successfully"
-  },
+      "only_department_can_set_leader": "Only department nodes can have a leader",
+      "cannot_modify_own_leader_status": "Cannot modify your own leader status",
+      "cannot_add_member": "Cannot add members to this node type",
+      "member_exists": "Member already exists in this node",
+      "member_not_in_node": "Member is not in this node",
+      "member_added": "Member added successfully",
+      "member_removed": "Member removed successfully",
+      "leader_set": "Leader set successfully"
+    },
+    "tenant_domain": {
+      "not_found": "Domain not found",
+      "already_exists": "Domain is already in use",
+      "created": "Domain added successfully",
+      "updated": "Domain updated successfully",
+      "deleted": "Domain deleted successfully",
+      "verified": "Domain verified successfully",
+      "primary_set": "Primary domain set successfully"
+    },
   "tenant_admin": {
     "not_found": "Admin not found",
     "username_exists": "Username already taken",

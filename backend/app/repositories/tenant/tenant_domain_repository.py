@@ -26,6 +26,10 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
             "id", "tenant_id", "domain", "is_verified",
             "is_primary", "ssl_status", "created_at", "updated_at",
         },
+        "tenant": {
+            "id", "domain", "is_verified", "is_primary",
+            "ssl_status", "created_at", "updated_at", "remark",
+        },
     }
     
     async def get_by_domain(self, domain: str) -> TenantDomain | None:
