@@ -310,6 +310,7 @@
     "parent_must_be_visible": "父角色必须是您的角色或其下级角色",
     "invalid_child_type": "当前节点类型不允许添加此类型的子节点",
     "only_department_can_set_leader": "只有部门类型节点才能设置负责人",
+    "cannot_modify_own_leader_status": "不能修改自己的负责人身份",
     "cannot_add_member": "当前节点类型不允许添加成员",
     "member_exists": "成员已存在于该节点",
     "member_not_in_node": "成员不在该节点中",
@@ -722,6 +723,7 @@
       "has_users": "角色下存在关联用户，请先移除用户的角色关联",
       "invalid_child_type": "当前节点类型不允许添加此类型的子节点",
       "only_department_can_set_leader": "只有部门类型节点才能设置负责人",
+      "cannot_modify_own_leader_status": "不能修改自己的负责人身份",
       "cannot_add_member": "当前节点类型不允许添加成员",
       "member_exists": "成员已存在于该节点",
       "member_not_in_node": "成员不在该节点中"

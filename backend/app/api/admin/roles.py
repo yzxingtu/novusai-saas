@@ -40,6 +40,7 @@ from app.schemas.system import (
     AdminRoleMemberResponse,
 )
 from app.schemas.common import PermissionResponse, ReorderRequest
+from app.repositories.system.admin_role_repository import AdminRoleRepository
 from app.services.system.admin_role_service import AdminRoleService
 from app.services.common.role_hierarchy_validator import AdminRoleHierarchyValidator
 
@@ -1013,7 +1014,7 @@ class AdminRoleController(GlobalController):
         ):
             """
             设置节点负责人（仅部门类型可设置）
-            
+
             权限: role:set_leader
             """
             # 校验角色可管理性
@@ -1022,6 +1023,14 @@ class AdminRoleController(GlobalController):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=_("role.no_permission_to_manage"),
+                )
+
+            # 禁止当前负责人自己修改负责人身份
+            role = await AdminRoleRepository(db).get_by_id(role_id)
+            if role and role.leader_id == current_admin.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=_("role.cannot_modify_own_leader_status"),
                 )
             
             service = AdminRoleService(db)

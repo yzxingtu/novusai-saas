@@ -72,12 +72,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             f"groups={config_sync_result['groups']}, "
             f"configs={config_sync_result['configs']}"
         )
-    
+
     # TODO: 初始化 Redis 连接
     # TODO: 初始化 Celery
-    
+
     yield
-    
+
     # ========== Shutdown ==========
     logger = get_logger(__name__)
     logger.info(f"👋 Shutting down {settings.APP_NAME}")

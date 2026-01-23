@@ -40,6 +40,7 @@ from app.schemas.tenant import (
     TenantAdminRoleMemberResponse,
 )
 from app.schemas.common import PermissionResponse, ReorderRequest
+from app.repositories.tenant.tenant_role_repository import TenantRoleRepository
 from app.services.tenant.tenant_admin_role_service import TenantAdminRoleService
 from app.services.common.role_hierarchy_validator import TenantAdminRoleHierarchyValidator
 
@@ -782,7 +783,7 @@ class TenantRoleController(TenantController):
         ):
             """
             设置节点负责人（仅部门类型可设置）
-            
+
             权限: role:set_leader
             """
             # 校验角色可管理性
@@ -791,6 +792,14 @@ class TenantRoleController(TenantController):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=_("role.no_permission_to_manage"),
+                )
+
+            # 禁止当前负责人自己修改负责人身份
+            role = await TenantRoleRepository(db, current_admin.tenant_id).get_by_id(role_id)
+            if role and role.leader_id == current_admin.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=_("role.cannot_modify_own_leader_status"),
                 )
             
             service = TenantAdminRoleService(db, current_admin.tenant_id)
