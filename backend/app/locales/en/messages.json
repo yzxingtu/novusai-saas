@@ -321,15 +321,6 @@
       "member_removed": "Member removed successfully",
       "leader_set": "Leader set successfully"
     },
-    "tenant_domain": {
-      "not_found": "Domain not found",
-      "already_exists": "Domain is already in use",
-      "created": "Domain added successfully",
-      "updated": "Domain updated successfully",
-      "deleted": "Domain deleted successfully",
-      "verified": "Domain verified successfully",
-      "primary_set": "Primary domain set successfully"
-    },
   "tenant_admin": {
     "not_found": "Admin not found",
     "username_exists": "Username already taken",

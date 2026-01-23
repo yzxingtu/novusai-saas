@@ -323,15 +323,6 @@
       "member_removed": "成员移除成功",
       "leader_set": "负责人设置成功"
     },
-    "tenant_domain": {
-      "not_found": "域名不存在",
-      "already_exists": "域名已被使用",
-      "created": "域名添加成功",
-      "updated": "域名更新成功",
-      "deleted": "域名删除成功",
-      "verified": "域名验证成功",
-      "primary_set": "主域名设置成功"
-    },
   "tenant_admin": {
     "not_found": "管理员不存在",
     "username_exists": "用户名已被占用",
