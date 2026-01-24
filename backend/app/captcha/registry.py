@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Dict
-from app.captcha.provider import ICaptchaProvider, StubImageCaptchaProvider
+from app.captcha.provider import ICaptchaProvider
+from app.captcha.providers.image import ImageCaptchaProvider
 
 
 class CaptchaRegistry:
@@ -17,7 +18,7 @@ class CaptchaRegistry:
         if self._initialized:
             return
         self._providers: Dict[str, ICaptchaProvider] = {}
-        self.register("image", StubImageCaptchaProvider())
+        self.register("image", ImageCaptchaProvider())
         self._initialized = True
 
     def register(self, code: str, provider: ICaptchaProvider) -> None:
