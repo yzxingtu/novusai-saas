@@ -28,7 +28,7 @@ from app.schemas.tenant.domain import (
     TenantDomainCreateRequest,
     TenantDomainUpdateRequest,
 )
-from app.services.tenant.tenant_domain_service import TenantDomainService
+from app.services.system.tenant_domain_service import TenantDomainTenantService
 
 
 @permission_resource(
@@ -52,7 +52,7 @@ class TenantDomainController(TenantController):
 
     prefix = "/domains"
     tags = ["租户域名管理"]
-    service_class = TenantDomainService
+    service_class = TenantDomainTenantService
 
     def _register_routes(self) -> None:
         """注册路由"""
@@ -76,7 +76,7 @@ class TenantDomainController(TenantController):
 
             权限: tenant_domain:list
             """
-            service = TenantDomainService(db)
+            service = self.get_service(db, current_admin.tenant_id)
             items, total = await service.query_list(spec, scope="tenant")
 
             # 为每个域名添加验证信息
@@ -117,7 +117,7 @@ class TenantDomainController(TenantController):
 
             权限: tenant_domain:detail
             """
-            service = TenantDomainService(db)
+            service = self.get_service(db, current_admin.tenant_id)
             domain = await service.get_by_id(domain_id)
 
             if domain is None or domain.tenant_id != current_admin.tenant_id:
@@ -157,7 +157,7 @@ class TenantDomainController(TenantController):
 
             权限: tenant_domain:create
             """
-            service = TenantDomainService(db)
+            service = self.get_service(db, current_admin.tenant_id)
             domain = await service.add_custom_domain(
                 tenant_id=current_admin.tenant_id,
                 domain=data.domain,
@@ -203,7 +203,7 @@ class TenantDomainController(TenantController):
 
             权限: tenant_domain:update
             """
-            service = TenantDomainService(db)
+            service = self.get_service(db, current_admin.tenant_id)
 
             # 验证域名存在且属于当前租户
             existing = await service.get_by_id(domain_id)
@@ -248,7 +248,7 @@ class TenantDomainController(TenantController):
 
             权限: tenant_domain:delete
             """
-            service = TenantDomainService(db)
+            service = self.get_service(db, current_admin.tenant_id)
 
             # 验证域名存在且属于当前租户
             existing = await service.get_by_id(domain_id)
@@ -280,7 +280,7 @@ class TenantDomainController(TenantController):
 
             权限: tenant_domain:verify
             """
-            service = TenantDomainService(db)
+            service = self.get_service(db, current_admin.tenant_id)
 
             # 验证域名存在且属于当前租户
             existing = await service.get_by_id(domain_id)
@@ -316,7 +316,7 @@ class TenantDomainController(TenantController):
 
             权限: tenant_domain:set_primary
             """
-            service = TenantDomainService(db)
+            service = self.get_service(db, current_admin.tenant_id)
             domain = await service.set_primary_domain(current_admin.tenant_id, domain_id)
             await db.commit()
 

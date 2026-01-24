@@ -27,8 +27,7 @@ from app.schemas.tenant import (
     TenantDomainCreateRequest,
     TenantDomainUpdateRequest,
 )
-from app.services.system import TenantService
-from app.services.tenant import TenantDomainService
+from app.services.system import TenantService, TenantDomainService
 
 
 @permission_resource(
