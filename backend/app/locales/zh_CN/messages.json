@@ -29,6 +29,7 @@
     "password_too_short": "密码长度不能少于 {min_length} 个字符",
     "password_complexity_medium": "密码必须包含字母和数字",
     "password_complexity_high": "密码必须包含字母、数字和特殊字符",
+    "captcha_provider_required": "请指定验证码类型",
     "captcha_required": "请先完成验证码",
     "captcha_invalid": "验证码错误",
     "impersonate_token_invalid": "一键登录令牌无效或已过期",

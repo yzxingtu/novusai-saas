@@ -16,6 +16,7 @@ tests/api/
 ├── test_admin_roles.py     # 平台角色管理测试
 ├── test_admin_admins.py    # 平台管理员管理测试
 ├── test_admin_tenants.py   # 租户管理测试
+├── test_captcha_flow.py    # 验证码最小化自测
 ├── test_tenant_auth.py     # 租户管理员认证测试
 ├── test_tenant_roles.py    # 租户角色管理测试
 └── test_tenant_admins.py   # 租户管理员管理测试
@@ -74,6 +75,9 @@ python -m tests.api.run_all --module tenant
 ```bash
 # 平台管理员认证
 python -m tests.api.test_admin_auth
+ 
+# 验证码最小化自测
+python -m tests.api.test_captcha_flow
 
 # 平台权限管理
 python -m tests.api.test_admin_permissions

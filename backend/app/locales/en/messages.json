@@ -29,6 +29,7 @@
     "password_too_short": "Password must be at least {min_length} characters long",
     "password_complexity_medium": "Password must contain letters and numbers",
     "password_complexity_high": "Password must contain letters, numbers and special characters",
+    "captcha_provider_required": "CAPTCHA provider is required",
     "captcha_required": "CAPTCHA is required",
     "captcha_invalid": "Invalid CAPTCHA",
     "impersonate_token_invalid": "Impersonate token is invalid or expired",
