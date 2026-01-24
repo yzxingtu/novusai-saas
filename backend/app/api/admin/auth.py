@@ -41,6 +41,9 @@ async def admin_login(
         username=login_data.username,
         password=login_data.password,
         client_ip=request.client.host if request.client else None,
+        captcha_challenge_id=login_data.captcha_challenge_id,
+        captcha_solution=login_data.captcha_solution,
+        captcha_provider_code=login_data.captcha_provider_code,
     )
     await db.commit()
     

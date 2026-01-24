@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.service import ConfigService
 from app.core.i18n import _
+from app.captcha.service import captcha_service
 from app.core.security import (
     verify_password,
     get_password_hash,
@@ -102,6 +103,9 @@ class AuthService:
         username: str,
         password: str,
         client_ip: str | None = None,
+        captcha_challenge_id: str | None = None,
+        captcha_solution: str | None = None,
+        captcha_provider_code: str | None = None,
     ) -> dict[str, Any]:
         """
         平台管理员认证
@@ -110,7 +114,10 @@ class AuthService:
             username: 用户名或邮箱
             password: 密码
             client_ip: 客户端 IP
-
+            captcha_challenge_id: 验证码挑战ID
+            captcha_solution: 验证码解决方案
+            captcha_provider_code: 验证码提供程序代码
+        
         Returns:
             包含 tokens 的字典
 
@@ -134,6 +141,22 @@ class AuthService:
         # 检查账户锁定状态
         if await self._is_account_locked(admin.id, "admin"):
             raise AuthenticationException(message=_("auth.account_locked"))
+
+        captcha_enabled = await self._config_service.get_platform_config(
+            "login_captcha_enabled", default=True
+        )
+        if captcha_enabled:
+            threshold = await self._config_service.get_platform_config(
+                "captcha_enable_threshold_admin", default=2
+            )
+            fail_count = admin.login_fail_count or 0
+            if threshold == 0 or fail_count >= threshold:
+                await self._verify_captcha(
+                    captcha_challenge_id,
+                    captcha_solution,
+                    captcha_provider_code,
+                    {"ip": client_ip, "endpoint": "admin", "action": "login"},
+                )
 
         # 验证密码
         if not verify_password(password, admin.password_hash):
@@ -309,6 +332,33 @@ class AuthService:
     async def _reset_admin_login_failures(self, admin_id: int) -> None:
         """重置平台管理员登录失败计数"""
         await self._reset_login_failures(admin_id, "admin")
+
+    async def _verify_captcha(
+        self,
+        challenge_id: str | None,
+        solution: str | None,
+        provider_code: str | None,
+        ctx: dict[str, Any],
+    ) -> None:
+        """
+        验证验证码
+        
+        Args:
+            challenge_id: 验证码挑战ID
+            solution: 验证码解决方案
+            provider_code: 验证码提供程序代码
+            ctx: 上下文信息
+        
+        Raises:
+            AuthenticationException: 验证码无效
+        """
+        if not provider_code:
+            raise AuthenticationException(message=_("auth.captcha_provider_required"))
+        if not challenge_id or not solution:
+            raise AuthenticationException(message=_("auth.captcha_required"))
+        result = await captcha_service.verify(provider_code, challenge_id, solution, ctx)
+        if not result.ok:
+            raise AuthenticationException(message=_("auth.captcha_invalid"))
     
     async def refresh_admin_token(self, refresh_token: str) -> dict[str, Any]:
         """
@@ -375,6 +425,9 @@ class AuthService:
         username: str,
         password: str,
         client_ip: str | None = None,
+        captcha_challenge_id: str | None = None,
+        captcha_solution: str | None = None,
+        captcha_provider_code: str | None = None,
     ) -> dict[str, Any]:
         """
         租户管理员认证
@@ -383,6 +436,9 @@ class AuthService:
             username: 用户名或邮箱
             password: 密码
             client_ip: 客户端 IP
+            captcha_challenge_id: 验证码挑战ID
+            captcha_solution: 验证码解决方案
+            captcha_provider_code: 验证码提供程序代码
         
         Returns:
             包含 tokens 的字典
@@ -410,6 +466,22 @@ class AuthService:
         # 检查账户锁定状态
         if await self._is_account_locked(tenant_admin.id, "tenant_admin"):
             raise AuthenticationException(message=_("auth.account_locked"))
+
+        captcha_enabled = await self._config_service.get_tenant_config(
+            tenant_admin.tenant_id, "tenant_captcha_enabled", default=True
+        )
+        if captcha_enabled:
+            threshold = await self._config_service.get_tenant_config(
+                tenant_admin.tenant_id, "tenant_captcha_enable_threshold", default=2
+            )
+            fail_count = tenant_admin.login_fail_count or 0
+            if threshold == 0 or fail_count >= threshold:
+                await self._verify_captcha(
+                    captcha_challenge_id,
+                    captcha_solution,
+                    captcha_provider_code,
+                    {"ip": client_ip, "endpoint": "tenant", "action": "login"},
+                )
 
         # 验证密码
         if not verify_password(password, tenant_admin.password_hash):
@@ -604,6 +676,9 @@ class AuthService:
         username: str,
         password: str,
         client_ip: str | None = None,
+        captcha_challenge_id: str | None = None,
+        captcha_solution: str | None = None,
+        captcha_provider_code: str | None = None,
     ) -> dict[str, Any]:
         """
         租户用户认证
@@ -640,6 +715,22 @@ class AuthService:
         # 检查账户锁定状态
         if await self._is_account_locked(user.id, "tenant_user"):
             raise AuthenticationException(message=_("auth.account_locked"))
+
+        captcha_enabled = await self._config_service.get_tenant_config(
+            user.tenant_id, "tenant_captcha_enabled", default=True
+        )
+        if captcha_enabled:
+            threshold = await self._config_service.get_tenant_config(
+                user.tenant_id, "tenant_captcha_enable_threshold", default=2
+            )
+            fail_count = user.login_fail_count or 0
+            if threshold == 0 or fail_count >= threshold:
+                await self._verify_captcha(
+                    captcha_challenge_id,
+                    captcha_solution,
+                    captcha_provider_code,
+                    {"ip": client_ip, "endpoint": "user", "action": "login"},
+                )
 
         # 验证密码
         if not verify_password(password, user.password_hash):
