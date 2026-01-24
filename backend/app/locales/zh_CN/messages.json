@@ -29,6 +29,8 @@
     "password_too_short": "密码长度不能少于 {min_length} 个字符",
     "password_complexity_medium": "密码必须包含字母和数字",
     "password_complexity_high": "密码必须包含字母、数字和特殊字符",
+    "captcha_required": "请先完成验证码",
+    "captcha_invalid": "验证码错误",
     "impersonate_token_invalid": "一键登录令牌无效或已过期",
     "impersonate_success": "一键登录成功"
   },
@@ -556,6 +558,17 @@
         "name": "启用验证码",
         "desc": "登录时是否需要验证码"
       },
+      "captcha_difficulty": {
+        "name": "验证码难度",
+        "desc": "登录验证码的难度级别",
+        "easy": "简单",
+        "medium": "中等",
+        "hard": "困难"
+      },
+      "captcha_enable_threshold_admin": {
+        "name": "验证码启用阈值",
+        "desc": "登录失败达到该次数后启用验证码（0 表示始终启用）"
+      },
       "session_timeout_minutes": {
         "name": "会话超时时间",
         "desc": "用户无操作后自动退出的时间（分钟）"
@@ -636,6 +649,17 @@
       "captcha_enabled": {
         "name": "启用验证码",
         "desc": "租户登录时是否需要验证码"
+      },
+      "captcha_difficulty": {
+        "name": "验证码难度",
+        "desc": "租户登录验证码的难度级别",
+        "easy": "简单",
+        "medium": "中等",
+        "hard": "困难"
+      },
+      "captcha_enable_threshold": {
+        "name": "验证码启用阈值",
+        "desc": "登录失败达到该次数后启用验证码（0 表示始终启用）"
       },
       "login_methods": {
         "name": "登录方式",

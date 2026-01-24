@@ -29,6 +29,8 @@
     "password_too_short": "Password must be at least {min_length} characters long",
     "password_complexity_medium": "Password must contain letters and numbers",
     "password_complexity_high": "Password must contain letters, numbers and special characters",
+    "captcha_required": "CAPTCHA is required",
+    "captcha_invalid": "Invalid CAPTCHA",
     "impersonate_token_invalid": "Impersonate token is invalid or expired",
     "impersonate_success": "Impersonate login successful"
   },
@@ -554,6 +556,17 @@
         "name": "Enable CAPTCHA",
         "desc": "Require CAPTCHA for login"
       },
+      "captcha_difficulty": {
+        "name": "CAPTCHA Difficulty",
+        "desc": "Difficulty level for login CAPTCHA",
+        "easy": "Easy",
+        "medium": "Medium",
+        "hard": "Hard"
+      },
+      "captcha_enable_threshold_admin": {
+        "name": "CAPTCHA Enable Threshold",
+        "desc": "Enable CAPTCHA after this many failed logins (0 means always)"
+      },
       "session_timeout_minutes": {
         "name": "Session Timeout",
         "desc": "Auto logout after inactivity (minutes)"
@@ -634,6 +647,17 @@
       "captcha_enabled": {
         "name": "Enable CAPTCHA",
         "desc": "Require CAPTCHA for tenant login"
+      },
+      "captcha_difficulty": {
+        "name": "CAPTCHA Difficulty",
+        "desc": "Difficulty level for tenant login CAPTCHA",
+        "easy": "Easy",
+        "medium": "Medium",
+        "hard": "Hard"
+      },
+      "captcha_enable_threshold": {
+        "name": "CAPTCHA Enable Threshold",
+        "desc": "Enable CAPTCHA after this many failed logins (0 means always)"
       },
       "login_methods": {
         "name": "Login Methods",
