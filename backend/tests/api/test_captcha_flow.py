@@ -20,7 +20,7 @@ from tests.api.base import (
 
 
 class TestCaptchaFlow(BaseAPITest):
-    module_name = "验证码最小化自测 (/api/v1/public/captcha)"
+    module_name = "验证码最小化自测 (/api/public/captcha)"
 
     def _run_tests(self) -> None:
         self.run_test("获取挑战 - 图形验证码", self.test_public_challenge_success)
@@ -28,7 +28,7 @@ class TestCaptchaFlow(BaseAPITest):
         self.run_test("登录触发验证码 - 平台管理员", self.test_admin_login_requires_captcha)
 
     def test_public_challenge_success(self) -> None:
-        resp = self.client.post("/api/v1/public/captcha/challenge", data={
+        resp = self.client.post("/api/public/captcha/challenge", data={
             "action": "login",
             "endpoint": "admin",
             "provider_code": "image",
@@ -44,7 +44,7 @@ class TestCaptchaFlow(BaseAPITest):
         if not challenge_id:
             self.test_public_challenge_success()
             challenge_id = self._test_data.get("challenge_id")
-        resp = self.client.post("/api/v1/public/captcha/verify", data={
+        resp = self.client.post("/api/public/captcha/verify", data={
             "action": "login",
             "endpoint": "admin",
             "provider_code": "image",
