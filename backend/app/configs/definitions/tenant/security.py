@@ -24,6 +24,22 @@ TENANT_CAPTCHA_ENABLED = ConfigMeta(
     sort_order=10,
 )
 
+# 验证码难度（租户端）
+TENANT_CAPTCHA_DIFFICULTY = ConfigMeta(
+    key="tenant_captcha_difficulty",
+    name_key="config.tenant.captcha_difficulty.name",
+    description_key="config.tenant.captcha_difficulty.desc",
+    scope=ConfigScope.TENANT,
+    value_type=ConfigValueType.SELECT,
+    default_value="medium",
+    options=[
+        option("easy", "config.tenant.captcha_difficulty.easy"),
+        option("medium", "config.tenant.captcha_difficulty.medium"),
+        option("hard", "config.tenant.captcha_difficulty.hard"),
+    ],
+    sort_order=15,
+)
+
 # 允许的登录方式
 TENANT_LOGIN_METHODS = ConfigMeta(
     key="tenant_login_methods",
@@ -70,6 +86,21 @@ TENANT_LOGIN_LOCKOUT_MINUTES = ConfigMeta(
         max_value(1440, "validation.max_value"),
     ],
     sort_order=40,
+)
+
+# 验证码启用阈值（租户端）
+TENANT_CAPTCHA_ENABLE_THRESHOLD = ConfigMeta(
+    key="tenant_captcha_enable_threshold",
+    name_key="config.tenant.captcha_enable_threshold.name",
+    description_key="config.tenant.captcha_enable_threshold.desc",
+    scope=ConfigScope.TENANT,
+    value_type=ConfigValueType.NUMBER,
+    default_value=2,
+    validation_rules=[
+        min_value(0, "validation.min_value"),
+        max_value(10, "validation.max_value"),
+    ],
+    sort_order=45,
 )
 
 
@@ -135,9 +166,11 @@ TENANT_SESSION_TIMEOUT = ConfigMeta(
 
 TENANT_GENERAL_GROUP.configs = [
     TENANT_CAPTCHA_ENABLED,
+    TENANT_CAPTCHA_DIFFICULTY,
     TENANT_LOGIN_METHODS,
     TENANT_LOGIN_MAX_ATTEMPTS,
     TENANT_LOGIN_LOCKOUT_MINUTES,
+    TENANT_CAPTCHA_ENABLE_THRESHOLD,
     TENANT_PASSWORD_MIN_LENGTH,
     TENANT_PASSWORD_COMPLEXITY,
     TENANT_SESSION_TIMEOUT,
@@ -146,9 +179,11 @@ TENANT_GENERAL_GROUP.configs = [
 
 __all__ = [
     "TENANT_CAPTCHA_ENABLED",
+    "TENANT_CAPTCHA_DIFFICULTY",
     "TENANT_LOGIN_METHODS",
     "TENANT_LOGIN_MAX_ATTEMPTS",
     "TENANT_LOGIN_LOCKOUT_MINUTES",
+    "TENANT_CAPTCHA_ENABLE_THRESHOLD",
     "TENANT_PASSWORD_MIN_LENGTH",
     "TENANT_PASSWORD_COMPLEXITY",
     "TENANT_SESSION_TIMEOUT",

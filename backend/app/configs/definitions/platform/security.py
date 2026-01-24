@@ -146,6 +146,40 @@ LOGIN_CAPTCHA_ENABLED = ConfigMeta(
     sort_order=60,
 )
 
+# 验证码难度
+# 控制图形验证码的复杂度（示例：easy/medium/hard）
+# 可用于调整字符长度、干扰线、噪点等参数
+CAPTCHA_DIFFICULTY = ConfigMeta(
+    key="captcha_difficulty",
+    name_key="config.platform.captcha_difficulty.name",
+    description_key="config.platform.captcha_difficulty.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.SELECT,
+    default_value="medium",
+    options=[
+        option("easy", "config.platform.captcha_difficulty.easy"),
+        option("medium", "config.platform.captcha_difficulty.medium"),
+        option("hard", "config.platform.captcha_difficulty.hard"),
+    ],
+    sort_order=65,
+)
+
+# 验证码启用阈值（管理员端）
+# 当登录失败计数达到此阈值后启用验证码
+# 0 表示始终根据开关决定是否启用；>=1 表示达到失败次数后强制启用
+CAPTCHA_ENABLE_THRESHOLD_ADMIN = ConfigMeta(
+    key="captcha_enable_threshold_admin",
+    name_key="config.platform.captcha_enable_threshold_admin.name",
+    description_key="config.platform.captcha_enable_threshold_admin.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.NUMBER,
+    default_value=2,
+    validation_rules=[
+        min_value(0, "validation.min_value"),
+        max_value(10, "validation.max_value"),
+    ],
+    sort_order=66,
+)
 
 # ==========================================
 # 会话设置
@@ -203,6 +237,8 @@ PLATFORM_SECURITY_GROUP.configs = [
     LOGIN_MAX_ATTEMPTS,
     LOGIN_LOCKOUT_MINUTES,
     LOGIN_CAPTCHA_ENABLED,
+    CAPTCHA_DIFFICULTY,
+    CAPTCHA_ENABLE_THRESHOLD_ADMIN,
     SESSION_TIMEOUT_MINUTES,
     SESSION_MAX_DEVICES,
 ]
@@ -215,6 +251,8 @@ __all__ = [
     "LOGIN_MAX_ATTEMPTS",
     "LOGIN_LOCKOUT_MINUTES",
     "LOGIN_CAPTCHA_ENABLED",
+    "CAPTCHA_DIFFICULTY",
+    "CAPTCHA_ENABLE_THRESHOLD_ADMIN",
     "SESSION_TIMEOUT_MINUTES",
     "SESSION_MAX_DEVICES",
 ]
