@@ -47,3 +47,9 @@ class CaptchaService:
 
     def get_fail_count(self, ctx: dict[str, Any]) -> int:
         return self._fail_counts.get(self._key(ctx), 0)
+
+
+captcha_service = CaptchaService()
+
+
+__all__ = ["CaptchaService", "captcha_service"]

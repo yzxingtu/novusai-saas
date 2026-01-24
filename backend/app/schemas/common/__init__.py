@@ -9,6 +9,12 @@ from app.schemas.common.auth import (
     RefreshTokenRequest,
     ImpersonateTokenRequest,
 )
+from app.schemas.common.captcha import (
+    CaptchaChallengeRequest,
+    CaptchaChallengeResponse,
+    CaptchaVerifyRequest,
+    CaptchaVerifyResponse,
+)
 from app.schemas.common.permission import (
     PermissionResponse,
     PermissionTreeResponse,
@@ -32,6 +38,10 @@ __all__ = [
     "TokenResponse",
     "RefreshTokenRequest",
     "ImpersonateTokenRequest",
+    "CaptchaChallengeRequest",
+    "CaptchaChallengeResponse",
+    "CaptchaVerifyRequest",
+    "CaptchaVerifyResponse",
     "PermissionResponse",
     "PermissionTreeResponse",
     "MenuResponse",
