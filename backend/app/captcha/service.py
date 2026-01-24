@@ -2,14 +2,23 @@ from __future__ import annotations
 import uuid
 from typing import Any
 from datetime import datetime, timedelta, timezone
+from app.core.logging import get_logger
 from app.captcha.registry import registry
 from app.captcha.provider import CaptchaChallenge, CaptchaVerificationResult, ICaptchaProvider
 
 
 class CaptchaService:
     def __init__(self) -> None:
-        self._used: set[str] = set()
-        self._fail_counts: dict[str, int] = {}
+        self._used: dict[str, datetime] = {}
+        self._fail_counts: dict[str, tuple[int, datetime]] = {}
+        self._rate_limits: dict[str, tuple[int, datetime]] = {}
+        self._used_ttl_seconds = 600
+        self._fail_window_seconds = 900
+        self._limit_map: dict[str, tuple[int, int]] = {
+            "challenge": (30, 60),
+            "verify": (60, 60),
+        }
+        self._logger = get_logger("captcha", separate_file=True)
 
     def _now(self) -> datetime:
         return datetime.now(timezone.utc)
@@ -28,25 +37,62 @@ class CaptchaService:
         if challenge.challenge_id == "stub":
             challenge.challenge_id = uuid.uuid4().hex
             challenge.expires_at = self._now() + timedelta(minutes=2)
+        self._logger.info(
+            f"challenge created provider={provider_code or 'image'} "
+            f"endpoint={ctx.get('endpoint')} action={ctx.get('action')} ip={ctx.get('ip')}"
+        )
         return challenge
 
     async def verify(self, provider_code: str | None, challenge_id: str, solution: str, ctx: dict[str, Any]) -> CaptchaVerificationResult:
-        if challenge_id in self._used:
+        now = self._now()
+        used_expires_at = self._used.get(challenge_id)
+        if used_expires_at and used_expires_at > now:
             return CaptchaVerificationResult(ok=False, reason="used", score=None)
+        if used_expires_at and used_expires_at <= now:
+            self._used.pop(challenge_id, None)
         provider: ICaptchaProvider | None = registry.get(provider_code or "image")
         if provider is None:
             return CaptchaVerificationResult(ok=False, reason="provider_not_found", score=None)
         result = await provider.verify(challenge_id, solution, ctx)
         key = self._key(ctx)
         if result.ok:
-            self._used.add(challenge_id)
-            self._fail_counts[key] = 0
+            self._used[challenge_id] = now + timedelta(seconds=self._used_ttl_seconds)
+            self._fail_counts[key] = (0, now + timedelta(seconds=self._fail_window_seconds))
         else:
-            self._fail_counts[key] = self._fail_counts.get(key, 0) + 1
+            count, reset_at = self._fail_counts.get(
+                key, (0, now + timedelta(seconds=self._fail_window_seconds))
+            )
+            if reset_at <= now:
+                count = 0
+                reset_at = now + timedelta(seconds=self._fail_window_seconds)
+            self._fail_counts[key] = (count + 1, reset_at)
+        self._logger.info(
+            f"verify result={result.ok} reason={result.reason} provider={provider_code or 'image'} "
+            f"endpoint={ctx.get('endpoint')} action={ctx.get('action')} ip={ctx.get('ip')}"
+        )
         return result
 
     def get_fail_count(self, ctx: dict[str, Any]) -> int:
-        return self._fail_counts.get(self._key(ctx), 0)
+        now = self._now()
+        count, reset_at = self._fail_counts.get(
+            self._key(ctx), (0, now + timedelta(seconds=self._fail_window_seconds))
+        )
+        if reset_at <= now:
+            self._fail_counts.pop(self._key(ctx), None)
+            return 0
+        return count
+
+    def check_rate_limit(self, ctx: dict[str, Any], kind: str) -> bool:
+        limit, window_seconds = self._limit_map.get(kind, (60, 60))
+        now = self._now()
+        key = f"{kind}|{self._key(ctx)}"
+        count, reset_at = self._rate_limits.get(key, (0, now + timedelta(seconds=window_seconds)))
+        if reset_at <= now:
+            count = 0
+            reset_at = now + timedelta(seconds=window_seconds)
+        count += 1
+        self._rate_limits[key] = (count, reset_at)
+        return count <= limit
 
 
 captcha_service = CaptchaService()

@@ -4,7 +4,7 @@ from app.captcha.service import captcha_service
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.error_code import ErrorCode
-from app.exceptions import BusinessException, ServiceUnavailableException
+from app.exceptions import BusinessException, ServiceUnavailableException, RateLimitException
 from app.rbac.decorators import public
 from app.schemas.common.captcha import (
     CaptchaChallengeRequest,
@@ -29,6 +29,8 @@ async def create_challenge(
         "action": data.action,
         "difficulty": data.difficulty,
     }
+    if not captcha_service.check_rate_limit(ctx, "challenge"):
+        raise RateLimitException()
     try:
         challenge = await captcha_service.generate_challenge(data.provider_code, ctx)
     except ValueError:
@@ -57,6 +59,8 @@ async def verify_captcha(
         "endpoint": data.endpoint,
         "action": data.action,
     }
+    if not captcha_service.check_rate_limit(ctx, "verify"):
+        raise RateLimitException()
     result = await captcha_service.verify(
         data.provider_code,
         data.challenge_id,
