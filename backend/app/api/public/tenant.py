@@ -7,9 +7,11 @@
 from fastapi import APIRouter, HTTPException, Request, status
 
 from app.core.config import settings
+from app.core.deps import DbSession
 from app.core.i18n import _
 from app.core.response import success
-from app.middleware.tenant import get_tenant_context, get_current_tenant
+from app.middleware.tenant import get_tenant_context
+from app.configs.service import ConfigService
 from app.schemas.public import TenantPublicConfig, DomainVerificationInfo
 
 
@@ -17,7 +19,7 @@ router = APIRouter(prefix="/tenant", tags=["租户公开接口"])
 
 
 @router.get("/config", summary="获取当前租户公开配置")
-async def get_tenant_public_config(request: Request):
+async def get_tenant_public_config(request: Request, db: DbSession):
     """
     获取当前租户的公开配置
     
@@ -44,7 +46,21 @@ async def get_tenant_public_config(request: Request):
     
     tenant = tenant_ctx.tenant
     
-    # 构建子域名完整 URL
+    config_service = ConfigService(db)
+    general_config = await config_service.get_tenant_configs_by_group(
+        tenant_id=tenant.id,
+        group_code="tenant_general",
+    )
+    appearance_config = await config_service.get_tenant_configs_by_group(
+        tenant_id=tenant.id,
+        group_code="tenant_appearance",
+    )
+    feature_config = await config_service.get_tenant_configs_by_group(
+        tenant_id=tenant.id,
+        group_code="tenant_features",
+    )
+    configs = {**general_config, **appearance_config, **feature_config}
+
     subdomain_url = f"https://{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
     
     return success(
@@ -52,11 +68,31 @@ async def get_tenant_public_config(request: Request):
             tenant_id=tenant.id,
             tenant_code=tenant.code,
             tenant_name=tenant.name,
-            logo_url=tenant.logo_url,
-            favicon_url=tenant.favicon_url,
-            theme_color=tenant.theme_color,
-            captcha_enabled=tenant.captcha_enabled,
-            login_methods=tenant.login_methods,
+            logo_url=configs.get("tenant_logo"),
+            favicon_url=configs.get("tenant_favicon"),
+            theme_color=configs.get("tenant_primary_color"),
+            login_bg=configs.get("tenant_login_bg"),
+            primary_color=configs.get("tenant_primary_color"),
+            accent_color=configs.get("tenant_accent_color"),
+            login_title=configs.get("tenant_login_title"),
+            login_subtitle=configs.get("tenant_login_subtitle"),
+            footer_copyright=configs.get("tenant_footer_copyright"),
+            captcha_enabled=configs.get("tenant_captcha_enabled", False),
+            captcha_difficulty=configs.get("tenant_captcha_difficulty"),
+            captcha_enable_threshold=configs.get("tenant_captcha_enable_threshold"),
+            login_methods=configs.get("tenant_login_methods", ["password"]),
+            login_max_attempts=configs.get("tenant_login_max_attempts"),
+            login_lockout_minutes=configs.get("tenant_login_lockout_minutes"),
+            password_min_length=configs.get("tenant_password_min_length"),
+            password_complexity=configs.get("tenant_password_complexity"),
+            session_timeout=configs.get("tenant_session_timeout"),
+            allow_registration=configs.get("tenant_allow_registration"),
+            registration_approval=configs.get("tenant_registration_approval"),
+            allow_profile_edit=configs.get("tenant_allow_profile_edit"),
+            email_notification=configs.get("tenant_email_notification"),
+            sms_notification=configs.get("tenant_sms_notification"),
+            api_access=configs.get("tenant_api_access"),
+            file_upload=configs.get("tenant_file_upload"),
             subdomain=tenant.code,
             subdomain_url=subdomain_url,
         ),

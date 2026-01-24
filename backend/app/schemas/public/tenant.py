@@ -25,13 +25,35 @@ class TenantPublicConfig(BaseSchema):
     logo_url: str | None = Field(None, description="Logo URL")
     favicon_url: str | None = Field(None, description="Favicon URL")
     theme_color: str | None = Field(None, description="主题色")
+    login_bg: str | None = Field(None, description="登录页背景图")
+    primary_color: str | None = Field(None, description="主题主色")
+    accent_color: str | None = Field(None, description="主题强调色")
+    login_title: str | None = Field(None, description="登录页标题")
+    login_subtitle: str | None = Field(None, description="登录页副标题")
+    footer_copyright: str | None = Field(None, description="页脚版权")
     
     # 登录设置
     captcha_enabled: bool = Field(False, description="是否启用验证码")
+    captcha_difficulty: str | None = Field(None, description="验证码难度")
+    captcha_enable_threshold: int | None = Field(None, description="验证码启用阈值")
     login_methods: list[str] = Field(
         default_factory=lambda: ["password"],
         description="支持的登录方式",
     )
+    login_max_attempts: int | None = Field(None, description="登录失败锁定次数")
+    login_lockout_minutes: int | None = Field(None, description="登录锁定时长（分钟）")
+    password_min_length: int | None = Field(None, description="密码最小长度")
+    password_complexity: str | None = Field(None, description="密码复杂度")
+    session_timeout: int | None = Field(None, description="会话超时时间（分钟）")
+    
+    # 功能开关
+    allow_registration: bool | None = Field(None, description="允许用户注册")
+    registration_approval: bool | None = Field(None, description="注册需审批")
+    allow_profile_edit: bool | None = Field(None, description="允许修改资料")
+    email_notification: bool | None = Field(None, description="启用邮件通知")
+    sms_notification: bool | None = Field(None, description="启用短信通知")
+    api_access: bool | None = Field(None, description="启用 API 访问")
+    file_upload: bool | None = Field(None, description="启用文件上传")
     
     # 域名信息
     subdomain: str = Field(..., description="租户子域名")
