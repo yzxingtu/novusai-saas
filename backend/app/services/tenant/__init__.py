@@ -4,6 +4,7 @@
 提供租户相关的服务
 """
 
+from app.services.tenant.attachment_service import AttachmentService
 from app.services.tenant.tenant_admin_service import TenantAdminService
 from app.services.tenant.tenant_admin_role_service import TenantAdminRoleService
 from app.services.tenant.tenant_settings_service import TenantSettingsService
@@ -13,6 +14,7 @@ from app.services.tenant.quota_service import QuotaService, QuotaCheckResult
 
 
 __all__ = [
+    "AttachmentService",
     "TenantAdminService",
     "TenantAdminRoleService",
     "TenantSettingsService",

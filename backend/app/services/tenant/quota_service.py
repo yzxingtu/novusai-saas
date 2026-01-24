@@ -100,12 +100,17 @@ class QuotaService:
         """
         return self.get_feature(feature_key, False)
     
-    async def check_storage_quota(self, additional_bytes: int = 0) -> QuotaCheckResult:
+    async def check_storage_quota(
+        self,
+        additional_bytes: int = 0,
+        current_bytes: int | None = None,
+    ) -> QuotaCheckResult:
         """
         检查存储配额
         
         Args:
             additional_bytes: 额外需要的字节数
+            current_bytes: 当前已使用字节数（为空则使用默认值）
         
         Returns:
             配额检查结果
@@ -122,8 +127,8 @@ class QuotaService:
                 message="无存储限制",
             )
         
-        # TODO: 从文件服务获取当前存储使用量
-        current_bytes = 0  # 需要实现实际的存储统计
+        # 使用传入的存储使用量，未传入则使用默认值
+        current_bytes = current_bytes or 0
         
         limit_bytes = limit_gb * 1024 * 1024 * 1024
         additional_gb = additional_bytes / (1024 * 1024 * 1024)
