@@ -134,9 +134,18 @@ class AuthService:
 
         # 检查账户是否存在
         if admin is None:
-            # 记录登录失败（用户名不存在）
             await self._record_admin_login_failure(username, client_ip)
-            raise AuthenticationException(message=_("auth.credentials_invalid"))
+            captcha_enabled = await self._config_service.get_platform_config(
+                "login_captcha_enabled", default=True
+            )
+            threshold = await self._config_service.get_platform_config(
+                "captcha_enable_threshold_admin", default=2
+            )
+            captcha_required = captcha_enabled and threshold == 0
+            raise AuthenticationException(
+                message=_("auth.credentials_invalid"),
+                data={"captcha_required": captcha_required},
+            )
 
         # 检查账户锁定状态
         if await self._is_account_locked(admin.id, "admin"):
@@ -145,24 +154,31 @@ class AuthService:
         captcha_enabled = await self._config_service.get_platform_config(
             "login_captcha_enabled", default=True
         )
-        if captcha_enabled:
-            threshold = await self._config_service.get_platform_config(
-                "captcha_enable_threshold_admin", default=2
+        threshold = await self._config_service.get_platform_config(
+            "captcha_enable_threshold_admin", default=2
+        )
+        fail_count = admin.login_fail_count or 0
+        captcha_required = captcha_enabled and (threshold == 0 or fail_count >= threshold)
+        if captcha_required:
+            await self._verify_captcha(
+                captcha_challenge_id,
+                captcha_solution,
+                captcha_provider_code,
+                {"ip": client_ip, "endpoint": "admin", "action": "login"},
             )
-            fail_count = admin.login_fail_count or 0
-            if threshold == 0 or fail_count >= threshold:
-                await self._verify_captcha(
-                    captcha_challenge_id,
-                    captcha_solution,
-                    captcha_provider_code,
-                    {"ip": client_ip, "endpoint": "admin", "action": "login"},
-                )
 
         # 验证密码
         if not verify_password(password, admin.password_hash):
             # 记录登录失败
             await self._record_admin_login_failure(username, client_ip)
-            raise AuthenticationException(message=_("auth.credentials_invalid"))
+            next_fail_count = fail_count + 1
+            captcha_required_after = captcha_enabled and (
+                threshold == 0 or next_fail_count >= threshold
+            )
+            raise AuthenticationException(
+                message=_("auth.credentials_invalid"),
+                data={"captcha_required": captcha_required_after},
+            )
 
         # 检查账户状态
         if not admin.is_active:
@@ -353,12 +369,21 @@ class AuthService:
             AuthenticationException: 验证码无效
         """
         if not provider_code:
-            raise AuthenticationException(message=_("auth.captcha_provider_required"))
+            raise AuthenticationException(
+                message=_("auth.captcha_provider_required"),
+                data={"captcha_required": True},
+            )
         if not challenge_id or not solution:
-            raise AuthenticationException(message=_("auth.captcha_required"))
+            raise AuthenticationException(
+                message=_("auth.captcha_required"),
+                data={"captcha_required": True},
+            )
         result = await captcha_service.verify(provider_code, challenge_id, solution, ctx)
         if not result.ok:
-            raise AuthenticationException(message=_("auth.captcha_invalid"))
+            raise AuthenticationException(
+                message=_("auth.captcha_invalid"),
+                data={"captcha_required": True},
+            )
     
     async def refresh_admin_token(self, refresh_token: str) -> dict[str, Any]:
         """
@@ -459,9 +484,11 @@ class AuthService:
 
         # 检查账户是否存在
         if tenant_admin is None:
-            # 记录登录失败（用户名不存在）
             await self._record_login_failure(username, client_ip, "tenant_admin")
-            raise AuthenticationException(message=_("auth.credentials_invalid"))
+            raise AuthenticationException(
+                message=_("auth.credentials_invalid"),
+                data={"captcha_required": False},
+            )
 
         # 检查账户锁定状态
         if await self._is_account_locked(tenant_admin.id, "tenant_admin"):
@@ -470,24 +497,30 @@ class AuthService:
         captcha_enabled = await self._config_service.get_tenant_config(
             tenant_admin.tenant_id, "tenant_captcha_enabled", default=True
         )
-        if captcha_enabled:
-            threshold = await self._config_service.get_tenant_config(
-                tenant_admin.tenant_id, "tenant_captcha_enable_threshold", default=2
+        threshold = await self._config_service.get_tenant_config(
+            tenant_admin.tenant_id, "tenant_captcha_enable_threshold", default=2
+        )
+        fail_count = tenant_admin.login_fail_count or 0
+        captcha_required = captcha_enabled and (threshold == 0 or fail_count >= threshold)
+        if captcha_required:
+            await self._verify_captcha(
+                captcha_challenge_id,
+                captcha_solution,
+                captcha_provider_code,
+                {"ip": client_ip, "endpoint": "tenant", "action": "login"},
             )
-            fail_count = tenant_admin.login_fail_count or 0
-            if threshold == 0 or fail_count >= threshold:
-                await self._verify_captcha(
-                    captcha_challenge_id,
-                    captcha_solution,
-                    captcha_provider_code,
-                    {"ip": client_ip, "endpoint": "tenant", "action": "login"},
-                )
 
         # 验证密码
         if not verify_password(password, tenant_admin.password_hash):
-            # 记录登录失败
             await self._record_login_failure(username, client_ip, "tenant_admin")
-            raise AuthenticationException(message=_("auth.credentials_invalid"))
+            next_fail_count = fail_count + 1
+            captcha_required_after = captcha_enabled and (
+                threshold == 0 or next_fail_count >= threshold
+            )
+            raise AuthenticationException(
+                message=_("auth.credentials_invalid"),
+                data={"captcha_required": captcha_required_after},
+            )
         
         # 检查管理员状态
         if not tenant_admin.is_active:
@@ -708,9 +741,11 @@ class AuthService:
 
         # 检查账户是否存在
         if user is None:
-            # 记录登录失败（用户名不存在）
             await self._record_login_failure(username, client_ip, "tenant_user")
-            raise AuthenticationException(message=_("auth.credentials_invalid"))
+            raise AuthenticationException(
+                message=_("auth.credentials_invalid"),
+                data={"captcha_required": False},
+            )
 
         # 检查账户锁定状态
         if await self._is_account_locked(user.id, "tenant_user"):
@@ -719,24 +754,30 @@ class AuthService:
         captcha_enabled = await self._config_service.get_tenant_config(
             user.tenant_id, "tenant_captcha_enabled", default=True
         )
-        if captcha_enabled:
-            threshold = await self._config_service.get_tenant_config(
-                user.tenant_id, "tenant_captcha_enable_threshold", default=2
+        threshold = await self._config_service.get_tenant_config(
+            user.tenant_id, "tenant_captcha_enable_threshold", default=2
+        )
+        fail_count = user.login_fail_count or 0
+        captcha_required = captcha_enabled and (threshold == 0 or fail_count >= threshold)
+        if captcha_required:
+            await self._verify_captcha(
+                captcha_challenge_id,
+                captcha_solution,
+                captcha_provider_code,
+                {"ip": client_ip, "endpoint": "user", "action": "login"},
             )
-            fail_count = user.login_fail_count or 0
-            if threshold == 0 or fail_count >= threshold:
-                await self._verify_captcha(
-                    captcha_challenge_id,
-                    captcha_solution,
-                    captcha_provider_code,
-                    {"ip": client_ip, "endpoint": "user", "action": "login"},
-                )
 
         # 验证密码
         if not verify_password(password, user.password_hash):
-            # 记录登录失败
             await self._record_login_failure(username, client_ip, "tenant_user")
-            raise AuthenticationException(message=_("auth.credentials_invalid"))
+            next_fail_count = fail_count + 1
+            captcha_required_after = captcha_enabled and (
+                threshold == 0 or next_fail_count >= threshold
+            )
+            raise AuthenticationException(
+                message=_("auth.credentials_invalid"),
+                data={"captcha_required": captcha_required_after},
+            )
         
         # 检查用户状态
         if not user.is_active:
