@@ -7,6 +7,7 @@ from app.core.base_model import TenantModel
 class Attachment(TenantModel):
     __tablename__ = "attachments"
     
+    # 支持过滤字段
     __filterable__ = {
         "id": "id",
         "tenant_id": "tenant_id",
@@ -23,6 +24,7 @@ class Attachment(TenantModel):
         "updated_at": "updated_at",
     }
     
+    # 索引
     __table_args__ = (
         Index("ix_attachments_tenant_path", "tenant_id", "path", unique=True),
         Index("ix_attachments_tenant_hash", "tenant_id", "hash"),
