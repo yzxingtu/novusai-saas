@@ -1,3 +1,7 @@
+"""
+存储后端基础类型与抽象接口
+"""
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import BinaryIO, Optional
@@ -6,12 +10,18 @@ from app.enums.base import StrEnum
 
 
 class StorageVisibility(StrEnum):
+    """
+    文件可见性枚举
+    """
     PUBLIC = ("public", "enum.attachment_visibility.public")
     PRIVATE = ("private", "enum.attachment_visibility.private")
 
 
 @dataclass
 class StorageConfig:
+    """
+    存储配置对象
+    """
     driver: str
     root_path: str
     base_url: Optional[str] = None
@@ -20,6 +30,9 @@ class StorageConfig:
 
 @dataclass
 class UploadResult:
+    """
+    上传结果对象
+    """
     path: str
     url: str
     size: int
@@ -30,6 +43,9 @@ class UploadResult:
 
 @dataclass
 class FileInfo:
+    """
+    文件信息对象
+    """
     path: str
     size: int
     mime_type: str
@@ -39,11 +55,17 @@ class FileInfo:
 
 
 class StorageDriver:
+    """
+    存储驱动抽象基类
+    """
     name: str = "base"
     display_name: str = "Base Storage"
     config_schema: dict | None = None
 
     def __init__(self, config: StorageConfig):
+        """
+        初始化驱动
+        """
         self.config = config
 
     async def put(
@@ -54,15 +76,27 @@ class StorageDriver:
         visibility: StorageVisibility = StorageVisibility.PRIVATE,
         metadata: dict | None = None,
     ) -> UploadResult:
+        """
+        上传文件
+        """
         raise NotImplementedError()
 
     async def get(self, path: str) -> BinaryIO:
+        """
+        获取文件内容
+        """
         raise NotImplementedError()
 
     async def delete(self, path: str) -> bool:
+        """
+        删除文件
+        """
         raise NotImplementedError()
 
     async def exists(self, path: str) -> bool:
+        """
+        判断文件是否存在
+        """
         raise NotImplementedError()
 
     async def get_url(
@@ -71,18 +105,33 @@ class StorageDriver:
         expires: int = 3600,
         visibility: StorageVisibility | None = None,
     ) -> str:
+        """
+        获取文件访问 URL
+        """
         raise NotImplementedError()
 
     async def get_info(self, path: str) -> Optional[FileInfo]:
+        """
+        获取文件信息
+        """
         raise NotImplementedError()
 
     async def copy(self, source: str, destination: str) -> bool:
+        """
+        复制文件
+        """
         raise NotImplementedError()
 
     async def move(self, source: str, destination: str) -> bool:
+        """
+        移动或重命名文件
+        """
         raise NotImplementedError()
 
     async def get_download_response(self, path: str, filename: str | None = None):
+        """
+        获取下载响应
+        """
         from fastapi.responses import StreamingResponse
 
         content = await self.get(path)
