@@ -13,12 +13,14 @@ from app.core.response import success
 from app.middleware.tenant import get_tenant_context
 from app.configs.service import ConfigService
 from app.schemas.public import TenantPublicConfig, DomainVerificationInfo
+from app.rbac.decorators import public
 
 
 router = APIRouter(prefix="/tenant", tags=["租户公开接口"])
 
 
 @router.get("/config", summary="获取当前租户公开配置")
+@public
 async def get_tenant_public_config(request: Request, db: DbSession):
     """
     获取当前租户的公开配置
@@ -101,6 +103,7 @@ async def get_tenant_public_config(request: Request, db: DbSession):
 
 
 @router.get("/domain-verification", summary="获取域名验证信息")
+@public
 async def get_domain_verification_info(
     request: Request,
     domain: str,
