@@ -418,6 +418,20 @@
       "position": "岗位",
       "role": "职能角色"
     },
+    "attachment_visibility": {
+      "public": "公开",
+      "private": "私有"
+    },
+    "attachment_status": {
+      "active": "可用",
+      "deleted": "已删除"
+    },
+    "attachment_source": {
+      "admin": "平台管理员",
+      "tenant_admin": "租户管理员",
+      "tenant_user": "租户用户",
+      "system": "系统"
+    },
     "billing_cycle": {
       "monthly": "月付",
       "yearly": "年付",

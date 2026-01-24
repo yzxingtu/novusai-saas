@@ -26,6 +26,7 @@ from app.models.tenant import (
     TenantDomain,
     TenantPlan,
     tenant_plan_permissions,
+    Attachment,
 )
 
 # RBAC 模型
@@ -51,6 +52,7 @@ __all__ = [
     "TenantDomain",
     "TenantPlan",
     "tenant_plan_permissions",
+    "Attachment",
     # RBAC
     "Permission",
     "AdminRole",

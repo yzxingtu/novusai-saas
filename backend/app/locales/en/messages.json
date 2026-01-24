@@ -416,6 +416,20 @@
       "position": "Position",
       "role": "Functional Role"
     },
+    "attachment_visibility": {
+      "public": "Public",
+      "private": "Private"
+    },
+    "attachment_status": {
+      "active": "Active",
+      "deleted": "Deleted"
+    },
+    "attachment_source": {
+      "admin": "Platform Admin",
+      "tenant_admin": "Tenant Admin",
+      "tenant_user": "Tenant User",
+      "system": "System"
+    },
     "billing_cycle": {
       "monthly": "Monthly",
       "yearly": "Yearly",

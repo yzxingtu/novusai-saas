@@ -9,6 +9,7 @@ from app.models.tenant.tenant_admin import TenantAdmin
 from app.models.tenant.tenant_user import TenantUser
 from app.models.tenant.tenant_domain import TenantDomain
 from app.models.tenant.tenant_plan import TenantPlan, tenant_plan_permissions
+from app.models.tenant.attachment import Attachment
 
 __all__ = [
     "Tenant",
@@ -17,4 +18,5 @@ __all__ = [
     "TenantDomain",
     "TenantPlan",
     "tenant_plan_permissions",
+    "Attachment",
 ]
