@@ -815,6 +815,14 @@
         "name": "默认可见性",
         "desc": "自定义云存储默认可见性"
       },
+      "storage_allowed_extensions": {
+        "name": "允许的文件类型",
+        "desc": "允许上传的文件扩展名（英文逗号分隔），留空表示使用平台默认设置"
+      },
+      "storage_denied_extensions": {
+        "name": "禁止的文件类型",
+        "desc": "禁止上传的文件扩展名（英文逗号分隔），留空表示使用平台默认设置"
+      },
       "allow_registration": {
         "name": "允许用户注册",
         "desc": "是否允许用户自助注册账号"

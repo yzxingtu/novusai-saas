@@ -813,6 +813,14 @@
         "name": "Default Visibility",
         "desc": "Default visibility for custom cloud storage"
       },
+      "storage_allowed_extensions": {
+        "name": "Allowed File Types",
+        "desc": "Allowed file extensions (comma-separated), leave empty to use platform defaults"
+      },
+      "storage_denied_extensions": {
+        "name": "Denied File Types",
+        "desc": "Denied file extensions (comma-separated), leave empty to use platform defaults"
+      },
       "allow_registration": {
         "name": "Allow Registration",
         "desc": "Allow users to self-register"
