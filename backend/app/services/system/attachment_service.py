@@ -280,9 +280,14 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         driver = await self._config_service.get_platform_config(
             "platform_storage_driver", default="local"
         )
-        root_path = await self._config_service.get_platform_config(
-            "platform_storage_root_path", default="/data/uploads"
-        )
+        if str(driver) == "local":
+            # 本地存储使用硬编码路径
+            from app.storage import LOCAL_STORAGE_ROOT
+            root_path = str(LOCAL_STORAGE_ROOT)
+        else:
+            root_path = await self._config_service.get_platform_config(
+                "platform_storage_root_path", default=""
+            )
         base_url = await self._config_service.get_platform_config(
             "platform_storage_base_url", default=None
         )

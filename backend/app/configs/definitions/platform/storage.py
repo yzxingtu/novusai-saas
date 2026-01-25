@@ -24,7 +24,14 @@ PLATFORM_STORAGE_ROOT_PATH = ConfigMeta(
     description_key="config.platform.storage_root_path.desc",
     scope=ConfigScope.PLATFORM,
     value_type=ConfigValueType.STRING,
-    default_value="./storage/uploads",
+    default_value="",
+    display_rules=[
+        DisplayRule(
+            field="platform_storage_driver",
+            operator="in",
+            value=["s3", "aliyun-oss"],
+        )
+    ],
     sort_order=20,
 )
 
@@ -265,27 +272,7 @@ PLATFORM_IMAGE_CACHE_DRIVER = ConfigMeta(
     sort_order=110,
 )
 
-PLATFORM_IMAGE_CACHE_PATH = ConfigMeta(
-    key="platform_image_cache_path",
-    name_key="config.platform.image_cache_path.name",
-    description_key="config.platform.image_cache_path.desc",
-    scope=ConfigScope.PLATFORM,
-    value_type=ConfigValueType.STRING,
-    default_value="./storage/cache/images",
-    display_rules=[
-        DisplayRule(
-            field="platform_image_process_enabled",
-            operator="equals",
-            value=True,
-        ),
-        DisplayRule(
-            field="platform_image_cache_driver",
-            operator="equals",
-            value="filesystem",
-        ),
-    ],
-    sort_order=120,
-)
+# 图片缓存路径已硬编码，不再作为配置项
 
 PLATFORM_IMAGE_CACHE_TTL_DAYS = ConfigMeta(
     key="platform_image_cache_ttl_days",
@@ -368,7 +355,6 @@ PLATFORM_STORAGE_GROUP.configs = [
     # 图片处理配置
     PLATFORM_IMAGE_PROCESS_ENABLED,
     PLATFORM_IMAGE_CACHE_DRIVER,
-    PLATFORM_IMAGE_CACHE_PATH,
     PLATFORM_IMAGE_CACHE_TTL_DAYS,
     PLATFORM_IMAGE_MAX_WIDTH,
     PLATFORM_IMAGE_MAX_HEIGHT,
@@ -389,7 +375,6 @@ __all__ = [
     # 图片处理配置
     "PLATFORM_IMAGE_PROCESS_ENABLED",
     "PLATFORM_IMAGE_CACHE_DRIVER",
-    "PLATFORM_IMAGE_CACHE_PATH",
     "PLATFORM_IMAGE_CACHE_TTL_DAYS",
     "PLATFORM_IMAGE_MAX_WIDTH",
     "PLATFORM_IMAGE_MAX_HEIGHT",

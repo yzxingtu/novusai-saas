@@ -60,9 +60,7 @@ class ImageProcessService:
             "cache_driver": await self.config_service.get_platform_config(
                 "platform_image_cache_driver", default="filesystem"
             ),
-            "cache_path": await self.config_service.get_platform_config(
-                "platform_image_cache_path", default="/data/cache/images"
-            ),
+            "cache_path": str(await self._get_image_cache_path()),
             "cache_ttl_days": await self.config_service.get_platform_config(
                 "platform_image_cache_ttl_days", default=7
             ),
@@ -317,6 +315,13 @@ class ImageProcessService:
         )
         return "custom" if str(mode) == "custom" else "platform"
     
+    async def _get_image_cache_path(self):
+        """
+        获取图片缓存路径（本地存储硬编码）
+        """
+        from app.storage import LOCAL_IMAGE_CACHE_ROOT
+        return LOCAL_IMAGE_CACHE_ROOT
+
     async def _resolve_platform_storage_config(self) -> StorageConfig:
         """
         读取平台存储配置
@@ -324,9 +329,14 @@ class ImageProcessService:
         driver = await self.config_service.get_platform_config(
             "platform_storage_driver", default="local"
         )
-        root_path = await self.config_service.get_platform_config(
-            "platform_storage_root_path", default="/data/uploads"
-        )
+        if str(driver) == "local":
+            # 本地存储使用硬编码路径
+            from app.storage import LOCAL_STORAGE_ROOT
+            root_path = str(LOCAL_STORAGE_ROOT)
+        else:
+            root_path = await self.config_service.get_platform_config(
+                "platform_storage_root_path", default=""
+            )
         base_url = await self.config_service.get_platform_config(
             "platform_storage_base_url", default=None
         )
