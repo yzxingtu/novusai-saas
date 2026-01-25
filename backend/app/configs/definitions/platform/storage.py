@@ -24,7 +24,7 @@ PLATFORM_STORAGE_ROOT_PATH = ConfigMeta(
     description_key="config.platform.storage_root_path.desc",
     scope=ConfigScope.PLATFORM,
     value_type=ConfigValueType.STRING,
-    default_value="/data/uploads",
+    default_value="./storage/uploads",
     sort_order=20,
 )
 
@@ -271,7 +271,7 @@ PLATFORM_IMAGE_CACHE_PATH = ConfigMeta(
     description_key="config.platform.image_cache_path.desc",
     scope=ConfigScope.PLATFORM,
     value_type=ConfigValueType.STRING,
-    default_value="/data/cache/images",
+    default_value="./storage/cache/images",
     display_rules=[
         DisplayRule(
             field="platform_image_process_enabled",

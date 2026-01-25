@@ -222,6 +222,7 @@ ehthumbs_vista.db
 # Uploads and media
 uploads/
 media/
+storage/
 
 # Database
 *.db
