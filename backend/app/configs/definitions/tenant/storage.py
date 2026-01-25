@@ -259,6 +259,26 @@ TENANT_STORAGE_DEFAULT_VISIBILITY = ConfigMeta(
     sort_order=60,
 )
 
+TENANT_STORAGE_ALLOWED_EXTENSIONS = ConfigMeta(
+    key="tenant_storage_allowed_extensions",
+    name_key="config.tenant.storage_allowed_extensions.name",
+    description_key="config.tenant.storage_allowed_extensions.desc",
+    scope=ConfigScope.TENANT,
+    value_type=ConfigValueType.TEXT,
+    default_value="",
+    sort_order=70,
+)
+
+TENANT_STORAGE_DENIED_EXTENSIONS = ConfigMeta(
+    key="tenant_storage_denied_extensions",
+    name_key="config.tenant.storage_denied_extensions.name",
+    description_key="config.tenant.storage_denied_extensions.desc",
+    scope=ConfigScope.TENANT,
+    value_type=ConfigValueType.TEXT,
+    default_value="",
+    sort_order=80,
+)
+
 TENANT_STORAGE_GROUP.configs = [
     TENANT_STORAGE_MODE,
     TENANT_STORAGE_DRIVER,

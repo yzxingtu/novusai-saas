@@ -45,9 +45,13 @@ class PermissionSyncService:
             排序后的权限列表
         """
         code_to_perm = {p.code: p for p in permissions}
+        depth_cache: dict[str, int] = {}
         
-        # 计算每个权限的深度（到根的距离）
+        # 计算每个权限的深度（到根的距离），带缓存
         def get_depth(perm: PermissionMeta, visited: set[str] | None = None) -> int:
+            if perm.code in depth_cache:
+                return depth_cache[perm.code]
+            
             if visited is None:
                 visited = set()
             if perm.code in visited:
@@ -56,11 +60,15 @@ class PermissionSyncService:
             visited.add(perm.code)
             
             if not perm.parent_code:
+                depth_cache[perm.code] = 0
                 return 0
             parent = code_to_perm.get(perm.parent_code)
             if not parent:
+                depth_cache[perm.code] = 0
                 return 0
-            return 1 + get_depth(parent, visited)
+            depth = 1 + get_depth(parent, visited)
+            depth_cache[perm.code] = depth
+            return depth
         
         # 按深度排序，深度小的（父级）先处理
         return sorted(permissions, key=lambda p: get_depth(p))
@@ -78,23 +86,13 @@ class PermissionSyncService:
         Returns:
             {"created": n, "updated": n, "disabled": n}
         """
-        print("🔄 开始同步权限...")
         registered_permissions = permission_registry.get_all()
-        print(f"📊 注册的权限数量: {len(registered_permissions)}")
         # 使用 code:scope 作为唯一标识
         registered_keys = {
             self._make_key(p.code, p.scope.value) for p in registered_permissions
         }
-        print("🔍 正在查询数据库现有权限...")
-        import sys
-        sys.stdout.flush()
         # 获取数据库中现有权限
-        try:
-            result = await self.db.execute(select(Permission))
-            print("✅ 数据库查询完成")
-        except Exception as e:
-            print(f"❌ 数据库查询失败: {e}")
-            raise
+        result = await self.db.execute(select(Permission))
         existing_permissions = result.scalars().all()
         # 使用 code:scope 作为唯一标识
         existing_keys = {
