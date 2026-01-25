@@ -51,6 +51,7 @@ async def get_platform_public_config(db: DbSession):
             session_timeout_minutes=configs.get("session_timeout_minutes"),
             session_max_devices=configs.get("session_max_devices"),
             storage=StoragePublicConfig(
+                driver=configs.get("platform_storage_driver"),
                 base_url=configs.get("platform_storage_base_url"),
                 chunk_size_mb=configs.get("platform_storage_chunk_size_mb"),
                 max_file_size_mb=configs.get("platform_storage_max_file_size_mb"),

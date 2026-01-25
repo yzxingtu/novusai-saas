@@ -83,7 +83,14 @@ async def get_tenant_public_config(request: Request, db: DbSession):
         allowed_extensions = platform_storage_config.get("platform_storage_allowed_extensions")
     
     # chunk_size 和 max_file_size 始终使用平台配置
+    # driver: 自定义模式使用租户配置，平台托管模式使用平台配置
+    if configs.get("tenant_storage_mode") == "custom":
+        storage_driver = configs.get("tenant_storage_driver")
+    else:
+        storage_driver = platform_storage_config.get("platform_storage_driver")
+    
     storage_config_obj = StoragePublicConfig(
+        driver=storage_driver,
         base_url=storage_base_url,
         chunk_size_mb=platform_storage_config.get("platform_storage_chunk_size_mb"),
         max_file_size_mb=platform_storage_config.get("platform_storage_max_file_size_mb"),
