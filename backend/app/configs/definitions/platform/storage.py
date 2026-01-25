@@ -42,13 +42,7 @@ PLATFORM_STORAGE_BASE_URL = ConfigMeta(
     scope=ConfigScope.PLATFORM,
     value_type=ConfigValueType.STRING,
     default_value="",
-    display_rules=[
-        DisplayRule(
-            field="platform_storage_driver",
-            operator="in",
-            value=["s3", "aliyun-oss"],
-        )
-    ],
+    # 所有驱动都需要设置访问域名，本地存储用于构建文件 URL
     sort_order=30,
 )
 
