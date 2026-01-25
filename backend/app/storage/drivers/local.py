@@ -2,6 +2,8 @@
 本地存储驱动实现
 """
 
+from __future__ import annotations
+
 import hashlib
 import json
 import mimetypes
@@ -9,7 +11,7 @@ import os
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import BinaryIO, Optional
+from typing import TYPE_CHECKING, BinaryIO, Optional
 
 import anyio
 
@@ -21,6 +23,9 @@ from app.storage.base import (
     StorageVisibility,
     UploadResult,
 )
+
+if TYPE_CHECKING:
+    from app.utils.image import ImageProcessParams
 
 
 class LocalStorageDriver(StorageDriver):
@@ -271,3 +276,124 @@ class LocalStorageDriver(StorageDriver):
 
         await anyio.to_thread.run_sync(_move)
         return True
+
+    # ========== 图片处理方法 ==========
+
+    def _get_cache_root(self) -> Path:
+        """
+        获取图片缓存根目录
+        """
+        cache_path = self.config.options.get("image_cache_path")
+        if cache_path:
+            return Path(cache_path)
+        return self.root / ".cache" / "images"
+
+    def _get_cache_path(self, path: str, params: "ImageProcessParams") -> Path:
+        """
+        获取缓存文件路径
+        """
+        # 生成缓存键: {path_hash}_{params_hash}.{format}
+        path_hash = hashlib.md5(path.encode()).hexdigest()[:8]
+        params_hash = params.to_cache_key()
+        
+        # 确定输出格式
+        output_format = params.format
+        if not output_format:
+            # 从原始路径推断格式
+            ext = Path(path).suffix.lower().lstrip(".")
+            output_format = ext if ext in {"jpg", "jpeg", "png", "webp", "gif"} else "jpg"
+        
+        cache_filename = f"{path_hash}_{params_hash}.{output_format}"
+        return self._get_cache_root() / cache_filename
+
+    async def get_image_url(
+        self,
+        path: str,
+        params: "ImageProcessParams",
+        expires: int = 3600,
+        visibility: StorageVisibility | None = None,
+    ) -> str:
+        """
+        获取处理后的图片 URL
+        
+        本地存储：处理图片并缓存，返回缓存文件的访问 URL
+        """
+        # 如果不需要处理，直接返回原始 URL
+        if params.is_empty():
+            return await self.get_url(path, expires=expires, visibility=visibility)
+        
+        # 检查缓存
+        cache_path = self._get_cache_path(path, params)
+        if not cache_path.exists():
+            # 处理并缓存
+            await self._process_and_cache(path, params, cache_path)
+        
+        # 返回缓存文件的访问 URL
+        cache_relative = cache_path.relative_to(self.root)
+        return await self.get_url(
+            str(cache_relative),
+            expires=expires,
+            visibility=visibility,
+        )
+
+    async def get_processed_image(
+        self,
+        path: str,
+        params: "ImageProcessParams",
+    ) -> tuple[bytes, str] | None:
+        """
+        获取处理后的图片数据
+        
+        直接返回处理后的字节数据，用于流式响应
+        """
+        from app.utils.image import ImageProcessor
+        
+        # 如果不需要处理，返回 None
+        if params.is_empty():
+            return None
+        
+        # 检查缓存
+        cache_path = self._get_cache_path(path, params)
+        if cache_path.exists():
+            # 从缓存读取
+            def _read_cache() -> tuple[bytes, str]:
+                data = cache_path.read_bytes()
+                mime, _ = mimetypes.guess_type(str(cache_path))
+                return data, mime or "image/jpeg"
+            return await anyio.to_thread.run_sync(_read_cache)
+        
+        # 处理并缓存
+        result = await self._process_and_cache(path, params, cache_path)
+        return result
+
+    async def _process_and_cache(
+        self,
+        path: str,
+        params: "ImageProcessParams",
+        cache_path: Path,
+    ) -> tuple[bytes, str]:
+        """
+        处理图片并保存到缓存
+        """
+        from app.utils.image import ImageProcessor
+        
+        # 获取原图
+        source = await self.get(path)
+        
+        # 处理图片
+        data, mime_type = await ImageProcessor.process(source, params)
+        
+        # 保存到缓存
+        def _save_cache() -> None:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_bytes(data)
+        
+        await anyio.to_thread.run_sync(_save_cache)
+        
+        return data, mime_type
+
+    def supports_native_image_processing(self) -> bool:
+        """
+        本地存储不支持原生图片处理，需要本地 Pillow 处理
+        """
+        return False

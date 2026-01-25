@@ -2,11 +2,14 @@
 S3 兼容存储驱动实现
 """
 
+from __future__ import annotations
+
 import hashlib
 import mimetypes
 import tempfile
 from datetime import datetime
-from typing import BinaryIO, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, BinaryIO, Optional
 
 import anyio
 import boto3
@@ -20,6 +23,9 @@ from app.storage.base import (
     StorageVisibility,
     UploadResult,
 )
+
+if TYPE_CHECKING:
+    from app.utils.image import ImageProcessParams
 
 
 class S3StorageDriver(StorageDriver):
@@ -308,3 +314,150 @@ class S3StorageDriver(StorageDriver):
         if not copied:
             return False
         return await self.delete(source)
+
+    # ========== 图片处理方法 ==========
+
+    def _get_image_process_provider(self) -> str | None:
+        """
+        获取图片处理服务提供商
+        
+        支持的提供商:
+        - cloudflare: Cloudflare Images / Image Resizing
+        - imgproxy: imgproxy 服务
+        - thumbor: Thumbor 服务
+        - None: 无原生支持，需要本地处理
+        """
+        return self.config.options.get("image_process_provider")
+
+    def _get_image_process_url(self) -> str | None:
+        """
+        获取图片处理服务 URL
+        """
+        return self.config.options.get("image_process_url")
+
+    def _build_cloudflare_params(self, params: "ImageProcessParams") -> str:
+        """
+        构建 Cloudflare Image Resizing 参数
+        
+        Cloudflare 格式: /cdn-cgi/image/width=100,height=100,fit=cover/path/to/image.jpg
+        """
+        parts: list[str] = []
+        if params.width:
+            parts.append(f"width={params.width}")
+        if params.height:
+            parts.append(f"height={params.height}")
+        if params.quality:
+            parts.append(f"quality={params.quality}")
+        if params.format:
+            parts.append(f"format={params.format}")
+        # 模式映射
+        fit_map = {
+            "fit": "contain",
+            "fill": "cover",
+            "crop": "crop",
+            "pad": "pad",
+        }
+        if params.mode:
+            parts.append(f"fit={fit_map.get(params.mode, 'contain')}")
+        return ",".join(parts)
+
+    def _build_imgproxy_params(self, params: "ImageProcessParams", source_url: str) -> str:
+        """
+        构建 imgproxy URL
+        
+        imgproxy 格式: /rs:fit:300:200:0/q:85/plain/source_url
+        """
+        parts: list[str] = []
+        
+        # 缩放参数
+        if params.width or params.height:
+            mode_map = {
+                "fit": "fit",
+                "fill": "fill",
+                "crop": "crop",
+            }
+            resize_mode = mode_map.get(params.mode, "fit")
+            w = params.width or 0
+            h = params.height or 0
+            parts.append(f"rs:{resize_mode}:{w}:{h}")
+        
+        # 质量
+        if params.quality:
+            parts.append(f"q:{params.quality}")
+        
+        # 格式
+        if params.format:
+            parts.append(f"f:{params.format}")
+        
+        processing = "/".join(parts) if parts else ""
+        # imgproxy 使用 plain 模式传递原始 URL
+        return f"/{processing}/plain/{source_url}" if processing else f"/plain/{source_url}"
+
+    async def get_image_url(
+        self,
+        path: str,
+        params: "ImageProcessParams",
+        expires: int = 3600,
+        visibility: StorageVisibility | None = None,
+    ) -> str:
+        """
+        获取处理后的图片 URL
+        
+        S3 驱动支持多种图片处理服务:
+        - cloudflare: Cloudflare Image Resizing
+        - imgproxy: imgproxy 服务
+        - 未配置: 本地 Pillow 处理
+        """
+        # 如果不需要处理，直接返回原始 URL
+        if params.is_empty():
+            return await self.get_url(path, expires=expires, visibility=visibility)
+        
+        provider = self._get_image_process_provider()
+        process_url = self._get_image_process_url()
+        
+        # Cloudflare Image Resizing
+        if provider == "cloudflare" and process_url:
+            key = self._key(path)
+            cf_params = self._build_cloudflare_params(params)
+            return f"{process_url.rstrip('/')}/cdn-cgi/image/{cf_params}/{key}"
+        
+        # imgproxy
+        if provider == "imgproxy" and process_url:
+            # 获取原始文件 URL 作为 imgproxy 源
+            source_url = await self.get_url(path, expires=expires, visibility=visibility)
+            imgproxy_path = self._build_imgproxy_params(params, source_url)
+            return f"{process_url.rstrip('/')}{imgproxy_path}"
+        
+        # 未配置图片处理服务，返回原始 URL
+        # 调用方应检查 supports_native_image_processing() 并使用本地处理
+        return await self.get_url(path, expires=expires, visibility=visibility)
+
+    async def get_processed_image(
+        self,
+        path: str,
+        params: "ImageProcessParams",
+    ) -> tuple[bytes, str] | None:
+        """
+        获取处理后的图片数据
+        
+        S3 驱动使用本地 Pillow 处理（无缓存）
+        """
+        from app.utils.image import ImageProcessor
+        
+        # 如果不需要处理，返回 None
+        if params.is_empty():
+            return None
+        
+        # 获取原图
+        source = await self.get(path)
+        
+        # 处理图片
+        return await ImageProcessor.process(source, params)
+
+    def supports_native_image_processing(self) -> bool:
+        """
+        检查是否配置了原生图片处理服务
+        """
+        provider = self._get_image_process_provider()
+        process_url = self._get_image_process_url()
+        return provider is not None and process_url is not None

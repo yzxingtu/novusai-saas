@@ -2,11 +2,13 @@
 阿里云 OSS 存储驱动实现
 """
 
+from __future__ import annotations
+
 import hashlib
 import mimetypes
 import tempfile
 from datetime import datetime
-from typing import BinaryIO, Optional
+from typing import TYPE_CHECKING, BinaryIO, Optional
 
 import anyio
 import oss2
@@ -19,6 +21,9 @@ from app.storage.base import (
     StorageVisibility,
     UploadResult,
 )
+
+if TYPE_CHECKING:
+    from app.utils.image import ImageProcessParams
 
 
 class OssStorageDriver(StorageDriver):
@@ -294,3 +299,97 @@ class OssStorageDriver(StorageDriver):
         if not copied:
             return False
         return await self.delete(source)
+
+    # ========== 图片处理方法 ==========
+
+    def _build_oss_process_params(self, params: "ImageProcessParams") -> str:
+        """
+        构建 OSS 图片处理参数字符串
+        
+        OSS 图片处理参数格式: image/resize,w_100,h_100,m_fill/quality,q_80/format,webp
+        参考: https://help.aliyun.com/document_detail/44686.html
+        """
+        operations: list[str] = []
+        
+        # 缩放参数
+        resize_parts: list[str] = []
+        if params.width:
+            resize_parts.append(f"w_{params.width}")
+        if params.height:
+            resize_parts.append(f"h_{params.height}")
+        if resize_parts:
+            # 模式映射
+            # fit -> m_lfit (等比缩放，限制在指定宽高内)
+            # fill -> m_fill (等比缩放并居中裁剪)
+            # crop -> m_mfit + 后续 auto-orient/crop
+            # pad -> m_pad (等比缩放并填充)
+            mode_map = {
+                "fit": "m_lfit",
+                "fill": "m_fill",
+                "crop": "m_mfit",
+                "pad": "m_pad",
+            }
+            mode = mode_map.get(params.mode, "m_lfit")
+            resize_parts.append(mode)
+            operations.append("resize," + ",".join(resize_parts))
+        
+        # 质量参数
+        if params.quality and params.quality < 100:
+            operations.append(f"quality,q_{params.quality}")
+        
+        # 格式转换
+        if params.format:
+            fmt = params.format
+            # OSS 使用 jpg 而非 jpeg
+            if fmt == "jpeg":
+                fmt = "jpg"
+            operations.append(f"format,{fmt}")
+        
+        if not operations:
+            return ""
+        
+        return "image/" + "/".join(operations)
+
+    async def get_image_url(
+        self,
+        path: str,
+        params: "ImageProcessParams",
+        expires: int = 3600,
+        visibility: StorageVisibility | None = None,
+    ) -> str:
+        """
+        获取处理后的图片 URL
+        
+        OSS 原生图片处理：通过 x-oss-process 参数实现
+        """
+        # 如果不需要处理，直接返回原始 URL
+        if params.is_empty():
+            return await self.get_url(path, expires=expires, visibility=visibility)
+        
+        key = self._key(path)
+        process_params = self._build_oss_process_params(params)
+        
+        if visibility is None:
+            info = await self.get_info(path)
+            visibility = info.visibility if info else StorageVisibility.PRIVATE
+        
+        # 公开文件使用 base_url + x-oss-process 参数
+        if visibility == StorageVisibility.PUBLIC and self.base_url:
+            return f"{self.base_url}/{key}?x-oss-process={process_params}"
+        
+        # 私有文件使用签名 URL + x-oss-process 参数
+        def _sign() -> str:
+            return self.bucket.sign_url(
+                "GET",
+                key,
+                expires,
+                params={"x-oss-process": process_params},
+            )
+        
+        return await anyio.to_thread.run_sync(_sign)
+
+    def supports_native_image_processing(self) -> bool:
+        """
+        OSS 支持原生图片处理
+        """
+        return True
