@@ -52,6 +52,22 @@ class ValidationRule:
 
 
 @dataclass
+class DisplayRule:
+    field: str
+    operator: str = "equals"
+    value: Any = None
+    action: str = "show"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "field": self.field,
+            "operator": self.operator,
+            "value": self.value,
+            "action": self.action,
+        }
+
+
+@dataclass
 class ConfigMeta:
     """
     配置项元数据
@@ -105,6 +121,15 @@ class ConfigMeta:
     
     sort_order: int = 0
     """排序顺序"""
+
+    display_rules: list[DisplayRule] = field(default_factory=list)
+    """显示/隐藏规则"""
+
+    value_path: str = ""
+    """用于子字段映射到父 JSON 的路径"""
+
+    children: list["ConfigMeta"] = field(default_factory=list)
+    """子字段配置"""
     
     # 运行时属性
     group_code: str = ""
@@ -115,6 +140,9 @@ class ConfigMeta:
         # 密码类型默认加密
         if self.value_type == ConfigValueType.PASSWORD:
             self.is_encrypted = True
+        for child in self.children:
+            if child.scope != self.scope:
+                child.scope = self.scope
     
     def to_dict(self) -> dict[str, Any]:
         """转换为字典（用于序列化）"""
@@ -132,7 +160,15 @@ class ConfigMeta:
             "is_encrypted": self.is_encrypted,
             "sort_order": self.sort_order,
             "group_code": self.group_code,
+            "display_rules": [rule.to_dict() for rule in self.display_rules],
+            "value_path": self.value_path,
+            "children": [child.to_dict() for child in self.children],
         }
+
+    def set_group_code(self, group_code: str) -> None:
+        self.group_code = group_code
+        for child in self.children:
+            child.group_code = group_code
 
 
 class ConfigGroupMeta:
@@ -189,7 +225,7 @@ class ConfigGroupMeta:
         """设置配置项列表，同时更新每个配置项的 group_code"""
         self._configs = value
         for config in self._configs:
-            config.group_code = self.code
+            config.set_group_code(self.code)
             # 继承分组的作用域
             if config.scope != self.scope:
                 config.scope = self.scope

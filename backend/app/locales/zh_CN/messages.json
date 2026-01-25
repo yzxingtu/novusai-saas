@@ -802,6 +802,36 @@
       "visibility": {
         "private": "私有",
         "public": "公开"
+      },
+      "option": {
+        "access_key_id": {
+          "name": "Access Key ID",
+          "desc": "对象存储访问密钥 ID"
+        },
+        "secret_access_key": {
+          "name": "Secret Access Key",
+          "desc": "对象存储访问密钥"
+        },
+        "access_key_secret": {
+          "name": "Access Key Secret",
+          "desc": "阿里云访问密钥"
+        },
+        "region": {
+          "name": "区域",
+          "desc": "对象存储区域标识"
+        },
+        "endpoint_url": {
+          "name": "Endpoint URL",
+          "desc": "S3 兼容 Endpoint 地址"
+        },
+        "endpoint": {
+          "name": "Endpoint",
+          "desc": "OSS Endpoint 地址"
+        },
+        "prefix": {
+          "name": "路径前缀",
+          "desc": "对象存储路径前缀"
+        }
       }
     }
   },

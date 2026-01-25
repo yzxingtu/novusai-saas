@@ -800,6 +800,36 @@
       "visibility": {
         "private": "Private",
         "public": "Public"
+      },
+      "option": {
+        "access_key_id": {
+          "name": "Access Key ID",
+          "desc": "Access key ID for object storage"
+        },
+        "secret_access_key": {
+          "name": "Secret Access Key",
+          "desc": "Secret access key for object storage"
+        },
+        "access_key_secret": {
+          "name": "Access Key Secret",
+          "desc": "Access key secret for Aliyun OSS"
+        },
+        "region": {
+          "name": "Region",
+          "desc": "Region identifier for object storage"
+        },
+        "endpoint_url": {
+          "name": "Endpoint URL",
+          "desc": "S3 compatible endpoint URL"
+        },
+        "endpoint": {
+          "name": "Endpoint",
+          "desc": "OSS endpoint address"
+        },
+        "prefix": {
+          "name": "Path Prefix",
+          "desc": "Object storage key prefix"
+        }
       }
     }
   },

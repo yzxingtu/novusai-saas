@@ -307,29 +307,12 @@ class ConfigService:
             for config_meta in configs:
                 if not config_meta.is_visible:
                     continue
-                
-                # 获取当前值
-                value = await self._get_config_value(
-                    key=config_meta.key,
-                    tenant_id=actual_tenant_id,
+                payload = await self._build_config_payload(
+                    config_meta,
+                    actual_tenant_id=actual_tenant_id,
                     scope=scope,
-                    default=config_meta.default_value,
                 )
-                
-                result.append({
-                    "key": config_meta.key,
-                    "name_key": config_meta.name_key,
-                    "description_key": config_meta.description_key,
-                    "value_type": config_meta.value_type.value,
-                    "value": value,
-                    "default_value": config_meta.default_value,
-                    "options": [opt.to_dict() for opt in config_meta.options],
-                    "validation_rules": [rule.to_dict() for rule in config_meta.validation_rules],
-                    "is_required": config_meta.is_required,
-                    "is_encrypted": config_meta.is_encrypted,
-                    "group_code": config_meta.group_code,
-                    "sort_order": config_meta.sort_order,
-                })
+                result.append(payload)
         
         return sorted(result, key=lambda x: (x["group_code"], x["sort_order"]))
     
@@ -361,27 +344,12 @@ class ConfigService:
             for config_meta in group.configs:
                 if not config_meta.is_visible:
                     continue
-                
-                value = await self._get_config_value(
-                    key=config_meta.key,
-                    tenant_id=actual_tenant_id,
+                payload = await self._build_config_payload(
+                    config_meta,
+                    actual_tenant_id=actual_tenant_id,
                     scope=scope,
-                    default=config_meta.default_value,
                 )
-                
-                configs.append({
-                    "key": config_meta.key,
-                    "name_key": config_meta.name_key,
-                    "description_key": config_meta.description_key,
-                    "value_type": config_meta.value_type.value,
-                    "value": value,
-                    "default_value": config_meta.default_value,
-                    "options": [opt.to_dict() for opt in config_meta.options],
-                    "validation_rules": [rule.to_dict() for rule in config_meta.validation_rules],
-                    "is_required": config_meta.is_required,
-                    "is_encrypted": config_meta.is_encrypted,
-                    "sort_order": config_meta.sort_order,
-                })
+                configs.append(payload)
             
             result.append({
                 "code": group.code,
@@ -432,6 +400,74 @@ class ConfigService:
         
         # 返回默认值
         return default
+
+    async def _build_config_payload(
+        self,
+        config_meta: ConfigMeta,
+        actual_tenant_id: int,
+        scope: ConfigScope,
+        parent_value: Any | None = None,
+    ) -> dict[str, Any]:
+        value = parent_value
+        if value is None:
+            value = await self._get_config_value(
+                key=config_meta.key,
+                tenant_id=actual_tenant_id,
+                scope=scope,
+                default=config_meta.default_value,
+            )
+
+        payload = {
+            "key": config_meta.key,
+            "name_key": config_meta.name_key,
+            "description_key": config_meta.description_key,
+            "value_type": config_meta.value_type.value,
+            "value": value,
+            "default_value": config_meta.default_value,
+            "options": [opt.to_dict() for opt in config_meta.options],
+            "validation_rules": [rule.to_dict() for rule in config_meta.validation_rules],
+            "is_required": config_meta.is_required,
+            "is_encrypted": config_meta.is_encrypted,
+            "group_code": config_meta.group_code,
+            "sort_order": config_meta.sort_order,
+            "display_rules": [rule.to_dict() for rule in config_meta.display_rules],
+            "value_path": config_meta.value_path,
+        }
+
+        if config_meta.children:
+            children_payloads = []
+            for child in config_meta.children:
+                child_value = None
+                if child.value_path:
+                    child_value = self._get_value_by_path(value, child.value_path)
+                    if child_value is None:
+                        child_value = child.default_value
+                    payload_parent = child_value
+                else:
+                    payload_parent = None
+                child_payload = await self._build_config_payload(
+                    child,
+                    actual_tenant_id=actual_tenant_id,
+                    scope=scope,
+                    parent_value=payload_parent,
+                )
+                children_payloads.append(child_payload)
+            payload["children"] = children_payloads
+        else:
+            payload["children"] = []
+
+        return payload
+
+    def _get_value_by_path(self, data: Any, path: str) -> Any:
+        if data is None:
+            return None
+        current = data
+        for segment in path.split("."):
+            if isinstance(current, dict) and segment in current:
+                current = current[segment]
+            else:
+                return None
+        return current
     
     async def _set_config_value(
         self,
