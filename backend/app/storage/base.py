@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, BinaryIO, Optional
 
+from app.core.logging import StorageLoggerMixin
 from app.enums.base import StrEnum
 
 if TYPE_CHECKING:
@@ -59,9 +60,11 @@ class FileInfo:
     metadata: dict = field(default_factory=dict)
 
 
-class StorageDriver:
+class StorageDriver(StorageLoggerMixin):
     """
     存储驱动抽象基类
+    
+    通过 StorageLoggerMixin 提供 self.logger 属性，日志记录到 logs/storage.log
     """
     name: str = "base"
     display_name: str = "Base Storage"

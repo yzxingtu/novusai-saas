@@ -529,6 +529,86 @@ def init_logging() -> None:
     LogManager.init()
 
 
+# ============================================
+# LoggerMixin - 日志器混入类
+# ============================================
+
+class LoggerMixin:
+    """
+    日志器混入类
+    
+    提供延迟加载的 logger 属性，避免模块导入时 LogManager 未初始化的问题。
+    
+    使用方式 1 - 默认使用 app 日志：
+        class MyService(LoggerMixin):
+            def do_something(self):
+                self.logger.info("Doing something")
+    
+    使用方式 2 - 指定日志分类：
+        class CaptchaProvider(LoggerMixin):
+            _log_category = LogCategoryEnum.CAPTCHA
+            
+            def generate(self):
+                self.logger.debug("Generating captcha")
+    
+    使用方式 3 - 多重继承：
+        class AttachmentService(BaseService, LoggerMixin):
+            _log_category = LogCategoryEnum.STORAGE
+    """
+    
+    # 子类可覆盖此属性指定日志分类
+    _log_category: LogCategoryEnum | None = None
+    
+    # 类级别日志器缓存
+    __class_loggers: dict[type, logging.Logger] = {}
+    
+    @property
+    def logger(self) -> logging.Logger:
+        """
+        获取日志器（延迟加载，类级别缓存）
+        """
+        cls = self.__class__
+        if cls not in LoggerMixin.__class_loggers:
+            if self._log_category is not None:
+                LoggerMixin.__class_loggers[cls] = LogManager.get_category_logger(
+                    self._log_category
+                )
+            else:
+                # 默认使用 app 日志器
+                LoggerMixin.__class_loggers[cls] = LogManager.get_app_logger()
+        return LoggerMixin.__class_loggers[cls]
+
+
+class CaptchaLoggerMixin(LoggerMixin):
+    """验证码模块日志器混入类"""
+    _log_category = LogCategoryEnum.CAPTCHA
+
+
+class StorageLoggerMixin(LoggerMixin):
+    """存储模块日志器混入类"""
+    _log_category = LogCategoryEnum.STORAGE
+
+
+class AuthLoggerMixin(LoggerMixin):
+    """认证模块日志器混入类"""
+    _log_category = LogCategoryEnum.AUTH
+
+
+class TaskLoggerMixin(LoggerMixin):
+    """任务模块日志器混入类"""
+    _log_category = LogCategoryEnum.TASK
+
+
+class QueueLoggerMixin(LoggerMixin):
+    """队列模块日志器混入类"""
+    _log_category = LogCategoryEnum.QUEUE
+
+
+class DbLoggerMixin(LoggerMixin):
+    """数据库模块日志器混入类"""
+    _log_category = LogCategoryEnum.DB
+
+
 __all__ = [
     "LogManager",
     "get_logger",
@@ -540,4 +620,12 @@ __all__ = [
     "get_storage_logger",
     "get_auth_logger",
     "init_logging",
+    # Mixin 类
+    "LoggerMixin",
+    "CaptchaLoggerMixin",
+    "StorageLoggerMixin",
+    "AuthLoggerMixin",
+    "TaskLoggerMixin",
+    "QueueLoggerMixin",
+    "DbLoggerMixin",
 ]
