@@ -216,8 +216,9 @@ PLATFORM_STORAGE_ALLOWED_EXTENSIONS = ConfigMeta(
     name_key="config.platform.storage_allowed_extensions.name",
     description_key="config.platform.storage_allowed_extensions.desc",
     scope=ConfigScope.PLATFORM,
-    value_type=ConfigValueType.TEXT,
+    value_type=ConfigValueType.TAG,
     default_value="jpg,jpeg,png,gif,webp,svg,ico,bmp,pdf,doc,docx,xls,xlsx,ppt,pptx,txt,csv,json,xml,zip,rar,7z,mp3,mp4,avi,mov,webm",
+    tag_separator=",",
     sort_order=80,
 )
 
@@ -226,8 +227,9 @@ PLATFORM_STORAGE_DENIED_EXTENSIONS = ConfigMeta(
     name_key="config.platform.storage_denied_extensions.name",
     description_key="config.platform.storage_denied_extensions.desc",
     scope=ConfigScope.PLATFORM,
-    value_type=ConfigValueType.TEXT,
+    value_type=ConfigValueType.TAG,
     default_value="exe,bat,cmd,sh,php,asp,aspx,jsp,py,rb,pl,cgi,htaccess,dll,so",
+    tag_separator=",",
     sort_order=90,
 )
 

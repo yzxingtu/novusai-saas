@@ -82,6 +82,8 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
         display_rules=display_rules,
         value_path=config.get("value_path", ""),
         children=children,
+        tag_separator=config.get("tag_separator", ","),
+        file_accept=config.get("file_accept", ""),
     )
 
 

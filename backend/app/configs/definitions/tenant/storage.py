@@ -264,8 +264,9 @@ TENANT_STORAGE_ALLOWED_EXTENSIONS = ConfigMeta(
     name_key="config.tenant.storage_allowed_extensions.name",
     description_key="config.tenant.storage_allowed_extensions.desc",
     scope=ConfigScope.TENANT,
-    value_type=ConfigValueType.TEXT,
+    value_type=ConfigValueType.TAG,
     default_value="",
+    tag_separator=",",
     sort_order=70,
 )
 
@@ -274,8 +275,9 @@ TENANT_STORAGE_DENIED_EXTENSIONS = ConfigMeta(
     name_key="config.tenant.storage_denied_extensions.name",
     description_key="config.tenant.storage_denied_extensions.desc",
     scope=ConfigScope.TENANT,
-    value_type=ConfigValueType.TEXT,
+    value_type=ConfigValueType.TAG,
     default_value="",
+    tag_separator=",",
     sort_order=80,
 )
 

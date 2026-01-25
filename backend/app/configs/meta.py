@@ -131,6 +131,14 @@ class ConfigMeta:
     children: list["ConfigMeta"] = field(default_factory=list)
     """子字段配置"""
     
+    # TAG 类型专用参数
+    tag_separator: str = ","
+    """标签分隔符（用于 TAG 类型，默认英文逗号）"""
+    
+    # FILE 类型专用参数
+    file_accept: str = ""
+    """文件接受类型（用于 FILE 类型，如 '.pdf,.doc' 或 'image/*'）"""
+    
     # 运行时属性
     group_code: str = ""
     """所属分组代码（由注册中心设置）"""
@@ -163,6 +171,8 @@ class ConfigMeta:
             "display_rules": [rule.to_dict() for rule in self.display_rules],
             "value_path": self.value_path,
             "children": [child.to_dict() for child in self.children],
+            "tag_separator": self.tag_separator,
+            "file_accept": self.file_accept,
         }
 
     def set_group_code(self, group_code: str) -> None:

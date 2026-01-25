@@ -56,6 +56,8 @@ class ConfigItemResponse(BaseSchema):
     display_rules: list[DisplayRuleSchema] = Field(default_factory=list, description="显示/隐藏规则")
     value_path: str = Field("", description="子字段映射到父 JSON 的路径")
     children: list["ConfigItemResponse"] = Field(default_factory=list, description="子字段配置")
+    tag_separator: str = Field(",", description="标签分隔符（TAG 类型专用）")
+    file_accept: str = Field("", description="文件接受类型（FILE 类型专用）")
 
 
 # ==========================================
