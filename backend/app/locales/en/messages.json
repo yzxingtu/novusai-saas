@@ -289,6 +289,18 @@
       "read": "Read Log Content",
       "download": "Download Log File",
       "delete": "Delete Log File"
+    },
+    "attachment": {
+      "list": "View Attachment List",
+      "detail": "View Attachment Details",
+      "select": "Attachment Remote Select",
+      "delete": "Delete Attachment",
+      "download_url": "Get Download URL",
+      "preview_url": "Get Preview URL",
+      "download": "Download Attachment",
+      "preview": "Preview Attachment",
+      "stats": "View Storage Statistics",
+      "stats_by_tenant": "View Tenant Storage Statistics"
     }
   },
   "role": {

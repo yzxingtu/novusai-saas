@@ -16,12 +16,24 @@ class Attachment(TenantModel):
         "path": "path",
         "hash": "hash",
         "mime_type": "mime_type",
+        "extension": "extension",
         "visibility": "visibility",
         "status": "status",
         "driver": "driver",
-        "meta": "meta",
+        "source": "source",
+        "uploader_id": "uploader_id",
+        "business_type": "business_type",
+        "business_id": "business_id",
         "created_at": "created_at",
         "updated_at": "updated_at",
+    }
+    
+    # 支持远程下拉配置
+    __selectable__ = {
+        "label": "original_name",      # 显示名称：原始文件名
+        "value": "id",                 # 值：ID
+        "search": ["name", "original_name"],  # 搜索字段
+        "extra": ["mime_type", "extension", "size"],  # 额外信息
     }
     
     # 索引

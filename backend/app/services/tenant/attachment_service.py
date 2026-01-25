@@ -634,5 +634,38 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         if hasattr(result, "__await__"):
             await result
 
+    # ========================================
+    # 附件管理方法
+    # ========================================
+
+    async def soft_delete(self, attachment_id: int) -> bool:
+        """
+        软删除附件
+        
+        Args:
+            attachment_id: 附件 ID
+        
+        Returns:
+            是否删除成功
+        """
+        attachment = await self.repo.get_by_id(attachment_id)
+        if not attachment:
+            raise NotFoundException(message=_("error.common.not_found"))
+        return await self.repo.delete(attachment_id, soft=True)
+
+    async def get_storage_stats(self) -> dict[str, Any]:
+        """
+        获取租户存储统计
+        
+        Returns:
+            存储统计信息
+        """
+        total_size = await self.repo.sum_size()
+        total_count = await self.repo.count()
+        return {
+            "total_size": total_size,
+            "total_count": total_count,
+        }
+
 
 __all__ = ["AttachmentService"]

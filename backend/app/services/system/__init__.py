@@ -18,6 +18,7 @@ from app.services.system.system_log_service import (
     LogCategoryInfo,
     LogContentPage,
 )
+from app.services.system.attachment_service import AdminAttachmentService
 
 
 __all__ = [
@@ -32,4 +33,5 @@ __all__ = [
     "LogFileInfo",
     "LogCategoryInfo",
     "LogContentPage",
+    "AdminAttachmentService",
 ]

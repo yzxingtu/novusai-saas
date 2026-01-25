@@ -18,6 +18,7 @@ from app.api.admin.configs import router as configs_router, AdminConfigControlle
 from app.api.admin.plans import router as plans_router, AdminPlanController
 from app.api.admin.operation_logs import router as operation_logs_router, AdminOperationLogController
 from app.api.admin.system_logs import router as system_logs_router, AdminSystemLogController
+from app.api.admin.attachments import router as attachments_router, AdminAttachmentController
 
 # 创建平台管理后台路由器
 admin_router = APIRouter()
@@ -32,6 +33,7 @@ admin_router.include_router(configs_router)
 admin_router.include_router(plans_router)
 admin_router.include_router(operation_logs_router)
 admin_router.include_router(system_logs_router)
+admin_router.include_router(attachments_router)
 
 
 __all__ = [
@@ -45,4 +47,5 @@ __all__ = [
     "AdminPlanController",
     "AdminOperationLogController",
     "AdminSystemLogController",
+    "AdminAttachmentController",
 ]

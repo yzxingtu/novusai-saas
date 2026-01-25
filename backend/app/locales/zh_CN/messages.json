@@ -289,6 +289,18 @@
       "read": "读取日志内容",
       "download": "下载日志文件",
       "delete": "删除日志文件"
+    },
+    "attachment": {
+      "list": "查看附件列表",
+      "detail": "查看附件详情",
+      "select": "附件远程下拉",
+      "delete": "删除附件",
+      "download_url": "获取下载链接",
+      "preview_url": "获取预览链接",
+      "download": "下载附件",
+      "preview": "预览附件",
+      "stats": "查看存储统计",
+      "stats_by_tenant": "查看租户存储统计"
     }
   },
     "role": {

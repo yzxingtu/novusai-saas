@@ -13,7 +13,8 @@
       "tenant_plan": "Plans",
       "system_mgmt": "System Management",
       "platform_config": "Platform Config",
-      "system_log": "System Logs"
+      "system_log": "System Logs",
+      "attachment": "Attachments"
     },
     "tenant": {
       "dashboard": "Dashboard",
@@ -25,7 +26,8 @@
       "tenant_settings": "Settings",
       "system_mgmt": "System Management",
       "tenant_config": "System Config",
-      "domain": "Domain Management"
+      "domain": "Domain Management",
+      "attachment": "Attachments"
     }
   }
 }
