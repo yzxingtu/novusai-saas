@@ -18,6 +18,7 @@ class ImageCaptchaProvider(ICaptchaProvider, CaptchaLoggerMixin):
     """图形验证码提供者"""
     
     def __init__(self) -> None:
+        self._store: dict[str, dict[str, Any]] = {}
         self._charsets = {
             "easy": "ABCDEFGHJKLMNPQRSTUVWXYZ23456789",
             "medium": "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789",
