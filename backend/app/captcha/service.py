@@ -2,12 +2,14 @@ from __future__ import annotations
 import uuid
 from typing import Any
 from datetime import datetime, timedelta, timezone
-from app.core.logging import get_logger
+from app.core.logging import CaptchaLoggerMixin
 from app.captcha.registry import registry
 from app.captcha.provider import CaptchaChallenge, CaptchaVerificationResult, ICaptchaProvider
 
 
-class CaptchaService:
+class CaptchaService(CaptchaLoggerMixin):
+    """验证码服务"""
+    
     def __init__(self) -> None:
         self._used: dict[str, datetime] = {}
         self._fail_counts: dict[str, tuple[int, datetime]] = {}
@@ -18,7 +20,6 @@ class CaptchaService:
             "challenge": (30, 60),
             "verify": (60, 60),
         }
-        self._logger = get_logger("captcha", separate_file=True)
 
     def _now(self) -> datetime:
         return datetime.now(timezone.utc)
@@ -37,7 +38,7 @@ class CaptchaService:
         if challenge.challenge_id == "stub":
             challenge.challenge_id = uuid.uuid4().hex
             challenge.expires_at = self._now() + timedelta(minutes=2)
-        self._logger.info(
+        self.logger.info(
             f"challenge created provider={provider_code or 'image'} "
             f"endpoint={ctx.get('endpoint')} action={ctx.get('action')} ip={ctx.get('ip')}"
         )
@@ -66,7 +67,7 @@ class CaptchaService:
                 count = 0
                 reset_at = now + timedelta(seconds=self._fail_window_seconds)
             self._fail_counts[key] = (count + 1, reset_at)
-        self._logger.info(
+        self.logger.info(
             f"verify result={result.ok} reason={result.reason} provider={provider_code or 'image'} "
             f"endpoint={ctx.get('endpoint')} action={ctx.get('action')} ip={ctx.get('ip')}"
         )

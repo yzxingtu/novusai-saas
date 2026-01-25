@@ -26,7 +26,7 @@ from app.core.base_model import Base
 
 async_engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DEBUG,  # 开发环境打印 SQL
+    echo=False,  # SQL 日志由 logging 模块统一管理，输出到 db.log
     pool_size=settings.DATABASE_POOL_SIZE,
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
     pool_timeout=settings.DATABASE_POOL_TIMEOUT,
@@ -49,7 +49,7 @@ async_session_factory = async_sessionmaker(
 
 sync_engine = create_engine(
     settings.DATABASE_URL_SYNC,
-    echo=settings.DEBUG,
+    echo=False,  # SQL 日志由 logging 模块统一管理，输出到 db.log
     pool_pre_ping=True,
 )
 

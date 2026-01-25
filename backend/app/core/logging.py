@@ -155,6 +155,7 @@ class LogManager:
             logger_name = f"{_CATEGORY_LOGGER_PREFIX}{category.value}"
             logger = logging.getLogger(logger_name)
             logger.setLevel(cls._log_level)
+            logger.disabled = False  # 确保 logger 未被禁用
             logger.propagate = False  # 不向上传播，避免重复记录
             
             # 添加文件处理器
@@ -177,7 +178,7 @@ class LogManager:
         """
         配置 SQLAlchemy 日志
         
-        将 SQLAlchemy 日志重定向到 db 分类日志器
+        将 SQLAlchemy 日志重定向到 db 分类日志器（仅文件，不输出到控制台）
         """
         # 获取 db 日志器
         db_logger = cls._category_loggers.get(LogCategoryEnum.DB.value)
@@ -190,7 +191,7 @@ class LogManager:
         sa_logger.setLevel(sa_level)
         sa_logger.propagate = False  # 不向根日志器传播
         
-        # 清除已有处理器，添加 db 文件处理器
+        # 清除已有处理器，添加 db 文件处理器（仅写入文件，不输出到控制台）
         sa_logger.handlers.clear()
         if cls._log_dir:
             handler = cls._create_timed_handler(
@@ -199,11 +200,7 @@ class LogManager:
                 backup_count=30,
             )
             sa_logger.addHandler(handler)
-            
-            # 开发环境同时输出到控制台
-            if settings.DEBUG:
-                console_handler = cls._create_console_handler(sa_level)
-                sa_logger.addHandler(console_handler)
+            # 注意：不再添加控制台处理器，避免刷屏
     
     @classmethod
     def _create_console_handler(cls, level: int) -> logging.StreamHandler:
@@ -576,7 +573,12 @@ class LoggerMixin:
             else:
                 # 默认使用 app 日志器
                 LoggerMixin.__class_loggers[cls] = LogManager.get_app_logger()
-        return LoggerMixin.__class_loggers[cls]
+        
+        logger = LoggerMixin.__class_loggers[cls]
+        # 确保 logger 未被禁用（uvicorn --reload 可能会禁用 logger）
+        if logger.disabled:
+            logger.disabled = False
+        return logger
 
 
 class CaptchaLoggerMixin(LoggerMixin):
