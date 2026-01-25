@@ -16,15 +16,13 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.logging import LogManager
+from app.core.logging import LoggerMixin
 from app.models.auth.permission import Permission
 from app.rbac.decorators import PermissionMeta
 from app.rbac.registry import permission_registry
 
-logger = LogManager.get_logger(__name__)
 
-
-class PermissionSyncService:
+class PermissionSyncService(LoggerMixin):
     """
     权限同步服务
     
@@ -122,7 +120,7 @@ class PermissionSyncService:
                 parent_key = self._make_key(perm_meta.parent_code, perm_meta.scope.value)
                 parent_id = code_scope_to_id.get(parent_key)
                 if parent_id is None:
-                    logger.warning(
+                    self.logger.warning(
                         f"权限 {perm_meta.code} ({perm_meta.scope.value}) 的父级 {perm_meta.parent_code} 不存在"
                     )
             
@@ -175,11 +173,11 @@ class PermissionSyncService:
             if db_perm.is_enabled:
                 db_perm.is_enabled = False
                 disabled_count += 1
-                logger.debug(f"禁用权限: {key}")
+                self.logger.debug(f"禁用权限: {key}")
         
         await self.db.commit()
         
-        logger.info(
+        self.logger.info(
             f"权限同步完成: 新增 {created_count}, 更新 {updated_count}, 禁用 {disabled_count}"
         )
         

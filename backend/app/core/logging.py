@@ -149,6 +149,7 @@ class LogManager:
             LogCategoryEnum.CAPTCHA,
             LogCategoryEnum.STORAGE,
             LogCategoryEnum.AUTH,
+            LogCategoryEnum.IMPERSONATE,
         ]
         
         for category in categories:
@@ -449,6 +450,15 @@ class LogManager:
         return cls.get_category_logger(LogCategoryEnum.AUTH)
     
     @classmethod
+    def get_impersonate_logger(cls) -> logging.Logger:
+        """
+        获取一键登录审计日志器
+        
+        记录到 logs/impersonate.log
+        """
+        return cls.get_category_logger(LogCategoryEnum.IMPERSONATE)
+    
+    @classmethod
     def get_log_dir(cls) -> Path | None:
         """获取日志目录路径"""
         return cls._log_dir
@@ -519,6 +529,11 @@ def get_storage_logger() -> logging.Logger:
 def get_auth_logger() -> logging.Logger:
     """获取认证日志器"""
     return LogManager.get_auth_logger()
+
+
+def get_impersonate_logger() -> logging.Logger:
+    """获取一键登录审计日志器"""
+    return LogManager.get_impersonate_logger()
 
 
 def init_logging() -> None:
@@ -611,6 +626,11 @@ class DbLoggerMixin(LoggerMixin):
     _log_category = LogCategoryEnum.DB
 
 
+class ImpersonateLoggerMixin(LoggerMixin):
+    """一键登录审计日志器混入类"""
+    _log_category = LogCategoryEnum.IMPERSONATE
+
+
 __all__ = [
     "LogManager",
     "get_logger",
@@ -621,6 +641,7 @@ __all__ = [
     "get_captcha_logger",
     "get_storage_logger",
     "get_auth_logger",
+    "get_impersonate_logger",
     "init_logging",
     # Mixin 类
     "LoggerMixin",
@@ -630,4 +651,5 @@ __all__ = [
     "TaskLoggerMixin",
     "QueueLoggerMixin",
     "DbLoggerMixin",
+    "ImpersonateLoggerMixin",
 ]

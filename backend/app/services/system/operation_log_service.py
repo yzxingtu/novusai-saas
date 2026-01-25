@@ -13,9 +13,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_service import GlobalService
 from app.core.database import async_session_factory
+from app.core.logging import LoggerMixin
 from app.models.system.operation_log import OperationLog
 from app.repositories.system.operation_log_repository import OperationLogRepository
 from app.schemas.common.query import QuerySpec
+
+
+# 日志辅助类（用于模块级函数中的日志记录）
+class _ModuleLogger(LoggerMixin):
+    """operation_log_service 模块日志器"""
+    pass
+
+_module_logger = _ModuleLogger()
 
 if TYPE_CHECKING:
     from app.models.system.admin import Admin
@@ -411,9 +420,7 @@ async def _write_log_async(log_data: dict[str, Any]) -> None:
     except Exception as e:
         # 日志写入失败不应影响主业务
         # 记录到文件日志
-        from app.core.logging import get_logger
-        logger = get_logger(__name__)
-        logger.error(f"Failed to write operation log: {e}")
+        _module_logger.logger.error(f"Failed to write operation log: {e}")
 
 
 async def _fetch_user_info(

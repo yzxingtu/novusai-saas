@@ -11,7 +11,7 @@ from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
 from app.core.deps import DbSession, QueryParams, ActiveAdmin
 from app.core.i18n import _
-from app.core.logging import get_logger
+from app.core.logging import ImpersonateLoggerMixin
 from app.core.response import success
 from app.core.security import (
     create_impersonate_token,
@@ -44,8 +44,13 @@ from app.schemas.common.select import SelectResponse
 from app.services.system import TenantService
 from app.services.common import StorageQuotaService
 
-# 审计日志
-audit_logger = get_logger("impersonate", separate_file=True)
+
+# 审计日志辅助类
+class _ImpersonateAuditLogger(ImpersonateLoggerMixin):
+    """Impersonate 审计日志器"""
+    pass
+
+_audit_helper = _ImpersonateAuditLogger()
 
 
 @permission_resource(
@@ -374,7 +379,7 @@ class AdminTenantController(GlobalController):
             )
             
             # 记录审计日志
-            audit_logger.info(
+            _audit_helper.logger.info(
                 "Admin impersonate initiated | admin_id=%s | admin_username=%s | "
                 "target_tenant_id=%s | target_tenant_code=%s | target_role_id=%s",
                 current_admin.id,

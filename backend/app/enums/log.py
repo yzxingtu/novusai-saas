@@ -84,6 +84,8 @@ class LogCategoryEnum(StrEnum):
     STORAGE = ("storage", "enum.log_category.storage")
     # 认证日志
     AUTH = ("auth", "enum.log_category.auth")
+    # 一键登录审计日志
+    IMPERSONATE = ("impersonate", "enum.log_category.impersonate")
 
 
 __all__ = [
