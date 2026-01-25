@@ -54,6 +54,7 @@ from app.schemas.tenant.plan import (
     TenantPlanUpdateRequest,
     TenantPlanPermissionsRequest,
 )
+from app.schemas.tenant.attachment import AttachmentAccessUrlResponse
 
 __all__ = [
     # TenantAdmin
@@ -101,4 +102,5 @@ __all__ = [
     "TenantPlanCreateRequest",
     "TenantPlanUpdateRequest",
     "TenantPlanPermissionsRequest",
+    "AttachmentAccessUrlResponse",
 ]

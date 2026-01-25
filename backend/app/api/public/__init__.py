@@ -9,6 +9,7 @@ from fastapi import APIRouter
 from app.api.public.tenant import router as tenant_router
 from app.api.public.captcha import router as captcha_router
 from app.api.public.platform import router as platform_router
+from app.api.public.attachments import router as attachments_router
 
 # 创建公开 API 路由器
 public_router = APIRouter()
@@ -17,6 +18,7 @@ public_router = APIRouter()
 public_router.include_router(tenant_router)
 public_router.include_router(captcha_router)
 public_router.include_router(platform_router)
+public_router.include_router(attachments_router)
 
 
 __all__ = ["public_router"]
