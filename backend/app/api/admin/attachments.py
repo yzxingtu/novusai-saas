@@ -4,7 +4,7 @@
 提供跨租户的附件管理接口（平台管理员专用）
 """
 
-from fastapi import Query, Request
+from fastapi import Query, Request, UploadFile, File, Form
 from fastapi.responses import RedirectResponse
 
 from app.core.base_controller import GlobalController
@@ -12,18 +12,24 @@ from app.core.base_schema import PageResponse
 from app.core.deps import DbSession, QueryParams, ActiveAdmin
 from app.core.i18n import _
 from app.core.response import success
+from app.enums.attachment import AttachmentSource, AttachmentVisibility
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
     permission_resource,
     MenuConfig,
     action_read,
+    action_create,
     action_delete,
 )
 from app.schemas.tenant.attachment import (
     AttachmentAccessUrlResponse,
     AttachmentResponse,
     AttachmentListItem,
+    AttachmentUploadResponse,
+    AdminChunkUploadInitRequest,
+    ChunkUploadInitResponse,
+    ChunkUploadProgressResponse,
 )
 from app.services.system.attachment_service import AdminAttachmentService
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
@@ -53,6 +59,177 @@ class AdminAttachmentController(GlobalController):
 
     def _register_routes(self) -> None:
         router = self.router
+
+        # ========== 上传接口 ==========
+
+        @router.post("/upload", summary="上传附件")
+        @action_create("action.attachment.upload")
+        async def upload_attachment(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            file: UploadFile = File(..., description="上传的文件"),
+            tenant_id: int = Form(0, ge=0, description="目标租户 ID，0 表示平台附件"),
+            visibility: str = Form("private", description="可见性 (private/public)"),
+            business_type: str | None = Form(None, description="业务类型"),
+            business_id: int | None = Form(None, description="业务 ID"),
+        ):
+            """
+            平台端上传附件
+            
+            - tenant_id=0: 平台附件（站点 Logo、系统资源等）
+            - tenant_id>0: 代租户上传附件
+            
+            不受租户配额限制，使用平台存储配置
+            
+            权限: attachment:upload
+            """
+            service = AdminAttachmentService(db)
+            result = await service.upload_file(
+                tenant_id=tenant_id,
+                content=file.file,
+                filename=file.filename or "unnamed",
+                file_size=file.size,
+                mime_type=file.content_type,
+                visibility=AttachmentVisibility(visibility),
+                source=AttachmentSource.PLATFORM_ADMIN,
+                uploader_id=current_admin.id,
+                business_type=business_type,
+                business_id=business_id,
+            )
+            return success(
+                data=AttachmentUploadResponse(
+                    attachment=AttachmentResponse.model_validate(
+                        result["attachment"], from_attributes=True
+                    ),
+                    url=result["url"],
+                    used_bytes=0,  # 平台端不追踪配额
+                ),
+                message=_("file.upload_success"),
+            )
+
+        @router.post("/chunk/init", summary="初始化分片上传")
+        @action_create("action.attachment.chunk_init")
+        async def init_chunk_upload(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            body: AdminChunkUploadInitRequest,
+        ):
+            """
+            初始化分片上传会话（平台端）
+            
+            - tenant_id=0: 平台附件
+            - tenant_id>0: 代租户上传
+            
+            权限: attachment:chunk_init
+            """
+            service = AdminAttachmentService(db)
+            result = await service.start_chunk_upload(
+                tenant_id=body.tenant_id,
+                filename=body.filename,
+                total_size=body.total_size,
+                chunk_size=body.chunk_size,
+                mime_type=body.mime_type,
+                visibility=AttachmentVisibility(body.visibility),
+                source=AttachmentSource.PLATFORM_ADMIN,
+                uploader_id=current_admin.id,
+                business_type=body.business_type,
+                business_id=body.business_id,
+            )
+            return success(
+                data=ChunkUploadInitResponse(**result),
+                message=_("common.success"),
+            )
+
+        @router.post("/chunk/{upload_id}", summary="上传分片")
+        @action_create("action.attachment.chunk_upload")
+        async def upload_chunk(
+            request: Request,
+            upload_id: str,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            chunk_index: int = Form(..., ge=0, description="分片索引（从 0 开始）"),
+            file: UploadFile = File(..., description="分片数据"),
+        ):
+            """
+            上传分片数据
+            
+            权限: attachment:chunk_upload
+            """
+            service = AdminAttachmentService(db)
+            result = await service.upload_chunk(
+                upload_id=upload_id,
+                chunk_index=chunk_index,
+                content=file.file,
+            )
+            return success(
+                data=ChunkUploadProgressResponse(**result),
+                message=_("common.success"),
+            )
+
+        @router.post("/chunk/{upload_id}/complete", summary="完成分片上传")
+        @action_create("action.attachment.chunk_complete")
+        async def complete_chunk_upload(
+            request: Request,
+            upload_id: str,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            完成分片上传并合并文件
+            
+            权限: attachment:chunk_complete
+            """
+            service = AdminAttachmentService(db)
+            result = await service.complete_chunk_upload(upload_id)
+            return success(
+                data=AttachmentUploadResponse(
+                    attachment=AttachmentResponse.model_validate(
+                        result["attachment"], from_attributes=True
+                    ),
+                    url=result["url"],
+                    used_bytes=0,
+                ),
+                message=_("file.upload_success"),
+            )
+
+        @router.get("/chunk/{upload_id}/status", summary="获取分片上传进度")
+        @action_read("action.attachment.chunk_status")
+        async def get_chunk_upload_status(
+            request: Request,
+            upload_id: str,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            获取分片上传进度
+            
+            权限: attachment:chunk_status
+            """
+            service = AdminAttachmentService(db)
+            result = await service.get_upload_status(upload_id)
+            return success(
+                data=ChunkUploadProgressResponse(**result),
+                message=_("common.success"),
+            )
+
+        @router.delete("/chunk/{upload_id}", summary="取消分片上传")
+        @action_delete("action.attachment.chunk_abort")
+        async def abort_chunk_upload(
+            request: Request,
+            upload_id: str,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            取消分片上传并清理临时文件
+            
+            权限: attachment:chunk_abort
+            """
+            service = AdminAttachmentService(db)
+            await service.abort_upload(upload_id)
+            return success(message=_("common.success"))
 
         # ========== 附件管理接口 ==========
 

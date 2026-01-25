@@ -440,7 +440,7 @@
       "deleted": "已删除"
     },
     "attachment_source": {
-      "admin": "平台管理员",
+      "platform_admin": "平台管理员",
       "tenant_admin": "租户管理员",
       "tenant_user": "租户用户",
       "system": "系统"
@@ -586,6 +586,18 @@
       "storage_chunk_size_mb": {
         "name": "默认分片大小",
         "desc": "分片上传使用的块大小（MB）"
+      },
+      "storage_max_file_size_mb": {
+        "name": "单文件大小限制",
+        "desc": "允许上传的单个文件最大大小（MB）"
+      },
+      "storage_allowed_extensions": {
+        "name": "允许的文件类型",
+        "desc": "允许上传的文件扩展名（英文逗号分隔），留空表示不限制"
+      },
+      "storage_denied_extensions": {
+        "name": "禁止的文件类型",
+        "desc": "禁止上传的文件扩展名（英文逗号分隔），优先级高于允许列表"
       },
       "image_process_enabled": {
         "name": "启用图片处理",

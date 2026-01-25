@@ -12,7 +12,7 @@ class AttachmentStatus(StrEnum):
 
 
 class AttachmentSource(StrEnum):
-    ADMIN = ("admin", "enum.attachment_source.admin")
+    PLATFORM_ADMIN = ("platform_admin", "enum.attachment_source.platform_admin")
     TENANT_ADMIN = ("tenant_admin", "enum.attachment_source.tenant_admin")
     TENANT_USER = ("tenant_user", "enum.attachment_source.tenant_user")
     SYSTEM = ("system", "enum.attachment_source.system")

@@ -200,6 +200,36 @@ PLATFORM_STORAGE_CHUNK_SIZE_MB = ConfigMeta(
     sort_order=60,
 )
 
+PLATFORM_STORAGE_MAX_FILE_SIZE_MB = ConfigMeta(
+    key="platform_storage_max_file_size_mb",
+    name_key="config.platform.storage_max_file_size_mb.name",
+    description_key="config.platform.storage_max_file_size_mb.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.NUMBER,
+    default_value=100,
+    sort_order=70,
+)
+
+PLATFORM_STORAGE_ALLOWED_EXTENSIONS = ConfigMeta(
+    key="platform_storage_allowed_extensions",
+    name_key="config.platform.storage_allowed_extensions.name",
+    description_key="config.platform.storage_allowed_extensions.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.TEXTAREA,
+    default_value="jpg,jpeg,png,gif,webp,svg,ico,bmp,pdf,doc,docx,xls,xlsx,ppt,pptx,txt,csv,json,xml,zip,rar,7z,mp3,mp4,avi,mov,webm",
+    sort_order=80,
+)
+
+PLATFORM_STORAGE_DENIED_EXTENSIONS = ConfigMeta(
+    key="platform_storage_denied_extensions",
+    name_key="config.platform.storage_denied_extensions.name",
+    description_key="config.platform.storage_denied_extensions.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.TEXTAREA,
+    default_value="exe,bat,cmd,sh,php,asp,aspx,jsp,py,rb,pl,cgi,htaccess,dll,so",
+    sort_order=90,
+)
+
 # ==========================================
 # 图片处理配置
 # ==========================================
@@ -332,6 +362,9 @@ PLATFORM_STORAGE_GROUP.configs = [
     PLATFORM_STORAGE_OPTIONS,
     PLATFORM_STORAGE_DEFAULT_VISIBILITY,
     PLATFORM_STORAGE_CHUNK_SIZE_MB,
+    PLATFORM_STORAGE_MAX_FILE_SIZE_MB,
+    PLATFORM_STORAGE_ALLOWED_EXTENSIONS,
+    PLATFORM_STORAGE_DENIED_EXTENSIONS,
     # 图片处理配置
     PLATFORM_IMAGE_PROCESS_ENABLED,
     PLATFORM_IMAGE_CACHE_DRIVER,
@@ -350,6 +383,9 @@ __all__ = [
     "PLATFORM_STORAGE_OPTIONS",
     "PLATFORM_STORAGE_DEFAULT_VISIBILITY",
     "PLATFORM_STORAGE_CHUNK_SIZE_MB",
+    "PLATFORM_STORAGE_MAX_FILE_SIZE_MB",
+    "PLATFORM_STORAGE_ALLOWED_EXTENSIONS",
+    "PLATFORM_STORAGE_DENIED_EXTENSIONS",
     # 图片处理配置
     "PLATFORM_IMAGE_PROCESS_ENABLED",
     "PLATFORM_IMAGE_CACHE_DRIVER",

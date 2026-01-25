@@ -438,7 +438,7 @@
       "deleted": "Deleted"
     },
     "attachment_source": {
-      "admin": "Platform Admin",
+      "platform_admin": "Platform Admin",
       "tenant_admin": "Tenant Admin",
       "tenant_user": "Tenant User",
       "system": "System"
@@ -584,6 +584,18 @@
       "storage_chunk_size_mb": {
         "name": "Default Chunk Size",
         "desc": "Chunk size used for uploads (MB)"
+      },
+      "storage_max_file_size_mb": {
+        "name": "Max File Size",
+        "desc": "Maximum size for a single file upload (MB)"
+      },
+      "storage_allowed_extensions": {
+        "name": "Allowed File Types",
+        "desc": "Allowed file extensions (comma-separated), leave empty for no restriction"
+      },
+      "storage_denied_extensions": {
+        "name": "Denied File Types",
+        "desc": "Denied file extensions (comma-separated), takes precedence over allowed list"
       },
       "image_process_enabled": {
         "name": "Enable Image Processing",

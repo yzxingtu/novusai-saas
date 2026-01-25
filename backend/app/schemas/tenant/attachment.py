@@ -64,9 +64,71 @@ class TenantStorageQuotaResponse(BaseSchema):
     unlimited: bool = Field(..., description="是否无限制")
 
 
+# ==================== 上传相关 Schema ====================
+
+class AttachmentUploadResponse(BaseSchema):
+    """附件上传响应"""
+    attachment: AttachmentResponse = Field(..., description="附件信息")
+    url: str = Field(..., description="访问 URL")
+    used_bytes: int = Field(..., description="已使用存储空间（字节）")
+
+
+class ChunkUploadInitRequest(BaseSchema):
+    """分片上传初始化请求"""
+    filename: str = Field(..., min_length=1, max_length=255, description="文件名")
+    total_size: int = Field(..., gt=0, description="文件总大小（字节）")
+    chunk_size: int = Field(5 * 1024 * 1024, gt=0, description="分片大小（字节），默认 5MB")
+    mime_type: str | None = Field(None, description="MIME 类型")
+    visibility: str = Field("private", description="可见性 (private/public)")
+    business_type: str | None = Field(None, description="业务类型")
+    business_id: int | None = Field(None, description="业务 ID")
+
+
+class ChunkUploadInitResponse(BaseSchema):
+    """分片上传初始化响应"""
+    upload_id: str = Field(..., description="上传会话 ID")
+    filename: str = Field(..., description="文件名")
+    total_size: int = Field(..., description="文件总大小")
+    chunk_size: int = Field(..., description="分片大小")
+    chunk_count: int = Field(..., description="分片数量")
+    uploaded_chunks: list[int] = Field(default_factory=list, description="已上传分片索引")
+    uploaded_bytes: int = Field(0, description="已上传字节数")
+    progress: int = Field(0, description="上传进度百分比")
+
+
+class ChunkUploadProgressResponse(BaseSchema):
+    """分片上传进度响应"""
+    upload_id: str = Field(..., description="上传会话 ID")
+    filename: str = Field(..., description="文件名")
+    total_size: int = Field(..., description="文件总大小")
+    chunk_size: int = Field(..., description="分片大小")
+    chunk_count: int = Field(..., description="分片数量")
+    uploaded_chunks: list[int] = Field(..., description="已上传分片索引")
+    uploaded_bytes: int = Field(..., description="已上传字节数")
+    progress: int = Field(..., description="上传进度百分比")
+
+
+class AdminChunkUploadInitRequest(BaseSchema):
+    """平台端分片上传初始化请求"""
+    tenant_id: int = Field(0, ge=0, description="目标租户 ID，0 表示平台附件")
+    filename: str = Field(..., min_length=1, max_length=255, description="文件名")
+    total_size: int = Field(..., gt=0, description="文件总大小（字节）")
+    chunk_size: int = Field(5 * 1024 * 1024, gt=0, description="分片大小（字节），默认 5MB")
+    mime_type: str | None = Field(None, description="MIME 类型")
+    visibility: str = Field("private", description="可见性 (private/public)")
+    business_type: str | None = Field(None, description="业务类型")
+    business_id: int | None = Field(None, description="业务 ID")
+
+
 __all__ = [
     "AttachmentAccessUrlResponse",
     "AttachmentResponse",
     "AttachmentListItem",
     "TenantStorageQuotaResponse",
+    # 上传相关
+    "AttachmentUploadResponse",
+    "ChunkUploadInitRequest",
+    "ChunkUploadInitResponse",
+    "ChunkUploadProgressResponse",
+    "AdminChunkUploadInitRequest",
 ]
