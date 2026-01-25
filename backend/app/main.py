@@ -294,6 +294,24 @@ def create_application() -> FastAPI:
     from app.api.public import public_router
     app.include_router(public_router, prefix="/api/public")
     
+    # ========================================
+    # 挂载本地存储静态文件目录
+    # ========================================
+    from fastapi.staticfiles import StaticFiles
+    from app.storage import LOCAL_STORAGE_ROOT
+    
+    # 确保存储目录存在
+    LOCAL_STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
+    
+    # 挂载静态文件目录
+    # URL 路径: /files/platform/2026/01/25/xxx.png
+    # 文件系统路径: backend/storage/uploads/platform/2026/01/25/xxx.png
+    app.mount(
+        "/files",
+        StaticFiles(directory=str(LOCAL_STORAGE_ROOT)),
+        name="local_storage",
+    )
+    
     return app
 
 
