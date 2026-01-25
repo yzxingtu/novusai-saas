@@ -501,6 +501,10 @@
       "tenant_features": {
         "name": "Feature Settings",
         "desc": "Enable or disable feature modules"
+      },
+      "tenant_storage": {
+        "name": "Storage Settings",
+        "desc": "Tenant storage mode and cloud storage configuration"
       }
     },
     "platform": {
@@ -543,6 +547,30 @@
       "maintenance_message": {
         "name": "Maintenance Message",
         "desc": "Message displayed to users during maintenance"
+      },
+      "storage_driver": {
+        "name": "Default Storage Driver",
+        "desc": "Driver used by platform-managed storage"
+      },
+      "storage_root_path": {
+        "name": "Root Path or Bucket",
+        "desc": "Local path or object storage bucket name"
+      },
+      "storage_base_url": {
+        "name": "Base URL",
+        "desc": "Domain or CDN prefix for file access"
+      },
+      "storage_options": {
+        "name": "Driver Options",
+        "desc": "Driver-specific parameters (JSON)"
+      },
+      "storage_default_visibility": {
+        "name": "Default Visibility",
+        "desc": "Default visibility for platform-managed storage"
+      },
+      "storage_chunk_size_mb": {
+        "name": "Default Chunk Size",
+        "desc": "Chunk size used for uploads (MB)"
       },
       "password_min_length": {
         "name": "Minimum Password Length",
@@ -706,6 +734,30 @@
         "name": "Session Timeout",
         "desc": "Auto logout after inactivity (minutes)"
       },
+      "storage_mode": {
+        "name": "Storage Mode",
+        "desc": "Choose platform-managed or custom cloud storage"
+      },
+      "storage_driver": {
+        "name": "Cloud Storage Driver",
+        "desc": "Driver used for custom cloud storage"
+      },
+      "storage_root_path": {
+        "name": "Bucket Name",
+        "desc": "Object storage bucket name or root path"
+      },
+      "storage_base_url": {
+        "name": "Base URL",
+        "desc": "Domain or CDN prefix for file access"
+      },
+      "storage_options": {
+        "name": "Driver Options",
+        "desc": "Driver-specific parameters (JSON)"
+      },
+      "storage_default_visibility": {
+        "name": "Default Visibility",
+        "desc": "Default visibility for custom cloud storage"
+      },
       "allow_registration": {
         "name": "Allow Registration",
         "desc": "Allow users to self-register"
@@ -733,6 +785,21 @@
       "file_upload": {
         "name": "File Upload",
         "desc": "Allow users to upload files"
+      }
+    },
+    "storage": {
+      "mode": {
+        "platform": "Platform-managed storage",
+        "custom": "Custom cloud storage"
+      },
+      "driver": {
+        "local": "Local Storage",
+        "s3": "R3/S3 Compatible",
+        "aliyun_oss": "Aliyun OSS"
+      },
+      "visibility": {
+        "private": "Private",
+        "public": "Public"
       }
     }
   },

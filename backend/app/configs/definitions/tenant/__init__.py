@@ -8,10 +8,12 @@
 from app.configs.definitions.tenant import branding
 from app.configs.definitions.tenant import security
 from app.configs.definitions.tenant import features
+from app.configs.definitions.tenant import storage
 
 
 __all__ = [
     "branding",
     "security",
     "features",
+    "storage",
 ]

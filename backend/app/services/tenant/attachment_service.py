@@ -66,14 +66,15 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         统一上传入口
         """
         await self._ensure_upload_enabled()
+        storage_mode, storage_config, apply_quota = await self._resolve_storage_context()
         temp_path, size, file_hash = await self._save_to_temp(content)
         actual_size = file_size or size
 
-        await self._check_quota(actual_size)
+        await self._check_quota(actual_size, apply_quota=apply_quota)
         existing = await self.repo.get_by_hash(file_hash)
         if existing:
             await self._remove_temp_file(temp_path)
-            url = await self._get_existing_url(existing)
+            url = await self._get_existing_url(storage_config, existing)
             return {
                 "attachment": existing,
                 "url": url,
@@ -82,6 +83,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
         storage_path = self._build_storage_path(filename)
         upload_result = await self._upload_to_storage(
+            storage_config=storage_config,
             storage_path=storage_path,
             temp_path=temp_path,
             mime_type=mime_type,
@@ -124,12 +126,15 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
                 message=_("error.common.invalid_parameter"),
                 code=ErrorCode.INVALID_PARAMETER,
             )
-        await self._check_quota(total_size)
+        storage_mode = await self._get_storage_mode()
+        apply_quota = storage_mode == "platform"
+        await self._check_quota(total_size, apply_quota=apply_quota)
 
         upload_id = uuid.uuid4().hex
         session = {
             "upload_id": upload_id,
             "tenant_id": self.tenant_id,
+            "storage_mode": storage_mode,
             "filename": filename,
             "total_size": total_size,
             "chunk_size": chunk_size,
@@ -195,13 +200,16 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
             )
 
         temp_path, size, file_hash = await self._merge_chunks(upload_id, chunk_count)
-        await self._check_quota(size)
+        storage_mode = session.get("storage_mode", "platform")
+        apply_quota = storage_mode == "platform"
+        await self._check_quota(size, apply_quota=apply_quota)
+        storage_config = await self._resolve_storage_config(storage_mode)
 
         existing = await self.repo.get_by_hash(file_hash)
         if existing:
             await self._remove_temp_file(temp_path)
             await self._remove_session(upload_id)
-            url = await self._get_existing_url(existing)
+            url = await self._get_existing_url(storage_config, existing)
             return {
                 "attachment": existing,
                 "url": url,
@@ -210,6 +218,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
         storage_path = self._build_storage_path(session["filename"])
         upload_result = await self._upload_to_storage(
+            storage_config=storage_config,
             storage_path=storage_path,
             temp_path=temp_path,
             mime_type=session.get("mime_type"),
@@ -262,10 +271,12 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
                 code=ErrorCode.FORBIDDEN,
             )
 
-    async def _check_quota(self, additional_bytes: int) -> None:
+    async def _check_quota(self, additional_bytes: int, apply_quota: bool) -> None:
         """
         检查文件大小与存储配额
         """
+        if not apply_quota:
+            return
         tenant = await self._get_tenant()
         quota_service = QuotaService(self.db, tenant)
 
@@ -331,6 +342,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _upload_to_storage(
         self,
+        storage_config: StorageConfig,
         storage_path: str,
         temp_path: str,
         mime_type: str | None,
@@ -340,7 +352,6 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         """
         上传临时文件到存储驱动
         """
-        storage_config = await self._resolve_storage_config()
         driver = storage_manager.get_driver(storage_config)
         with open(temp_path, "rb") as f:
             upload_result = await driver.put(
@@ -353,11 +364,14 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         await self._remove_temp_file(temp_path)
         return upload_result
 
-    async def _get_existing_url(self, attachment: Attachment) -> str:
+    async def _get_existing_url(
+        self,
+        storage_config: StorageConfig,
+        attachment: Attachment,
+    ) -> str:
         """
         获取已存在附件的访问 URL
         """
-        storage_config = await self._resolve_storage_config()
         driver = storage_manager.get_driver(storage_config)
         visibility = StorageVisibility(attachment.visibility)
         return await driver.get_url(attachment.path, visibility=visibility)
@@ -399,22 +413,60 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         )
         return attachment
 
-    async def _resolve_storage_config(self) -> StorageConfig:
+    async def _resolve_storage_context(self) -> tuple[str, StorageConfig, bool]:
+        storage_mode = await self._get_storage_mode()
+        storage_config = await self._resolve_storage_config(storage_mode)
+        apply_quota = storage_mode == "platform"
+        return storage_mode, storage_config, apply_quota
+
+    async def _get_storage_mode(self) -> str:
+        mode = await self._config_service.get_tenant_config(
+            self.tenant_id,
+            "tenant_storage_mode",
+            default="platform",
+        )
+        return "custom" if str(mode) == "custom" else "platform"
+
+    async def _resolve_storage_config(self, storage_mode: str) -> StorageConfig:
         """
         解析存储配置
         """
-        driver = await self._config_service.get_tenant_config(
-            self.tenant_id, "storage_driver", default="local"
-        )
-        root_path = await self._config_service.get_tenant_config(
-            self.tenant_id, "storage_root_path", default="/data/uploads"
-        )
-        base_url = await self._config_service.get_tenant_config(
-            self.tenant_id, "storage_base_url", default=None
-        )
-        options = await self._config_service.get_tenant_config(
-            self.tenant_id, "storage_options", default={}
-        )
+        if storage_mode == "custom":
+            driver = await self._config_service.get_tenant_config(
+                self.tenant_id, "tenant_storage_driver", default="s3"
+            )
+            if str(driver) == "local":
+                raise BusinessException(
+                    message=_("error.common.invalid_parameter"),
+                    code=ErrorCode.INVALID_PARAMETER,
+                )
+            root_path = await self._config_service.get_tenant_config(
+                self.tenant_id, "tenant_storage_root_path", default=""
+            )
+            if not root_path:
+                raise BusinessException(
+                    message=_("error.common.invalid_parameter"),
+                    code=ErrorCode.INVALID_PARAMETER,
+                )
+            base_url = await self._config_service.get_tenant_config(
+                self.tenant_id, "tenant_storage_base_url", default=None
+            )
+            options = await self._config_service.get_tenant_config(
+                self.tenant_id, "tenant_storage_options", default={}
+            )
+        else:
+            driver = await self._config_service.get_platform_config(
+                "platform_storage_driver", default="local"
+            )
+            root_path = await self._config_service.get_platform_config(
+                "platform_storage_root_path", default="/data/uploads"
+            )
+            base_url = await self._config_service.get_platform_config(
+                "platform_storage_base_url", default=None
+            )
+            options = await self._config_service.get_platform_config(
+                "platform_storage_options", default={}
+            )
         return StorageConfig(
             driver=str(driver),
             root_path=str(root_path),
