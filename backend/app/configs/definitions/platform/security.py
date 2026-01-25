@@ -146,6 +146,25 @@ LOGIN_CAPTCHA_ENABLED = ConfigMeta(
     sort_order=60,
 )
 
+# 验证码驱动
+# 选择验证码的实现方式
+# image: 本地图形验证码
+CAPTCHA_PROVIDER = ConfigMeta(
+    key="captcha_provider",
+    name_key="config.platform.captcha_provider.name",
+    description_key="config.platform.captcha_provider.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.SELECT,
+    default_value="image",
+    options=[
+        option("image", "config.platform.captcha_provider.image"),
+    ],
+    sort_order=62,
+    display_rules=[
+        DisplayRule(field="login_captcha_enabled", operator="equals", value=True, action="show"),
+    ],
+)
+
 # 验证码难度
 # 控制图形验证码的复杂度（示例：easy/medium/hard）
 # 可用于调整字符长度、干扰线、噪点等参数
@@ -243,6 +262,7 @@ PLATFORM_SECURITY_GROUP.configs = [
     LOGIN_MAX_ATTEMPTS,
     LOGIN_LOCKOUT_MINUTES,
     LOGIN_CAPTCHA_ENABLED,
+    CAPTCHA_PROVIDER,
     CAPTCHA_DIFFICULTY,
     CAPTCHA_ENABLE_THRESHOLD_ADMIN,
     SESSION_TIMEOUT_MINUTES,
@@ -257,6 +277,7 @@ __all__ = [
     "LOGIN_MAX_ATTEMPTS",
     "LOGIN_LOCKOUT_MINUTES",
     "LOGIN_CAPTCHA_ENABLED",
+    "CAPTCHA_PROVIDER",
     "CAPTCHA_DIFFICULTY",
     "CAPTCHA_ENABLE_THRESHOLD_ADMIN",
     "SESSION_TIMEOUT_MINUTES",

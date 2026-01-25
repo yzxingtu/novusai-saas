@@ -80,6 +80,7 @@ async def get_tenant_public_config(request: Request, db: DbSession):
             login_subtitle=configs.get("tenant_login_subtitle"),
             footer_copyright=configs.get("tenant_footer_copyright"),
             captcha_enabled=configs.get("tenant_captcha_enabled", False),
+            captcha_provider=configs.get("tenant_captcha_provider"),
             captcha_difficulty=configs.get("tenant_captcha_difficulty"),
             captcha_enable_threshold=configs.get("tenant_captcha_enable_threshold"),
             login_methods=configs.get("tenant_login_methods", ["password"]),

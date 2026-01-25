@@ -11,6 +11,16 @@ try:
 except Exception:
     ImageCaptcha = None  # type: ignore
 from app.captcha.provider import ICaptchaProvider, CaptchaChallenge, CaptchaVerificationResult
+from app.core.logging import get_logger
+
+# 延迟初始化 logger，避免在模块导入时 LogManager 还未初始化
+_logger = None
+
+def _get_logger():
+    global _logger
+    if _logger is None:
+        _logger = get_logger("captcha.image", separate_file=True)
+    return _logger
 
 
 class ImageCaptchaProvider(ICaptchaProvider):
@@ -45,11 +55,17 @@ class ImageCaptchaProvider(ICaptchaProvider):
         b64 = base64.b64encode(img_bytes).decode("ascii")
         challenge_id = uuid.uuid4().hex
         expires_at = self._now() + timedelta(seconds=ttl_seconds)
+        text_hash = self._hash(text)
         self._store[challenge_id] = {
-            "hash": self._hash(text),
+            "hash": text_hash,
             "expires_at": expires_at,
             "used": False,
         }
+        _get_logger().debug(
+            f"[GENERATE] challenge_id={challenge_id} text={text} "
+            f"text_lower={text.strip().lower()} hash={text_hash[:16]}... "
+            f"difficulty={difficulty} expires_at={expires_at} store_size={len(self._store)}"
+        )
         return CaptchaChallenge(
             challenge_id=challenge_id,
             type="image",
@@ -59,17 +75,37 @@ class ImageCaptchaProvider(ICaptchaProvider):
         )
 
     async def verify(self, challenge_id: str, solution: str, ctx: dict[str, Any]) -> CaptchaVerificationResult:
+        logger = _get_logger()
+        logger.debug(
+            f"[VERIFY] challenge_id={challenge_id} solution={solution} "
+            f"solution_lower={solution.strip().lower()} store_keys={list(self._store.keys())}"
+        )
         item = self._store.get(challenge_id)
         if not item:
+            logger.warning(f"[VERIFY] NOT_FOUND challenge_id={challenge_id} (not in store)")
             return CaptchaVerificationResult(ok=False, reason="not_found", score=None)
         if item.get("used"):
+            logger.warning(f"[VERIFY] USED challenge_id={challenge_id}")
             return CaptchaVerificationResult(ok=False, reason="used", score=None)
-        if datetime.now(timezone.utc) > item["expires_at"]:
+        now = datetime.now(timezone.utc)
+        if now > item["expires_at"]:
+            logger.warning(
+                f"[VERIFY] EXPIRED challenge_id={challenge_id} "
+                f"expires_at={item['expires_at']} now={now}"
+            )
             del self._store[challenge_id]
             return CaptchaVerificationResult(ok=False, reason="expired", score=None)
-        ok = self._hash(solution) == item["hash"]
+        solution_hash = self._hash(solution)
+        stored_hash = item["hash"]
+        ok = solution_hash == stored_hash
+        logger.debug(
+            f"[VERIFY] COMPARE challenge_id={challenge_id} "
+            f"solution_hash={solution_hash[:16]}... stored_hash={stored_hash[:16]}... match={ok}"
+        )
         if ok:
             item["used"] = True
             del self._store[challenge_id]
+            logger.info(f"[VERIFY] SUCCESS challenge_id={challenge_id}")
             return CaptchaVerificationResult(ok=True, reason=None, score=None)
+        logger.warning(f"[VERIFY] MISMATCH challenge_id={challenge_id} solution={solution}")
         return CaptchaVerificationResult(ok=False, reason="mismatch", score=None)

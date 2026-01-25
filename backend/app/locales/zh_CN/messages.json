@@ -665,6 +665,11 @@
         "name": "启用验证码",
         "desc": "登录时是否需要验证码"
       },
+      "captcha_provider": {
+        "name": "验证码驱动",
+        "desc": "选择验证码的实现方式",
+        "image": "本地图形验证码"
+      },
       "captcha_difficulty": {
         "name": "验证码难度",
         "desc": "登录验证码的难度级别",
@@ -756,6 +761,11 @@
       "captcha_enabled": {
         "name": "启用验证码",
         "desc": "租户登录时是否需要验证码"
+      },
+      "captcha_provider": {
+        "name": "验证码驱动",
+        "desc": "选择验证码的实现方式",
+        "image": "本地图形验证码"
       },
       "captcha_difficulty": {
         "name": "验证码难度",

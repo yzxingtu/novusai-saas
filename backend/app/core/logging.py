@@ -322,16 +322,25 @@ class LogManager:
         
         logger = logging.getLogger(name)
         
-        # 设置级别
-        if level is not None:
-            logger.setLevel(level)
+        # 设置级别：优先使用指定级别，否则使用全局配置级别
+        effective_level = level if level is not None else cls._log_level
+        logger.setLevel(effective_level)
         
         # 添加独立文件处理器
         if separate_file and cls._log_dir:
             # 使用简化的文件名
             file_name = name.split(".")[-1]
-            handler = cls._create_timed_handler(file_name, logger.level or logging.INFO)
+            # 使用相同的有效级别
+            handler = cls._create_timed_handler(file_name, effective_level)
             logger.addHandler(handler)
+            
+            # 独立文件 logger 也输出到控制台（开发环境）
+            if settings.DEBUG:
+                console_handler = cls._create_console_handler(effective_level)
+                logger.addHandler(console_handler)
+            
+            # 不向上传播，避免重复记录到 app.log
+            logger.propagate = False
         
         cls._loggers[cache_key] = logger
         return logger

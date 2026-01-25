@@ -24,6 +24,23 @@ TENANT_CAPTCHA_ENABLED = ConfigMeta(
     sort_order=10,
 )
 
+# 验证码驱动（租户端）
+TENANT_CAPTCHA_PROVIDER = ConfigMeta(
+    key="tenant_captcha_provider",
+    name_key="config.tenant.captcha_provider.name",
+    description_key="config.tenant.captcha_provider.desc",
+    scope=ConfigScope.TENANT,
+    value_type=ConfigValueType.SELECT,
+    default_value="image",
+    options=[
+        option("image", "config.tenant.captcha_provider.image"),
+    ],
+    sort_order=12,
+    display_rules=[
+        DisplayRule(field="tenant_captcha_enabled", operator="equals", value=True, action="show"),
+    ],
+)
+
 # 验证码难度（租户端）
 TENANT_CAPTCHA_DIFFICULTY = ConfigMeta(
     key="tenant_captcha_difficulty",
@@ -172,6 +189,7 @@ TENANT_SESSION_TIMEOUT = ConfigMeta(
 
 TENANT_GENERAL_GROUP.configs = [
     TENANT_CAPTCHA_ENABLED,
+    TENANT_CAPTCHA_PROVIDER,
     TENANT_CAPTCHA_DIFFICULTY,
     TENANT_LOGIN_METHODS,
     TENANT_LOGIN_MAX_ATTEMPTS,
@@ -185,6 +203,7 @@ TENANT_GENERAL_GROUP.configs = [
 
 __all__ = [
     "TENANT_CAPTCHA_ENABLED",
+    "TENANT_CAPTCHA_PROVIDER",
     "TENANT_CAPTCHA_DIFFICULTY",
     "TENANT_LOGIN_METHODS",
     "TENANT_LOGIN_MAX_ATTEMPTS",

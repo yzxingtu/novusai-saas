@@ -663,6 +663,11 @@
         "name": "Enable CAPTCHA",
         "desc": "Require CAPTCHA for login"
       },
+      "captcha_provider": {
+        "name": "CAPTCHA Provider",
+        "desc": "Choose the CAPTCHA implementation",
+        "image": "Local Image CAPTCHA"
+      },
       "captcha_difficulty": {
         "name": "CAPTCHA Difficulty",
         "desc": "Difficulty level for login CAPTCHA",
@@ -754,6 +759,11 @@
       "captcha_enabled": {
         "name": "Enable CAPTCHA",
         "desc": "Require CAPTCHA for tenant login"
+      },
+      "captcha_provider": {
+        "name": "CAPTCHA Provider",
+        "desc": "Choose the CAPTCHA implementation",
+        "image": "Local Image CAPTCHA"
       },
       "captcha_difficulty": {
         "name": "CAPTCHA Difficulty",

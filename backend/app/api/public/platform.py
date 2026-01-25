@@ -36,6 +36,7 @@ async def get_platform_public_config(db: DbSession):
             maintenance_mode=configs.get("maintenance_mode"),
             maintenance_message=configs.get("maintenance_message"),
             login_captcha_enabled=configs.get("login_captcha_enabled"),
+            captcha_provider=configs.get("captcha_provider"),
             captcha_difficulty=configs.get("captcha_difficulty"),
             captcha_enable_threshold_admin=configs.get("captcha_enable_threshold_admin"),
             login_max_attempts=configs.get("login_max_attempts"),

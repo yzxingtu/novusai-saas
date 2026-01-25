@@ -15,6 +15,7 @@ class PlatformPublicConfig(BaseSchema):
     maintenance_mode: bool | None = Field(None, description="维护模式开关")
     maintenance_message: str | None = Field(None, description="维护提示信息")
     login_captcha_enabled: bool | None = Field(None, description="登录验证码开关")
+    captcha_provider: str | None = Field(None, description="验证码驱动")
     captcha_difficulty: str | None = Field(None, description="验证码难度")
     captcha_enable_threshold_admin: int | None = Field(None, description="验证码启用阈值")
     login_max_attempts: int | None = Field(None, description="登录失败锁定次数")
