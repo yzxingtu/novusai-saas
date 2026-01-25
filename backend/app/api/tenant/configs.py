@@ -27,6 +27,7 @@ from app.schemas.system.config import (
     ConfigGroupListResponse,
     ConfigItemResponse,
     ConfigUpdateRequest,
+    DisplayRuleSchema,
 )
 
 
@@ -49,6 +50,23 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
             "message": _(rule["message_key"]) if rule.get("message_key") else "",
         })
     
+    # 转换显示规则
+    display_rules = [
+        DisplayRuleSchema(
+            field=rule["field"],
+            operator=rule.get("operator", "equals"),
+            value=rule.get("value"),
+            action=rule.get("action", "show"),
+        )
+        for rule in config.get("display_rules", [])
+    ]
+    
+    # 递归转换子字段
+    children = [
+        _translate_config_item(child)
+        for child in config.get("children", [])
+    ]
+    
     return ConfigItemResponse(
         key=config["key"],
         name=_(config["name_key"]),
@@ -61,6 +79,9 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
         is_required=config["is_required"],
         is_encrypted=config["is_encrypted"],
         sort_order=config["sort_order"],
+        display_rules=display_rules,
+        value_path=config.get("value_path", ""),
+        children=children,
     )
 
 

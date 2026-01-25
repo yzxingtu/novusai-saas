@@ -491,7 +491,8 @@
       "queue": "Queue Log",
       "captcha": "Captcha Log",
       "storage": "Storage Log",
-      "auth": "Authentication Log"
+      "auth": "Authentication Log",
+      "impersonate": "Impersonate Audit Log"
     }
   },
   "config": {

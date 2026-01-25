@@ -30,9 +30,14 @@ class ValidationRuleSchema(BaseSchema):
     message: str = Field("", description="错误消息")
 
 
-# ==========================================
-# 配置项响应
-# ==========================================
+class DisplayRuleSchema(BaseSchema):
+    """显示规则"""
+    
+    field: str = Field(..., description="依赖字段的 key")
+    operator: str = Field("equals", description="规则类型: equals / in")
+    value: Any = Field(None, description="目标值或数组")
+    action: str = Field("show", description="动作: show")
+
 
 class ConfigItemResponse(BaseSchema):
     """配置项响应"""
@@ -48,6 +53,9 @@ class ConfigItemResponse(BaseSchema):
     is_required: bool = Field(False, description="是否必填")
     is_encrypted: bool = Field(False, description="是否加密")
     sort_order: int = Field(0, description="排序顺序")
+    display_rules: list[DisplayRuleSchema] = Field(default_factory=list, description="显示/隐藏规则")
+    value_path: str = Field("", description="子字段映射到父 JSON 的路径")
+    children: list["ConfigItemResponse"] = Field(default_factory=list, description="子字段配置")
 
 
 # ==========================================
@@ -106,6 +114,7 @@ class BatchConfigUpdateRequest(BaseSchema):
 __all__ = [
     "ConfigOptionSchema",
     "ValidationRuleSchema",
+    "DisplayRuleSchema",
     "ConfigItemResponse",
     "ConfigGroupResponse",
     "ConfigGroupListResponse",

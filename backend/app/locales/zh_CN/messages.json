@@ -493,7 +493,8 @@
       "queue": "队列日志",
       "captcha": "验证码日志",
       "storage": "存储日志",
-      "auth": "认证日志"
+      "auth": "认证日志",
+      "impersonate": "一键登录审计"
     }
   },
   "config": {
