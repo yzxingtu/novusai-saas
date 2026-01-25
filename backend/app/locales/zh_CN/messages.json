@@ -152,7 +152,10 @@
     "upload_failed": "文件上传失败",
     "file_too_large": "文件大小超出限制",
     "invalid_file_type": "不支持的文件类型",
-    "not_found": "文件不存在"
+    "not_found": "文件不存在",
+    "extension_denied": "禁止上传 {extension} 类型的文件",
+    "extension_not_allowed": "不允许上传 {extension} 类型的文件",
+    "validation_failed": "文件验证失败"
   },
   "task": {
     "created": "任务创建成功",

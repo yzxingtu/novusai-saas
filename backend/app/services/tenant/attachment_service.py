@@ -28,6 +28,7 @@ from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.attachment import Attachment
 from app.models.tenant.tenant import Tenant
 from app.repositories.tenant.attachment_repository import AttachmentRepository
+from app.services.common.file_validator import FileValidator, validate_result_or_raise
 from app.services.tenant.quota_service import QuotaService
 from app.storage import StorageConfig, StorageVisibility, storage_manager
 
@@ -48,6 +49,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         """
         super().__init__(db, tenant_id)
         self._config_service = ConfigService(db)
+        self._file_validator = FileValidator(db)
 
     async def upload_file(
         self,
@@ -66,10 +68,17 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         统一上传入口
         """
         await self._ensure_upload_enabled()
+        # 验证文件类型
+        validation_result = await self._file_validator.validate_for_tenant(
+            self.tenant_id, filename, file_size
+        )
+        validate_result_or_raise(validation_result)
+
         storage_mode, storage_config, apply_quota = await self._resolve_storage_context()
         temp_path, size, file_hash = await self._save_to_temp(content)
         actual_size = file_size or size
 
+        # 检查配额
         await self._check_quota(actual_size, apply_quota=apply_quota)
         existing = await self.repo.get_by_hash(file_hash)
         if existing:
@@ -121,6 +130,12 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         初始化分片上传会话
         """
         await self._ensure_upload_enabled()
+        # 验证文件类型
+        validation_result = await self._file_validator.validate_for_tenant(
+            self.tenant_id, filename, total_size
+        )
+        validate_result_or_raise(validation_result)
+
         if total_size <= 0 or chunk_size <= 0:
             raise BusinessException(
                 message=_("error.common.invalid_parameter"),

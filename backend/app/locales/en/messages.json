@@ -152,7 +152,10 @@
     "upload_failed": "File upload failed",
     "file_too_large": "File size exceeds limit",
     "invalid_file_type": "Unsupported file type",
-    "not_found": "File not found"
+    "not_found": "File not found",
+    "extension_denied": "File type {extension} is not allowed",
+    "extension_not_allowed": "File type {extension} is not in the allowed list",
+    "validation_failed": "File validation failed"
   },
   "task": {
     "created": "Task created successfully",

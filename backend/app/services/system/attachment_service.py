@@ -23,6 +23,7 @@ from app.enums.attachment import AttachmentSource, AttachmentStatus, AttachmentV
 from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.attachment import Attachment
 from app.repositories.system.attachment_repository import AdminAttachmentRepository
+from app.services.common.file_validator import FileValidator, validate_result_or_raise
 from app.storage import StorageConfig, StorageVisibility, storage_manager
 
 
@@ -39,6 +40,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
     def __init__(self, db: AsyncSession):
         super().__init__(db)
         self._config_service = ConfigService(db)
+        self._file_validator = FileValidator(db)
 
     # ========== 上传方法 ==========
 
@@ -77,6 +79,12 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         Returns:
             上传结果
         """
+        # 验证文件类型
+        validation_result = await self._file_validator.validate_for_platform(
+            filename, file_size
+        )
+        validate_result_or_raise(validation_result)
+
         storage_config = await self._resolve_platform_storage_config()
         temp_path, size, file_hash = await self._save_to_temp(content)
         actual_size = file_size or size
@@ -135,6 +143,12 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         """
         初始化分片上传会话
         """
+        # 验证文件类型
+        validation_result = await self._file_validator.validate_for_platform(
+            filename, total_size
+        )
+        validate_result_or_raise(validation_result)
+
         if total_size <= 0 or chunk_size <= 0:
             raise BusinessException(
                 message=_("error.common.invalid_parameter"),
