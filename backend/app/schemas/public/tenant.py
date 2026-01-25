@@ -59,6 +59,9 @@ class TenantPublicConfig(BaseSchema):
     # 域名信息
     subdomain: str = Field(..., description="租户子域名")
     subdomain_url: str = Field(..., description="子域名完整 URL")
+    
+    # 存储配置
+    storage_base_url: str | None = Field(None, description="文件访问基础 URL")
 
 
 class DomainVerificationInfo(BaseSchema):

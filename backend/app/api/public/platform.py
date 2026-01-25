@@ -21,7 +21,10 @@ async def get_platform_public_config(db: DbSession):
     security_config = await config_service.get_platform_configs_by_group(
         group_code="platform_security",
     )
-    configs = {**general_config, **security_config}
+    storage_config = await config_service.get_platform_configs_by_group(
+        group_code="platform_storage",
+    )
+    configs = {**general_config, **security_config, **storage_config}
 
     return success(
         data=PlatformPublicConfig(
@@ -46,6 +49,7 @@ async def get_platform_public_config(db: DbSession):
             password_expiry_days=configs.get("password_expiry_days"),
             session_timeout_minutes=configs.get("session_timeout_minutes"),
             session_max_devices=configs.get("session_max_devices"),
+            storage_base_url=configs.get("platform_storage_base_url"),
         ),
         message=_("common.success"),
     )

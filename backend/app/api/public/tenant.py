@@ -61,7 +61,22 @@ async def get_tenant_public_config(request: Request, db: DbSession):
         tenant_id=tenant.id,
         group_code="tenant_features",
     )
-    configs = {**general_config, **appearance_config, **feature_config}
+    storage_config = await config_service.get_tenant_configs_by_group(
+        tenant_id=tenant.id,
+        group_code="tenant_storage",
+    )
+    configs = {**general_config, **appearance_config, **feature_config, **storage_config}
+    
+    # 确定 storage_base_url：如果租户使用平台托管存储，则使用平台的 base_url
+    storage_base_url = None
+    if configs.get("tenant_storage_mode") == "custom":
+        storage_base_url = configs.get("tenant_storage_base_url")
+    else:
+        # 平台托管模式，获取平台存储配置
+        platform_storage_config = await config_service.get_platform_configs_by_group(
+            group_code="platform_storage",
+        )
+        storage_base_url = platform_storage_config.get("platform_storage_base_url")
 
     subdomain_url = f"https://{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
     
@@ -98,6 +113,7 @@ async def get_tenant_public_config(request: Request, db: DbSession):
             file_upload=configs.get("tenant_file_upload"),
             subdomain=tenant.code,
             subdomain_url=subdomain_url,
+            storage_base_url=storage_base_url,
         ),
         message=_("common.success"),
     )

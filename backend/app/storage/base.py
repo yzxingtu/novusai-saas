@@ -212,6 +212,18 @@ class StorageDriver(StorageLoggerMixin):
         """
         return False
 
+    def get_base_url(self) -> str:
+        """
+        获取存储的基础访问 URL
+        
+        用于前端拼接文件完整路径
+        
+        Returns:
+            基础 URL，不带尾部斜杠
+        """
+        base_url = self.config.base_url or ""
+        return base_url.rstrip("/")
+
 
 __all__ = [
     "StorageVisibility",
