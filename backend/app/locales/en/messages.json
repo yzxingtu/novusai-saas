@@ -488,7 +488,10 @@
       "error": "Error Log",
       "db": "Database Log",
       "task": "Task Log",
-      "queue": "Queue Log"
+      "queue": "Queue Log",
+      "captcha": "Captcha Log",
+      "storage": "Storage Log",
+      "auth": "Authentication Log"
     }
   },
   "config": {

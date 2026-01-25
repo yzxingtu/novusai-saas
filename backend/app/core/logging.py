@@ -139,13 +139,16 @@ class LogManager:
         """
         初始化分类日志器
         
-        为 db/task/queue 创建独立的日志器和文件处理器
+        为需要独立文件的分类创建日志器和文件处理器
         """
         # 需要独立文件的分类（app/error 已经通过根日志器处理）
         categories = [
             LogCategoryEnum.DB,
             LogCategoryEnum.TASK,
             LogCategoryEnum.QUEUE,
+            LogCategoryEnum.CAPTCHA,
+            LogCategoryEnum.STORAGE,
+            LogCategoryEnum.AUTH,
         ]
         
         for category in categories:
@@ -422,6 +425,33 @@ class LogManager:
         return cls.get_category_logger(LogCategoryEnum.QUEUE)
     
     @classmethod
+    def get_captcha_logger(cls) -> logging.Logger:
+        """
+        获取验证码日志器
+        
+        记录到 logs/captcha.log
+        """
+        return cls.get_category_logger(LogCategoryEnum.CAPTCHA)
+    
+    @classmethod
+    def get_storage_logger(cls) -> logging.Logger:
+        """
+        获取存储日志器
+        
+        记录到 logs/storage.log
+        """
+        return cls.get_category_logger(LogCategoryEnum.STORAGE)
+    
+    @classmethod
+    def get_auth_logger(cls) -> logging.Logger:
+        """
+        获取认证日志器
+        
+        记录到 logs/auth.log
+        """
+        return cls.get_category_logger(LogCategoryEnum.AUTH)
+    
+    @classmethod
     def get_log_dir(cls) -> Path | None:
         """获取日志目录路径"""
         return cls._log_dir
@@ -479,6 +509,21 @@ def get_queue_logger() -> logging.Logger:
     return LogManager.get_queue_logger()
 
 
+def get_captcha_logger() -> logging.Logger:
+    """获取验证码日志器"""
+    return LogManager.get_captcha_logger()
+
+
+def get_storage_logger() -> logging.Logger:
+    """获取存储日志器"""
+    return LogManager.get_storage_logger()
+
+
+def get_auth_logger() -> logging.Logger:
+    """获取认证日志器"""
+    return LogManager.get_auth_logger()
+
+
 def init_logging() -> None:
     """初始化日志系统"""
     LogManager.init()
@@ -491,5 +536,8 @@ __all__ = [
     "get_db_logger",
     "get_task_logger",
     "get_queue_logger",
+    "get_captcha_logger",
+    "get_storage_logger",
+    "get_auth_logger",
     "init_logging",
 ]

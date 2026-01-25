@@ -11,7 +11,7 @@ try:
 except Exception:
     ImageCaptcha = None  # type: ignore
 from app.captcha.provider import ICaptchaProvider, CaptchaChallenge, CaptchaVerificationResult
-from app.core.logging import get_logger
+from app.core.logging import get_captcha_logger
 
 # 延迟初始化 logger，避免在模块导入时 LogManager 还未初始化
 _logger = None
@@ -19,7 +19,7 @@ _logger = None
 def _get_logger():
     global _logger
     if _logger is None:
-        _logger = get_logger("captcha.image", separate_file=True)
+        _logger = get_captcha_logger()
     return _logger
 
 
