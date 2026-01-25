@@ -27,6 +27,8 @@ class ConfigValueType(StrEnum):
     PASSWORD = ("password", "enum.config_value_type.password")  # 密码（加密存储）
     COLOR = ("color", "enum.config_value_type.color")  # 颜色选择器
     IMAGE = ("image", "enum.config_value_type.image")  # 图片上传
+    TAG = ("tag", "enum.config_value_type.tag")  # 标签选择
+    FILE = ("file", "enum.config_value_type.file")  # 文件上传
 
 
 __all__ = [
