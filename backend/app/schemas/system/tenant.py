@@ -21,6 +21,17 @@ class TenantPlanInfo(BaseSchema):
     name: str = Field(..., description="套餐名称")
 
 
+class TenantStorageStats(BaseSchema):
+    """租户存储统计信息"""
+    
+    used_bytes: int = Field(0, description="已使用存储空间（字节）")
+    limit_bytes: int = Field(0, description="存储限制（字节），0 表示无限制")
+    limit_gb: int = Field(0, description="存储限制（GB），0 表示无限制")
+    usage_percent: float = Field(0.0, description="使用率百分比")
+    file_count: int = Field(0, description="附件总数")
+    unlimited: bool = Field(True, description="是否无限制")
+
+
 class TenantResponse(BaseSchema):
     """租户信息响应"""
     
@@ -43,6 +54,8 @@ class TenantResponse(BaseSchema):
     primary_domain: TenantDomainSimpleResponse | None = Field(None, description="主域名")
     domains: list[TenantDomainSimpleResponse] = Field(default_factory=list, description="域名列表")
     domain_count: int = Field(0, description="域名数量")
+    # 存储配额信息
+    storage_stats: TenantStorageStats | None = Field(None, description="存储统计信息")
     # 时间字段
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
@@ -165,6 +178,7 @@ class TenantResetOwnerPasswordRequest(BaseSchema):
 
 __all__ = [
     "TenantPlanInfo",
+    "TenantStorageStats",
     "TenantResponse",
     "TenantCreateRequest",
     "TenantUpdateRequest",

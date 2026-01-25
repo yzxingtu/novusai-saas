@@ -32,6 +32,7 @@ from app.rbac.decorators import (
 )
 from app.schemas.system import (
     TenantResponse,
+    TenantStorageStats,
     TenantCreateRequest,
     TenantUpdateRequest,
     TenantStatusRequest,
@@ -41,6 +42,7 @@ from app.schemas.system import (
 )
 from app.schemas.common.select import SelectResponse
 from app.services.system import TenantService
+from app.services.common import StorageQuotaService
 
 # 审计日志
 audit_logger = get_logger("impersonate", separate_file=True)
@@ -135,9 +137,23 @@ class AdminTenantController(GlobalController):
             service = TenantService(db)
             items, total = await service.query_list(spec, scope="admin")
             
+            # 批量获取存储统计
+            tenant_ids = [item.id for item in items]
+            quota_service = StorageQuotaService(db)
+            storage_stats_map = await quota_service.get_tenant_storage_stats_batch(tenant_ids)
+            
+            # 构建响应数据
+            response_items = []
+            for item in items:
+                data = TenantResponse.model_validate(item, from_attributes=True)
+                stats = storage_stats_map.get(item.id)
+                if stats:
+                    data.storage_stats = TenantStorageStats(**stats)
+                response_items.append(data)
+            
             return success(
                 data=PageResponse.create(
-                    items=[TenantResponse.model_validate(item, from_attributes=True) for item in items],
+                    items=response_items,
                     total=total,
                     page=spec.page,
                     page_size=spec.size,
@@ -168,8 +184,15 @@ class AdminTenantController(GlobalController):
                     detail=_("tenant.not_found"),
                 )
             
+            # 获取存储统计
+            quota_service = StorageQuotaService(db)
+            storage_stats = await quota_service.get_tenant_storage_stats(tenant_id)
+            
+            data = TenantResponse.model_validate(tenant, from_attributes=True)
+            data.storage_stats = TenantStorageStats(**storage_stats)
+            
             return success(
-                data=TenantResponse.model_validate(tenant, from_attributes=True),
+                data=data,
                 message=_("common.success"),
             )
         

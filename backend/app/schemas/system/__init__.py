@@ -29,6 +29,7 @@ from app.schemas.system.role import (
 )
 from app.schemas.system.tenant import (
     TenantResponse,
+    TenantStorageStats,
     TenantCreateRequest,
     TenantUpdateRequest,
     TenantStatusRequest,
@@ -68,6 +69,7 @@ __all__ = [
     "AdminRoleMemberResponse",
     # Tenant
     "TenantResponse",
+    "TenantStorageStats",
     "TenantCreateRequest",
     "TenantUpdateRequest",
     "TenantStatusRequest",

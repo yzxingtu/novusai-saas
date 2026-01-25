@@ -22,7 +22,7 @@ from app.schemas.tenant.attachment import (
 )
 from app.services.tenant.attachment_service import AttachmentService
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
-from app.services.tenant.quota_service import QuotaService
+from app.services.common import StorageQuotaService
 
 
 @permission_resource(
@@ -58,35 +58,19 @@ class TenantAttachmentController(TenantController):
             
             权限: attachment:storage_quota
             """
-            service = AttachmentService(db, current_admin.tenant_id)
-            tenant = await service._get_tenant()
-            quota_service = QuotaService(db, tenant)
-            
-            # 获取已使用存储量
-            used_bytes = await service.repo.sum_size()
-            
-            # 获取存储配额检查结果
-            quota_result = await quota_service.check_storage_quota(
-                additional_bytes=0,
-                current_bytes=used_bytes,
-            )
-            
-            # 获取文件数统计
-            total_count = await service.repo.count()
-            
-            # 获取单文件大小限制
-            max_file_size_mb = quota_service.get_quota_value("max_file_size_mb", 0)
+            quota_service = StorageQuotaService(db)
+            stats = await quota_service.get_tenant_storage_stats(current_admin.tenant_id)
             
             return success(
                 data=TenantStorageQuotaResponse(
-                    used_bytes=used_bytes,
-                    limit_bytes=quota_result.limit * 1024 * 1024 * 1024 if quota_result.limit > 0 else 0,
-                    limit_gb=quota_result.limit,
-                    remaining_bytes=quota_result.remaining * 1024 * 1024 * 1024 if quota_result.remaining > 0 else 0,
-                    usage_percent=round(used_bytes / (quota_result.limit * 1024 * 1024 * 1024) * 100, 2) if quota_result.limit > 0 else 0,
-                    total_count=total_count,
-                    max_file_size_mb=max_file_size_mb,
-                    unlimited=quota_result.limit == 0,
+                    used_bytes=stats["used_bytes"],
+                    limit_bytes=stats["limit_bytes"],
+                    limit_gb=stats["limit_gb"],
+                    remaining_bytes=stats["remaining_bytes"],
+                    usage_percent=stats["usage_percent"],
+                    total_count=stats["file_count"],
+                    max_file_size_mb=stats["max_file_size_mb"],
+                    unlimited=stats["unlimited"],
                 ),
                 message=_("common.success"),
             )
