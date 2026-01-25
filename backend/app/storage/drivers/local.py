@@ -88,11 +88,12 @@ class LocalStorageDriver(StorageDriver):
         保存元数据到侧写文件
         """
         meta_path = self._meta_path(path)
-        await anyio.to_thread.run_sync(
-            meta_path.write_text,
-            json.dumps(metadata, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        content = json.dumps(metadata, ensure_ascii=False)
+
+        def _write() -> None:
+            meta_path.write_text(content, encoding="utf-8")
+
+        await anyio.to_thread.run_sync(_write)
 
     async def _load_metadata(self, path: str) -> Optional[dict]:
         """
@@ -101,7 +102,11 @@ class LocalStorageDriver(StorageDriver):
         meta_path = self._meta_path(path)
         if not meta_path.exists():
             return None
-        content = await anyio.to_thread.run_sync(meta_path.read_text, encoding="utf-8")
+
+        def _read() -> str:
+            return meta_path.read_text(encoding="utf-8")
+
+        content = await anyio.to_thread.run_sync(_read)
         return json.loads(content)
 
     async def put(
