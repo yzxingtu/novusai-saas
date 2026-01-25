@@ -4,7 +4,7 @@
 包含租户级的登录安全、密码策略等配置
 """
 
-from app.configs.meta import ConfigMeta, min_value, max_value, option
+from app.configs.meta import ConfigMeta, DisplayRule, min_value, max_value, option
 from app.configs.definitions.groups import TENANT_GENERAL_GROUP
 from app.enums.config import ConfigScope, ConfigValueType
 
@@ -38,6 +38,9 @@ TENANT_CAPTCHA_DIFFICULTY = ConfigMeta(
         option("hard", "config.tenant.captcha_difficulty.hard"),
     ],
     sort_order=15,
+    display_rules=[
+        DisplayRule(field="tenant_captcha_enabled", operator="equals", value=True, action="show"),
+    ],
 )
 
 # 允许的登录方式
@@ -101,6 +104,9 @@ TENANT_CAPTCHA_ENABLE_THRESHOLD = ConfigMeta(
         max_value(10, "validation.max_value"),
     ],
     sort_order=45,
+    display_rules=[
+        DisplayRule(field="tenant_captcha_enabled", operator="equals", value=True, action="show"),
+    ],
 )
 
 

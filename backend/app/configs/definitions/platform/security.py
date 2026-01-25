@@ -21,7 +21,7 @@
 - 会话超时：60-120分钟
 """
 
-from app.configs.meta import ConfigMeta, min_value, max_value, option
+from app.configs.meta import ConfigMeta, DisplayRule, min_value, max_value, option
 from app.configs.definitions.groups import PLATFORM_SECURITY_GROUP
 from app.enums.config import ConfigScope, ConfigValueType
 
@@ -162,6 +162,9 @@ CAPTCHA_DIFFICULTY = ConfigMeta(
         option("hard", "config.platform.captcha_difficulty.hard"),
     ],
     sort_order=65,
+    display_rules=[
+        DisplayRule(field="login_captcha_enabled", operator="equals", value=True, action="show"),
+    ],
 )
 
 # 验证码启用阈值（管理员端）
@@ -179,6 +182,9 @@ CAPTCHA_ENABLE_THRESHOLD_ADMIN = ConfigMeta(
         max_value(10, "validation.max_value"),
     ],
     sort_order=66,
+    display_rules=[
+        DisplayRule(field="login_captcha_enabled", operator="equals", value=True, action="show"),
+    ],
 )
 
 # ==========================================
