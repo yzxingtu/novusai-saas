@@ -7,6 +7,7 @@
 from pydantic import Field
 
 from app.core.base_schema import BaseSchema
+from app.schemas.public.platform import StoragePublicConfig
 
 
 class TenantPublicConfig(BaseSchema):
@@ -61,7 +62,7 @@ class TenantPublicConfig(BaseSchema):
     subdomain_url: str = Field(..., description="子域名完整 URL")
     
     # 存储配置
-    storage_base_url: str | None = Field(None, description="文件访问基础 URL")
+    storage: StoragePublicConfig | None = Field(None, description="存储配置")
 
 
 class DomainVerificationInfo(BaseSchema):

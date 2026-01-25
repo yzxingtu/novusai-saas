@@ -13,6 +13,7 @@ from app.core.response import success
 from app.middleware.tenant import get_tenant_context
 from app.configs.service import ConfigService
 from app.schemas.public import TenantPublicConfig, DomainVerificationInfo
+from app.schemas.public.platform import StoragePublicConfig
 from app.rbac.decorators import public
 
 
@@ -67,16 +68,27 @@ async def get_tenant_public_config(request: Request, db: DbSession):
     )
     configs = {**general_config, **appearance_config, **feature_config, **storage_config}
     
-    # 确定 storage_base_url：如果租户使用平台托管存储，则使用平台的 base_url
-    storage_base_url = None
+    # 确定存储配置：如果租户使用平台托管存储，则使用平台的配置
+    platform_storage_config = await config_service.get_platform_configs_by_group(
+        group_code="platform_storage",
+    )
+    
     if configs.get("tenant_storage_mode") == "custom":
         storage_base_url = configs.get("tenant_storage_base_url")
+        # 租户自定义 allowed_extensions，如果未设置则使用平台配置
+        allowed_extensions = configs.get("tenant_storage_allowed_extensions") or platform_storage_config.get("platform_storage_allowed_extensions")
     else:
-        # 平台托管模式，获取平台存储配置
-        platform_storage_config = await config_service.get_platform_configs_by_group(
-            group_code="platform_storage",
-        )
+        # 平台托管模式，全部使用平台配置
         storage_base_url = platform_storage_config.get("platform_storage_base_url")
+        allowed_extensions = platform_storage_config.get("platform_storage_allowed_extensions")
+    
+    # chunk_size 和 max_file_size 始终使用平台配置
+    storage_config_obj = StoragePublicConfig(
+        base_url=storage_base_url,
+        chunk_size_mb=platform_storage_config.get("platform_storage_chunk_size_mb"),
+        max_file_size_mb=platform_storage_config.get("platform_storage_max_file_size_mb"),
+        allowed_extensions=allowed_extensions,
+    )
 
     subdomain_url = f"https://{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
     
@@ -113,7 +125,7 @@ async def get_tenant_public_config(request: Request, db: DbSession):
             file_upload=configs.get("tenant_file_upload"),
             subdomain=tenant.code,
             subdomain_url=subdomain_url,
-            storage_base_url=storage_base_url,
+            storage=storage_config_obj,
         ),
         message=_("common.success"),
     )

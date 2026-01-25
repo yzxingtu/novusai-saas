@@ -5,6 +5,7 @@ from app.core.i18n import _
 from app.core.response import success
 from app.configs.service import ConfigService
 from app.schemas.public import PlatformPublicConfig
+from app.schemas.public.platform import StoragePublicConfig
 from app.rbac.decorators import public
 
 
@@ -49,7 +50,12 @@ async def get_platform_public_config(db: DbSession):
             password_expiry_days=configs.get("password_expiry_days"),
             session_timeout_minutes=configs.get("session_timeout_minutes"),
             session_max_devices=configs.get("session_max_devices"),
-            storage_base_url=configs.get("platform_storage_base_url"),
+            storage=StoragePublicConfig(
+                base_url=configs.get("platform_storage_base_url"),
+                chunk_size_mb=configs.get("platform_storage_chunk_size_mb"),
+                max_file_size_mb=configs.get("platform_storage_max_file_size_mb"),
+                allowed_extensions=configs.get("platform_storage_allowed_extensions"),
+            ),
         ),
         message=_("common.success"),
     )

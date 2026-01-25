@@ -3,6 +3,14 @@ from pydantic import Field
 from app.core.base_schema import BaseSchema
 
 
+class StoragePublicConfig(BaseSchema):
+    """存储公开配置"""
+    base_url: str | None = Field(None, description="文件访问基础 URL")
+    chunk_size_mb: int | None = Field(None, description="默认分片大小（MB）")
+    max_file_size_mb: int | None = Field(None, description="单文件大小限制（MB）")
+    allowed_extensions: str | None = Field(None, description="允许的文件扩展名")
+
+
 class PlatformPublicConfig(BaseSchema):
     site_name: str = Field(..., description="站点名称")
     site_description: str | None = Field(None, description="站点描述")
@@ -27,7 +35,7 @@ class PlatformPublicConfig(BaseSchema):
     session_max_devices: int | None = Field(None, description="最大登录设备数")
     
     # 存储配置
-    storage_base_url: str | None = Field(None, description="文件访问基础 URL")
+    storage: StoragePublicConfig | None = Field(None, description="存储配置")
 
 
-__all__ = ["PlatformPublicConfig"]
+__all__ = ["PlatformPublicConfig", "StoragePublicConfig"]
