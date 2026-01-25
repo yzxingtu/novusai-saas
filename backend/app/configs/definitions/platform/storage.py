@@ -200,6 +200,131 @@ PLATFORM_STORAGE_CHUNK_SIZE_MB = ConfigMeta(
     sort_order=60,
 )
 
+# ==========================================
+# 图片处理配置
+# ==========================================
+
+PLATFORM_IMAGE_PROCESS_ENABLED = ConfigMeta(
+    key="platform_image_process_enabled",
+    name_key="config.platform.image_process_enabled.name",
+    description_key="config.platform.image_process_enabled.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.BOOLEAN,
+    default_value=True,
+    sort_order=100,
+)
+
+PLATFORM_IMAGE_CACHE_DRIVER = ConfigMeta(
+    key="platform_image_cache_driver",
+    name_key="config.platform.image_cache_driver.name",
+    description_key="config.platform.image_cache_driver.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.SELECT,
+    default_value="filesystem",
+    options=[
+        ConfigOption("filesystem", "config.platform.image_cache_driver.filesystem"),
+        ConfigOption("redis", "config.platform.image_cache_driver.redis"),
+    ],
+    display_rules=[
+        DisplayRule(
+            field="platform_image_process_enabled",
+            operator="equals",
+            value=True,
+        )
+    ],
+    sort_order=110,
+)
+
+PLATFORM_IMAGE_CACHE_PATH = ConfigMeta(
+    key="platform_image_cache_path",
+    name_key="config.platform.image_cache_path.name",
+    description_key="config.platform.image_cache_path.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.STRING,
+    default_value="/data/cache/images",
+    display_rules=[
+        DisplayRule(
+            field="platform_image_process_enabled",
+            operator="equals",
+            value=True,
+        ),
+        DisplayRule(
+            field="platform_image_cache_driver",
+            operator="equals",
+            value="filesystem",
+        ),
+    ],
+    sort_order=120,
+)
+
+PLATFORM_IMAGE_CACHE_TTL_DAYS = ConfigMeta(
+    key="platform_image_cache_ttl_days",
+    name_key="config.platform.image_cache_ttl_days.name",
+    description_key="config.platform.image_cache_ttl_days.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.NUMBER,
+    default_value=7,
+    display_rules=[
+        DisplayRule(
+            field="platform_image_process_enabled",
+            operator="equals",
+            value=True,
+        )
+    ],
+    sort_order=130,
+)
+
+PLATFORM_IMAGE_MAX_WIDTH = ConfigMeta(
+    key="platform_image_max_width",
+    name_key="config.platform.image_max_width.name",
+    description_key="config.platform.image_max_width.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.NUMBER,
+    default_value=4096,
+    display_rules=[
+        DisplayRule(
+            field="platform_image_process_enabled",
+            operator="equals",
+            value=True,
+        )
+    ],
+    sort_order=140,
+)
+
+PLATFORM_IMAGE_MAX_HEIGHT = ConfigMeta(
+    key="platform_image_max_height",
+    name_key="config.platform.image_max_height.name",
+    description_key="config.platform.image_max_height.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.NUMBER,
+    default_value=4096,
+    display_rules=[
+        DisplayRule(
+            field="platform_image_process_enabled",
+            operator="equals",
+            value=True,
+        )
+    ],
+    sort_order=150,
+)
+
+PLATFORM_IMAGE_DEFAULT_QUALITY = ConfigMeta(
+    key="platform_image_default_quality",
+    name_key="config.platform.image_default_quality.name",
+    description_key="config.platform.image_default_quality.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.NUMBER,
+    default_value=85,
+    display_rules=[
+        DisplayRule(
+            field="platform_image_process_enabled",
+            operator="equals",
+            value=True,
+        )
+    ],
+    sort_order=160,
+)
+
 PLATFORM_STORAGE_GROUP.configs = [
     PLATFORM_STORAGE_DRIVER,
     PLATFORM_STORAGE_ROOT_PATH,
@@ -207,6 +332,14 @@ PLATFORM_STORAGE_GROUP.configs = [
     PLATFORM_STORAGE_OPTIONS,
     PLATFORM_STORAGE_DEFAULT_VISIBILITY,
     PLATFORM_STORAGE_CHUNK_SIZE_MB,
+    # 图片处理配置
+    PLATFORM_IMAGE_PROCESS_ENABLED,
+    PLATFORM_IMAGE_CACHE_DRIVER,
+    PLATFORM_IMAGE_CACHE_PATH,
+    PLATFORM_IMAGE_CACHE_TTL_DAYS,
+    PLATFORM_IMAGE_MAX_WIDTH,
+    PLATFORM_IMAGE_MAX_HEIGHT,
+    PLATFORM_IMAGE_DEFAULT_QUALITY,
 ]
 
 
@@ -217,4 +350,12 @@ __all__ = [
     "PLATFORM_STORAGE_OPTIONS",
     "PLATFORM_STORAGE_DEFAULT_VISIBILITY",
     "PLATFORM_STORAGE_CHUNK_SIZE_MB",
+    # 图片处理配置
+    "PLATFORM_IMAGE_PROCESS_ENABLED",
+    "PLATFORM_IMAGE_CACHE_DRIVER",
+    "PLATFORM_IMAGE_CACHE_PATH",
+    "PLATFORM_IMAGE_CACHE_TTL_DAYS",
+    "PLATFORM_IMAGE_MAX_WIDTH",
+    "PLATFORM_IMAGE_MAX_HEIGHT",
+    "PLATFORM_IMAGE_DEFAULT_QUALITY",
 ]

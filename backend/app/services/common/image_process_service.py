@@ -39,7 +39,48 @@ class ImageProcessService:
         self.tenant_id = tenant_id
         self.config_service = ConfigService(db)
     
-    def parse_params(
+    async def is_enabled(self) -> bool:
+        """
+        检查图片处理功能是否启用
+        """
+        enabled = await self.config_service.get_platform_config(
+            "platform_image_process_enabled",
+            default=True,
+        )
+        return bool(enabled)
+    
+    async def get_config(self) -> dict:
+        """
+        获取图片处理配置
+        """
+        return {
+            "enabled": await self.config_service.get_platform_config(
+                "platform_image_process_enabled", default=True
+            ),
+            "cache_driver": await self.config_service.get_platform_config(
+                "platform_image_cache_driver", default="filesystem"
+            ),
+            "cache_path": await self.config_service.get_platform_config(
+                "platform_image_cache_path", default="/data/cache/images"
+            ),
+            "cache_ttl_days": await self.config_service.get_platform_config(
+                "platform_image_cache_ttl_days", default=7
+            ),
+            "cache_ttl": int(await self.config_service.get_platform_config(
+                "platform_image_cache_ttl_days", default=7
+            )) * 86400,  # 转换为秒
+            "max_width": await self.config_service.get_platform_config(
+                "platform_image_max_width", default=4096
+            ),
+            "max_height": await self.config_service.get_platform_config(
+                "platform_image_max_height", default=4096
+            ),
+            "default_quality": await self.config_service.get_platform_config(
+                "platform_image_default_quality", default=85
+            ),
+        }
+    
+    async def parse_params(
         self,
         width: int | None = None,
         height: int | None = None,
@@ -52,24 +93,44 @@ class ImageProcessService:
         解析图片处理参数
         
         支持预设和自定义参数混合使用，自定义参数优先级更高
+        参数会根据平台配置进行限制
         """
+        # 获取平台配置
+        config = await self.get_config()
+        max_width = int(config["max_width"])
+        max_height = int(config["max_height"])
+        default_quality = int(config["default_quality"])
+        
         # 如果指定了预设，先加载预设值
         if preset and preset in PRESETS:
-            params = PRESETS[preset]
+            preset_config = PRESETS[preset]
+            params = ImageProcessParams(
+                width=preset_config.get("width"),
+                height=preset_config.get("height"),
+                quality=preset_config.get("quality", default_quality),
+                format=preset_config.get("format"),
+                mode=preset_config.get("mode", "fit"),
+            )
         else:
-            params = ImageProcessParams()
+            params = ImageProcessParams(quality=default_quality)
         
         # 自定义参数覆盖预设值
         if width is not None:
-            params.width = width
+            params.width = min(width, max_width)
         if height is not None:
-            params.height = height
+            params.height = min(height, max_height)
         if quality is not None:
             params.quality = quality
         if format is not None:
             params.format = format
         if mode is not None:
             params.mode = mode
+        
+        # 确保尺寸不超过配置限制
+        if params.width and params.width > max_width:
+            params.width = max_width
+        if params.height and params.height > max_height:
+            params.height = max_height
         
         return params
     

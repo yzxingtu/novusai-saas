@@ -585,6 +585,36 @@
         "name": "Default Chunk Size",
         "desc": "Chunk size used for uploads (MB)"
       },
+      "image_process_enabled": {
+        "name": "Enable Image Processing",
+        "desc": "Enable dynamic image processing (resize, crop, format conversion, etc.)"
+      },
+      "image_cache_driver": {
+        "name": "Image Cache Driver",
+        "desc": "Cache storage method for processed images",
+        "filesystem": "Filesystem",
+        "redis": "Redis"
+      },
+      "image_cache_path": {
+        "name": "Image Cache Path",
+        "desc": "Storage path for filesystem cache"
+      },
+      "image_cache_ttl_days": {
+        "name": "Cache TTL (Days)",
+        "desc": "Number of days to cache processed images"
+      },
+      "image_max_width": {
+        "name": "Max Width",
+        "desc": "Maximum width allowed for image processing (pixels)"
+      },
+      "image_max_height": {
+        "name": "Max Height",
+        "desc": "Maximum height allowed for image processing (pixels)"
+      },
+      "image_default_quality": {
+        "name": "Default Image Quality",
+        "desc": "Default quality for image compression (1-100)"
+      },
       "password_min_length": {
         "name": "Minimum Password Length",
         "desc": "Minimum number of characters required for passwords"

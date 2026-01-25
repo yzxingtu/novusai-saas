@@ -76,7 +76,14 @@ async def get_processed_image(
     
     # 图片处理服务
     image_service = ImageProcessService(db, tenant_id=attachment.tenant_id)
-    params = image_service.parse_params(
+    
+    # 检查图片处理功能是否启用
+    if not await image_service.is_enabled():
+        # 未启用，直接重定向到原始文件
+        url = await download_service.get_redirect_url(attachment, expires=3600, preview=True)
+        return RedirectResponse(url=url)
+    
+    params = await image_service.parse_params(
         width=w,
         height=h,
         quality=q,

@@ -587,6 +587,36 @@
         "name": "默认分片大小",
         "desc": "分片上传使用的块大小（MB）"
       },
+      "image_process_enabled": {
+        "name": "启用图片处理",
+        "desc": "是否启用动态图片处理功能（缩放、裁剪、格式转换等）"
+      },
+      "image_cache_driver": {
+        "name": "图片缓存驱动",
+        "desc": "处理后图片的缓存存储方式",
+        "filesystem": "文件系统",
+        "redis": "Redis"
+      },
+      "image_cache_path": {
+        "name": "图片缓存路径",
+        "desc": "文件系统缓存的存储路径"
+      },
+      "image_cache_ttl_days": {
+        "name": "缓存有效期",
+        "desc": "图片缓存的有效天数"
+      },
+      "image_max_width": {
+        "name": "最大宽度",
+        "desc": "图片处理允许的最大宽度（像素）"
+      },
+      "image_max_height": {
+        "name": "最大高度",
+        "desc": "图片处理允许的最大高度（像素）"
+      },
+      "image_default_quality": {
+        "name": "默认图片质量",
+        "desc": "图片压缩的默认质量（1-100）"
+      },
       "password_min_length": {
         "name": "密码最小长度",
         "desc": "用户密码的最小字符数要求"
