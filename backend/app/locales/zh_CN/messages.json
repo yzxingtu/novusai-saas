@@ -300,7 +300,8 @@
       "download": "下载附件",
       "preview": "预览附件",
       "stats": "查看存储统计",
-      "stats_by_tenant": "查看租户存储统计"
+      "stats_by_tenant": "查看租户存储统计",
+      "storage_quota": "查看存储配额"
     }
   },
     "role": {

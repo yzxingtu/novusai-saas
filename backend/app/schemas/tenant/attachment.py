@@ -52,8 +52,21 @@ class AttachmentListItem(BaseSchema):
     created_at: datetime = Field(..., description="创建时间")
 
 
+class TenantStorageQuotaResponse(BaseSchema):
+    """租户存储配额响应"""
+    used_bytes: int = Field(..., description="已使用存储空间（字节）")
+    limit_bytes: int = Field(..., description="存储限制（字节），0 表示无限制")
+    limit_gb: int = Field(..., description="存储限制（GB），0 表示无限制")
+    remaining_bytes: int = Field(..., description="剩余存储空间（字节）")
+    usage_percent: float = Field(..., description="使用率百分比")
+    total_count: int = Field(..., description="附件总数")
+    max_file_size_mb: int = Field(..., description="单文件大小限制（MB），0 表示无限制")
+    unlimited: bool = Field(..., description="是否无限制")
+
+
 __all__ = [
     "AttachmentAccessUrlResponse",
     "AttachmentResponse",
     "AttachmentListItem",
+    "TenantStorageQuotaResponse",
 ]

@@ -300,7 +300,8 @@
       "download": "Download Attachment",
       "preview": "Preview Attachment",
       "stats": "View Storage Statistics",
-      "stats_by_tenant": "View Tenant Storage Statistics"
+      "stats_by_tenant": "View Tenant Storage Statistics",
+      "storage_quota": "View Storage Quota"
     }
   },
   "role": {

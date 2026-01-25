@@ -18,9 +18,11 @@ from app.schemas.tenant.attachment import (
     AttachmentAccessUrlResponse,
     AttachmentResponse,
     AttachmentListItem,
+    TenantStorageQuotaResponse,
 )
 from app.services.tenant.attachment_service import AttachmentService
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
+from app.services.tenant.quota_service import QuotaService
 
 
 @permission_resource(
@@ -43,6 +45,51 @@ class TenantAttachmentController(TenantController):
         router = self.router
 
         # ========== 附件管理接口 ==========
+
+        @router.get("/storage-quota", summary="获取存储配额")
+        @action_read("action.attachment.storage_quota")
+        async def get_storage_quota(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+        ):
+            """
+            获取当前租户存储配额使用情况
+            
+            权限: attachment:storage_quota
+            """
+            service = AttachmentService(db, current_admin.tenant_id)
+            tenant = await service._get_tenant()
+            quota_service = QuotaService(db, tenant)
+            
+            # 获取已使用存储量
+            used_bytes = await service.repo.sum_size()
+            
+            # 获取存储配额检查结果
+            quota_result = await quota_service.check_storage_quota(
+                additional_bytes=0,
+                current_bytes=used_bytes,
+            )
+            
+            # 获取文件数统计
+            total_count = await service.repo.count()
+            
+            # 获取单文件大小限制
+            max_file_size_mb = quota_service.get_quota_value("max_file_size_mb", 0)
+            
+            return success(
+                data=TenantStorageQuotaResponse(
+                    used_bytes=used_bytes,
+                    limit_bytes=quota_result.limit * 1024 * 1024 * 1024 if quota_result.limit > 0 else 0,
+                    limit_gb=quota_result.limit,
+                    remaining_bytes=quota_result.remaining * 1024 * 1024 * 1024 if quota_result.remaining > 0 else 0,
+                    usage_percent=round(used_bytes / (quota_result.limit * 1024 * 1024 * 1024) * 100, 2) if quota_result.limit > 0 else 0,
+                    total_count=total_count,
+                    max_file_size_mb=max_file_size_mb,
+                    unlimited=quota_result.limit == 0,
+                ),
+                message=_("common.success"),
+            )
 
         @router.get("/select", summary="获取附件下拉选项")
         @action_read("action.attachment.select")
