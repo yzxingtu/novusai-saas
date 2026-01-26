@@ -43,6 +43,7 @@ class AttachmentListItem(BaseSchema):
     tenant_id: int = Field(..., description="租户 ID")
     name: str = Field(..., description="文件名")
     original_name: str | None = Field(None, description="原始文件名")
+    path: str = Field(..., description="存储路径")
     size: int = Field(..., description="文件大小(字节)")
     mime_type: str | None = Field(None, description="MIME 类型")
     extension: str | None = Field(None, description="文件扩展名")
