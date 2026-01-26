@@ -20,6 +20,7 @@ class Attachment(TenantModel):
         "visibility": "visibility",
         "status": "status",
         "driver": "driver",
+        "base_url": "base_url",
         "source": "source",
         "uploader_id": "uploader_id",
         "business_type": "business_type",
@@ -82,6 +83,10 @@ class Attachment(TenantModel):
     driver: Mapped[str] = mapped_column(
         String(50),
         comment="存储驱动",
+    )
+    base_url: Mapped[str] = mapped_column(
+        String(500),
+        comment="文件访问基础URL",
     )
     status: Mapped[str] = mapped_column(
         String(20),

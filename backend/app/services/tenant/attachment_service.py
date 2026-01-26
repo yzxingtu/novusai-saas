@@ -109,6 +109,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
             business_type=business_type,
             business_id=business_id,
             metadata=metadata,
+            storage_config=storage_config,
         )
         used_bytes = await self.repo.sum_size()
         return {"attachment": attachment, "url": upload_result.url, "used_bytes": used_bytes}
@@ -250,6 +251,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
             business_type=session.get("business_type"),
             business_id=session.get("business_id"),
             metadata=session.get("metadata"),
+            storage_config=storage_config,
         )
         await self._remove_session(upload_id)
         used_bytes = await self.repo.sum_size()
@@ -402,11 +404,21 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         business_type: str | None,
         business_id: int | None,
         metadata: dict | None,
+        storage_config: StorageConfig | None = None,
     ) -> Attachment:
         """
         落库附件记录
         """
         extension = Path(filename).suffix.lstrip(".") if filename else None
+        
+        # 获取 base_url
+        if storage_config:
+            driver = storage_manager.get_driver(storage_config)
+            base_url = driver.get_base_url()
+        else:
+            # 容错处理：如果没有 storage_config，使用空字符串
+            base_url = ""
+        
         attachment = await self.repo.create(
             {
                 "name": filename or Path(storage_path).name,
@@ -418,6 +430,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
                 "extension": extension,
                 "visibility": visibility.value,
                 "driver": upload_result.driver,
+                "base_url": base_url,
                 "status": AttachmentStatus.ACTIVE.value,
                 "source": source.value,
                 "uploader_id": uploader_id,

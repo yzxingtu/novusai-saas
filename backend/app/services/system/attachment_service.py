@@ -123,6 +123,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             business_type=business_type,
             business_id=business_id,
             metadata=metadata,
+            storage_config=storage_config,
         )
         return {"attachment": attachment, "url": upload_result.url}
 
@@ -251,6 +252,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             business_type=session.get("business_type"),
             business_id=session.get("business_id"),
             metadata=session.get("metadata"),
+            storage_config=storage_config,
         )
         await self._remove_session(upload_id)
         return {"attachment": attachment, "url": upload_result.url}
@@ -363,11 +365,20 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         business_type: str | None,
         business_id: int | None,
         metadata: dict | None,
+        storage_config: StorageConfig | None = None,
     ) -> Attachment:
         """
         落库附件记录
         """
         extension = Path(filename).suffix.lstrip(".") if filename else None
+        
+        # 获取 base_url
+        if storage_config:
+            driver = storage_manager.get_driver(storage_config)
+            base_url = driver.get_base_url()
+        else:
+            base_url = ""
+        
         attachment = await self.repo.create(
             {
                 "tenant_id": tenant_id,
@@ -380,6 +391,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
                 "extension": extension,
                 "visibility": visibility.value,
                 "driver": upload_result.driver,
+                "base_url": base_url,
                 "status": AttachmentStatus.ACTIVE.value,
                 "source": source.value,
                 "uploader_id": uploader_id,
