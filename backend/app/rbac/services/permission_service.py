@@ -80,12 +80,13 @@ class PermissionService:
         Returns:
             权限 ID 集合
         """
-        # 超级管理员拥有所有权限
+        # 超级管理员拥有所有平台端权限（admin/both 作用域）
         if admin.is_super:
             result = await self.db.execute(
                 select(Permission.id).where(
                     Permission.is_enabled == True,
                     Permission.is_deleted == False,
+                    Permission.scope.in_(["admin", "both"]),
                 )
             )
             return set(result.scalars().all())
@@ -114,12 +115,12 @@ class PermissionService:
     async def get_admin_manageable_role_ids(self, admin: Admin) -> set[int]:
         """
         获取平台管理员可管理的角色 ID 集合
-        
-        可管理的角色 = 自身角色的所有后代角色（不含自身）
-        
+
+        可管理的角色 = 自身角色的所有后代角色（不含自身） + 自己作为负责人的角色
+
         Args:
             admin: 平台管理员
-        
+
         Returns:
             角色 ID 集合
         """
@@ -129,15 +130,29 @@ class PermissionService:
                 select(AdminRole.id).where(AdminRole.is_deleted == False)
             )
             return set(result.scalars().all())
-        
+
         # 无角色则无法管理任何角色
         if admin.role_id is None:
             return set()
-        
+
+        manageable_ids = set()
+
         # 获取后代角色（不含自身）
         repo = AdminRoleRepository(self.db)
         descendant_ids = await repo.get_descendant_ids(admin.role_id)
-        return set(descendant_ids)
+        manageable_ids.update(descendant_ids)
+
+        # 获取自己作为负责人的角色（部门负责人可以管理本部门）
+        leader_roles_result = await self.db.execute(
+            select(AdminRole.id).where(
+                AdminRole.leader_id == admin.id,
+                AdminRole.is_deleted == False,
+            )
+        )
+        leader_role_ids = set(leader_roles_result.scalars().all())
+        manageable_ids.update(leader_role_ids)
+
+        return manageable_ids
     
     async def get_admin_visible_role_ids(self, admin: Admin) -> set[int]:
         """
@@ -315,11 +330,12 @@ class PermissionService:
                 # 有套餐：返回套餐全部权限 ID
                 return plan_perms[1]
             else:
-                # 无套餐：保持原逻辑，返回所有租户端权限
+                # 无套餐：返回所有租户端权限（tenant/both 作用域）
                 result = await self.db.execute(
                     select(Permission.id).where(
                         Permission.is_enabled == True,
                         Permission.is_deleted == False,
+                        Permission.scope.in_(["tenant", "both"]),
                     )
                 )
                 return set(result.scalars().all())
@@ -349,15 +365,15 @@ class PermissionService:
         return permission_ids
     
     async def get_tenant_admin_manageable_role_ids(
-        self, 
+        self,
         tenant_admin: TenantAdmin,
     ) -> set[int]:
         """
         获取租户管理员可管理的角色 ID 集合
-        
+
         Args:
             tenant_admin: 租户管理员
-        
+
         Returns:
             角色 ID 集合
         """
@@ -370,15 +386,30 @@ class PermissionService:
                 )
             )
             return set(result.scalars().all())
-        
+
         # 无角色则无法管理
         if tenant_admin.role_id is None:
             return set()
-        
+
+        manageable_ids = set()
+
         # 获取后代角色
         repo = TenantRoleRepository(self.db, tenant_admin.tenant_id)
         descendant_ids = await repo.get_descendant_ids(tenant_admin.role_id)
-        return set(descendant_ids)
+        manageable_ids.update(descendant_ids)
+
+        # 获取自己作为负责人的角色（部门负责人可以管理本部门）
+        leader_roles_result = await self.db.execute(
+            select(TenantAdminRole.id).where(
+                TenantAdminRole.tenant_id == tenant_admin.tenant_id,
+                TenantAdminRole.leader_id == tenant_admin.id,
+                TenantAdminRole.is_deleted == False,
+            )
+        )
+        leader_role_ids = set(leader_roles_result.scalars().all())
+        manageable_ids.update(leader_role_ids)
+
+        return manageable_ids
     
     async def get_tenant_admin_visible_role_ids(
         self, 

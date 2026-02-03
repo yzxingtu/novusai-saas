@@ -60,12 +60,18 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     获取数据库会话
     
+    请求成功时自动提交，异常时自动回滚
+    
     Yields:
         AsyncSession: 异步数据库会话
     """
     async with async_session_factory() as session:
         try:
             yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
         finally:
             await session.close()
 

@@ -26,6 +26,12 @@
     "refresh_token_invalid": "刷新令牌无效",
     "password_changed": "密码修改成功",
     "password_mismatch": "密码不匹配",
+    "password_too_short": "密码长度不能少于 {min_length} 个字符",
+    "password_complexity_medium": "密码必须包含字母和数字",
+    "password_complexity_high": "密码必须包含字母、数字和特殊字符",
+    "captcha_provider_required": "请指定验证码类型",
+    "captcha_required": "请先完成验证码",
+    "captcha_invalid": "验证码错误",
     "impersonate_token_invalid": "一键登录令牌无效或已过期",
     "impersonate_success": "一键登录成功"
   },
@@ -52,6 +58,7 @@
     "status_updated": "管理员状态更新成功",
     "cannot_delete_self": "不能删除自己",
     "cannot_delete_super": "不能删除超级管理员",
+    "cannot_remove_super": "不能删除超级管理员",
     "cannot_disable_self": "不能禁用自己",
     "cannot_modify_super": "不能修改超级管理员",
     "super_admin_required": "需要超级管理员权限"
@@ -117,7 +124,11 @@
     "min_length": "{field}长度不能少于{min}个字符",
     "max_length": "{field}长度不能超过{max}个字符",
     "invalid_format": "{field}格式不正确",
-    "out_of_range": "{field}超出有效范围"
+    "out_of_range": "{field}超出有效范围",
+    "min_value": "不能小于 {min}",
+    "max_value": "不能大于 {max}",
+    "pattern": "格式不正确",
+    "color_format": "颜色格式不正确，应为 #RRGGBB"
   },
   "pagination": {
     "invalid_page": "页码无效",
@@ -141,7 +152,10 @@
     "upload_failed": "文件上传失败",
     "file_too_large": "文件大小超出限制",
     "invalid_file_type": "不支持的文件类型",
-    "not_found": "文件不存在"
+    "not_found": "文件不存在",
+    "extension_denied": "禁止上传 {extension} 类型的文件",
+    "extension_not_allowed": "不允许上传 {extension} 类型的文件",
+    "validation_failed": "文件验证失败"
   },
   "task": {
     "created": "任务创建成功",
@@ -191,10 +205,14 @@
       "assign_permissions": "分配权限",
       "select": "组织远程下拉",
       "members": "查看节点成员",
-      "add_member": "添加成员",
-      "remove_member": "移除成员",
+      "assign_member": "分配成员",
+      "remove_member": "删除成员",
       "set_leader": "设置负责人",
-      "reorder": "重新排序"
+      "reorder": "重新排序",
+      "create_member": "创建成员",
+      "update_member": "更新成员",
+      "reset_password": "重置密码",
+      "toggle_status": "切换状态"
     },
     "admin": {
       "list": "查看管理员列表",
@@ -274,40 +292,62 @@
       "read": "读取日志内容",
       "download": "下载日志文件",
       "delete": "删除日志文件"
+    },
+    "attachment": {
+      "list": "查看附件列表",
+      "detail": "查看附件详情",
+      "select": "附件远程下拉",
+      "delete": "删除附件",
+      "upload": "上传附件",
+      "chunk_init": "初始化分片上传",
+      "chunk_upload": "上传分片",
+      "chunk_complete": "完成分片上传",
+      "chunk_status": "查看上传进度",
+      "chunk_abort": "取消分片上传",
+      "download_url": "获取下载链接",
+      "preview_url": "获取预览链接",
+      "download": "下载附件",
+      "preview": "预览附件",
+      "stats": "查看存储统计",
+      "stats_by_tenant": "查看租户存储统计",
+      "storage_quota": "查看存储配额"
     }
   },
-  "role": {
-    "not_found": "角色不存在",
-    "code_exists": "角色代码已存在",
-    "created": "角色创建成功",
-    "tenant_root_description": "租户组织架构根节点，不可删除",
-    "platform_root_description": "平台组织架构根节点，不可删除",
-    "updated": "角色更新成功",
-    "deleted": "角色删除成功",
-    "system_role_cannot_modify": "系统内置角色不可修改",
-    "system_role_cannot_delete": "系统内置角色不可删除",
-    "permissions_updated": "角色权限更新成功",
-    "parent_not_found": "父角色不存在",
-    "cannot_set_self_as_parent": "不能将自己设为父角色",
-    "circular_reference": "检测到循环引用，父角色不能是当前角色的子孙角色",
-    "has_children": "角色存在子角色，请先删除或移动子角色",
-    "has_users": "角色下存在关联用户，请先移除用户的角色关联",
-    "max_depth_exceeded": "超出最大层级深度限制",
-    "system_role_cannot_change_parent": "系统内置角色不可修改父级关系",
-    "moved": "角色移动成功",
-    "no_permission_to_view": "无权查看该角色",
-    "no_permission_to_manage": "无权管理该角色",
-    "cannot_assign_permission": "无权分配该权限，只能分配您已拥有的权限",
-    "parent_must_be_visible": "父角色必须是您的角色或其下级角色",
-    "invalid_child_type": "当前节点类型不允许添加此类型的子节点",
-    "only_department_can_set_leader": "只有部门类型节点才能设置负责人",
-    "cannot_add_member": "当前节点类型不允许添加成员",
-    "member_exists": "成员已存在于该节点",
-    "member_not_in_node": "成员不在该节点中",
-    "member_added": "成员添加成功",
-    "member_removed": "成员移除成功",
-    "leader_set": "负责人设置成功"
-  },
+    "role": {
+      "not_found": "角色不存在",
+      "code_exists": "角色代码已存在",
+      "created": "角色创建成功",
+      "tenant_root_description": "租户组织架构根节点，不可删除",
+      "platform_root_description": "平台组织架构根节点，不可删除",
+      "updated": "角色更新成功",
+      "deleted": "角色删除成功",
+      "system_role_cannot_modify": "系统内置角色不可修改",
+      "system_role_cannot_delete": "系统内置角色不可删除",
+      "permissions_updated": "角色权限更新成功",
+      "parent_not_found": "父角色不存在",
+      "cannot_set_self_as_parent": "不能将自己设为父角色",
+      "circular_reference": "检测到循环引用，父角色不能是当前角色的子孙角色",
+      "has_children": "角色存在子角色，请先删除或移动子角色",
+      "has_users": "角色下存在关联用户，请先移除用户的角色关联",
+      "max_depth_exceeded": "超出最大层级深度限制",
+      "system_role_cannot_change_parent": "系统内置角色不可修改父级关系",
+      "moved": "角色移动成功",
+      "no_permission_to_view": "无权查看该角色",
+      "no_permission_to_manage": "无权管理该角色",
+      "cannot_assign_permission": "无权分配该权限，只能分配您已拥有的权限",
+      "parent_must_be_visible": "父角色必须是您的角色或其下级角色",
+      "invalid_child_type": "当前节点类型不允许添加此类型的子节点",
+      "only_department_can_set_leader": "只有部门类型节点才能设置负责人",
+      "cannot_modify_own_leader_status": "不能修改自己的负责人身份",
+      "cannot_add_member": "当前节点类型不允许添加成员",
+      "member_exists": "成员已存在于该节点",
+      "member_not_in_node": "成员不在该节点中",
+      "member_added": "成员添加成功",
+      "member_created": "成员创建成功",
+      "member_updated": "成员更新成功",
+      "member_removed": "成员移除成功",
+      "leader_set": "负责人设置成功"
+    },
   "tenant_admin": {
     "not_found": "管理员不存在",
     "username_exists": "用户名已被占用",
@@ -354,10 +394,40 @@
       "update": "更新",
       "delete": "删除",
       "query": "查询",
+      "list": "列表",
+      "detail": "详情",
       "login": "登录",
       "logout": "登出",
       "export": "导出",
-      "import": "导入"
+      "import": "导入",
+      "tree": "树形",
+      "select": "选择",
+      "toggle_status": "切换状态",
+      "reset_password": "重置密码",
+      "assign_permissions": "分配权限",
+      "impersonate": "代理登录",
+      "verify": "验证",
+      "set_primary": "设为主域名",
+      "groups": "分组",
+      "reorder": "排序",
+      "permissions": "权限",
+      "available_permissions": "可用权限",
+      "move": "移动",
+      "members": "成员",
+      "assign_member": "分配成员",
+      "remove_member": "移除成员",
+      "set_leader": "设置负责人",
+      "children": "子节点",
+      "effective_permissions": "有效权限",
+      "organization": "组织架构",
+      "stats": "统计",
+      "categories": "分类",
+      "files": "文件",
+      "read": "读取",
+      "download": "下载",
+      "reset_owner_password": "重置所有者密码",
+      "create_member": "创建成员",
+      "update_member": "更新成员"
     },
     "priority": {
       "low": "低",
@@ -369,6 +439,20 @@
       "department": "部门",
       "position": "岗位",
       "role": "职能角色"
+    },
+    "attachment_visibility": {
+      "public": "公开",
+      "private": "私有"
+    },
+    "attachment_status": {
+      "active": "可用",
+      "deleted": "已删除"
+    },
+    "attachment_source": {
+      "platform_admin": "平台管理员",
+      "tenant_admin": "租户管理员",
+      "tenant_user": "租户用户",
+      "system": "系统"
     },
     "billing_cycle": {
       "monthly": "月付",
@@ -396,6 +480,9 @@
       "log": "日志",
       "organization": "组织架构",
       "system": "系统",
+      "operation_log": "操作日志",
+      "system_log": "系统日志",
+      "tenant_plan": "租户套餐",
       "other": "其他"
     },
     "log_category": {
@@ -403,7 +490,11 @@
       "error": "错误日志",
       "db": "数据库日志",
       "task": "任务日志",
-      "queue": "队列日志"
+      "queue": "队列日志",
+      "captcha": "验证码日志",
+      "storage": "存储日志",
+      "auth": "认证日志",
+      "impersonate": "一键登录审计"
     }
   },
   "config": {
@@ -438,6 +529,10 @@
       "tenant_features": {
         "name": "功能设置",
         "desc": "功能模块的启用和禁用"
+      },
+      "tenant_storage": {
+        "name": "存储设置",
+        "desc": "租户存储方案与云存储配置"
       }
     },
     "platform": {
@@ -481,6 +576,72 @@
         "name": "维护提示",
         "desc": "维护模式下显示给用户的提示信息"
       },
+      "storage_driver": {
+        "name": "默认存储驱动",
+        "desc": "平台托管存储使用的驱动"
+      },
+      "storage_root_path": {
+        "name": "存储根路径或桶名",
+        "desc": "本地路径或对象存储桶名称"
+      },
+      "storage_base_url": {
+        "name": "访问域名",
+        "desc": "文件访问的域名或 CDN 前缀"
+      },
+      "storage_options": {
+        "name": "驱动参数",
+        "desc": "驱动相关配置参数（JSON）"
+      },
+      "storage_default_visibility": {
+        "name": "默认可见性",
+        "desc": "平台托管存储默认可见性"
+      },
+      "storage_chunk_size_mb": {
+        "name": "默认分片大小",
+        "desc": "分片上传使用的块大小（MB）"
+      },
+      "storage_max_file_size_mb": {
+        "name": "单文件大小限制",
+        "desc": "允许上传的单个文件最大大小（MB）"
+      },
+      "storage_allowed_extensions": {
+        "name": "允许的文件类型",
+        "desc": "允许上传的文件扩展名（英文逗号分隔），留空表示不限制"
+      },
+      "storage_denied_extensions": {
+        "name": "禁止的文件类型",
+        "desc": "禁止上传的文件扩展名（英文逗号分隔），优先级高于允许列表"
+      },
+      "image_process_enabled": {
+        "name": "启用图片处理",
+        "desc": "是否启用动态图片处理功能（缩放、裁剪、格式转换等）"
+      },
+      "image_cache_driver": {
+        "name": "图片缓存驱动",
+        "desc": "处理后图片的缓存存储方式",
+        "filesystem": "文件系统",
+        "redis": "Redis"
+      },
+      "image_cache_path": {
+        "name": "图片缓存路径",
+        "desc": "文件系统缓存的存储路径"
+      },
+      "image_cache_ttl_days": {
+        "name": "缓存有效期",
+        "desc": "图片缓存的有效天数"
+      },
+      "image_max_width": {
+        "name": "最大宽度",
+        "desc": "图片处理允许的最大宽度（像素）"
+      },
+      "image_max_height": {
+        "name": "最大高度",
+        "desc": "图片处理允许的最大高度（像素）"
+      },
+      "image_default_quality": {
+        "name": "默认图片质量",
+        "desc": "图片压缩的默认质量（1-100）"
+      },
       "password_min_length": {
         "name": "密码最小长度",
         "desc": "用户密码的最小字符数要求"
@@ -507,6 +668,22 @@
       "login_captcha_enabled": {
         "name": "启用验证码",
         "desc": "登录时是否需要验证码"
+      },
+      "captcha_provider": {
+        "name": "验证码驱动",
+        "desc": "选择验证码的实现方式",
+        "image": "本地图形验证码"
+      },
+      "captcha_difficulty": {
+        "name": "验证码难度",
+        "desc": "登录验证码的难度级别",
+        "easy": "简单",
+        "medium": "中等",
+        "hard": "困难"
+      },
+      "captcha_enable_threshold_admin": {
+        "name": "验证码启用阈值",
+        "desc": "登录失败达到该次数后启用验证码（0 表示始终启用）"
       },
       "session_timeout_minutes": {
         "name": "会话超时时间",
@@ -589,6 +766,22 @@
         "name": "启用验证码",
         "desc": "租户登录时是否需要验证码"
       },
+      "captcha_provider": {
+        "name": "验证码驱动",
+        "desc": "选择验证码的实现方式",
+        "image": "本地图形验证码"
+      },
+      "captcha_difficulty": {
+        "name": "验证码难度",
+        "desc": "租户登录验证码的难度级别",
+        "easy": "简单",
+        "medium": "中等",
+        "hard": "困难"
+      },
+      "captcha_enable_threshold": {
+        "name": "验证码启用阈值",
+        "desc": "登录失败达到该次数后启用验证码（0 表示始终启用）"
+      },
       "login_methods": {
         "name": "登录方式",
         "desc": "允许的用户登录方式",
@@ -621,6 +814,38 @@
         "name": "会话超时时间",
         "desc": "用户无操作后自动退出的时间（分钟）"
       },
+      "storage_mode": {
+        "name": "存储方案",
+        "desc": "选择平台托管或自定义云存储"
+      },
+      "storage_driver": {
+        "name": "云存储驱动",
+        "desc": "自定义云存储使用的驱动"
+      },
+      "storage_root_path": {
+        "name": "存储桶名称",
+        "desc": "对象存储桶名称或根路径"
+      },
+      "storage_base_url": {
+        "name": "访问域名",
+        "desc": "文件访问的域名或 CDN 前缀"
+      },
+      "storage_options": {
+        "name": "驱动参数",
+        "desc": "驱动相关配置参数（JSON）"
+      },
+      "storage_default_visibility": {
+        "name": "默认可见性",
+        "desc": "自定义云存储默认可见性"
+      },
+      "storage_allowed_extensions": {
+        "name": "允许的文件类型",
+        "desc": "允许上传的文件扩展名（英文逗号分隔），留空表示使用平台默认设置"
+      },
+      "storage_denied_extensions": {
+        "name": "禁止的文件类型",
+        "desc": "禁止上传的文件扩展名（英文逗号分隔），留空表示使用平台默认设置"
+      },
       "allow_registration": {
         "name": "允许用户注册",
         "desc": "是否允许用户自助注册账号"
@@ -649,15 +874,52 @@
         "name": "文件上传",
         "desc": "是否允许用户上传文件"
       }
+    },
+    "storage": {
+      "mode": {
+        "platform": "平台托管存储",
+        "custom": "自定义云存储"
+      },
+      "driver": {
+        "local": "本地存储",
+        "s3": "R3/S3 兼容",
+        "aliyun_oss": "阿里云 OSS"
+      },
+      "visibility": {
+        "private": "私有",
+        "public": "公开"
+      },
+      "option": {
+        "access_key_id": {
+          "name": "Access Key ID",
+          "desc": "对象存储访问密钥 ID"
+        },
+        "secret_access_key": {
+          "name": "Secret Access Key",
+          "desc": "对象存储访问密钥"
+        },
+        "access_key_secret": {
+          "name": "Access Key Secret",
+          "desc": "阿里云访问密钥"
+        },
+        "region": {
+          "name": "区域",
+          "desc": "对象存储区域标识"
+        },
+        "endpoint_url": {
+          "name": "Endpoint URL",
+          "desc": "S3 兼容 Endpoint 地址"
+        },
+        "endpoint": {
+          "name": "Endpoint",
+          "desc": "OSS Endpoint 地址"
+        },
+        "prefix": {
+          "name": "路径前缀",
+          "desc": "对象存储路径前缀"
+        }
+      }
     }
-  },
-  "validation": {
-    "min_value": "不能小于 {min}",
-    "max_value": "不能大于 {max}",
-    "min_length": "长度不能少于 {min} 个字符",
-    "max_length": "长度不能超过 {max} 个字符",
-    "pattern": "格式不正确",
-    "color_format": "颜色格式不正确，应为 #RRGGBB"
   },
   "error": {
     "unknown": "未知错误",
@@ -686,6 +948,7 @@
       "has_users": "角色下存在关联用户，请先移除用户的角色关联",
       "invalid_child_type": "当前节点类型不允许添加此类型的子节点",
       "only_department_can_set_leader": "只有部门类型节点才能设置负责人",
+      "cannot_modify_own_leader_status": "不能修改自己的负责人身份",
       "cannot_add_member": "当前节点类型不允许添加成员",
       "member_exists": "成员已存在于该节点",
       "member_not_in_node": "成员不在该节点中"
@@ -698,7 +961,11 @@
     "admin": {
       "username_exists": "用户名已被占用",
       "email_exists": "邮箱已被使用",
-      "phone_exists": "手机号已被使用"
+      "phone_exists": "手机号已被使用",
+      "cannot_remove_super": "不能移除超级管理员"
+    },
+    "tenant_admin": {
+      "cannot_remove_owner": "不能移除租户所有者"
     },
     "config": {
       "group_not_found": "配置分组不存在",

@@ -18,7 +18,7 @@ from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
 from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.repositories.system.tenant_repository import TenantRepository
-from app.services.tenant.tenant_domain_service import TenantDomainService
+from app.services.system.tenant_domain_service import TenantDomainService
 
 
 class TenantService(GlobalService[Tenant, TenantRepository]):

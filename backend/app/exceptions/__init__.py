@@ -16,6 +16,7 @@ from app.exceptions.base import (
     ExternalServiceException,
     ServiceUnavailableException,
 )
+from app.exceptions.storage import StorageError, StorageConfigError, StorageNotFoundError
 
 __all__ = [
     "AppException",
@@ -28,4 +29,7 @@ __all__ = [
     "RateLimitException",
     "ExternalServiceException",
     "ServiceUnavailableException",
+    "StorageError",
+    "StorageConfigError",
+    "StorageNotFoundError",
 ]

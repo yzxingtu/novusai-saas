@@ -8,10 +8,12 @@
 from app.configs.definitions.platform import general
 from app.configs.definitions.platform import security
 from app.configs.definitions.platform import email
+from app.configs.definitions.platform import storage
 
 
 __all__ = [
     "general",
     "security",
     "email",
+    "storage",
 ]

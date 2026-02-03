@@ -35,11 +35,15 @@ async def login_oauth2(
     - **password**: 密码
     """
     auth_service = AuthService(db)
+    form = await request.form()
     
     tokens = await auth_service.authenticate_tenant_user(
         username=form_data.username,
         password=form_data.password,
         client_ip=request.client.host if request.client else None,
+        captcha_challenge_id=form.get("captcha_challenge_id"),
+        captcha_solution=form.get("captcha_solution"),
+        captcha_provider_code=form.get("captcha_provider_code"),
     )
     await db.commit()
     
@@ -67,6 +71,9 @@ async def login_json(
         username=login_data.username,
         password=login_data.password,
         client_ip=request.client.host if request.client else None,
+        captcha_challenge_id=login_data.captcha_challenge_id,
+        captcha_solution=login_data.captcha_solution,
+        captcha_provider_code=login_data.captcha_provider_code,
     )
     await db.commit()
     

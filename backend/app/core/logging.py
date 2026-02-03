@@ -139,19 +139,24 @@ class LogManager:
         """
         初始化分类日志器
         
-        为 db/task/queue 创建独立的日志器和文件处理器
+        为需要独立文件的分类创建日志器和文件处理器
         """
         # 需要独立文件的分类（app/error 已经通过根日志器处理）
         categories = [
             LogCategoryEnum.DB,
             LogCategoryEnum.TASK,
             LogCategoryEnum.QUEUE,
+            LogCategoryEnum.CAPTCHA,
+            LogCategoryEnum.STORAGE,
+            LogCategoryEnum.AUTH,
+            LogCategoryEnum.IMPERSONATE,
         ]
         
         for category in categories:
             logger_name = f"{_CATEGORY_LOGGER_PREFIX}{category.value}"
             logger = logging.getLogger(logger_name)
             logger.setLevel(cls._log_level)
+            logger.disabled = False  # 确保 logger 未被禁用
             logger.propagate = False  # 不向上传播，避免重复记录
             
             # 添加文件处理器
@@ -174,7 +179,7 @@ class LogManager:
         """
         配置 SQLAlchemy 日志
         
-        将 SQLAlchemy 日志重定向到 db 分类日志器
+        将 SQLAlchemy 日志重定向到 db 分类日志器（仅文件，不输出到控制台）
         """
         # 获取 db 日志器
         db_logger = cls._category_loggers.get(LogCategoryEnum.DB.value)
@@ -187,7 +192,7 @@ class LogManager:
         sa_logger.setLevel(sa_level)
         sa_logger.propagate = False  # 不向根日志器传播
         
-        # 清除已有处理器，添加 db 文件处理器
+        # 清除已有处理器，添加 db 文件处理器（仅写入文件，不输出到控制台）
         sa_logger.handlers.clear()
         if cls._log_dir:
             handler = cls._create_timed_handler(
@@ -196,11 +201,7 @@ class LogManager:
                 backup_count=30,
             )
             sa_logger.addHandler(handler)
-            
-            # 开发环境同时输出到控制台
-            if settings.DEBUG:
-                console_handler = cls._create_console_handler(sa_level)
-                sa_logger.addHandler(console_handler)
+            # 注意：不再添加控制台处理器，避免刷屏
     
     @classmethod
     def _create_console_handler(cls, level: int) -> logging.StreamHandler:
@@ -322,16 +323,25 @@ class LogManager:
         
         logger = logging.getLogger(name)
         
-        # 设置级别
-        if level is not None:
-            logger.setLevel(level)
+        # 设置级别：优先使用指定级别，否则使用全局配置级别
+        effective_level = level if level is not None else cls._log_level
+        logger.setLevel(effective_level)
         
         # 添加独立文件处理器
         if separate_file and cls._log_dir:
             # 使用简化的文件名
             file_name = name.split(".")[-1]
-            handler = cls._create_timed_handler(file_name, logger.level or logging.INFO)
+            # 使用相同的有效级别
+            handler = cls._create_timed_handler(file_name, effective_level)
             logger.addHandler(handler)
+            
+            # 独立文件 logger 也输出到控制台（开发环境）
+            if settings.DEBUG:
+                console_handler = cls._create_console_handler(effective_level)
+                logger.addHandler(console_handler)
+            
+            # 不向上传播，避免重复记录到 app.log
+            logger.propagate = False
         
         cls._loggers[cache_key] = logger
         return logger
@@ -413,6 +423,42 @@ class LogManager:
         return cls.get_category_logger(LogCategoryEnum.QUEUE)
     
     @classmethod
+    def get_captcha_logger(cls) -> logging.Logger:
+        """
+        获取验证码日志器
+        
+        记录到 logs/captcha.log
+        """
+        return cls.get_category_logger(LogCategoryEnum.CAPTCHA)
+    
+    @classmethod
+    def get_storage_logger(cls) -> logging.Logger:
+        """
+        获取存储日志器
+        
+        记录到 logs/storage.log
+        """
+        return cls.get_category_logger(LogCategoryEnum.STORAGE)
+    
+    @classmethod
+    def get_auth_logger(cls) -> logging.Logger:
+        """
+        获取认证日志器
+        
+        记录到 logs/auth.log
+        """
+        return cls.get_category_logger(LogCategoryEnum.AUTH)
+    
+    @classmethod
+    def get_impersonate_logger(cls) -> logging.Logger:
+        """
+        获取一键登录审计日志器
+        
+        记录到 logs/impersonate.log
+        """
+        return cls.get_category_logger(LogCategoryEnum.IMPERSONATE)
+    
+    @classmethod
     def get_log_dir(cls) -> Path | None:
         """获取日志目录路径"""
         return cls._log_dir
@@ -470,9 +516,119 @@ def get_queue_logger() -> logging.Logger:
     return LogManager.get_queue_logger()
 
 
+def get_captcha_logger() -> logging.Logger:
+    """获取验证码日志器"""
+    return LogManager.get_captcha_logger()
+
+
+def get_storage_logger() -> logging.Logger:
+    """获取存储日志器"""
+    return LogManager.get_storage_logger()
+
+
+def get_auth_logger() -> logging.Logger:
+    """获取认证日志器"""
+    return LogManager.get_auth_logger()
+
+
+def get_impersonate_logger() -> logging.Logger:
+    """获取一键登录审计日志器"""
+    return LogManager.get_impersonate_logger()
+
+
 def init_logging() -> None:
     """初始化日志系统"""
     LogManager.init()
+
+
+# ============================================
+# LoggerMixin - 日志器混入类
+# ============================================
+
+class LoggerMixin:
+    """
+    日志器混入类
+    
+    提供延迟加载的 logger 属性，避免模块导入时 LogManager 未初始化的问题。
+    
+    使用方式 1 - 默认使用 app 日志：
+        class MyService(LoggerMixin):
+            def do_something(self):
+                self.logger.info("Doing something")
+    
+    使用方式 2 - 指定日志分类：
+        class CaptchaProvider(LoggerMixin):
+            _log_category = LogCategoryEnum.CAPTCHA
+            
+            def generate(self):
+                self.logger.debug("Generating captcha")
+    
+    使用方式 3 - 多重继承：
+        class AttachmentService(BaseService, LoggerMixin):
+            _log_category = LogCategoryEnum.STORAGE
+    """
+    
+    # 子类可覆盖此属性指定日志分类
+    _log_category: LogCategoryEnum | None = None
+    
+    # 类级别日志器缓存
+    __class_loggers: dict[type, logging.Logger] = {}
+    
+    @property
+    def logger(self) -> logging.Logger:
+        """
+        获取日志器（延迟加载，类级别缓存）
+        """
+        cls = self.__class__
+        if cls not in LoggerMixin.__class_loggers:
+            if self._log_category is not None:
+                LoggerMixin.__class_loggers[cls] = LogManager.get_category_logger(
+                    self._log_category
+                )
+            else:
+                # 默认使用 app 日志器
+                LoggerMixin.__class_loggers[cls] = LogManager.get_app_logger()
+        
+        logger = LoggerMixin.__class_loggers[cls]
+        # 确保 logger 未被禁用（uvicorn --reload 可能会禁用 logger）
+        if logger.disabled:
+            logger.disabled = False
+        return logger
+
+
+class CaptchaLoggerMixin(LoggerMixin):
+    """验证码模块日志器混入类"""
+    _log_category = LogCategoryEnum.CAPTCHA
+
+
+class StorageLoggerMixin(LoggerMixin):
+    """存储模块日志器混入类"""
+    _log_category = LogCategoryEnum.STORAGE
+
+
+class AuthLoggerMixin(LoggerMixin):
+    """认证模块日志器混入类"""
+    _log_category = LogCategoryEnum.AUTH
+
+
+class TaskLoggerMixin(LoggerMixin):
+    """任务模块日志器混入类"""
+    _log_category = LogCategoryEnum.TASK
+
+
+class QueueLoggerMixin(LoggerMixin):
+    """队列模块日志器混入类"""
+    _log_category = LogCategoryEnum.QUEUE
+
+
+class DbLoggerMixin(LoggerMixin):
+    """数据库模块日志器混入类"""
+    _log_category = LogCategoryEnum.DB
+
+
+class ImpersonateLoggerMixin(LoggerMixin):
+    """一键登录审计日志器混入类"""
+    _log_category = LogCategoryEnum.IMPERSONATE
 
 
 __all__ = [
@@ -482,5 +638,18 @@ __all__ = [
     "get_db_logger",
     "get_task_logger",
     "get_queue_logger",
+    "get_captcha_logger",
+    "get_storage_logger",
+    "get_auth_logger",
+    "get_impersonate_logger",
     "init_logging",
+    # Mixin 类
+    "LoggerMixin",
+    "CaptchaLoggerMixin",
+    "StorageLoggerMixin",
+    "AuthLoggerMixin",
+    "TaskLoggerMixin",
+    "QueueLoggerMixin",
+    "DbLoggerMixin",
+    "ImpersonateLoggerMixin",
 ]

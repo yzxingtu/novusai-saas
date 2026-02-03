@@ -4,7 +4,7 @@
 包含租户级的登录安全、密码策略等配置
 """
 
-from app.configs.meta import ConfigMeta, min_value, max_value, option
+from app.configs.meta import ConfigMeta, DisplayRule, min_value, max_value, option
 from app.configs.definitions.groups import TENANT_GENERAL_GROUP
 from app.enums.config import ConfigScope, ConfigValueType
 
@@ -22,6 +22,42 @@ TENANT_CAPTCHA_ENABLED = ConfigMeta(
     value_type=ConfigValueType.BOOLEAN,
     default_value=True,
     sort_order=10,
+)
+
+# 验证码驱动（租户端）
+TENANT_CAPTCHA_PROVIDER = ConfigMeta(
+    key="tenant_captcha_provider",
+    name_key="config.tenant.captcha_provider.name",
+    description_key="config.tenant.captcha_provider.desc",
+    scope=ConfigScope.TENANT,
+    value_type=ConfigValueType.SELECT,
+    default_value="image",
+    options=[
+        option("image", "config.tenant.captcha_provider.image"),
+    ],
+    sort_order=12,
+    display_rules=[
+        DisplayRule(field="tenant_captcha_enabled", operator="equals", value=True, action="show"),
+    ],
+)
+
+# 验证码难度（租户端）
+TENANT_CAPTCHA_DIFFICULTY = ConfigMeta(
+    key="tenant_captcha_difficulty",
+    name_key="config.tenant.captcha_difficulty.name",
+    description_key="config.tenant.captcha_difficulty.desc",
+    scope=ConfigScope.TENANT,
+    value_type=ConfigValueType.SELECT,
+    default_value="medium",
+    options=[
+        option("easy", "config.tenant.captcha_difficulty.easy"),
+        option("medium", "config.tenant.captcha_difficulty.medium"),
+        option("hard", "config.tenant.captcha_difficulty.hard"),
+    ],
+    sort_order=15,
+    display_rules=[
+        DisplayRule(field="tenant_captcha_enabled", operator="equals", value=True, action="show"),
+    ],
 )
 
 # 允许的登录方式
@@ -70,6 +106,24 @@ TENANT_LOGIN_LOCKOUT_MINUTES = ConfigMeta(
         max_value(1440, "validation.max_value"),
     ],
     sort_order=40,
+)
+
+# 验证码启用阈值（租户端）
+TENANT_CAPTCHA_ENABLE_THRESHOLD = ConfigMeta(
+    key="tenant_captcha_enable_threshold",
+    name_key="config.tenant.captcha_enable_threshold.name",
+    description_key="config.tenant.captcha_enable_threshold.desc",
+    scope=ConfigScope.TENANT,
+    value_type=ConfigValueType.NUMBER,
+    default_value=2,
+    validation_rules=[
+        min_value(0, "validation.min_value"),
+        max_value(10, "validation.max_value"),
+    ],
+    sort_order=45,
+    display_rules=[
+        DisplayRule(field="tenant_captcha_enabled", operator="equals", value=True, action="show"),
+    ],
 )
 
 
@@ -135,9 +189,12 @@ TENANT_SESSION_TIMEOUT = ConfigMeta(
 
 TENANT_GENERAL_GROUP.configs = [
     TENANT_CAPTCHA_ENABLED,
+    TENANT_CAPTCHA_PROVIDER,
+    TENANT_CAPTCHA_DIFFICULTY,
     TENANT_LOGIN_METHODS,
     TENANT_LOGIN_MAX_ATTEMPTS,
     TENANT_LOGIN_LOCKOUT_MINUTES,
+    TENANT_CAPTCHA_ENABLE_THRESHOLD,
     TENANT_PASSWORD_MIN_LENGTH,
     TENANT_PASSWORD_COMPLEXITY,
     TENANT_SESSION_TIMEOUT,
@@ -146,9 +203,12 @@ TENANT_GENERAL_GROUP.configs = [
 
 __all__ = [
     "TENANT_CAPTCHA_ENABLED",
+    "TENANT_CAPTCHA_PROVIDER",
+    "TENANT_CAPTCHA_DIFFICULTY",
     "TENANT_LOGIN_METHODS",
     "TENANT_LOGIN_MAX_ATTEMPTS",
     "TENANT_LOGIN_LOCKOUT_MINUTES",
+    "TENANT_CAPTCHA_ENABLE_THRESHOLD",
     "TENANT_PASSWORD_MIN_LENGTH",
     "TENANT_PASSWORD_COMPLEXITY",
     "TENANT_SESSION_TIMEOUT",

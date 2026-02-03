@@ -11,16 +11,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.configs.service import ConfigService
-from app.core.base_service import GlobalService
+from app.core.base_service import GlobalService, TenantService
 from app.core.config import settings
 from app.core.i18n import _
 from app.enums import ErrorCode
 from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_domain import TenantDomain
-from app.repositories.tenant.tenant_domain_repository import TenantDomainRepository
+from app.repositories.system.tenant_domain_repository import TenantDomainRepository
+from app.repositories.tenant.tenant_domain_tenant_repository import TenantDomainTenantRepository
 
-# 配置键名
+
 _CONFIG_KEY_DOMAIN_SUFFIX = "tenant_domain_suffix"
 _CONFIG_KEY_VERIFICATION_PREFIX = "domain_verification_prefix"
 
@@ -87,12 +88,10 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         if not tenant:
             return False, 0
         
-        # 从租户/套餐配额获取是否允许自定义域名
         allow_custom_domain = tenant.get_quota_value("allow_custom_domain", False)
         if not allow_custom_domain:
             return False, 0
         
-        # 获取最大自定义域名数量
         max_custom_domains = tenant.get_quota_value("max_custom_domains", 0)
         return True, max_custom_domains
     
@@ -115,27 +114,22 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         Returns:
             创建的默认域名
         """
-        # 从平台配置获取域名后缀
         suffix = await self._get_domain_suffix()
-        
-        # 构建默认域名
         domain = f"{tenant_code}{suffix}"
         
-        # 检查域名是否已存在（理论上不应该存在）
         if await self.repo.domain_exists(domain):
             raise BusinessException(
                 message=_("tenant_domain.already_exists"),
                 code=ErrorCode.DUPLICATE_ENTRY,
             )
         
-        # 创建默认域名
         data = {
             "tenant_id": tenant_id,
             "domain": domain,
-            "is_verified": True,  # 默认域名自动验证
+            "is_verified": True,
             "verified_at": datetime.now(timezone.utc),
-            "is_primary": True,  # 默认域名是主域名
-            "ssl_status": "active",  # 默认域名 SSL 已配置
+            "is_primary": True,
+            "ssl_status": "active",
             "remark": _("tenant_domain.default_domain_remark"),
         }
         
@@ -163,7 +157,6 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         Raises:
             BusinessException: 域名已存在、配额超限或套餐不允许自定义域名
         """
-        # 检查套餐是否允许自定义域名
         is_allowed, max_domains = await self._check_custom_domain_allowed(tenant_id)
         if not is_allowed:
             raise BusinessException(
@@ -171,9 +164,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
                 code=ErrorCode.FORBIDDEN,
             )
         
-        # 检查域名配额
         current_count = await self.repo.count_tenant_domains(tenant_id)
-        # 扣除默认域名，只统计自定义域名
         suffix = await self._get_domain_suffix()
         domains = await self.repo.get_tenant_domains(tenant_id)
         custom_count = sum(1 for d in domains if not d.domain.endswith(suffix))
@@ -184,23 +175,20 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
                 code=ErrorCode.DOMAIN_QUOTA_EXCEEDED,
             )
         
-        # 检查域名是否已存在
         if await self.repo.domain_exists(domain):
             raise BusinessException(
                 message=_("tenant_domain.already_exists"),
                 code=ErrorCode.DUPLICATE_ENTRY,
             )
         
-        # 生成验证 Token
         verification_token = self._generate_verification_token()
         
-        # 创建域名记录
         data = {
             "tenant_id": tenant_id,
             "domain": domain,
-            "is_verified": False,  # 自定义域名需要验证
-            "is_primary": False,  # 默认不是主域名
-            "ssl_status": "pending",  # SSL 待配置
+            "is_verified": False,
+            "is_primary": False,
+            "ssl_status": "pending",
             "verification_token": verification_token,
             "remark": remark,
         }
@@ -227,17 +215,14 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
                 message=_("tenant_domain.not_found"),
             )
         
-        # 获取域名后缀配置
         suffix = await self._get_domain_suffix()
         
-        # 检查是否是默认域名（域名以配置的后缀结尾）
         if domain_obj.domain.endswith(suffix):
             raise BusinessException(
                 message=_("tenant_domain.cannot_delete_default"),
                 code=ErrorCode.FORBIDDEN,
             )
         
-        # 检查是否是主域名
         if domain_obj.is_primary:
             raise BusinessException(
                 message=_("tenant_domain.cannot_delete_primary"),
@@ -273,24 +258,20 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
                 message=_("tenant_domain.not_found"),
             )
         
-        # 检查域名是否属于该租户
         if domain.tenant_id != tenant_id:
             raise BusinessException(
                 message=_("tenant_domain.not_found"),
                 code=ErrorCode.FORBIDDEN,
             )
         
-        # 检查域名是否已验证
         if not domain.is_verified:
             raise BusinessException(
                 message=_("tenant_domain.not_verified"),
                 code=ErrorCode.VALIDATION_ERROR,
             )
         
-        # 清除现有主域名标记
         await self.repo.clear_primary_flag(tenant_id)
         
-        # 设置新的主域名
         result = await self.update(domain_id, {"is_primary": True})
         if not result:
             raise NotFoundException(message=_("tenant_domain.not_found"))
@@ -318,14 +299,12 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
                 message=_("tenant_domain.not_found"),
             )
         
-        # 检查是否已验证
         if domain.is_verified:
             raise BusinessException(
                 message=_("tenant_domain.already_verified"),
                 code=ErrorCode.VALIDATION_ERROR,
             )
         
-        # 执行真实的 DNS TXT 记录验证
         is_valid = await self._verify_dns_txt_record(domain)
         
         if not is_valid:
@@ -334,11 +313,10 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
                 code=ErrorCode.VALIDATION_ERROR,
             )
         
-        # 标记为已验证
         result = await self.update(domain_id, {
             "is_verified": True,
             "verified_at": datetime.now(timezone.utc),
-            "ssl_status": "provisioning",  # SSL 开始配置
+            "ssl_status": "provisioning",
         })
         if not result:
             raise NotFoundException(message=_("tenant_domain.not_found"))
@@ -356,37 +334,28 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         """
         import dns.resolver
         
-        # 获取验证前缀
         prefix = await self._get_verification_prefix()
         
-        # 构建验证记录名称
         txt_record_name = f"{prefix}.{domain.domain}"
         expected_value = domain.verification_token
         
         try:
-            # 查询 TXT 记录
             answers = dns.resolver.resolve(txt_record_name, "TXT")
             
             for rdata in answers:
-                # TXT 记录值可能被引号包裹
                 txt_value = str(rdata).strip('"').strip()
                 if txt_value == expected_value:
                     return True
             
-            # 没有匹配的记录
             return False
             
         except dns.resolver.NXDOMAIN:
-            # 域名不存在
             return False
         except dns.resolver.NoAnswer:
-            # 没有 TXT 记录
             return False
         except dns.resolver.NoNameservers:
-            # 无法连接到 DNS 服务器
             return False
         except Exception:
-            # 其他异常
             return False
     
     async def get_tenant_domains(self, tenant_id: int) -> list[TenantDomain]:
@@ -504,4 +473,14 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         }
 
 
-__all__ = ["TenantDomainService"]
+class TenantDomainTenantService(TenantDomainService, TenantService[TenantDomain, TenantDomainTenantRepository]):
+    model = TenantDomain
+    repository_class = TenantDomainTenantRepository
+
+    def __init__(self, db, tenant_id: int):
+        self.db = db
+        self.tenant_id = tenant_id
+        self.repo = self.repository_class(db, tenant_id)
+
+
+__all__ = ["TenantDomainService", "TenantDomainTenantService"]

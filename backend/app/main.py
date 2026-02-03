@@ -39,45 +39,57 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     init_logging()
     logger = get_logger(__name__)
     
-    logger.info(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    logger.info(f"📍 Environment: {settings.APP_ENV}")
-    logger.info(f"🔧 Debug mode: {settings.DEBUG}")
-    
-    # 初始化数据库（检查/创建数据库 + 运行迁移）
-    await init_database()
-    logger.info("✅ Database initialized")
-    
-    # 同步权限到数据库（将装饰器定义的权限同步到 DB）
-    from app.core.database import async_session_factory
-    from app.rbac.sync import sync_permissions_on_startup
-    
-    async with async_session_factory() as db:
-        sync_result = await sync_permissions_on_startup(db)
-        logger.info(
-            f"✅ Permissions synced: "
-            f"created={sync_result['created']}, "
-            f"updated={sync_result['updated']}, "
-            f"disabled={sync_result['disabled']}"
-        )
-    
-    # 同步配置到数据库（将代码定义的配置项同步到 DB）
-    # 导入配置定义模块（触发配置注册到 registry）
-    import app.configs.definitions  # noqa: F401
-    from app.configs.sync import sync_configs_on_startup
-    
-    async with async_session_factory() as db:
-        config_sync_result = await sync_configs_on_startup(db)
-        logger.info(
-            f"✅ Configs synced: "
-            f"groups={config_sync_result['groups']}, "
-            f"configs={config_sync_result['configs']}"
-        )
-    
-    # TODO: 初始化 Redis 连接
-    # TODO: 初始化 Celery
-    
+    try:
+        logger.info(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+        logger.info(f"📍 Environment: {settings.APP_ENV}")
+        logger.info(f"🔧 Debug mode: {settings.DEBUG}")
+        
+        # 初始化数据库（检查/创建数据库 + 运行迁移）
+        await init_database()
+        logger.info("✅ Database initialized")
+        
+        # 同步权限到数据库（将装饰器定义的权限同步到 DB）
+        from app.core.database import async_session_factory
+        from app.rbac.sync import sync_permissions_on_startup
+        
+        async with async_session_factory() as db:
+            sync_result = await sync_permissions_on_startup(db)
+            logger.info(
+                f"✅ Permissions synced: "
+                f"created={sync_result['created']}, "
+                f"updated={sync_result['updated']}, "
+                f"disabled={sync_result['disabled']}"
+            )
+        
+        # 同步配置到数据库（将代码定义的配置项同步到 DB）
+        # 导入配置定义模块（触发配置注册到 registry）
+        import app.configs.definitions  # noqa: F401
+        from app.configs.sync import sync_configs_on_startup
+        
+        async with async_session_factory() as db:
+            config_sync_result = await sync_configs_on_startup(db)
+            logger.info(
+                f"✅ Configs synced: "
+                f"groups={config_sync_result['groups']}, "
+                f"configs={config_sync_result['configs']}"
+            )
+
+        # TODO: 初始化 Redis 连接
+        # TODO: 初始化 Celery
+        
+    except Exception as e:
+        # 确保启动阶段的错误能够被记录和显示
+        import traceback
+        error_msg = f"❌ Startup failed: {e}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+        # 同时输出到控制台，确保在日志系统异常时也能看到
+        print(error_msg, flush=True)
+        traceback.print_exc()
+        raise
+
     yield
-    
+
     # ========== Shutdown ==========
     logger = get_logger(__name__)
     logger.info(f"👋 Shutting down {settings.APP_NAME}")
@@ -281,6 +293,24 @@ def create_application() -> FastAPI:
     # 注册公共 API 路由 (/api/public/*) - 无需认证，用于租户登录页获取配置
     from app.api.public import public_router
     app.include_router(public_router, prefix="/api/public")
+    
+    # ========================================
+    # 挂载本地存储静态文件目录
+    # ========================================
+    from fastapi.staticfiles import StaticFiles
+    from app.storage import LOCAL_STORAGE_ROOT
+    
+    # 确保存储目录存在
+    LOCAL_STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
+    
+    # 挂载静态文件目录
+    # URL 路径: /files/platform/2026/01/25/xxx.png
+    # 文件系统路径: backend/storage/uploads/platform/2026/01/25/xxx.png
+    app.mount(
+        "/files",
+        StaticFiles(directory=str(LOCAL_STORAGE_ROOT)),
+        name="local_storage",
+    )
     
     return app
 

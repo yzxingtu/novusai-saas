@@ -13,7 +13,8 @@
       "tenant_plan": "套餐管理",
       "system_mgmt": "系统管理",
       "platform_config": "平台配置",
-      "system_log": "系统日志"
+      "system_log": "系统日志",
+      "attachment": "附件管理"
     },
     "tenant": {
       "dashboard": "仪表板",
@@ -24,7 +25,9 @@
       "operation_log": "操作日志",
       "tenant_settings": "租户设置",
       "system_mgmt": "系统管理",
-      "tenant_config": "系统配置"
+      "tenant_config": "系统配置",
+      "domain": "域名管理",
+      "attachment": "附件管理"
     }
   }
 }

@@ -13,9 +13,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_service import GlobalService
 from app.core.database import async_session_factory
+from app.core.logging import LoggerMixin
 from app.models.system.operation_log import OperationLog
 from app.repositories.system.operation_log_repository import OperationLogRepository
 from app.schemas.common.query import QuerySpec
+
+
+# 日志辅助类（用于模块级函数中的日志记录）
+class _ModuleLogger(LoggerMixin):
+    """operation_log_service 模块日志器"""
+    pass
+
+_module_logger = _ModuleLogger()
 
 if TYPE_CHECKING:
     from app.models.system.admin import Admin
@@ -55,6 +64,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         ip: str | None = None,
         user_agent: str | None = None,
         duration_ms: int | None = None,
+        nickname: str | None = None,
     ) -> OperationLog:
         """
         创建操作日志记录
@@ -77,6 +87,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
             ip: 客户端 IP
             user_agent: User-Agent
             duration_ms: 请求耗时（毫秒）
+            nickname: 用户昵称
         
         Returns:
             创建的日志实例
@@ -86,6 +97,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
             "user_type": user_type,
             "user_id": user_id,
             "username": username,
+            "nickname": nickname,
             "module": module,
             "action": action,
             "resource": resource,
@@ -389,15 +401,18 @@ async def _write_log_async(log_data: dict[str, Any]) -> None:
     """
     try:
         async with async_session_factory() as db:
-            # 如果 username 为空但 user_id 存在，查询用户名
-            if not log_data.get("username") and log_data.get("user_id"):
-                username = await _fetch_username(
+            # 如果 username/nickname 为空但 user_id 存在，查询用户信息
+            if (not log_data.get("username") or not log_data.get("nickname")) and log_data.get("user_id"):
+                user_info = await _fetch_user_info(
                     db,
                     user_type=log_data.get("user_type"),
                     user_id=log_data.get("user_id"),
                 )
-                if username:
-                    log_data["username"] = username
+                if user_info:
+                    if not log_data.get("username") and user_info.get("username"):
+                        log_data["username"] = user_info["username"]
+                    if not log_data.get("nickname") and user_info.get("nickname"):
+                        log_data["nickname"] = user_info["nickname"]
             
             service = OperationLogService(db)
             await service.create_log(**log_data)
@@ -405,18 +420,16 @@ async def _write_log_async(log_data: dict[str, Any]) -> None:
     except Exception as e:
         # 日志写入失败不应影响主业务
         # 记录到文件日志
-        from app.core.logging import get_logger
-        logger = get_logger(__name__)
-        logger.error(f"Failed to write operation log: {e}")
+        _module_logger.logger.error(f"Failed to write operation log: {e}")
 
 
-async def _fetch_username(
+async def _fetch_user_info(
     db: AsyncSession,
     user_type: str | None,
     user_id: int | None,
-) -> str | None:
+) -> dict[str, str | None] | None:
     """
-    根据用户类型和 ID 查询用户名
+    根据用户类型和 ID 查询用户信息
     
     Args:
         db: 数据库会话
@@ -424,7 +437,7 @@ async def _fetch_username(
         user_id: 用户 ID
     
     Returns:
-        用户名或 None
+        包含 username 和 nickname 的字典，或 None
     """
     from sqlalchemy import select
     from app.enums.log import UserTypeEnum
@@ -436,28 +449,29 @@ async def _fetch_username(
         if user_type == UserTypeEnum.ADMIN.value:
             from app.models import Admin
             result = await db.execute(
-                select(Admin.username).where(Admin.id == user_id)
+                select(Admin.username, Admin.nickname).where(Admin.id == user_id)
             )
             row = result.first()
-            return row[0] if row else None
+            if row:
+                return {"username": row[0], "nickname": row[1]}
         
         elif user_type == UserTypeEnum.TENANT_ADMIN.value:
             from app.models import TenantAdmin
             result = await db.execute(
-                select(TenantAdmin.username).where(TenantAdmin.id == user_id)
+                select(TenantAdmin.username, TenantAdmin.nickname).where(TenantAdmin.id == user_id)
             )
             row = result.first()
-            return row[0] if row else None
+            if row:
+                return {"username": row[0], "nickname": row[1]}
         
         elif user_type == UserTypeEnum.TENANT_USER.value:
-            # TenantUser 可能使用不同的字段名
             from app.models import TenantUser
-            # 假设 TenantUser 使用 username 或 email 作为标识
             result = await db.execute(
-                select(TenantUser.username).where(TenantUser.id == user_id)
+                select(TenantUser.username, TenantUser.nickname).where(TenantUser.id == user_id)
             )
             row = result.first()
-            return row[0] if row else None
+            if row:
+                return {"username": row[0], "nickname": row[1]}
     
     except Exception:
         pass
@@ -483,6 +497,7 @@ def create_log_async(
     ip: str | None = None,
     user_agent: str | None = None,
     duration_ms: int | None = None,
+    nickname: str | None = None,
 ) -> None:
     """
     异步创建操作日志（不阻塞当前请求）
@@ -507,6 +522,7 @@ def create_log_async(
         ip: 客户端 IP
         user_agent: User-Agent
         duration_ms: 请求耗时（毫秒）
+        nickname: 用户昵称
     
     Example:
         from app.services.system.operation_log_service import create_log_async
@@ -529,6 +545,7 @@ def create_log_async(
         "user_type": user_type,
         "user_id": user_id,
         "username": username,
+        "nickname": nickname,
         "module": module,
         "action": action,
         "resource": resource,

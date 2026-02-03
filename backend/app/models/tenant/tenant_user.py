@@ -75,6 +75,17 @@ class TenantUser(TenantModel):
     last_login_ip: Mapped[str | None] = mapped_column(
         String(50), nullable=True, comment="最后登录 IP"
     )
+
+    # 登录安全信息
+    login_fail_count: Mapped[int] = mapped_column(
+        Integer, default=0, comment="登录失败次数"
+    )
+    last_fail_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, comment="最后登录失败时间"
+    )
+    locked_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, comment="账户锁定到期时间"
+    )
     
     def __repr__(self) -> str:
         return f"<TenantUser(id={self.id}, tenant_id={self.tenant_id})>"

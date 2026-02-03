@@ -28,6 +28,10 @@ from app.schemas.tenant.role import (
     TenantAdminRoleMoveRequest,
     TenantAdminRoleSetLeaderRequest,
     TenantAdminRoleAddMemberRequest,
+    TenantAdminRoleCreateMemberRequest,
+    TenantAdminRoleUpdateMemberRequest,
+    TenantAdminRoleResetPasswordRequest,
+    TenantAdminRoleToggleStatusRequest,
     TenantAdminRoleMemberResponse,
 )
 from app.schemas.tenant.domain import (
@@ -50,6 +54,7 @@ from app.schemas.tenant.plan import (
     TenantPlanUpdateRequest,
     TenantPlanPermissionsRequest,
 )
+from app.schemas.tenant.attachment import AttachmentAccessUrlResponse
 
 __all__ = [
     # TenantAdmin
@@ -74,6 +79,10 @@ __all__ = [
     "TenantAdminRoleMoveRequest",
     "TenantAdminRoleSetLeaderRequest",
     "TenantAdminRoleAddMemberRequest",
+    "TenantAdminRoleCreateMemberRequest",
+    "TenantAdminRoleUpdateMemberRequest",
+    "TenantAdminRoleResetPasswordRequest",
+    "TenantAdminRoleToggleStatusRequest",
     "TenantAdminRoleMemberResponse",
     # Domain
     "TenantDomainSimpleResponse",
@@ -93,4 +102,5 @@ __all__ = [
     "TenantPlanCreateRequest",
     "TenantPlanUpdateRequest",
     "TenantPlanPermissionsRequest",
+    "AttachmentAccessUrlResponse",
 ]

@@ -1,0 +1,466 @@
+"""
+平台端附件管理 API
+
+提供跨租户的附件管理接口（平台管理员专用）
+"""
+
+from fastapi import Query, Request, UploadFile, File, Form
+from fastapi.responses import RedirectResponse
+
+from app.core.base_controller import GlobalController
+from app.core.base_schema import PageResponse
+from app.core.deps import DbSession, QueryParams, ActiveAdmin
+from app.core.i18n import _
+from app.core.response import success
+from app.enums.attachment import AttachmentSource, AttachmentVisibility
+from app.enums.rbac import PermissionScope
+from app.exceptions import NotFoundException
+from app.rbac.decorators import (
+    permission_resource,
+    MenuConfig,
+    action_read,
+    action_create,
+    action_delete,
+)
+from app.schemas.tenant.attachment import (
+    AttachmentAccessUrlResponse,
+    AttachmentResponse,
+    AttachmentListItem,
+    AttachmentUploadResponse,
+    AdminChunkUploadInitRequest,
+    ChunkUploadInitResponse,
+    ChunkUploadProgressResponse,
+)
+from app.services.system.attachment_service import AdminAttachmentService
+from app.services.tenant.attachment_download_service import AttachmentDownloadService
+
+
+@permission_resource(
+    resource="attachment",
+    name="menu.admin.attachment",
+    scope=PermissionScope.ADMIN,
+    menu=MenuConfig(
+        icon="lucide:paperclip",
+        path="/system/attachments",
+        component="admin/system/attachments/index",
+        parent="system_mgmt",
+        sort_order=50,
+    ),
+)
+class AdminAttachmentController(GlobalController):
+    """
+    平台端附件管理控制器
+    
+    提供跨租户的附件管理接口
+    """
+    
+    prefix = "/attachments"
+    tags = ["附件管理"]
+
+    def _register_routes(self) -> None:
+        router = self.router
+
+        # ========== 上传接口 ==========
+
+        @router.post("/upload", summary="上传附件")
+        @action_create("action.attachment.upload")
+        async def upload_attachment(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            file: UploadFile = File(..., description="上传的文件"),
+            tenant_id: int = Form(0, ge=0, description="目标租户 ID，0 表示平台附件"),
+            visibility: str = Form("private", description="可见性 (private/public)"),
+            business_type: str | None = Form(None, description="业务类型"),
+            business_id: int | None = Form(None, description="业务 ID"),
+        ):
+            """
+            平台端上传附件
+            
+            - tenant_id=0: 平台附件（站点 Logo、系统资源等）
+            - tenant_id>0: 代租户上传附件
+            
+            不受租户配额限制，使用平台存储配置
+            
+            权限: attachment:upload
+            """
+            service = AdminAttachmentService(db)
+            result = await service.upload_file(
+                tenant_id=tenant_id,
+                content=file.file,
+                filename=file.filename or "unnamed",
+                file_size=file.size,
+                mime_type=file.content_type,
+                visibility=AttachmentVisibility(visibility),
+                source=AttachmentSource.PLATFORM_ADMIN,
+                uploader_id=current_admin.id,
+                business_type=business_type,
+                business_id=business_id,
+            )
+            return success(
+                data=AttachmentUploadResponse(
+                    attachment=AttachmentResponse.model_validate(
+                        result["attachment"], from_attributes=True
+                    ),
+                    url=result["url"],
+                    used_bytes=0,  # 平台端不追踪配额
+                ),
+                message=_("file.upload_success"),
+            )
+
+        @router.post("/chunk/init", summary="初始化分片上传")
+        @action_create("action.attachment.chunk_init")
+        async def init_chunk_upload(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            body: AdminChunkUploadInitRequest,
+        ):
+            """
+            初始化分片上传会话（平台端）
+            
+            - tenant_id=0: 平台附件
+            - tenant_id>0: 代租户上传
+            
+            权限: attachment:chunk_init
+            """
+            service = AdminAttachmentService(db)
+            result = await service.start_chunk_upload(
+                tenant_id=body.tenant_id,
+                filename=body.filename,
+                total_size=body.total_size,
+                chunk_size=body.chunk_size,
+                mime_type=body.mime_type,
+                visibility=AttachmentVisibility(body.visibility),
+                source=AttachmentSource.PLATFORM_ADMIN,
+                uploader_id=current_admin.id,
+                business_type=body.business_type,
+                business_id=body.business_id,
+            )
+            return success(
+                data=ChunkUploadInitResponse(**result),
+                message=_("common.success"),
+            )
+
+        @router.post("/chunk/{upload_id}", summary="上传分片")
+        @action_create("action.attachment.chunk_upload")
+        async def upload_chunk(
+            request: Request,
+            upload_id: str,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            chunk_index: int = Form(..., ge=0, description="分片索引（从 0 开始）"),
+            file: UploadFile = File(..., description="分片数据"),
+        ):
+            """
+            上传分片数据
+            
+            权限: attachment:chunk_upload
+            """
+            service = AdminAttachmentService(db)
+            result = await service.upload_chunk(
+                upload_id=upload_id,
+                chunk_index=chunk_index,
+                content=file.file,
+            )
+            return success(
+                data=ChunkUploadProgressResponse(**result),
+                message=_("common.success"),
+            )
+
+        @router.post("/chunk/{upload_id}/complete", summary="完成分片上传")
+        @action_create("action.attachment.chunk_complete")
+        async def complete_chunk_upload(
+            request: Request,
+            upload_id: str,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            完成分片上传并合并文件
+            
+            权限: attachment:chunk_complete
+            """
+            service = AdminAttachmentService(db)
+            result = await service.complete_chunk_upload(upload_id)
+            return success(
+                data=AttachmentUploadResponse(
+                    attachment=AttachmentResponse.model_validate(
+                        result["attachment"], from_attributes=True
+                    ),
+                    url=result["url"],
+                    used_bytes=0,
+                ),
+                message=_("file.upload_success"),
+            )
+
+        @router.get("/chunk/{upload_id}/status", summary="获取分片上传进度")
+        @action_read("action.attachment.chunk_status")
+        async def get_chunk_upload_status(
+            request: Request,
+            upload_id: str,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            获取分片上传进度
+            
+            权限: attachment:chunk_status
+            """
+            service = AdminAttachmentService(db)
+            result = await service.get_upload_status(upload_id)
+            return success(
+                data=ChunkUploadProgressResponse(**result),
+                message=_("common.success"),
+            )
+
+        @router.delete("/chunk/{upload_id}", summary="取消分片上传")
+        @action_delete("action.attachment.chunk_abort")
+        async def abort_chunk_upload(
+            request: Request,
+            upload_id: str,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            取消分片上传并清理临时文件
+            
+            权限: attachment:chunk_abort
+            """
+            service = AdminAttachmentService(db)
+            await service.abort_upload(upload_id)
+            return success(message=_("common.success"))
+
+        # ========== 附件管理接口 ==========
+
+        @router.get("/select", summary="获取附件下拉选项")
+        @action_read("action.attachment.select")
+        async def select_attachments(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            search: str = Query("", description="搜索关键词"),
+            tenant_id: int | None = Query(None, description="租户 ID"),
+            page: int = Query(0, ge=0, description="页码（0=不分页，>=1=分页）"),
+            page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+        ):
+            """
+            获取附件下拉选项
+            
+            用于从现有附件中选择文件
+            
+            权限: attachment:select
+            """
+            service = AdminAttachmentService(db)
+            filters = {}
+            if tenant_id is not None:
+                filters["tenant_id"] = tenant_id
+            response = await service.get_select_options(
+                search=search,
+                limit=50,
+                page=page,
+                page_size=page_size,
+                **filters,
+            )
+            return success(data=response, message=_("common.success"))
+
+        @router.get("/stats", summary="获取附件统计")
+        @action_read("action.attachment.stats")
+        async def get_attachment_stats(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            tenant_id: int | None = Query(None, description="租户 ID"),
+        ):
+            """
+            获取附件存储统计
+            
+            - 不传 tenant_id: 统计所有租户
+            - 传入 tenant_id: 统计指定租户
+            
+            权限: attachment:stats
+            """
+            service = AdminAttachmentService(db)
+            stats = await service.get_storage_stats(tenant_id)
+            return success(data=stats, message=_("common.success"))
+
+        @router.get("/stats/by-tenant", summary="获取按租户分组的附件统计")
+        @action_read("action.attachment.stats_by_tenant")
+        async def get_attachment_stats_by_tenant(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            获取按租户分组的存储统计
+            
+            返回各租户的附件数量和存储用量
+            
+            权限: attachment:stats_by_tenant
+            """
+            service = AdminAttachmentService(db)
+            stats = await service.get_storage_stats_by_tenant()
+            return success(data=stats, message=_("common.success"))
+
+        @router.get("", summary="获取附件列表")
+        @action_read("action.attachment.list")
+        async def list_attachments(
+            request: Request,
+            db: DbSession,
+            spec: QueryParams,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            获取附件列表
+            
+            - 支持通用筛选: filter[field][op]=value
+            - 支持按租户筛选: filter[tenant_id][eq]=1
+            - 支持排序: sort=-created_at,name
+            - 支持分页: page[number]=1&page[size]=20
+            
+            权限: attachment:list
+            """
+            service = AdminAttachmentService(db)
+            items, total = await service.query_list(spec, scope="admin")
+            return success(
+                data=PageResponse.create(
+                    items=[AttachmentListItem.model_validate(item, from_attributes=True) for item in items],
+                    total=total,
+                    page=spec.page,
+                    page_size=spec.size,
+                ),
+                message=_("common.success"),
+            )
+
+        @router.get("/{attachment_id}", summary="获取附件详情")
+        @action_read("action.attachment.detail")
+        async def get_attachment(
+            request: Request,
+            attachment_id: int,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            获取附件详情
+            
+            权限: attachment:detail
+            """
+            service = AdminAttachmentService(db)
+            attachment = await service.get_by_id(attachment_id)
+            if not attachment:
+                raise NotFoundException(message=_("error.common.not_found"))
+            return success(
+                data=AttachmentResponse.model_validate(attachment, from_attributes=True),
+                message=_("common.success"),
+            )
+
+        @router.delete("/{attachment_id}", summary="删除附件")
+        @action_delete("action.attachment.delete")
+        async def delete_attachment(
+            request: Request,
+            attachment_id: int,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            删除附件（软删除）
+            
+            权限: attachment:delete
+            """
+            service = AdminAttachmentService(db)
+            await service.soft_delete(attachment_id)
+            return success(message=_("common.deleted"))
+
+        # ========== 附件访问接口 ==========
+
+        @router.get("/{attachment_id}/download-url", summary="获取下载链接")
+        @action_read("action.attachment.download_url")
+        async def get_download_url(
+            attachment_id: int,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            expires: int = Query(3600, ge=60, le=86400),
+        ):
+            """
+            获取附件下载 URL
+            
+            权限: attachment:download_url
+            """
+            # 平台端不做租户隔离，传入 None
+            service = AttachmentDownloadService(db, tenant_id=None)
+            attachment = await service.get_attachment(attachment_id)
+            data = await service.build_access_url(
+                attachment, expires=expires, preview=False
+            )
+            return success(data=AttachmentAccessUrlResponse(**data), message=_("common.success"))
+
+        @router.get("/{attachment_id}/preview-url", summary="获取预览链接")
+        @action_read("action.attachment.preview_url")
+        async def get_preview_url(
+            attachment_id: int,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            expires: int = Query(3600, ge=60, le=86400),
+        ):
+            """
+            获取附件预览 URL
+            
+            权限: attachment:preview_url
+            """
+            service = AttachmentDownloadService(db, tenant_id=None)
+            attachment = await service.get_attachment(attachment_id)
+            data = await service.build_access_url(
+                attachment, expires=expires, preview=True
+            )
+            return success(data=AttachmentAccessUrlResponse(**data), message=_("common.success"))
+
+        @router.get("/{attachment_id}/download", summary="下载附件")
+        @action_read("action.attachment.download")
+        async def download_attachment(
+            attachment_id: int,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            expires: int = Query(3600, ge=60, le=86400),
+        ):
+            """
+            下载附件
+            
+            权限: attachment:download
+            """
+            service = AttachmentDownloadService(db, tenant_id=None)
+            attachment = await service.get_attachment(attachment_id)
+            if attachment.driver == "local":
+                await service.record_download(attachment)
+                return await service.get_download_response(attachment, preview=False)
+            url = await service.get_redirect_url(
+                attachment, expires=expires, preview=False
+            )
+            return RedirectResponse(url=url)
+
+        @router.get("/{attachment_id}/preview", summary="预览附件")
+        @action_read("action.attachment.preview")
+        async def preview_attachment(
+            attachment_id: int,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            expires: int = Query(3600, ge=60, le=86400),
+        ):
+            """
+            预览附件
+            
+            权限: attachment:preview
+            """
+            service = AttachmentDownloadService(db, tenant_id=None)
+            attachment = await service.get_attachment(attachment_id)
+            if attachment.driver == "local":
+                await service.record_download(attachment)
+                return await service.get_download_response(attachment, preview=True)
+            url = await service.get_redirect_url(
+                attachment, expires=expires, preview=True
+            )
+            return RedirectResponse(url=url)
+
+
+router = AdminAttachmentController.get_router()
+
+__all__ = ["router", "AdminAttachmentController"]

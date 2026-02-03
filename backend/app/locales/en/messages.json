@@ -26,6 +26,12 @@
     "refresh_token_invalid": "Invalid refresh token",
     "password_changed": "Password changed successfully",
     "password_mismatch": "Passwords do not match",
+    "password_too_short": "Password must be at least {min_length} characters long",
+    "password_complexity_medium": "Password must contain letters and numbers",
+    "password_complexity_high": "Password must contain letters, numbers and special characters",
+    "captcha_provider_required": "CAPTCHA provider is required",
+    "captcha_required": "CAPTCHA is required",
+    "captcha_invalid": "Invalid CAPTCHA",
     "impersonate_token_invalid": "Impersonate token is invalid or expired",
     "impersonate_success": "Impersonate login successful"
   },
@@ -52,6 +58,7 @@
     "status_updated": "Admin status updated successfully",
     "cannot_delete_self": "Cannot delete yourself",
     "cannot_delete_super": "Cannot delete super admin",
+    "cannot_remove_super": "Cannot delete super admin",
     "cannot_disable_self": "Cannot disable yourself",
     "cannot_modify_super": "Cannot modify super admin",
     "super_admin_required": "Super admin privileges required"
@@ -117,7 +124,11 @@
     "min_length": "{field} must be at least {min} characters",
     "max_length": "{field} must not exceed {max} characters",
     "invalid_format": "Invalid {field} format",
-    "out_of_range": "{field} is out of valid range"
+    "out_of_range": "{field} is out of valid range",
+    "min_value": "Cannot be less than {min}",
+    "max_value": "Cannot be greater than {max}",
+    "pattern": "Invalid format",
+    "color_format": "Invalid color format, should be #RRGGBB"
   },
   "pagination": {
     "invalid_page": "Invalid page number",
@@ -141,7 +152,10 @@
     "upload_failed": "File upload failed",
     "file_too_large": "File size exceeds limit",
     "invalid_file_type": "Unsupported file type",
-    "not_found": "File not found"
+    "not_found": "File not found",
+    "extension_denied": "File type {extension} is not allowed",
+    "extension_not_allowed": "File type {extension} is not in the allowed list",
+    "validation_failed": "File validation failed"
   },
   "task": {
     "created": "Task created successfully",
@@ -191,10 +205,14 @@
       "assign_permissions": "Assign Permissions",
       "select": "Organization Remote Select",
       "members": "View Node Members",
-      "add_member": "Add Member",
-      "remove_member": "Remove Member",
+      "assign_member": "Assign Member",
+      "remove_member": "Delete Member",
       "set_leader": "Set Leader",
-      "reorder": "Reorder"
+      "reorder": "Reorder",
+      "create_member": "Create Member",
+      "update_member": "Update Member",
+      "reset_password": "Reset Password",
+      "toggle_status": "Toggle Status"
     },
     "admin": {
       "list": "View Admin List",
@@ -274,6 +292,25 @@
       "read": "Read Log Content",
       "download": "Download Log File",
       "delete": "Delete Log File"
+    },
+    "attachment": {
+      "list": "View Attachment List",
+      "detail": "View Attachment Details",
+      "select": "Attachment Remote Select",
+      "delete": "Delete Attachment",
+      "upload": "Upload Attachment",
+      "chunk_init": "Initialize Chunked Upload",
+      "chunk_upload": "Upload Chunk",
+      "chunk_complete": "Complete Chunked Upload",
+      "chunk_status": "View Upload Progress",
+      "chunk_abort": "Abort Chunked Upload",
+      "download_url": "Get Download URL",
+      "preview_url": "Get Preview URL",
+      "download": "Download Attachment",
+      "preview": "Preview Attachment",
+      "stats": "View Storage Statistics",
+      "stats_by_tenant": "View Tenant Storage Statistics",
+      "storage_quota": "View Storage Quota"
     }
   },
   "role": {
@@ -300,14 +337,15 @@
     "cannot_assign_permission": "Cannot assign this permission, you can only assign permissions you have",
     "parent_must_be_visible": "Parent role must be your role or its descendant",
     "invalid_child_type": "Cannot add child of this type to current node",
-    "only_department_can_set_leader": "Only department nodes can have a leader",
-    "cannot_add_member": "Cannot add members to this node type",
-    "member_exists": "Member already exists in this node",
-    "member_not_in_node": "Member is not in this node",
-    "member_added": "Member added successfully",
-    "member_removed": "Member removed successfully",
-    "leader_set": "Leader set successfully"
-  },
+      "only_department_can_set_leader": "Only department nodes can have a leader",
+      "cannot_modify_own_leader_status": "Cannot modify your own leader status",
+      "cannot_add_member": "Cannot add members to this node type",
+      "member_exists": "Member already exists in this node",
+      "member_not_in_node": "Member is not in this node",
+      "member_added": "Member added successfully",
+      "member_removed": "Member removed successfully",
+      "leader_set": "Leader set successfully"
+    },
   "tenant_admin": {
     "not_found": "Admin not found",
     "username_exists": "Username already taken",
@@ -354,10 +392,40 @@
       "update": "Update",
       "delete": "Delete",
       "query": "Query",
+      "list": "List",
+      "detail": "Detail",
       "login": "Login",
       "logout": "Logout",
       "export": "Export",
-      "import": "Import"
+      "import": "Import",
+      "tree": "Tree",
+      "select": "Select",
+      "toggle_status": "Toggle Status",
+      "reset_password": "Reset Password",
+      "assign_permissions": "Assign Permissions",
+      "impersonate": "Impersonate",
+      "verify": "Verify",
+      "set_primary": "Set Primary",
+      "groups": "Groups",
+      "reorder": "Reorder",
+      "permissions": "Permissions",
+      "available_permissions": "Available Permissions",
+      "move": "Move",
+      "members": "Members",
+      "assign_member": "Assign Member",
+      "remove_member": "Remove Member",
+      "set_leader": "Set Leader",
+      "children": "Children",
+      "effective_permissions": "Effective Permissions",
+      "organization": "Organization",
+      "stats": "Statistics",
+      "categories": "Categories",
+      "files": "Files",
+      "read": "Read",
+      "download": "Download",
+      "reset_owner_password": "Reset Owner Password",
+      "create_member": "Create Member",
+      "update_member": "Update Member"
     },
     "priority": {
       "low": "Low",
@@ -369,6 +437,20 @@
       "department": "Department",
       "position": "Position",
       "role": "Functional Role"
+    },
+    "attachment_visibility": {
+      "public": "Public",
+      "private": "Private"
+    },
+    "attachment_status": {
+      "active": "Active",
+      "deleted": "Deleted"
+    },
+    "attachment_source": {
+      "platform_admin": "Platform Admin",
+      "tenant_admin": "Tenant Admin",
+      "tenant_user": "Tenant User",
+      "system": "System"
     },
     "billing_cycle": {
       "monthly": "Monthly",
@@ -396,6 +478,9 @@
       "log": "Log",
       "organization": "Organization",
       "system": "System",
+      "operation_log": "Operation Log",
+      "system_log": "System Log",
+      "tenant_plan": "Tenant Plan",
       "other": "Other"
     },
     "log_category": {
@@ -403,7 +488,11 @@
       "error": "Error Log",
       "db": "Database Log",
       "task": "Task Log",
-      "queue": "Queue Log"
+      "queue": "Queue Log",
+      "captcha": "Captcha Log",
+      "storage": "Storage Log",
+      "auth": "Authentication Log",
+      "impersonate": "Impersonate Audit Log"
     }
   },
   "config": {
@@ -438,6 +527,10 @@
       "tenant_features": {
         "name": "Feature Settings",
         "desc": "Enable or disable feature modules"
+      },
+      "tenant_storage": {
+        "name": "Storage Settings",
+        "desc": "Tenant storage mode and cloud storage configuration"
       }
     },
     "platform": {
@@ -481,6 +574,72 @@
         "name": "Maintenance Message",
         "desc": "Message displayed to users during maintenance"
       },
+      "storage_driver": {
+        "name": "Default Storage Driver",
+        "desc": "Driver used by platform-managed storage"
+      },
+      "storage_root_path": {
+        "name": "Root Path or Bucket",
+        "desc": "Local path or object storage bucket name"
+      },
+      "storage_base_url": {
+        "name": "Base URL",
+        "desc": "Domain or CDN prefix for file access"
+      },
+      "storage_options": {
+        "name": "Driver Options",
+        "desc": "Driver-specific parameters (JSON)"
+      },
+      "storage_default_visibility": {
+        "name": "Default Visibility",
+        "desc": "Default visibility for platform-managed storage"
+      },
+      "storage_chunk_size_mb": {
+        "name": "Default Chunk Size",
+        "desc": "Chunk size used for uploads (MB)"
+      },
+      "storage_max_file_size_mb": {
+        "name": "Max File Size",
+        "desc": "Maximum size for a single file upload (MB)"
+      },
+      "storage_allowed_extensions": {
+        "name": "Allowed File Types",
+        "desc": "Allowed file extensions (comma-separated), leave empty for no restriction"
+      },
+      "storage_denied_extensions": {
+        "name": "Denied File Types",
+        "desc": "Denied file extensions (comma-separated), takes precedence over allowed list"
+      },
+      "image_process_enabled": {
+        "name": "Enable Image Processing",
+        "desc": "Enable dynamic image processing (resize, crop, format conversion, etc.)"
+      },
+      "image_cache_driver": {
+        "name": "Image Cache Driver",
+        "desc": "Cache storage method for processed images",
+        "filesystem": "Filesystem",
+        "redis": "Redis"
+      },
+      "image_cache_path": {
+        "name": "Image Cache Path",
+        "desc": "Storage path for filesystem cache"
+      },
+      "image_cache_ttl_days": {
+        "name": "Cache TTL (Days)",
+        "desc": "Number of days to cache processed images"
+      },
+      "image_max_width": {
+        "name": "Max Width",
+        "desc": "Maximum width allowed for image processing (pixels)"
+      },
+      "image_max_height": {
+        "name": "Max Height",
+        "desc": "Maximum height allowed for image processing (pixels)"
+      },
+      "image_default_quality": {
+        "name": "Default Image Quality",
+        "desc": "Default quality for image compression (1-100)"
+      },
       "password_min_length": {
         "name": "Minimum Password Length",
         "desc": "Minimum number of characters required for passwords"
@@ -507,6 +666,22 @@
       "login_captcha_enabled": {
         "name": "Enable CAPTCHA",
         "desc": "Require CAPTCHA for login"
+      },
+      "captcha_provider": {
+        "name": "CAPTCHA Provider",
+        "desc": "Choose the CAPTCHA implementation",
+        "image": "Local Image CAPTCHA"
+      },
+      "captcha_difficulty": {
+        "name": "CAPTCHA Difficulty",
+        "desc": "Difficulty level for login CAPTCHA",
+        "easy": "Easy",
+        "medium": "Medium",
+        "hard": "Hard"
+      },
+      "captcha_enable_threshold_admin": {
+        "name": "CAPTCHA Enable Threshold",
+        "desc": "Enable CAPTCHA after this many failed logins (0 means always)"
       },
       "session_timeout_minutes": {
         "name": "Session Timeout",
@@ -589,6 +764,22 @@
         "name": "Enable CAPTCHA",
         "desc": "Require CAPTCHA for tenant login"
       },
+      "captcha_provider": {
+        "name": "CAPTCHA Provider",
+        "desc": "Choose the CAPTCHA implementation",
+        "image": "Local Image CAPTCHA"
+      },
+      "captcha_difficulty": {
+        "name": "CAPTCHA Difficulty",
+        "desc": "Difficulty level for tenant login CAPTCHA",
+        "easy": "Easy",
+        "medium": "Medium",
+        "hard": "Hard"
+      },
+      "captcha_enable_threshold": {
+        "name": "CAPTCHA Enable Threshold",
+        "desc": "Enable CAPTCHA after this many failed logins (0 means always)"
+      },
       "login_methods": {
         "name": "Login Methods",
         "desc": "Allowed user login methods",
@@ -621,6 +812,38 @@
         "name": "Session Timeout",
         "desc": "Auto logout after inactivity (minutes)"
       },
+      "storage_mode": {
+        "name": "Storage Mode",
+        "desc": "Choose platform-managed or custom cloud storage"
+      },
+      "storage_driver": {
+        "name": "Cloud Storage Driver",
+        "desc": "Driver used for custom cloud storage"
+      },
+      "storage_root_path": {
+        "name": "Bucket Name",
+        "desc": "Object storage bucket name or root path"
+      },
+      "storage_base_url": {
+        "name": "Base URL",
+        "desc": "Domain or CDN prefix for file access"
+      },
+      "storage_options": {
+        "name": "Driver Options",
+        "desc": "Driver-specific parameters (JSON)"
+      },
+      "storage_default_visibility": {
+        "name": "Default Visibility",
+        "desc": "Default visibility for custom cloud storage"
+      },
+      "storage_allowed_extensions": {
+        "name": "Allowed File Types",
+        "desc": "Allowed file extensions (comma-separated), leave empty to use platform defaults"
+      },
+      "storage_denied_extensions": {
+        "name": "Denied File Types",
+        "desc": "Denied file extensions (comma-separated), leave empty to use platform defaults"
+      },
       "allow_registration": {
         "name": "Allow Registration",
         "desc": "Allow users to self-register"
@@ -649,15 +872,52 @@
         "name": "File Upload",
         "desc": "Allow users to upload files"
       }
+    },
+    "storage": {
+      "mode": {
+        "platform": "Platform-managed storage",
+        "custom": "Custom cloud storage"
+      },
+      "driver": {
+        "local": "Local Storage",
+        "s3": "R3/S3 Compatible",
+        "aliyun_oss": "Aliyun OSS"
+      },
+      "visibility": {
+        "private": "Private",
+        "public": "Public"
+      },
+      "option": {
+        "access_key_id": {
+          "name": "Access Key ID",
+          "desc": "Access key ID for object storage"
+        },
+        "secret_access_key": {
+          "name": "Secret Access Key",
+          "desc": "Secret access key for object storage"
+        },
+        "access_key_secret": {
+          "name": "Access Key Secret",
+          "desc": "Access key secret for Aliyun OSS"
+        },
+        "region": {
+          "name": "Region",
+          "desc": "Region identifier for object storage"
+        },
+        "endpoint_url": {
+          "name": "Endpoint URL",
+          "desc": "S3 compatible endpoint URL"
+        },
+        "endpoint": {
+          "name": "Endpoint",
+          "desc": "OSS endpoint address"
+        },
+        "prefix": {
+          "name": "Path Prefix",
+          "desc": "Object storage key prefix"
+        }
+      }
     }
-  },
-  "validation": {
-    "min_value": "Cannot be less than {min}",
-    "max_value": "Cannot be greater than {max}",
-    "min_length": "Length cannot be less than {min} characters",
-    "max_length": "Length cannot exceed {max} characters",
-    "pattern": "Invalid format",
-    "color_format": "Invalid color format, should be #RRGGBB"
   },
   "error": {
     "unknown": "Unknown error",
@@ -698,7 +958,11 @@
     "admin": {
       "username_exists": "Username already taken",
       "email_exists": "Email already in use",
-      "phone_exists": "Phone number already in use"
+      "phone_exists": "Phone number already in use",
+      "cannot_remove_super": "Cannot remove super admin"
+    },
+    "tenant_admin": {
+      "cannot_remove_owner": "Cannot remove tenant owner"
     },
     "config": {
       "group_not_found": "Configuration group not found",

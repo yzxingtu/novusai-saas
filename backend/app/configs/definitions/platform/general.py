@@ -4,7 +4,7 @@
 包含站点基本信息、维护模式等配置
 """
 
-from app.configs.meta import ConfigMeta, max_length, min_length
+from app.configs.meta import ConfigMeta, DisplayRule, max_length, min_length
 from app.configs.definitions.groups import PLATFORM_GENERAL_GROUP
 from app.enums.config import ConfigScope, ConfigValueType
 
@@ -154,6 +154,9 @@ MAINTENANCE_MESSAGE = ConfigMeta(
         max_length(1000, "validation.max_length"),
     ],
     sort_order=110,
+    display_rules=[
+        DisplayRule(field="maintenance_mode", operator="equals", value=True, action="show"),
+    ],
 )
 
 

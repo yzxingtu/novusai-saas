@@ -16,6 +16,9 @@ class TenantUserLoginRequest(BaseSchema):
     
     username: str = Field(..., min_length=1, max_length=50, description="用户名或邮箱")
     password: str = Field(..., min_length=1, description="密码")
+    captcha_challenge_id: str | None = Field(None, description="验证码挑战 ID")
+    captcha_solution: str | None = Field(None, description="验证码答案")
+    captcha_provider_code: str | None = Field(None, description="验证码提供方标识")
 
 
 class TenantUserResponse(BaseSchema):

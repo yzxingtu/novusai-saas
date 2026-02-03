@@ -13,27 +13,16 @@ from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
     permission_resource,
-    MenuConfig,
-    action_read,
     auth_only,
 )
 from app.rbac.services import PermissionService
-
-
 
 
 @permission_resource(
     resource="permission",
     name="menu.admin.permission",  # i18n key
     scope=PermissionScope.ADMIN,
-    menu=MenuConfig(
-        icon="lucide:key-round",
-        path="/system/permissions",
-        component="system/permission/List",
-        parent="system",  # 父菜单: 权限管理
-        sort_order=10,
-        hidden=True,  # 一般隐藏，仅超管可见
-    ),
+    # 不传 menu 参数 = 不注册菜单权限，仅提供 API 端点
 )
 class AdminPermissionController(GlobalController):
     """
@@ -50,7 +39,7 @@ class AdminPermissionController(GlobalController):
         router = self.router
         
         @router.get("", summary="获取权限树")
-        @action_read("action.permission.tree")
+        @auth_only
         async def get_permission_tree(
             request: Request,
             db: DbSession,
@@ -64,8 +53,6 @@ class AdminPermissionController(GlobalController):
             层级权限控制：
             - 超级管理员：返回所有权限
             - 普通管理员：返回自己拥有的权限（含继承）
-            
-            权限: permission:read
             """
             perm_service = PermissionService(db)
             tree = await perm_service.get_admin_permission_tree(current_admin)

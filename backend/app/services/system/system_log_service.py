@@ -61,6 +61,9 @@ class SystemLogService:
         LogCategoryEnum.DB.value: "数据库日志，记录 SQL 查询和数据库操作",
         LogCategoryEnum.TASK.value: "计划任务日志，记录定时任务执行情况",
         LogCategoryEnum.QUEUE.value: "队列日志，记录消息队列处理情况",
+        LogCategoryEnum.CAPTCHA.value: "验证码日志，记录验证码生成和校验",
+        LogCategoryEnum.STORAGE.value: "存储日志，记录文件上传下载操作",
+        LogCategoryEnum.AUTH.value: "认证日志，记录登录、登出和 Token 操作",
     }
     
     # 日志分类显示名称
@@ -70,6 +73,9 @@ class SystemLogService:
         LogCategoryEnum.DB.value: "数据库日志",
         LogCategoryEnum.TASK.value: "任务日志",
         LogCategoryEnum.QUEUE.value: "队列日志",
+        LogCategoryEnum.CAPTCHA.value: "验证码日志",
+        LogCategoryEnum.STORAGE.value: "存储日志",
+        LogCategoryEnum.AUTH.value: "认证日志",
     }
     
     def __init__(self) -> None:

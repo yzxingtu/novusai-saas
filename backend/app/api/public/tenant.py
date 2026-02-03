@@ -7,17 +7,22 @@
 from fastapi import APIRouter, HTTPException, Request, status
 
 from app.core.config import settings
+from app.core.deps import DbSession
 from app.core.i18n import _
 from app.core.response import success
-from app.middleware.tenant import get_tenant_context, get_current_tenant
+from app.middleware.tenant import get_tenant_context
+from app.configs.service import ConfigService
 from app.schemas.public import TenantPublicConfig, DomainVerificationInfo
+from app.schemas.public.platform import StoragePublicConfig
+from app.rbac.decorators import public
 
 
 router = APIRouter(prefix="/tenant", tags=["租户公开接口"])
 
 
 @router.get("/config", summary="获取当前租户公开配置")
-async def get_tenant_public_config(request: Request):
+@public
+async def get_tenant_public_config(request: Request, db: DbSession):
     """
     获取当前租户的公开配置
     
@@ -44,7 +49,54 @@ async def get_tenant_public_config(request: Request):
     
     tenant = tenant_ctx.tenant
     
-    # 构建子域名完整 URL
+    config_service = ConfigService(db)
+    general_config = await config_service.get_tenant_configs_by_group(
+        tenant_id=tenant.id,
+        group_code="tenant_general",
+    )
+    appearance_config = await config_service.get_tenant_configs_by_group(
+        tenant_id=tenant.id,
+        group_code="tenant_appearance",
+    )
+    feature_config = await config_service.get_tenant_configs_by_group(
+        tenant_id=tenant.id,
+        group_code="tenant_features",
+    )
+    storage_config = await config_service.get_tenant_configs_by_group(
+        tenant_id=tenant.id,
+        group_code="tenant_storage",
+    )
+    configs = {**general_config, **appearance_config, **feature_config, **storage_config}
+    
+    # 确定存储配置：如果租户使用平台托管存储，则使用平台的配置
+    platform_storage_config = await config_service.get_platform_configs_by_group(
+        group_code="platform_storage",
+    )
+    
+    if configs.get("tenant_storage_mode") == "custom":
+        storage_base_url = configs.get("tenant_storage_base_url")
+        # 租户自定义 allowed_extensions，如果未设置则使用平台配置
+        allowed_extensions = configs.get("tenant_storage_allowed_extensions") or platform_storage_config.get("platform_storage_allowed_extensions")
+    else:
+        # 平台托管模式，全部使用平台配置
+        storage_base_url = platform_storage_config.get("platform_storage_base_url")
+        allowed_extensions = platform_storage_config.get("platform_storage_allowed_extensions")
+    
+    # chunk_size 和 max_file_size 始终使用平台配置
+    # driver: 自定义模式使用租户配置，平台托管模式使用平台配置
+    if configs.get("tenant_storage_mode") == "custom":
+        storage_driver = configs.get("tenant_storage_driver")
+    else:
+        storage_driver = platform_storage_config.get("platform_storage_driver")
+    
+    storage_config_obj = StoragePublicConfig(
+        driver=storage_driver,
+        base_url=storage_base_url,
+        chunk_size_mb=platform_storage_config.get("platform_storage_chunk_size_mb"),
+        max_file_size_mb=platform_storage_config.get("platform_storage_max_file_size_mb"),
+        allowed_extensions=allowed_extensions,
+    )
+
     subdomain_url = f"https://{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
     
     return success(
@@ -52,19 +104,42 @@ async def get_tenant_public_config(request: Request):
             tenant_id=tenant.id,
             tenant_code=tenant.code,
             tenant_name=tenant.name,
-            logo_url=tenant.logo_url,
-            favicon_url=tenant.favicon_url,
-            theme_color=tenant.theme_color,
-            captcha_enabled=tenant.captcha_enabled,
-            login_methods=tenant.login_methods,
+            logo_url=configs.get("tenant_logo"),
+            favicon_url=configs.get("tenant_favicon"),
+            theme_color=configs.get("tenant_primary_color"),
+            login_bg=configs.get("tenant_login_bg"),
+            primary_color=configs.get("tenant_primary_color"),
+            accent_color=configs.get("tenant_accent_color"),
+            login_title=configs.get("tenant_login_title"),
+            login_subtitle=configs.get("tenant_login_subtitle"),
+            footer_copyright=configs.get("tenant_footer_copyright"),
+            captcha_enabled=configs.get("tenant_captcha_enabled", False),
+            captcha_provider=configs.get("tenant_captcha_provider"),
+            captcha_difficulty=configs.get("tenant_captcha_difficulty"),
+            captcha_enable_threshold=configs.get("tenant_captcha_enable_threshold"),
+            login_methods=configs.get("tenant_login_methods", ["password"]),
+            login_max_attempts=configs.get("tenant_login_max_attempts"),
+            login_lockout_minutes=configs.get("tenant_login_lockout_minutes"),
+            password_min_length=configs.get("tenant_password_min_length"),
+            password_complexity=configs.get("tenant_password_complexity"),
+            session_timeout=configs.get("tenant_session_timeout"),
+            allow_registration=configs.get("tenant_allow_registration"),
+            registration_approval=configs.get("tenant_registration_approval"),
+            allow_profile_edit=configs.get("tenant_allow_profile_edit"),
+            email_notification=configs.get("tenant_email_notification"),
+            sms_notification=configs.get("tenant_sms_notification"),
+            api_access=configs.get("tenant_api_access"),
+            file_upload=configs.get("tenant_file_upload"),
             subdomain=tenant.code,
             subdomain_url=subdomain_url,
+            storage=storage_config_obj,
         ),
         message=_("common.success"),
     )
 
 
 @router.get("/domain-verification", summary="获取域名验证信息")
+@public
 async def get_domain_verification_info(
     request: Request,
     domain: str,

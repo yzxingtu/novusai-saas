@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request
 
 from app.core.deps import DbSession, ActiveTenantAdmin
 from app.core.i18n import _
-from app.core.logging import get_logger
+from app.core.logging import ImpersonateLoggerMixin
 from app.core.response import success
 from app.rbac.decorators import public, auth_only
 from app.schemas.common import TokenResponse, RefreshTokenRequest, ImpersonateTokenRequest
@@ -19,8 +19,13 @@ from app.schemas.tenant import (
 )
 from app.services.common import AuthService
 
-# 审计日志
-audit_logger = get_logger("impersonate", separate_file=True)
+
+# 审计日志辅助类
+class _ImpersonateAuditLogger(ImpersonateLoggerMixin):
+    """Impersonate 审计日志器"""
+    pass
+
+_audit_helper = _ImpersonateAuditLogger()
 
 
 router = APIRouter(prefix="/auth", tags=["租户管理员认证"])
@@ -45,6 +50,9 @@ async def tenant_admin_login(
         username=login_data.username,
         password=login_data.password,
         client_ip=request.client.host if request.client else None,
+        captcha_challenge_id=login_data.captcha_challenge_id,
+        captcha_solution=login_data.captcha_solution,
+        captcha_provider_code=login_data.captcha_provider_code,
     )
     await db.commit()
     
@@ -143,7 +151,7 @@ async def impersonate_login(
     )
     
     # 记录审计日志
-    audit_logger.info(
+    _audit_helper.logger.info(
         "Admin impersonate completed | admin_id=%s | admin_username=%s | "
         "target_tenant_id=%s | target_tenant_code=%s | tenant_owner_id=%s | "
         "target_role_id=%s | client_ip=%s",

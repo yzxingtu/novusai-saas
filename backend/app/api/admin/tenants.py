@@ -11,7 +11,7 @@ from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
 from app.core.deps import DbSession, QueryParams, ActiveAdmin
 from app.core.i18n import _
-from app.core.logging import get_logger
+from app.core.logging import ImpersonateLoggerMixin
 from app.core.response import success
 from app.core.security import (
     create_impersonate_token,
@@ -32,6 +32,7 @@ from app.rbac.decorators import (
 )
 from app.schemas.system import (
     TenantResponse,
+    TenantStorageStats,
     TenantCreateRequest,
     TenantUpdateRequest,
     TenantStatusRequest,
@@ -41,9 +42,15 @@ from app.schemas.system import (
 )
 from app.schemas.common.select import SelectResponse
 from app.services.system import TenantService
+from app.services.common import StorageQuotaService
 
-# 审计日志
-audit_logger = get_logger("impersonate", separate_file=True)
+
+# 审计日志辅助类
+class _ImpersonateAuditLogger(ImpersonateLoggerMixin):
+    """Impersonate 审计日志器"""
+    pass
+
+_audit_helper = _ImpersonateAuditLogger()
 
 
 @permission_resource(
@@ -135,9 +142,23 @@ class AdminTenantController(GlobalController):
             service = TenantService(db)
             items, total = await service.query_list(spec, scope="admin")
             
+            # 批量获取存储统计
+            tenant_ids = [item.id for item in items]
+            quota_service = StorageQuotaService(db)
+            storage_stats_map = await quota_service.get_tenant_storage_stats_batch(tenant_ids)
+            
+            # 构建响应数据
+            response_items = []
+            for item in items:
+                data = TenantResponse.model_validate(item, from_attributes=True)
+                stats = storage_stats_map.get(item.id)
+                if stats:
+                    data.storage_stats = TenantStorageStats(**stats)
+                response_items.append(data)
+            
             return success(
                 data=PageResponse.create(
-                    items=[TenantResponse.model_validate(item, from_attributes=True) for item in items],
+                    items=response_items,
                     total=total,
                     page=spec.page,
                     page_size=spec.size,
@@ -168,8 +189,15 @@ class AdminTenantController(GlobalController):
                     detail=_("tenant.not_found"),
                 )
             
+            # 获取存储统计
+            quota_service = StorageQuotaService(db)
+            storage_stats = await quota_service.get_tenant_storage_stats(tenant_id)
+            
+            data = TenantResponse.model_validate(tenant, from_attributes=True)
+            data.storage_stats = TenantStorageStats(**storage_stats)
+            
             return success(
-                data=TenantResponse.model_validate(tenant, from_attributes=True),
+                data=data,
                 message=_("common.success"),
             )
         
@@ -351,7 +379,7 @@ class AdminTenantController(GlobalController):
             )
             
             # 记录审计日志
-            audit_logger.info(
+            _audit_helper.logger.info(
                 "Admin impersonate initiated | admin_id=%s | admin_username=%s | "
                 "target_tenant_id=%s | target_tenant_code=%s | target_role_id=%s",
                 current_admin.id,

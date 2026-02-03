@@ -33,9 +33,14 @@ from app.schemas.tenant import (
     TenantAdminRoleUpdateRequest,
     TenantAdminRoleSetLeaderRequest,
     TenantAdminRoleAddMemberRequest,
+    TenantAdminRoleCreateMemberRequest,
+    TenantAdminRoleUpdateMemberRequest,
+    TenantAdminRoleResetPasswordRequest,
+    TenantAdminRoleToggleStatusRequest,
     TenantAdminRoleMemberResponse,
 )
 from app.schemas.common import PermissionResponse, ReorderRequest
+from app.repositories.tenant.tenant_role_repository import TenantRoleRepository
 from app.services.tenant.tenant_admin_role_service import TenantAdminRoleService
 from app.services.common.role_hierarchy_validator import TenantAdminRoleHierarchyValidator
 
@@ -677,9 +682,9 @@ class TenantRoleController(TenantController):
                     detail=str(e.message),
                 )
         
-        @router.post("/{role_id}/members", summary="添加成员到节点")
-        @action_update("action.organization.add_member")
-        async def add_member_to_role(
+        @router.post("/{role_id}/members", summary="分配成员到节点")
+        @action_update("action.organization.assign_member")
+        async def assign_member_to_role(
             request: Request,
             db: DbSession,
             role_id: int,
@@ -778,7 +783,7 @@ class TenantRoleController(TenantController):
         ):
             """
             设置节点负责人（仅部门类型可设置）
-            
+
             权限: role:set_leader
             """
             # 校验角色可管理性
@@ -787,6 +792,14 @@ class TenantRoleController(TenantController):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=_("role.no_permission_to_manage"),
+                )
+
+            # 禁止当前负责人自己修改负责人身份
+            role = await TenantRoleRepository(db, current_admin.tenant_id).get_by_id(role_id)
+            if role and role.leader_id == current_admin.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=_("role.cannot_modify_own_leader_status"),
                 )
             
             service = TenantAdminRoleService(db, current_admin.tenant_id)
@@ -799,6 +812,266 @@ class TenantRoleController(TenantController):
                 return success(
                     data={"role_id": role_id, "leader_id": data.leader_id},
                     message=_("role.leader_set"),
+                )
+                
+            except NotFoundException as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=str(e.message),
+                )
+            except BusinessException as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(e.message),
+                )
+        
+        @router.post("/{role_id}/members/create", summary="在节点下创建成员")
+        @action_create("action.organization.create_member")
+        async def create_member_in_role(
+            request: Request,
+            db: DbSession,
+            role_id: int,
+            data: TenantAdminRoleCreateMemberRequest,
+            current_admin: ActiveTenantAdmin,
+        ):
+            """
+            在节点下创建新成员
+            
+            创建新的租户管理员并直接关联到指定节点。
+            
+            权限: organization:create_member
+            """
+            # 校验角色可管理性
+            validator = TenantAdminRoleHierarchyValidator(db, current_admin)
+            if not await validator.can_manage_role(role_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=_("role.no_permission_to_manage"),
+                )
+            
+            service = TenantAdminRoleService(db, current_admin.tenant_id)
+            
+            try:
+                admin = await service.create_member(
+                    role_id=role_id,
+                    username=data.username,
+                    email=data.email,
+                    password=data.password,
+                    phone=data.phone,
+                    nickname=data.nickname,
+                    is_active=data.is_active,
+                )
+                await db.commit()
+                
+                # 重新加载管理员以获取角色信息
+                await db.refresh(admin)
+                
+                return success(
+                    data=TenantAdminRoleMemberResponse(
+                        id=admin.id,
+                        username=admin.username,
+                        nickname=admin.nickname,
+                        avatar=admin.avatar,
+                        email=admin.email,
+                        is_active=admin.is_active,
+                        is_leader=False,
+                        role_id=admin.role_id,
+                        role_name=admin.role.name if admin.role else None,
+                        created_at=admin.created_at,
+                        updated_at=admin.updated_at,
+                    ),
+                    message=_("role.member_created"),
+                )
+                
+            except NotFoundException as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=str(e.message),
+                )
+            except BusinessException as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(e.message),
+                )
+        
+        @router.put("/{role_id}/members/{admin_id}", summary="更新节点成员信息")
+        @action_update("action.organization.update_member")
+        async def update_member_in_role(
+            request: Request,
+            db: DbSession,
+            role_id: int,
+            admin_id: int,
+            data: TenantAdminRoleUpdateMemberRequest,
+            current_admin: ActiveTenantAdmin,
+        ):
+            """
+            更新节点成员信息
+            
+            支持修改成员的邮箱、手机号、昵称、状态，以及调整所属角色。
+            
+            权限: organization:update_member
+            """
+            # 校验角色可管理性
+            validator = TenantAdminRoleHierarchyValidator(db, current_admin)
+            if not await validator.can_manage_role(role_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=_("role.no_permission_to_manage"),
+                )
+            
+            # 如果要调整到新角色，也需要校验新角色的可管理性
+            if data.role_id is not None:
+                if not await validator.can_manage_role(data.role_id):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=_("role.no_permission_to_manage"),
+                    )
+            
+            service = TenantAdminRoleService(db, current_admin.tenant_id)
+            
+            try:
+                admin = await service.update_member(
+                    role_id=role_id,
+                    admin_id=admin_id,
+                    email=data.email,
+                    phone=data.phone,
+                    nickname=data.nickname,
+                    is_active=data.is_active,
+                    new_role_id=data.role_id,
+                )
+                await db.commit()
+                
+                # 重新加载管理员以获取角色信息
+                await db.refresh(admin)
+                
+                return success(
+                    data=TenantAdminRoleMemberResponse(
+                        id=admin.id,
+                        username=admin.username,
+                        nickname=admin.nickname,
+                        avatar=admin.avatar,
+                        email=admin.email,
+                        is_active=admin.is_active,
+                        is_leader=False,
+                        role_id=admin.role_id,
+                        role_name=admin.role.name if admin.role else None,
+                        created_at=admin.created_at,
+                        updated_at=admin.updated_at,
+                    ),
+                    message=_("role.member_updated"),
+                )
+                
+            except NotFoundException as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=str(e.message),
+                )
+            except BusinessException as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(e.message),
+                )
+        
+        @router.put("/{role_id}/members/{admin_id}/reset-password", summary="重置节点成员密码")
+        @action_update("action.organization.reset_password")
+        async def reset_member_password(
+            request: Request,
+            db: DbSession,
+            role_id: int,
+            admin_id: int,
+            data: TenantAdminRoleResetPasswordRequest,
+            current_admin: ActiveTenantAdmin,
+        ):
+            """
+            重置节点成员密码
+            
+            权限: organization:reset_password
+            """
+            # 校验角色可管理性
+            validator = TenantAdminRoleHierarchyValidator(db, current_admin)
+            if not await validator.can_manage_role(role_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=_("role.no_permission_to_manage"),
+                )
+            
+            service = TenantAdminRoleService(db, current_admin.tenant_id)
+            
+            try:
+                await service.reset_member_password(
+                    role_id=role_id,
+                    admin_id=admin_id,
+                    new_password=data.new_password,
+                )
+                await db.commit()
+                
+                return success(
+                    data={"success": True},
+                    message=_("admin.password_reset"),
+                )
+                
+            except NotFoundException as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=str(e.message),
+                )
+            except BusinessException as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(e.message),
+                )
+        
+        @router.put("/{role_id}/members/{admin_id}/status", summary="切换节点成员状态")
+        @action_update("action.organization.toggle_status")
+        async def toggle_member_status(
+            request: Request,
+            db: DbSession,
+            role_id: int,
+            admin_id: int,
+            data: TenantAdminRoleToggleStatusRequest,
+            current_admin: ActiveTenantAdmin,
+        ):
+            """
+            切换节点成员状态
+            
+            权限: organization:toggle_status
+            """
+            # 校验角色可管理性
+            validator = TenantAdminRoleHierarchyValidator(db, current_admin)
+            if not await validator.can_manage_role(role_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=_("role.no_permission_to_manage"),
+                )
+            
+            service = TenantAdminRoleService(db, current_admin.tenant_id)
+            
+            try:
+                admin = await service.toggle_member_status(
+                    role_id=role_id,
+                    admin_id=admin_id,
+                    is_active=data.is_active,
+                )
+                await db.commit()
+                
+                # 重新加载以获取角色信息
+                await db.refresh(admin)
+                
+                return success(
+                    data=TenantAdminRoleMemberResponse(
+                        id=admin.id,
+                        username=admin.username,
+                        nickname=admin.nickname,
+                        avatar=admin.avatar,
+                        email=admin.email,
+                        is_active=admin.is_active,
+                        is_leader=False,
+                        role_id=admin.role_id,
+                        role_name=admin.role.name if admin.role else None,
+                        created_at=admin.created_at,
+                        updated_at=admin.updated_at,
+                    ),
+                    message=_("admin.status_updated"),
                 )
                 
             except NotFoundException as e:

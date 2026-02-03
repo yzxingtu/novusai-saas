@@ -16,15 +16,13 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.logging import LogManager
+from app.core.logging import LoggerMixin
 from app.models.auth.permission import Permission
 from app.rbac.decorators import PermissionMeta
 from app.rbac.registry import permission_registry
 
-logger = LogManager.get_logger(__name__)
 
-
-class PermissionSyncService:
+class PermissionSyncService(LoggerMixin):
     """
     权限同步服务
     
@@ -45,9 +43,13 @@ class PermissionSyncService:
             排序后的权限列表
         """
         code_to_perm = {p.code: p for p in permissions}
+        depth_cache: dict[str, int] = {}
         
-        # 计算每个权限的深度（到根的距离）
+        # 计算每个权限的深度（到根的距离），带缓存
         def get_depth(perm: PermissionMeta, visited: set[str] | None = None) -> int:
+            if perm.code in depth_cache:
+                return depth_cache[perm.code]
+            
             if visited is None:
                 visited = set()
             if perm.code in visited:
@@ -56,11 +58,15 @@ class PermissionSyncService:
             visited.add(perm.code)
             
             if not perm.parent_code:
+                depth_cache[perm.code] = 0
                 return 0
             parent = code_to_perm.get(perm.parent_code)
             if not parent:
+                depth_cache[perm.code] = 0
                 return 0
-            return 1 + get_depth(parent, visited)
+            depth = 1 + get_depth(parent, visited)
+            depth_cache[perm.code] = depth
+            return depth
         
         # 按深度排序，深度小的（父级）先处理
         return sorted(permissions, key=lambda p: get_depth(p))
@@ -78,23 +84,13 @@ class PermissionSyncService:
         Returns:
             {"created": n, "updated": n, "disabled": n}
         """
-        print("🔄 开始同步权限...")
         registered_permissions = permission_registry.get_all()
-        print(f"📊 注册的权限数量: {len(registered_permissions)}")
         # 使用 code:scope 作为唯一标识
         registered_keys = {
             self._make_key(p.code, p.scope.value) for p in registered_permissions
         }
-        print("🔍 正在查询数据库现有权限...")
-        import sys
-        sys.stdout.flush()
         # 获取数据库中现有权限
-        try:
-            result = await self.db.execute(select(Permission))
-            print("✅ 数据库查询完成")
-        except Exception as e:
-            print(f"❌ 数据库查询失败: {e}")
-            raise
+        result = await self.db.execute(select(Permission))
         existing_permissions = result.scalars().all()
         # 使用 code:scope 作为唯一标识
         existing_keys = {
@@ -124,7 +120,7 @@ class PermissionSyncService:
                 parent_key = self._make_key(perm_meta.parent_code, perm_meta.scope.value)
                 parent_id = code_scope_to_id.get(parent_key)
                 if parent_id is None:
-                    logger.warning(
+                    self.logger.warning(
                         f"权限 {perm_meta.code} ({perm_meta.scope.value}) 的父级 {perm_meta.parent_code} 不存在"
                     )
             
@@ -177,11 +173,11 @@ class PermissionSyncService:
             if db_perm.is_enabled:
                 db_perm.is_enabled = False
                 disabled_count += 1
-                logger.debug(f"禁用权限: {key}")
+                self.logger.debug(f"禁用权限: {key}")
         
         await self.db.commit()
         
-        logger.info(
+        self.logger.info(
             f"权限同步完成: 新增 {created_count}, 更新 {updated_count}, 禁用 {disabled_count}"
         )
         

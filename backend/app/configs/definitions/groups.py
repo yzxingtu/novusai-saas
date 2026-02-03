@@ -93,6 +93,15 @@ TENANT_FEATURES_GROUP = ConfigGroupMeta(
     sort_order=30,
 )
 
+TENANT_STORAGE_GROUP = ConfigGroupMeta(
+    code="tenant_storage",
+    name_key="config.group.tenant_storage.name",
+    description_key="config.group.tenant_storage.desc",
+    scope=ConfigScope.TENANT,
+    icon="lucide:database",
+    sort_order=40,
+)
+
 
 # ==========================================
 # 分组列表
@@ -111,6 +120,7 @@ TENANT_CONFIG_GROUPS = [
     TENANT_GENERAL_GROUP,
     TENANT_APPEARANCE_GROUP,
     TENANT_FEATURES_GROUP,
+    TENANT_STORAGE_GROUP,
 ]
 
 # 所有配置分组
@@ -128,6 +138,7 @@ __all__ = [
     "TENANT_GENERAL_GROUP",
     "TENANT_APPEARANCE_GROUP",
     "TENANT_FEATURES_GROUP",
+    "TENANT_STORAGE_GROUP",
     "TENANT_CONFIG_GROUPS",
     # 全部
     "ALL_CONFIG_GROUPS",

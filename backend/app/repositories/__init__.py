@@ -5,7 +5,11 @@
 """
 
 from app.repositories.system import AdminRepository, TenantRepository
-from app.repositories.tenant import TenantAdminRepository, TenantRoleRepository
+from app.repositories.tenant import (
+    AttachmentRepository,
+    TenantAdminRepository,
+    TenantRoleRepository,
+)
 
 
 __all__ = [
@@ -13,6 +17,7 @@ __all__ = [
     "AdminRepository",
     "TenantRepository",
     # 租户级
+    "AttachmentRepository",
     "TenantAdminRepository",
     "TenantRoleRepository",
 ]

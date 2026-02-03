@@ -1,0 +1,276 @@
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+from jose import JWTError, jwt
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.configs.service import ConfigService
+from app.core.config import settings
+from app.core.i18n import _
+from app.enums import ErrorCode
+from app.enums.attachment import AttachmentVisibility
+from app.exceptions import BusinessException, NotFoundException, StorageNotFoundError
+from app.models.tenant.attachment import Attachment
+from app.repositories.tenant.attachment_repository import AttachmentRepository
+from app.storage import StorageConfig, StorageVisibility, storage_manager
+
+
+class AttachmentDownloadService:
+    """
+    附件下载/预览服务
+    
+    负责生成访问链接、签名控制、权限校验与下载统计。
+    """
+    def __init__(self, db: AsyncSession, tenant_id: int | None = None):
+        """初始化服务，tenant_id 为空表示公共访问上下文"""
+        self.db = db
+        self.tenant_id = tenant_id
+        self.config_service = ConfigService(db)
+        self.repo = (
+            AttachmentRepository(db, tenant_id) if tenant_id is not None else None
+        )
+
+    async def get_attachment(self, attachment_id: int) -> Attachment:
+        """按租户上下文读取附件并进行归属校验"""
+        if self.repo:
+            attachment = await self.repo.get_by_id(attachment_id)
+        else:
+            result = await self.db.execute(
+                select(Attachment).where(
+                    Attachment.id == attachment_id,
+                    Attachment.is_deleted == False,
+                )
+            )
+            attachment = result.scalar_one_or_none()
+        if not attachment:
+            raise NotFoundException(message=_("error.common.not_found"))
+        if self.tenant_id is not None and attachment.tenant_id != self.tenant_id:
+            raise BusinessException(
+                message=_("error.auth.forbidden"),
+                code=ErrorCode.FORBIDDEN,
+            )
+        return attachment
+
+    async def build_access_url(
+        self,
+        attachment: Attachment,
+        expires: int,
+        preview: bool,
+    ) -> dict[str, Any]:
+        """生成访问 URL 并记录下载统计"""
+        expires = self._normalize_expires(expires)
+        url = await self._get_access_url(attachment, expires, preview)
+        await self._record_download(attachment, attachment.size)
+        return {
+            "attachment_id": attachment.id,
+            "url": url,
+            "expires_in": expires,
+            "preview": preview,
+        }
+
+    async def get_download_response(self, attachment: Attachment, preview: bool):
+        """生成本地流式下载/预览响应"""
+        storage_config = await self._resolve_storage_config_for_attachment(attachment)
+        driver = storage_manager.get_driver(storage_config)
+        filename = attachment.original_name or attachment.name
+        response = await driver.get_download_response(attachment.path, filename=filename)
+        if preview:
+            response.headers["Content-Disposition"] = f'inline; filename="{filename}"'
+        return response
+
+    async def record_download(self, attachment: Attachment, size: int | None = None) -> None:
+        """显式记录下载统计"""
+        await self._record_download(attachment, size or attachment.size)
+
+    async def get_redirect_url(
+        self,
+        attachment: Attachment,
+        expires: int,
+        preview: bool,
+    ) -> str:
+        """生成访问 URL（对象存储使用签名 URL）并记录下载统计"""
+        expires = self._normalize_expires(expires)
+        url = await self._get_access_url(attachment, expires, preview)
+        await self._record_download(attachment, attachment.size)
+        return url
+
+    def create_access_token(
+        self,
+        attachment: Attachment,
+        expires: int,
+        preview: bool,
+    ) -> str:
+        """生成本地私有文件访问 Token"""
+        expire_at = datetime.now(timezone.utc) + timedelta(seconds=expires)
+        payload = {
+            "type": "attachment_download",
+            "attachment_id": attachment.id,
+            "tenant_id": attachment.tenant_id,
+            "preview": preview,
+            "exp": expire_at,
+        }
+        return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+    def verify_access_token(self, token: str) -> dict[str, Any]:
+        """校验下载 Token 并返回 payload"""
+        try:
+            payload = jwt.decode(
+                token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            )
+        except JWTError as exc:
+            raise BusinessException(
+                message=_("error.auth.token_invalid"),
+                code=ErrorCode.TOKEN_INVALID,
+            ) from exc
+        if payload.get("type") != "attachment_download":
+            raise BusinessException(
+                message=_("error.auth.token_invalid"),
+                code=ErrorCode.TOKEN_INVALID,
+            )
+        return payload
+
+    async def validate_access(
+        self,
+        attachment: Attachment,
+        token: str | None,
+    ) -> None:
+        """校验访问权限（公开文件放行，私有文件需有效 Token）"""
+        if attachment.visibility == AttachmentVisibility.PUBLIC.value:
+            return
+        if not token:
+            raise BusinessException(
+                message=_("error.auth.unauthorized"),
+                code=ErrorCode.UNAUTHORIZED,
+            )
+        payload = self.verify_access_token(token)
+        if payload.get("attachment_id") != attachment.id:
+            raise BusinessException(
+                message=_("error.auth.token_invalid"),
+                code=ErrorCode.TOKEN_INVALID,
+            )
+        if payload.get("tenant_id") != attachment.tenant_id:
+            raise BusinessException(
+                message=_("error.auth.token_invalid"),
+                code=ErrorCode.TOKEN_INVALID,
+            )
+
+    async def _get_access_url(
+        self,
+        attachment: Attachment,
+        expires: int,
+        preview: bool,
+    ) -> str:
+        """按存储驱动生成访问 URL"""
+        if attachment.driver == "local":
+            token = None
+            if attachment.visibility == AttachmentVisibility.PRIVATE.value:
+                token = self.create_access_token(attachment, expires, preview)
+            return self._build_public_access_url(attachment.id, token, preview)
+
+        storage_config = await self._resolve_storage_config_for_attachment(attachment)
+        driver = storage_manager.get_driver(storage_config)
+        visibility = StorageVisibility(attachment.visibility)
+        return await driver.get_url(attachment.path, expires=expires, visibility=visibility)
+
+    async def _resolve_storage_config_for_attachment(
+        self, attachment: Attachment
+    ) -> StorageConfig:
+        """解析附件所属的实际存储配置（平台托管/租户自定义）"""
+        if attachment.driver == "local":
+            return await self._resolve_platform_storage_config()
+        storage_mode = await self._get_storage_mode()
+        if storage_mode == "custom":
+            return await self._resolve_tenant_storage_config()
+        return await self._resolve_platform_storage_config()
+
+    async def _get_storage_mode(self) -> str:
+        """读取租户存储模式（platform/custom）"""
+        mode = await self.config_service.get_tenant_config(
+            self.tenant_id or 0,
+            "tenant_storage_mode",
+            default="platform",
+        )
+        return "custom" if str(mode) == "custom" else "platform"
+
+    async def _resolve_platform_storage_config(self) -> StorageConfig:
+        """读取平台托管存储配置"""
+        driver = await self.config_service.get_platform_config(
+            "platform_storage_driver", default="local"
+        )
+        if str(driver) == "local":
+            # 本地存储使用硬编码路径
+            from app.storage import LOCAL_STORAGE_ROOT
+            root_path = str(LOCAL_STORAGE_ROOT)
+        else:
+            root_path = await self.config_service.get_platform_config(
+                "platform_storage_root_path", default=""
+            )
+        base_url = await self.config_service.get_platform_config(
+            "platform_storage_base_url", default=None
+        )
+        options = await self.config_service.get_platform_config(
+            "platform_storage_options", default={}
+        )
+        return StorageConfig(
+            driver=str(driver),
+            root_path=str(root_path),
+            base_url=base_url,
+            options=options or {},
+        )
+
+    async def _resolve_tenant_storage_config(self) -> StorageConfig:
+        """读取租户自定义存储配置"""
+        driver = await self.config_service.get_tenant_config(
+            self.tenant_id or 0, "tenant_storage_driver", default="s3"
+        )
+        root_path = await self.config_service.get_tenant_config(
+            self.tenant_id or 0, "tenant_storage_root_path", default=""
+        )
+        base_url = await self.config_service.get_tenant_config(
+            self.tenant_id or 0, "tenant_storage_base_url", default=None
+        )
+        options = await self.config_service.get_tenant_config(
+            self.tenant_id or 0, "tenant_storage_options", default={}
+        )
+        return StorageConfig(
+            driver=str(driver),
+            root_path=str(root_path),
+            base_url=base_url,
+            options=options or {},
+        )
+
+    async def _record_download(self, attachment: Attachment, size: int) -> None:
+        """写入下载统计到附件 meta"""
+        meta = attachment.meta or {}
+        count = int(meta.get("download_count", 0)) + 1
+        total_bytes = int(meta.get("download_bytes", 0)) + max(0, int(size))
+        meta["download_count"] = count
+        meta["download_bytes"] = total_bytes
+        repo = self.repo or AttachmentRepository(self.db, attachment.tenant_id)
+        await repo.update(attachment.id, {"meta": meta})
+
+    def _build_public_access_url(
+        self, attachment_id: int, token: str | None, preview: bool
+    ) -> str:
+        """拼装公开访问 URL（本地私有文件附带 token）"""
+        url = f"/api/public/attachments/{attachment_id}/access"
+        params = []
+        if token:
+            params.append(f"token={token}")
+        if preview:
+            params.append("preview=1")
+        if params:
+            url = f"{url}?{'&'.join(params)}"
+        return url
+
+    def _normalize_expires(self, expires: int) -> int:
+        """限制签名有效期范围（60s~86400s）"""
+        if expires <= 0:
+            return 3600
+        return max(60, min(expires, 86400))
+
+
+__all__ = ["AttachmentDownloadService"]

@@ -374,6 +374,265 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         """
         return await self.repo.get_children_with_details(parent_id)
     
+    async def create_member(
+        self,
+        role_id: int,
+        username: str,
+        email: str,
+        password: str,
+        phone: str | None = None,
+        nickname: str | None = None,
+        is_active: bool = True,
+    ) -> Admin:
+        """
+        在节点下创建新成员
+        
+        Args:
+            role_id: 角色/节点 ID
+            username: 用户名
+            email: 邮箱
+            password: 明文密码
+            phone: 手机号
+            nickname: 昵称
+            is_active: 是否激活
+        
+        Returns:
+            创建的管理员
+        
+        Raises:
+            NotFoundException: 角色不存在
+            BusinessException: 节点不允许添加成员或用户名/邮箱已存在
+        """
+        from app.services.system import AdminService
+        
+        role = await self.repo.get_by_id(role_id)
+        if not role:
+            raise NotFoundException(message=_("role.not_found"))
+        
+        # 检查是否允许添加成员
+        if not role.allow_members:
+            raise BusinessException(
+                message=_("role.cannot_add_member"),
+                code=ErrorCode.ROLE_CANNOT_ADD_MEMBER,
+            )
+        
+        # 使用 AdminService 创建管理员，直接关联到指定角色
+        admin_service = AdminService(self.db)
+        admin = await admin_service.create_admin(
+            username=username,
+            email=email,
+            password=password,
+            phone=phone,
+            nickname=nickname,
+            is_active=is_active,
+            is_super=False,  # 通过组织架构创建的成员不能是超管
+            role_id=role_id,
+        )
+        
+        return admin
+    
+    async def update_member(
+        self,
+        role_id: int,
+        admin_id: int,
+        email: str | None = None,
+        phone: str | None = None,
+        nickname: str | None = None,
+        is_active: bool | None = None,
+        new_role_id: int | None = None,
+    ) -> Admin:
+        """
+        更新节点成员信息
+        
+        Args:
+            role_id: 当前角色/节点 ID
+            admin_id: 管理员 ID
+            email: 邮箱
+            phone: 手机号
+            nickname: 昵称
+            is_active: 是否激活
+            new_role_id: 新角色 ID（调整所属角色）
+        
+        Returns:
+            更新后的管理员
+        
+        Raises:
+            NotFoundException: 角色或管理员不存在
+            BusinessException: 管理员不属于该角色或邮箱/手机号已存在
+        """
+        from app.services.system import AdminService
+        
+        role = await self.repo.get_by_id(role_id)
+        if not role:
+            raise NotFoundException(message=_("role.not_found"))
+        
+        # 获取管理员
+        query = select(Admin).where(
+            Admin.id == admin_id,
+            Admin.is_deleted == False,
+        )
+        result = await self.db.execute(query)
+        admin = result.scalar_one_or_none()
+        if not admin:
+            raise NotFoundException(message=_("admin.not_found"))
+        
+        # 检查成员是否属于该角色或其子角色
+        if admin.role_id != role_id:
+            # 检查是否属于子角色
+            if admin.role and admin.role.path:
+                role_path = role.path or f"/{role_id}/"
+                if not admin.role.path.startswith(role_path):
+                    raise BusinessException(
+                        message=_("role.member_not_in_node"),
+                        code=ErrorCode.ROLE_MEMBER_NOT_IN_NODE,
+                    )
+            else:
+                raise BusinessException(
+                    message=_("role.member_not_in_node"),
+                    code=ErrorCode.ROLE_MEMBER_NOT_IN_NODE,
+                )
+        
+        # 使用 AdminService 更新管理员
+        admin_service = AdminService(self.db)
+        
+        update_data = {}
+        if email is not None:
+            update_data["email"] = email
+        if phone is not None:
+            update_data["phone"] = phone
+        if nickname is not None:
+            update_data["nickname"] = nickname
+        if is_active is not None:
+            update_data["is_active"] = is_active
+        if new_role_id is not None:
+            # 验证新角色存在
+            new_role = await self.repo.get_by_id(new_role_id)
+            if not new_role:
+                raise NotFoundException(message=_("role.not_found"))
+            if not new_role.allow_members:
+                raise BusinessException(
+                    message=_("role.cannot_add_member"),
+                    code=ErrorCode.ROLE_CANNOT_ADD_MEMBER,
+                )
+            update_data["role_id"] = new_role_id
+        
+        if update_data:
+            admin = await admin_service.update_admin(admin_id, update_data)
+        
+        return admin
+    
+    async def reset_member_password(
+        self,
+        role_id: int,
+        admin_id: int,
+        new_password: str,
+    ) -> bool:
+        """
+        重置节点成员密码
+        
+        Args:
+            role_id: 角色/节点 ID
+            admin_id: 管理员 ID
+            new_password: 新密码
+        
+        Returns:
+            是否成功
+        
+        Raises:
+            NotFoundException: 角色或管理员不存在
+            BusinessException: 管理员不属于该角色
+        """
+        from app.services.system import AdminService
+        
+        role = await self.repo.get_by_id(role_id)
+        if not role:
+            raise NotFoundException(message=_("role.not_found"))
+        
+        # 获取管理员
+        query = select(Admin).where(
+            Admin.id == admin_id,
+            Admin.is_deleted == False,
+        )
+        result = await self.db.execute(query)
+        admin = result.scalar_one_or_none()
+        if not admin:
+            raise NotFoundException(message=_("admin.not_found"))
+        
+        # 检查成员是否属于该角色或其子角色
+        if admin.role_id != role_id:
+            if admin.role and admin.role.path:
+                role_path = role.path or f"/{role_id}/"
+                if not admin.role.path.startswith(role_path):
+                    raise BusinessException(
+                        message=_("role.member_not_in_node"),
+                        code=ErrorCode.ROLE_MEMBER_NOT_IN_NODE,
+                    )
+            else:
+                raise BusinessException(
+                    message=_("role.member_not_in_node"),
+                    code=ErrorCode.ROLE_MEMBER_NOT_IN_NODE,
+                )
+        
+        # 使用 AdminService 重置密码
+        admin_service = AdminService(self.db)
+        return await admin_service.reset_password(admin_id, new_password)
+    
+    async def toggle_member_status(
+        self,
+        role_id: int,
+        admin_id: int,
+        is_active: bool,
+    ) -> Admin:
+        """
+        切换节点成员状态
+        
+        Args:
+            role_id: 角色/节点 ID
+            admin_id: 管理员 ID
+            is_active: 是否激活
+        
+        Returns:
+            更新后的管理员
+        
+        Raises:
+            NotFoundException: 角色或管理员不存在
+            BusinessException: 管理员不属于该角色
+        """
+        from app.services.system import AdminService
+        
+        role = await self.repo.get_by_id(role_id)
+        if not role:
+            raise NotFoundException(message=_("role.not_found"))
+        
+        # 获取管理员
+        query = select(Admin).where(
+            Admin.id == admin_id,
+            Admin.is_deleted == False,
+        )
+        result = await self.db.execute(query)
+        admin = result.scalar_one_or_none()
+        if not admin:
+            raise NotFoundException(message=_("admin.not_found"))
+        
+        # 检查成员是否属于该角色或其子角色
+        if admin.role_id != role_id:
+            if admin.role and admin.role.path:
+                role_path = role.path or f"/{role_id}/"
+                if not admin.role.path.startswith(role_path):
+                    raise BusinessException(
+                        message=_("role.member_not_in_node"),
+                        code=ErrorCode.ROLE_MEMBER_NOT_IN_NODE,
+                    )
+            else:
+                raise BusinessException(
+                    message=_("role.member_not_in_node"),
+                    code=ErrorCode.ROLE_MEMBER_NOT_IN_NODE,
+                )
+        
+        # 使用 AdminService 切换状态
+        admin_service = AdminService(self.db)
+        return await admin_service.toggle_status(admin_id, is_active)
+    
     async def add_member(
         self,
         role_id: int,
@@ -434,7 +693,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         admin_id: int,
     ) -> AdminRole:
         """
-        从节点移除成员
+        删除节点成员（软删除）
         
         Args:
             role_id: 角色/节点 ID
@@ -445,7 +704,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         
         Raises:
             NotFoundException: 角色或管理员不存在
-            BusinessException: 管理员不是该节点成员
+            BusinessException: 管理员不是该节点成员或不允许删除
         """
         role = await self.repo.get_by_id(role_id)
         if not role:
@@ -461,19 +720,35 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         if not admin:
             raise NotFoundException(message=_("admin.not_found"))
         
-        # 检查是否是该节点成员
+        # 检查是否是该节点或其子节点的成员
+        role_path = role.path + "/"
         if admin.role_id != role_id:
+            # 可能在子节点中，检查路径
+            if admin.role and admin.role.path:
+                if not admin.role.path.startswith(role_path) and admin.role_id != role_id:
+                    raise BusinessException(
+                        message=_("role.member_not_in_node"),
+                        code=ErrorCode.ROLE_MEMBER_NOT_IN_NODE,
+                    )
+            else:
+                raise BusinessException(
+                    message=_("role.member_not_in_node"),
+                    code=ErrorCode.ROLE_MEMBER_NOT_IN_NODE,
+                )
+        
+        # 保护超级管理员：不允许删除
+        if admin.is_super:
             raise BusinessException(
-                message=_("role.member_not_in_node"),
-                code=ErrorCode.ROLE_MEMBER_NOT_IN_NODE,
+                message=_(ErrorCode.ADMIN_CANNOT_REMOVE_SUPER.message_key),
+                code=ErrorCode.ADMIN_CANNOT_REMOVE_SUPER,
             )
         
         # 如果是负责人，先取消负责人
         if role.leader_id == admin_id:
             await self.repo.update(role_id, {"leader_id": None})
         
-        # 移除成员（将 role_id 设为 None）
-        admin.role_id = None
+        # 软删除成员
+        admin.is_deleted = True
         await self.db.flush()
         
         return await self.repo.get_by_id(role_id)
