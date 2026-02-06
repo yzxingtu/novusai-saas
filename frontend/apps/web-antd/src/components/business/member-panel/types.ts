@@ -1,7 +1,6 @@
 /**
  * 成员管理面板组件类型定义
  */
-import type { adminApi } from '#/api';
 import type { OrgMember } from '#/api/admin/organization';
 
 /** 成员面板 Props */
@@ -103,34 +102,17 @@ export interface UseMemberPanelReturn {
   toggleIncludeDescendants: (value: boolean) => Promise<void>;
 }
 
-// ============ 类型转换工具函数 ============
-
 /**
- * 将 OrgMember 转换为 AdminInfo 格式
- * 用于编辑成员时传递给 AdminFormDrawer
+ * 提取用于重置密码弹窗所需的最小信息
  */
-export function toAdminInfo(member: OrgMember): adminApi.AdminInfo {
+export function toResetPasswordInfo(member: OrgMember): {
+  id: number;
+  roleId?: number;
+  username: string;
+} {
   return {
     id: member.id,
     username: member.username,
-    email: member.email,
-    nickname: member.realName,
-    isActive: member.isActive,
-    isSuper: false,
     roleId: member.roleId,
-    roleName: member.roleName,
-    createdAt: member.createdAt || '',
-  };
-}
-
-/**
- * 提取用于重置密码弹窗所需的最小 AdminInfo
- */
-export function toResetPasswordInfo(
-  member: OrgMember,
-): Pick<adminApi.AdminInfo, 'id' | 'username'> {
-  return {
-    id: member.id,
-    username: member.username,
   };
 }

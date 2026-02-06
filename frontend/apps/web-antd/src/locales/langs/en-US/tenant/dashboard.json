@@ -1,0 +1,16 @@
+{
+  "title": "Tenant Admin Dashboard",
+  "welcome": "Welcome back",
+  "greeting": "Hello, {name}!",
+  "description": "This is the tenant management dashboard where you can manage your tenant resources.",
+  "stats": {
+    "users": "Users",
+    "orders": "Orders",
+    "revenue": "Revenue",
+    "growth": "Growth Rate",
+    "totalUsers": "Total Users",
+    "activeUsers": "Active Users",
+    "apiCalls": "API Calls",
+    "resourceUsage": "Resource Usage"
+  }
+}

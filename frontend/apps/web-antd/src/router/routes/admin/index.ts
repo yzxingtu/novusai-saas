@@ -62,6 +62,17 @@ const mainRoutes: RouteRecordRaw = {
         title: $t('admin.system.configs.title'),
       },
     },
+    // Fallback 静态注册：附件管理（后端菜单动态路由优先生效）
+    {
+      name: 'AdminSystemAttachments',
+      path: 'system/attachments',
+      component: () => import('#/views/admin/system/attachments/index.vue'),
+      meta: {
+        hideInMenu: true,
+        icon: 'lucide:paperclip',
+        title: $t('admin.system.attachment.title'),
+      },
+    },
   ],
 };
 

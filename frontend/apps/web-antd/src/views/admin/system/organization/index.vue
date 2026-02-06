@@ -9,6 +9,8 @@ import type { OrgTreeNodeData } from '#/components/business/org-tree';
 
 import { computed, onMounted, ref } from 'vue';
 
+defineOptions({ name: 'SystemOrganization' });
+
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -144,8 +146,7 @@ async function handleDeleteNode(node: OrgTreeNodeData) {
     if (selectedNode.value?.id === node.id) {
       selectedNode.value = null;
     }
-  } catch (error) {
-    console.error('Delete node error:', error);
+  } catch {
     message.error($t('shared.common.deleteFailed'));
   } finally {
     deleting.value = false;
@@ -176,12 +177,14 @@ onMounted(async () => {
 
 <template>
   <Page auto-content-height>
-    <div class="flex h-full gap-2 overflow-hidden lg:gap-4">
+    <div
+      class="flex h-full flex-col gap-2 overflow-hidden md:flex-row lg:gap-4"
+    >
       <!-- 左侧：组织树 -->
       <div
-        class="flex flex-shrink-0 flex-col overflow-hidden rounded-xl bg-card shadow-sm transition-all duration-300"
+        class="flex w-full flex-shrink-0 flex-col overflow-hidden rounded-xl bg-card shadow-sm transition-all duration-300 md:w-[320px] lg:w-[380px] xl:w-[440px]"
         :class="[
-          treeCollapsed ? 'w-12' : 'w-[320px] lg:w-[380px] xl:w-[440px]',
+          treeCollapsed ? 'h-12 md:h-auto md:w-12' : 'h-[300px] md:h-auto',
         ]"
       >
         <!-- 工具栏 -->
@@ -392,7 +395,7 @@ onMounted(async () => {
                           class="h-3 w-3 text-warning"
                         />
                         {{
-                          selectedNode.leader.realName ||
+                          selectedNode.leader.nickname ||
                           selectedNode.leader.username
                         }}
                       </span>

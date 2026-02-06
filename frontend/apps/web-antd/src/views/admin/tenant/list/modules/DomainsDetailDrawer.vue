@@ -23,7 +23,9 @@ import {
 
 import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
-import { copyToClipboard, formatDate } from '#/utils/common';
+import { formatDate } from '#/utils/common';
+
+import DomainsDnsGuideModal from './domains-dns-guide-modal.vue';
 
 // Emits
 const emits = defineEmits<{
@@ -37,6 +39,9 @@ const loading = ref(false);
 const submitting = ref(false);
 const editMode = ref(false);
 const editRemark = ref('');
+
+// 子组件引用
+const dnsGuideModalRef = ref<InstanceType<typeof DomainsDnsGuideModal>>();
 
 // Drawer
 const [Drawer, drawerApi] = useVbenDrawer({
@@ -69,9 +74,7 @@ async function loadDetail() {
     );
     domainDetail.value = result as TenantDomainInfo;
     editRemark.value = result.remark || '';
-  } catch (error) {
-    console.error('Failed to load domain detail:', error);
-  } finally {
+  } catch {} finally {
     loading.value = false;
   }
 }
@@ -103,20 +106,18 @@ async function onSaveRemark() {
     editMode.value = false;
     await loadDetail();
     emits('success');
-  } catch (error) {
-    console.error('Failed to update remark:', error);
-  } finally {
+  } catch {} finally {
     submitting.value = false;
   }
 }
 
 /** 复制文本 */
-function onCopy(text?: string) {
-  if (text) {
-    copyToClipboard(text);
-    message.success($t('admin.tenant.domain.copySuccess'));
-  }
-}
+// function onCopy(text?: string) {
+//   if (text) {
+//     copyToClipboard(text);
+//     message.success($t('admin.tenant.domain.copySuccess'));
+//   }
+// }
 
 /** 获取验证状态标签配置 */
 function getVerificationTagConfig(status: string) {
@@ -163,6 +164,20 @@ function getSslTagConfig(status: string) {
   }
 }
 
+/** 打开 DNS 引导 */
+function onOpenDnsGuide() {
+  if (!domainDetail.value || !detailData.value?.tenantId) return;
+  const guideData = {
+    domain: domainDetail.value.domain,
+    tenantId: detailData.value.tenantId,
+    domainId: domainDetail.value.id,
+    verificationInfo: domainDetail.value.verificationInfo,
+    verificationToken: domainDetail.value.verificationToken,
+    cnameTarget: domainDetail.value.cnameTarget,
+  };
+  dnsGuideModalRef.value?.open(guideData);
+}
+
 /** 打开抽屉 */
 function open(data: DomainDetailData) {
   drawerApi.setData(data).open();
@@ -173,6 +188,7 @@ defineExpose({ open });
 
 <template>
   <Drawer :title="$t('admin.tenant.domain.detail')" class="w-[500px]">
+    <DomainsDnsGuideModal ref="dnsGuideModalRef" />
     <Spin :spinning="loading">
       <template v-if="domainDetail">
         <!-- 基本信息 -->
@@ -212,6 +228,17 @@ defineExpose({ open });
                 getVerificationTagConfig(domainDetail.verificationStatus).text
               }}
             </Tag>
+            <!-- DNS 配置按钮 (待验证才显示) -->
+            <Button
+              v-if="domainDetail.verificationStatus === 'pending'"
+              type="link"
+              size="small"
+              class="ml-2 !p-0"
+              @click="onOpenDnsGuide"
+            >
+              <IconifyIcon icon="lucide:info" class="mr-1 size-3" />
+              {{ $t('admin.tenant.domain.dnsGuide.title') }}
+            </Button>
             <span
               v-if="domainDetail.verifiedAt"
               class="ml-2 text-xs text-gray-400"
@@ -241,75 +268,6 @@ defineExpose({ open });
             {{ formatDate(domainDetail.updatedAt) }}
           </Descriptions.Item>
         </Descriptions>
-
-        <!-- DNS 配置信息 (待验证才显示) -->
-        <template v-if="domainDetail.verificationStatus === 'pending'">
-          <div class="mb-4">
-            <h4 class="mb-2 text-sm font-medium">
-              {{ $t('admin.tenant.domain.dnsGuide.title') }}
-            </h4>
-            <Descriptions :column="1" bordered size="small">
-              <Descriptions.Item
-                v-if="domainDetail.verificationInfo?.type"
-                :label="$t('admin.tenant.domain.dnsGuide.recordType')"
-              >
-                <Tag>{{ domainDetail.verificationInfo.type }}</Tag>
-              </Descriptions.Item>
-              <Descriptions.Item
-                v-if="domainDetail.verificationInfo?.host"
-                :label="$t('admin.tenant.domain.dnsGuide.hostRecord')"
-              >
-                <div class="flex items-center justify-between gap-2">
-                  <code class="break-all text-xs">{{
-                    domainDetail.verificationInfo.host
-                  }}</code>
-                  <IconifyIcon
-                    icon="lucide:copy"
-                    class="size-4 shrink-0 cursor-pointer text-gray-400 hover:text-primary"
-                    @click="onCopy(domainDetail.verificationInfo?.host)"
-                  />
-                </div>
-              </Descriptions.Item>
-              <Descriptions.Item
-                v-if="
-                  domainDetail.verificationInfo?.value ||
-                  domainDetail.verificationToken
-                "
-                :label="$t('admin.tenant.domain.dnsGuide.recordValue')"
-              >
-                <div class="flex items-center justify-between gap-2">
-                  <code class="break-all text-xs">{{
-                    domainDetail.verificationInfo?.value ||
-                    domainDetail.verificationToken
-                  }}</code>
-                  <IconifyIcon
-                    icon="lucide:copy"
-                    class="size-4 shrink-0 cursor-pointer text-gray-400 hover:text-primary"
-                    @click="
-                      onCopy(
-                        domainDetail.verificationInfo?.value ||
-                          domainDetail.verificationToken ||
-                          '',
-                      )
-                    "
-                  />
-                </div>
-              </Descriptions.Item>
-              <Descriptions.Item v-if="domainDetail.cnameTarget" label="CNAME">
-                <div class="flex items-center justify-between gap-2">
-                  <code class="break-all text-xs">{{
-                    domainDetail.cnameTarget
-                  }}</code>
-                  <IconifyIcon
-                    icon="lucide:copy"
-                    class="size-4 shrink-0 cursor-pointer text-gray-400 hover:text-primary"
-                    @click="onCopy(domainDetail.cnameTarget)"
-                  />
-                </div>
-              </Descriptions.Item>
-            </Descriptions>
-          </div>
-        </template>
 
         <!-- 备注编辑 -->
         <div class="rounded-lg border border-gray-200 p-4">

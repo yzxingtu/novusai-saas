@@ -255,12 +255,20 @@ export function useAutoTableDragSort(
   let attempts = 0;
   const MAX_ATTEMPTS = 50; // 最多尝试 5 秒 (50 * 100ms)
 
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+    attempts = 0;
+  }
+
   /**
    * 轮询等待 grid 实例可用且数据已加载
    * gridApi.grid 不是响应式的，无法用 watch 监听
    */
   function startPolling() {
-    if (pollTimer) return;
+    stopPolling();
 
     pollTimer = setInterval(() => {
       attempts++;
@@ -291,13 +299,6 @@ export function useAutoTableDragSort(
     }, 100);
   }
 
-  function stopPolling() {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
-  }
-
   // 组件挂载后开始轮询
   onMounted(() => {
     startPolling();
@@ -306,7 +307,17 @@ export function useAutoTableDragSort(
   // 组件卸载时清理
   onUnmounted(() => {
     stopPolling();
+    dragSort.destroy();
   });
+
+  // @ts-ignore
+  if (import.meta.hot) {
+    // @ts-ignore
+    import.meta.hot.dispose(() => {
+      stopPolling();
+      dragSort.destroy();
+    });
+  }
 
   return dragSort;
 }

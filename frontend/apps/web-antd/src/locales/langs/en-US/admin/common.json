@@ -1,0 +1,17 @@
+{
+  "operation": "Operation",
+  "more": "More",
+  "enable": "Enable",
+  "disable": "Disable",
+  "enabled": "Enabled",
+  "disabled": "Disabled",
+  "notAssigned": "Not Assigned",
+  "notSet": "Not Set",
+  "basicInfo": "Basic Info",
+  "contactInfo": "Contact Info",
+  "permissionSettings": "Permission Settings",
+  "accountStatus": "Account Status",
+  "selectAll": "Select All",
+  "unselectAll": "Unselect All",
+  "createdAt": "Created At"
+}

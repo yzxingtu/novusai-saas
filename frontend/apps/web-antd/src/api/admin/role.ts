@@ -86,6 +86,8 @@ export interface RoleInfoRaw {
   member_count?: number;
   leader_id?: null | number;
   leader?: LeaderBasicInfo | null;
+  parent_id?: null | number;
+  children?: RoleInfoRaw[];
 }
 
 /** 角色信息（前端格式 camelCase） */
@@ -131,16 +133,14 @@ function transformRoleInfo(raw: RoleInfoRaw): RoleInfo {
     description: raw.description,
     isActive: raw.is_active,
     sortOrder: raw.sort_order,
-    parentId: (raw as any).parent_id,
+    parentId: raw.parent_id,
     permissions: raw.permissions,
     permissionIds: raw.permission_ids,
     permissionsCount:
-      (raw as any).permissions_count ??
+      raw.permissions_count ??
       raw.permission_ids?.length ??
       (raw.permissions ? raw.permissions.length : 0),
-    children: (raw as any).children?.map((item: RoleInfoRaw) =>
-      transformRoleInfo(item),
-    ),
+    children: raw.children?.map((item: RoleInfoRaw) => transformRoleInfo(item)),
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
     // 组织架构扩展字段

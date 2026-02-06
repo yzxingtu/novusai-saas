@@ -48,8 +48,7 @@ const [Modal, modalApi] = useVbenModal({
       });
       emits('success');
       modalApi.close();
-    } catch (error) {
-      console.error('Failed to save permissions:', error);
+    } catch {
       modalApi.unlock();
     }
   },
@@ -88,18 +87,30 @@ async function loadData() {
     // 转换为 PermissionNode 格式
     permissionTree.value = transformPermissions(availablePermissions);
 
-    // 确保 assignedIds 是数字数组（防御性处理）
-    const assignedIds = Array.isArray(assignedResult)
-      ? assignedResult.map((item) =>
-          typeof item === 'object' && item !== null ? (item as any).id : item,
-        )
-      : [];
+    // 确保 assignedIds 是数字数组（兼容数组和对象包装格式）
+    let rawAssignedList: unknown[] = [];
+    if (Array.isArray(assignedResult)) {
+      rawAssignedList = assignedResult;
+    } else if (assignedResult && typeof assignedResult === 'object') {
+      // 处理可能的包装格式 { items: [...] } 或 { data: [...] }
+      // 使用类型断言为 unknown Record 以避免 any，但保持灵活性
+      const resultObj = assignedResult as Record<string, unknown>;
+      if (Array.isArray(resultObj.items)) {
+        rawAssignedList = resultObj.items;
+      } else if (Array.isArray(resultObj.data)) {
+        rawAssignedList = resultObj.data;
+      }
+    }
+
+    const assignedIds = rawAssignedList.map((item) =>
+      typeof item === 'object' && item !== null
+        ? (item as { id?: unknown }).id
+        : item,
+    );
     selectedPermissionIds.value = assignedIds.filter(
       (id): id is number => typeof id === 'number',
     );
-  } catch (error) {
-    console.error('Failed to load permissions:', error);
-  } finally {
+  } catch {} finally {
     loading.value = false;
   }
 }

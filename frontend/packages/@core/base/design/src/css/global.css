@@ -124,23 +124,15 @@
   }
 
   .outline-box {
-    @apply outline-border relative cursor-pointer rounded-md p-1 outline outline-1;
+    @apply border-border relative cursor-pointer rounded-md border-2 border-transparent px-4 py-4 transition-colors duration-300 ease-in-out;
   }
 
-  .outline-box::after {
-    @apply absolute left-1/2 top-1/2 z-20 h-0 w-[1px] rounded-sm opacity-0 outline outline-2 outline-transparent transition-all duration-300 content-[""];
+  .outline-box:hover {
+    @apply border-primary;
   }
 
   .outline-box.outline-box-active {
-    @apply outline-primary outline outline-2;
-  }
-
-  .outline-box.outline-box-active::after {
-    display: none;
-  }
-
-  .outline-box:not(.outline-box-active):hover::after {
-    @apply outline-primary left-0 top-0 h-full w-full p-1 opacity-100;
+    @apply border-primary;
   }
 
   .vben-link {

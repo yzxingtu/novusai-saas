@@ -96,9 +96,7 @@ async function loadSslDetail() {
       autoRenew: false,
     };
     selectedType.value = sslDetail.value.type;
-  } catch (error) {
-    console.error('Failed to load SSL detail:', error);
-  } finally {
+  } catch {} finally {
     loading.value = false;
   }
 }

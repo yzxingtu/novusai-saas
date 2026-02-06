@@ -19,12 +19,14 @@ export type RoleTreeApi = AnyPromiseFunction<any, any>;
 export function useAdminFormSchema(options: {
   /** 是否编辑模式 */
   isEdit?: boolean;
-  /** 组织节点名称（新建模式下显示只读角色） */
+  /** 当前组织节点 ID（用于默认选中） */
+  nodeId?: null | number;
+  /** 组织节点名称（用于默认显示） */
   nodeName?: string;
-  /** 角色树 API（编辑模式下可选择角色） */
+  /** 角色树 API（可选择角色） */
   roleTreeApi?: RoleTreeApi;
 }): VbenFormSchema[] {
-  const { isEdit = false, nodeName, roleTreeApi } = options;
+  const { isEdit = false, nodeName, nodeId, roleTreeApi } = options;
 
   return [
     // === 基本信息 ===
@@ -116,8 +118,8 @@ export function useAdminFormSchema(options: {
         default: () => $t('admin.common.permissionSettings'),
       }),
     },
-    // 角色选择：编辑模式且有 roleTreeApi 时使用树形选择器，否则显示只读文本
-    ...(isEdit && roleTreeApi
+    // 角色选择：若提供 roleTreeApi，则显示可选下拉树，默认选中当前节点；否则显示只读文本
+    ...(roleTreeApi
       ? [
           {
             component: 'ApiTreeSelect',
@@ -136,6 +138,7 @@ export function useAdminFormSchema(options: {
             fieldName: 'role_id',
             label: $t('admin.system.admin.role'),
             rules: 'required',
+            defaultValue: nodeId ?? undefined,
           },
         ]
       : (nodeName
@@ -172,11 +175,16 @@ export function useAdminFormSchema(options: {
 /**
  * 管理员表单默认值（新建模式）
  * @param nodeName 组织节点名称
+ * @param nodeId 组织节点 ID（用于默认选中角色）
  */
-export function getAdminFormDefaults(nodeName?: string): Record<string, any> {
+export function getAdminFormDefaults(
+  nodeName?: string,
+  nodeId?: null | number,
+): Record<string, any> {
   return {
     is_active: true,
     role_display: nodeName || $t('admin.common.notSelected'),
+    role_id: nodeId ?? undefined,
   };
 }
 

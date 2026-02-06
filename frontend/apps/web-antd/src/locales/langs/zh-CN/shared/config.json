@@ -4,7 +4,8 @@
     "unsaved_title": "存在未保存的修改",
     "unsaved_content": "当前配置尚未保存，确定要离开吗？",
     "password_placeholder": "如需修改请输入新密码",
-    "select_group": "请从左侧选择配置分组"
+    "select_group": "请从左侧选择配置分组",
+    "json_placeholder": "请输入 JSON 格式的配置"
   },
   "group": {
     "platform_general": "通用设置",

@@ -139,7 +139,7 @@ export function downloadCsv(
   } else if (Array.isArray(data[0])) {
     // 二维数组
     csvContent = (data as unknown[][])
-      .map((row) => row.map(escapeCsvCell).join(','))
+      .map((row) => row.map((cell) => escapeCsvCell(cell)).join(','))
       .join('\n');
   } else {
     // 对象数组
@@ -147,7 +147,7 @@ export function downloadCsv(
     const keys = headers || Object.keys(objData[0] || {});
 
     // 表头
-    csvContent = `${keys.map(escapeCsvCell).join(',')}\n`;
+    csvContent = `${keys.map((key) => escapeCsvCell(key)).join(',')}\n`;
 
     // 数据行
     csvContent += objData
@@ -183,7 +183,9 @@ function escapeCsvCell(value: unknown): string {
  */
 export function downloadBase64(base64: string, options: DownloadOptions): void {
   // 移除 data URL 前缀（如果有）
-  const base64Data = base64.includes(',') ? base64.split(',')[1]! : base64;
+  const base64Data = base64.includes(',')
+    ? (base64.split(',')[1] ?? base64)
+    : base64;
 
   const { filename, mimeType } = options;
   const finalMimeType = getMimeType(filename, mimeType);

@@ -17,7 +17,7 @@ export type TenantOrgNodeType = 'department' | 'position' | 'role';
 export interface TenantLeaderInfo {
   id: number;
   username: string;
-  realName?: string;
+  nickname?: string;
   avatar?: string;
 }
 
@@ -71,7 +71,7 @@ export interface TenantOrgNodeInfo {
 export interface TenantOrgMemberRaw {
   id: number;
   username: string;
-  real_name?: string;
+  nickname?: string;
   email?: string;
   avatar?: string;
   is_active: boolean;
@@ -91,7 +91,7 @@ export interface TenantOrgMemberRaw {
 export interface TenantOrgMember {
   id: number;
   username: string;
-  realName?: string;
+  nickname?: string;
   email?: string;
   avatar?: string;
   isActive: boolean;
@@ -146,21 +146,21 @@ export interface TenantCreateMemberRequest {
   email: string;
   password: string;
   phone?: null | string;
-  realName?: null | string;
-  isActive?: boolean;
-  isSuper?: boolean;
+  nickname?: null | string;
+  is_active?: boolean;
+  is_super?: boolean;
 }
 
 /** 更新成员请求 */
 export interface TenantUpdateMemberRequest {
   email?: null | string;
   phone?: null | string;
-  realName?: null | string;
+  nickname?: null | string;
   avatar?: null | string;
-  isActive?: boolean | null;
-  isSuper?: boolean | null;
+  is_active?: boolean | null;
+  is_super?: boolean | null;
   /** 新角色 ID（调整所属角色组） */
-  roleId?: null | number;
+  role_id?: null | number;
 }
 
 /** 重置成员密码请求 */
@@ -210,7 +210,7 @@ function transformOrgMember(raw: TenantOrgMemberRaw): TenantOrgMember {
   return {
     id: raw.id,
     username: raw.username,
-    realName: raw.real_name,
+    nickname: raw.nickname,
     email: raw.email,
     avatar: raw.avatar,
     isActive: raw.is_active,

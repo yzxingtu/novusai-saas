@@ -1,0 +1,12 @@
+{
+  "title": "Dashboard",
+  "welcome": "Welcome back",
+  "greeting": "Hello, {name}!",
+  "description": "This is the platform management console where you can manage tenants and system configurations.",
+  "stats": {
+    "totalTenants": "Total Tenants",
+    "activeTenants": "Active Tenants",
+    "totalAdmins": "Total Admins",
+    "systemHealth": "System Health"
+  }
+}

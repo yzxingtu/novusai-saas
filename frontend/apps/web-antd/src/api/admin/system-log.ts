@@ -166,7 +166,7 @@ export async function getSystemLogCategoriesApi(
     `${API_PREFIX}/categories`,
     options,
   );
-  return raw.map(transformCategory);
+  return raw.map((item) => transformCategory(item));
 }
 
 /**
@@ -181,7 +181,7 @@ export async function getSystemLogFilesApi(
     `${API_PREFIX}/files`,
     { params, ...options },
   );
-  return raw.map(transformFile);
+  return raw.map((item) => transformFile(item));
 }
 
 /**

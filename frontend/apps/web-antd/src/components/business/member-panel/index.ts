@@ -7,7 +7,7 @@
 export type { RoleTreeApi } from './data';
 
 // 组件导出
-export { default as MemberPanel } from './member-panel.vue';
+export { default as MemberPanel } from './MemberPanel.vue';
 export type {
   MemberPanelProps,
   UseMemberPanelOptions,

@@ -5,6 +5,8 @@ import { Card } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
+defineOptions({ name: 'TenantDashboard' });
+
 const userStore = useUserStore();
 </script>
 

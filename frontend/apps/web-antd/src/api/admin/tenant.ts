@@ -193,6 +193,32 @@ function transformTenantInfo(raw: TenantInfoRaw): TenantInfo {
 
 const API_PREFIX = '/admin/tenants';
 
+/** 租户下拉选项结果 */
+export interface TenantSelectOption {
+  label: string;
+  value: number;
+  extra?: {
+    code?: string;
+    isActive?: boolean;
+  };
+}
+
+/**
+ * 获取租户下拉选项
+ * GET /admin/tenants/select
+ *
+ * 权限: tenant:select
+ */
+export async function getTenantSelectApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<{ items: TenantSelectOption[] }> {
+  return requestClient.get<{ items: TenantSelectOption[] }>(
+    `${API_PREFIX}/select`,
+    { params, ...options },
+  );
+}
+
 /**
  * 获取租户列表
  * GET /admin/tenants

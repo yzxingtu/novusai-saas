@@ -81,7 +81,7 @@ export function getPlanColor(plan: null | TenantPlan | undefined): string {
  * @param onStatusChange 状态切换回调
  */
 export function useColumns<T = TenantInfo>(
-  onActionClick: OnActionClickFn<T>,
+  _onActionClick: OnActionClickFn<T>,
   onStatusChange?: (newStatus: boolean, row: T) => Promise<boolean | undefined>,
 ): VxeTableGridOptions['columns'] {
   return [
@@ -104,18 +104,9 @@ export function useColumns<T = TenantInfo>(
     {
       field: 'primaryDomain',
       title: $t('admin.tenant.domain.primaryDomain'),
-      minWidth: 180,
+      minWidth: 220,
       slots: {
         default: 'primaryDomain_cell',
-      },
-    },
-    {
-      field: 'domainCount',
-      title: $t('admin.tenant.domain.domainCount'),
-      width: 90,
-      align: 'center',
-      slots: {
-        default: 'domainCount_cell',
       },
     },
     {
@@ -184,41 +175,13 @@ export function useColumns<T = TenantInfo>(
     },
     {
       align: 'center',
-      cellRender: {
-        attrs: {
-          resource: 'tenant', // 自动检查 tenant:update, tenant:delete
-          nameField: 'name',
-          nameTitle: $t('admin.tenant.name'),
-          onClick: onActionClick,
-        },
-        name: 'CellOperation',
-        options: [
-          {
-            code: 'manageDomains',
-            text: $t('admin.tenant.manageDomains'),
-            icon: 'lucide:globe',
-            accessCodes: ['tenant:update'], // 域名管理需要更新权限
-          },
-          {
-            code: 'resetPassword',
-            text: $t('admin.tenant.resetPassword'),
-            icon: 'lucide:key-round',
-            accessCodes: ['tenant:update'], // 重置密码需要更新权限
-          },
-          {
-            code: 'impersonate',
-            text: $t('admin.tenant.enterBackend'),
-            icon: 'lucide:log-in',
-            accessCodes: ['tenant:impersonate'], // 自定义权限
-          },
-          'edit', // 自动鉴权: tenant:update
-          'delete', // 自动鉴权: tenant:delete
-        ],
-      },
       field: 'operation',
       fixed: 'right',
+      slots: {
+        default: 'operation_cell',
+      },
       title: $t('admin.common.operation'),
-      width: 120,
+      width: 140,
     },
   ];
 }

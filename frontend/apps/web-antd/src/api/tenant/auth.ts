@@ -66,14 +66,13 @@ export async function tenantLoginApi(
 export async function tenantRefreshTokenApi(
   refreshToken: string,
 ): Promise<RefreshTokenResult> {
-  const response = await baseRequestClient.post<{
+  const responseData = await baseRequestClient.post<{
     code: number;
     data: RefreshTokenResultRaw;
     message: string;
   }>(`${API_PREFIX}/refresh`, {
     refresh_token: refreshToken,
   });
-  const responseData = response.data;
   if (responseData.code !== 0) {
     throw new Error(
       responseData.message || $t('tenant.impersonate.refreshFailed'),
@@ -183,12 +182,11 @@ export interface ImpersonateTokenRequest {
 export async function impersonateLoginApi(
   impersonateToken: string,
 ): Promise<LoginResult> {
-  const response = await baseRequestClient.post<{
+  const responseData = await baseRequestClient.post<{
     code: number;
     data: LoginResultRaw;
     message: string;
   }>(`${API_PREFIX}/impersonate`, { impersonate_token: impersonateToken });
-  const responseData = response.data;
   if (responseData.code !== 0) {
     throw new Error(
       responseData.message || $t('tenant.impersonate.loginFailed'),

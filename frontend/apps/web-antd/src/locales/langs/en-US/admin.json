@@ -176,6 +176,7 @@
   },
   "common": {
     "operation": "Operation",
+    "more": "More",
     "enable": "Enable",
     "disable": "Disable",
     "enabled": "Enabled",
@@ -188,6 +189,7 @@
     "accountStatus": "Account Status",
     "selectAll": "Select All",
     "unselectAll": "Unselect All",
-    "createdAt": "Created At"
+    "createdAt": "Created At",
+    "unlimited": "Unlimited"
   }
 }

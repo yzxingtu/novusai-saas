@@ -12,14 +12,12 @@ export type ConfigValueType =
   | 'password'
   | 'select'
   | 'string'
-  | 'text'
-  | 'tag';
+  | 'text';
 
 export interface ValidationRuleMeta {
   type: 'max_length' | 'max_value' | 'min_length' | 'min_value' | 'pattern';
   value: number | string;
-  message_key?: string;
-  message?: string;
+  message_key: string;
 }
 
 export interface ConfigOptionMeta {
@@ -33,7 +31,7 @@ export interface ConfigOptionMeta {
 /**
  * 显示规则操作符类型
  */
-export type DisplayRuleOperator = 'equals' | 'in' | 'not_equals';
+export type DisplayRuleOperator = 'equals' | 'in';
 
 /**
  * 显示规则定义
@@ -85,14 +83,6 @@ export interface ConfigItemMeta {
    * 用于 JSON 类型字段的结构化表单渲染
    */
   children?: ConfigItemMeta[];
-  /**
-   * 标签分隔符
-   */
-  tag_separator?: string;
-  /**
-   * 文件接受类型
-   */
-  file_accept?: string;
 }
 
 export interface ConfigGroupListItemMeta {
@@ -110,9 +100,7 @@ export interface ConfigGroupListItemMeta {
 
 export interface ConfigGroupMeta {
   code: string;
-  name?: string;
-  name_key?: string;
-  description?: string;
+  name_key: string;
   description_key?: string;
   icon?: string;
   sort_order: number;

@@ -116,6 +116,11 @@ export interface ApiRequestOptions {
    * @default true
    */
   showErrorMessage?: boolean;
+
+  /**
+   * 用于取消请求的 AbortSignal
+   */
+  signal?: AbortSignal;
 }
 
 /**

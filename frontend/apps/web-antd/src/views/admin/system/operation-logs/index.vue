@@ -6,6 +6,8 @@ import type { adminApi } from '#/api';
 
 import { ref } from 'vue';
 
+defineOptions({ name: 'SystemOperationLogList' });
+
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -29,7 +31,7 @@ import {
   useColumns,
   useGridFormSchema,
 } from './data';
-import DetailDrawer from './modules/detail.vue';
+import DetailDrawer from './modules/LogDetail.vue';
 
 type OperationLogInfo = adminApi.OperationLogInfo;
 
@@ -98,17 +100,17 @@ function onSelectionChange(rows: OperationLogInfo[]) {
       <Grid @selection-change="onSelectionChange">
         <!-- 用户名列 -->
         <template #username_cell="{ row }">
-          <span class="font-medium">{{ row.username }}</span>
+          <span class="font-medium">{{ row.nickname || row.username }}</span>
         </template>
 
         <!-- 模块列 -->
         <template #module_cell="{ row }">
-          <Tag color="blue">{{ row.module }}</Tag>
+          <Tag color="blue">{{ row.moduleLabel || row.module }}</Tag>
         </template>
 
         <!-- 操作类型列 -->
         <template #action_cell="{ row }">
-          <Tag color="purple">{{ row.action }}</Tag>
+          <Tag color="purple">{{ row.actionLabel || row.action }}</Tag>
         </template>
 
         <!-- 请求方法列 -->

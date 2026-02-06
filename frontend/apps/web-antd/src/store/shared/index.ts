@@ -4,4 +4,5 @@
  */
 
 export * from './multi-auth';
+export * from './public-config';
 export * from './token-storage';

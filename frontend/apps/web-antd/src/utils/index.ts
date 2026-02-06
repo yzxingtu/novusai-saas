@@ -54,5 +54,8 @@ export {
   mapEndpoints,
 } from './endpoint';
 
+// 图片处理工具
+export * from './image';
+
 // HTTP 请求客户端
 export { type ApiRequestOptions, requestClient } from './request';

@@ -335,7 +335,7 @@ function onClose() {
                 >
               </div>
               <p>
-                格式：<code class="text-primary">icon-[图标集--图标名]</code
+                格式：<code class="text-primary">icon-[图标集- -图标名]</code
                 >，用 <code class="text-primary">--</code> 代替
                 <code class="text-primary">:</code>
               </p>

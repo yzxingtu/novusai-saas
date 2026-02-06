@@ -171,8 +171,12 @@ export function useMemberPanel(
   /**
    * 移除成员
    */
-  async function removeMember(adminId: number): Promise<boolean> {
-    const id = nodeId();
+  async function removeMember(
+    adminId: number,
+    targetRoleId?: number,
+  ): Promise<boolean> {
+    // 优先使用传入的 roleId，否则使用当前选中节点
+    const id = targetRoleId ?? nodeId();
     if (!id) {
       message.error('请先选择节点');
       return false;
@@ -197,9 +201,14 @@ export function useMemberPanel(
   /**
    * 设置负责人
    * @param adminId - 负责人 ID，传 null 取消负责人
+   * @param targetRoleId - 目标节点 ID（可选，用于跨节点设置负责人）
    */
-  async function setLeader(adminId: null | number): Promise<boolean> {
-    const id = nodeId();
+  async function setLeader(
+    adminId: null | number,
+    targetRoleId?: number,
+  ): Promise<boolean> {
+    // 如果指定了 targetRoleId 则使用它，否则使用当前选中的节点
+    const id = targetRoleId ?? nodeId();
     if (!id) {
       message.error('请先选择节点');
       return false;
@@ -209,11 +218,8 @@ export function useMemberPanel(
     try {
       await setLeaderApi(id, adminId);
       message.success(adminId ? '已设置为负责人' : '已取消负责人');
-      // 更新本地列表的 isLeader 状态
-      members.value = members.value.map((m) => ({
-        ...m,
-        isLeader: m.id === adminId,
-      }));
+      // 重新加载列表以获取最新的 isLeader 状态
+      await loadMembers();
       return true;
     } catch (error_) {
       console.error('Failed to set leader:', error_);
@@ -293,7 +299,8 @@ export function useMemberPanel(
     addMember,
     addMembers,
     removeMember,
-    setLeader,
+    setLeader: (adminId: null | number, targetRoleId?: number) =>
+      setLeader(adminId, targetRoleId),
     refresh,
     changePage,
     changePageSize,

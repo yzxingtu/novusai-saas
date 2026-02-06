@@ -1,12 +1,17 @@
 {
   "title": "控制台",
+  "platformConsole": "平台管理控制台",
+  "iconLibrary": "图标库",
   "welcome": "欢迎回来",
   "greeting": "您好，{name}！",
-  "description": "这是平台管理控制台，您可以在这里管理租户和系统配置。",
+  "admin": "管理员",
+  "description": "这是平台管理端控制台，您可以在这里管理平台的各项配置。",
   "stats": {
     "totalTenants": "租户总数",
     "activeTenants": "活跃租户",
     "totalAdmins": "管理员数",
-    "systemHealth": "系统状态"
+    "systemHealth": "系统状态",
+    "totalUsers": "用户总数",
+    "todayLogin": "今日登录"
   }
 }

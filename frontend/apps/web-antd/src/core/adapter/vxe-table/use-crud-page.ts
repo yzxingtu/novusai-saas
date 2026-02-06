@@ -73,7 +73,10 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   } = options;
 
   // ==================== 表单弹窗 ====================
-  let FormPopup: null | ReturnType<typeof useVbenDrawer>[0] = null;
+  let FormPopup:
+    | null
+    | ReturnType<typeof useVbenDrawer>[0]
+    | ReturnType<typeof useVbenModal>[0] = null;
   let formPopupApi:
     | null
     | ReturnType<typeof useVbenDrawer>[1]
@@ -85,8 +88,8 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         connectedComponent: formComponent,
         destroyOnClose: true,
       });
-      FormPopup = ModalComp as any;
-      formPopupApi = modalApi as any;
+      FormPopup = ModalComp;
+      formPopupApi = modalApi;
     } else {
       const [Drawer, drawerApi] = useVbenDrawer({
         connectedComponent: formComponent,
@@ -192,9 +195,6 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
 
     const toggleApi = api.toggles?.[fieldName] as ToggleStatusApi | undefined;
     if (!toggleApi) {
-      console.warn(
-        `[useCrudPage] toggle API not found for field: ${fieldName}`,
-      );
       return false;
     }
 

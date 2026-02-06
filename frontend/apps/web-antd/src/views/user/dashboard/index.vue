@@ -3,6 +3,8 @@
  * 用户端首页
  */
 import { $t } from '#/locales';
+
+defineOptions({ name: 'UserDashboard' });
 </script>
 
 <template>

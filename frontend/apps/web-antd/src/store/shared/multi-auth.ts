@@ -98,9 +98,10 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
 
   /**
    * 登录
-   * @param params 登录参数
+   * @param params 登录参数（包含 username, password, 可选 captchaChallengeId, captchaSolution）
    * @param endpoint 指定端类型（可选，默认根据当前路由判断）
    * @param onSuccess 登录成功回调
+   * @returns { userInfo, captchaRequired } - userInfo 为 null 表示登录失败，captchaRequired 表示是否需要验证码
    */
   async function authLogin(
     params: Recordable<any>,
@@ -112,11 +113,17 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
     const homePath = HOME_PATHS[ep];
 
     let userInfo: BaseUserInfo | null = null;
+    let captchaRequired = false;
 
     try {
       loginLoading.value = true;
 
+      // 传递完整的登录参数（包括验证码参数）
       const { accessToken, refreshToken } = await api.login({
+        captchaChallengeId: params.captchaChallengeId,
+        captchaProviderCode: params.captchaProviderCode,
+        captchaSolution: params.captchaSolution,
+        captchaType: params.captchaType,
         password: params.password,
         username: params.username,
       });
@@ -167,13 +174,18 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
           });
         }
       }
-    } catch {
+    } catch (error: any) {
+      // 检查错误响应中是否包含 captcha_required 字段
+      const responseData = error?.response?.data;
+      if (responseData?.data?.captcha_required) {
+        captchaRequired = true;
+      }
       // 错误已由 axios 拦截器处理并显示，此处仅捕获以防止冒泡到 Vue 事件处理器
     } finally {
       loginLoading.value = false;
     }
 
-    return { userInfo };
+    return { captchaRequired, userInfo };
   }
 
   /**

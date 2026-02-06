@@ -13,6 +13,7 @@ import {
   LOGIN_PATHS,
   TokenStorage,
   useMultiAuthStore,
+  usePublicConfigStore,
 } from '#/store';
 
 import { generateAccess } from './access';
@@ -76,11 +77,35 @@ function setupAccessGuard(router: Router) {
     const accessStore = useAccessStore();
     const userStore = useUserStore();
     const multiAuthStore = useMultiAuthStore();
+    const publicConfigStore = usePublicConfigStore();
 
     // 获取当前路由对应的端类型、登录路径和首页路径
     const currentEndpoint: ApiEndpoint = getApiEndpoint(to.path);
     const currentLoginPath = getLoginPathByRoute(to.path);
     const currentHomePath = getHomePathByRoute(to.path);
+
+    // 首次访问时加载对应端的公开配置（品牌、验证码等）
+    if (currentEndpoint === 'admin') {
+      if (!publicConfigStore.platformConfigLoaded) {
+        // 平台端：加载平台公开配置
+        publicConfigStore.loadPlatformConfig().catch((error) => {
+          console.warn('[Router Guard] 加载平台公开配置失败:', error);
+        });
+      } else if (publicConfigStore.platformConfig?.brand) {
+        // 如果已加载，确保应用当前端的品牌配置（处理端切换时的缓存问题）
+        publicConfigStore.applyBrandConfig(publicConfigStore.platformConfig.brand);
+      }
+    } else if (currentEndpoint === 'tenant') {
+      if (!publicConfigStore.tenantConfigLoaded) {
+        // 租户端：加载租户公开配置
+        publicConfigStore.loadTenantConfig().catch((error) => {
+          console.warn('[Router Guard] 加载租户公开配置失败:', error);
+        });
+      } else if (publicConfigStore.tenantConfig?.brand) {
+        // 如果已加载，确保应用当前端的品牌配置（处理端切换时的缓存问题）
+        publicConfigStore.applyBrandConfig(publicConfigStore.tenantConfig.brand);
+      }
+    }
 
     // 检测端切换：如果端类型变化，需要重新生成路由和权限
     if (lastEndpoint && lastEndpoint !== currentEndpoint) {

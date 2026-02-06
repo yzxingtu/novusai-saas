@@ -9,6 +9,8 @@ import type { OrgTreeNodeData } from '#/components/business/org-tree';
 
 import { computed, onMounted, ref } from 'vue';
 
+defineOptions({ name: 'TenantOrganization' });
+
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -395,7 +397,7 @@ onMounted(async () => {
                           class="h-3 w-3 text-warning"
                         />
                         {{
-                          selectedNode.leader.realName ||
+                          selectedNode.leader.nickname ||
                           selectedNode.leader.username
                         }}
                       </span>

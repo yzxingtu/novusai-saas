@@ -1,0 +1,17 @@
+{
+  "title": "My Orders",
+  "list": "Order List",
+  "detail": "Order Detail",
+  "orderNo": "Order No.",
+  "status": "Status",
+  "amount": "Amount",
+  "createdAt": "Order Time",
+  "payAt": "Payment Time",
+  "statusOptions": {
+    "pending": "Pending Payment",
+    "paid": "Paid",
+    "shipped": "Shipped",
+    "completed": "Completed",
+    "cancelled": "Cancelled"
+  }
+}

@@ -61,6 +61,7 @@
   "platformAdminDesc": "Super admin portal for global configuration and tenant management",
   "tenantAdmin": "Tenant Admin",
   "tenantAdminDesc": "Tenant admin portal for business and user management",
+  "captchaTip": "Please drag the slider to verify",
   "layout": {
     "center": "Align Center",
     "alignLeft": "Align Left",

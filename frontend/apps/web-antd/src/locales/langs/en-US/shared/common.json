@@ -22,8 +22,9 @@
   "save": "Save",
   "cancel": "Cancel",
   "confirm": "Confirm",
-  "delete": "Delete",
+  "select": "Select",
   "edit": "Edit",
+  "delete": "Delete",
   "create": "Create",
   "search": "Search",
   "reset": "Reset",
@@ -89,5 +90,19 @@
   "current": "Current",
   "featureComingSoon": "Feature coming soon",
   "yes": "Yes",
-  "no": "No"
+  "no": "No",
+  "primary": "Primary",
+  "confirmDelete": "Are you sure to delete?",
+  "pleaseRetry": "Please try again later",
+  "domainFormatHint": "Only lowercase letters, numbers and hyphens are allowed",
+  "recommended": "Recommended",
+  "prevStep": "Previous",
+  "nextStep": "Next",
+  "finish": "Finish",
+  "validate": {
+    "invalid": "Please enter a valid {field}"
+  },
+  "copied": "Copied to clipboard",
+  "notSet": "Not Set",
+  "saveSuccess": "Saved successfully"
 }

@@ -1,4 +1,4 @@
-export { default as OrgTreeNode } from './org-tree-node.vue';
+export { default as OrgTreeNode } from './OrgTreeNode.vue';
 export type {
   ContextMenuAction,
   ContextMenuItem,

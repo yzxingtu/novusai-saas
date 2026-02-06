@@ -70,6 +70,17 @@ const mainRoutes: RouteRecordRaw = {
         title: $t('tenant.system.configs.title'),
       },
     },
+    // Fallback 静态注册：附件管理（后端菜单动态路由优先生效）
+    {
+      name: 'TenantSystemAttachments',
+      path: 'system/attachments',
+      component: () => import('#/views/tenant/system/attachments/index.vue'),
+      meta: {
+        hideInMenu: true,
+        icon: 'lucide:paperclip',
+        title: $t('tenant.system.attachment.title'),
+      },
+    },
   ],
 };
 

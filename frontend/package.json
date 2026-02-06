@@ -87,6 +87,7 @@
     "lefthook": "catalog:",
     "playwright": "catalog:",
     "rimraf": "catalog:",
+    "sass-embedded": "^1.97.3",
     "tailwindcss": "catalog:",
     "turbo": "catalog:",
     "typescript": "catalog:",

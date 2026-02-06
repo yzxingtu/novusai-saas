@@ -48,15 +48,15 @@ export async function userLoginApi(
 export async function userRefreshTokenApi(
   refreshToken: string,
 ): Promise<RefreshTokenResult> {
-  const response = await baseRequestClient.post<{
-    data: RefreshTokenResultRaw;
-  }>(`${API_PREFIX}/refresh`, {
-    refresh_token: refreshToken,
-  });
-  const raw = (response as any).data;
+  const response = await baseRequestClient.post<RefreshTokenResultRaw>(
+    `${API_PREFIX}/refresh`,
+    {
+      refresh_token: refreshToken,
+    },
+  );
   return {
-    accessToken: raw.access_token,
-    refreshToken: raw.refresh_token,
+    accessToken: response.access_token,
+    refreshToken: response.refresh_token,
   };
 }
 

@@ -1,0 +1,87 @@
+{
+  "title": "Attachment Management",
+  "list": "Attachment List",
+  "detail": "Attachment Detail",
+  "upload": "Upload File",
+  "name": "File Name",
+  "path": "Storage Path",
+  "mimeType": "MIME Type",
+  "size": "File Size",
+  "hash": "File Hash",
+  "driver": "Storage Driver",
+  "visibility": "Visibility",
+  "category": "Category",
+  "preview": "Preview",
+  "refType": "Reference Type",
+  "refId": "Reference ID",
+  "uploadedBy": "Uploaded By",
+  "uploadedAt": "Uploaded At",
+  "createdAt": "Created At",
+  "updatedAt": "Updated At",
+  "basicInfo": "Basic Information",
+  "storageInfo": "Storage Information",
+  "timeInfo": "Time Information",
+  "visibilityOptions": {
+    "public": "Public",
+    "private": "Private"
+  },
+  "categories": {
+    "image": "Image",
+    "document": "Document",
+    "video": "Video",
+    "audio": "Audio",
+    "archive": "Archive",
+    "other": "Other"
+  },
+  "quota": {
+    "title": "Storage Quota",
+    "spaceLimit": "Space Limit",
+    "spaceUsed": "Space Used",
+    "spaceAvailable": "Space Available",
+    "spacePercent": "Usage Percent",
+    "fileCount": "File Count",
+    "fileCountLimit": "File Count Limit",
+    "maxFileSize": "Max File Size",
+    "bandwidthLimit": "Bandwidth Limit",
+    "bandwidthUsed": "Bandwidth Used",
+    "unlimited": "Unlimited"
+  },
+  "actions": {
+    "preview": "Preview",
+    "download": "Download",
+    "delete": "Delete",
+    "batchDelete": "Batch Delete",
+    "copyUrl": "Copy URL",
+    "getPreviewUrl": "Get Preview URL",
+    "getDownloadUrl": "Get Download URL"
+  },
+  "messages": {
+    "deleteConfirm": "Are you sure you want to delete attachment \"{name}\"? This action cannot be undone.",
+    "deleteTitle": "Delete Confirmation",
+    "deleteSuccess": "Deleted successfully",
+    "batchDeleteConfirm": "Are you sure you want to delete {count} selected attachments?",
+    "batchDeleteSuccess": "Batch deleted successfully",
+    "copySuccess": "URL copied",
+    "copyFailed": "Copy failed",
+    "previewNotSupported": "Preview not supported for this file type",
+    "downloadStarted": "Download started",
+    "uploadSuccess": "Upload successful",
+    "uploadFailed": "Upload failed"
+  },
+  "placeholder": {
+    "searchName": "Search file name",
+    "allCategory": "All Categories",
+    "allVisibility": "All Visibility"
+  },
+  "empty": {
+    "title": "No Attachments",
+    "description": "No attachments have been uploaded yet"
+  },
+  "sizeUnit": {
+    "bytes": "B",
+    "kb": "KB",
+    "mb": "MB",
+    "gb": "GB",
+    "tb": "TB"
+  }
+}

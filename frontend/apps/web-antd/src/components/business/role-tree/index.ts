@@ -1,4 +1,4 @@
-export { default as RoleTreeNode } from './role-tree-node.vue';
+export { default as RoleTreeNode } from './RoleTreeNode.vue';
 export type {
   LevelColorConfig,
   RoleTreeEmits,

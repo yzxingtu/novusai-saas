@@ -7,6 +7,8 @@ import type { adminApi } from '#/api';
 
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
+defineOptions({ name: 'SystemLogList' });
+
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -461,10 +463,12 @@ onMounted(() => {
 
     <!-- 2. 主内容区域 -->
     <div
-      class="flex min-h-0 flex-1 gap-4 overflow-hidden rounded-xl bg-card p-1 shadow-sm"
+      class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden rounded-xl bg-card p-1 shadow-sm md:flex-row"
     >
       <!-- 左侧：文件列表 (折叠面板风格) -->
-      <div class="flex min-h-0 w-[320px] flex-shrink-0 flex-col border-r">
+      <div
+        class="flex max-h-[300px] min-h-0 w-full flex-shrink-0 flex-col border-b md:h-full md:max-h-none md:w-[320px] md:border-b-0 md:border-r"
+      >
         <!-- 头部 -->
         <div class="flex items-center justify-between border-b p-3">
           <span class="font-semibold text-foreground">{{
@@ -745,7 +749,7 @@ onMounted(() => {
           class="scrollbar-thin relative flex-1 overflow-auto"
           :class="
             isDarkTheme
-              ? 'bg-[#1e1e1e] text-gray-300'
+              ? 'bg-gray-950 text-gray-300'
               : 'bg-white text-gray-800'
           "
         >

@@ -1,0 +1,7 @@
+{
+  "title": "Home",
+  "welcome": "Welcome back",
+  "greeting": "Hello, {name}!",
+  "recentOrders": "Recent Orders",
+  "notifications": "Notifications"
+}

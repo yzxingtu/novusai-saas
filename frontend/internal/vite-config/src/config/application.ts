@@ -6,7 +6,7 @@ import path, { relative } from 'node:path';
 
 import { findMonorepoRoot } from '@vben/node-utils';
 
-import { NodePackageImporter } from 'sass';
+import { NodePackageImporter } from 'sass-embedded';
 import { defineConfig, loadEnv, mergeConfig } from 'vite';
 
 import { defaultImportmapOptions, getDefaultPwaOptions } from '../options';
@@ -29,7 +29,7 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
       archiverPluginOptions: {},
       compress: false,
       compressTypes: ['brotli', 'gzip'],
-      devtools: true,
+      devtools: false,
       env,
       extraAppConfig: true,
       html: true,

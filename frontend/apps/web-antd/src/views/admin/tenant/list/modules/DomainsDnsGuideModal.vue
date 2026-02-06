@@ -94,9 +94,7 @@ async function onVerify() {
     } else {
       message.warning($t('admin.tenant.domain.verifyFailed'));
     }
-  } catch (error) {
-    console.error('Failed to verify domain:', error);
-  } finally {
+  } catch {} finally {
     verifying.value = false;
   }
 }
@@ -107,6 +105,22 @@ function open(data: DnsGuideData) {
 }
 
 defineExpose({ open });
+
+/**
+ * 获取 DNS 主机记录
+ * 规范判断：
+ * - 二级域名（如 example.com）返回 @
+ * - 三级及以上域名（如 www.example.com）返回第一部分
+ */
+function getDnsHostRecord(domain: string): string {
+  const parts = domain.split('.');
+  if (parts.length >= 3) {
+    // 三级及以上域名，返回子域名部分
+    return parts[0] || '';
+  }
+  // 二级域名，返回 @
+  return '@';
+}
 </script>
 
 <template>
@@ -209,12 +223,12 @@ defineExpose({ open });
                 <code
                   class="break-all rounded bg-accent px-2 py-1 text-xs text-foreground"
                 >
-                  {{ guideData.domain.split('.')[0] }}
+                  {{ getDnsHostRecord(guideData.domain) }}
                 </code>
                 <Button
                   type="link"
                   size="small"
-                  @click="onCopy(guideData.domain.split('.')[0])"
+                  @click="onCopy(getDnsHostRecord(guideData.domain))"
                 >
                   <IconifyIcon icon="lucide:copy" class="size-4" />
                 </Button>

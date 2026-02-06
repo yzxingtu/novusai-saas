@@ -3,6 +3,8 @@ import type { ConfigGroupListItemMeta, ConfigItemMeta } from '#/types/config';
 
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
+defineOptions({ name: 'TenantConfigList' });
+
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -144,10 +146,10 @@ onBeforeUnmount(() => {
 
 <template>
   <Page auto-content-height>
-    <div class="flex h-full gap-4 overflow-hidden">
+    <div class="flex h-full flex-col gap-4 overflow-hidden md:flex-row">
       <!-- 左侧：配置分组列表 -->
       <Card
-        class="w-[260px] flex-shrink-0 overflow-hidden"
+        class="w-full flex-shrink-0 overflow-hidden md:w-[260px]"
         :body-style="{
           padding: 0,
           height: 'calc(100% - 57px)',

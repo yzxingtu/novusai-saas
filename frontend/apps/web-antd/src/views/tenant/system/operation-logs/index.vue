@@ -6,6 +6,8 @@ import type { tenantApi } from '#/api';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 
+defineOptions({ name: 'TenantOperationLogList' });
+
 import { Card, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
@@ -18,7 +20,7 @@ import {
   useColumns,
   useGridFormSchema,
 } from './data';
-import DetailDrawer from './modules/detail.vue';
+import DetailDrawer from './modules/LogDetail.vue';
 
 type OperationLogInfo = tenantApi.OperationLogInfo;
 
@@ -60,17 +62,17 @@ const { Grid } = useCrudPage<OperationLogInfo>({
       <Grid>
         <!-- 用户名列 -->
         <template #username_cell="{ row }">
-          <span class="font-medium">{{ row.username }}</span>
+          <span class="font-medium">{{ row.nickname || row.username }}</span>
         </template>
 
         <!-- 模块列 -->
         <template #module_cell="{ row }">
-          <Tag color="blue">{{ row.module }}</Tag>
+          <Tag color="blue">{{ row.moduleLabel || row.module }}</Tag>
         </template>
 
         <!-- 操作类型列 -->
         <template #action_cell="{ row }">
-          <Tag color="purple">{{ row.action }}</Tag>
+          <Tag color="purple">{{ row.actionLabel || row.action }}</Tag>
         </template>
 
         <!-- 请求方法列 -->

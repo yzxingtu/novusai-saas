@@ -1,4 +1,4 @@
-export { default as IconPicker } from './icon-picker.vue';
+export { default as IconPicker } from './IconPicker.vue';
 export {
   ALL_CATEGORIES,
   ALL_ICONS_WITH_PREFIX,

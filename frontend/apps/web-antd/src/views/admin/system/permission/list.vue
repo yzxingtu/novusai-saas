@@ -7,6 +7,8 @@ import type { adminApi } from '#/api';
 
 import { onMounted, ref } from 'vue';
 
+defineOptions({ name: 'SystemPermissionList' });
+
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 

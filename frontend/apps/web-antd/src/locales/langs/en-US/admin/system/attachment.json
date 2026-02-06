@@ -1,0 +1,92 @@
+{
+  "title": "Attachment Management",
+  "list": "Attachment List",
+  "detail": "Attachment Detail",
+  "name": "File Name",
+  "path": "Storage Path",
+  "mimeType": "MIME Type",
+  "size": "File Size",
+  "hash": "File Hash",
+  "driver": "Storage Driver",
+  "visibility": "Visibility",
+  "category": "Category",
+  "preview": "Preview",
+  "refType": "Reference Type",
+  "refId": "Reference ID",
+  "uploadedBy": "Uploaded By",
+  "uploadedAt": "Uploaded At",
+  "createdAt": "Created At",
+  "tenantId": "Tenant ID",
+  "tenantName": "Tenant Name",
+  "visibilityType": {
+    "public": "Public",
+    "private": "Private"
+  },
+  "categoryType": {
+    "image": "Image",
+    "document": "Document",
+    "video": "Video",
+    "audio": "Audio",
+    "archive": "Archive",
+    "other": "Other"
+  },
+  "stats": {
+    "title": "Storage Statistics",
+    "totalCount": "Total Files",
+    "totalSize": "Total Size",
+    "byCategory": "By Category",
+    "byTenant": "By Tenant",
+    "byDriver": "By Storage Driver"
+  },
+  "quota": {
+    "title": "Storage Quota",
+    "spaceLimit": "Space Limit",
+    "spaceUsed": "Space Used",
+    "spaceAvailable": "Space Available",
+    "spacePercent": "Usage Percent",
+    "fileCount": "File Count",
+    "fileCountLimit": "File Count Limit",
+    "maxFileSize": "Max File Size",
+    "bandwidthLimit": "Bandwidth Limit",
+    "bandwidthUsed": "Bandwidth Used",
+    "unlimited": "Unlimited"
+  },
+  "actions": {
+    "preview": "Preview",
+    "download": "Download",
+    "delete": "Delete",
+    "batchDelete": "Batch Delete",
+    "copyUrl": "Copy URL",
+    "getPreviewUrl": "Get Preview URL",
+    "getDownloadUrl": "Get Download URL"
+  },
+  "messages": {
+    "deleteConfirm": "Are you sure you want to delete attachment \"{name}\"? This action cannot be undone.",
+    "deleteTitle": "Delete Confirmation",
+    "deleteSuccess": "Deleted successfully",
+    "batchDeleteConfirm": "Are you sure you want to delete {count} selected attachments?",
+    "batchDeleteSuccess": "Batch deleted successfully",
+    "copySuccess": "URL copied",
+    "copyFailed": "Copy failed",
+    "previewNotSupported": "Preview not supported for this file type",
+    "downloadStarted": "Download started"
+  },
+  "placeholder": {
+    "searchName": "Search file name",
+    "allCategory": "All Categories",
+    "allVisibility": "All Visibility",
+    "allTenant": "All Tenants",
+    "selectTenant": "Select tenant"
+  },
+  "empty": {
+    "title": "No Attachments",
+    "description": "No attachments have been uploaded yet"
+  },
+  "sizeUnit": {
+    "bytes": "B",
+    "kb": "KB",
+    "mb": "MB",
+    "gb": "GB",
+    "tb": "TB"
+  }
+}

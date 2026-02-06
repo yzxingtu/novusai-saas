@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
+defineOptions({ name: 'UserProfile' });
+
 import { Profile } from '@vben/common-ui';
 import { useUserStore } from '@vben/stores';
 
 import { $t } from '#/locales';
 
-import ProfileBase from './base-setting.vue';
-import ProfileNotificationSetting from './notification-setting.vue';
-import ProfilePasswordSetting from './password-setting.vue';
-import ProfileSecuritySetting from './security-setting.vue';
+import ProfileBase from './BaseSetting.vue';
+import ProfileNotificationSetting from './NotificationSetting.vue';
+import ProfilePasswordSetting from './PasswordSetting.vue';
+import ProfileSecuritySetting from './SecuritySetting.vue';
 
 const userStore = useUserStore();
 

@@ -1,1 +1,1 @@
-export { default as PermissionPreview } from './permission-preview.vue';
+export { default as PermissionPreview } from './PermissionPreview.vue';

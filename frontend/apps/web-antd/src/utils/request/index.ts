@@ -19,13 +19,13 @@
  *
  * // 文件上传
  * await requestClient.upload('/api/upload', { file }, {}, (progress) => {
- *   console.log(`上传进度: ${progress.percent}%`);
+ *   // 上传进度: ${progress.percent}%
  * });
  *
  * // SSE 流式请求
  * await requestClient.postSSE('/api/chat', { message }, {
- *   onMessage: (msg) => console.log(msg),
- *   onEnd: () => console.log('结束'),
+ *   onMessage: (msg) => {},
+ *   onEnd: () => {},
  * });
  * ```
  */

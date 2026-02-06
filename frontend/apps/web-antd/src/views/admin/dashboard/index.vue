@@ -7,15 +7,17 @@ import { useUserStore } from '@vben/stores';
 import { Button, Card } from 'ant-design-vue';
 
 import { IconPicker } from '#/components/business/icon-picker';
+import { $t } from '#/locales';
+
+defineOptions({ name: 'Dashboard' });
 
 const userStore = useUserStore();
 
 // 图标选择器弹窗
 const iconPickerOpen = ref(false);
 
-function onIconSelect(icon: string) {
-  // eslint-disable-next-line no-console
-  console.log('选中图标:', icon);
+function onIconSelect(_icon: string) {
+  //
 }
 </script>
 
@@ -24,43 +26,55 @@ function onIconSelect(icon: string) {
     <!-- 图标选择器弹窗 -->
     <IconPicker v-model:open="iconPickerOpen" @select="onIconSelect" />
 
-    <Card title="平台管理控制台" class="mb-4">
+    <Card :title="$t('admin.dashboard.platformConsole')" class="mb-4">
       <template #extra>
         <Button type="primary" ghost @click="iconPickerOpen = true">
           <IconifyIcon icon="lucide:palette" class="mr-1.5" />
-          图标库
+          {{ $t('admin.dashboard.iconLibrary') }}
         </Button>
       </template>
       <div class="text-lg">
-        您好，{{ userStore.userInfo?.realName || '管理员' }}！
+        {{
+          $t('admin.dashboard.greeting', {
+            name: userStore.userInfo?.realName || $t('admin.dashboard.admin'),
+          })
+        }}
       </div>
       <p class="mt-2 text-gray-500">
-        这是平台管理端控制台，您可以在这里管理平台的各项配置。
+        {{ $t('admin.dashboard.description') }}
       </p>
     </Card>
 
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
       <Card>
         <template #title>
-          <span class="text-primary">租户总数</span>
+          <span class="text-primary">{{
+            $t('admin.dashboard.stats.totalTenants')
+          }}</span>
         </template>
         <div class="text-3xl font-bold">--</div>
       </Card>
       <Card>
         <template #title>
-          <span class="text-success">活跃租户</span>
+          <span class="text-success">{{
+            $t('admin.dashboard.stats.activeTenants')
+          }}</span>
         </template>
         <div class="text-3xl font-bold">--</div>
       </Card>
       <Card>
         <template #title>
-          <span class="text-warning">用户总数</span>
+          <span class="text-warning">{{
+            $t('admin.dashboard.stats.totalUsers')
+          }}</span>
         </template>
         <div class="text-3xl font-bold">--</div>
       </Card>
       <Card>
         <template #title>
-          <span class="text-primary/80">今日登录</span>
+          <span class="text-primary/80">{{
+            $t('admin.dashboard.stats.todayLogin')
+          }}</span>
         </template>
         <div class="text-3xl font-bold">--</div>
       </Card>

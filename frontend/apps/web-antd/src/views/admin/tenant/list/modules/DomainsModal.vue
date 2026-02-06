@@ -26,10 +26,10 @@ import {
 import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
 
-import DomainsAddDrawer from './domains-add-drawer.vue';
-import DomainsDetailDrawer from './domains-detail-drawer.vue';
-import DomainsDnsGuideModal from './domains-dns-guide-modal.vue';
-import DomainsSslDrawer from './domains-ssl-drawer.vue';
+import DomainsAddDrawer from './DomainsAddDrawer.vue';
+import DomainsDetailDrawer from './DomainsDetailDrawer.vue';
+import DomainsDnsGuideModal from './DomainsDnsGuideModal.vue';
+import DomainsSslDrawer from './DomainsSslDrawer.vue';
 
 // Emits
 const emits = defineEmits<{
@@ -81,9 +81,7 @@ async function loadDomains() {
       currentTenant.value.tenantId,
     );
     domains.value = result.items as TenantDomainInfo[];
-  } catch (error) {
-    console.error('Failed to load domains:', error);
-  } finally {
+  } catch {} finally {
     loading.value = false;
   }
 }
@@ -160,9 +158,7 @@ async function onSetPrimary(domain: TenantDomainInfo) {
     message.success($t('admin.tenant.domain.setPrimarySuccess'));
     await loadDomains();
     emits('success');
-  } catch (error) {
-    console.error('Failed to set primary domain:', error);
-  }
+  } catch {}
 }
 
 /** 验证域名 */
@@ -181,9 +177,7 @@ async function onVerifyDomain(domain: TenantDomainInfo) {
     }
     await loadDomains();
     emits('success');
-  } catch (error) {
-    console.error('Failed to verify domain:', error);
-  }
+  } catch {}
 }
 
 /** 删除域名 */
@@ -195,9 +189,7 @@ async function onDeleteDomain(domain: TenantDomainInfo) {
     message.success($t('admin.tenant.domain.deleteSuccess'));
     await loadDomains();
     emits('success');
-  } catch (error) {
-    console.error('Failed to delete domain:', error);
-  }
+  } catch {}
 }
 
 /** 获取验证状态标签配置 */

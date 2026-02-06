@@ -1,0 +1,25 @@
+{
+  "title": "Profile",
+  "edit": "Edit Profile",
+  "avatar": "Avatar",
+  "username": "Username",
+  "nickname": "Nickname",
+  "email": "Email",
+  "phone": "Phone",
+  "changePassword": "Change Password",
+  "oldPassword": "Current Password",
+  "newPassword": "New Password",
+  "confirmPassword": "Confirm Password",
+  "messages": {
+    "updateSuccess": "Profile updated successfully",
+    "changePasswordSuccess": "Password changed successfully"
+  },
+  "placeholder": {
+    "inputNickname": "Please enter nickname",
+    "inputEmail": "Please enter email",
+    "inputPhone": "Please enter phone",
+    "inputOldPassword": "Please enter current password",
+    "inputNewPassword": "Please enter new password",
+    "inputConfirmPassword": "Please confirm new password"
+  }
+}

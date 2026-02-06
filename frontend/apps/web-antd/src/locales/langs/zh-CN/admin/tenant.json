@@ -139,6 +139,9 @@
     "verifiedAt": "验证时间",
     "updatedAt": "更新时间",
     "isPrimary": "是否主域名",
+    "primaryTag": "主",
+    "unverifiedTag": "未验证",
+    "totalCount": "共 {count} 个域名",
     "updateSuccess": "域名信息更新成功",
     "dnsGuide": {
       "title": "DNS 配置指南",
@@ -267,6 +270,8 @@
       "codePattern": "套餐代码必须小写字母开头，只能包含小写字母、数字和下划线"
     },
     "selectedCount": "已选 {count} 项",
-    "permissionsCreateHint": "权限设置将在创建后生效，请创建后再次编辑进行配置"
+    "permissionsCreateHint": "权限设置将在创建后生效，请创建后再次编辑进行配置",
+    "defaultPlan": "默认套餐",
+    "userUnit": "用户"
   }
 }

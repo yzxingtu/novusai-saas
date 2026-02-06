@@ -203,14 +203,14 @@ function createConfiguredClient(
     // 响应拦截器：Loading 关闭 + 清理 pending
     client.addResponseInterceptor(createLoadingInterceptor(client));
 
+    // 响应拦截器：成功消息（必须在数据解析之前，否则拿不到 config）
+    client.addResponseInterceptor(
+      createSuccessMessageInterceptor(messageHandler),
+    );
+
     // 响应拦截器：数据格式解析
     client.addResponseInterceptor(
       createResponseDataInterceptor(0, 'code', 'data'),
-    );
-
-    // 响应拦截器：成功消息
-    client.addResponseInterceptor(
-      createSuccessMessageInterceptor(messageHandler),
     );
 
     // 响应拦截器：Token 刷新

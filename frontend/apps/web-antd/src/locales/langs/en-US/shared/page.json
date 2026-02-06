@@ -1,0 +1,21 @@
+{
+  "auth": {
+    "login": "Login",
+    "register": "Register",
+    "codeLogin": "SMS Login",
+    "qrcodeLogin": "QR Code Login",
+    "forgetPassword": "Forgot Password",
+    "profile": "Profile"
+  },
+  "dashboard": {
+    "title": "Overview",
+    "analytics": "Analytics",
+    "workspace": "Workspace"
+  },
+  "error": {
+    "notFound": "Page Not Found",
+    "forbidden": "Access Denied",
+    "serverError": "Server Error",
+    "backHome": "Back to Home"
+  }
+}

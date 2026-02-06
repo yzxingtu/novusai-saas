@@ -104,6 +104,14 @@ async function onSaveRemark() {
   }
 }
 
+/** 复制文本 */
+// function onCopy(text?: string) {
+//   if (text) {
+//     copyToClipboard(text);
+//     message.success($t('common.copied'));
+//   }
+// }
+
 /** 获取验证状态标签配置 */
 function getVerificationTagConfig(status: string) {
   switch (status) {

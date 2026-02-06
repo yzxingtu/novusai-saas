@@ -19,8 +19,11 @@ export interface OperationLogInfoRaw {
   tenant_id: null | number;
   user_type: string;
   username: null | string;
+  nickname?: null | string;
   module: string;
+  module_label?: string;
   action: string;
+  action_label?: string;
   method: string;
   path: string;
   query_params: null | Record<string, unknown>;
@@ -39,8 +42,11 @@ export interface OperationLogInfo {
   tenantId: null | number;
   userType: string;
   username: null | string;
+  nickname?: null | string;
   module: string;
+  moduleLabel?: string;
   action: string;
+  actionLabel?: string;
   method: string;
   path: string;
   queryParams: null | Record<string, unknown>;
@@ -72,8 +78,11 @@ function transformOperationLogInfo(raw: OperationLogInfoRaw): OperationLogInfo {
     tenantId: raw.tenant_id,
     userType: raw.user_type,
     username: raw.username,
+    nickname: raw.nickname,
     module: raw.module,
+    moduleLabel: raw.module_label,
     action: raw.action,
+    actionLabel: raw.action_label,
     method: raw.method,
     path: raw.path,
     queryParams: raw.query_params,

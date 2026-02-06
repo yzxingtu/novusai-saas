@@ -15,7 +15,7 @@ import { Form, Input, InputNumber, Select, Switch } from 'ant-design-vue';
 
 import { $t as t } from '#/locales';
 
-import ImageUpload from '../image-upload/image-upload.vue';
+import ImageUpload from '../image-upload/ImageUpload.vue';
 
 interface Props {
   configs: ConfigItemMeta[];

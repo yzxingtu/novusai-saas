@@ -1,4 +1,4 @@
-export { default as PermissionSelector } from './permission-selector.vue';
+export { default as PermissionSelector } from './PermissionSelector.vue';
 export type {
   AntTreeNode,
   EffectivePermission,

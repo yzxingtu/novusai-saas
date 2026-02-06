@@ -104,6 +104,7 @@ export function useColumns<T = adminApi.TenantPlanInfo>(
       field: 'code',
       title: $t('admin.tenant.plan.code'),
       minWidth: 140,
+      align: 'center',
       slots: {
         default: 'code_cell',
       },
@@ -111,10 +112,28 @@ export function useColumns<T = adminApi.TenantPlanInfo>(
     {
       field: 'price',
       title: $t('admin.tenant.plan.price'),
-      width: 160,
+      width: 140,
       align: 'center',
       slots: {
         default: 'price_cell',
+      },
+    },
+    {
+      field: 'quota',
+      title: $t('admin.tenant.plan.quota'),
+      minWidth: 180,
+      align: 'center',
+      slots: {
+        default: 'quota_cell',
+      },
+    },
+    {
+      field: 'features',
+      title: $t('admin.tenant.plan.features'),
+      minWidth: 180,
+      align: 'center',
+      slots: {
+        default: 'features_cell',
       },
     },
     {
@@ -148,6 +167,7 @@ export function useColumns<T = adminApi.TenantPlanInfo>(
       field: 'createdAt',
       title: $t('admin.common.createdAt'),
       width: 130,
+      align: 'center',
       slots: {
         default: 'createdAt_cell',
       },
