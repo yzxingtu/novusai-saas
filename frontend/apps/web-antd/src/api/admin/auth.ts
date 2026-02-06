@@ -30,9 +30,29 @@ export async function adminLoginApi(
   data: LoginParams,
   options?: ApiRequestOptions,
 ): Promise<LoginResult> {
+  // 构建请求体，转换为 snake_case
+  const requestBody: Record<string, unknown> = {
+    password: data.password,
+    username: data.username,
+  };
+
+  // 添加验证码参数（如果有）
+  if (data.captchaChallengeId) {
+    requestBody.captcha_challenge_id = data.captchaChallengeId;
+  }
+  if (data.captchaSolution) {
+    requestBody.captcha_solution = data.captchaSolution;
+  }
+  if (data.captchaProviderCode) {
+    requestBody.captcha_provider_code = data.captchaProviderCode;
+  }
+  if (data.captchaType) {
+    requestBody.captcha_type = data.captchaType;
+  }
+
   const response = await requestClient.post<LoginResultRaw>(
     `${API_PREFIX}/login`,
-    data,
+    requestBody,
     options,
   );
   return {
@@ -48,15 +68,15 @@ export async function adminLoginApi(
 export async function adminRefreshTokenApi(
   refreshToken: string,
 ): Promise<RefreshTokenResult> {
-  const response = await baseRequestClient.post<{
-    data: RefreshTokenResultRaw;
-  }>(`${API_PREFIX}/refresh`, {
-    refresh_token: refreshToken,
-  });
-  const raw = (response as any).data;
+  const response = await baseRequestClient.post<RefreshTokenResultRaw>(
+    `${API_PREFIX}/refresh`,
+    {
+      refresh_token: refreshToken,
+    },
+  );
   return {
-    accessToken: raw.access_token,
-    refreshToken: raw.refresh_token,
+    accessToken: response.access_token,
+    refreshToken: response.refresh_token,
   };
 }
 

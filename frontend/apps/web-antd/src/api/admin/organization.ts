@@ -140,6 +140,39 @@ export interface AddMemberRequest {
   admin_id: number;
 }
 
+/** 创建成员请求（直接创建新成员） */
+export interface CreateMemberRequest {
+  username: string;
+  email: string;
+  password: string;
+  phone?: null | string;
+  realName?: null | string;
+  isActive?: boolean;
+  isSuper?: boolean;
+}
+
+/** 更新成员请求 */
+export interface UpdateMemberRequest {
+  email?: null | string;
+  phone?: null | string;
+  realName?: null | string;
+  avatar?: null | string;
+  isActive?: boolean | null;
+  isSuper?: boolean | null;
+  /** 新角色 ID（调整所属角色组） */
+  roleId?: null | number;
+}
+
+/** 重置成员密码请求 */
+export interface ResetMemberPasswordRequest {
+  new_password: string;
+}
+
+/** 切换成员状态请求 */
+export interface MemberStatusRequest {
+  is_active: boolean;
+}
+
 /** 设置负责人请求 */
 export interface SetLeaderRequest {
   leader_id: null | number;
@@ -282,6 +315,76 @@ export async function addMemberToNodeApi(
     { admin_id: adminId } as AddMemberRequest,
     options,
   );
+}
+
+/**
+ * 在节点下创建新成员
+ * POST /admin/roles/{role_id}/members/create
+ */
+export async function createMemberApi(
+  roleId: number,
+  data: CreateMemberRequest,
+  options?: ApiRequestOptions,
+): Promise<OrgMember> {
+  const raw = await requestClient.post<OrgMemberRaw>(
+    `${API_PREFIX}/${roleId}/members/create`,
+    data,
+    options,
+  );
+  return transformOrgMember(raw);
+}
+
+/**
+ * 更新节点成员信息
+ * PUT /admin/roles/{role_id}/members/{admin_id}
+ */
+export async function updateMemberApi(
+  roleId: number,
+  adminId: number,
+  data: UpdateMemberRequest,
+  options?: ApiRequestOptions,
+): Promise<OrgMember> {
+  const raw = await requestClient.put<OrgMemberRaw>(
+    `${API_PREFIX}/${roleId}/members/${adminId}`,
+    data,
+    options,
+  );
+  return transformOrgMember(raw);
+}
+
+/**
+ * 重置成员密码
+ * PUT /admin/roles/{role_id}/members/{admin_id}/reset-password
+ */
+export async function resetMemberPasswordApi(
+  roleId: number,
+  adminId: number,
+  data: ResetMemberPasswordRequest,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.put(
+    `${API_PREFIX}/${roleId}/members/${adminId}/reset-password`,
+    data,
+    options,
+  );
+}
+
+/**
+ * 切换成员状态
+ * PUT /admin/roles/{role_id}/members/{admin_id}/status
+ */
+export async function toggleMemberStatusApi(
+  roleId: number,
+  adminId: number,
+  data: MemberStatusRequest,
+  options?: ApiRequestOptions,
+): Promise<OrgMember> {
+  const raw = await requestClient.put<OrgMemberRaw>(
+    `${API_PREFIX}/${roleId}/members/${adminId}/status`,
+    data,
+    options,
+  );
+  return transformOrgMember(raw);
 }
 
 /**

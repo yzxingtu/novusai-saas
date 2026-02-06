@@ -140,6 +140,39 @@ export interface TenantAddMemberRequest {
   admin_id: number;
 }
 
+/** 创建成员请求（直接创建新成员） */
+export interface TenantCreateMemberRequest {
+  username: string;
+  email: string;
+  password: string;
+  phone?: null | string;
+  realName?: null | string;
+  isActive?: boolean;
+  isSuper?: boolean;
+}
+
+/** 更新成员请求 */
+export interface TenantUpdateMemberRequest {
+  email?: null | string;
+  phone?: null | string;
+  realName?: null | string;
+  avatar?: null | string;
+  isActive?: boolean | null;
+  isSuper?: boolean | null;
+  /** 新角色 ID（调整所属角色组） */
+  roleId?: null | number;
+}
+
+/** 重置成员密码请求 */
+export interface TenantResetMemberPasswordRequest {
+  new_password: string;
+}
+
+/** 切换成员状态请求 */
+export interface TenantMemberStatusRequest {
+  is_active: boolean;
+}
+
 /** 设置负责人请求 */
 export interface TenantSetLeaderRequest {
   leader_id: null | number;
@@ -282,6 +315,76 @@ export async function addTenantMemberToNodeApi(
     { admin_id: adminId } as TenantAddMemberRequest,
     options,
   );
+}
+
+/**
+ * 在节点下创建新成员
+ * POST /tenant/roles/{role_id}/members/create
+ */
+export async function createTenantMemberApi(
+  roleId: number,
+  data: TenantCreateMemberRequest,
+  options?: ApiRequestOptions,
+): Promise<TenantOrgMember> {
+  const raw = await requestClient.post<TenantOrgMemberRaw>(
+    `${API_PREFIX}/${roleId}/members/create`,
+    data,
+    options,
+  );
+  return transformOrgMember(raw);
+}
+
+/**
+ * 更新节点成员信息
+ * PUT /tenant/roles/{role_id}/members/{admin_id}
+ */
+export async function updateTenantMemberApi(
+  roleId: number,
+  adminId: number,
+  data: TenantUpdateMemberRequest,
+  options?: ApiRequestOptions,
+): Promise<TenantOrgMember> {
+  const raw = await requestClient.put<TenantOrgMemberRaw>(
+    `${API_PREFIX}/${roleId}/members/${adminId}`,
+    data,
+    options,
+  );
+  return transformOrgMember(raw);
+}
+
+/**
+ * 重置成员密码
+ * PUT /tenant/roles/{role_id}/members/{admin_id}/reset-password
+ */
+export async function resetTenantMemberPasswordApi(
+  roleId: number,
+  adminId: number,
+  data: TenantResetMemberPasswordRequest,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.put(
+    `${API_PREFIX}/${roleId}/members/${adminId}/reset-password`,
+    data,
+    options,
+  );
+}
+
+/**
+ * 切换成员状态
+ * PUT /tenant/roles/{role_id}/members/{admin_id}/status
+ */
+export async function toggleTenantMemberStatusApi(
+  roleId: number,
+  adminId: number,
+  data: TenantMemberStatusRequest,
+  options?: ApiRequestOptions,
+): Promise<TenantOrgMember> {
+  const raw = await requestClient.put<TenantOrgMemberRaw>(
+    `${API_PREFIX}/${roleId}/members/${adminId}/status`,
+    data,
+    options,
+  );
+  return transformOrgMember(raw);
 }
 
 /**

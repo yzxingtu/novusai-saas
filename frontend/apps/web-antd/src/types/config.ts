@@ -12,12 +12,14 @@ export type ConfigValueType =
   | 'password'
   | 'select'
   | 'string'
-  | 'text';
+  | 'text'
+  | 'tag';
 
 export interface ValidationRuleMeta {
   type: 'max_length' | 'max_value' | 'min_length' | 'min_value' | 'pattern';
   value: number | string;
-  message_key: string;
+  message_key?: string;
+  message?: string;
 }
 
 export interface ConfigOptionMeta {
@@ -26,6 +28,26 @@ export interface ConfigOptionMeta {
   label?: string;
   /** 选项标签（翻译 key） */
   label_key?: string;
+}
+
+/**
+ * 显示规则操作符类型
+ */
+export type DisplayRuleOperator = 'equals' | 'in' | 'not_equals';
+
+/**
+ * 显示规则定义
+ * 用于控制配置项的条件显示/隐藏
+ */
+export interface DisplayRuleMeta {
+  /** 依赖字段的 key */
+  field: string;
+  /** 规则类型 */
+  operator: DisplayRuleOperator;
+  /** 目标值（equals 时为单值，in 时为数组） */
+  value: any;
+  /** 动作（目前固定为 show） */
+  action?: 'show';
 }
 
 export interface ConfigItemMeta {
@@ -46,6 +68,31 @@ export interface ConfigItemMeta {
   is_required?: boolean;
   is_encrypted?: boolean;
   sort_order?: number;
+  /** 所属分组代码 */
+  group_code?: string;
+  /**
+   * 显示规则数组
+   * 多个规则之间为 AND 关系，全部满足才显示
+   */
+  display_rules?: DisplayRuleMeta[];
+  /**
+   * JSON 子字段映射路径
+   * 用于将子字段值映射到父字段 JSON 内部路径（`.` 分隔）
+   */
+  value_path?: string;
+  /**
+   * 子字段数组
+   * 用于 JSON 类型字段的结构化表单渲染
+   */
+  children?: ConfigItemMeta[];
+  /**
+   * 标签分隔符
+   */
+  tag_separator?: string;
+  /**
+   * 文件接受类型
+   */
+  file_accept?: string;
 }
 
 export interface ConfigGroupListItemMeta {
@@ -63,7 +110,9 @@ export interface ConfigGroupListItemMeta {
 
 export interface ConfigGroupMeta {
   code: string;
-  name_key: string;
+  name?: string;
+  name_key?: string;
+  description?: string;
   description_key?: string;
   icon?: string;
   sort_order: number;

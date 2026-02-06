@@ -7,6 +7,14 @@
 export interface LoginParams {
   username: string;
   password: string;
+  /** 验证码挑战 ID（可选） */
+  captchaChallengeId?: string;
+  /** 验证码答案（可选） */
+  captchaSolution?: string;
+  /** 验证码提供方标识（可选） */
+  captchaProviderCode?: string;
+  /** 验证码类型（如 image） */
+  captchaType?: string;
 }
 
 /** 登录响应（前端使用） */

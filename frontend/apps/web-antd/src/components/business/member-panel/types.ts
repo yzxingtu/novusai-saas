@@ -85,9 +85,12 @@ export interface UseMemberPanelReturn {
   /** 批量添加成员 */
   addMembers: (adminIds: number[]) => Promise<boolean>;
   /** 移除成员 */
-  removeMember: (adminId: number) => Promise<boolean>;
+  removeMember: (adminId: number, targetRoleId?: number) => Promise<boolean>;
   /** 设置负责人 */
-  setLeader: (adminId: null | number) => Promise<boolean>;
+  setLeader: (
+    adminId: null | number,
+    targetRoleId?: number,
+  ) => Promise<boolean>;
   /** 刷新列表 */
   refresh: () => Promise<void>;
   /** 切换页码 */
