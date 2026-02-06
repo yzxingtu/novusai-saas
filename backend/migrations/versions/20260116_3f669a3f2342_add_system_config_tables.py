@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 """add_system_config_tables
 
 Revision ID: 3f669a3f2342

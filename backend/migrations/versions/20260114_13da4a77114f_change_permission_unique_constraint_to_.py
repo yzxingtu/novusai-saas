@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 """change permission unique constraint to code+scope
 
 Revision ID: 13da4a77114f

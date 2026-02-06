@@ -7,6 +7,8 @@
 - GlobalService: 全局服务基类
 """
 
+from __future__ import annotations
+
 from typing import Any, Generic, TypeVar, Type
 
 from sqlalchemy.ext.asyncio import AsyncSession

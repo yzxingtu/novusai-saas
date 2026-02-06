@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 """migrate_tenant_settings_to_config
 
 Revision ID: migrate_tenant_settings

@@ -1,5 +1,6 @@
+# -*- coding: utf-8 -*-
 """
-Alembic 迁移环境配置
+Alembic Migration Environment
 """
 
 import sys

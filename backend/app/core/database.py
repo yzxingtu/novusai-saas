@@ -177,14 +177,12 @@ def run_migrations() -> bool:
     Returns:
         是否成功
     """
-    import os
     from pathlib import Path
     
     try:
         from alembic.config import Config
         from alembic import command
         
-        # 获取 alembic.ini 路径
         backend_dir = Path(__file__).parent.parent.parent
         alembic_ini = backend_dir / "alembic.ini"
         
@@ -192,7 +190,6 @@ def run_migrations() -> bool:
             print("⚠️  alembic.ini 不存在，跳过迁移")
             return True
         
-        # 检查是否有迁移文件
         migrations_dir = backend_dir / "migrations" / "versions"
         if not migrations_dir.exists() or not any(migrations_dir.glob("*.py")):
             print("⚠️  没有迁移文件，跳过迁移")
@@ -200,13 +197,14 @@ def run_migrations() -> bool:
         
         print("🔄 正在运行数据库迁移...")
         
-        # 创建 Alembic 配置
         alembic_cfg = Config(str(alembic_ini))
+        alembic_cfg.set_main_option(
+            "script_location", str(backend_dir / "migrations")
+        )
+        alembic_cfg.set_main_option(
+            "sqlalchemy.url", settings.DATABASE_URL_SYNC
+        )
         
-        # 设置数据库 URL
-        alembic_cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL_SYNC)
-        
-        # 运行迁移
         command.upgrade(alembic_cfg, "head")
         
         print("✅ 数据库迁移完成")

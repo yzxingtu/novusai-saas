@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 """add tenant plan tables
 
 Revision ID: f785c12f1c4f

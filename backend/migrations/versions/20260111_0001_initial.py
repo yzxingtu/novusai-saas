@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 """Initial migration - Create all tables and seed initial admin user
 
 Revision ID: 0001

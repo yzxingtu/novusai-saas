@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 """add base_url to attachments table
 
 Revision ID: 20260126_0008

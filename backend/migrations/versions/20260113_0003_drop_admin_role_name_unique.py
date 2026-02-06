@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 """drop admin_roles name unique constraint
 
 Revision ID: 20260113_0003

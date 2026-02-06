@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 """add role hierarchy support
 
 为 admin_roles 和 tenant_admin_roles 表添加多级角色支持字段

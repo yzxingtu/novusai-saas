@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 """add nickname to operation_logs
 
 为 operation_logs 表添加 nickname 字段，用于存储操作用户的昵称

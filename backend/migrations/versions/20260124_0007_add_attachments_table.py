@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 """add attachments table
 
 Revision ID: 20260124_0007

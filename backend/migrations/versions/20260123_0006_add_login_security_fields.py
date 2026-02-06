@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 """add login security fields
 
 为 admins、tenant_admins、tenant_users 表添加登录安全相关字段：

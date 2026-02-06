@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 """add organization root nodes
 
 为平台端和现有租户添加组织架构根节点

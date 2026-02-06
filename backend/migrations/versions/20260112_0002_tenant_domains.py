@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 """Add tenant settings field and tenant_domains table
 
 Revision ID: 0002

@@ -193,7 +193,17 @@ async function loadApplicationPlugins(
     },
     {
       condition: !!html,
-      plugins: () => [viteHtmlPlugin({ minify: true })],
+      plugins: () => [
+        viteHtmlPlugin({
+          inject: {
+            data: {
+              VITE_APP_TITLE: 'NovusAI SaaS',
+              ...env,
+            },
+          },
+          minify: true,
+        }),
+      ],
     },
     {
       condition: isBuild && importmap,

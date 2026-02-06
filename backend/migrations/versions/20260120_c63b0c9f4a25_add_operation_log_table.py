@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 """add_operation_log_table
 
 Revision ID: c63b0c9f4a25
