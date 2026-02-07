@@ -390,28 +390,37 @@ export function statusSelect(
 }
 
 /**
- * 创建日期选择器 schema
+ * 创建日期时间选择器 schema
  *
  * @example
- * ```ts
+ *  ```ts
  * dateField('expires_at', '到期时间')
+ * dateField('created_at', '创建时间', { showTime: true })
+ * dateField('birthday', '生日', { showTime: false })  // 仅日期
  * ```
  */
 export function dateField(
   fieldName: string,
   label: string,
-  options: { placeholder?: string; required?: boolean } = {},
+  options: { placeholder?: string; required?: boolean; showTime?: boolean } = {},
 ): VbenFormSchema {
-  const { placeholder, required = false } = options;
+  const { placeholder, required = false, showTime = true } = options;
+
+  const componentProps: Record<string, any> = {
+    class: 'w-full',
+    placeholder: placeholder || `选择${label}`,
+    // showTime 配置(如果需要显示时间选择器)
+    ...(showTime ? {
+      showTime: {
+        defaultValue: dayjs('00:00:00', 'HH:mm:ss'),
+        format: 'HH:mm:ss',
+      }
+    } : {}),
+  };
 
   return {
     component: 'DatePicker',
-    componentProps: {
-      class: 'w-full',
-      format: 'YYYY-MM-DD',
-      placeholder: placeholder || `选择${label}`,
-      valueFormat: 'YYYY-MM-DD',
-    },
+    componentProps,
     fieldName,
     label,
     ...(required ? { rules: 'selectRequired' } : {}),

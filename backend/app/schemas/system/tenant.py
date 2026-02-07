@@ -7,9 +7,10 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.core.base_schema import BaseSchema
+from app.core.config import settings
 from app.schemas.tenant.domain import TenantDomainSimpleResponse
 
 

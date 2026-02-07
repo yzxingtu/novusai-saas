@@ -45,9 +45,23 @@ const Checkbox = defineAsyncComponent(
 const CheckboxGroup = defineAsyncComponent(() =>
   import('ant-design-vue/es/checkbox').then((res) => res.CheckboxGroup),
 );
-const DatePicker = defineAsyncComponent(
+const DatePickerRaw = defineAsyncComponent(
   () => import('ant-design-vue/es/date-picker'),
 );
+
+// DatePicker 包装器 - 统一设置默认日期格式
+const DatePicker = (props: any, { attrs, slots }: any) => {
+  // 如果没有自定义 format,使用统一格式
+  const format = attrs?.format || props?.format || 'YYYY-MM-DD HH:mm:ss';
+  const valueFormat = attrs?.valueFormat || props?.valueFormat || 'YYYY-MM-DD HH:mm:ss';
+  
+  return h(DatePickerRaw, {
+    ...props,
+    ...attrs,
+    format,
+    valueFormat,
+  }, slots);
+};
 const Divider = defineAsyncComponent(() => import('ant-design-vue/es/divider'));
 const Input = defineAsyncComponent(() => import('ant-design-vue/es/input'));
 const InputNumber = defineAsyncComponent(

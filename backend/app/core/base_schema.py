@@ -12,8 +12,10 @@ Schema 基类模块
 
 from datetime import datetime
 from typing import Any, Generic, TypeVar
+from typing import get_args, get_origin
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from app.core.config import settings
 
 # 泛型类型变量
 T = TypeVar("T")
@@ -35,6 +37,97 @@ class BaseSchema(BaseModel):
         },
         str_strip_whitespace=True,  # 自动去除字符串首尾空白
     )
+    
+    @model_validator(mode='before')
+    @classmethod
+    def parse_datetime_fields(cls, data: Any) -> Any:
+        """
+        全局 datetime 字段解析器
+        
+        在数据验证前,将所有字符串格式的 datetime 字段
+        自动转换为带本地时区 (Asia/Shanghai) 的 datetime 对象
+        
+        支持的格式:
+        - "YYYY-MM-DD HH:mm:ss" (前端发送的格式)
+        - "YYYY-MM-DDTHH:mm:ss" (ISO 8601)
+        - "YYYY-MM-DD" (纯日期)
+        """
+        # 只处理字典类型的数据(来自API请求)
+        if not isinstance(data, dict):
+            return data
+        
+        # 获取模型字段定义
+        if not hasattr(cls, 'model_fields'):
+            return data
+        
+        processed_data = {}
+        
+        for field_name, field_value in data.items():
+            # 跳过 None 值
+            if field_value is None:
+                processed_data[field_name] = field_value
+                continue
+            
+            # 检查字段是否存在于模型中
+            if field_name not in cls.model_fields:
+                processed_data[field_name] = field_value
+                continue
+            
+            # 获取字段类型
+            field = cls.model_fields[field_name]
+            field_type = field.annotation
+            
+            # 检查字段类型是否包含 datetime
+            is_datetime_field = False
+            
+            if field_type is datetime:
+                is_datetime_field = True
+            elif get_origin(field_type) is type(None) or str(get_origin(field_type)) == 'UnionType':
+                # 处理 Optional[datetime] 或 datetime | None
+                args = get_args(field_type)
+                if datetime in args:
+                    is_datetime_field = True
+            
+            # 如果不是 datetime 字段,直接使用原值
+            if not is_datetime_field:
+                processed_data[field_name] = field_value
+                continue
+            
+            # 如果已经是 datetime 对象,添加时区信息
+            if isinstance(field_value, datetime):
+                if field_value.tzinfo is None:
+                    # naive datetime -> 添加本地时区
+                    processed_data[field_name] = field_value.replace(tzinfo=settings.tz)
+                else:
+                    processed_data[field_name] = field_value
+                continue
+            
+            # 如果是字符串,尝试解析为 datetime
+            if isinstance(field_value, str):
+                from datetime import datetime as dt
+                
+                # 支持的格式列表
+                formats = [
+                    "%Y-%m-%d %H:%M:%S",   # 前端发送的格式
+                    "%Y-%m-%dT%H:%M:%S",   # ISO 8601
+                    "%Y-%m-%d",            # 纯日期
+                ]
+                
+                for fmt in formats:
+                    try:
+                        parsed = dt.strptime(field_value, fmt)
+                        # 解析为本地时区的 datetime
+                        processed_data[field_name] = parsed.replace(tzinfo=settings.tz)
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    # 所有格式都失败,保留原值
+                    processed_data[field_name] = field_value
+            else:
+                processed_data[field_name] = field_value
+        
+        return processed_data
 
 
 class BaseCreateSchema(BaseSchema):
