@@ -106,5 +106,40 @@
   },
   "copied": "Copied to clipboard",
   "notSet": "Not Set",
-  "saveSuccess": "Saved successfully"
+  "saveSuccess": "Saved successfully",
+  "cronPicker": {
+    "placeholder": "Enter Cron expression (e.g. 0 2 * * *)",
+    "helper": "Pick",
+    "quickPresets": "Quick Presets",
+    "visualBuilder": "Visual Builder",
+    "nextExecutions": "Next 5 Executions",
+    "invalidCron": "Invalid Cron expression",
+    "fields": {
+      "minute": "Min",
+      "hour": "Hour",
+      "dayOfMonth": "Day",
+      "month": "Month",
+      "dayOfWeek": "Week"
+    },
+    "presets": {
+      "everyMinute": "Every minute",
+      "everyMinuteDesc": "Runs every minute",
+      "every5Min": "Every 5 min",
+      "every5MinDesc": "Runs every 5 minutes",
+      "every15Min": "Every 15 min",
+      "every15MinDesc": "Runs every 15 minutes",
+      "every30Min": "Every 30 min",
+      "every30MinDesc": "Runs every 30 minutes",
+      "everyHour": "Every hour",
+      "everyHourDesc": "Runs at the start of every hour",
+      "daily2AM": "Daily 2 AM",
+      "daily2AMDesc": "Runs daily at 2:00 AM",
+      "daily6AM": "Daily 6 AM",
+      "daily6AMDesc": "Runs daily at 6:00 AM",
+      "weeklyMon": "Weekly Mon 2 AM",
+      "weeklyMonDesc": "Runs every Monday at 2:00 AM",
+      "monthly1st": "Monthly 1st 2 AM",
+      "monthly1stDesc": "Runs on the 1st of every month at 2:00 AM"
+    }
+  }
 }

@@ -70,7 +70,7 @@ class LogStatsResponse(BaseModel):
         icon="lucide:file-code-2",
         path="/system-mgmt/system-logs",
         component="admin/system/system-logs/index",
-        parent="system_mgmt",  # 父菜单: 系统管理
+        parent="system_maintenance",
         sort_order=30,
     )
 )

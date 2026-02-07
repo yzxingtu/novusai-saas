@@ -24,6 +24,7 @@ from app.enums.config import ConfigScope, ConfigValueType
 from app.enums.billing import BillingCycle
 from app.enums.log import UserTypeEnum, LogModuleEnum, LogCategoryEnum
 from app.enums.attachment import AttachmentVisibility, AttachmentStatus, AttachmentSource
+from app.enums.task import TaskStatusEnum, ScheduleTypeEnum, TaskScopeEnum
 
 __all__ = [
     # 基类
@@ -58,4 +59,8 @@ __all__ = [
     "AttachmentSource",
     # 错误码
     "ErrorCode",
+    # 任务
+    "TaskStatusEnum",
+    "ScheduleTypeEnum",
+    "TaskScopeEnum",
 ]

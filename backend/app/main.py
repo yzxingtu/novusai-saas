@@ -74,8 +74,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 f"configs={config_sync_result['configs']}"
             )
 
-        # TODO: 初始化 Redis 连接
-        # TODO: 初始化 Celery
+        # 初始化 Redis 连接
+        from app.core.redis import RedisManager
+        try:
+            await RedisManager.init()
+            logger.info("✅ Redis initialized")
+        except Exception as redis_err:
+            logger.warning(f"⚠️ Redis initialization failed: {redis_err}")
+
+        # 验证 Celery broker 连通性
+        try:
+            from app.celery_app import celery_app
+            conn = celery_app.connection()
+            conn.ensure_connection(max_retries=1, timeout=3)
+            conn.close()
+            logger.info("✅ Celery broker connected")
+        except Exception as celery_err:
+            logger.warning(f"⚠️ Celery broker connection failed: {celery_err}")
         
     except Exception as e:
         # 确保启动阶段的错误能够被记录和显示
@@ -98,7 +113,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await close_database()
     logger.info("✅ Database connections closed")
     
-    # TODO: 关闭 Redis 连接
+    # 关闭 Redis 连接
+    from app.core.redis import RedisManager
+    await RedisManager.close()
+    logger.info("✅ Redis connections closed")
 
 
 def create_application() -> FastAPI:
@@ -265,12 +283,15 @@ def create_application() -> FastAPI:
     @app.get("/health", tags=["Health"])
     async def health_check() -> dict:
         """健康检查端点"""
+        from app.core.redis import RedisManager
+        redis_ok = await RedisManager.health_check()
         return {
             "code": 0,
             "message": _("common.success"),
             "data": {
-                "status": "healthy",
+                "status": "healthy" if redis_ok else "degraded",
                 "env": settings.APP_ENV,
+                "redis_status": "connected" if redis_ok else "disconnected",
             },
         }
     

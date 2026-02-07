@@ -14,7 +14,10 @@
       "system_mgmt": "System Management",
       "platform_config": "Platform Config",
       "system_log": "System Logs",
-      "attachment": "Attachments"
+      "attachment": "Attachments",
+      "task_log": "Task Logs",
+      "periodic_task": "Periodic Tasks",
+      "system_maintenance": "System Maintenance"
     },
     "tenant": {
       "dashboard": "Dashboard",
@@ -27,7 +30,10 @@
       "system_mgmt": "System Management",
       "tenant_config": "System Config",
       "domain": "Domain Management",
-      "attachment": "Attachments"
+      "attachment": "Attachments",
+      "task_log": "Task Logs",
+      "periodic_task": "Periodic Tasks",
+      "system_maintenance": "System Maintenance"
     }
   }
 }

@@ -5,5 +5,7 @@ export * from './domain';
 export * from './menu';
 export * from './operation-log';
 export * from './organization';
+export * from './periodic-task';
 export * from './permission';
 export * from './role';
+export * from './task-log';

@@ -685,7 +685,7 @@ export function dividerField(fieldName: string, label: string): VbenFormSchema {
       orientation: 'left',
     },
     fieldName,
-    label,
+    hideLabel: true,
     renderComponentContent: () => ({
       default: () => label,
     }),

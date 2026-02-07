@@ -14,7 +14,10 @@
       "system_mgmt": "系统管理",
       "platform_config": "平台配置",
       "system_log": "系统日志",
-      "attachment": "附件管理"
+      "attachment": "附件管理",
+      "task_log": "任务日志",
+      "periodic_task": "定时任务",
+      "system_maintenance": "系统维护"
     },
     "tenant": {
       "dashboard": "仪表板",
@@ -27,7 +30,10 @@
       "system_mgmt": "系统管理",
       "tenant_config": "系统配置",
       "domain": "域名管理",
-      "attachment": "附件管理"
+      "attachment": "附件管理",
+      "task_log": "任务日志",
+      "periodic_task": "定时任务",
+      "system_maintenance": "系统维护"
     }
   }
 }

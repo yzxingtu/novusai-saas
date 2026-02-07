@@ -5,10 +5,8 @@
 """
 
 from functools import lru_cache
-from typing import Any
 from zoneinfo import ZoneInfo
 
-from pydantic import PostgresDsn, RedisDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -97,14 +95,22 @@ class Settings(BaseSettings):
     # ========================================
     CELERY_BROKER_URL: str = ""
     CELERY_RESULT_BACKEND: str = ""
-    
-    @field_validator("CELERY_BROKER_URL", mode="before")
-    @classmethod
-    def set_celery_broker(cls, v: str, info: Any) -> str:
-        if v:
-            return v
-        # 默认使用 Redis 作为 Celery broker
-        return ""  # 在运行时从 REDIS_URL 获取
+    CELERY_TASK_SERIALIZER: str = "json"
+    CELERY_RESULT_SERIALIZER: str = "json"
+    CELERY_ACCEPT_CONTENT: list[str] = ["json"]
+    CELERY_TASK_TRACK_STARTED: bool = True
+    CELERY_TASK_TIME_LIMIT: int = 3600
+    CELERY_TASK_SOFT_TIME_LIMIT: int = 3300
+    CELERY_WORKER_CONCURRENCY: int = 4
+    CELERY_WORKER_PREFETCH_MULTIPLIER: int = 1
+
+    @property
+    def celery_broker_url(self) -> str:
+        return self.CELERY_BROKER_URL or self.REDIS_URL
+
+    @property
+    def celery_result_backend(self) -> str:
+        return self.CELERY_RESULT_BACKEND or self.REDIS_URL
     
     # ========================================
     # 日志配置

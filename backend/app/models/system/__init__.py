@@ -11,6 +11,8 @@ from app.models.system.config import (
     SystemConfigValue,
 )
 from app.models.system.operation_log import OperationLog
+from app.models.system.task_log import TaskLog
+from app.models.system.periodic_task import PeriodicTask
 
 __all__ = [
     "Admin",
@@ -18,4 +20,6 @@ __all__ = [
     "SystemConfig",
     "SystemConfigValue",
     "OperationLog",
+    "TaskLog",
+    "PeriodicTask",
 ]

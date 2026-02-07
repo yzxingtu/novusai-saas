@@ -34,7 +34,7 @@ from app.services.system.operation_log_service import OperationLogService
         icon="lucide:file-text",
         path="/system/operation-logs",
         component="admin/system/operation-logs/index",
-        parent="system",  # 父菜单: 权限管理
+        parent="system_maintenance",
         sort_order=20,
     )
 )

@@ -19,6 +19,9 @@ from app.services.system.system_log_service import (
     LogContentPage,
 )
 from app.services.system.attachment_service import AdminAttachmentService
+from app.services.system.task_log_service import TaskLogService
+from app.services.system.task_manager_service import TaskManagerService
+from app.services.system.periodic_task_service import PeriodicTaskService
 
 
 __all__ = [
@@ -34,4 +37,7 @@ __all__ = [
     "LogCategoryInfo",
     "LogContentPage",
     "AdminAttachmentService",
+    "TaskLogService",
+    "TaskManagerService",
+    "PeriodicTaskService",
 ]

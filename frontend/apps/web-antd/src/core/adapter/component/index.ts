@@ -366,6 +366,7 @@ export type ComponentType =
   | 'Cascader'
   | 'Checkbox'
   | 'CheckboxGroup'
+  | 'CronPicker'
   | 'DatePicker'
   | 'DefaultButton'
   | 'Divider'
@@ -420,6 +421,9 @@ async function initComponentAdapter() {
     Cascader,
     Checkbox,
     CheckboxGroup,
+    CronPicker: defineAsyncComponent(
+      () => import('#/components/business/cron-picker/CronPicker.vue'),
+    ),
     DatePicker,
     // 自定义默认按钮
     DefaultButton: (props, { attrs, slots }) => {

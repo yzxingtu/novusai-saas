@@ -14,8 +14,10 @@ from app.api.tenant.configs import router as configs_router, TenantConfigControl
 from app.api.tenant.attachments import router as attachments_router, TenantAttachmentController
 from app.api.tenant.domains import router as domains_router, TenantDomainController
 from app.api.tenant.operation_logs import router as operation_logs_router, TenantOperationLogController
+from app.api.tenant.periodic_tasks import router as periodic_tasks_router, TenantPeriodicTaskController
 from app.api.tenant.permissions import router as permissions_router, TenantPermissionController
 from app.api.tenant.roles import router as roles_router, TenantRoleController
+from app.api.tenant.tasks import router as tasks_router, TenantTaskLogController
 
 # 创建租户管理后台路由器
 tenant_router = APIRouter()
@@ -28,6 +30,8 @@ tenant_router.include_router(domains_router)
 tenant_router.include_router(operation_logs_router)
 tenant_router.include_router(permissions_router)
 tenant_router.include_router(roles_router)
+tenant_router.include_router(tasks_router)
+tenant_router.include_router(periodic_tasks_router)
 
 
 __all__ = [
@@ -37,6 +41,8 @@ __all__ = [
     "TenantAttachmentController",
     "TenantDomainController",
     "TenantOperationLogController",
+    "TenantPeriodicTaskController",
     "TenantPermissionController",
     "TenantRoleController",
+    "TenantTaskLogController",
 ]

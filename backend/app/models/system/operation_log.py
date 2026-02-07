@@ -103,7 +103,7 @@ class OperationLog(BaseModel):
     
     # 操作类型: create / update / delete / query / login / logout / export / import
     action: Mapped[str | None] = mapped_column(
-        String(20),
+        String(50),
         nullable=True,
         index=True,
         comment="操作类型"

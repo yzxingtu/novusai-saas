@@ -1,0 +1,54 @@
+# NovusAI SaaS 项目核心规则速查
+
+## 项目定位
+多租户 SaaS 平台：前端 Vue 3 + Vben Admin 5.x + Ant Design Vue；后端 FastAPI + SQLAlchemy 2.x + PostgreSQL
+
+## 🚫 9 条全局禁令（必须遵守）
+1. 禁止硬编码中文字符串（前端 `$t()`，后端 `_()`）
+2. 禁止 `console.log`（使用 `console.warn` / `console.error`）
+3. 禁止 `any` 类型（使用 `unknown` 或具体类型）
+4. 禁止魔法字符串（后端用 `LabeledEnum`）
+5. 禁止跨端导入（admin 不导入 tenant）
+6. 禁止 Controller 写业务逻辑，Service 直接操作 DB
+7. 禁止裸返回数据（后端必须用统一响应）
+8. 禁止手写重复 Schema（前端用辅助函数）
+9. 禁止敏感信息入代码（通过环境变量）
+
+## 📋 前端核心规则
+- 架构：`views → composables → store/api → utils`（禁止反向依赖）
+- 端隔离：admin → 仅导入 `api/admin`、`store/admin`
+- CRUD：列表用 `useCrudPage`，表单用 `useCrudDrawer`
+- 辅助函数：搜索用 `searchInput()`/`statusSelect()`，表单用 `inputField()`/`dateField()`
+- 权限：`v-access:code="['resource:action']"`
+- 国际化：`$t('admin.system.role.title')`
+- 图标：优先 `lucide:user`，Tailwind 用 `icon-[lucide--user]`
+- 命名：目录/TS 文件 kebab-case，Vue 组件 PascalCase
+- 请求：`import { requestClient } from '#/utils/request'`
+
+## 📋 后端核心规则
+- 分层：`Middleware → Controller → Service → Repository → Model`
+- 多租户：继承 `TenantModel`/`TenantRepository`/`TenantService`/`TenantController`
+- 统一响应：`success()` / `created()` / `paginated()` / `deleted()`
+- 查询：JSON:API（`filter[field][operator]`、`sort=-created_at`）
+- 权限：`@permission_resource("resource")` + `@action_read`/`@action_create`
+- 异常：`ValidationException` (422/4001)、`AuthenticationException` (401/4010) 等
+- 依赖注入：`DbSession`、`ActiveTenantAdmin`、`QueryParams`
+- 中间件顺序：CORS → I18n → Permission → AuditLog → AccessControl → Tenant
+- 枚举：继承 `LabeledStrEnum`，禁止 `status = "draft"`
+- 日志：`LogManager.get_logger("auth")`
+
+## 🔄 开发流程
+- 后端 CRUD：Model → Schema → Repository → Service → Controller → 路由 → 迁移
+- 前端 CRUD：data.ts → list.vue → form.vue → 路由+i18n
+
+## 📚 详细文档位置
+- 规则：`.verdent/rules/novusai-saas.md`
+- 技能：`.verdent/skills/novusai-fullstack/SKILL.md`
+- 参考文档：`.verdent/skills/novusai-fullstack/references/`
+
+## ⚡ DevGenius 工作流
+1. `get_project_context` → 获取项目信息
+2. `get_my_tasks` → 查看任务
+3. `claim_task(task_id)` → 认领任务
+4. `search_documents` → 查规范文档
+5. 开发 → `update_task_status(task_id, status="completed", notes="完成报告")`

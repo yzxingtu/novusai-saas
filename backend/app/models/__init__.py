@@ -16,6 +16,8 @@ from app.models.system import (
     SystemConfig,
     SystemConfigValue,
     OperationLog,
+    TaskLog,
+    PeriodicTask,
 )
 
 # 租户级模型
@@ -45,6 +47,8 @@ __all__ = [
     "SystemConfig",
     "SystemConfigValue",
     "OperationLog",
+    "TaskLog",
+    "PeriodicTask",
     # 租户级
     "Tenant",
     "TenantAdmin",

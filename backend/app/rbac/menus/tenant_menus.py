@@ -78,7 +78,26 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # 子菜单由控制器声明:
     # - menu:tenant.tenant_config (租户配置)
     # - menu:tenant.tenant_settings (租户设置)
-    
+
+    # ========================================
+    # 系统维护（目录）
+    # ========================================
+    PermissionMeta(
+        code="menu:tenant.system_maintenance",
+        name="menu.tenant.system_maintenance",
+        type=PermissionType.MENU,
+        scope=PermissionScope.TENANT,
+        resource="menu",
+        action="tenant.system_maintenance",
+        icon="lucide:hard-drive",
+        path="/system-maintenance",
+        sort_order=30,
+    ),
+    # 子菜单由控制器声明:
+    # - menu:tenant.operation_log (操作日志)
+    # - menu:tenant.task_log (任务日志)
+    # - menu:tenant.periodic_task (定时任务)
+
     # ========================================
     # 业务管理（目录，预留）
     # ========================================

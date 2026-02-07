@@ -95,6 +95,26 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     ),
     # 子菜单由控制器声明:
     # - menu:admin.platform_config (平台配置)
+
+    # ========================================
+    # 系统维护（目录）
+    # ========================================
+    PermissionMeta(
+        code="menu:admin.system_maintenance",
+        name="menu.admin.system_maintenance",
+        type=PermissionType.MENU,
+        scope=PermissionScope.ADMIN,
+        resource="menu",
+        action="admin.system_maintenance",
+        icon="lucide:hard-drive",
+        path="/system-maintenance",
+        sort_order=40,
+    ),
+    # 子菜单由控制器声明:
+    # - menu:admin.operation_log (操作日志)
+    # - menu:admin.system_log (系统日志)
+    # - menu:admin.task_log (任务日志)
+    # - menu:admin.periodic_task (定时任务)
 ]
 
 

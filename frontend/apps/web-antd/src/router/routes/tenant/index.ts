@@ -81,6 +81,29 @@ const mainRoutes: RouteRecordRaw = {
         title: $t('tenant.system.attachment.title'),
       },
     },
+    // Fallback 静态注册：任务日志
+    {
+      name: 'TenantSystemTaskLogs',
+      path: 'system/task-logs',
+      component: () => import('#/views/tenant/system/task-logs/index.vue'),
+      meta: {
+        hideInMenu: true,
+        icon: 'lucide:scroll-text',
+        title: $t('tenant.system.taskLog.title'),
+      },
+    },
+    // Fallback 静态注册：定时任务
+    {
+      name: 'TenantSystemPeriodicTasks',
+      path: 'system/periodic-tasks',
+      component: () =>
+        import('#/views/tenant/system/periodic-tasks/index.vue'),
+      meta: {
+        hideInMenu: true,
+        icon: 'lucide:timer',
+        title: $t('tenant.system.periodicTask.title'),
+      },
+    },
   ],
 };
 

@@ -294,5 +294,121 @@
       "positionDesc": "Specific job position",
       "roleDesc": "Permission assignment unit"
     }
+  },
+  "taskLog": {
+    "title": "Task Logs",
+    "list": "Task Log List",
+    "detail": "Task Detail",
+    "taskName": "Task Name",
+    "taskId": "Task ID",
+    "queue": "Queue",
+    "durationMs": "Duration (ms)",
+    "retryCount": "Retries",
+    "errorMessage": "Error Message",
+    "traceback": "Traceback",
+    "result": "Result",
+    "args": "Positional Args",
+    "kwargs": "Keyword Args",
+    "createdAt": "Created At",
+    "startedAt": "Started At",
+    "finishedAt": "Finished At",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "tenantName": "Tenant",
+    "basicInfo": "Basic Info",
+    "timeInfo": "Time Info",
+    "paramsInfo": "Parameters",
+    "resultInfo": "Execution Result",
+    "status": {
+      "label": "Status",
+      "pending": "Pending",
+      "running": "Running",
+      "success": "Success",
+      "failed": "Failed",
+      "retrying": "Retrying"
+    },
+    "messages": {
+      "retrySuccess": "Task retry submitted successfully",
+      "retryConfirm": "Are you sure you want to retry this task?",
+      "cancelSuccess": "Task cancelled successfully",
+      "cancelConfirm": "Are you sure you want to cancel this task?"
+    },
+    "placeholder": {
+      "searchTaskName": "Search task name",
+      "searchQueue": "Search queue",
+      "allStatus": "All Status",
+      "allTenant": "All Tenants"
+    }
+  },
+  "periodicTask": {
+    "title": "Periodic Tasks",
+    "list": "Periodic Task List",
+    "create": "Create Periodic Task",
+    "edit": "Edit Periodic Task",
+    "name": "Task Name",
+    "taskPath": "Task Path",
+    "scheduleTypeLabel": "Schedule Type",
+    "scheduleTypeHelp": "Cron: execute on a cron schedule; Interval: execute at fixed second intervals",
+    "schedule": "Schedule",
+    "cronExpression": "Cron Expression",
+    "intervalSeconds": "Interval (seconds)",
+    "isActive": "Enabled",
+    "lastRunAt": "Last Run",
+    "nextRunAt": "Next Run",
+    "description": "Description",
+    "trigger": "Trigger Now",
+    "tenantName": "Tenant",
+    "scopeLabel": "Scope",
+    "isLocked": "Protected (no delete)",
+    "isEditable": "Allow Edit",
+    "maxRetries": "Max Retries",
+    "retryDelay": "Retry Delay (s)",
+    "timeout": "Timeout (s)",
+    "notifyOnFailure": "Notify on Failure",
+    "notifyEmails": "Notify Emails",
+    "scope": {
+      "platform": "Platform",
+      "tenant": "Tenant",
+      "allTenants": "All Tenants"
+    },
+    "section": {
+      "basic": "Basic Settings",
+      "scope": "Scope",
+      "protection": "Protection",
+      "retry": "Retry Policy",
+      "notify": "Failure Notification"
+    },
+    "scheduleType": {
+      "cron": "Cron",
+      "interval": "Interval"
+    },
+    "messages": {
+      "createSuccess": "Created successfully",
+      "updateSuccess": "Updated successfully",
+      "deleteSuccess": "Deleted successfully",
+      "deleteConfirm": "Are you sure you want to delete periodic task \"{name}\"?",
+      "triggerSuccess": "Task triggered successfully",
+      "triggerConfirm": "Are you sure you want to trigger this task now?",
+      "toggleSuccess": "Status updated successfully"
+    },
+    "placeholder": {
+      "searchName": "Search task name",
+      "searchTaskPath": "Search task path",
+      "allScheduleTypes": "All Types",
+      "inputName": "Please enter task name",
+      "inputTaskPath": "Please enter task path (e.g. app.tasks.scheduled.cleanup_logs)",
+      "selectScheduleType": "Please select schedule type",
+      "inputCron": "Cron expression (e.g. 0 2 * * *)",
+      "inputInterval": "Interval in seconds (min 10)",
+      "inputDescription": "Please enter description (optional)",
+      "allTenant": "All Tenants",
+      "allScopes": "All Scopes",
+      "selectScope": "Please select scope",
+      "selectTenant": "Please select tenant",
+      "inputMaxRetries": "0-10",
+      "inputRetryDelay": "1-3600 seconds",
+      "inputTimeout": "10-86400 seconds",
+      "inputNotifyEmails": "Separate multiple emails with commas"
+    }
   }
 }

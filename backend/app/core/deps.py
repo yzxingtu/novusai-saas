@@ -28,6 +28,9 @@ from app.core.security import (
 )
 from app.core.query_parser import get_query_spec, QueryParams
 from app.models import Admin, TenantAdmin, TenantUser
+from app.core.redis import get_redis
+
+from redis.asyncio import Redis as AioRedis
 
 
 # ========================================
@@ -266,6 +269,9 @@ async def get_current_active_tenant_user(
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
+# Redis
+RedisClient = Annotated[AioRedis, Depends(get_redis)]
+
 # 平台管理员
 CurrentAdmin = Annotated[Admin, Depends(get_current_admin)]
 ActiveAdmin = Annotated[Admin, Depends(get_current_active_admin)]
@@ -308,6 +314,7 @@ __all__ = [
     # 通用
     "oauth2_scheme",
     "DbSession",
+    "RedisClient",
     # 查询参数
     "get_query_spec",
     "QueryParams",
