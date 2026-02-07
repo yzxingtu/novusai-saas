@@ -210,9 +210,9 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     /**
      * 加载租户公开配置
      * 仅首次访问时调用
+     * 开发环境支持通过 URL 参数 tenant_code 指定租户
      */
     async loadTenantConfig(): Promise<null | TenantPublicConfig> {
-      // 如果已加载，直接返回缓存
       if (this.tenantConfigLoaded && this.tenantConfig) {
         return this.tenantConfig;
       }
@@ -221,18 +221,23 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       this.error = null;
 
       try {
-        const config = await getTenantPublicConfigApi();
+        let tenantCode: string | undefined;
+        if (import.meta.env.DEV) {
+          const urlParams = new URLSearchParams(window.location.search);
+          tenantCode =
+            urlParams.get('tenant_code') ?? import.meta.env.VITE_DEV_TENANT_CODE ?? undefined;
+        }
+
+        const config = await getTenantPublicConfigApi(tenantCode);
         this.tenantConfig = config;
         this.tenantConfigLoaded = true;
 
-        // 应用品牌配置
         applyBrandConfig(config.brand);
 
         return config;
       } catch (error) {
         this.error =
           error instanceof Error ? error.message : 'Failed to load config';
-        // 错误已存储在 state.error 中，由调用方决定如何处理
         return null;
       } finally {
         this.loading = false;

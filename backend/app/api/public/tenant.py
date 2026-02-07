@@ -5,6 +5,7 @@
 """
 
 from fastapi import APIRouter, HTTPException, Request, status
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.deps import DbSession
@@ -12,6 +13,7 @@ from app.core.i18n import _
 from app.core.response import success
 from app.middleware.tenant import get_tenant_context
 from app.configs.service import ConfigService
+from app.models import Tenant
 from app.schemas.public import TenantPublicConfig, DomainVerificationInfo
 from app.schemas.public.platform import StoragePublicConfig
 from app.rbac.decorators import public
@@ -22,7 +24,7 @@ router = APIRouter(prefix="/tenant", tags=["租户公开接口"])
 
 @router.get("/config", summary="获取当前租户公开配置")
 @public
-async def get_tenant_public_config(request: Request, db: DbSession):
+async def get_tenant_public_config(request: Request, db: DbSession, tenant_code: str | None = None):
     """
     获取当前租户的公开配置
     
@@ -31,6 +33,7 @@ async def get_tenant_public_config(request: Request, db: DbSession):
     **域名识别规则:**
     - 子域名模式: `{tenant_code}.app.novusai.com`
     - 自定义域名模式: 用户绑定的独立域名
+    - 开发环境: 支持通过 `?tenant_code=xxx` 查询参数指定租户
     
     **返回内容:**
     - 租户基本信息（名称、logo 等）
@@ -41,13 +44,24 @@ async def get_tenant_public_config(request: Request, db: DbSession):
     """
     tenant_ctx = get_tenant_context(request)
     
-    if not tenant_ctx or not tenant_ctx.is_resolved:
+    tenant = None
+    if tenant_ctx and tenant_ctx.is_resolved:
+        tenant = tenant_ctx.tenant
+    elif tenant_code and settings.APP_ENV == "development":
+        result = await db.execute(
+            select(Tenant).where(
+                Tenant.code == tenant_code,
+                Tenant.is_active == True,
+                Tenant.is_deleted == False,
+            )
+        )
+        tenant = result.scalar_one_or_none()
+    
+    if not tenant:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=_("tenant.not_found"),
         )
-    
-    tenant = tenant_ctx.tenant
     
     config_service = ConfigService(db)
     general_config = await config_service.get_tenant_configs_by_group(

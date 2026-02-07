@@ -151,7 +151,7 @@ useAutoTableDragSort(() => gridApi.grid, {
         <!-- 配额列：居中显示 -->
         <template #quota_cell="{ row }">
           <div class="flex justify-center">
-            <Popover v-if="row.quota" title="配额详情">
+            <Popover v-if="row.quota" :title="$t('admin.tenant.plan.quotaDetail')">
               <template #content>
                 <div class="flex flex-col gap-2 text-xs">
                   <div class="flex items-center justify-between gap-4">
@@ -223,7 +223,7 @@ useAutoTableDragSort(() => gridApi.grid, {
                 <template #icon>
                   <IconifyIcon icon="lucide:sparkles" class="size-3" />
                 </template>
-                AI
+                {{ $t('admin.tenant.plan.featureAI') }}
               </Tag>
               <Tag
                 v-if="row.features.advancedAnalytics"
@@ -232,7 +232,7 @@ useAutoTableDragSort(() => gridApi.grid, {
                 <template #icon>
                   <IconifyIcon icon="lucide:bar-chart-3" class="size-3" />
                 </template>
-                分析
+                {{ $t('admin.tenant.plan.featureAnalytics') }}
               </Tag>
               <Tag
                 v-if="row.features.whiteLabel"
@@ -241,7 +241,7 @@ useAutoTableDragSort(() => gridApi.grid, {
                 <template #icon>
                   <IconifyIcon icon="lucide:palette" class="size-3" />
                 </template>
-                白标
+                {{ $t('admin.tenant.plan.featureWhiteLabel') }}
               </Tag>
               <Tag
                 v-if="row.features.prioritySupport"
@@ -250,7 +250,7 @@ useAutoTableDragSort(() => gridApi.grid, {
                 <template #icon>
                   <IconifyIcon icon="lucide:headphones" class="size-3" />
                 </template>
-                支持
+                {{ $t('admin.tenant.plan.featureSupport') }}
               </Tag>
             </div>
             <span v-else class="text-muted-foreground">-</span>

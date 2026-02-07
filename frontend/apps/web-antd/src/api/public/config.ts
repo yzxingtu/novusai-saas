@@ -352,13 +352,19 @@ export async function getPlatformPublicConfigApi(): Promise<PlatformPublicConfig
  * 获取租户公开配置
  * GET /api/public/tenant/config
  * 无需认证，根据域名自动识别租户
+ * 开发环境支持通过 tenantCode 参数指定租户
  */
-export async function getTenantPublicConfigApi(): Promise<TenantPublicConfig> {
-  // baseRequestClient 无拦截器，返回原始 AxiosResponse
-  // AxiosResponse.data = HttpResponse { code, message, data }
+export async function getTenantPublicConfigApi(
+  tenantCode?: string,
+): Promise<TenantPublicConfig> {
+  const params: Record<string, string> = {};
+  if (tenantCode) {
+    params.tenant_code = tenantCode;
+  }
+
   const response = await baseRequestClient.get<
     HttpResponse<TenantPublicConfigRaw>
-  >('/api/public/tenant/config');
+  >('/api/public/tenant/config', { params });
 
   // response 是 AxiosResponse，response.data 是 HttpResponse
   const httpResponse = response as unknown as {

@@ -272,6 +272,11 @@
     "selectedCount": "已选 {count} 项",
     "permissionsCreateHint": "权限设置将在创建后生效，请创建后再次编辑进行配置",
     "defaultPlan": "默认套餐",
-    "userUnit": "用户"
+    "userUnit": "用户",
+    "quotaDetail": "配额详情",
+    "featureAI": "AI",
+    "featureAnalytics": "分析",
+    "featureWhiteLabel": "白标",
+    "featureSupport": "支持"
   }
 }

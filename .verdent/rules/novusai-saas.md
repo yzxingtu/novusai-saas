@@ -1,0 +1,184 @@
+# NovusAI SaaS 开发规则
+
+## 项目概述
+
+多租户 SaaS 平台。前端 Vue 3 + Vben Admin 5.x + Ant Design Vue；后端 FastAPI + SQLAlchemy 2.x + PostgreSQL。
+
+## 全局禁令
+
+- 禁止硬编码中文字符串，前端用 `$t()`，后端用 `_()`
+- 禁止 `console.log`，使用 `console.warn` / `console.error`
+- 禁止 `any` 类型，使用 `unknown` 或具体类型
+- 禁止魔法字符串，使用枚举（后端 `LabeledEnum`）
+- 禁止跨端导入（admin 页面不导入 tenant API/store）
+- 禁止 Controller 写业务逻辑，禁止 Service 直接操作 DB
+- 禁止裸返回数据，后端必须用 `success()` / `created()` / `paginated()` 等统一响应
+- 禁止手写重复 Schema 配置，前端必须用 `searchInput` / `inputField` 等辅助函数
+- 禁止敏感信息（密钥、密码）写入代码，通过环境变量配置
+
+## 前端规则
+
+### 架构
+
+- 多端分离：admin (`/admin/*`)、tenant (`/tenant/*`)、user (`/*`)
+- 依赖方向：`views → composables → store/api → utils`，禁止反向依赖
+- adapter 层不依赖具体业务代码
+- 请求客户端：`import { requestClient } from '#/utils/request'`
+
+### CRUD 开发
+
+- 列表页用 `useCrudPage`，表单用 `useCrudDrawer`
+- 搜索表单用 `searchInput()` / `statusSelect()` 等辅助函数生成
+- 编辑表单用 `inputField()` / `dateField()` / `textareaField()` 等
+- 业务预设（如 planSelect）定义在业务模块 `data.ts`，不放 adapter
+- 字段映射用 `fields` 选项自动处理 camelCase ↔ snake_case
+
+### 权限
+
+- 指令写法：`v-access:code="['resource:action']"`
+- 操作列自动鉴权：`options: ['edit', 'delete']`
+- Hook：`useAccess()` 获取 `hasAccessByCodes` / `isSuperAdmin`
+
+### 搜索（JSON:API）
+
+- fieldName 格式：`filter[field][operator]`
+- 操作符：`ilike`（模糊）、`eq`（精确）、`gte/lte`（范围）、`in`（多值）
+
+### 国际化
+
+- 翻译文件 key 前缀 = 文件路径（`zh-CN/admin/system.json` → `admin.system.*`）
+- JSON 内不重复嵌套路径名
+- 避免同一 JSON 中重复 key
+
+### 图标
+
+- 优先 Lucide：`lucide:user`
+- 组件：统一用 `IconifyIcon`
+- Tailwind 类：`icon-[lucide--user]`（`--` 代替 `:`）
+
+### 命名
+
+- 目录/TS 文件：kebab-case
+- Vue 组件：PascalCase
+- API 函数：`{action}{Resource}Api`
+- Store：`use{Endpoint}AuthStore`
+- Composable：`use{Name}`
+
+### 样式
+
+- 主色调：Vben 设计 Token（`text-foreground` / `bg-primary/10` / `text-muted-foreground`）
+- 状态色：`bg-success/10` / `bg-destructive/10` / `bg-warning/10`
+- 动画：`transform` + `opacity` 优先，禁止对 width/height 做动画
+
+## 后端规则
+
+### 架构分层
+
+```
+请求 → Middleware → Controller → Service → Repository → Model/DB
+```
+
+- Controller：路由、参数校验、调 Service、返回响应
+- Service：业务逻辑、钩子、事务编排
+- Repository：数据访问、查询构建
+- Model：表结构定义
+
+### 多租户
+
+- 租户模型继承 `TenantModel`（自动含 `tenant_id`）
+- 租户仓库继承 `TenantRepository`（自动注入 `tenant_id` 过滤）
+- 租户服务继承 `TenantService`
+- 租户控制器继承 `TenantController`
+- 平台管理用 `GlobalController`
+- `TenantController.get_service(db, tenant_id)` — 第二参数是 int
+- `BaseController.get_service(db)` — 只需 db
+
+### 统一响应
+
+```python
+success(data=obj)                         # 200
+created(data=obj)                         # 201 含义
+paginated(items, total, page, page_size)  # 分页
+deleted()                                 # 删除成功
+error(message, code, status_code)         # 自定义错误
+```
+
+### 查询（JSON:API）
+
+- 过滤：`filter[field][operator]=value`
+- 排序：`sort=-created_at,name`
+- 分页：`page[number]=1&page[size]=20`
+- 模型声明 `__filterable__` / `__sortable__` / `__selectable__`
+
+### 权限（RBAC）
+
+- 类装饰器：`@permission_resource("resource_name")`
+- 方法装饰器：`@action_read` / `@action_create` / `@action_update` / `@action_delete`
+- 公开接口：`@public`
+- 仅登录：`@auth_only`
+
+### 异常
+
+| 异常 | 状态码 | 错误码 |
+|------|--------|--------|
+| `ValidationException` | 422 | 4001 |
+| `AuthenticationException` | 401 | 4010 |
+| `AuthorizationException` | 403 | 4030 |
+| `NotFoundException` | 404 | 4040 |
+| `BusinessException` | 422 | 4220 |
+
+### 依赖注入
+
+- `DbSession` — AsyncSession
+- `ActiveAdmin` — 活跃平台管理员
+- `ActiveTenantAdmin` — 活跃租户管理员
+- `QueryParams` — JSON:API 查询参数
+- `SuperAdmin` — 超级管理员
+
+### 中间件顺序
+
+后注册先执行。实际注册顺序：CORS → I18n → Permission → AuditLog → AccessControl → Tenant
+
+请求处理：`Tenant → AccessControl → AuditLog → Permission → I18n → Route`
+
+### 枚举
+
+继承 `LabeledStrEnum`，支持 i18n。禁止 `status = "draft"`，用 `status = NoticeStatus.DRAFT`。
+
+### 日志
+
+```python
+from app.core.logging import LogManager
+logger = LogManager.get_logger("auth")  # app/error/db/auth/storage/task/queue/captcha/impersonate
+```
+
+### 迁移
+
+```bash
+alembic revision --autogenerate -m "add xxx table"
+alembic upgrade head
+```
+
+启动时自动执行 `alembic upgrade head`。
+
+## 前后端协作
+
+- 搜索语法统一 JSON:API：前端 `filter[field][ilike]` ↔ 后端 `QueryParams` 自动解析
+- 排序统一：前端 `sort=-created_at` ↔ 后端 `__sortable__` 白名单
+- 分页统一：前端 `page[number]/page[size]` ↔ 后端 `paginated()`
+- Token 按 URL 前缀自动选择：`/admin/*` → admin Token，`/tenant/*` → tenant Token
+- 错误码对照：前端 4010 → 跳登录，4011 → token 过期刷新，4030 → 权限不足提示
+
+## DevGenius 治理规则
+
+本项目使用 DevGenius（MCP 集成名称：`devgenius-quanzhan`）进行项目管理，以下规则每次对话均生效：
+
+- **任务驱动**：所有开发必须基于认领的任务，禁止无任务编码
+- **文档先行**：新功能或重大变更前，必须先通过 MCP 查询相关文档；无文档则引导创建
+- **状态同步**：开发完成后必须更新任务状态，禁止不实施就更新
+- **先查后写**：写入文档前必须先搜索是否已存在，禁止重复创建相同主题
+- **规范遵守**：必须先查询并阅读规范文档再开发，禁止跳过
+- **MCP 优先**：所有项目管理操作（任务、文档、里程碑）通过 MCP 工具完成，确保可追溯
+- 禁止不认领任务直接开发
+- 禁止硬编码敏感信息
+- 禁止忽略文档要求

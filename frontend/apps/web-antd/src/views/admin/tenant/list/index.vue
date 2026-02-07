@@ -4,7 +4,7 @@
  */
 import type { adminApi } from '#/api';
 
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon, Plus } from '@vben/icons';
@@ -39,6 +39,9 @@ import ResetPasswordModal from './modules/ResetPasswordModal.vue';
 defineOptions({ name: 'TenantList' });
 
 type TenantInfo = adminApi.TenantInfo;
+
+// 检测是否为开发模式
+const isDev = computed(() => import.meta.env.DEV);
 
 // 域名管理弹窗引用
 const domainsModalRef = ref<InstanceType<typeof DomainsModal>>();
@@ -80,7 +83,7 @@ function onResetPassword(row: TenantInfo) {
 }
 
 /**
- * 一键登录租户后台
+ * 一键登录租户后台(新窗口)
  */
 async function onImpersonate(row: TenantInfo) {
   const hideLoading = message.loading({
@@ -95,13 +98,40 @@ async function onImpersonate(row: TenantInfo) {
       key: 'impersonate_tenant',
     });
     // 构建跳转 URL 并在新窗口打开
-    const targetUrl = `/tenant/impersonate?token=${encodeURIComponent(result.impersonateToken)}`;
+    const targetUrl = `/tenant/impersonate?token=${encodeURIComponent(result.impersonateToken)}&tenant_code=${encodeURIComponent(row.code)}`;
     window.open(targetUrl, '_blank');
   } catch {
     hideLoading();
     message.error({
       content: $t('admin.tenant.messages.impersonateFailed'),
       key: 'impersonate_tenant',
+    });
+  }
+}
+
+/**
+ * 一键登录租户后台(当前标签页) - 仅开发模式
+ */
+async function onImpersonateInCurrentTab(row: TenantInfo) {
+  const hideLoading = message.loading({
+    content: $t('admin.tenant.messages.impersonating', { name: row.name }),
+    duration: 0,
+    key: 'impersonate_tenant_current',
+  });
+  try {
+    const result = await admin.tenantImpersonateApi(row.id);
+    message.success({
+      content: $t('admin.tenant.messages.impersonateSuccess'),
+      key: 'impersonate_tenant_current',
+    });
+    // 在当前标签页跳转,添加 tenant_code 参数用于开发环境识别租户
+    const targetUrl = `/tenant/impersonate?token=${encodeURIComponent(result.impersonateToken)}&tenant_code=${encodeURIComponent(row.code)}`;
+    window.location.href = targetUrl;
+  } catch {
+    hideLoading();
+    message.error({
+      content: $t('admin.tenant.messages.impersonateFailed'),
+      key: 'impersonate_tenant_current',
     });
   }
 }
@@ -127,6 +157,7 @@ const {
   nameField: 'name',
   customActions: {
     impersonate: onImpersonate,
+    impersonateInCurrentTab: onImpersonateInCurrentTab,
     manageDomains: onManageDomains,
     resetPassword: onResetPassword,
   },
@@ -370,6 +401,13 @@ const {
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:log-in" class="size-4" />
                       <span>{{ $t('admin.tenant.enterBackend') }}</span>
+                    </div>
+                  </MenuItem>
+                  <!-- 开发模式: 当前标签页进入 -->
+                  <MenuItem v-if="isDev" @click="onImpersonateInCurrentTab(row)">
+                    <div class="flex items-center gap-2 text-warning">
+                      <IconifyIcon icon="lucide:arrow-right" class="size-4" />
+                      <span>当前标签页进入(Dev)</span>
                     </div>
                   </MenuItem>
                 </Menu>

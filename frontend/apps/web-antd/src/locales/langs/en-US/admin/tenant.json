@@ -246,6 +246,13 @@
       "codePattern": "Plan code must start with lowercase letter, only lowercase letters, numbers and underscores allowed"
     },
     "selectedCount": "{count} selected",
-    "permissionsCreateHint": "Permission settings will take effect after creation. Please edit again to configure."
+    "permissionsCreateHint": "Permission settings will take effect after creation. Please edit again to configure.",
+    "defaultPlan": "Default Plan",
+    "userUnit": "users",
+    "quotaDetail": "Quota Details",
+    "featureAI": "AI",
+    "featureAnalytics": "Analytics",
+    "featureWhiteLabel": "White Label",
+    "featureSupport": "Support"
   }
 }
