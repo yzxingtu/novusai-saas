@@ -257,28 +257,30 @@ class LogManager:
         level: int,
         when: Literal["midnight", "D", "H", "M"] = "midnight",
         backup_count: int = 30,
-    ) -> TimedRotatingFileHandler:
+    ) -> RotatingFileHandler:
         """
-        创建文件处理器（按时间轮转）
+        创建文件处理器（按大小轮转，避免 Windows 文件占用问题）
+        
+        Windows 不允许重命名被占用的文件，TimedRotatingFileHandler 会失败。
+        使用 RotatingFileHandler 按大小轮转更可靠。
         
         Args:
             name: 日志文件名
             level: 日志级别
-            when: 轮转时机
+            when: 轮转时机（忽略，保留参数兼容性）
             backup_count: 保留备份数
         """
         if cls._log_dir is None:
             raise RuntimeError("LogManager not initialized")
         
         log_file = cls._log_dir / f"{name}.log"
-        handler = TimedRotatingFileHandler(
+        # 按大小轮转：单个文件最大 10MB，保留 30 个备份
+        handler = RotatingFileHandler(
             log_file,
-            when=when,
+            maxBytes=10 * 1024 * 1024,  # 10MB
             backupCount=backup_count,
             encoding="utf-8",
         )
-        # 设置轮转后的文件名后缀格式：{name}.log.2026-01-20
-        handler.suffix = "%Y-%m-%d"
         handler.setLevel(level)
         
         formatter = logging.Formatter(DETAILED_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
