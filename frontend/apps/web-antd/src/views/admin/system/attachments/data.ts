@@ -70,25 +70,20 @@ export function getVisibilityText(
 }
 
 /**
- * 分类选项
+ * 分类筛选选项（按 mime_type 前缀过滤）
  */
-export function getCategoryOptions(): {
+export function getCategoryFilterOptions(): {
   label: string;
-  value: AttachmentCategory;
+  value: string;
 }[] {
   return [
-    { label: $t('admin.system.attachment.categoryType.image'), value: 'image' },
+    { label: $t('admin.system.attachment.categoryType.image'), value: 'image/' },
     {
       label: $t('admin.system.attachment.categoryType.document'),
-      value: 'document',
+      value: 'application/',
     },
-    { label: $t('admin.system.attachment.categoryType.video'), value: 'video' },
-    { label: $t('admin.system.attachment.categoryType.audio'), value: 'audio' },
-    {
-      label: $t('admin.system.attachment.categoryType.archive'),
-      value: 'archive',
-    },
-    { label: $t('admin.system.attachment.categoryType.other'), value: 'other' },
+    { label: $t('admin.system.attachment.categoryType.video'), value: 'video/' },
+    { label: $t('admin.system.attachment.categoryType.audio'), value: 'audio/' },
   ];
 }
 
@@ -254,8 +249,8 @@ export function useGridFormSchema(): VbenFormSchema[] {
     searchInput('name', $t('admin.system.attachment.name'), {
       placeholder: $t('admin.system.attachment.placeholder.searchName'),
     }),
-    select('filter[category]', $t('admin.system.attachment.category'), {
-      options: getCategoryOptions(),
+    select('filter[mime_type][like]', $t('admin.system.attachment.category'), {
+      options: getCategoryFilterOptions(),
       placeholder: $t('admin.system.attachment.placeholder.allCategory'),
     }),
     select('filter[visibility]', $t('admin.system.attachment.visibility'), {

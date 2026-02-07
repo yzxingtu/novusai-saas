@@ -35,6 +35,8 @@
   "export": "导出",
   "import": "导入",
   "upload": "上传",
+  "change": "更换",
+  "preview": "预览",
   "back": "返回",
   "loading": "加载中...",
   "noData": "暂无数据",

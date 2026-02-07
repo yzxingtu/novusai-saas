@@ -21,9 +21,9 @@ import {
 
 import { getTenantDomainApi, updateTenantDomainApi } from '#/api/tenant/domain';
 import { $t } from '#/locales';
-import { copyToClipboard, formatDate } from '#/utils/common';
+import { formatDate } from '#/utils/common';
 
-import DomainsDnsGuideModal from './domains-dns-guide-modal.vue';
+import DomainsDnsGuideModal from './DomainsDnsGuideModal.vue';
 
 // Emits
 const emits = defineEmits<{

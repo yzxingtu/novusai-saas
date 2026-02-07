@@ -1,6 +1,7 @@
 /**
  * 成员管理面板组件类型定义
  */
+import type { AdminInfo } from '#/api/admin/admin-user';
 import type { OrgMember } from '#/api/admin/organization';
 
 /** 成员面板 Props */
@@ -114,5 +115,24 @@ export function toResetPasswordInfo(member: OrgMember): {
     id: member.id,
     username: member.username,
     roleId: member.roleId,
+  };
+}
+
+/**
+ * 提取用于管理员编辑抽屉所需的信息
+ */
+export function toAdminInfo(member: OrgMember): AdminInfo {
+  return {
+    id: member.id,
+    username: member.username,
+    nickname: member.nickname,
+    email: member.email,
+    avatar: member.avatar,
+    isActive: member.isActive,
+    isSuper: false,
+    roleId: member.roleId,
+    roleName: member.roleName,
+    createdAt: member.createdAt || '',
+    updatedAt: member.updatedAt,
   };
 }

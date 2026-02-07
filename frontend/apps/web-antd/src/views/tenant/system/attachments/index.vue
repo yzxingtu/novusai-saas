@@ -9,6 +9,8 @@ import { ref } from 'vue';
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
+import { getAttachmentUrl } from '#/utils/image';
+
 import { Button, Card, Image, message, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
@@ -50,10 +52,17 @@ function onViewDetail(row: AttachmentInfo) {
 }
 
 /**
- * 获取预览URL
+ * 获取缩略图URL（列表显示用）
+ */
+function getThumbnailUrl(row: AttachmentInfo): string {
+  return getAttachmentUrl(row, { preset: 'thumb' });
+}
+
+/**
+ * 获取预览URL（点击放大用）
  */
 function getPreviewUrl(row: AttachmentInfo): string {
-  return `/api/public/attachments/${row.id}/access`;
+  return getAttachmentUrl(row);
 }
 
 /**
@@ -137,7 +146,7 @@ const { Grid, gridApi } = useCrudPage<AttachmentInfo>({
           <div class="flex items-center justify-center">
             <template v-if="isImage(row)">
               <Image
-                :src="getPreviewUrl(row)"
+                :src="getThumbnailUrl(row)"
                 :alt="row.name"
                 class="size-12 rounded object-cover"
                 :preview="{ src: getPreviewUrl(row) }"

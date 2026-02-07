@@ -137,8 +137,10 @@ class AttachmentDownloadService:
         attachment: Attachment,
         token: str | None,
     ) -> None:
-        """校验访问权限（公开文件放行，私有文件需有效 Token）"""
+        """校验访问权限（公开文件放行，本地文件放行，私有远程文件需有效 Token）"""
         if attachment.visibility == AttachmentVisibility.PUBLIC.value:
+            return
+        if attachment.driver == "local":
             return
         if not token:
             raise BusinessException(

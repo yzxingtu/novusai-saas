@@ -5,7 +5,7 @@ import type { RoleTreeApi } from '../data';
  * 管理员新建/编辑表单抽屉
  * 使用 useCrudDrawer 实现声明式 CRUD，自动处理 create/update 请求
  */
-import type { adminApi } from '#/api';
+import type { AdminInfo } from '#/api/admin/admin-user';
 
 import { computed } from 'vue';
 
@@ -14,8 +14,6 @@ import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
 import { getAdminFormDefaults, useAdminFormSchema } from '../data';
-
-type AdminInfo = adminApi.AdminInfo;
 
 const props = withDefaults(
   defineProps<{

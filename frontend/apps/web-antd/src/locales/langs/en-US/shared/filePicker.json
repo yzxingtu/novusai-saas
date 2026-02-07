@@ -5,6 +5,8 @@
   "addFile": "Add File",
   "dragHint": "Drop files here",
   "dropToUpload": "Drop files to upload",
+  "releaseToUpload": "Release to upload",
+  "dropFilesAnywhere": "Drop files anywhere in this window to upload",
   "orClickToSelect": "or click to select files",
   "maxSizeHint": "Maximum file size: {size}",
   "empty": "No files yet",

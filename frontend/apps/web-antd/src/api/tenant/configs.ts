@@ -28,7 +28,7 @@ export async function getTenantConfigGroupDetailApi(
   );
 }
 
-/** 更新租户配置分组配置 */
+/** 更新租户配置分组配置，后端期望 { configs: { key: value } } 格式 */
 export async function updateTenantConfigGroupApi(
   groupCode: string,
   configs: ConfigSubmitPayload,
@@ -36,7 +36,7 @@ export async function updateTenantConfigGroupApi(
 ): Promise<void> {
   await requestClient.put(
     `/tenant/configs/groups/${groupCode}`,
-    configs,
+    { configs },
     options,
   );
 }

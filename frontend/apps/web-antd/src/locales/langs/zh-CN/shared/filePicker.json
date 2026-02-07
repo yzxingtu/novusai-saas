@@ -5,6 +5,8 @@
   "addFile": "添加文件",
   "dragHint": "拖放文件到此处",
   "dropToUpload": "拖放文件到此处上传",
+  "releaseToUpload": "松开鼠标即可上传",
+  "dropFilesAnywhere": "拖放到窗口任意位置即可上传",
   "orClickToSelect": "或点击选择文件",
   "maxSizeHint": "最大文件大小：{size}",
   "empty": "暂无文件",

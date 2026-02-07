@@ -15,7 +15,7 @@ import { Form, Input, InputNumber, Select, Switch } from 'ant-design-vue';
 
 import { $t as t } from '#/locales';
 
-import ImageUpload from '../image-upload/ImageUpload.vue';
+import { ConfigImagePicker } from '../config-image-picker';
 
 interface Props {
   configs: ConfigItemMeta[];
@@ -535,8 +535,8 @@ defineExpose({
             <Input v-model:value="formModel[cfg.key]" style="width: 120px" />
           </div>
 
-          <!-- image -->
-          <ImageUpload
+          <!-- image：使用附件管理器选择图片，存储附件 ID -->
+          <ConfigImagePicker
             v-else-if="cfg.value_type === 'image'"
             v-model="formModel[cfg.key]"
           />
@@ -657,8 +657,8 @@ defineExpose({
                 />
               </div>
 
-              <!-- image -->
-              <ImageUpload
+              <!-- image：使用附件管理器选择图片，存储附件 ID -->
+              <ConfigImagePicker
                 v-else-if="child.value_type === 'image'"
                 v-model="formModel[child.key]"
               />

@@ -37,7 +37,7 @@ const emit = defineEmits<{
 
 /** 显示名称 */
 const displayName = computed(() => {
-  return props.member.realName || props.member.username;
+  return props.member.nickname || props.member.username;
 });
 
 /** 头像文字（取显示名称首字符） */

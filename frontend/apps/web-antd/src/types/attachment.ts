@@ -17,6 +17,28 @@ export type AttachmentCategory =
   | 'video';
 
 /**
+ * 根据 MIME 类型推断附件分类
+ * 后端模型无 category 字段，前端通过 mime_type 推算虚拟分类
+ */
+export function inferCategory(mimeType?: null | string): AttachmentCategory {
+  if (!mimeType) return 'other';
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  if (
+    mimeType.startsWith('application/') &&
+    /zip|rar|7z|tar|gz|bz2/.test(mimeType)
+  )
+    return 'archive';
+  if (
+    mimeType.startsWith('application/') ||
+    mimeType.startsWith('text/')
+  )
+    return 'document';
+  return 'other';
+}
+
+/**
  * 附件信息（后端原始格式 snake_case）
  */
 export interface AttachmentInfoRaw {
@@ -28,6 +50,7 @@ export interface AttachmentInfoRaw {
   size: number;
   hash: string;
   driver: string;
+  base_url: string;
   visibility: StorageVisibility;
   folder_id?: null | number;
   category?: AttachmentCategory | null;
@@ -52,6 +75,7 @@ export interface AttachmentInfo {
   size: number;
   hash: string;
   driver: string;
+  baseUrl: string;
   visibility: StorageVisibility;
   folderId?: null | number;
   category?: AttachmentCategory | null;

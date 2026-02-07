@@ -32,6 +32,8 @@
   "export": "Export",
   "import": "Import",
   "upload": "Upload",
+  "change": "Change",
+  "preview": "Preview",
   "back": "Back",
   "loading": "Loading...",
   "noData": "No Data",

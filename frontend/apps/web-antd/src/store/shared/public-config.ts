@@ -224,8 +224,16 @@ export const usePublicConfigStore = defineStore('publicConfig', {
         let tenantCode: string | undefined;
         if (import.meta.env.DEV) {
           const urlParams = new URLSearchParams(window.location.search);
-          tenantCode =
-            urlParams.get('tenant_code') ?? import.meta.env.VITE_DEV_TENANT_CODE ?? undefined;
+          const fromUrl = urlParams.get('tenant_code');
+          if (fromUrl) {
+            localStorage.setItem('__dev_tenant_code__', fromUrl);
+            tenantCode = fromUrl;
+          } else {
+            tenantCode =
+              localStorage.getItem('__dev_tenant_code__') ??
+              import.meta.env.VITE_DEV_TENANT_CODE ??
+              undefined;
+          }
         }
 
         const config = await getTenantPublicConfigApi(tenantCode);

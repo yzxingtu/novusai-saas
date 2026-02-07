@@ -4,8 +4,12 @@
  */
 import type { AttachmentInfo } from '#/types/attachment';
 
+import { onMounted, ref } from 'vue';
+
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
+
+import { getAttachmentUrl } from '#/utils/image';
 
 import { Card, Image, message, Tag, Tooltip } from 'ant-design-vue';
 
@@ -14,6 +18,7 @@ import {
   getAttachmentDownloadUrlApi,
   getAttachmentListApi,
 } from '#/api/admin/attachment';
+import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
@@ -31,6 +36,24 @@ import DetailDrawer from './modules/DetailDrawer.vue';
 
 defineOptions({ name: 'AdminSystemAttachments' });
 
+const tenantMap = ref<Map<number, string>>(new Map());
+
+onMounted(async () => {
+  try {
+    const { items } = await getTenantSelectApi();
+    for (const item of items) {
+      tenantMap.value.set(Number(item.value), item.label);
+    }
+  } catch {
+    //
+  }
+});
+
+function getTenantName(tenantId: number | undefined): string {
+  if (!tenantId) return '-';
+  return tenantMap.value.get(tenantId) || `#${tenantId}`;
+}
+
 // 详情抽屉
 const [DetailDrawerComp, detailDrawerApi] = useVbenDrawer({
   connectedComponent: DetailDrawer,
@@ -44,10 +67,17 @@ function onViewDetail(row: AttachmentInfo) {
 }
 
 /**
- * 获取预览URL
+ * 获取缩略图URL（列表显示用）
+ */
+function getThumbnailUrl(row: AttachmentInfo): string {
+  return getAttachmentUrl(row, { preset: 'thumb' });
+}
+
+/**
+ * 获取预览URL（点击放大用）
  */
 function getPreviewUrl(row: AttachmentInfo): string {
-  return `/api/public/attachments/${row.id}/access`;
+  return getAttachmentUrl(row);
 }
 
 /**
@@ -109,7 +139,7 @@ const { Grid } = useCrudPage<AttachmentInfo>({
           <div class="flex items-center justify-center">
             <template v-if="isImage(row)">
               <Image
-                :src="getPreviewUrl(row)"
+                :src="getThumbnailUrl(row)"
                 :alt="row.name"
                 class="size-12 rounded object-cover"
                 :preview="{ src: getPreviewUrl(row) }"
@@ -172,11 +202,8 @@ const { Grid } = useCrudPage<AttachmentInfo>({
 
         <!-- 租户列 -->
         <template #tenant_cell="{ row }">
-          <span v-if="row.tenantId" class="text-foreground">
-            {{ row.tenantId }}
-          </span>
-          <span v-else class="text-muted-foreground">
-            {{ $t('admin.common.notSet') }}
+          <span class="text-foreground">
+            {{ getTenantName(row.tenantId) }}
           </span>
         </template>
 

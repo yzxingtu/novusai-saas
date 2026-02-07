@@ -12,6 +12,7 @@ import type {
   StorageQuotaInfo,
   StorageQuotaInfoRaw,
 } from '#/types/attachment';
+import { inferCategory } from '#/types/attachment';
 import type { PaginatedResponse, SelectOption } from '#/types/query';
 import type { ApiRequestOptions } from '#/utils/request';
 
@@ -32,14 +33,17 @@ function transformAttachmentInfo(raw: AttachmentInfoRaw): AttachmentInfo {
     size: raw.size,
     hash: raw.hash,
     driver: raw.driver,
+    baseUrl: raw.base_url,
     visibility: raw.visibility,
     folderId: raw.folder_id,
-    category: raw.category,
+    // category 后端不返回，通过 mime_type 推算
+    category: raw.category || inferCategory(raw.mime_type),
     refType: raw.ref_type,
     refId: raw.ref_id,
     metadata: raw.metadata,
     uploadedBy: raw.uploaded_by,
-    uploadedAt: raw.uploaded_at,
+    // 后端无 uploaded_at 字段，回退到 created_at 确保时间列显示
+    uploadedAt: raw.uploaded_at || raw.created_at,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };
