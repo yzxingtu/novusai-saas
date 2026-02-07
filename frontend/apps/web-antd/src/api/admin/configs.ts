@@ -28,7 +28,7 @@ export async function getAdminConfigGroupDetailApi(
   );
 }
 
-/** 更新平台配置分组配置 */
+/** 更新平台配置分组配置，后端期望 { configs: { key: value } } 格式 */
 export async function updateAdminConfigGroupApi(
   groupCode: string,
   configs: ConfigSubmitPayload,
@@ -36,7 +36,7 @@ export async function updateAdminConfigGroupApi(
 ): Promise<void> {
   await requestClient.put(
     `/admin/configs/groups/${groupCode}`,
-    configs,
+    { configs },
     options,
   );
 }
