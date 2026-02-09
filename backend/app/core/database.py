@@ -120,28 +120,28 @@ async def check_database_connection() -> bool:
             await conn.execute(text("SELECT 1"))
         return True
     except Exception as e:
-        print(f"❌ 数据库连接失败: {e}")
+        print(f"Database connection failed: {e}")
         return False
 
 
 def create_database_if_not_exists() -> bool:
     """
     检查数据库是否存在，如果不存在则创建（同步函数）
-    
+
     Returns:
         是否成功
     """
     from sqlalchemy import create_engine, text
     from sqlalchemy.exc import ProgrammingError
-    
+
     # 连接到 postgres 默认数据库来创建目标数据库
     admin_url = (
         f"postgresql://{settings.DATABASE_USER}:{settings.DATABASE_PASSWORD}"
         f"@{settings.DATABASE_HOST}:{settings.DATABASE_PORT}/postgres"
     )
-    
+
     admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
-    
+
     try:
         with admin_engine.connect() as conn:
             # 检查数据库是否存在
@@ -152,19 +152,19 @@ def create_database_if_not_exists() -> bool:
                 {"dbname": settings.DATABASE_NAME}
             )
             exists = result.scalar() is not None
-            
+
             if not exists:
-                print(f"📦 数据库 '{settings.DATABASE_NAME}' 不存在，正在创建...")
+                print(f"Database '{settings.DATABASE_NAME}' does not exist, creating...")
                 conn.execute(
                     text(f'CREATE DATABASE "{settings.DATABASE_NAME}"')
                 )
-                print(f"✅ 数据库 '{settings.DATABASE_NAME}' 创建成功")
+                print(f"Database '{settings.DATABASE_NAME}' created successfully")
             else:
-                print(f"✅ 数据库 '{settings.DATABASE_NAME}' 已存在")
-        
+                print(f"Database '{settings.DATABASE_NAME}' already exists")
+
         return True
     except Exception as e:
-        print(f"❌ 数据库创建失败: {e}")
+        print(f"Database creation failed: {e}")
         return False
     finally:
         admin_engine.dispose()
@@ -173,30 +173,30 @@ def create_database_if_not_exists() -> bool:
 def run_migrations() -> bool:
     """
     运行数据库迁移（同步方式，用于启动时）
-    
+
     Returns:
         是否成功
     """
     from pathlib import Path
-    
+
     try:
         from alembic.config import Config
         from alembic import command
-        
+
         backend_dir = Path(__file__).parent.parent.parent
         alembic_ini = backend_dir / "alembic.ini"
-        
+
         if not alembic_ini.exists():
-            print("⚠️  alembic.ini 不存在，跳过迁移")
+            print("alembic.ini not found, skipping migrations")
             return True
-        
+
         migrations_dir = backend_dir / "migrations" / "versions"
         if not migrations_dir.exists() or not any(migrations_dir.glob("*.py")):
-            print("⚠️  没有迁移文件，跳过迁移")
+            print("No migration files found, skipping migrations")
             return True
-        
-        print("🔄 正在运行数据库迁移...")
-        
+
+        print("Running database migrations...")
+
         alembic_cfg = Config(str(alembic_ini))
         alembic_cfg.set_main_option(
             "script_location", str(backend_dir / "migrations")
@@ -204,16 +204,16 @@ def run_migrations() -> bool:
         alembic_cfg.set_main_option(
             "sqlalchemy.url", settings.DATABASE_URL_SYNC
         )
-        
+
         command.upgrade(alembic_cfg, "head")
-        
-        print("✅ 数据库迁移完成")
+
+        print("Database migrations completed")
         return True
     except ImportError:
-        print("⚠️  Alembic 未安装，跳过迁移")
+        print("Alembic not installed, skipping migrations")
         return True
     except Exception as e:
-        print(f"❌ 数据库迁移失败: {e}")
+        print(f"Database migration failed: {e}")
         return False
 
 
@@ -228,21 +228,21 @@ async def init_database() -> bool:
     Returns:
         是否成功
     """
-    print("🔧 正在初始化数据库...")
-    
+    print("Initializing database...")
+
     # 1. 检查/创建数据库
     if not await asyncio.to_thread(create_database_if_not_exists):
         return False
-    
+
     # 2. 运行迁移
     if not await asyncio.to_thread(run_migrations):
         return False
-    
+
     # 3. 验证连接
     if not await check_database_connection():
         return False
-    
-    print("✅ 数据库初始化完成")
+
+    print("Database initialization complete")
     return True
 
 
@@ -252,7 +252,7 @@ async def close_database() -> None:
     """
     await async_engine.dispose()
     sync_engine.dispose()
-    print("✅ 数据库连接已关闭")
+    print("Database connections closed")
 
 
 # 导出

@@ -1,0 +1,270 @@
+{
+  "title": "AI 网关管理",
+  "monitor": {
+    "title": "监控与分析"
+  },
+  "provider": {
+    "title": "供应商管理",
+    "name": "供应商名称",
+    "code": "供应商代码",
+    "type": "供应商类型",
+    "baseUrl": "API 地址",
+    "description": "描述",
+    "icon": "图标",
+    "isActive": "启用状态",
+    "sortOrder": "排序",
+    "modelCount": "模型数",
+    "config": "配置",
+    "create": "添加供应商",
+    "placeholder": {
+      "searchName": "搜索供应商名称",
+      "inputName": "请输入供应商名称",
+      "inputCode": "请输入供应商代码",
+      "selectType": "请选择供应商类型",
+      "inputBaseUrl": "请输入 API 地址",
+      "inputDescription": "请输入描述"
+    },
+    "type_options": {
+      "openai_compatible": "OpenAI 兼容",
+      "anthropic": "Anthropic"
+    },
+    "iconPicker": {
+      "searchPlaceholder": "搜索图标...",
+      "preset": "常用",
+      "browse": "浏览",
+      "search": "搜索",
+      "icons": "个图标",
+      "noResults": "未找到匹配图标",
+      "searchTip": "输入关键词搜索图标"
+    },
+    "messages": {
+      "toggleSuccess": "供应商状态已更新",
+      "confirmEnable": "确认启用此供应商？",
+      "confirmDisable": "确认禁用此供应商？禁用后该供应商下的所有 AI 调用将失败"
+    }
+  },
+  "model": {
+    "title": "模型管理",
+    "name": "模型名称",
+    "code": "模型代码",
+    "type": "模型类型",
+    "providerId": "所属供应商",
+    "providerName": "所属供应商",
+    "contextWindow": "上下文窗口",
+    "maxOutputTokens": "最大输出 Tokens",
+    "inputPrice": "输入价格 ($/1K)",
+    "outputPrice": "输出价格 ($/1K)",
+    "functionCalling": "函数调用",
+    "vision": "视觉能力",
+    "streaming": "流式响应",
+    "isActive": "启用状态",
+    "fallbackModel": "备用模型",
+    "rpmLimit": "RPM 限制",
+    "tpmLimit": "TPM 限制",
+    "test": "测试连通性",
+    "testing": "正在测试连通性...",
+    "testSuccess": "连通性测试成功，延迟: {latency}ms",
+    "testFailed": "连通性测试失败: {error}",
+    "create": "添加模型",
+    "section": {
+      "basic": "基本信息",
+      "pricing": "定价信息",
+      "rateLimit": "速率限制",
+      "capability": "模型能力",
+      "failover": "故障转移"
+    },
+    "fetchRemote": "拉取远程模型",
+    "fetchRemoteLoading": "正在拉取...",
+    "fetchRemoteSuccess": "成功拉取 {count} 个模型",
+    "fetchRemoteFailed": "拉取远程模型失败",
+    "fetchRemoteTip": "请先选择供应商",
+    "selectRemoteModel": "选择远程模型",
+    "placeholder": {
+      "searchName": "搜索模型名称",
+      "inputName": "请输入模型名称",
+      "inputCode": "请输入模型代码",
+      "selectType": "请选择模型类型",
+      "selectProvider": "请选择供应商",
+      "selectRemoteModel": "选择远程模型自动填充",
+      "allProviders": "全部供应商",
+      "allTypes": "全部类型",
+      "inputContextWindow": "如 128000",
+      "inputMaxOutput": "如 4096",
+      "inputPrice": "如 0.015",
+      "outputPrice": "如 0.03",
+      "inputRpmLimit": "每分钟请求数限制（留空不限制）",
+      "inputTpmLimit": "每分钟 Token 数限制（留空不限制）",
+      "selectFallback": "选择备用模型（可选）"
+    },
+    "type_options": {
+      "chat": "对话",
+      "embedding": "向量",
+      "image": "图像"
+    },
+    "messages": {
+      "toggleSuccess": "模型状态已更新",
+      "confirmEnable": "确认启用此模型？",
+      "confirmDisable": "确认禁用此模型？禁用后该模型将不可被调用"
+    }
+  },
+  "apiKey": {
+    "title": "API Key 管理",
+    "name": "Key 名称",
+    "providerId": "所属供应商",
+    "providerName": "所属供应商",
+    "tenantId": "关联租户",
+    "tenantName": "关联租户",
+    "apiKey": "API Key",
+    "keyPreview": "Key 预览",
+    "isActive": "启用状态",
+    "isAvailable": "可用状态",
+    "usageLimit": "使用上限",
+    "usageCount": "已使用次数",
+    "lastUsedAt": "最后使用",
+    "expiresAt": "过期时间",
+    "create": "添加 API Key",
+    "scope": {
+      "platform": "平台级",
+      "tenant": "租户级"
+    },
+    "placeholder": {
+      "searchName": "搜索 Key 名称",
+      "inputName": "请输入 Key 名称",
+      "inputApiKey": "请输入 API Key",
+      "selectProvider": "请选择供应商",
+      "selectTenant": "选择租户（留空为平台级）",
+      "allProviders": "全部供应商",
+      "inputUsageLimit": "留空不限制"
+    },
+    "messages": {
+      "toggleSuccess": "API Key 状态已更新",
+      "confirmEnable": "确认启用此 API Key？",
+      "confirmDisable": "确认禁用此 API Key？禁用后使用该 Key 的 AI 调用将失败"
+    }
+  },
+  "callLog": {
+    "title": "调用日志",
+    "requestType": "请求类型",
+    "inputTokens": "输入 Tokens",
+    "outputTokens": "输出 Tokens",
+    "totalTokens": "总 Tokens",
+    "cost": "费用",
+    "latency": "延迟 (ms)",
+    "status": "状态",
+    "tenantName": "租户",
+    "modelName": "模型",
+    "providerName": "供应商",
+    "userId": "用户 ID",
+    "errorMessage": "错误信息",
+    "createdAt": "调用时间",
+    "placeholder": {
+      "allStatuses": "全部状态",
+      "allModels": "全部模型"
+    },
+    "status_options": {
+      "success": "成功",
+      "failed": "失败",
+      "timeout": "超时"
+    },
+    "viewDetail": "查看详情",
+    "detail": {
+      "title": "调用日志详情",
+      "requestData": "请求数据",
+      "responseData": "响应数据"
+    },
+    "export": {
+      "button": "导出 CSV",
+      "success": "导出成功",
+      "failed": "导出失败",
+      "noData": "没有可导出的数据"
+    }
+  },
+  "usage": {
+    "title": "使用量统计",
+    "statDate": "统计日期",
+    "tenantId": "租户",
+    "tenantName": "租户名称",
+    "modelId": "模型",
+    "modelName": "模型名称",
+    "requestType": "请求类型",
+    "inputTokens": "输入 Tokens",
+    "outputTokens": "输出 Tokens",
+    "totalTokens": "总 Tokens",
+    "callCount": "调用次数",
+    "successCount": "成功次数",
+    "failedCount": "失败次数",
+    "totalCost": "总费用",
+    "avgLatency": "平均延迟 (ms)",
+    "maxLatency": "最大延迟 (ms)",
+    "type_options": {
+      "chat": "对话",
+      "embedding": "向量",
+      "image": "图像"
+    },
+    "placeholder": {
+      "selectTenant": "全部租户",
+      "selectModel": "全部模型",
+      "startDate": "开始日期",
+      "endDate": "结束日期"
+    },
+    "summary": {
+      "totalCalls": "总调用次数",
+      "totalTokens": "总 Token 数",
+      "totalCost": "总费用",
+      "successRate": "成功率"
+    }
+  },
+  "quota": {
+    "title": "配额管理",
+    "tenantId": "租户",
+    "tenantName": "租户名称",
+    "modelId": "模型",
+    "modelName": "模型名称",
+    "period": "周期",
+    "limit": "配额限制",
+    "quotaType": "配额类型",
+    "warningThreshold": "预警阈值 (%)",
+    "isActive": "启用状态",
+    "description": "描述",
+    "create": "添加配额",
+    "globalQuota": "全局配额",
+    "section": {
+      "basic": "基本信息",
+      "config": "配额配置"
+    },
+    "period_options": {
+      "daily": "每日",
+      "monthly": "每月"
+    },
+    "type_options": {
+      "soft": "软限制",
+      "hard": "硬限制"
+    },
+    "placeholder": {
+      "selectTenant": "请选择租户",
+      "selectModel": "选择模型（留空为全局配额）",
+      "selectPeriod": "请选择周期",
+      "selectType": "请选择配额类型",
+      "inputLimit": "Token 数量限制",
+      "inputThreshold": "如 80",
+      "inputDescription": "请输入描述",
+      "allTenants": "全部租户",
+      "allPeriods": "全部周期",
+      "allTypes": "全部类型"
+    }
+  },
+  "health": {
+    "title": "健康状态",
+    "providers": "个供应商",
+    "refresh": "刷新",
+    "responseTime": "响应时间",
+    "failures": "连续失败",
+    "lastCheck": "最后检查",
+    "noData": "暂无健康检查数据",
+    "status": {
+      "healthy": "健康",
+      "degraded": "异常",
+      "unavailable": "不可用"
+    }
+  }
+}

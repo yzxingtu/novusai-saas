@@ -80,6 +80,26 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:tenant.tenant_settings (租户设置)
 
     # ========================================
+    # AI 管理（目录）
+    # ========================================
+    PermissionMeta(
+        code="menu:tenant.ai_mgmt",
+        name="menu.tenant.ai_mgmt",  # i18n key
+        type=PermissionType.MENU,
+        scope=PermissionScope.TENANT,
+        resource="menu",
+        action="tenant.ai_mgmt",
+        icon="lucide:brain-circuit",
+        path="/ai",
+        sort_order=25,
+    ),
+    # 子菜单由控制器声明:
+    # - menu:tenant.ai_config (AI 配置)
+    # - menu:tenant.ai_quota (API Key / 配额)
+    # - menu:tenant.ai_tenant_usage (用量统计)
+    # - menu:tenant.ai_tenant_call_log (调用日志)
+
+    # ========================================
     # 系统维护（目录）
     # ========================================
     PermissionMeta(

@@ -12,8 +12,11 @@ export { FilePicker } from './business/file-picker';
 // 文件预览组件
 export { FilePreview } from './business/file-preview';
 
-// 图标选择器
+// 图标选择器（弹窗）
 export { IconPicker } from './business/icon-picker';
+
+// 图标选择器（表单组件）
+export { IconSelector } from './business/icon-selector';
 
 // 通用图片上传组件
 export { default as ImageUpload } from './business/image-upload/ImageUpload.vue';

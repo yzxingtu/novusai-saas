@@ -31,8 +31,9 @@ description: >
 ## 开发前准备
 
 1. 确认任务归属的端：admin / tenant / user
-2. 查阅 `references/frontend-spec.md` 或 `references/backend-spec.md` 获取完整规范
-3. 确认相关模块是否已有类似实现，复用已有模式
+2. 查阅 `references/platform-infrastructure.md` 了解多租户隔离、认证注入、异常抛出方式
+3. 查阅 `references/backend-spec.md` 或 `references/frontend-spec.md` 获取完整开发规范
+4. 确认相关模块是否已有类似实现，复用已有组件和模式
 
 ---
 
@@ -52,7 +53,243 @@ description: >
 
 ---
 
-## 二、后端开发流程
+## 二、多租户体系
+
+### 租户识别
+
+TenantMiddleware（`middleware/tenant.py`）从 Host 头自动解析租户：子域名匹配 `{code}.{TENANT_DOMAIN_SUFFIX}`，否则按自定义域名查 `TenantDomain`。结果存入 `request.state.tenant_ctx`（类型 `TenantContext`）。
+
+### 四层自动隔离
+
+| 层 | 基类 | 隔离方式 |
+|----|----|----------|
+| Model | `TenantModel` | 自动添加 `tenant_id` 字段 + 索引 |
+| Repository | `TenantRepository` | 所有查询自动注入 `WHERE tenant_id = ?` |
+| Service | `TenantService` | 构造函数接收 `tenant_id`，传递给 Repository |
+| Controller | `TenantController` | 从 JWT / request.state 中提取 `tenant_id` |
+
+**关键规则**：
+- 租户数据**必须**用 `TenantModel` 全套，**禁止**手动拼接 `tenant_id`
+- 平台全局数据用 `BaseModel` / `BaseRepository` / `BaseService` / `GlobalController`
+
+### 获取当前租户
+
+```python
+# TenantController 中自动可用，无需手动获取
+# 非 TenantController 场景：
+from app.middleware.tenant import get_tenant_context, get_current_tenant
+tenant_ctx = get_tenant_context(request)  # TenantContext
+tenant = get_current_tenant(request)      # Tenant | None
+```
+
+完整规范 → `references/platform-infrastructure.md` §一
+
+---
+
+## 三、认证与依赖注入
+
+### 三端 Token 分离
+
+| 端点 | 依赖类型 | 说明 |
+|------|---------|------|
+| admin | `CurrentAdmin` | 平台管理员（必须登录，否则 401） |
+| tenant | `CurrentTenantAdmin` | 租户管理员 |
+| user | `CurrentUser` | 终端用户 |
+
+可选版本：`OptionalAdmin` / `OptionalTenantAdmin` / `OptionalUser`（未登录返回 None）
+
+### Controller 中使用
+
+```python
+# GlobalController（admin 端）
+async def list(self, request: Request, db: DbSession, admin: CurrentAdmin):
+    # admin.id / admin.is_superadmin
+
+# TenantController（tenant 端）
+async def list(self, request: Request, db: DbSession, tenant_admin: CurrentTenantAdmin):
+    # tenant_admin.id / tenant_admin.tenant_id
+```
+
+### 前端 Token 自动选择
+
+`multi-auth store` 根据 URL 前缀自动选择 Token：`/admin/*` → admin Token，`/tenant/*` → tenant Token，`/user/*` → user Token。开发者无需手动传。
+
+完整规范 → `references/platform-infrastructure.md` §二
+
+---
+
+## 四、异常体系
+
+### 异常层级
+
+```
+AppException (500)
+├── ValidationException (422)     # 参数校验
+├── NotFoundException (404)       # 资源不存在
+├── AuthenticationException (401) # 未认证
+├── PermissionDeniedException (403) # 无权限
+├── ConflictException (409)       # 资源冲突
+├── RateLimitException (429)      # 频率限制
+├── BusinessException (400)       # 通用业务错误
+└── StorageError (500)           # 存储错误
+```
+
+### Service 层抛异常
+
+```python
+from app.exceptions import NotFoundException, ConflictException, BusinessException
+raise NotFoundException(_("item.not_found"))
+raise ConflictException(_("item.name_exists"))
+raise BusinessException(_("item.is_locked"))
+```
+
+**规则**：Service 抛异常，Controller **不要**捕获（全局处理器自动转 JSON）。消息必须用 `_()`。
+
+完整规范 → `references/platform-infrastructure.md` §三
+
+---
+
+## 五、日志系统
+
+### 分类日志器
+
+| 分类 | 文件 | Mixin |
+|------|------|-------|
+| `app` | `logs/app.log` | `LoggerMixin`（默认） |
+| `error` | `logs/error.log` | — |
+| `auth` | `logs/auth.log` | `AuthLoggerMixin` |
+| `storage` | `logs/storage.log` | `StorageLoggerMixin` |
+| `task` | `logs/task.log` | `TaskLoggerMixin` |
+| `queue` | `logs/queue.log` | `QueueLoggerMixin` |
+| `db` | `logs/db.log` | `DbLoggerMixin` |
+
+### 使用方式
+
+```python
+# 方式 1: 便捷函数（通用场景）
+from app.core.logging import get_logger
+logger = get_logger(__name__)
+
+# 方式 2: Service 中用 Mixin（推荐）
+class MyService(TenantService, StorageLoggerMixin):
+    async def upload(self):
+        self.logger.info("Uploading...")  # → 写入 storage.log
+```
+
+**规则**：禁止 `print()`，禁止在日志中记录密码/Token/API Key。
+
+完整规范 → `references/platform-infrastructure.md` §四
+
+---
+
+## 六、SSE 流式请求（前端）
+
+```typescript
+// POST SSE（AI 对话常用）
+await requestClient.postSSE('/tenant/agents/1/chat/stream',
+    { message: "Hello", conversation_id: 123 },
+    {
+        onMessage: (chunk) => { /* 处理流式数据 */ },
+        onEnd: () => { /* 完成 */ },
+        onError: (err) => { /* 出错 */ },
+        abortController: new AbortController(),  // 停止生成
+    }
+);
+
+// 取消请求
+controller.abort();
+```
+
+Token 根据 URL 前缀自动注入，无需手动传。
+
+完整规范 → `references/platform-infrastructure.md` §五
+
+---
+
+## 七、应用启动流程
+
+`main.py` lifespan 启动 6 步：
+
+```
+1. init_logging()          → 日志系统
+2. init_database()         → 创建库 + alembic upgrade head + 验证连接
+3. sync_permissions()      → 扫描 Controller 权限 → 同步到 permissions 表
+4. sync_config_to_db()     → ConfigRegistry → 同步到 system_configs 表
+5. RedisManager.init()     → Redis 连接池
+6. verify_celery()         → Celery 连通性检测（失败不阻塞）
+```
+
+新增初始化服务：在 lifespan 的 Redis 之后添加 `await MyService.init()`，yield 之前 `await MyService.close()`。
+
+完整规范 → `references/platform-infrastructure.md` §六
+
+---
+
+## 八、存储系统
+
+适配器模式，4 种后端：`LocalDriver` / `S3Driver` / `OssDriver` / `CosDriver`
+
+```python
+from app.storage.manager import StorageManager
+driver = await StorageManager.get_driver()
+path = await driver.put("uploads/avatar.png", file_bytes)
+url = await driver.url(path, expires=3600)
+```
+
+接口方法：`put` / `get` / `delete` / `exists` / `url` / `size`
+
+完整规范 → `references/platform-infrastructure.md` §七
+
+---
+
+## 九、配置系统
+
+混合模式：代码定义（`ConfigMeta` + `ConfigGroupMeta`）→ 注册到 `ConfigRegistry` → 启动时同步到 `system_configs` 表 → 运行时从 DB 读取。
+
+```python
+# 读取配置
+config_service = ConfigService(db)
+value = await config_service.get_value("site_name")
+```
+
+作用域：`PLATFORM`（全平台）/ `TENANT`（租户级）
+
+完整规范 → `references/platform-infrastructure.md` §八
+
+---
+
+## 十、前端业务组件
+
+15 个可复用组件（`components/business/`）：
+
+| 组件 | 用途 |
+|------|------|
+| `ApiSelect` | 远程数据下拉选择器 |
+| `CronPicker` | Cron 可视化选择器 |
+| `FilePicker` | 文件选择器（集成附件管理） |
+| `FilePreview` | 文件预览器（图片/PDF/视频） |
+| `ImageUpload` | 图片上传（裁剪/预览） |
+| `ConfigForm` | 系统配置表单（根据 ConfigMeta 动态渲染） |
+| `PermissionSelector` | 权限选择器（树形勾选） |
+| `OrgTree` | 组织架构树 |
+| `MemberPanel` | 成员管理面板 |
+| `RoleTree` | 角色树形选择器 |
+| `IconPicker` / `Captcha` / `ConfigImagePicker` / `OrgNodeDialog` / `PermissionPreview` | 其他 |
+
+### useCrudDrawer 用法
+
+```typescript
+const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<T>({
+    formApi, schema: useFormSchema, fields: ['name', 'status'],
+    apiPath: '/tenant/agents', onSuccess: () => emits('success'),
+});
+```
+
+完整组件清单 + useCrudDrawer 详解 → `references/platform-infrastructure.md` §九
+
+---
+
+## 十一、后端开发流程
 
 ### 分层架构
 
@@ -76,7 +313,21 @@ description: >
 4. **Service** — 继承 `TenantService`/`BaseService`，可重写钩子
 5. **Controller** — 继承 `TenantController`/`GlobalController`，声明 `@permission_resource` + `@action_*`
 6. **注册路由** — 引入 `router`
-7. **生成迁移** — `alembic revision --autogenerate && alembic upgrade head`
+7. **生成迁移** — `alembic revision --autogenerate -m "xxx"` + 注册到 `models/__init__.py` 和 `migrations/env.py`（启动时自动 upgrade）
+
+### 菜单权限系统（新模块必读）
+
+菜单分两层：**目录菜单**（父级分组）和**叶子菜单**（Controller 声明）。
+
+**添加新菜单分组的步骤**：
+1. 在 `backend/app/rbac/menus/admin_menus.py` 或 `tenant_menus.py` 添加 `PermissionMeta` 目录定义（无 `component` 字段 = 目录节点）
+2. 在 Controller 的 `@permission_resource` 中使用 `MenuConfig(parent="分组标识")` 引用
+3. 前端 i18n 添加 `menu.{scope}.{分组标识}` 翻译
+4. 前端路由添加父级路由节点
+
+**`parent` 解析规则**：`parent="ai_mgmt"` → 装饰器自动拼接为 `menu:{scope}.ai_mgmt` → 查找目录菜单的 `code`
+
+完整机制（含目录菜单模板、叶子菜单模板、无菜单 Controller、启动同步流程） → `references/backend-crud.md` §菜单权限系统
 
 关键注意：
 - `TenantController.get_service(db, tenant_id)` — 第二参数是 `int`
@@ -85,9 +336,49 @@ description: >
 
 完整代码示例、响应方法、异常表、依赖注入、权限装饰器、中间件顺序、枚举、日志 → `references/backend-crud.md`
 
+### 数据库启动自动迁移
+
+系统启动时 `main.py` → `init_database()` 自动执行三步：
+
+1. **检查/创建数据库** — 连接 `postgres` 默认库，检查目标库是否存在，不存在则自动创建
+2. **运行迁移** — 读取 `alembic.ini`，执行 `alembic upgrade head`，自动应用所有未执行的迁移
+3. **验证连接** — 异步连接目标库执行 `SELECT 1` 验证
+
+> **开发者无需手动 `alembic upgrade head`**，应用启动即自动执行。只需生成迁移文件即可。
+
+### 迁移文件开发规范
+
+```bash
+# 1. 生成迁移文件（在 backend/ 目录下）
+cd backend
+alembic revision --autogenerate -m "add_xxx_table"
+
+# 2. 检查生成的迁移文件（backend/migrations/versions/xxx.py）
+#    确认 upgrade() 和 downgrade() 逻辑正确
+
+# 3. 启动应用即自动执行迁移，无需手动 upgrade
+```
+
+**关键注意**：
+
+- **新增 Model 必须注册到两个地方**：
+  1. `backend/app/models/__init__.py` — 添加 import 和 `__all__` 导出
+  2. `backend/migrations/env.py` — 添加 import（确保 Alembic 发现新表）
+- 迁移文件命名模板：`{year}{month}{day}_{rev}_{slug}.py`
+- `env.py` 中 `target_metadata = Base.metadata`，所有 Model 必须继承 `Base`
+- 同步引擎 `DATABASE_URL_SYNC`（`postgresql://`）用于 Alembic，异步引擎 `DATABASE_URL`（`postgresql+asyncpg://`）用于应用
+
+### 数据库会话获取方式
+
+| 场景 | 方法 | 类型 |
+|------|------|------|
+| FastAPI 路由依赖注入 | `db: AsyncSession = Depends(get_db)` | 异步 |
+| Service/非路由上下文 | `async with get_db_context() as db:` | 异步 |
+| Celery Worker 内 | `self.get_db_session()` | 同步 |
+
 ---
 
-## 三、前端开发流程
+## 十二、前端开发流程
 
 ### 架构分层
 
@@ -114,7 +405,7 @@ views → composables → store/api → utils（禁止反向依赖）
 
 ---
 
-## 四、前后端协作约定
+## 十三、前后端协作约定
 
 ### JSON:API 查询协议
 
@@ -144,7 +435,7 @@ views → composables → store/api → utils（禁止反向依赖）
 
 ---
 
-## 五、检查清单
+## 十四、检查清单
 
 ### 后端提交前检查
 
@@ -156,6 +447,7 @@ views → composables → store/api → utils（禁止反向依赖）
 - [ ] 面向用户文本使用 `_()`
 - [ ] 枚举使用 `LabeledEnum`
 - [ ] Alembic 迁移已生成
+- [ ] 新 Model 已注册到 `models/__init__.py` 和 `migrations/env.py`
 - [ ] 敏感信息通过环境变量
 
 ### 前端提交前检查
@@ -172,22 +464,90 @@ views → composables → store/api → utils（禁止反向依赖）
 
 ---
 
-## 六、DevGenius MCP 标准工作流
+## 十五、异步任务与定时任务
+
+本项目使用 **Celery + Redis** 实现异步任务和定时任务（P1-1 已完成）。
+
+### 快速参考
+
+- 任务必须使用 `@register_task` 装饰器，禁止直接用 `@celery_app.task`
+- 基类选择：平台任务 → `BaseTask`，租户任务 → `TenantTask`（自动隔离）
+- Celery Worker 是同步进程，用 `self.get_db_session()` 获取同步 Session
+- 4 个队列：`default` / `high_priority` / `ai_gateway` / `scheduled`
+- 定时任务支持三种范围：`platform` / `tenant` / `all_tenants`
+- 前端 CronPicker 组件：`<CronPicker v-model="form.cron_expression" />`
+
+完整规范、代码模板、检查清单 → `references/async-tasks.md`
+
+---
+
+## 十六、文档规范（DevGenius MCP）
+
+### 强制要求
+
+每个里程碑的功能开发完成后，**必须**编写使用文档并保存到 DevGenius MCP。
+
+### 文档结构模板
+
+所有功能使用文档遵循统一结构：
+
+```
+# {模块名} - 使用指南
+
+## 一、功能概述        → 模块做什么、支持哪些能力
+## 二、核心组件        → 文件结构、关键类/组件/枚举
+## 三、使用方法        → 代码示例、配置说明、API 端点
+## 四、启动与运维      → 环境变量、部署命令、注意事项
+## 五、前端功能        → 页面路径、组件用法、交互说明
+## 六、最佳实践        → 编写规范、选择指南、错误处理
+## 七、故障排查        → 常见问题、日志查看、手动操作
+```
+
+### 文档分类
+
+| 分类代码 | 名称 | 用途 |
+|----------|------|------|
+| `usage_guide` | 功能使用指南 | 已完成模块的使用文档 |
+| `architecture` | 技术架构 | 架构设计、代码分析 |
+| `api_spec` | API 设计 | 接口设计文档 |
+| `guidelines` | 开发规范 | 编码规范、Git 规范 |
+| `database` | 数据库设计 | 表结构、数据模型 |
+
+### 写入流程
+
+```
+1. search_documents(query="模块关键词")     → 检查是否已存在
+2. 不存在 → create_document(title, content, category="usage_guide")
+3. 已存在 → update_document_by_id(document_id, content)
+```
+
+### Skill 同步规则
+
+当新模块包含可复用的开发规范（如基类、装饰器、组件用法）时：
+1. 在 `references/` 目录创建对应的 `.md` 参考文件
+2. 在 `SKILL.md` 添加该章节的快速参考
+3. 在参考文件列表中注册
+
+---
+
+## 十七、DevGenius MCP 标准工作流
 
 本项目通过 DevGenius MCP 管理任务和文档（集成名称：`devgenius-quanzhan`）。
 
-核心流程：`认领任务 → 查文档 → 开发 → 更新状态`
+核心流程：`认领任务 → 查文档 → 开发 → 写文档 → 更新状态`
 
 详细工具用法、流程图、速查表见 → `references/devgenius-workflow.md`
 
 ---
 
-## 七、参考文件
+## 十八、参考文件
 
 完整规范详见 references 目录：
 
+- `references/platform-infrastructure.md` — 平台基础设施（多租户/认证/异常/日志/SSE/启动/存储/配置/组件）
 - `references/backend-crud.md` — 后端 CRUD 7步完整代码 + 响应/异常/权限/枚举/日志
 - `references/frontend-crud.md` — 前端 CRUD 4步完整代码 + 权限/搜索/i18n/图标/请求/命名
 - `references/frontend-spec.md` — 前端开发手册完整版（含拖拽排序、列表 UI 设计、CSS 动画等）
 - `references/backend-spec.md` — 后端开发指南完整版（含存储、日志、枚举、Service 钩子等）
+- `references/async-tasks.md` — 异步任务与定时任务开发规范（Celery/Redis/队列/定时任务）
 - `references/devgenius-workflow.md` — DevGenius MCP 工作流详解（工具速查、流程图、文档管理）

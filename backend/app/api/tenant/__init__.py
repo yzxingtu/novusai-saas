@@ -18,6 +18,11 @@ from app.api.tenant.periodic_tasks import router as periodic_tasks_router, Tenan
 from app.api.tenant.permissions import router as permissions_router, TenantPermissionController
 from app.api.tenant.roles import router as roles_router, TenantRoleController
 from app.api.tenant.tasks import router as tasks_router, TenantTaskLogController
+from app.api.tenant.ai_config import router as ai_config_router, TenantAIConfigController
+from app.api.tenant.ai_gateway import router as ai_gateway_router, TenantAIGatewayController
+from app.api.tenant.ai_quotas import router as ai_quotas_router, TenantAIQuotaController
+from app.api.tenant.ai_usage import router as ai_usage_router, TenantAIUsageController
+from app.api.tenant.ai_call_logs import router as ai_call_logs_router, TenantAICallLogController
 
 # 创建租户管理后台路由器
 tenant_router = APIRouter()
@@ -32,6 +37,12 @@ tenant_router.include_router(permissions_router)
 tenant_router.include_router(roles_router)
 tenant_router.include_router(tasks_router)
 tenant_router.include_router(periodic_tasks_router)
+# AI 网关相关
+tenant_router.include_router(ai_config_router)
+tenant_router.include_router(ai_gateway_router)
+tenant_router.include_router(ai_quotas_router)
+tenant_router.include_router(ai_usage_router)
+tenant_router.include_router(ai_call_logs_router)
 
 
 __all__ = [
@@ -45,4 +56,10 @@ __all__ = [
     "TenantPermissionController",
     "TenantRoleController",
     "TenantTaskLogController",
+    # AI 网关
+    "TenantAIConfigController",
+    "TenantAIGatewayController",
+    "TenantAIQuotaController",
+    "TenantAIUsageController",
+    "TenantAICallLogController",
 ]

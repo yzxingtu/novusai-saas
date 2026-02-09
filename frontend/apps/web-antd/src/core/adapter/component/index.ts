@@ -34,6 +34,7 @@ import { isEmpty } from '@vben/utils';
 import { message, notification } from 'ant-design-vue';
 
 import { ApiSelect } from '#/components/business/api-select';
+import { IconSelector } from '#/components/business/icon-selector';
 
 const AutoComplete = defineAsyncComponent(
   () => import('ant-design-vue/es/auto-complete'),
@@ -371,6 +372,7 @@ export type ComponentType =
   | 'DefaultButton'
   | 'Divider'
   | 'IconPicker'
+  | 'IconSelector'
   | 'Input'
   | 'InputNumber'
   | 'InputPassword'
@@ -435,6 +437,7 @@ async function initComponentAdapter() {
       inputComponent: Input,
       modelValueProp: 'value',
     }),
+    IconSelector,
     Input: withDefaultPlaceholder(Input, 'input'),
     InputNumber: withDefaultPlaceholder(InputNumber, 'input'),
     InputPassword: withDefaultPlaceholder(InputPassword, 'input'),

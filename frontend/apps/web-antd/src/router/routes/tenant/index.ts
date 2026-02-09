@@ -104,6 +104,53 @@ const mainRoutes: RouteRecordRaw = {
         title: $t('tenant.system.periodicTask.title'),
       },
     },
+    // Fallback 静态注册：AI 管理（后端菜单动态路由优先生效）
+    {
+      name: 'TenantAI',
+      path: 'ai',
+      meta: {
+        icon: 'lucide:bot',
+        title: $t('tenant.ai.title'),
+      },
+      children: [
+        {
+          name: 'TenantAIModels',
+          path: 'config',
+          component: () => import('#/views/tenant/ai/models/index.vue'),
+          meta: {
+            icon: 'lucide:brain',
+            title: $t('tenant.ai.model.title'),
+          },
+        },
+        {
+          name: 'TenantAIApiKeys',
+          path: 'api-keys',
+          component: () => import('#/views/tenant/ai/api-keys/index.vue'),
+          meta: {
+            icon: 'lucide:key',
+            title: $t('tenant.ai.apiKey.title'),
+          },
+        },
+        {
+          name: 'TenantAIUsage',
+          path: 'usage',
+          component: () => import('#/views/tenant/ai/usage/index.vue'),
+          meta: {
+            icon: 'lucide:bar-chart-3',
+            title: $t('tenant.ai.usage.title'),
+          },
+        },
+        {
+          name: 'TenantAICallLogs',
+          path: 'call-logs',
+          component: () => import('#/views/tenant/ai/call-logs/index.vue'),
+          meta: {
+            icon: 'lucide:scroll-text',
+            title: $t('tenant.ai.callLog.title'),
+          },
+        },
+      ],
+    },
   ],
 };
 

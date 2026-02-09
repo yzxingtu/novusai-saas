@@ -68,6 +68,7 @@ celery_app.conf.task_routes = {
 celery_app.conf.task_modules = [
     "app.tasks",
     "app.tasks.scheduled",
+    "app.tasks.ai_health_check",
 ]
 
 # ========================================
@@ -93,6 +94,11 @@ celery_app.conf.beat_schedule = {
     "clean-expired-task-logs": {
         "task": "app.tasks.scheduled.clean_expired_task_logs",
         "schedule": 86400.0,
+        "options": {"queue": "scheduled"},
+    },
+    "ai-provider-health-check": {
+        "task": "tasks.ai.health_check",
+        "schedule": 300.0,
         "options": {"queue": "scheduled"},
     },
 }

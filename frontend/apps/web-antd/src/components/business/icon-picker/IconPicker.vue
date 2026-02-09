@@ -1,444 +1,445 @@
-<!-- eslint-disable vue/html-closing-bracket-newline -->
 <script lang="ts" setup>
-import type { IconCategory } from './icons-data';
-
 /**
  * 图标选择器组件
- * 支持 Lucide 图标和项目自定义 SVG 图标
- * 使用 @iconify/vue 的 Icon 组件动态渲染，无需逐个引入
- * 使用虚拟滚动优化大量图标的渲染性能
+ *
+ * 核心设计：
+ * 1. 常用图标预设（无需搜索直接选）
+ * 2. 浏览标签：按集合分页加载（lucide / simple-icons 等），滚动到底部自动加载更多
+ * 3. Iconify API 在线搜索（按需加载）
+ * 4. 手动输入图标名称 + 实时预览
+ * 5. Popover 替代 Modal，更轻量
  */
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { useVirtualList } from '@vueuse/core';
-import { Input, message, Modal, Segmented, Tooltip } from 'ant-design-vue';
+import { useDebounceFn } from '@vueuse/core';
+import { Input, Popover, Select, Spin, Tooltip } from 'ant-design-vue';
 
-import { copyToClipboard } from '#/utils/common';
+import { $t } from '#/locales';
 
-import {
-  ALL_CATEGORIES,
-  ALL_ICONS_WITH_PREFIX,
-  getFullIconName,
-} from './icons-data';
-import { setupIconPickerIcons } from './setup-icons';
+defineOptions({ name: 'IconPicker' });
 
-defineProps<{
-  open: boolean;
-}>();
+withDefaults(
+  defineProps<{
+    value?: string;
+    placeholder?: string;
+  }>(),
+  {
+    value: '',
+    placeholder: 'lucide:cpu',
+  },
+);
 
 const emit = defineEmits<{
-  select: [icon: string];
-  'update:open': [value: boolean];
+  'update:value': [value: string];
 }>();
 
-// 预加载 Lucide 图标集，确保图标能够离线显示
-setupIconPickerIcons();
+// ==================== 常用图标预设 ====================
 
-// 搜索关键词
+const PRESET_ICONS: Array<{ icon: string; label: string }> = [
+  // AI / 机器学习
+  { icon: 'lucide:brain', label: 'brain' },
+  { icon: 'lucide:cpu', label: 'cpu' },
+  { icon: 'lucide:bot', label: 'bot' },
+  { icon: 'lucide:sparkles', label: 'sparkles' },
+  { icon: 'lucide:wand-2', label: 'wand' },
+  { icon: 'lucide:zap', label: 'zap' },
+  { icon: 'lucide:lightbulb', label: 'lightbulb' },
+  { icon: 'lucide:atom', label: 'atom' },
+  // 云服务 / 技术
+  { icon: 'lucide:cloud', label: 'cloud' },
+  { icon: 'lucide:server', label: 'server' },
+  { icon: 'lucide:database', label: 'database' },
+  { icon: 'lucide:globe', label: 'globe' },
+  { icon: 'lucide:network', label: 'network' },
+  { icon: 'lucide:satellite', label: 'satellite' },
+  { icon: 'lucide:terminal', label: 'terminal' },
+  { icon: 'lucide:code', label: 'code' },
+  // 通信 / 消息
+  { icon: 'lucide:message-circle', label: 'message' },
+  { icon: 'lucide:send', label: 'send' },
+  { icon: 'lucide:mail', label: 'mail' },
+  { icon: 'lucide:phone', label: 'phone' },
+  // 安全 / 管理
+  { icon: 'lucide:shield', label: 'shield' },
+  { icon: 'lucide:key', label: 'key' },
+  { icon: 'lucide:lock', label: 'lock' },
+  { icon: 'lucide:settings', label: 'settings' },
+  // 媒体 / 视觉
+  { icon: 'lucide:image', label: 'image' },
+  { icon: 'lucide:eye', label: 'eye' },
+  { icon: 'lucide:mic', label: 'mic' },
+  { icon: 'lucide:video', label: 'video' },
+  // 数据 / 分析
+  { icon: 'lucide:bar-chart-3', label: 'chart' },
+  { icon: 'lucide:activity', label: 'activity' },
+  { icon: 'lucide:trending-up', label: 'trending' },
+  { icon: 'lucide:layers', label: 'layers' },
+  // 品牌相关
+  { icon: 'simple-icons:openai', label: 'openai' },
+  { icon: 'simple-icons:anthropic', label: 'anthropic' },
+  { icon: 'simple-icons:google', label: 'google' },
+  { icon: 'simple-icons:meta', label: 'meta' },
+];
+
+// ==================== 集合定义 ====================
+
+const COLLECTIONS = [
+  { label: 'Lucide', value: 'lucide' },
+  { label: 'Simple Icons', value: 'simple-icons' },
+  { label: 'Material Design', value: 'mdi' },
+  { label: 'Carbon', value: 'carbon' },
+  { label: 'Tabler', value: 'tabler' },
+];
+
+// ==================== 状态 ====================
+
+const popoverOpen = ref(false);
 const searchKeyword = ref('');
-// 当前分类
-const activeCategory = ref('all');
+const searchResults = ref<Array<{ icon: string; label: string }>>([]);
+const searchLoading = ref(false);
+const activeTab = ref<'browse' | 'preset' | 'search'>('preset');
 
-// 虚拟滚动配置
-const ICONS_PER_ROW = 9;
-// 每行高度（88px 图标高度 + 8px 间距）
-const ITEM_HEIGHT = 96;
+// ==================== 浏览集合状态 ====================
 
-// 计算总图标数
-const totalIconCount = computed(() => ALL_ICONS_WITH_PREFIX.length);
+const browseCollection = ref('lucide');
+const browseAllIcons = ref<string[]>([]);
+const browseLoading = ref(false);
+const browseVisibleCount = ref(48);
+const BROWSE_PAGE_SIZE = 48;
 
-// 分类选项
-const categoryOptions = computed(() => [
-  { label: `全部 (${totalIconCount.value})`, value: 'all' },
-  ...ALL_CATEGORIES.map((cat) => ({
-    label: `${cat.label} (${cat.icons.length})`,
-    value: cat.name,
-  })),
-]);
+const scrollContainerRef = ref<HTMLDivElement | null>(null);
+const sentinelRef = ref<HTMLDivElement | null>(null);
+let intersectionObserver: IntersectionObserver | null = null;
 
-interface IconItem {
-  key: string; // 唯一 key，使用 category-iconName 格式
-  name: string;
-  fullName: string;
-  prefix: string;
-}
+const browseDisplayIcons = computed(() => {
+  const slice = browseAllIcons.value.slice(0, browseVisibleCount.value);
+  return slice.map((name) => ({
+    icon: `${browseCollection.value}:${name}`,
+    label: name,
+  }));
+});
 
-// 过滤后的图标列表（带唯一 key，避免重复）
-const filteredIcons = computed(() => {
-  const result: IconItem[] = [];
+const browseHasMore = computed(
+  () => browseVisibleCount.value < browseAllIcons.value.length,
+);
 
-  // 根据分类筛选
-  if (activeCategory.value === 'all') {
-    // 所有分类 - 使用 category-icon 作为唯一 key
-    for (const cat of ALL_CATEGORIES) {
-      for (const icon of cat.icons) {
-        result.push({
-          key: `${cat.name}-${icon}`, // 唯一 key
-          name: icon,
-          fullName: getFullIconName(icon, cat.prefix),
-          prefix: cat.prefix,
-        });
+/** 通过 Iconify API 加载集合的所有图标名称 */
+async function loadCollection(prefix: string) {
+  browseLoading.value = true;
+  browseAllIcons.value = [];
+  browseVisibleCount.value = BROWSE_PAGE_SIZE;
+
+  try {
+    const res = await fetch(
+      `https://api.iconify.design/collection?prefix=${encodeURIComponent(prefix)}`,
+    );
+    if (!res.ok) throw new Error('Failed to load collection');
+    const data = await res.json();
+
+    const icons: string[] = [];
+    if (data.categories && typeof data.categories === 'object') {
+      for (const arr of Object.values(data.categories)) {
+        if (Array.isArray(arr)) icons.push(...arr);
       }
     }
-  } else {
-    const category = ALL_CATEGORIES.find(
-      (c) => c.name === activeCategory.value,
-    ) as IconCategory | undefined;
-    if (category) {
-      for (const icon of category.icons) {
-        result.push({
-          key: `${category.name}-${icon}`,
-          name: icon,
-          fullName: getFullIconName(icon, category.prefix),
-          prefix: category.prefix,
-        });
-      }
+    if (Array.isArray(data.uncategorized)) {
+      icons.push(...data.uncategorized);
     }
-  }
-
-  // 根据搜索关键词筛选
-  if (searchKeyword.value.trim()) {
-    const keyword = searchKeyword.value.toLowerCase().trim();
-    return result.filter((item) => item.name.includes(keyword));
-  }
-
-  return result;
-});
-
-// 将图标列表按行分组（用于虚拟滚动）
-const iconRows = computed(() => {
-  const rows: IconItem[][] = [];
-  const icons = filteredIcons.value;
-  for (let i = 0; i < icons.length; i += ICONS_PER_ROW) {
-    rows.push(icons.slice(i, i + ICONS_PER_ROW));
-  }
-  return rows;
-});
-
-// 虚拟滚动
-const {
-  list: virtualRows,
-  containerProps,
-  wrapperProps,
-} = useVirtualList(iconRows, {
-  itemHeight: ITEM_HEIGHT,
-  overscan: 3, // 额外渲染的行数
-});
-
-// 监听分类/搜索变化，重置滚动位置
-watch([activeCategory, searchKeyword], () => {
-  nextTick(() => {
-    if (containerProps.ref.value) {
-      containerProps.ref.value.scrollTop = 0;
-    }
-  });
-});
-
-// 选中图标
-function onSelectIcon(fullName: string) {
-  emit('select', fullName);
-}
-
-// 复制图标名称
-async function onCopyIcon(fullName: string, event: Event) {
-  event.stopPropagation();
-  const success = await copyToClipboard(fullName);
-  if (success) {
-    message.success(`已复制: ${fullName}`);
-  } else {
-    message.error('复制失败');
+    browseAllIcons.value = [...new Set(icons)];
+  } catch {
+    browseAllIcons.value = [];
+  } finally {
+    browseLoading.value = false;
   }
 }
 
-// 关闭弹窗
-function onClose() {
-  emit('update:open', false);
-  // 重置搜索
+function loadMoreBrowse() {
+  if (!browseHasMore.value || browseLoading.value) return;
+  browseVisibleCount.value += BROWSE_PAGE_SIZE;
+}
+
+function setupObserver() {
+  destroyObserver();
+  if (!sentinelRef.value) return;
+  intersectionObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries[0]?.isIntersecting) loadMoreBrowse();
+    },
+    { root: scrollContainerRef.value, threshold: 0.1 },
+  );
+  intersectionObserver.observe(sentinelRef.value);
+}
+
+function destroyObserver() {
+  if (intersectionObserver) {
+    intersectionObserver.disconnect();
+    intersectionObserver = null;
+  }
+}
+
+onBeforeUnmount(destroyObserver);
+
+watch(activeTab, async (tab) => {
+  if (tab === 'browse') {
+    if (browseAllIcons.value.length === 0) {
+      await loadCollection(browseCollection.value);
+    }
+    await nextTick();
+    setupObserver();
+  } else {
+    destroyObserver();
+  }
+});
+
+watch(browseCollection, async (prefix) => {
+  if (activeTab.value === 'browse') {
+    await loadCollection(prefix);
+    await nextTick();
+    setupObserver();
+  }
+});
+
+// ==================== 搜索 ====================
+
+async function searchIcons(query: string) {
+  if (!query.trim()) {
+    searchResults.value = [];
+    return;
+  }
+  searchLoading.value = true;
+  try {
+    const response = await fetch(
+      `https://api.iconify.design/search?query=${encodeURIComponent(query)}&limit=48`,
+    );
+    if (!response.ok) throw new Error('Search failed');
+    const data = await response.json();
+    const icons: string[] = data.icons || [];
+    searchResults.value = icons.map((icon) => ({
+      icon,
+      label: icon.split(':').pop() || icon,
+    }));
+  } catch {
+    searchResults.value = [];
+  } finally {
+    searchLoading.value = false;
+  }
+}
+
+const debouncedSearch = useDebounceFn(searchIcons, 400);
+
+watch(searchKeyword, (val) => {
+  if (val.trim()) {
+    activeTab.value = 'search';
+    debouncedSearch(val);
+  } else if (activeTab.value === 'search') {
+    activeTab.value = 'preset';
+    searchResults.value = [];
+  }
+});
+
+// ==================== 操作 ====================
+
+function onSelectIcon(icon: string) {
+  emit('update:value', icon);
+  popoverOpen.value = false;
   searchKeyword.value = '';
-  activeCategory.value = 'all';
 }
+
+function onClear() {
+  emit('update:value', '');
+}
+
+function onManualInput(e: Event) {
+  emit('update:value', (e.target as HTMLInputElement).value);
+}
+
+const displayIcons = computed(() => {
+  if (activeTab.value === 'search') return searchResults.value;
+  if (activeTab.value === 'browse') return browseDisplayIcons.value;
+  return PRESET_ICONS;
+});
+
+const displayCount = computed(() => {
+  if (activeTab.value === 'browse') {
+    return `${browseDisplayIcons.value.length} / ${browseAllIcons.value.length}`;
+  }
+  return `${displayIcons.value.length}`;
+});
 </script>
 
 <template>
-  <Modal
-    :open="open"
-    title="图标选择器"
-    width="960px"
-    :footer="null"
-    centered
-    @cancel="onClose"
-  >
-    <div class="flex flex-col gap-4">
-      <!-- 搜索框 -->
-      <Input
-        v-model:value="searchKeyword"
-        placeholder="搜索图标名称，如: user, arrow, check, avatar..."
-        allow-clear
-        size="large"
-      >
-        <template #prefix>
-          <IconifyIcon icon="lucide:search" class="text-gray-400" />
-        </template>
-      </Input>
-
-      <!-- 分类选择 -->
-      <div class="overflow-x-auto pb-2">
-        <Segmented
-          v-model:value="activeCategory"
-          :options="categoryOptions"
-          size="small"
-        />
-      </div>
-
-      <!-- 图标统计 -->
-      <div
-        class="flex items-center justify-between text-sm text-muted-foreground"
-      >
-        <span>
-          共 {{ filteredIcons.length }} 个图标
-          <span v-if="searchKeyword" class="ml-1">
-            (搜索: "{{ searchKeyword }}")
-          </span>
-        </span>
-        <span class="text-xs">
-          <span class="mr-3 inline-flex items-center gap-1">
-            <span class="size-2 rounded-full bg-success"></span>
-            项目图标 (svg:)
-          </span>
-          <span class="inline-flex items-center gap-1">
-            <span class="size-2 rounded-full bg-primary"></span>
-            Lucide (lucide:)
-          </span>
-        </span>
-      </div>
-
-      <!-- 图标网格 (虚拟滚动) -->
-      <div
-        v-if="filteredIcons.length === 0"
-        class="flex h-[420px] items-center justify-center rounded-lg border border-gray-200 bg-gray-50/50 text-gray-400 dark:border-gray-700 dark:bg-gray-800/50"
-      >
-        <div class="text-center">
-          <IconifyIcon icon="lucide:search-x" class="mb-2 size-12" />
-          <p>没有找到匹配的图标</p>
-        </div>
-      </div>
-      <div
-        v-else
-        v-bind="containerProps"
-        class="h-[420px] overflow-y-auto rounded-lg border border-gray-200 bg-gray-50/50 p-3 dark:border-gray-700 dark:bg-gray-800/50"
-      >
-        <div v-bind="wrapperProps">
-          <div
-            v-for="{ index, data: row } in virtualRows"
-            :key="index"
-            class="grid gap-2"
-            style="grid-template-columns: repeat(9, 96px); margin-bottom: 8px"
+  <div class="flex items-center gap-2">
+    <Popover
+      v-model:open="popoverOpen"
+      trigger="click"
+      placement="bottomLeft"
+      overlay-class-name="icon-picker-popover"
+    >
+      <template #content>
+        <div class="w-[360px]">
+          <!-- 搜索框 -->
+          <Input
+            v-model:value="searchKeyword"
+            :placeholder="$t('admin.ai.provider.iconPicker.searchPlaceholder')"
+            allow-clear
+            size="small"
+            class="mb-3"
           >
-            <Tooltip
-              v-for="item in row"
-              :key="item.key"
-              :title="item.fullName"
-              placement="top"
-            >
-              <div
-                class="group relative flex h-[88px] w-[96px] cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border bg-card p-2 transition-[border-color,box-shadow] duration-150 hover:shadow-md"
-                :class="[
-                  item.prefix === 'svg'
-                    ? 'border-success/30 hover:border-success/60'
-                    : 'border-border hover:border-primary/30',
-                ]"
-                @click="onSelectIcon(item.fullName)"
+            <template #prefix>
+              <IconifyIcon icon="lucide:search" class="size-3.5 text-muted-foreground" />
+            </template>
+          </Input>
+
+          <!-- Tab 切换 -->
+          <div class="mb-2 flex items-center justify-between">
+            <div class="flex gap-1 text-xs">
+              <button
+                class="rounded px-2 py-0.5 transition-colors"
+                :class="activeTab === 'preset'
+                  ? 'bg-primary/10 text-primary font-medium'
+                  : 'text-muted-foreground hover:text-foreground'"
+                @click="activeTab = 'preset'; searchKeyword = ''"
               >
-                <!-- 前缀标记 -->
-                <span
-                  v-if="activeCategory === 'all'"
-                  class="absolute left-1 top-1 rounded px-1 text-[8px] font-medium"
-                  :class="[
-                    item.prefix === 'svg'
-                      ? 'bg-success/10 text-success'
-                      : 'bg-primary/10 text-primary',
-                  ]"
-                >
-                  {{ item.prefix }}
-                </span>
-                <IconifyIcon
-                  :icon="item.fullName"
-                  class="size-7 text-gray-700 transition-transform duration-150 group-hover:scale-110 group-hover:text-primary dark:text-gray-300"
-                />
-                <span
-                  class="w-full truncate text-center text-[10px] leading-tight text-gray-500 dark:text-gray-400"
-                >
-                  {{ item.name }}
-                </span>
-                <!-- 复制按钮 -->
+                {{ $t('admin.ai.provider.iconPicker.preset') }}
+              </button>
+              <button
+                class="rounded px-2 py-0.5 transition-colors"
+                :class="activeTab === 'browse'
+                  ? 'bg-primary/10 text-primary font-medium'
+                  : 'text-muted-foreground hover:text-foreground'"
+                @click="activeTab = 'browse'; searchKeyword = ''"
+              >
+                {{ $t('admin.ai.provider.iconPicker.browse') }}
+              </button>
+              <button
+                class="rounded px-2 py-0.5 transition-colors"
+                :class="activeTab === 'search'
+                  ? 'bg-primary/10 text-primary font-medium'
+                  : 'text-muted-foreground hover:text-foreground'"
+                @click="activeTab = 'search'"
+              >
+                {{ $t('admin.ai.provider.iconPicker.search') }}
+              </button>
+            </div>
+            <span class="text-xs text-muted-foreground">
+              {{ displayCount }} {{ $t('admin.ai.provider.iconPicker.icons') }}
+            </span>
+          </div>
+
+          <!-- 集合选择器（仅浏览模式） -->
+          <div v-if="activeTab === 'browse'" class="mb-2">
+            <Select
+              v-model:value="browseCollection"
+              :options="COLLECTIONS"
+              size="small"
+              class="w-full"
+            />
+          </div>
+
+          <!-- 图标网格 -->
+          <Spin :spinning="searchLoading || browseLoading" size="small">
+            <div
+              v-if="displayIcons.length > 0"
+              ref="scrollContainerRef"
+              class="grid max-h-[280px] grid-cols-8 gap-1 overflow-y-auto"
+            >
+              <Tooltip
+                v-for="item in displayIcons"
+                :key="item.icon"
+                :title="item.icon"
+                placement="top"
+              >
                 <button
-                  class="absolute right-1 top-1 rounded p-0.5 opacity-0 transition-opacity duration-150 hover:bg-gray-100 group-hover:opacity-100 dark:hover:bg-gray-700"
-                  title="复制图标名称"
-                  @click="onCopyIcon(item.fullName, $event)"
+                  class="flex size-10 items-center justify-center rounded-lg border border-transparent transition-all hover:border-primary/30 hover:bg-primary/5"
+                  :class="value === item.icon ? 'border-primary bg-primary/10' : ''"
+                  @click="onSelectIcon(item.icon)"
                 >
                   <IconifyIcon
-                    icon="lucide:copy"
-                    class="size-3.5 text-gray-400"
+                    :icon="item.icon"
+                    class="size-5 text-foreground/80"
                   />
                 </button>
+              </Tooltip>
+              <!-- 哨兵元素：滚动到此处触发加载更多 -->
+              <div
+                v-if="activeTab === 'browse' && browseHasMore"
+                ref="sentinelRef"
+                class="col-span-8 flex items-center justify-center py-2 text-xs text-muted-foreground"
+              >
+                <Spin size="small" />
               </div>
-            </Tooltip>
+            </div>
+            <div
+              v-else-if="activeTab === 'search' && !searchLoading"
+              class="flex h-[100px] items-center justify-center text-sm text-muted-foreground"
+            >
+              {{ searchKeyword
+                ? $t('admin.ai.provider.iconPicker.noResults')
+                : $t('admin.ai.provider.iconPicker.searchTip')
+              }}
+            </div>
+          </Spin>
+
+          <!-- 手动输入 -->
+          <div class="mt-3 border-t border-border pt-3">
+            <div class="flex items-center gap-2">
+              <Input
+                :value="value"
+                :placeholder="placeholder"
+                size="small"
+                class="flex-1"
+                @change="onManualInput"
+              />
+              <div
+                v-if="value"
+                class="flex size-8 items-center justify-center rounded-lg bg-accent"
+              >
+                <IconifyIcon :icon="value" class="size-5 text-primary" />
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </template>
 
-      <!-- 使用说明开关 -->
-      <details
-        class="group rounded-lg border border-gray-200 dark:border-gray-700"
+      <!-- 触发器 -->
+      <Input
+        :value="value"
+        :placeholder="placeholder"
+        readonly
+        class="cursor-pointer"
       >
-        <summary
-          class="flex cursor-pointer items-center gap-2 rounded-lg bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-        >
-          <IconifyIcon icon="lucide:book-open" class="size-4" />
-          图标使用指南
-          <IconifyIcon
-            icon="lucide:chevron-right"
-            class="ml-auto size-4 transition-transform group-open:rotate-90"
-          />
-        </summary>
-        <div class="space-y-3 p-4">
-          <!-- Lucide 图标 -->
-          <div class="rounded-lg bg-primary/5 p-3">
-            <p class="mb-2 text-sm font-medium text-primary">
-              ✅ Lucide 图标（已预加载，离线可用）
-            </p>
-            <div class="space-y-2 text-xs text-muted-foreground">
-              <p>点击图标复制名称后直接使用：</p>
-              <div class="rounded bg-muted p-2">
-                <code class="block text-foreground"
-                  >&lt;IconifyIcon icon="lucide:user" class="size-5" /&gt;</code
-                >
-              </div>
-              <p>Lucide 图标已全部预加载，无需联网。</p>
-            </div>
+        <template #addonBefore>
+          <div
+            v-if="value"
+            class="flex size-8 cursor-pointer items-center justify-center text-primary"
+          >
+            <IconifyIcon :icon="value" class="size-5" />
           </div>
-
-          <!-- Tailwind CSS 图标类 -->
-          <div class="rounded-lg bg-accent/50 p-3">
-            <p class="mb-2 text-sm font-medium text-accent-foreground">
-              ✅ Tailwind CSS 图标类（离线可用）
-            </p>
-            <div class="space-y-1.5 text-xs text-muted-foreground">
-              <div class="rounded bg-muted p-2">
-                <code class="block text-foreground"
-                  >&lt;span class="icon-[lucide--user] size-5" /&gt;</code
-                >
-                <code class="block text-foreground"
-                  >&lt;span class="icon-[tabler--home] size-5" /&gt;</code
-                >
-              </div>
-              <p>
-                格式：<code class="text-primary"
-                  >icon-[图标集- -图标名]</code
-                >，用 <code class="text-primary">--</code> 代替
-                <code class="text-primary">:</code>
-              </p>
-            </div>
+          <div
+            v-else
+            class="flex size-8 cursor-pointer items-center justify-center text-muted-foreground hover:text-primary"
+          >
+            <IconifyIcon icon="lucide:plus" class="size-5" />
           </div>
-
-          <!-- 自定义 SVG -->
-          <div class="rounded-lg bg-success/5 p-3">
-            <p class="mb-2 text-sm font-medium text-success">
-              自定义 SVG / iconfont
-            </p>
-            <div class="space-y-1.5 text-xs text-muted-foreground">
-              <p>
-                将 SVG 放入
-                <code class="text-success">packages/icons/src/svg/icons/</code>
-                自动注册：
-              </p>
-              <div class="rounded bg-muted p-2">
-                <code class="block text-foreground"
-                  >// my-icon.svg → svg:my-icon</code
-                >
-                <code class="block text-foreground"
-                  >&lt;IconifyIcon icon="svg:my-icon" /&gt;</code
-                >
-              </div>
-              <p>
-                支持从
-                <a
-                  href="https://www.iconfont.cn"
-                  target="_blank"
-                  class="text-primary underline"
-                  >iconfont.cn</a
-                >
-                下载的 SVG
-              </p>
-            </div>
+        </template>
+        <template #suffix>
+          <div
+            v-if="value"
+            class="flex cursor-pointer items-center hover:text-primary"
+            @click.stop="onClear"
+          >
+            <IconifyIcon icon="lucide:x" class="size-4" />
           </div>
-
-          <!-- 其他图标集 -->
-          <div class="rounded-lg bg-muted/50 p-3">
-            <p class="mb-2 text-sm font-medium text-foreground">
-              其他 Iconify 图标集（需联网）
-            </p>
-            <div class="space-y-1.5 text-xs text-muted-foreground">
-              <div class="grid grid-cols-3 gap-1 text-[11px]">
-                <span
-                  ><code class="text-foreground/70">tabler:</code> Tabler</span
-                >
-                <span
-                  ><code class="text-foreground/70">mdi:</code> Material
-                  Design</span
-                >
-                <span
-                  ><code class="text-foreground/70">ant-design:</code> Ant
-                  Design</span
-                >
-                <span
-                  ><code class="text-foreground/70">carbon:</code> Carbon</span
-                >
-                <span
-                  ><code class="text-foreground/70">ph:</code> Phosphor</span
-                >
-                <span
-                  ><code class="text-foreground/70">ri:</code> Remix Icon</span
-                >
-              </div>
-              <p>
-                非 Lucide 图标首次使用需联网加载，或使用 Tailwind
-                类方式离线使用。
-              </p>
-            </div>
-          </div>
-
-          <!-- 参考链接 -->
-          <div class="flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <a
-              href="https://lucide.dev/icons"
-              target="_blank"
-              class="text-primary underline"
-              >Lucide</a
-            >
-            <a
-              href="https://icon-sets.iconify.design"
-              target="_blank"
-              class="text-primary/80 underline"
-              >Iconify 图标集</a
-            >
-            <a
-              href="https://www.iconfont.cn"
-              target="_blank"
-              class="text-primary/80 underline"
-              >iconfont.cn</a
-            >
-          </div>
-        </div>
-      </details>
-    </div>
-  </Modal>
+        </template>
+      </Input>
+    </Popover>
+  </div>
 </template>
 
-<style scoped>
-.group {
-  position: relative;
+<style>
+.icon-picker-popover .ant-popover-inner {
+  padding: 12px;
 }
 </style>

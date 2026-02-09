@@ -29,6 +29,14 @@ from app.models import (
     admin_role_permissions,
     TenantAdminRole,
     tenant_admin_role_permissions,
+    # AI 网关模型
+    AIProvider,
+    AIModel,
+    ProviderApiKey,
+    AICallLog,
+    UsageStat,
+    TenantModelRateLimit,
+    TenantQuota,
 )
 
 # Alembic 配置对象

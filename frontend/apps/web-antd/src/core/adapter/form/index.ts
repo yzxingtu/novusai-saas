@@ -9,6 +9,7 @@ export {
   apiSelect,
   dateField,
   dividerField,
+  iconField,
   inputField,
   numberField,
   searchDateRange,

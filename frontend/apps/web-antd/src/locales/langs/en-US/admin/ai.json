@@ -1,0 +1,270 @@
+{
+  "title": "AI Gateway Management",
+  "monitor": {
+    "title": "Monitoring & Analytics"
+  },
+  "provider": {
+    "title": "Provider Management",
+    "name": "Provider Name",
+    "code": "Provider Code",
+    "type": "Provider Type",
+    "baseUrl": "API URL",
+    "description": "Description",
+    "icon": "Icon",
+    "isActive": "Status",
+    "sortOrder": "Sort Order",
+    "modelCount": "Model Count",
+    "config": "Configuration",
+    "create": "Add Provider",
+    "placeholder": {
+      "searchName": "Search provider name",
+      "inputName": "Enter provider name",
+      "inputCode": "Enter provider code",
+      "selectType": "Select provider type",
+      "inputBaseUrl": "Enter API URL",
+      "inputDescription": "Enter description"
+    },
+    "type_options": {
+      "openai_compatible": "OpenAI Compatible",
+      "anthropic": "Anthropic"
+    },
+    "iconPicker": {
+      "searchPlaceholder": "Search icons...",
+      "preset": "Preset",
+      "browse": "Browse",
+      "search": "Search",
+      "icons": "icons",
+      "noResults": "No matching icons found",
+      "searchTip": "Type keywords to search icons"
+    },
+    "messages": {
+      "toggleSuccess": "Provider status updated",
+      "confirmEnable": "Are you sure to enable this provider?",
+      "confirmDisable": "Are you sure to disable this provider? All AI calls using this provider will fail."
+    }
+  },
+  "model": {
+    "title": "Model Management",
+    "name": "Model Name",
+    "code": "Model Code",
+    "type": "Model Type",
+    "providerId": "Provider",
+    "providerName": "Provider",
+    "contextWindow": "Context Window",
+    "maxOutputTokens": "Max Output Tokens",
+    "inputPrice": "Input Price ($/1K)",
+    "outputPrice": "Output Price ($/1K)",
+    "functionCalling": "Function Calling",
+    "vision": "Vision",
+    "streaming": "Streaming",
+    "isActive": "Status",
+    "fallbackModel": "Fallback Model",
+    "rpmLimit": "RPM Limit",
+    "tpmLimit": "TPM Limit",
+    "test": "Test Connectivity",
+    "testing": "Testing connectivity...",
+    "testSuccess": "Connectivity test passed, latency: {latency}ms",
+    "testFailed": "Connectivity test failed: {error}",
+    "create": "Add Model",
+    "section": {
+      "basic": "Basic Info",
+      "pricing": "Pricing",
+      "rateLimit": "Rate Limits",
+      "capability": "Capabilities",
+      "failover": "Failover"
+    },
+    "fetchRemote": "Fetch Remote Models",
+    "fetchRemoteLoading": "Fetching...",
+    "fetchRemoteSuccess": "Fetched {count} models",
+    "fetchRemoteFailed": "Failed to fetch remote models",
+    "fetchRemoteTip": "Please select a provider first",
+    "selectRemoteModel": "Select Remote Model",
+    "placeholder": {
+      "searchName": "Search model name",
+      "inputName": "Enter model name",
+      "inputCode": "Enter model code",
+      "selectType": "Select model type",
+      "selectProvider": "Select provider",
+      "selectRemoteModel": "Select a remote model to auto-fill",
+      "allProviders": "All Providers",
+      "allTypes": "All Types",
+      "inputContextWindow": "e.g. 128000",
+      "inputMaxOutput": "e.g. 4096",
+      "inputPrice": "e.g. 0.015",
+      "outputPrice": "e.g. 0.03",
+      "inputRpmLimit": "Requests per minute limit (leave empty for unlimited)",
+      "inputTpmLimit": "Tokens per minute limit (leave empty for unlimited)",
+      "selectFallback": "Select fallback model (optional)"
+    },
+    "type_options": {
+      "chat": "Chat",
+      "embedding": "Embedding",
+      "image": "Image"
+    },
+    "messages": {
+      "toggleSuccess": "Model status updated",
+      "confirmEnable": "Are you sure to enable this model?",
+      "confirmDisable": "Are you sure to disable this model? It will no longer be available for calls."
+    }
+  },
+  "apiKey": {
+    "title": "API Key Management",
+    "name": "Key Name",
+    "providerId": "Provider",
+    "providerName": "Provider",
+    "tenantId": "Tenant",
+    "tenantName": "Tenant",
+    "apiKey": "API Key",
+    "keyPreview": "Key Preview",
+    "isActive": "Status",
+    "isAvailable": "Available",
+    "usageLimit": "Usage Limit",
+    "usageCount": "Used Count",
+    "lastUsedAt": "Last Used",
+    "expiresAt": "Expires At",
+    "create": "Add API Key",
+    "scope": {
+      "platform": "Platform",
+      "tenant": "Tenant"
+    },
+    "placeholder": {
+      "searchName": "Search key name",
+      "inputName": "Enter key name",
+      "inputApiKey": "Enter API Key",
+      "selectProvider": "Select provider",
+      "selectTenant": "Select tenant (leave empty for platform)",
+      "allProviders": "All Providers",
+      "inputUsageLimit": "Leave empty for unlimited"
+    },
+    "messages": {
+      "toggleSuccess": "API Key status updated",
+      "confirmEnable": "Are you sure to enable this API Key?",
+      "confirmDisable": "Are you sure to disable this API Key? AI calls using this key will fail."
+    }
+  },
+  "callLog": {
+    "title": "Call Logs",
+    "requestType": "Request Type",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "totalTokens": "Total Tokens",
+    "cost": "Cost",
+    "latency": "Latency (ms)",
+    "status": "Status",
+    "tenantName": "Tenant",
+    "modelName": "Model",
+    "providerName": "Provider",
+    "userId": "User ID",
+    "errorMessage": "Error Message",
+    "createdAt": "Created At",
+    "placeholder": {
+      "allStatuses": "All Statuses",
+      "allModels": "All Models"
+    },
+    "status_options": {
+      "success": "Success",
+      "failed": "Failed",
+      "timeout": "Timeout"
+    },
+    "viewDetail": "View Detail",
+    "detail": {
+      "title": "Call Log Detail",
+      "requestData": "Request Data",
+      "responseData": "Response Data"
+    },
+    "export": {
+      "button": "Export CSV",
+      "success": "Export successful",
+      "failed": "Export failed",
+      "noData": "No data to export"
+    }
+  },
+  "usage": {
+    "title": "Usage Statistics",
+    "statDate": "Date",
+    "tenantId": "Tenant",
+    "tenantName": "Tenant",
+    "modelId": "Model",
+    "modelName": "Model",
+    "requestType": "Request Type",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "totalTokens": "Total Tokens",
+    "callCount": "Calls",
+    "successCount": "Success",
+    "failedCount": "Failed",
+    "totalCost": "Total Cost",
+    "avgLatency": "Avg Latency (ms)",
+    "maxLatency": "Max Latency (ms)",
+    "type_options": {
+      "chat": "Chat",
+      "embedding": "Embedding",
+      "image": "Image"
+    },
+    "placeholder": {
+      "selectTenant": "All Tenants",
+      "selectModel": "All Models",
+      "startDate": "Start Date",
+      "endDate": "End Date"
+    },
+    "summary": {
+      "totalCalls": "Total Calls",
+      "totalTokens": "Total Tokens",
+      "totalCost": "Total Cost",
+      "successRate": "Success Rate"
+    }
+  },
+  "quota": {
+    "title": "Quota Management",
+    "tenantId": "Tenant",
+    "tenantName": "Tenant",
+    "modelId": "Model",
+    "modelName": "Model",
+    "period": "Period",
+    "limit": "Quota Limit",
+    "quotaType": "Quota Type",
+    "warningThreshold": "Warning Threshold (%)",
+    "isActive": "Status",
+    "description": "Description",
+    "create": "Add Quota",
+    "globalQuota": "Global Quota",
+    "section": {
+      "basic": "Basic Info",
+      "config": "Quota Configuration"
+    },
+    "period_options": {
+      "daily": "Daily",
+      "monthly": "Monthly"
+    },
+    "type_options": {
+      "soft": "Soft Limit",
+      "hard": "Hard Limit"
+    },
+    "placeholder": {
+      "selectTenant": "Select tenant",
+      "selectModel": "Select model (leave empty for global quota)",
+      "selectPeriod": "Select period",
+      "selectType": "Select quota type",
+      "inputLimit": "Token limit",
+      "inputThreshold": "e.g. 80",
+      "inputDescription": "Enter description",
+      "allTenants": "All Tenants",
+      "allPeriods": "All Periods",
+      "allTypes": "All Types"
+    }
+  },
+  "health": {
+    "title": "Health Status",
+    "providers": "providers",
+    "refresh": "Refresh",
+    "responseTime": "Response Time",
+    "failures": "Consecutive Failures",
+    "lastCheck": "Last Check",
+    "noData": "No health check data",
+    "status": {
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "unavailable": "Unavailable"
+    }
+  }
+}

@@ -1,0 +1,110 @@
+<script lang="ts" setup>
+/**
+ * 租户端 AI 调用日志列表页面
+ */
+import type { TenantAICallLogInfo } from '#/api/tenant/ai';
+
+defineOptions({ name: 'TenantAICallLogList' });
+
+import { ref } from 'vue';
+
+import { Page } from '@vben/common-ui';
+import { IconifyIcon } from '@vben/icons';
+
+import { Card, Tag, Tooltip } from 'ant-design-vue';
+
+import { useCrudPage } from '#/adapter/vxe-table';
+import { getTenantAICallLogListApi } from '#/api/tenant/ai';
+import { formatDate } from '#/utils/common';
+
+import { formatCost, getStatusText, useColumns, useGridFormSchema } from './data';
+import CallLogDetail from './modules/CallLogDetail.vue';
+
+const detailOpen = ref(false);
+const detailLogId = ref<null | number>(null);
+
+function onViewDetail(row: TenantAICallLogInfo) {
+  detailLogId.value = row.id;
+  detailOpen.value = true;
+}
+
+const { Grid } = useCrudPage<TenantAICallLogInfo>({
+  api: {
+    list: getTenantAICallLogListApi,
+    resource: '/tenant/ai/call-logs',
+  },
+  columns: useColumns,
+  searchSchema: useGridFormSchema(),
+  i18nPrefix: 'tenant.ai.callLog',
+  defaultSort: '-created_at',
+  customActions: {
+    detail: onViewDetail,
+  },
+});
+</script>
+
+<template>
+  <Page auto-content-height content-class="flex flex-col gap-4">
+    <!-- 详情抽屉 -->
+    <CallLogDetail
+      v-model:open="detailOpen"
+      :log-id="detailLogId"
+    />
+
+    <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
+      <Grid>
+        <!-- 调用时间列 -->
+        <template #createdAt_cell="{ row }">
+          <Tooltip :title="formatDate(row.created_at)">
+            <span class="text-muted-foreground">
+              {{ formatDate(row.created_at) }}
+            </span>
+          </Tooltip>
+        </template>
+
+        <!-- 模型名称列 -->
+        <template #modelName_cell="{ row }">
+          <div class="flex items-center gap-1.5">
+            <IconifyIcon
+              icon="lucide:brain"
+              class="size-3.5 text-muted-foreground"
+            />
+            <code class="rounded bg-accent px-1 py-0.5 text-xs">
+              {{ row.model_name || '-' }}
+            </code>
+          </div>
+        </template>
+
+        <!-- 状态列 -->
+        <template #status_cell="{ row }">
+          <Tag
+            :color="
+              row.status === 'success'
+                ? 'success'
+                : row.status === 'failed'
+                  ? 'error'
+                  : 'warning'
+            "
+          >
+            {{ getStatusText(row.status) }}
+          </Tag>
+        </template>
+
+        <!-- 费用列 -->
+        <template #cost_cell="{ row }">
+          <span class="text-muted-foreground">
+            {{ formatCost(row.cost) }}
+          </span>
+        </template>
+
+        <!-- 延迟列 -->
+        <template #latency_cell="{ row }">
+          <span v-if="row.latency_ms" class="text-muted-foreground">
+            {{ row.latency_ms }}ms
+          </span>
+          <span v-else class="text-muted-foreground">-</span>
+        </template>
+      </Grid>
+    </Card>
+  </Page>
+</template>

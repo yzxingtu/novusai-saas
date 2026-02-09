@@ -1,3 +1,4 @@
+export * from './ai';
 export * from './attachment';
 export * from './auth';
 export * from './configs';

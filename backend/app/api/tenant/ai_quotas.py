@@ -1,0 +1,415 @@
+"""
+租户端 AI 配额和速率限制配置 API
+
+提供租户级配额管理和速率限制配置接口
+"""
+
+from fastapi import Query, Request
+
+from app.core.base_controller import TenantController
+from app.core.deps import DbSession, ActiveTenantAdmin
+from app.core.i18n import _
+from app.core.response import success
+from app.enums.rbac import PermissionScope
+from app.exceptions import NotFoundException, AuthorizationException
+from app.rbac.decorators import (
+    permission_resource,
+    MenuConfig,
+    action_read,
+    action_create,
+    action_update,
+    action_delete,
+)
+from app.schemas.ai.tenant_quota import (
+    TenantQuotaCreate,
+    TenantQuotaUpdate,
+    TenantQuotaResponse,
+)
+from app.schemas.ai.tenant_rate_limit import (
+    TenantRateLimitCreate,
+    TenantRateLimitUpdate,
+    TenantRateLimitResponse,
+)
+from app.services.ai.tenant_quota_service import TenantQuotaService
+from app.services.ai.tenant_rate_limit_service import TenantRateLimitService
+
+
+def _build_quota_dict(quota) -> dict:
+    """
+    从 ORM 对象构建配额字典，提取 model_name
+    """
+    model_name = None
+    try:
+        model_obj = getattr(quota, 'model', None)
+        if model_obj is not None:
+            model_name = model_obj.name
+    except (AttributeError, Exception):
+        pass
+
+    return {
+        "id": quota.id,
+        "tenant_id": quota.tenant_id,
+        "model_id": quota.model_id,
+        "period": quota.period,
+        "limit": quota.limit,
+        "quota_type": quota.quota_type,
+        "warning_threshold": quota.warning_threshold,
+        "is_active": quota.is_active,
+        "description": quota.description,
+        "model_name": model_name,
+        "created_at": quota.created_at,
+        "updated_at": quota.updated_at,
+    }
+
+
+def _build_rate_limit_dict(rate_limit) -> dict:
+    """
+    从 ORM 对象构建速率限制字典，提取 model_name
+    """
+    model_name = None
+    try:
+        model_obj = getattr(rate_limit, 'model', None)
+        if model_obj is not None:
+            model_name = model_obj.name
+    except (AttributeError, Exception):
+        pass
+
+    return {
+        "id": rate_limit.id,
+        "tenant_id": rate_limit.tenant_id,
+        "model_id": rate_limit.model_id,
+        "rpm_limit": rate_limit.rpm_limit,
+        "tpm_limit": rate_limit.tpm_limit,
+        "description": rate_limit.description,
+        "is_active": rate_limit.is_active,
+        "model_name": model_name,
+        "created_at": rate_limit.created_at,
+        "updated_at": rate_limit.updated_at,
+    }
+
+
+@permission_resource(
+    resource="ai_quota",
+    name="menu.tenant.ai_quota",
+    scope=PermissionScope.TENANT,
+    menu=MenuConfig(
+        icon="lucide:gauge",
+        path="/ai/quotas",
+        component="ai/quotas/index",
+        parent="ai_mgmt",
+        sort_order=20,
+    ),
+)
+class TenantAIQuotaController(TenantController):
+    """
+    租户 AI 配额和速率限制控制器
+
+    提供配额管理和速率限制配置接口
+    """
+
+    prefix = "/ai/quotas"
+    tags = ["AI 配额管理"]
+
+    def _register_routes(self) -> None:
+        """注册路由"""
+        router = self.router
+
+        # ========== 配额管理 ==========
+
+        @router.get("", summary="获取配额配置列表")
+        @action_read("action.ai_quota.list_quotas")
+        async def get_quotas(
+            request: Request,
+            db: DbSession,
+            tenant_admin: ActiveTenantAdmin,
+            model_id: int | None = Query(None, description="模型 ID"),
+            period: str | None = Query(None, description="周期"),
+            include_usage: bool = Query(False, description="是否包含使用量"),
+        ):
+            """
+            获取租户配额配置列表
+
+            权限: ai_quota:list_quotas
+            """
+            service = TenantQuotaService(db, tenant_admin.tenant_id)
+
+            if include_usage:
+                if model_id:
+                    quota_with_usage = await service.get_quota_with_usage(
+                        model_id, period or "monthly"
+                    )
+                    raw_list = [quota_with_usage] if quota_with_usage else []
+                else:
+                    raw_list = await service.get_all_quotas_with_usage(period)
+
+                # 将 ORM 对象序列化为包含 model_name 的字典
+                result = []
+                for item in raw_list:
+                    result.append({
+                        "quota": _build_quota_dict(item["quota"]),
+                        "usage": item["usage"],
+                        "limit": item["limit"],
+                        "usage_percent": item["usage_percent"],
+                        "is_warning": item["is_warning"],
+                        "is_exceeded": item["is_exceeded"],
+                        "remaining": item["remaining"],
+                    })
+            else:
+                quotas = await service.repo.get_active_quotas(
+                    tenant_id=tenant_admin.tenant_id,
+                    period=period,
+                )
+                result = [_build_quota_dict(q) for q in quotas]
+
+            return success(data=result, message=_("common.success"))
+
+        @router.get("/{quota_id}", summary="获取配额配置详情")
+        @action_read("action.ai_quota.detail_quota")
+        async def get_quota(
+            request: Request,
+            db: DbSession,
+            quota_id: int,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            获取配额配置详情
+
+            权限: ai_quota:detail_quota
+            """
+            service = TenantQuotaService(db, tenant_admin.tenant_id)
+            quota = await service.repo.get_by_id(quota_id)
+
+            if not quota:
+                raise NotFoundException(message=_("ai.error.quota_not_found"))
+
+            if quota.tenant_id != tenant_admin.tenant_id:
+                raise AuthorizationException(message=_("common.forbidden"))
+
+            quota_with_usage = await service.get_quota_with_usage(
+                quota.model_id, quota.period
+            )
+
+            if quota_with_usage:
+                response_data = {
+                    "quota": _build_quota_dict(quota_with_usage["quota"]),
+                    "usage": quota_with_usage["usage"],
+                    "limit": quota_with_usage["limit"],
+                    "usage_percent": quota_with_usage["usage_percent"],
+                    "is_warning": quota_with_usage["is_warning"],
+                    "is_exceeded": quota_with_usage["is_exceeded"],
+                    "remaining": quota_with_usage["remaining"],
+                }
+            else:
+                response_data = None
+
+            return success(data=response_data, message=_("common.success"))
+
+        @router.post("", summary="创建配额配置")
+        @action_create("action.ai_quota.create_quota")
+        async def create_quota(
+            request: Request,
+            db: DbSession,
+            data: TenantQuotaCreate,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            创建配额配置
+
+            权限: ai_quota:create_quota
+            """
+            service = TenantQuotaService(db, tenant_admin.tenant_id)
+            quota = await service.create_quota(
+                model_id=data.model_id,
+                period=data.period,
+                limit=data.limit,
+                quota_type=data.quota_type,
+                warning_threshold=data.warning_threshold,
+                description=data.description,
+            )
+            await db.commit()
+
+            return success(data=quota, message=_("ai.quota.created"))
+
+        @router.put("/{quota_id}", summary="更新配额配置")
+        @action_update("action.ai_quota.update_quota")
+        async def update_quota(
+            request: Request,
+            db: DbSession,
+            quota_id: int,
+            data: TenantQuotaUpdate,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            更新配额配置
+
+            权限: ai_quota:update_quota
+            """
+            service = TenantQuotaService(db, tenant_admin.tenant_id)
+            quota = await service.repo.get_by_id(quota_id)
+
+            if not quota:
+                raise NotFoundException(message=_("ai.error.quota_not_found"))
+
+            if quota.tenant_id != tenant_admin.tenant_id:
+                raise AuthorizationException(message=_("common.forbidden"))
+
+            update_data = data.model_dump(exclude_unset=True)
+            updated = await service.repo.update(quota.id, update_data)
+            await db.commit()
+
+            return success(data=updated, message=_("ai.quota.updated"))
+
+        @router.delete("/{quota_id}", summary="删除配额配置")
+        @action_delete("action.ai_quota.delete_quota")
+        async def delete_quota(
+            request: Request,
+            db: DbSession,
+            quota_id: int,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            删除配额配置
+
+            权限: ai_quota:delete_quota
+            """
+            service = TenantQuotaService(db, tenant_admin.tenant_id)
+            quota = await service.repo.get_by_id(quota_id)
+
+            if not quota:
+                raise NotFoundException(message=_("ai.error.quota_not_found"))
+
+            if quota.tenant_id != tenant_admin.tenant_id:
+                raise AuthorizationException(message=_("common.forbidden"))
+
+            await service.repo.delete(quota_id)
+            await db.commit()
+
+            return success(message=_("ai.quota.deleted"))
+
+        # ========== 速率限制管理 ==========
+
+        @router.get("/rate-limits", summary="获取速率限制配置列表")
+        @action_read("action.ai_quota.list_rate_limits")
+        async def get_rate_limits(
+            request: Request,
+            db: DbSession,
+            tenant_admin: ActiveTenantAdmin,
+            model_id: int | None = Query(None, description="模型 ID"),
+        ):
+            """
+            获取速率限制配置列表
+
+            权限: ai_quota:list_rate_limits
+            """
+            service = TenantRateLimitService(db, tenant_admin.tenant_id)
+            items = await service.repo.get_active_limits(
+                tenant_id=tenant_admin.tenant_id,
+                model_id=model_id,
+            )
+            result = [_build_rate_limit_dict(item) for item in items]
+
+            return success(data=result, message=_("common.success"))
+
+        @router.get("/rate-limits/effective/{model_id}", summary="获取有效速率限制")
+        @action_read("action.ai_quota.effective_rate_limits")
+        async def get_effective_rate_limits(
+            request: Request,
+            db: DbSession,
+            model_id: int,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            获取有效的速率限制
+
+            权限: ai_quota:effective_rate_limits
+            """
+            service = TenantRateLimitService(db, tenant_admin.tenant_id)
+            result = await service.get_effective_rate_limits(model_id)
+
+            return success(data=result, message=_("common.success"))
+
+        @router.post("/rate-limits", summary="创建速率限制配置")
+        @action_create("action.ai_quota.create_rate_limit")
+        async def create_rate_limit(
+            request: Request,
+            db: DbSession,
+            data: TenantRateLimitCreate,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            创建速率限制配置
+
+            权限: ai_quota:create_rate_limit
+            """
+            service = TenantRateLimitService(db, tenant_admin.tenant_id)
+            rate_limit = await service.create_rate_limit(
+                model_id=data.model_id,
+                rpm_limit=data.rpm_limit,
+                tpm_limit=data.tpm_limit,
+                description=data.description,
+            )
+            await db.commit()
+
+            return success(data=rate_limit, message=_("ai.rate_limit.created"))
+
+        @router.put("/rate-limits/{rate_limit_id}", summary="更新速率限制配置")
+        @action_update("action.ai_quota.update_rate_limit")
+        async def update_rate_limit(
+            request: Request,
+            db: DbSession,
+            rate_limit_id: int,
+            data: TenantRateLimitUpdate,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            更新速率限制配置
+
+            权限: ai_quota:update_rate_limit
+            """
+            service = TenantRateLimitService(db, tenant_admin.tenant_id)
+            rate_limit = await service.repo.get_by_id(rate_limit_id)
+
+            if not rate_limit:
+                raise NotFoundException(message=_("ai.error.rate_limit_not_found"))
+
+            if rate_limit.tenant_id != tenant_admin.tenant_id:
+                raise AuthorizationException(message=_("common.forbidden"))
+
+            update_data = data.model_dump(exclude_unset=True)
+            updated = await service.repo.update(rate_limit.id, update_data)
+            await db.commit()
+
+            return success(data=updated, message=_("ai.rate_limit.updated"))
+
+        @router.delete("/rate-limits/{rate_limit_id}", summary="删除速率限制配置")
+        @action_delete("action.ai_quota.delete_rate_limit")
+        async def delete_rate_limit(
+            request: Request,
+            db: DbSession,
+            rate_limit_id: int,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            删除速率限制配置
+
+            权限: ai_quota:delete_rate_limit
+            """
+            service = TenantRateLimitService(db, tenant_admin.tenant_id)
+            rate_limit = await service.repo.get_by_id(rate_limit_id)
+
+            if not rate_limit:
+                raise NotFoundException(message=_("ai.error.rate_limit_not_found"))
+
+            if rate_limit.tenant_id != tenant_admin.tenant_id:
+                raise AuthorizationException(message=_("common.forbidden"))
+
+            await service.repo.delete(rate_limit_id)
+            await db.commit()
+
+            return success(message=_("ai.rate_limit.deleted"))
+
+
+# 导出路由器
+router = TenantAIQuotaController.get_router()
+
+__all__ = ["router", "TenantAIQuotaController"]

@@ -390,6 +390,35 @@ class BaseRepository(Generic[ModelType]):
             return {k: v for k, v in base.items() if k in allowed}
         
         return base
+
+    def get_sortable_fields(self) -> dict[str, InstrumentedAttribute]:
+        """
+        获取允许排序的字段
+
+        优先级: __sortable_fields__ > __sortable__ (dict format) > __filterable__
+
+        Returns:
+            字段名到 SQLAlchemy 列的映射
+        """
+        # 优先使用 __sortable_fields__（向后兼容）
+        sortable = getattr(self.model, "__sortable_fields__", None)
+
+        if sortable is None:
+            # 检查 __sortable__（如果是字段映射字典而非排序配置）
+            sortable_attr = getattr(self.model, "__sortable__", None)
+            if isinstance(sortable_attr, dict) and "field" not in sortable_attr:
+                sortable = sortable_attr
+
+        if sortable is None:
+            # 回退到 __filterable__
+            sortable = getattr(self.model, "__filterable__", {})
+
+        result: dict[str, InstrumentedAttribute] = {}
+        for field_name, attr_name in sortable.items():
+            if hasattr(self.model, attr_name):
+                result[field_name] = getattr(self.model, attr_name)
+
+        return result
     
     def _cast_value(self, col: InstrumentedAttribute, value: Any) -> Any:
         """
@@ -631,8 +660,9 @@ class BaseRepository(Generic[ModelType]):
         count_result = await self.db.execute(count_query)
         total = count_result.scalar() or 0
         
-        # 应用排序
-        query = self._apply_sort(query, spec.sort, allowed_fields)
+        # 应用排序（使用 __sortable__ 白名单）
+        sortable_fields = self.get_sortable_fields()
+        query = self._apply_sort(query, spec.sort, sortable_fields)
         
         # 应用分页
         query = query.offset(spec.offset).limit(spec.limit)

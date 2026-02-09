@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse, ORJSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
-from app.core.i18n import _
+from app.core.i18n import _, reload_translations
 from app.core.database import init_database, close_database
 from app.core.response import error, validation_error
 from app.core.logging import init_logging, get_logger
@@ -39,14 +39,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     init_logging()
     logger = get_logger(__name__)
     
+    # 清除翻译缓存，确保加载最新的翻译文件
+    reload_translations()
+    
     try:
-        logger.info(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-        logger.info(f"📍 Environment: {settings.APP_ENV}")
-        logger.info(f"🔧 Debug mode: {settings.DEBUG}")
-        
+        logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+        logger.info(f"Environment: {settings.APP_ENV}")
+        logger.info(f"Debug mode: {settings.DEBUG}")
+
         # 初始化数据库（检查/创建数据库 + 运行迁移）
         await init_database()
-        logger.info("✅ Database initialized")
+        logger.info("Database initialized")
         
         # 同步权限到数据库（将装饰器定义的权限同步到 DB）
         from app.core.database import async_session_factory
@@ -55,7 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         async with async_session_factory() as db:
             sync_result = await sync_permissions_on_startup(db)
             logger.info(
-                f"✅ Permissions synced: "
+                f"Permissions synced: "
                 f"created={sync_result['created']}, "
                 f"updated={sync_result['updated']}, "
                 f"disabled={sync_result['disabled']}"
@@ -69,7 +72,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         async with async_session_factory() as db:
             config_sync_result = await sync_configs_on_startup(db)
             logger.info(
-                f"✅ Configs synced: "
+                f"Configs synced: "
                 f"groups={config_sync_result['groups']}, "
                 f"configs={config_sync_result['configs']}"
             )
@@ -78,9 +81,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         from app.core.redis import RedisManager
         try:
             await RedisManager.init()
-            logger.info("✅ Redis initialized")
+            logger.info("Redis initialized")
         except Exception as redis_err:
-            logger.warning(f"⚠️ Redis initialization failed: {redis_err}")
+            logger.warning(f"Redis initialization failed: {redis_err}")
 
         # 验证 Celery broker 连通性
         try:
@@ -88,14 +91,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             conn = celery_app.connection()
             conn.ensure_connection(max_retries=1, timeout=3)
             conn.close()
-            logger.info("✅ Celery broker connected")
+            logger.info("Celery broker connected")
         except Exception as celery_err:
-            logger.warning(f"⚠️ Celery broker connection failed: {celery_err}")
+            logger.warning(f"Celery broker connection failed: {celery_err}")
         
     except Exception as e:
         # 确保启动阶段的错误能够被记录和显示
         import traceback
-        error_msg = f"❌ Startup failed: {e}"
+        error_msg = f"Startup failed: {e}"
         logger.error(error_msg)
         logger.error(traceback.format_exc())
         # 同时输出到控制台，确保在日志系统异常时也能看到
@@ -107,16 +110,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # ========== Shutdown ==========
     logger = get_logger(__name__)
-    logger.info(f"👋 Shutting down {settings.APP_NAME}")
-    
+    logger.info(f"Shutting down {settings.APP_NAME}")
+
     # 关闭数据库连接
     await close_database()
-    logger.info("✅ Database connections closed")
-    
+    logger.info("Database connections closed")
+
     # 关闭 Redis 连接
     from app.core.redis import RedisManager
     await RedisManager.close()
-    logger.info("✅ Redis connections closed")
+    logger.info("Redis connections closed")
 
 
 def create_application() -> FastAPI:

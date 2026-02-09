@@ -82,11 +82,23 @@ class NoticeService(TenantService[Notice, NoticeRepository]):
 from app.core.base_controller import TenantController
 from app.core.deps import DbSession, ActiveTenantAdmin, QueryParams
 from app.core.response import success, created, deleted, paginated
-from app.rbac.decorators import permission_resource, action_read, action_create, action_update, action_delete
+from app.rbac.decorators import permission_resource, MenuConfig, action_read, action_create, action_update, action_delete
+from app.enums.rbac import PermissionScope
 from app.services.tenant.notice_service import NoticeService
 from app.schemas.tenant.notice import NoticeCreate, NoticeUpdate, NoticeResponse
 
-@permission_resource("notice")
+@permission_resource(
+    resource="notice",
+    name="menu.tenant.notice",  # i18n key
+    scope=PermissionScope.TENANT,
+    menu=MenuConfig(
+        icon="lucide:megaphone",
+        path="/system-mgmt/notices",
+        component="tenant/system-mgmt/notices/index",
+        parent="system_mgmt",  # 父菜单资源标识（对应目录菜单的 code 后缀）
+        sort_order=10,
+    ),
+)
 class NoticeController(TenantController):
     prefix = "/notices"
     tags = ["公告管理"]
@@ -204,7 +216,20 @@ raise BusinessException(message=_("error.notice_already_published"))
 ## 权限装饰器
 
 ```python
-@permission_resource("resource_name")    # 类级：资源名
+@permission_resource(
+    resource="resource_name",              # 资源标识（生成权限码: menu:{scope}.{resource}）
+    name="menu.{scope}.{resource}",        # i18n key
+    scope=PermissionScope.TENANT,          # ADMIN / TENANT
+    menu=MenuConfig(                       # 可选，无则不生成菜单
+        icon="lucide:xxx",                 # Lucide 图标
+        path="/parent/child",              # 路由路径
+        component="scope/parent/child/index",  # 前端组件路径
+        parent="parent_resource",          # 父菜单资源标识（对应目录菜单 code 的后缀）
+        sort_order=10,                     # 排序（数字越小越靠前）
+        hidden=False,                      # True = 仅做权限控制，不显示菜单
+    ),
+    parent_resource="xxx",                 # 可选，无菜单时操作权限挂载到此父资源下
+)
 @action_read("i18n.key")                 # 读
 @action_create("i18n.key")               # 创建
 @action_update("i18n.key")               # 更新
@@ -214,6 +239,138 @@ raise BusinessException(message=_("error.notice_already_published"))
 @public                                   # 公开，无需认证
 @auth_only                                # 仅需登录
 ```
+
+## 菜单权限系统
+
+### 架构概览
+
+菜单分两层：**目录菜单**（父级分组）和**叶子菜单**（实际功能页面）。
+
+```
+目录菜单 (admin_menus.py / tenant_menus.py)
+├── system (权限管理)
+│   ├── organization (叶子，由 roles.py Controller 声明)
+│   └── admin_user (叶子，由 admin_users.py Controller 声明)
+├── ai_mgmt (AI 网关管理)
+│   ├── ai_provider (叶子，由 ai_providers.py Controller 声明)
+│   └── ai_model (叶子，由 ai_models.py Controller 声明)
+```
+
+### 目录菜单（父级分组）
+
+定义位置：`backend/app/rbac/menus/admin_menus.py` 和 `tenant_menus.py`
+
+```python
+# 无 API 端点的纯分组节点，使用 PermissionMeta 直接定义
+from app.enums.rbac import PermissionType, PermissionScope
+from app.rbac.decorators import PermissionMeta
+
+ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
+    PermissionMeta(
+        code="menu:admin.ai_mgmt",           # 唯一标识，格式: menu:{scope}.{resource}
+        name="menu.admin.ai_mgmt",            # i18n key
+        type=PermissionType.MENU,
+        scope=PermissionScope.ADMIN,
+        resource="menu",                       # 固定为 "menu"
+        action="admin.ai_mgmt",               # 格式: {scope}.{resource}
+        icon="lucide:brain-circuit",           # Lucide 图标
+        path="/ai",                            # 路由路径前缀
+        sort_order=35,                         # 无 component 字段 = 目录节点
+    ),
+]
+```
+
+**关键规则**：
+- 目录菜单**无 `component` 字段**（区别于叶子菜单）
+- `code` 格式必须为 `menu:{scope}.{resource}`
+- 启动时由 `register_directory_menus()` 注册到 `permission_registry`
+
+### 叶子菜单（Controller 声明）
+
+叶子菜单通过 Controller 的 `@permission_resource` 装饰器自动声明：
+
+```python
+@permission_resource(
+    resource="ai_provider",
+    name="menu.admin.ai_provider",
+    scope=PermissionScope.ADMIN,
+    menu=MenuConfig(
+        icon="lucide:cpu",
+        path="/ai/providers",
+        component="admin/ai/providers/List",
+        parent="ai_mgmt",                     # ← 引用目录菜单的资源标识后缀
+        sort_order=10,
+    ),
+)
+class AdminAIProviderController(GlobalController): ...
+```
+
+**`parent` 解析规则**：装饰器自动将 `parent="ai_mgmt"` 转换为 `parent_code="menu:admin.ai_mgmt"`（拼接 `menu:{scope}.` 前缀），然后在权限同步时查找对应的目录菜单。
+
+### 无菜单的 Controller
+
+不需要菜单但需要操作权限的 Controller，使用 `parent_resource` 将权限挂载到父资源下：
+
+```python
+@permission_resource(
+    resource="tenant_domain",
+    name="menu.admin.tenant_domain",
+    scope=PermissionScope.ADMIN,
+    parent_resource="tenant",  # 操作权限挂载到 tenant 菜单下，但不生成菜单项
+)
+class AdminTenantDomainController(GlobalController): ...
+```
+
+### 新增菜单分组步骤
+
+1. 在 `admin_menus.py` / `tenant_menus.py` 添加 `PermissionMeta` 目录定义
+2. 在对应 Controller 的 `MenuConfig(parent="新分组标识")` 引用
+3. **后端 i18n**：在 `backend/app/locales/{zh_CN,en}/menu.json` 的 `menu.admin` 或 `menu.tenant` 节点下添加菜单翻译
+4. **前端 i18n（Fallback 静态路由用）**：在 `frontend/.../locales/langs/{zh-CN,en-US}/{scope}/xxx.json` 添加对应翻译
+5. 在前端路由添加父级路由节点（hideInMenu 模式，作为动态路由的 fallback）
+
+### 菜单翻译链路（重要）
+
+后端 `PermissionMeta.name` 和 `@permission_resource.name` 字段存储的是 **i18n key**（如 `menu.admin.ai_mgmt`），**不是最终显示文本**。
+
+翻译发生在**后端 API 返回时**：
+1. 数据库中存储 i18n key：`menu.admin.ai_mgmt`
+2. `PermissionService._translate_name()` 方法在构建菜单树时自动调用 `_(key)` 翻译
+3. 翻译文件位置：`backend/app/locales/{zh_CN,en}/menu.json`
+4. 前端收到的 `name` 字段已经是**翻译后的文本**（如 "AI 网关管理"）
+5. 前端 `menu-transformer.ts` 将翻译后的 `name` 赋值给 `route.meta.title`
+
+**翻译文件格式**：
+```json
+// backend/app/locales/zh_CN/menu.json
+{
+  "menu": {
+    "admin": {
+      "ai_mgmt": "AI 网关管理",
+      "ai_provider": "AI 供应商"
+    },
+    "tenant": {
+      "ai_mgmt": "AI 管理",
+      "ai_config": "AI 配置"
+    }
+  }
+}
+```
+
+**新增菜单时必须同步更新**：
+- `backend/app/locales/zh_CN/menu.json` — 中文翻译
+- `backend/app/locales/en/menu.json` — 英文翻译
+- 遗漏任何一项会导致菜单显示为 key 的最后一段（如 `ai_mgmt`）
+
+### 启动同步流程
+
+```
+1. register_directory_menus() — 注册目录菜单到 permission_registry
+2. include_router() — 注册控制器路由，触发 @permission_resource，注册叶子菜单
+3. sync_permissions_on_startup() — 拓扑排序 → 父级先入库 → 子级关联 parent_id
+```
+
+**注意**：sync 使用 `(code, scope)` 组合作为唯一键。如果数据库中已有旧记录，会更新而非重建。
 
 ---
 

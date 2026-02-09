@@ -692,6 +692,34 @@ export function dividerField(fieldName: string, label: string): VbenFormSchema {
   };
 }
 
+/**
+ * 创建图标选择器 schema
+ *
+ * 使用自定义组件，支持 IconPicker 弹窗选择
+ *
+ * @example
+ * ```ts
+ * iconField('icon', '图标', { placeholder: 'lucide:cpu' })
+ * ```
+ */
+export function iconField(
+  fieldName: string,
+  label: string,
+  options: { placeholder?: string; required?: boolean } = {},
+): VbenFormSchema {
+  const { placeholder = 'lucide:cpu', required = false } = options;
+
+  return {
+    component: 'IconSelector',
+    componentProps: {
+      placeholder,
+    },
+    fieldName,
+    label,
+    ...(required ? { rules: 'required' } : {}),
+  };
+}
+
 // ============ 业务预设 ============
 // 注意：业务特定的 helper (如 planSelect) 应在业务代码中定义，
 // 避免 Adapter 层依赖具体业务 API。

@@ -169,7 +169,78 @@
     "rate_limited": "请求频率超限",
     "quota_exceeded": "AI 配额已用完",
     "model_not_available": "模型暂不可用",
-    "context_too_long": "上下文长度超出限制"
+    "context_too_long": "上下文长度超出限制",
+    "provider_not_found": "AI 供应商不存在",
+    "no_api_key": "没有可用的 API Key",
+    "api_key_unavailable": "API Key 不可用或已过期",
+    "error": {
+      "provider_timeout": "AI 供应商请求超时",
+      "provider_connection": "无法连接到 AI 供应商",
+      "provider_auth": "API Key 无效或已过期",
+      "provider_rate_limit": "AI 供应商请求频率超限",
+      "provider_server_error": "AI 供应商服务端错误",
+      "model_not_found": "模型不存在或不可用",
+      "context_length_exceeded": "输入内容超出模型上下文长度限制",
+      "content_filtered": "内容被安全策略拦截",
+      "quota_not_found": "配额配置不存在",
+      "fallback_self_reference": "备用模型不能指向自身"
+    },
+    "quota": {
+      "created": "配额配置创建成功",
+      "updated": "配额配置更新成功",
+      "deleted": "配额配置删除成功"
+    },
+    "rate_limit": {
+      "created": "速率限制配置创建成功",
+      "updated": "速率限制配置更新成功",
+      "deleted": "速率限制配置删除成功"
+    },
+    "log": {
+      "rpm_limit_exceeded": "RPM 限制超出",
+      "tpm_limit_exceeded": "TPM 限制超出",
+      "quota_exceeded": "配额超出",
+      "quota_exceeded_soft": "配额软限制超出（允许超额）",
+      "rate_limit_created": "速率限制配置已创建",
+      "quota_created": "配额配置已创建",
+      "cache_hit": "缓存命中，返回缓存响应",
+      "rate_limit_blocked": "速率限制拦截",
+      "quota_blocked": "配额拦截",
+      "record_usage_failed": "记录使用量失败",
+      "cache_set_failed": "写入缓存失败",
+      "gateway_chat_call": "网关聊天调用",
+      "retry_succeeded": "重试成功",
+      "non_retryable_error": "不可重试错误，立即抛出",
+      "max_retries_exhausted": "已达最大重试次数",
+      "retrying_after_error": "错误后重试",
+      "switching_api_key": "重试时切换 API Key",
+      "unexpected_error": "聊天调用发生意外错误",
+      "stream_usage_failed": "记录流式使用量失败",
+      "stream_completed": "流式响应完成",
+      "gateway_stream_call": "网关流式聊天调用",
+      "gateway_embedding_call": "网关嵌入调用",
+      "model_test_failed": "模型测试失败",
+      "fallback_attempt": "主模型调用失败，尝试故障转移到备用模型",
+      "fallback_succeeded": "故障转移成功，使用备用模型响应",
+      "fallback_failed": "备用模型也调用失败，抛出原始异常",
+      "sse_client_disconnected": "客户端提前断开连接",
+      "sse_stream_error": "SSE 流式响应发生错误",
+      "sse_callback_error": "SSE 完成回调失败",
+      "failover_health_check_failed": "检查供应商健康状态失败",
+      "failover_circular_detected": "检测到循环故障转移链",
+      "failover_found": "找到备用模型",
+      "failover_no_healthy": "未找到可用的备用模型",
+      "failover_get_all_health_failed": "获取所有供应商健康状态失败",
+      "failover_get_history_failed": "获取供应商健康检查历史失败",
+      "adapter_registered": "适配器已注册",
+      "builtin_adapters_registered": "内置适配器注册完成",
+      "chat_request": "发送聊天请求",
+      "chat_error": "聊天请求失败",
+      "stream_chat_request": "发送流式聊天请求",
+      "stream_chat_error": "流式聊天请求失败",
+      "embedding_request": "发送向量化请求",
+      "embedding_error": "向量化请求失败",
+      "list_models_error": "获取模型列表失败"
+    }
   },
   "rbac": {
     "permission_denied": "权限不足，拒绝访问",
@@ -311,6 +382,13 @@
       "stats": "查看存储统计",
       "stats_by_tenant": "查看租户存储统计",
       "storage_quota": "查看存储配额"
+    },
+    "ai_quota": {
+      "list": "查看配额列表",
+      "detail": "查看配额详情",
+      "create": "创建配额",
+      "update": "更新配额",
+      "delete": "删除配额"
     }
   },
     "role": {

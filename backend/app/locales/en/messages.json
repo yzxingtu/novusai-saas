@@ -169,7 +169,78 @@
     "rate_limited": "Rate limit exceeded",
     "quota_exceeded": "AI quota exhausted",
     "model_not_available": "Model is not available",
-    "context_too_long": "Context length exceeds limit"
+    "context_too_long": "Context length exceeds limit",
+    "provider_not_found": "AI provider not found",
+    "no_api_key": "No available API key",
+    "api_key_unavailable": "API key is unavailable or expired",
+    "error": {
+      "provider_timeout": "AI provider request timed out",
+      "provider_connection": "Unable to connect to AI provider",
+      "provider_auth": "API key is invalid or expired",
+      "provider_rate_limit": "AI provider rate limit exceeded",
+      "provider_server_error": "AI provider server error",
+      "model_not_found": "Model not found or unavailable",
+      "context_length_exceeded": "Input exceeds model context length limit",
+      "content_filtered": "Content blocked by safety policy",
+      "quota_not_found": "Quota configuration not found",
+      "fallback_self_reference": "Fallback model cannot reference itself"
+    },
+    "quota": {
+      "created": "Quota configuration created",
+      "updated": "Quota configuration updated",
+      "deleted": "Quota configuration deleted"
+    },
+    "rate_limit": {
+      "created": "Rate limit configuration created",
+      "updated": "Rate limit configuration updated",
+      "deleted": "Rate limit configuration deleted"
+    },
+    "log": {
+      "rpm_limit_exceeded": "RPM limit exceeded",
+      "tpm_limit_exceeded": "TPM limit exceeded",
+      "quota_exceeded": "Quota exceeded",
+      "quota_exceeded_soft": "Quota soft limit exceeded (overage allowed)",
+      "rate_limit_created": "Rate limit configuration created",
+      "quota_created": "Quota configuration created",
+      "cache_hit": "Cache hit, returning cached response",
+      "rate_limit_blocked": "Rate limit blocked",
+      "quota_blocked": "Quota blocked",
+      "record_usage_failed": "Failed to record usage",
+      "cache_set_failed": "Failed to set cache",
+      "gateway_chat_call": "Gateway chat call",
+      "retry_succeeded": "Retry succeeded",
+      "non_retryable_error": "Non-retryable error, raising immediately",
+      "max_retries_exhausted": "Max retries exhausted",
+      "retrying_after_error": "Retrying after error",
+      "switching_api_key": "Switching API Key for retry",
+      "unexpected_error": "Unexpected error during chat",
+      "stream_usage_failed": "Failed to record stream usage",
+      "stream_completed": "Stream completed",
+      "gateway_stream_call": "Gateway stream chat call",
+      "gateway_embedding_call": "Gateway embedding call",
+      "model_test_failed": "Model test failed",
+      "fallback_attempt": "Primary model failed, attempting fallback model",
+      "fallback_succeeded": "Fallback succeeded, using fallback model response",
+      "fallback_failed": "Fallback model also failed, raising original error",
+      "sse_client_disconnected": "Client disconnected early",
+      "sse_stream_error": "SSE stream error",
+      "sse_callback_error": "SSE completion callback failed",
+      "failover_health_check_failed": "Failed to check provider health",
+      "failover_circular_detected": "Circular fallback chain detected",
+      "failover_found": "Fallback model found",
+      "failover_no_healthy": "No healthy fallback model found",
+      "failover_get_all_health_failed": "Failed to get all provider health",
+      "failover_get_history_failed": "Failed to get provider health history",
+      "adapter_registered": "Adapter registered",
+      "builtin_adapters_registered": "Builtin adapters registered",
+      "chat_request": "Sending chat request",
+      "chat_error": "Chat request failed",
+      "stream_chat_request": "Sending stream chat request",
+      "stream_chat_error": "Stream chat request failed",
+      "embedding_request": "Sending embedding request",
+      "embedding_error": "Embedding request failed",
+      "list_models_error": "Failed to list models"
+    }
   },
   "rbac": {
     "permission_denied": "Permission denied, access forbidden",
@@ -311,6 +382,13 @@
       "stats": "View Storage Statistics",
       "stats_by_tenant": "View Tenant Storage Statistics",
       "storage_quota": "View Storage Quota"
+    },
+    "ai_quota": {
+      "list": "View Quota List",
+      "detail": "View Quota Details",
+      "create": "Create Quota",
+      "update": "Update Quota",
+      "delete": "Delete Quota"
     }
   },
   "role": {

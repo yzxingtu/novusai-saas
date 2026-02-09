@@ -17,7 +17,18 @@
       "attachment": "附件管理",
       "task_log": "任务日志",
       "periodic_task": "定时任务",
-      "system_maintenance": "系统维护"
+      "system_maintenance": "系统维护",
+      "ai_mgmt": "AI 网关管理",
+      "ai_provider": "AI 供应商",
+      "ai_model": "AI 模型",
+      "ai_api_key": "API Key 管理",
+      "ai_call_log": "调用日志",
+      "ai_usage": "用量统计",
+      "ai_health": "健康状态",
+      "ai_monitor": "监控与分析",
+      "ai_gateway": "AI 网关",
+      "ai_gateway_api": "AI 网关",
+      "ai_quota": "配额管理"
     },
     "tenant": {
       "dashboard": "仪表板",
@@ -33,7 +44,13 @@
       "attachment": "附件管理",
       "task_log": "任务日志",
       "periodic_task": "定时任务",
-      "system_maintenance": "系统维护"
+      "system_maintenance": "系统维护",
+      "ai_mgmt": "AI 管理",
+      "ai_config": "AI 配置",
+      "ai_quota": "配额管理",
+      "ai_usage": "用量统计",
+      "ai_call_log": "调用日志",
+      "ai_gateway": "AI 网关"
     }
   }
 }

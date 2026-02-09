@@ -17,7 +17,18 @@
       "attachment": "Attachments",
       "task_log": "Task Logs",
       "periodic_task": "Periodic Tasks",
-      "system_maintenance": "System Maintenance"
+      "system_maintenance": "System Maintenance",
+      "ai_mgmt": "AI Gateway",
+      "ai_provider": "AI Providers",
+      "ai_model": "AI Models",
+      "ai_api_key": "API Keys",
+      "ai_call_log": "Call Logs",
+      "ai_usage": "Usage Statistics",
+      "ai_health": "Health Status",
+      "ai_monitor": "Monitoring & Analytics",
+      "ai_gateway": "AI Gateway",
+      "ai_gateway_api": "AI Gateway",
+      "ai_quota": "Quota Management"
     },
     "tenant": {
       "dashboard": "Dashboard",
@@ -33,7 +44,13 @@
       "attachment": "Attachments",
       "task_log": "Task Logs",
       "periodic_task": "Periodic Tasks",
-      "system_maintenance": "System Maintenance"
+      "system_maintenance": "System Maintenance",
+      "ai_mgmt": "AI Management",
+      "ai_config": "AI Config",
+      "ai_quota": "Quota Management",
+      "ai_usage": "Usage Statistics",
+      "ai_call_log": "Call Logs",
+      "ai_gateway": "AI Gateway"
     }
   }
 }

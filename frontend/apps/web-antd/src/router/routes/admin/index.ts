@@ -96,6 +96,91 @@ const mainRoutes: RouteRecordRaw = {
         title: $t('admin.system.periodicTask.title'),
       },
     },
+    // Fallback 静态注册：AI 网关管理（后端菜单动态路由优先生效）
+    {
+      name: 'AdminAIGateway',
+      path: 'ai',
+      meta: {
+        icon: 'lucide:bot',
+        title: $t('admin.ai.title'),
+      },
+      children: [
+        {
+          name: 'AdminAIProviders',
+          path: 'providers',
+          component: () => import('#/views/admin/ai/providers/index.vue'),
+          meta: {
+            icon: 'lucide:cpu',
+            title: $t('admin.ai.provider.title'),
+          },
+        },
+        {
+          name: 'AdminAIModels',
+          path: 'models',
+          component: () => import('#/views/admin/ai/models/index.vue'),
+          meta: {
+            icon: 'lucide:brain',
+            title: $t('admin.ai.model.title'),
+          },
+        },
+        {
+          name: 'AdminAIApiKeys',
+          path: 'api-keys',
+          component: () => import('#/views/admin/ai/api-keys/index.vue'),
+          meta: {
+            icon: 'lucide:key',
+            title: $t('admin.ai.apiKey.title'),
+          },
+        },
+        {
+          name: 'AdminAIQuotas',
+          path: 'quotas',
+          component: () => import('#/views/admin/ai/quotas/index.vue'),
+          meta: {
+            icon: 'lucide:gauge',
+            title: $t('admin.ai.quota.title'),
+          },
+        },
+        // 监控与分析（子目录）
+        {
+          name: 'AdminAIMonitor',
+          path: 'monitor',
+          meta: {
+            icon: 'lucide:activity',
+            title: $t('admin.ai.monitor.title'),
+          },
+          children: [
+            {
+              name: 'AdminAICallLogs',
+              path: 'call-logs',
+              component: () => import('#/views/admin/ai/call-logs/index.vue'),
+              meta: {
+                icon: 'lucide:scroll-text',
+                title: $t('admin.ai.callLog.title'),
+              },
+            },
+            {
+              name: 'AdminAIUsage',
+              path: 'usage',
+              component: () => import('#/views/admin/ai/usage/index.vue'),
+              meta: {
+                icon: 'lucide:bar-chart-3',
+                title: $t('admin.ai.usage.title'),
+              },
+            },
+            {
+              name: 'AdminAIHealth',
+              path: 'health',
+              component: () => import('#/views/admin/ai/health/index.vue'),
+              meta: {
+                icon: 'lucide:heart-pulse',
+                title: $t('admin.ai.health.title'),
+              },
+            },
+          ],
+        },
+      ],
+    },
   ],
 };
 

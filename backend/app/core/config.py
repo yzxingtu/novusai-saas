@@ -113,6 +113,11 @@ class Settings(BaseSettings):
         return self.CELERY_RESULT_BACKEND or self.REDIS_URL
     
     # ========================================
+    # AI 缓存配置
+    # ========================================
+    AI_CACHE_TTL: int = 3600  # AI 响应缓存 TTL（秒），仅 temperature=0 时生效
+
+    # ========================================
     # 日志配置
     # ========================================
     LOG_LEVEL: str = "INFO"

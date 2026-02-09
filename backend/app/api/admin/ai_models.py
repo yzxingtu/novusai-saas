@@ -1,0 +1,262 @@
+"""
+平台端 AI 模型管理 API
+
+提供 AI 模型的 CRUD 接口（平台管理员专用）
+"""
+
+from fastapi import Query, Request
+
+from app.ai.adapters import AdapterRegistry
+from app.core.base_controller import GlobalController
+from app.core.deps import DbSession, QueryParams, ActiveAdmin
+from app.core.base_schema import PageResponse
+from app.core.i18n import _
+from app.core.logging import LogManager
+from app.core.response import success
+from app.enums.rbac import PermissionScope
+from app.exceptions import NotFoundException, ExternalServiceException
+from app.rbac.decorators import (
+    permission_resource,
+    MenuConfig,
+    action_read,
+    action_create,
+    action_update,
+    action_delete,
+)
+from app.repositories.ai import AIProviderRepository, ProviderApiKeyRepository
+from app.schemas.ai.model import (
+    AIModelCreate,
+    AIModelUpdate,
+    AIModelResponse,
+)
+from app.services.ai import AIModelService
+
+logger = LogManager.get_logger("ai")
+
+
+@permission_resource(
+    resource="ai_model",
+    name="menu.admin.ai_model",
+    scope=PermissionScope.ADMIN,
+    menu=MenuConfig(
+        icon="lucide:brain",
+        path="/ai/models",
+        component="ai/models/index",
+        parent="ai_mgmt",
+        sort_order=20,
+    ),
+)
+class AdminAIModelController(GlobalController):
+    """
+    AI 模型管理控制器
+
+    提供 AI 模型 CRUD 接口
+    """
+
+    prefix = "/ai/models"
+    tags = ["AI 模型管理"]
+    service_class = AIModelService
+
+    def _register_routes(self) -> None:
+        """注册路由"""
+        router = self.router
+
+        @router.get("", summary="获取 AI 模型列表")
+        @action_read("action.ai_model.list")
+        async def list_models(
+            request: Request,
+            db: DbSession,
+            spec: QueryParams,
+            admin: ActiveAdmin,
+        ):
+            """
+            获取 AI 模型列表
+
+            - 支持通用筛选: filter[field][op]=value
+            - 支持排序: sort=-created_at,name
+            - 支持分页: page[number]=1&page[size]=20
+
+            权限: ai_model:list
+            """
+            service = AIModelService(db)
+            items, total = await service.query_list(spec)
+
+            return success(
+                data=PageResponse.create(
+                    items=[AIModelResponse.model_validate(item, from_attributes=True) for item in items],
+                    total=total,
+                    page=spec.page,
+                    page_size=spec.size,
+                ),
+                message=_("common.success"),
+            )
+
+        @router.get("/provider/{provider_id}", summary="获取供应商的 AI 模型列表")
+        @action_read("action.ai_model.list_by_provider")
+        async def list_models_by_provider(
+            request: Request,
+            db: DbSession,
+            provider_id: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            根据供应商 ID 获取其所有模型
+
+            权限: ai_model:list_by_provider
+            """
+            service = AIModelService(db)
+            models = await service.get_by_provider(provider_id)
+
+            return success(
+                data=[AIModelResponse.model_validate(m, from_attributes=True) for m in models],
+                message=_("common.success"),
+            )
+
+        @router.get("/fetch-remote/{provider_id}", summary="从供应商远程拉取可用模型列表")
+        @action_read("action.ai_model.list")
+        async def fetch_remote_models(
+            request: Request,
+            db: DbSession,
+            provider_id: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            从供应商 API 远程拉取可用模型列表
+
+            通过供应商配置的 API 地址和密钥，调用 /models 接口获取可用模型。
+            用于创建模型时自动填充模型代码和名称。
+
+            权限: ai_model:list
+            """
+            # 获取供应商
+            provider_repo = AIProviderRepository(db)
+            provider = await provider_repo.get_by_id(provider_id)
+            if not provider or not provider.is_active:
+                raise NotFoundException(message=_("ai.error.provider_not_found"))
+
+            # 获取可用的 API Key
+            api_key_repo = ProviderApiKeyRepository(db)
+            api_key = await api_key_repo.get_available_key(
+                provider_id=provider.id,
+                tenant_id=None,
+            )
+            if not api_key or not api_key.is_available():
+                raise NotFoundException(message=_("ai.error.no_api_key"))
+
+            try:
+                # 创建适配器并拉取模型列表
+                adapter = AdapterRegistry.create_adapter(
+                    provider_type=provider.type,
+                    api_key=api_key.decrypt_key(),
+                    base_url=provider.base_url,
+                )
+                remote_models = await adapter.list_models()
+
+                return success(
+                    data=remote_models,
+                    message=_("common.success"),
+                )
+            except Exception as e:
+                logger.error(
+                    _("ai.error.fetch_remote_models_failed"),
+                    provider=provider.code,
+                    error=str(e),
+                )
+                raise ExternalServiceException(
+                    message=_("ai.error.fetch_remote_models_failed") + f": {str(e)}"
+                )
+
+        @router.get("/{model_id}", summary="获取 AI 模型详情")
+        @action_read("action.ai_model.detail")
+        async def get_model(
+            request: Request,
+            db: DbSession,
+            model_id: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            获取 AI 模型详情
+
+            权限: ai_model:detail
+            """
+            service = AIModelService(db)
+            model = await service.get_by_id(model_id)
+
+            if not model:
+                from app.exceptions import NotFoundException
+                raise NotFoundException(message=_("ai.error.model_not_found"))
+
+            return success(
+                data=AIModelResponse.model_validate(model, from_attributes=True),
+                message=_("common.success"),
+            )
+
+        @router.post("", summary="创建 AI 模型")
+        @action_create("action.ai_model.create")
+        async def create_model(
+            request: Request,
+            db: DbSession,
+            data: AIModelCreate,
+            admin: ActiveAdmin,
+        ):
+            """
+            创建 AI 模型
+
+            权限: ai_model:create
+            """
+            service = AIModelService(db)
+            model = await service.create_model(data)
+            await db.commit()
+
+            return success(
+                data=AIModelResponse.model_validate(model, from_attributes=True),
+                message=_("ai.model.created"),
+            )
+
+        @router.put("/{model_id}", summary="更新 AI 模型")
+        @action_update("action.ai_model.update")
+        async def update_model(
+            request: Request,
+            db: DbSession,
+            model_id: int,
+            data: AIModelUpdate,
+            admin: ActiveAdmin,
+        ):
+            """
+            更新 AI 模型信息
+
+            权限: ai_model:update
+            """
+            service = AIModelService(db)
+            model = await service.update_model(model_id, data)
+            await db.commit()
+
+            return success(
+                data=AIModelResponse.model_validate(model, from_attributes=True),
+                message=_("ai.model.updated"),
+            )
+
+        @router.delete("/{model_id}", summary="删除 AI 模型")
+        @action_delete("action.ai_model.delete")
+        async def delete_model(
+            request: Request,
+            db: DbSession,
+            model_id: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            删除 AI 模型（软删除）
+
+            权限: ai_model:delete
+            """
+            service = AIModelService(db)
+            await service.delete_model(model_id)
+            await db.commit()
+
+            return success(message=_("ai.model.deleted"))
+
+
+# 导出路由器
+router = AdminAIModelController.get_router()
+
+__all__ = ["router", "AdminAIModelController"]

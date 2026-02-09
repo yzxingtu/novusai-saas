@@ -9,6 +9,7 @@ from typing import Any
 
 import bcrypt
 from jose import JWTError, jwt
+from cryptography.fernet import Fernet
 
 from app.core.config import settings
 
@@ -322,6 +323,52 @@ def verify_impersonate_token(
     return payload
 
 
+def _get_encryption_key() -> bytes:
+    """
+    获取加密密钥
+    
+    使用 SECRET_KEY 派生 Fernet 密钥
+    Fernet 需要 32 字节的 base64 编码密钥
+    """
+    # 确保密钥长度符合 Fernet 要求
+    key = settings.SECRET_KEY.encode()
+    # 使用 SHA256 生成固定长度的密钥
+    import hashlib
+    import base64
+    hash_key = hashlib.sha256(key).digest()
+    return base64.urlsafe_b64encode(hash_key)
+
+
+def encrypt_data(plaintext: str) -> str:
+    """
+    加密数据
+    
+    Args:
+        plaintext: 明文
+        
+    Returns:
+        加密后的密文（Base64 编码）
+    """
+    f = Fernet(_get_encryption_key())
+    encrypted = f.encrypt(plaintext.encode('utf-8'))
+    return encrypted.decode('utf-8')
+
+
+def decrypt_data(ciphertext: str) -> str:
+    """
+    解密数据
+    
+    Args:
+        ciphertext: 密文（Base64 编码）
+        
+    Returns:
+        解密后的明文
+    """
+    f = Fernet(_get_encryption_key())
+    decrypted = f.decrypt(ciphertext.encode('utf-8'))
+    return decrypted.decode('utf-8')
+
+
 __all__ = [
     "create_access_token",
     "create_refresh_token",
@@ -334,6 +381,8 @@ __all__ = [
     "create_token_pair",
     "create_impersonate_token",
     "verify_impersonate_token",
+    "encrypt_data",
+    "decrypt_data",
     "TOKEN_TYPE_ACCESS",
     "TOKEN_TYPE_REFRESH",
     "TOKEN_TYPE_IMPERSONATE",

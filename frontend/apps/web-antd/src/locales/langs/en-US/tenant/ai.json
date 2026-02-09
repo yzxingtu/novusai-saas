@@ -1,0 +1,171 @@
+{
+  "title": "AI Management",
+  "model": {
+    "title": "Available Models",
+    "name": "Model Name",
+    "code": "Model Code",
+    "type": "Type",
+    "providerName": "Provider",
+    "contextWindow": "Context Window",
+    "inputPrice": "Input Price ($/1K)",
+    "outputPrice": "Output Price ($/1K)",
+    "functionCalling": "Function Calling",
+    "vision": "Vision",
+    "streaming": "Streaming",
+    "isActive": "Status",
+    "placeholder": {
+      "searchName": "Search model name",
+      "allTypes": "All Types",
+      "allProviders": "All Providers"
+    },
+    "type_options": {
+      "chat": "Chat",
+      "embedding": "Embedding",
+      "image": "Image"
+    },
+    "capability": {
+      "functionCalling": "Function Calling",
+      "vision": "Vision",
+      "streaming": "Streaming"
+    }
+  },
+  "apiKey": {
+    "title": "API Key Management",
+    "name": "Key Name",
+    "providerId": "Provider",
+    "providerName": "Provider",
+    "apiKey": "API Key",
+    "keyPreview": "Key Preview",
+    "isActive": "Status",
+    "isAvailable": "Available",
+    "unavailable": "Unavailable",
+    "usageCount": "Usage Count",
+    "lastUsedAt": "Last Used",
+    "create": "Add API Key",
+    "confirmDelete": "Are you sure to delete this API Key?",
+    "placeholder": {
+      "inputName": "Enter key name",
+      "inputApiKey": "Enter API Key",
+      "selectProvider": "Select provider"
+    },
+    "messages": {
+      "createSuccess": "API Key created successfully",
+      "deleteSuccess": "API Key deleted"
+    }
+  },
+  "usage": {
+    "title": "Usage Statistics",
+    "summary": {
+      "totalTokens": "Total Tokens",
+      "totalCost": "Total Cost",
+      "totalCalls": "Total Calls",
+      "successRate": "Success Rate"
+    },
+    "chart": {
+      "dailyTrend": "Daily Usage Trend",
+      "modelDistribution": "Model Usage Distribution",
+      "tokens": "Tokens",
+      "cost": "Cost ($)",
+      "calls": "Calls"
+    },
+    "dateRange": "Date Range",
+    "thisMonth": "This Month",
+    "last7Days": "Last 7 Days",
+    "last30Days": "Last 30 Days"
+  },
+  "callLog": {
+    "title": "Call Logs",
+    "requestType": "Request Type",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "totalTokens": "Total Tokens",
+    "cost": "Cost",
+    "latency": "Latency (ms)",
+    "status": "Status",
+    "modelName": "Model",
+    "providerName": "Provider",
+    "createdAt": "Created At",
+    "errorMessage": "Error Message",
+    "requestData": "Request Data",
+    "responseData": "Response Data",
+    "viewDetail": "View Detail",
+    "detailTitle": "Call Log Detail",
+    "placeholder": {
+      "allStatuses": "All Statuses",
+      "allModels": "All Models"
+    },
+    "status_options": {
+      "success": "Success",
+      "failed": "Failed",
+      "timeout": "Timeout"
+    }
+  },
+  "quota": {
+    "title": "Quota Management",
+    "modelId": "Model",
+    "modelName": "Model Name",
+    "period": "Period",
+    "limit": "Quota Limit",
+    "quotaType": "Quota Type",
+    "warningThreshold": "Warning Threshold (%)",
+    "description": "Description",
+    "isActive": "Status",
+    "globalQuota": "Global Quota",
+    "create": "Add Quota",
+    "confirmDelete": "Are you sure to delete this quota?",
+    "usage": "Used",
+    "remaining": "Remaining",
+    "exceeded": "Exceeded",
+    "warning": "Near Limit",
+    "section": {
+      "basic": "Basic Info",
+      "config": "Quota Config"
+    },
+    "period_options": {
+      "daily": "Daily",
+      "monthly": "Monthly"
+    },
+    "type_options": {
+      "soft": "Soft Limit",
+      "hard": "Hard Limit"
+    },
+    "placeholder": {
+      "selectModel": "Select model (leave empty for global)",
+      "selectPeriod": "Select period",
+      "selectType": "Select quota type",
+      "inputLimit": "Token limit",
+      "inputThreshold": "e.g. 80",
+      "inputDescription": "Enter description"
+    },
+    "messages": {
+      "createSuccess": "Quota created successfully",
+      "updateSuccess": "Quota updated successfully",
+      "deleteSuccess": "Quota deleted"
+    }
+  },
+  "rateLimit": {
+    "title": "Rate Limits",
+    "modelId": "Model",
+    "modelName": "Model Name",
+    "rpmLimit": "RPM Limit",
+    "tpmLimit": "TPM Limit",
+    "description": "Description",
+    "isActive": "Status",
+    "create": "Add Rate Limit",
+    "confirmDelete": "Are you sure to delete this rate limit?",
+    "rpmUnit": "req/min",
+    "tpmUnit": "Token/min",
+    "noLimit": "No Limit",
+    "placeholder": {
+      "selectModel": "Select model",
+      "inputRpm": "Requests per minute (leave empty for no limit)",
+      "inputTpm": "Tokens per minute (leave empty for no limit)",
+      "inputDescription": "Enter description"
+    },
+    "messages": {
+      "createSuccess": "Rate limit created successfully",
+      "updateSuccess": "Rate limit updated successfully",
+      "deleteSuccess": "Rate limit deleted"
+    }
+  }
+}

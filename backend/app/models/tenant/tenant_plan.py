@@ -45,19 +45,30 @@ class TenantPlan(BaseModel):
         "updated_at": "updated_at",
     }
     
+    # 允许排序的字段（用于前端排序）
+    __sortable_fields__ = {
+        "id": "id",
+        "code": "code",
+        "name": "name",
+        "price": "price",
+        "billing_cycle": "billing_cycle",
+        "sort_order": "sort_order",
+        "created_at": "created_at",
+    }
+    
+    # 排序配置（用于自动计算 sort_order）
+    __sortable__ = {
+        "field": "sort_order",      # 排序字段名
+        "step": 1000,               # 排序步长
+        "scope_fields": [],         # 全局排序（套餐无作用域）
+    }
+    
     # 下拉选项配置
     __selectable__ = {
         "label": "name",
         "value": "id",
         "search": ["name", "code"],
         "extra": ["code", "billing_cycle"],
-    }
-    
-    # 排序配置
-    __sortable__ = {
-        "field": "sort_order",      # 排序字段名
-        "step": 1000,               # 排序步长
-        "scope_fields": [],         # 全局排序（套餐无作用域）
     }
     
     # ==================== 基本信息 ====================

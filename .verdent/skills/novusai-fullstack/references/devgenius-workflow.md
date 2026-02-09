@@ -50,10 +50,16 @@
 
 ```
 11. update_subtask_status(subtask_id, status="completed", notes="完成摘要")
-12. update_task_status(task_id, status="completed", version=N, notes="完成报告")
+12. [里程碑最后一个任务完成时] 编写功能使用文档：
+    search_documents(query="模块关键词")   → 检查是否已存在
+    create_document(title, content, category="usage_guide")
+    或 update_document_by_id(document_id, content)
+13. update_task_status(task_id, status="completed", version=N, notes="完成报告")
 ```
 
 `notes` 必须包含：完成了什么、修改了哪些文件、测试状态。
+
+**文档编写要求**：每个里程碑完成后，必须编写使用文档（遵循 SKILL.md §七 文档规范）。若模块包含可复用规范，还需同步更新 skill。
 
 ---
 
@@ -82,9 +88,13 @@ create_milestone_tasks(milestone_id, tasks)  → 追加任务
   ├─ search_documents → 阅读规范
   │   └─ [无规范?] → 引导创建 / create_document
   │
-  ├─ 开发（遵循前后端规范 §二 §三）
+  ├─ 开发（遵循前后端规范 §二 §三 §六）
   │   ├─ update_subtask_status → in_progress / completed
   │   └─ [重大变更?] → update_document / create_document
+  │
+  ├─ [里程碑完成?] → 编写使用文档（§七 文档规范）
+  │   ├─ create_document(category="usage_guide")
+  │   └─ [含可复用规范?] → 同步更新 skill
   │
   └─ update_task_status → completed（附完成报告）
 ```

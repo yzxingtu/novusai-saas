@@ -97,6 +97,44 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:admin.platform_config (平台配置)
 
     # ========================================
+    # AI 网关管理（目录）
+    # ========================================
+    PermissionMeta(
+        code="menu:admin.ai_mgmt",
+        name="menu.admin.ai_mgmt",  # i18n key
+        type=PermissionType.MENU,
+        scope=PermissionScope.ADMIN,
+        resource="menu",
+        action="admin.ai_mgmt",
+        icon="lucide:brain-circuit",
+        path="/ai",
+        sort_order=35,
+    ),
+    # 子菜单由控制器声明:
+    # - menu:admin.ai_provider (AI 供应商)
+    # - menu:admin.ai_model (AI 模型)
+    # - menu:admin.ai_api_key (API Key 管理)
+    # - menu:admin.ai_quota (配额管理)
+
+    # ---- 监控与分析（子目录） ----
+    PermissionMeta(
+        code="menu:admin.ai_monitor",
+        name="menu.admin.ai_monitor",  # i18n key
+        type=PermissionType.MENU,
+        scope=PermissionScope.ADMIN,
+        resource="menu",
+        action="admin.ai_monitor",
+        icon="lucide:activity",
+        path="/ai/monitor",
+        sort_order=36,
+        parent_code="menu:admin.ai_mgmt",
+    ),
+    # 子菜单由控制器声明:
+    # - menu:admin.ai_call_log (调用日志)
+    # - menu:admin.ai_usage (用量统计)
+    # - menu:admin.ai_health (健康状态)
+
+    # ========================================
     # 系统维护（目录）
     # ========================================
     PermissionMeta(

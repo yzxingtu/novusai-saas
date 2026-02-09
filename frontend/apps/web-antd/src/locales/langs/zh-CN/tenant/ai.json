@@ -1,0 +1,171 @@
+{
+  "title": "AI 管理",
+  "model": {
+    "title": "可用模型",
+    "name": "模型名称",
+    "code": "模型代码",
+    "type": "类型",
+    "providerName": "供应商",
+    "contextWindow": "上下文窗口",
+    "inputPrice": "输入价格 ($/1K)",
+    "outputPrice": "输出价格 ($/1K)",
+    "functionCalling": "函数调用",
+    "vision": "视觉能力",
+    "streaming": "流式",
+    "isActive": "状态",
+    "placeholder": {
+      "searchName": "搜索模型名称",
+      "allTypes": "全部类型",
+      "allProviders": "全部供应商"
+    },
+    "type_options": {
+      "chat": "对话",
+      "embedding": "向量",
+      "image": "图像"
+    },
+    "capability": {
+      "functionCalling": "函数调用",
+      "vision": "视觉",
+      "streaming": "流式"
+    }
+  },
+  "apiKey": {
+    "title": "API Key 管理",
+    "name": "Key 名称",
+    "providerId": "供应商",
+    "providerName": "供应商",
+    "apiKey": "API Key",
+    "keyPreview": "Key 预览",
+    "isActive": "状态",
+    "isAvailable": "可用",
+    "unavailable": "不可用",
+    "usageCount": "使用次数",
+    "lastUsedAt": "最后使用",
+    "create": "添加 API Key",
+    "confirmDelete": "确认删除此 API Key？",
+    "placeholder": {
+      "inputName": "请输入 Key 名称",
+      "inputApiKey": "请输入 API Key",
+      "selectProvider": "请选择供应商"
+    },
+    "messages": {
+      "createSuccess": "API Key 创建成功",
+      "deleteSuccess": "API Key 已删除"
+    }
+  },
+  "usage": {
+    "title": "用量统计",
+    "summary": {
+      "totalTokens": "总 Tokens",
+      "totalCost": "总费用",
+      "totalCalls": "调用次数",
+      "successRate": "成功率"
+    },
+    "chart": {
+      "dailyTrend": "每日用量趋势",
+      "modelDistribution": "模型用量分布",
+      "tokens": "Tokens",
+      "cost": "费用 ($)",
+      "calls": "调用次数"
+    },
+    "dateRange": "日期范围",
+    "thisMonth": "本月",
+    "last7Days": "近7天",
+    "last30Days": "近30天"
+  },
+  "callLog": {
+    "title": "调用日志",
+    "requestType": "请求类型",
+    "inputTokens": "输入 Tokens",
+    "outputTokens": "输出 Tokens",
+    "totalTokens": "总 Tokens",
+    "cost": "费用",
+    "latency": "延迟 (ms)",
+    "status": "状态",
+    "modelName": "模型",
+    "providerName": "供应商",
+    "createdAt": "调用时间",
+    "errorMessage": "错误信息",
+    "requestData": "请求数据",
+    "responseData": "响应数据",
+    "viewDetail": "查看详情",
+    "detailTitle": "调用日志详情",
+    "placeholder": {
+      "allStatuses": "全部状态",
+      "allModels": "全部模型"
+    },
+    "status_options": {
+      "success": "成功",
+      "failed": "失败",
+      "timeout": "超时"
+    }
+  },
+  "quota": {
+    "title": "配额管理",
+    "modelId": "模型",
+    "modelName": "模型名称",
+    "period": "周期",
+    "limit": "配额限制",
+    "quotaType": "配额类型",
+    "warningThreshold": "预警阈值 (%)",
+    "description": "描述",
+    "isActive": "启用状态",
+    "globalQuota": "全局配额",
+    "create": "添加配额",
+    "confirmDelete": "确认删除此配额配置？",
+    "usage": "已使用",
+    "remaining": "剩余",
+    "exceeded": "已超额",
+    "warning": "接近上限",
+    "section": {
+      "basic": "基本信息",
+      "config": "配额配置"
+    },
+    "period_options": {
+      "daily": "每日",
+      "monthly": "每月"
+    },
+    "type_options": {
+      "soft": "软限制",
+      "hard": "硬限制"
+    },
+    "placeholder": {
+      "selectModel": "选择模型（留空为全局配额）",
+      "selectPeriod": "请选择周期",
+      "selectType": "请选择配额类型",
+      "inputLimit": "Token 数量限制",
+      "inputThreshold": "如 80",
+      "inputDescription": "请输入描述"
+    },
+    "messages": {
+      "createSuccess": "配额创建成功",
+      "updateSuccess": "配额更新成功",
+      "deleteSuccess": "配额已删除"
+    }
+  },
+  "rateLimit": {
+    "title": "速率限制",
+    "modelId": "模型",
+    "modelName": "模型名称",
+    "rpmLimit": "RPM 限制",
+    "tpmLimit": "TPM 限制",
+    "description": "描述",
+    "isActive": "启用状态",
+    "create": "添加速率限制",
+    "confirmDelete": "确认删除此速率限制配置？",
+    "rpmUnit": "次/分钟",
+    "tpmUnit": "Token/分钟",
+    "noLimit": "不限制",
+    "placeholder": {
+      "selectModel": "请选择模型",
+      "inputRpm": "每分钟请求数（留空不限制）",
+      "inputTpm": "每分钟 Token 数（留空不限制）",
+      "inputDescription": "请输入描述"
+    },
+    "messages": {
+      "createSuccess": "速率限制创建成功",
+      "updateSuccess": "速率限制更新成功",
+      "deleteSuccess": "速率限制已删除"
+    }
+  }
+}
