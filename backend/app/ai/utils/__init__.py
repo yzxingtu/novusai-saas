@@ -5,6 +5,7 @@ AI 网关通用工具函数
 """
 
 from app.ai.types import ChatMessage as AIChatMessage
+from app.ai.utils.token_estimator import estimate_tokens
 
 
 def parse_provider_and_model(model_code: str) -> tuple[str, str]:
@@ -50,4 +51,4 @@ def parse_messages(messages: list) -> list[AIChatMessage]:
     ]
 
 
-__all__ = ["parse_provider_and_model", "parse_messages"]
+__all__ = ["parse_provider_and_model", "parse_messages", "estimate_tokens"]

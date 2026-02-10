@@ -6,6 +6,7 @@ RPM（每分钟请求数）使用 zcard 计数；
 TPM（每分钟 Token 数）使用独立的 INCRBY 累加计数器。
 """
 
+import os
 import time
 from typing import Optional
 
@@ -34,39 +35,82 @@ class RateLimiter:
     PREFIX_TPM = "ai:rate_limit:tpm:"
     WINDOW_SIZE = 60  # 窗口大小: 60 秒
 
+    # Lua 脚本：RPM 原子检查+记录
+    # 返回 -1 表示成功记录，>= 0 表示当前 RPM 数（超限未记录）
+    _RPM_CHECK_AND_RECORD_LUA = """
+    redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, ARGV[1])
+    local count = redis.call('ZCARD', KEYS[1])
+    if count >= tonumber(ARGV[2]) then
+        return count
+    end
+    redis.call('ZADD', KEYS[1], ARGV[3], ARGV[4])
+    redis.call('EXPIRE', KEYS[1], tonumber(ARGV[5]))
+    return -1
+    """
+
+    # Lua 脚本：TPM 原子预扣减+检查
+    # 返回 -1 表示成功预扣，>= 0 表示当前 TPM 总量（超限未扣减）
+    _TPM_CHECK_AND_RECORD_LUA = """
+    local cur = redis.call('GET', KEYS[1])
+    local prev = redis.call('GET', KEYS[2])
+    local total = (tonumber(cur) or 0) + (tonumber(prev) or 0)
+    if total + tonumber(ARGV[1]) > tonumber(ARGV[2]) then
+        return total
+    end
+    redis.call('INCRBY', KEYS[1], ARGV[1])
+    redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]))
+    return -1
+    """
+
     @staticmethod
-    async def check_rate_limit(
+    async def check_and_record(
         tenant_id: int,
         model_id: int,
         rpm_limit: Optional[int] = None,
-        tpm_limit: Optional[int] = None
+        tpm_limit: Optional[int] = None,
+        estimated_tokens: int = 0,
     ) -> bool:
         """
-        检查速率限制
+        原子性检查并记录速率限制（消除 TOCTOU 竞态）
+
+        RPM: Lua 脚本原子执行 清理过期→计数→添加
+        TPM: Lua 脚本原子执行 预扣减→检查超限
 
         Args:
             tenant_id: 租户 ID
             model_id: 模型 ID
             rpm_limit: RPM 限制(每分钟请求数)
             tpm_limit: TPM 限制(每分钟 Token 数)
+            estimated_tokens: 预估 Token 数量
 
         Returns:
-            True 表示允许调用
+            True 表示允许调用（已原子记录）
 
         Raises:
             RateLimitExceeded: 超出速率限制
         """
         redis = await get_redis()
         current_time = int(time.time())
+        expire_seconds = RateLimiter.WINDOW_SIZE + 10
 
-        # 检查 RPM 限制（使用 sorted set 滑动窗口）
+        # RPM 原子检查+记录
         if rpm_limit:
             rpm_key = f"{RateLimiter.PREFIX_RPM}{tenant_id}:{model_id}"
-            rpm_count = await RateLimiter._sliding_window_count(
-                redis, rpm_key, current_time
-            )
+            window_start = current_time - RateLimiter.WINDOW_SIZE
+            unique_member = f"{current_time}:{os.urandom(4).hex()}"
 
-            if rpm_count >= rpm_limit:
+            result = await redis.eval(
+                RateLimiter._RPM_CHECK_AND_RECORD_LUA,
+                1,
+                rpm_key,
+                str(window_start),
+                str(rpm_limit),
+                str(current_time),
+                unique_member,
+                str(expire_seconds),
+            )
+            if result >= 0:
+                rpm_count = int(result)
                 logger.warning(
                     _("ai.log.rpm_limit_exceeded"),
                     tenant_id=tenant_id,
@@ -80,13 +124,24 @@ class RateLimiter:
                     )
                 )
 
-        # 检查 TPM 限制（使用独立的累加计数器）
-        if tpm_limit:
-            tpm_count = await RateLimiter._get_tpm_usage(
-                redis, tenant_id, model_id, current_time
-            )
+        # TPM 原子预扣减+检查
+        if tpm_limit and estimated_tokens > 0:
+            minute_key = current_time // 60
+            prev_minute = minute_key - 1
+            key_current = f"{RateLimiter.PREFIX_TPM}{tenant_id}:{model_id}:{minute_key}"
+            key_prev = f"{RateLimiter.PREFIX_TPM}{tenant_id}:{model_id}:{prev_minute}"
 
-            if tpm_count >= tpm_limit:
+            result = await redis.eval(
+                RateLimiter._TPM_CHECK_AND_RECORD_LUA,
+                2,
+                key_current,
+                key_prev,
+                str(estimated_tokens),
+                str(tpm_limit),
+                str(expire_seconds),
+            )
+            if result >= 0:
+                tpm_count = int(result)
                 logger.warning(
                     _("ai.log.tpm_limit_exceeded"),
                     tenant_id=tenant_id,
@@ -103,34 +158,36 @@ class RateLimiter:
         return True
 
     @staticmethod
-    async def record_request(
+    async def adjust_tpm_after_response(
         tenant_id: int,
         model_id: int,
-        tokens: int = 0
-    ):
+        estimated_tokens: int,
+        actual_tokens: int,
+    ) -> None:
         """
-        记录调用
+        响应后调整 TPM：从预估值调整为实际值
 
         Args:
             tenant_id: 租户 ID
             model_id: 模型 ID
-            tokens: Token 数量
+            estimated_tokens: 预估 Token 数量（已预扣）
+            actual_tokens: 实际 Token 数量
         """
+        diff = actual_tokens - estimated_tokens
+        if diff == 0:
+            return
         redis = await get_redis()
         current_time = int(time.time())
-
-        # 记录 RPM（sorted set，member=timestamp，score=timestamp）
-        rpm_key = f"{RateLimiter.PREFIX_RPM}{tenant_id}:{model_id}"
-        await redis.zadd(rpm_key, {str(current_time): current_time})
-        await redis.expire(rpm_key, RateLimiter.WINDOW_SIZE + 10)
-
-        # 记录 TPM（使用分钟级别的 key 累加 token 数）
-        if tokens > 0:
-            # 以当前分钟为 key，INCRBY 累加 token 数
-            minute_key = current_time // 60
-            tpm_key = f"{RateLimiter.PREFIX_TPM}{tenant_id}:{model_id}:{minute_key}"
-            await redis.incrby(tpm_key, tokens)
-            await redis.expire(tpm_key, RateLimiter.WINDOW_SIZE + 10)
+        minute_key = current_time // 60
+        tpm_key = f"{RateLimiter.PREFIX_TPM}{tenant_id}:{model_id}:{minute_key}"
+        if diff > 0:
+            await redis.incrby(tpm_key, diff)
+        else:
+            # DECRBY 回滚，但不低于 0
+            current_val = await redis.get(tpm_key)
+            if current_val:
+                new_val = max(0, int(current_val) + diff)
+                await redis.set(tpm_key, new_val, keepttl=True)
 
     @staticmethod
     async def _sliding_window_count(

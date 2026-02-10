@@ -29,7 +29,9 @@ dependencies = [
     # Database
     "sqlalchemy>=2.0.25",
     "asyncpg>=0.29.0",
+    "psycopg2-binary>=2.9.9",
     "alembic>=1.13.1",
+    "greenlet>=3.0.0",
     
     # Redis
     "redis>=5.0.1",
@@ -48,11 +50,25 @@ dependencies = [
     
     # HTTP Client
     "httpx>=0.26.0",
-    
+
+    # Storage
+    "boto3>=1.34.0",
+    "oss2>=2.18.6",
+
+    # AI
+    "openai>=1.12.0",
+
+    # Template
+    "jinja2>=3.1.3",
+
+    # Image Processing
+    "Pillow>=10.2.0",
+
     # Utils
     "python-dotenv>=1.0.0",
     "orjson>=3.9.12",
-    
+    "captcha>=0.5.0",
+
     # DNS
     "dnspython>=2.4.0",
 ]

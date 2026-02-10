@@ -4,7 +4,7 @@
  */
 defineOptions({ name: 'AIHealthMonitor' });
 
-import { ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -18,6 +18,17 @@ import { formatDate } from '#/utils/common';
 const loading = ref(false);
 const statuses = ref<AIHealthStatus[]>([]);
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
+
+/** 概览计数 */
+const healthyCount = computed(() =>
+  statuses.value.filter((s) => s.is_healthy && s.is_available).length,
+);
+const degradedCount = computed(() =>
+  statuses.value.filter((s) => !s.is_healthy && s.is_available).length,
+);
+const unavailableCount = computed(() =>
+  statuses.value.filter((s) => !s.is_available).length,
+);
 
 async function loadHealth() {
   loading.value = true;
@@ -58,12 +69,26 @@ onUnmounted(() => {
     <!-- 顶部操作栏 -->
     <Card :body-style="{ padding: '12px 16px' }">
       <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <IconifyIcon icon="lucide:heart-pulse" class="size-5 text-primary" />
-          <span class="font-medium text-foreground">{{ $t('admin.ai.health.title') }}</span>
-          <span class="text-sm text-muted-foreground">
-            ({{ statuses.length }} {{ $t('admin.ai.health.providers') }})
-          </span>
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2">
+            <IconifyIcon icon="lucide:heart-pulse" class="size-5 text-primary" />
+            <span class="font-medium text-foreground">{{ $t('admin.ai.health.title') }}</span>
+          </div>
+          <!-- 概览摘要 -->
+          <div class="flex items-center gap-2 text-sm">
+            <span v-if="healthyCount > 0" class="flex items-center gap-1 text-success">
+              <Badge status="success" />
+              {{ healthyCount }} {{ $t('admin.ai.health.status.healthy') }}
+            </span>
+            <span v-if="degradedCount > 0" class="flex items-center gap-1 text-warning">
+              <Badge status="warning" />
+              {{ degradedCount }} {{ $t('admin.ai.health.status.degraded') }}
+            </span>
+            <span v-if="unavailableCount > 0" class="flex items-center gap-1 text-destructive">
+              <Badge status="error" />
+              {{ unavailableCount }} {{ $t('admin.ai.health.status.unavailable') }}
+            </span>
+          </div>
         </div>
         <Button size="small" @click="loadHealth">
           <template #icon>

@@ -110,25 +110,32 @@ class AIProvider(BaseModel):
     # ==================== 关系 ====================
     
     # 关联的模型列表
+    # noload 避免与 AIModel.provider(selectin) 形成双向 selectin 死循环
     models = relationship(
         "AIModel",
         back_populates="provider",
-        lazy="selectin",
+        lazy="noload",
         cascade="all, delete-orphan",
     )
     
     # 关联的 API Key 列表
+    # noload 避免与 ProviderApiKey.provider(selectin) 形成双向 selectin 死循环
     api_keys = relationship(
         "ProviderApiKey",
         back_populates="provider",
-        lazy="selectin",
+        lazy="noload",
         cascade="all, delete-orphan",
     )
 
     @property
     def model_count(self) -> int:
-        """关联模型数量（从 models 关系计算）"""
-        return len(self.models) if self.models else 0
+        """关联模型数量（从 models 关系计算，noload 时返回 0）"""
+        from sqlalchemy.orm import attributes
+        state = attributes.instance_state(self)
+        # 仅在 models 已被显式加载时计算，避免触发懒加载
+        if "models" in state.dict:
+            return len(self.models) if self.models else 0
+        return 0
     
     def __repr__(self) -> str:
         return f"<AIProvider(id={self.id}, code={self.code}, name={self.name})>"

@@ -139,7 +139,10 @@
     "messages": {
       "toggleSuccess": "API Key 状态已更新",
       "confirmEnable": "确认启用此 API Key？",
-      "confirmDisable": "确认禁用此 API Key？禁用后使用该 Key 的 AI 调用将失败"
+      "confirmDisable": "确认禁用此 API Key？禁用后使用该 Key 的 AI 调用将失败",
+      "copy": "复制 Key",
+      "copied": "已复制到剪贴板",
+      "copyFailed": "复制失败"
     }
   },
   "callLog": {
@@ -251,6 +254,109 @@
       "allTenants": "全部租户",
       "allPeriods": "全部周期",
       "allTypes": "全部类型"
+    }
+  },
+  "agent": {
+    "title": "智能体管理",
+    "name": "智能体名称",
+    "status": "状态",
+    "executionMode": "执行模式",
+    "modelName": "关联模型",
+    "tenantId": "租户",
+    "version": "版本",
+    "viewDetail": "查看详情",
+    "status_options": {
+      "draft": "草稿",
+      "published": "已发布",
+      "disabled": "已禁用"
+    },
+    "mode_options": {
+      "conversation": "对话",
+      "task": "任务",
+      "batch": "批处理",
+      "api": "API"
+    },
+    "placeholder": {
+      "searchName": "搜索智能体名称",
+      "allStatuses": "全部状态",
+      "allModes": "全部模式",
+      "allTenants": "全部租户"
+    },
+    "summary": {
+      "total": "总数",
+      "published": "已发布",
+      "draft": "草稿",
+      "disabled": "已禁用"
+    },
+    "messages": {
+      "toggleSuccess": "智能体状态已更新",
+      "confirmPublish": "确认发布此智能体？",
+      "confirmDisable": "确认禁用此智能体？禁用后该智能体将无法使用"
+    }
+  },
+  "tool": {
+    "title": "工具管理",
+    "name": "工具名称",
+    "description": "描述",
+    "type": "工具类型",
+    "isSystem": "工具范围",
+    "isActive": "启用状态",
+    "tenantId": "租户",
+    "timeout": "超时 (s)",
+    "type_options": {
+      "http": "HTTP 请求",
+      "database": "数据库",
+      "email": "邮件",
+      "code": "代码",
+      "builtin": "内置"
+    },
+    "create": "添加系统工具",
+    "scope": {
+      "system": "系统",
+      "tenant": "租户"
+    },
+    "filter": {
+      "systemOnly": "仅系统工具",
+      "tenantOnly": "仅租户工具"
+    },
+    "inputSchema": "输入参数 Schema",
+    "outputSchema": "输出参数 Schema",
+    "config": "工具配置",
+    "placeholder": {
+      "searchName": "搜索工具名称",
+      "allTypes": "全部类型",
+      "allScopes": "全部范围",
+      "allTenants": "全部租户",
+      "inputName": "请输入工具名称",
+      "inputDescription": "请输入描述",
+      "selectType": "请选择工具类型",
+      "inputTimeout": "超时秒数",
+      "inputSchema": "JSON 格式的输入参数定义",
+      "config": "JSON 格式的工具配置"
+    },
+    "section": {
+      "basic": "基本信息",
+      "advanced": "高级配置"
+    }
+  },
+  "conversation": {
+    "title": "对话监控",
+    "agentName": "智能体",
+    "userId": "用户 ID",
+    "tenantId": "租户 ID",
+    "status": "状态",
+    "cost": "费用",
+    "createdAt": "创建时间",
+    "viewDetail": "查看详情",
+    "status_options": {
+      "active": "进行中",
+      "archived": "已归档",
+      "closed": "已关闭"
+    },
+    "placeholder": {
+      "agentId": "智能体 ID",
+      "allStatuses": "全部状态",
+      "allTenants": "全部租户"
     }
   },
   "health": {

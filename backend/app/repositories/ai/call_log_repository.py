@@ -208,4 +208,50 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         return result.scalars().all()
 
 
+    async def get_overall_summary(
+        self,
+        tenant_id: Optional[int] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> dict:
+        """
+        获取总体统计汇总（单个 dict，非分组列表）
+        """
+        stmt = select(
+            func.count(AICallLog.id).label("total_calls"),
+            func.sum(AICallLog.total_tokens).label("total_tokens"),
+            func.sum(AICallLog.input_tokens).label("input_tokens"),
+            func.sum(AICallLog.output_tokens).label("output_tokens"),
+            func.sum(AICallLog.cost).label("total_cost"),
+            func.avg(AICallLog.latency_ms).label("avg_latency"),
+            func.sum(case(
+                (AICallLog.status == "success", 1), else_=0
+            )).label("success_calls"),
+            func.sum(case(
+                (AICallLog.status == "failed", 1), else_=0
+            )).label("failed_calls"),
+        )
+
+        if tenant_id:
+            stmt = stmt.where(AICallLog.tenant_id == tenant_id)
+        if start_date:
+            stmt = stmt.where(AICallLog.created_at >= start_date)
+        if end_date:
+            stmt = stmt.where(AICallLog.created_at <= end_date)
+
+        result = await self.db.execute(stmt)
+        row = result.one()
+
+        return {
+            "total_calls": row.total_calls or 0,
+            "total_tokens": row.total_tokens or 0,
+            "input_tokens": row.input_tokens or 0,
+            "output_tokens": row.output_tokens or 0,
+            "total_cost": float(row.total_cost or 0),
+            "avg_latency": float(row.avg_latency) if row.avg_latency else 0,
+            "success_calls": row.success_calls or 0,
+            "failed_calls": row.failed_calls or 0,
+        }
+
+
 __all__ = ["AICallLogRepository"]

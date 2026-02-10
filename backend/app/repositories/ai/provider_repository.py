@@ -4,12 +4,16 @@ AI 供应商 Repository
 处理 AI 供应商数据访问
 """
 
-from sqlalchemy import select
+from typing import Any
+
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.base_repository import BaseRepository
 from app.core.i18n import _
 from app.models.ai import AIProvider
+from app.schemas.common.query import QuerySpec, FilterRule
 
 
 class AIProviderRepository(BaseRepository[AIProvider]):
@@ -21,6 +25,42 @@ class AIProviderRepository(BaseRepository[AIProvider]):
     
     model = AIProvider
     
+    async def query_list(
+        self,
+        spec: QuerySpec,
+        scope: str | None = None,
+        forced_filters: list[FilterRule] | None = None,
+        include_deleted: bool = False,
+    ) -> tuple[list[AIProvider], int]:
+        """
+        查询供应商列表，显式加载 models 关系以支持 model_count 属性
+        """
+        allowed_fields = self.get_allowed_fields(scope)
+        all_fields = self.get_allowed_fields(None)
+
+        query = select(self.model).options(selectinload(AIProvider.models))
+
+        if not include_deleted:
+            query = query.where(self.model.is_deleted == False)
+
+        if forced_filters:
+            query = self._apply_filters(query, forced_filters, all_fields)
+        if spec.filters:
+            query = self._apply_filters(query, spec.filters, allowed_fields)
+
+        count_query = select(func.count()).select_from(query.subquery())
+        count_result = await self.db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        sortable_fields = self.get_sortable_fields()
+        query = self._apply_sort(query, spec.sort, sortable_fields)
+        query = query.offset(spec.offset).limit(spec.limit)
+
+        result = await self.db.execute(query)
+        items = list(result.scalars().all())
+
+        return items, total
+
     async def get_by_code(
         self,
         code: str,

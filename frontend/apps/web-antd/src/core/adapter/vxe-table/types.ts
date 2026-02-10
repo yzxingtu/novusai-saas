@@ -82,6 +82,12 @@ export interface CrudApiConfig<T = any> {
   resource: string;
 
   /**
+   * 自定义删除 API（可选）
+   * 如不提供，将使用 resource 路径自动构造 DELETE 请求
+   */
+  delete?: (id: number) => Promise<unknown>;
+
+  /**
    * 快捷开关配置（支持多个）
    * @example
    * toggles: {

@@ -98,6 +98,11 @@
       "success": "Success",
       "failed": "Failed",
       "timeout": "Timeout"
+    },
+    "filter": {
+      "all": "All",
+      "onlySuccess": "Success Only",
+      "onlyFailed": "Failed Only"
     }
   },
   "quota": {
@@ -142,6 +147,273 @@
       "updateSuccess": "Quota updated successfully",
       "deleteSuccess": "Quota deleted"
     }
+  },
+  "agent": {
+    "title": "Agent Management",
+    "name": "Agent Name",
+    "description": "Description",
+    "status": "Status",
+    "executionMode": "Execution Mode",
+    "modelName": "Model",
+    "systemPrompt": "System Prompt",
+    "temperature": "Temperature",
+    "maxTokens": "Max Tokens",
+    "topP": "Top P",
+    "welcomeMessage": "Welcome Message",
+    "suggestedQuestions": "Suggested Questions (JSON)",
+    "toolBindings": "Tool Bindings (JSON)",
+    "createdAt": "Created At",
+    "create": "Create Agent",
+    "publish": "Publish",
+    "confirmDelete": "Are you sure to delete this agent?",
+    "status_options": {
+      "draft": "Draft",
+      "published": "Published",
+      "disabled": "Disabled"
+    },
+    "mode_options": {
+      "conversation": "Conversation",
+      "task": "Task",
+      "batch": "Batch",
+      "api": "API"
+    },
+    "placeholder": {
+      "searchName": "Search agent name",
+      "allStatuses": "All Statuses",
+      "allModes": "All Modes",
+      "inputName": "Enter agent name",
+      "selectModel": "Select AI model",
+      "selectMode": "Select execution mode",
+      "inputSystemPrompt": "Enter system prompt to define agent behavior and role",
+      "inputDescription": "Enter description",
+      "inputTemperature": "0-2, higher values produce more random output",
+      "inputMaxTokens": "Maximum token generation limit",
+      "inputTopP": "0-1, used together with temperature",
+      "inputWelcomeMessage": "Welcome message shown when user starts a conversation",
+      "inputSuggestedQuestions": "JSON array format, e.g.: [\"Question 1\", \"Question 2\"]",
+      "inputToolBindings": "JSON array format, e.g.: [{'{'}\"tool_id\": 1{'}'}]"
+    },
+    "help": {
+      "suggestedQuestions": "Shown to users when starting a new conversation, helping them get started quickly",
+      "toolBindings": "Bind tools the agent can invoke during conversations, each item contains a tool_id field",
+      "inputVariables": "Define variables users fill in before starting a conversation, useful for prompt templates"
+    },
+    "inputVariables": {
+      "title": "Input Variables",
+      "label": "Variable Definitions (JSON)",
+      "placeholder": "JSON array, e.g.: [{'{'}\"name\": \"topic\", \"label\": \"Topic\", \"type\": \"text\", \"required\": true{'}'}]"
+    },
+    "contextConfig": {
+      "title": "Context Window",
+      "maxHistoryMessages": "Max History Messages",
+      "maxHistoryTokens": "Max History Tokens",
+      "placeholder": {
+        "maxHistoryMessages": "Default 20, 0 uses system default",
+        "maxHistoryTokens": "0 = no limit"
+      }
+    },
+    "quotaConfig": {
+      "title": "Quota Settings",
+      "conversationsPerDay": "Daily Conversation Limit",
+      "tokensPerDay": "Daily Token Limit",
+      "tokensPerMonth": "Monthly Token Limit",
+      "maxTurnsPerConversation": "Max Turns Per Conversation",
+      "maxConcurrent": "Max Concurrent",
+      "userConversationsPerDay": "User Daily Conversation Limit",
+      "placeholder": {
+        "conversationsPerDay": "0 = no limit",
+        "tokensPerDay": "0 = no limit",
+        "tokensPerMonth": "0 = no limit",
+        "maxTurnsPerConversation": "Default 50",
+        "maxConcurrent": "Default 10",
+        "userConversationsPerDay": "0 = no limit"
+      }
+    },
+    "messages": {
+      "createSuccess": "Agent created successfully",
+      "updateSuccess": "Agent updated successfully",
+      "deleteSuccess": "Agent deleted",
+      "publishSuccess": "Agent published successfully",
+      "rollbackSuccess": "Rolled back to version {version}",
+      "rollbackConfirm": "Confirm rollback to version {version}? Current draft will be overwritten."
+    },
+    "version": {
+      "title": "Version History",
+      "version": "Version",
+      "changeLog": "Change Log",
+      "createdBy": "Published By",
+      "createdAt": "Published At",
+      "current": "Current",
+      "rollback": "Rollback",
+      "diff": "Compare",
+      "detail": "Version Detail",
+      "noVersions": "No published versions",
+      "publishTitle": "Publish Agent",
+      "publishDesc": "Publishing will freeze current config as a new version",
+      "changeLogPlaceholder": "Enter change description (optional)",
+      "diffTitle": "Version Compare: v{v1} ↔ v{v2}",
+      "field": "Field",
+      "oldValue": "Old Value",
+      "newValue": "New Value",
+      "noDiff": "Both versions have identical config",
+      "selectVersion": "Select version to compare"
+    },
+    "access": {
+      "title": "Access Control",
+      "visibility": "Visibility",
+      "accessType": "Access Type",
+      "orgNodes": "Org Nodes",
+      "users": "Specified Users",
+      "visibility_options": {
+        "public": "Public",
+        "private": "Private"
+      },
+      "access_type_options": {
+        "all_users": "All Users",
+        "org_node": "Org Node",
+        "specific_users": "Specific Users",
+        "api_only": "API Only"
+      },
+      "placeholder": {
+        "selectOrgNodes": "Select org nodes",
+        "inputUserIds": "Enter user IDs, separated by commas"
+      },
+      "messages": {
+        "updateSuccess": "Access config updated"
+      },
+      "hint": {
+        "public": "All tenant users can use this agent",
+        "private": "Only authorized users can use this agent",
+        "all_users": "All logged-in users in the tenant can access",
+        "org_node": "Only users under specified org nodes can access",
+        "specific_users": "Only specified users can access",
+        "api_only": "Only accessible via API, not visible to frontend users"
+      }
+    },
+    "test": {
+      "title": "Test Chat",
+      "placeholder": "Type a message to test...",
+      "send": "Send",
+      "stop": "Stop Generating",
+      "clear": "Clear Chat",
+      "thinking": "Thinking...",
+      "toolCalling": "Calling tool: {name}",
+      "toolSuccess": "Tool call succeeded",
+      "toolFailed": "Tool call failed",
+      "tokenUsage": "Token usage: {count}",
+      "duration": "Duration: {ms}ms",
+      "streamError": "Stream error",
+      "notPublished": "Agent is not published, cannot test",
+      "conversationId": "Conversation ID: {id}"
+    }
+  },
+  "conversation": {
+    "title": "Title",
+    "pageTitle": "Conversations",
+    "agentName": "Agent",
+    "status": "Status",
+    "tokenCount": "Tokens",
+    "cost": "Cost",
+    "createdAt": "Created At",
+    "messageCount": "Messages",
+    "messageList": "Message List",
+    "untitled": "Untitled Conversation",
+    "viewDetail": "View Detail",
+    "detailTitle": "Conversation Detail",
+    "archive": "Archive",
+    "export": "Export",
+    "batchArchive": "Batch Archive",
+    "archiveBeforeDays": "Archive conversations older than",
+    "confirmArchive": "Are you sure to archive this conversation? This cannot be undone.",
+    "batchArchiveWarning": "This will archive all active conversations within the selected time range. Please proceed with caution.",
+    "placeholder": {
+      "searchTitle": "Search conversation title",
+      "allStatuses": "All Statuses"
+    },
+    "status_options": {
+      "active": "Active",
+      "archived": "Archived"
+    },
+    "batchArchiveOptions": {
+      "days7": "7 days ago",
+      "days14": "14 days ago",
+      "days30": "30 days ago",
+      "days60": "60 days ago",
+      "days90": "90 days ago"
+    },
+    "messages": {
+      "archiveSuccess": "Conversation archived",
+      "exportSuccess": "Export successful",
+      "deleteSuccess": "Conversation deleted",
+      "batchArchiveSuccess": "{count} conversations archived"
+    }
+  },
+  "tool": {
+    "title": "Tool Management",
+    "name": "Tool Name",
+    "type": "Type",
+    "description": "Description",
+    "inputSchema": "Input Schema (JSON)",
+    "config": "Config (JSON)",
+    "timeout": "Timeout (s)",
+    "isSystem": "Source",
+    "isActive": "Status",
+    "createdAt": "Created At",
+    "systemTag": "System",
+    "customTag": "Custom",
+    "create": "Add Tool",
+    "testExecute": "Test Execute",
+    "confirmDelete": "Are you sure to delete this tool?",
+    "type_options": {
+      "http": "HTTP",
+      "database": "Database Query",
+      "email": "Email",
+      "builtin": "Built-in"
+    },
+    "placeholder": {
+      "searchName": "Search tool name",
+      "allTypes": "All Types",
+      "inputName": "Enter tool name",
+      "selectType": "Select tool type",
+      "inputDescription": "Enter tool description",
+      "inputTimeout": "Timeout in seconds (1-300)",
+      "inputSchema": "JSON Schema format, e.g.: {\"type\": \"object\", \"properties\": {}}",
+      "inputConfig": "Tool runtime config, JSON format"
+    },
+    "test": {
+      "arguments": "Arguments",
+      "argumentsPlaceholder": "Enter arguments in JSON format",
+      "run": "Execute",
+      "success": "Success",
+      "failed": "Failed",
+      "output": "Output",
+      "errorDetail": "Error Detail",
+      "invalidJson": "Invalid JSON format, please enter valid JSON",
+      "executeFailed": "Tool test execution failed"
+    },
+    "messages": {
+      "createSuccess": "Tool created successfully",
+      "updateSuccess": "Tool updated successfully",
+      "deleteSuccess": "Tool deleted"
+    }
+  },
+  "chat": {
+    "title": "Agent Chat",
+    "selectAgent": "Select Agent",
+    "noAgents": "No agents available",
+    "newConversation": "New Chat",
+    "history": "History",
+    "noHistory": "No conversation history",
+    "inputPlaceholder": "Type a message...",
+    "send": "Send",
+    "sending": "Sending...",
+    "thinking": "Thinking...",
+    "deleteConversation": "Delete Conversation",
+    "confirmDelete": "Are you sure to delete this conversation? This cannot be undone.",
+    "welcomeTitle": "Start a Conversation",
+    "welcomeDesc": "Select an agent from the sidebar to begin a new conversation",
+    "stopGeneration": "Stop",
+    "copySuccess": "Copied"
   },
   "rateLimit": {
     "title": "Rate Limits",

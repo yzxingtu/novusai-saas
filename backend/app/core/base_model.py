@@ -10,7 +10,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, Column, DateTime, Integer
+from sqlalchemy import Boolean, Column, DateTime, Integer, inspect
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import DeclarativeBase
 
@@ -71,18 +71,22 @@ class BaseModel(Base):
         """
         转换为字典
         
+        通过 mapper.column_attrs 遍历，正确处理属性名与列名不同的情况
+        （如 metadata_ = mapped_column("metadata", ...)）
+        
         Args:
-            exclude: 要排除的字段集合
+            exclude: 要排除的字段集合（使用数据库列名）
         
         Returns:
             模型数据字典
         """
         exclude = exclude or set()
-        return {
-            c.name: getattr(self, c.name)
-            for c in self.__table__.columns
-            if c.name not in exclude
-        }
+        result = {}
+        for attr in inspect(self.__class__).mapper.column_attrs:
+            col_name = attr.columns[0].name
+            if col_name not in exclude:
+                result[col_name] = getattr(self, attr.key)
+        return result
     
     def soft_delete(self) -> None:
         """软删除"""

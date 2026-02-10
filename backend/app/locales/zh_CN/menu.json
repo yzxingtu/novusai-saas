@@ -28,7 +28,10 @@
       "ai_monitor": "监控与分析",
       "ai_gateway": "AI 网关",
       "ai_gateway_api": "AI 网关",
-      "ai_quota": "配额管理"
+      "ai_quota": "配额管理",
+      "ai_conversation": "对话监控",
+      "ai_agent": "智能体管理",
+      "ai_tool": "工具管理"
     },
     "tenant": {
       "dashboard": "仪表板",
@@ -50,7 +53,11 @@
       "ai_quota": "配额管理",
       "ai_usage": "用量统计",
       "ai_call_log": "调用日志",
-      "ai_gateway": "AI 网关"
+      "ai_gateway": "AI 网关",
+      "agent": "智能体管理",
+      "agent_tool": "工具管理",
+      "agent_chat": "智能体对话",
+      "agent_conversation": "对话管理"
     }
   }
 }

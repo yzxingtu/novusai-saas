@@ -66,14 +66,22 @@ class TenantAICallLogController(TenantController):
 
             权限: ai_tenant_call_log:list
             """
+            from app.schemas.common.query import FilterRule
+
             repo = AICallLogRepository(db)
 
             # 强制注入 tenant_id 过滤
-            if not spec.filters:
-                spec.filters = {}
-            spec.filters["tenant_id"] = {"eq": tenant_admin.tenant_id}
+            forced = [
+                FilterRule(
+                    field="tenant_id",
+                    operator="eq",
+                    value=tenant_admin.tenant_id,
+                ),
+            ]
 
-            items, total = await repo.query_list(spec)
+            items, total = await repo.query_list(
+                spec, forced_filters=forced,
+            )
 
             return success(
                 data=PageResponse.create(

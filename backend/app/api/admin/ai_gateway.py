@@ -6,14 +6,17 @@
 
 from fastapi import Request
 
+from app.ai.exceptions import AIGatewayError
 from app.ai.gateway import AIGateway
+from app.ai.quota import QuotaExceeded
+from app.ai.rate_limiter import RateLimitExceeded
 from app.ai.utils import parse_provider_and_model, parse_messages
 from app.core.base_controller import GlobalController
 from app.core.deps import DbSession, ActiveAdmin
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
-from app.exceptions import ExternalServiceException, BusinessException
+from app.exceptions import ExternalServiceException, BusinessException, NotFoundException
 from app.rbac.decorators import (
     permission_resource,
     action_create,
@@ -78,6 +81,8 @@ class AdminAIGatewayController(GlobalController):
                     tenant_id=None,
                 )
                 return success(data=response.__dict__)
+            except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
+                raise
             except Exception as e:
                 raise ExternalServiceException(message=_("ai.error.call_failed") + f": {str(e)}")
 
@@ -114,6 +119,8 @@ class AdminAIGatewayController(GlobalController):
                     tenant_id=None,
                 )
                 return response
+            except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
+                raise
             except Exception as e:
                 raise ExternalServiceException(message=_("ai.error.call_failed") + f": {str(e)}")
 
@@ -141,6 +148,8 @@ class AdminAIGatewayController(GlobalController):
                     tenant_id=None,
                 )
                 return success(data=response.__dict__)
+            except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
+                raise
             except Exception as e:
                 raise ExternalServiceException(message=_("ai.error.embedding_failed") + f": {str(e)}")
 
@@ -170,6 +179,8 @@ class AdminAIGatewayController(GlobalController):
                     max_tokens=body.max_tokens,
                 )
                 return success(data=result)
+            except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
+                raise
             except Exception as e:
                 raise ExternalServiceException(message=_("ai.error.test_failed") + f": {str(e)}")
 

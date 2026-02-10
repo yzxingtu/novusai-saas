@@ -96,6 +96,17 @@ const formatTokens = (tokens: number | undefined) => {
   return `${tokens}`;
 };
 
+/** 计算日趋势中某值占最大值的百分比 */
+const maxDailyTokens = computed(() => {
+  if (!summary.value?.daily_stats) return 1;
+  return Math.max(...summary.value.daily_stats.map((d: Record<string, number>) => d.total_tokens || 0), 1);
+});
+
+function barWidth(value: number, max: number): string {
+  if (max <= 0) return '0%';
+  return `${Math.round((value / max) * 100)}%`;
+}
+
 onMounted(loadSummary);
 </script>
 
@@ -230,7 +241,19 @@ onMounted(loadSummary);
                 class="border-b last:border-0 hover:bg-accent/50"
               >
                 <td class="py-2 text-foreground">{{ day.date }}</td>
-                <td class="py-2 text-right text-muted-foreground">{{ formatTokens(day.total_tokens) }}</td>
+                <td class="py-2 text-right">
+                  <div class="flex items-center justify-end gap-2">
+                    <div class="h-2 w-24 overflow-hidden rounded-full bg-accent">
+                      <div
+                        class="h-full rounded-full bg-primary transition-all duration-300"
+                        :style="{ width: barWidth(day.total_tokens, maxDailyTokens) }"
+                      />
+                    </div>
+                    <span class="min-w-[48px] text-right text-muted-foreground">
+                      {{ formatTokens(day.total_tokens) }}
+                    </span>
+                  </div>
+                </td>
                 <td class="py-2 text-right text-muted-foreground">{{ formatCost(day.cost) }}</td>
                 <td class="py-2 text-right text-muted-foreground">{{ day.calls }}</td>
               </tr>

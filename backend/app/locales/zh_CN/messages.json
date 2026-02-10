@@ -162,7 +162,129 @@
     "started": "任务已启动",
     "completed": "任务已完成",
     "failed": "任务执行失败",
-    "cancelled": "任务已取消"
+    "cancelled": "任务已取消",
+    "log": {
+      "captcha_cleaned": "已清理 {count} 个过期验证码 key",
+      "captcha_cleanup_skipped": "验证码清理跳过: {error}",
+      "health_check_result": "健康检查: db={db}, redis={redis}",
+      "task_log_cleaned": "已软删除 {count} 条过期任务日志（>30天）",
+      "task_log_cleanup_failed": "任务日志清理失败: {error}",
+      "quota_reset": "智能体每日配额重置: 已清理 {count} 个孤立 key",
+      "quota_reset_skipped": "智能体配额重置跳过: {error}",
+      "stats_reset": "智能体每日统计重置: {count} 个智能体",
+      "stats_reset_skipped": "智能体统计重置跳过: {error}"
+    }
+  },
+  "agent": {
+    "created": "智能体创建成功",
+    "updated": "智能体更新成功",
+    "deleted": "智能体删除成功",
+    "published": "智能体发布成功",
+    "error": {
+      "not_found": "智能体不存在",
+      "name_exists": "智能体名称已存在",
+      "already_published": "智能体已处于发布状态",
+      "daily_quota_exceeded": "智能体当日 Token 配额已用完",
+      "monthly_quota_exceeded": "智能体当月 Token 配额已用完",
+      "concurrency_exceeded": "智能体并发执行数已达上限",
+      "not_published": "智能体尚未发布，无法执行",
+      "invalid_status": "无效的状态值",
+      "invalid_status_transition": "无效的状态转换",
+      "batch_run_not_found": "批处理运行记录不存在",
+      "batch_not_cancellable": "批处理任务当前状态不可取消"
+    },
+    "batch": {
+      "cancelled": "批处理任务已取消"
+    },
+    "log": {
+      "published": "智能体已发布",
+      "daily_stats_reset": "已重置 {count} 个智能体的每日统计",
+      "template_syntax_error": "智能体 {agent_id} 的 prompt 模板语法错误: {error}",
+      "undefined_variable": "智能体 {agent_id} 的 prompt 中存在未定义变量: {error}",
+      "template_render_error": "智能体 {agent_id} 的 prompt 渲染失败: {error}"
+    },
+    "version": {
+      "rolled_back": "智能体已回滚",
+      "field": {
+        "agent_id": "智能体 ID",
+        "version": "版本号",
+        "system_prompt": "系统提示词",
+        "model_id": "模型 ID",
+        "temperature": "温度",
+        "max_tokens": "最大 Token",
+        "top_p": "Top P",
+        "execution_mode": "执行模式",
+        "tool_bindings": "工具绑定",
+        "input_variables": "输入变量",
+        "welcome_message": "欢迎语",
+        "suggested_questions": "推荐问题",
+        "quota_config": "配额配置",
+        "change_log": "变更说明",
+        "created_by": "发布人"
+      },
+      "error": {
+        "not_found": "版本记录不存在",
+        "version_not_found_n": "版本 v{version} 不存在"
+      },
+      "log": {
+        "rolled_back": "智能体已回滚"
+      }
+    }
+  },
+  "tool_definition": {
+    "created": "工具创建成功",
+    "updated": "工具更新成功",
+    "deleted": "工具删除成功",
+    "field": {
+      "name": "工具名称",
+      "description": "工具描述",
+      "type": "工具类型",
+      "input_schema": "输入 Schema",
+      "output_schema": "输出 Schema",
+      "config": "执行配置",
+      "timeout": "超时时间",
+      "is_system": "系统工具",
+      "is_active": "启用状态",
+      "test_arguments": "测试参数",
+      "test_success": "执行成功",
+      "test_output": "执行输出",
+      "test_error": "错误信息",
+      "test_duration": "耗时"
+    },
+    "error": {
+      "not_found": "工具不存在",
+      "name_exists": "工具名称已存在",
+      "invalid_type": "无效的工具类型",
+      "system_readonly": "系统内置工具不可修改或删除"
+    }
+  },
+  "agent_chat": {
+    "field": {
+      "message": "用户消息",
+      "conversation_id": "对话 ID",
+      "variables": "输入变量",
+      "reply_message": "回复消息",
+      "tool_calls": "工具调用",
+      "total_tokens": "总 Token 数",
+      "duration_ms": "耗时（毫秒）"
+    },
+    "error": {
+      "conversation_not_found": "对话不存在",
+      "conversation_archived": "对话已归档，无法继续",
+      "execution_failed": "智能体执行失败"
+    },
+    "conversation_deleted": "对话已删除"
+  },
+  "conversation": {
+    "not_found": "对话不存在",
+    "archived": "对话已归档",
+    "batch_archived": "批量归档完成",
+    "exported": "对话导出成功",
+    "deleted": "对话已删除",
+    "already_archived": "对话已处于归档状态",
+    "search_keyword_required": "请输入搜索关键词",
+    "agent_id": "智能体 ID",
+    "before_days": "归档天数"
   },
   "ai": {
     "request_failed": "AI 请求失败",
@@ -239,7 +361,25 @@
       "stream_chat_error": "流式聊天请求失败",
       "embedding_request": "发送向量化请求",
       "embedding_error": "向量化请求失败",
-      "list_models_error": "获取模型列表失败"
+      "list_models_error": "获取模型列表失败",
+      "cache_get_failed": "读取缓存失败",
+      "cache_set": "缓存写入成功",
+      "cache_deleted": "缓存已删除",
+      "cache_delete_failed": "删除缓存失败",
+      "cache_cleared": "缓存批量清除完成",
+      "cache_clear_failed": "批量清除缓存失败",
+      "cache_get_hit_rate_failed": "获取缓存命中率失败",
+      "cache_reset_stats_failed": "重置缓存统计失败",
+      "usage_recorded": "使用量已记录",
+      "async_log_start": "异步日志记录开始",
+      "async_log_complete": "异步日志记录完成",
+      "health_check_start": "开始供应商健康检查",
+      "health_check_completed": "供应商健康检查完成",
+      "health_check_task_failed": "健康检查任务失败",
+      "health_no_api_key": "没有可用的平台 API Key",
+      "health_skip_no_key": "供应商无 API Key，跳过健康检查",
+      "health_check_provider_failed": "供应商健康检查失败",
+      "health_check_result": "健康检查结果"
     }
   },
   "rbac": {
@@ -389,6 +529,42 @@
       "create": "创建配额",
       "update": "更新配额",
       "delete": "删除配额"
+    },
+    "agent": {
+      "list": "查看智能体列表",
+      "detail": "查看智能体详情",
+      "create": "创建智能体",
+      "update": "更新智能体",
+      "delete": "删除智能体",
+      "publish": "发布智能体"
+    },
+    "agent_tool": {
+      "list": "查看工具列表",
+      "detail": "查看工具详情",
+      "create": "创建工具",
+      "update": "更新工具",
+      "delete": "删除工具",
+      "test": "测试执行工具"
+    },
+    "agent_chat": {
+      "chat": "发送对话消息",
+      "stream": "流式对话",
+      "conversations": "查看对话列表",
+      "conversation_detail": "查看对话详情",
+      "delete_conversation": "删除对话"
+    },
+    "agent_conversation": {
+      "list": "查看对话列表",
+      "search": "搜索对话消息",
+      "detail": "查看对话详情",
+      "archive": "归档对话",
+      "batch_archive": "批量归档对话",
+      "delete": "删除对话",
+      "export": "导出对话"
+    },
+    "ai_conversation": {
+      "list": "查看全租户对话列表",
+      "detail": "查看对话详情（审计）"
     }
   },
     "role": {
@@ -573,6 +749,54 @@
       "storage": "存储日志",
       "auth": "认证日志",
       "impersonate": "一键登录审计"
+    },
+    "agent": {
+      "status": {
+        "draft": "草稿",
+        "published": "已发布",
+        "disabled": "已禁用"
+      },
+      "execution_mode": {
+        "conversation": "对话模式",
+        "task": "任务模式",
+        "batch": "批处理模式",
+        "api": "API 模式"
+      },
+      "tool_type": {
+        "http": "HTTP 请求",
+        "database": "数据库查询",
+        "email": "发送邮件",
+        "code": "自定义代码",
+        "builtin": "内置工具"
+      },
+      "conversation_status": {
+        "active": "进行中",
+        "archived": "已归档"
+      },
+      "message_role": {
+        "system": "系统",
+        "user": "用户",
+        "assistant": "助手",
+        "tool": "工具"
+      },
+      "visibility": {
+        "public": "公开",
+        "private": "私有"
+      },
+      "access_type": {
+        "all_users": "全部用户",
+        "org_node": "指定组织",
+        "specific_users": "指定用户",
+        "api_only": "仅 API"
+      },
+      "batch_run_status": {
+        "pending": "等待中",
+        "running": "运行中",
+        "completed": "已完成",
+        "partial_failed": "部分失败",
+        "failed": "已失败",
+        "cancelled": "已取消"
+      }
     }
   },
   "config": {
@@ -1064,5 +1288,37 @@
     "file_not_found": "日志文件不存在",
     "deleted": "日志文件删除成功",
     "cannot_delete_current": "不能删除当前活动日志文件"
+  },
+  "tool": {
+    "task": {
+      "default_user_message": "请根据以上指令执行任务。"
+    },
+    "error": {
+      "prefix": "错误: {error}",
+      "not_found": "工具 '{name}' 不存在",
+      "blocked_by_hook": "被钩子拦截",
+      "no_executor": "工具类型 '{tool_type}' 无对应执行器",
+      "execution_timeout": "工具执行超时（{timeout}秒）",
+      "missing_required_param": "缺少必填参数: {field}",
+      "param_type_mismatch": "参数 '{name}' 期望类型 '{expected_type}'，实际为 '{actual_type}'",
+      "call_limit_exceeded": "工具调用次数超限（每对话最多 {max_calls} 次）",
+      "invalid_url": "无效的 URL: {url}",
+      "protocol_not_allowed": "协议 '{scheme}' 不允许，请使用 http/https",
+      "url_no_hostname": "URL 必须包含主机名",
+      "domain_not_allowed": "域名 '{hostname}' 不在允许列表中",
+      "domain_blocked": "域名 '{hostname}' 被禁止访问",
+      "internal_network_blocked": "禁止访问内网地址（{ip}）",
+      "dns_resolve_failed": "无法解析主机名: {hostname}",
+      "url_validation_failed": "URL 校验失败: {detail}",
+      "empty_sql": "SQL 语句为空",
+      "sql_only_select": "仅允许 SELECT/WITH 查询语句",
+      "sql_write_blocked": "禁止写操作（INSERT/UPDATE/DELETE/DROP）",
+      "sql_system_table_blocked": "禁止访问系统表（pg_catalog/information_schema）",
+      "email_rate_exceeded": "邮件发送频率超限（每小时最多 {max_per_hour} 封）",
+      "too_many_recipients": "收件人数量超限，最多 {max} 人，当前 {got} 人",
+      "attachment_too_large": "附件总大小超出 {max_mb}MB 限制",
+      "http_missing_url": "工具配置缺少 'url'",
+      "http_timeout": "HTTP 请求超时"
+    }
   }
 }

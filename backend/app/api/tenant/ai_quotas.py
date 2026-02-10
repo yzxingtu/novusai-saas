@@ -163,6 +163,132 @@ class TenantAIQuotaController(TenantController):
 
             return success(data=result, message=_("common.success"))
 
+        # ========== 速率限制管理 ==========
+        # 注意：rate-limits 路由必须在 /{quota_id} 之前注册，
+        # 否则 "rate-limits" 会被 FastAPI 匹配为 {quota_id} 参数
+
+        @router.get("/rate-limits", summary="获取速率限制配置列表")
+        @action_read("action.ai_quota.list_rate_limits")
+        async def get_rate_limits(
+            request: Request,
+            db: DbSession,
+            tenant_admin: ActiveTenantAdmin,
+            model_id: int | None = Query(None, description="模型 ID"),
+        ):
+            """
+            获取速率限制配置列表
+
+            权限: ai_quota:list_rate_limits
+            """
+            service = TenantRateLimitService(db, tenant_admin.tenant_id)
+            items = await service.repo.get_active_limits(
+                tenant_id=tenant_admin.tenant_id,
+                model_id=model_id,
+            )
+            result = [_build_rate_limit_dict(item) for item in items]
+
+            return success(data=result, message=_("common.success"))
+
+        @router.get("/rate-limits/effective/{model_id}", summary="获取有效速率限制")
+        @action_read("action.ai_quota.effective_rate_limits")
+        async def get_effective_rate_limits(
+            request: Request,
+            db: DbSession,
+            model_id: int,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            获取有效的速率限制
+
+            权限: ai_quota:effective_rate_limits
+            """
+            service = TenantRateLimitService(db, tenant_admin.tenant_id)
+            result = await service.get_effective_rate_limits(model_id)
+
+            return success(data=result, message=_("common.success"))
+
+        @router.post("/rate-limits", summary="创建速率限制配置")
+        @action_create("action.ai_quota.create_rate_limit")
+        async def create_rate_limit(
+            request: Request,
+            db: DbSession,
+            data: TenantRateLimitCreate,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            创建速率限制配置
+
+            权限: ai_quota:create_rate_limit
+            """
+            service = TenantRateLimitService(db, tenant_admin.tenant_id)
+            rate_limit = await service.create_rate_limit(
+                model_id=data.model_id,
+                rpm_limit=data.rpm_limit,
+                tpm_limit=data.tpm_limit,
+                description=data.description,
+            )
+            await db.commit()
+
+            return success(data=rate_limit, message=_("ai.rate_limit.created"))
+
+        @router.put("/rate-limits/{rate_limit_id}", summary="更新速率限制配置")
+        @action_update("action.ai_quota.update_rate_limit")
+        async def update_rate_limit(
+            request: Request,
+            db: DbSession,
+            rate_limit_id: int,
+            data: TenantRateLimitUpdate,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            更新速率限制配置
+
+            权限: ai_quota:update_rate_limit
+            """
+            service = TenantRateLimitService(db, tenant_admin.tenant_id)
+            rate_limit = await service.repo.get_by_id(rate_limit_id)
+
+            if not rate_limit:
+                raise NotFoundException(message=_("ai.error.rate_limit_not_found"))
+
+            if rate_limit.tenant_id != tenant_admin.tenant_id:
+                raise AuthorizationException(message=_("common.forbidden"))
+
+            update_data = data.model_dump(exclude_unset=True)
+            updated = await service.repo.update(rate_limit.id, update_data)
+            await db.commit()
+
+            return success(data=updated, message=_("ai.rate_limit.updated"))
+
+        @router.delete("/rate-limits/{rate_limit_id}", summary="删除速率限制配置")
+        @action_delete("action.ai_quota.delete_rate_limit")
+        async def delete_rate_limit(
+            request: Request,
+            db: DbSession,
+            rate_limit_id: int,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            删除速率限制配置
+
+            权限: ai_quota:delete_rate_limit
+            """
+            service = TenantRateLimitService(db, tenant_admin.tenant_id)
+            rate_limit = await service.repo.get_by_id(rate_limit_id)
+
+            if not rate_limit:
+                raise NotFoundException(message=_("ai.error.rate_limit_not_found"))
+
+            if rate_limit.tenant_id != tenant_admin.tenant_id:
+                raise AuthorizationException(message=_("common.forbidden"))
+
+            await service.repo.delete(rate_limit_id)
+            await db.commit()
+
+            return success(message=_("ai.rate_limit.deleted"))
+
+        # ========== 配额详情与 CRUD（含路径参数） ==========
+
         @router.get("/{quota_id}", summary="获取配额配置详情")
         @action_read("action.ai_quota.detail_quota")
         async def get_quota(
@@ -285,128 +411,6 @@ class TenantAIQuotaController(TenantController):
             await db.commit()
 
             return success(message=_("ai.quota.deleted"))
-
-        # ========== 速率限制管理 ==========
-
-        @router.get("/rate-limits", summary="获取速率限制配置列表")
-        @action_read("action.ai_quota.list_rate_limits")
-        async def get_rate_limits(
-            request: Request,
-            db: DbSession,
-            tenant_admin: ActiveTenantAdmin,
-            model_id: int | None = Query(None, description="模型 ID"),
-        ):
-            """
-            获取速率限制配置列表
-
-            权限: ai_quota:list_rate_limits
-            """
-            service = TenantRateLimitService(db, tenant_admin.tenant_id)
-            items = await service.repo.get_active_limits(
-                tenant_id=tenant_admin.tenant_id,
-                model_id=model_id,
-            )
-            result = [_build_rate_limit_dict(item) for item in items]
-
-            return success(data=result, message=_("common.success"))
-
-        @router.get("/rate-limits/effective/{model_id}", summary="获取有效速率限制")
-        @action_read("action.ai_quota.effective_rate_limits")
-        async def get_effective_rate_limits(
-            request: Request,
-            db: DbSession,
-            model_id: int,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            获取有效的速率限制
-
-            权限: ai_quota:effective_rate_limits
-            """
-            service = TenantRateLimitService(db, tenant_admin.tenant_id)
-            result = await service.get_effective_rate_limits(model_id)
-
-            return success(data=result, message=_("common.success"))
-
-        @router.post("/rate-limits", summary="创建速率限制配置")
-        @action_create("action.ai_quota.create_rate_limit")
-        async def create_rate_limit(
-            request: Request,
-            db: DbSession,
-            data: TenantRateLimitCreate,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            创建速率限制配置
-
-            权限: ai_quota:create_rate_limit
-            """
-            service = TenantRateLimitService(db, tenant_admin.tenant_id)
-            rate_limit = await service.create_rate_limit(
-                model_id=data.model_id,
-                rpm_limit=data.rpm_limit,
-                tpm_limit=data.tpm_limit,
-                description=data.description,
-            )
-            await db.commit()
-
-            return success(data=rate_limit, message=_("ai.rate_limit.created"))
-
-        @router.put("/rate-limits/{rate_limit_id}", summary="更新速率限制配置")
-        @action_update("action.ai_quota.update_rate_limit")
-        async def update_rate_limit(
-            request: Request,
-            db: DbSession,
-            rate_limit_id: int,
-            data: TenantRateLimitUpdate,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            更新速率限制配置
-
-            权限: ai_quota:update_rate_limit
-            """
-            service = TenantRateLimitService(db, tenant_admin.tenant_id)
-            rate_limit = await service.repo.get_by_id(rate_limit_id)
-
-            if not rate_limit:
-                raise NotFoundException(message=_("ai.error.rate_limit_not_found"))
-
-            if rate_limit.tenant_id != tenant_admin.tenant_id:
-                raise AuthorizationException(message=_("common.forbidden"))
-
-            update_data = data.model_dump(exclude_unset=True)
-            updated = await service.repo.update(rate_limit.id, update_data)
-            await db.commit()
-
-            return success(data=updated, message=_("ai.rate_limit.updated"))
-
-        @router.delete("/rate-limits/{rate_limit_id}", summary="删除速率限制配置")
-        @action_delete("action.ai_quota.delete_rate_limit")
-        async def delete_rate_limit(
-            request: Request,
-            db: DbSession,
-            rate_limit_id: int,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            删除速率限制配置
-
-            权限: ai_quota:delete_rate_limit
-            """
-            service = TenantRateLimitService(db, tenant_admin.tenant_id)
-            rate_limit = await service.repo.get_by_id(rate_limit_id)
-
-            if not rate_limit:
-                raise NotFoundException(message=_("ai.error.rate_limit_not_found"))
-
-            if rate_limit.tenant_id != tenant_admin.tenant_id:
-                raise AuthorizationException(message=_("common.forbidden"))
-
-            await service.repo.delete(rate_limit_id)
-            await db.commit()
-
-            return success(message=_("ai.rate_limit.deleted"))
 
 
 # 导出路由器

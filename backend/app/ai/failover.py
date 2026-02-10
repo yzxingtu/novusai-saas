@@ -10,6 +10,7 @@ from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.logging import LogManager
 from app.core.redis import get_redis
@@ -107,12 +108,12 @@ class FailoverService:
 
             visited.add(current_id)
 
-            # 获取备用模型
+            # 获取备用模型（预加载 provider 关系，避免 DetachedInstanceError）
             stmt = select(AIModel).where(
                 AIModel.id == fallback_id,
                 AIModel.is_active == True,
                 AIModel.is_deleted == False,
-            )
+            ).options(selectinload(AIModel.provider))
             result = await self.db.execute(stmt)
             fallback = result.scalar_one_or_none()
 

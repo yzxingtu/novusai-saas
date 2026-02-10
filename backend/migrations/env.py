@@ -37,6 +37,18 @@ from app.models import (
     UsageStat,
     TenantModelRateLimit,
     TenantQuota,
+    # 智能体模型
+    Agent,
+    AgentConversation,
+    ConversationMessage,
+    # 工具定义
+    ToolDefinition,
+    # 批量运行
+    BatchRun,
+    # 智能体版本
+    AgentVersion,
+    # 智能体访问权限
+    AgentAccess,
 )
 
 # Alembic 配置对象

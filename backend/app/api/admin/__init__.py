@@ -29,6 +29,9 @@ from app.api.admin.ai_gateway import router as ai_gateway_router, AdminAIGateway
 from app.api.admin.ai_usage import router as ai_usage_router, AdminAIUsageController
 from app.api.admin.ai_health import router as ai_health_router, AdminAIHealthController
 from app.api.admin.ai_quotas import router as ai_quotas_router, AdminAIQuotaController
+from app.api.admin.ai_conversations import router as ai_conversations_router, AdminAIConversationController
+from app.api.admin.agents import router as ai_agents_router, AdminAgentController
+from app.api.admin.tools import router as ai_tools_router, AdminToolController
 
 # 创建平台管理后台路由器
 admin_router = APIRouter()
@@ -55,6 +58,11 @@ admin_router.include_router(ai_gateway_router)
 admin_router.include_router(ai_usage_router)
 admin_router.include_router(ai_health_router)
 admin_router.include_router(ai_quotas_router)
+# 对话监控
+admin_router.include_router(ai_conversations_router)
+# 智能体引擎
+admin_router.include_router(ai_agents_router)
+admin_router.include_router(ai_tools_router)
 
 
 __all__ = [
@@ -80,4 +88,9 @@ __all__ = [
     "AdminAIUsageController",
     "AdminAIHealthController",
     "AdminAIQuotaController",
+    # 对话监控
+    "AdminAIConversationController",
+    # 智能体引擎
+    "AdminAgentController",
+    "AdminToolController",
 ]

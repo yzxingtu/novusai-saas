@@ -11,10 +11,11 @@ import { ref } from 'vue';
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Card, Tag, Tooltip } from 'ant-design-vue';
+import { Button, Card, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { getTenantAICallLogListApi } from '#/api/tenant/ai';
+import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
 import { formatCost, getStatusText, useColumns, useGridFormSchema } from './data';
@@ -28,7 +29,20 @@ function onViewDetail(row: TenantAICallLogInfo) {
   detailOpen.value = true;
 }
 
-const { Grid } = useCrudPage<TenantAICallLogInfo>({
+// Quick status filter
+const activeFilter = ref<'all' | 'failed' | 'success'>('all');
+
+function applyQuickFilter(filter: 'all' | 'failed' | 'success') {
+  activeFilter.value = filter;
+  if (filter === 'all') {
+    gridApi.formApi?.setValues({ 'filter[status][eq]': undefined });
+  } else {
+    gridApi.formApi?.setValues({ 'filter[status][eq]': filter });
+  }
+  gridApi.reload();
+}
+
+const { Grid, gridApi } = useCrudPage<TenantAICallLogInfo>({
   api: {
     list: getTenantAICallLogListApi,
     resource: '/tenant/ai/call-logs',
@@ -50,6 +64,33 @@ const { Grid } = useCrudPage<TenantAICallLogInfo>({
       v-model:open="detailOpen"
       :log-id="detailLogId"
     />
+
+    <!-- 快速筛选 -->
+    <div class="flex items-center gap-2">
+      <Button
+        :type="activeFilter === 'all' ? 'primary' : 'default'"
+        size="small"
+        @click="applyQuickFilter('all')"
+      >
+        {{ $t('tenant.ai.callLog.filter.all') }}
+      </Button>
+      <Button
+        :type="activeFilter === 'success' ? 'primary' : 'default'"
+        size="small"
+        @click="applyQuickFilter('success')"
+      >
+        <IconifyIcon icon="lucide:check-circle" class="mr-1 inline size-3.5 text-success" />
+        {{ $t('tenant.ai.callLog.filter.onlySuccess') }}
+      </Button>
+      <Button
+        :type="activeFilter === 'failed' ? 'primary' : 'default'"
+        size="small"
+        @click="applyQuickFilter('failed')"
+      >
+        <IconifyIcon icon="lucide:x-circle" class="mr-1 inline size-3.5 text-destructive" />
+        {{ $t('tenant.ai.callLog.filter.onlyFailed') }}
+      </Button>
+    </div>
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>

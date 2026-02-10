@@ -50,6 +50,13 @@ from app.models.ai import (
     UsageStat,
     TenantModelRateLimit,
     TenantQuota,
+    Agent,
+    AgentConversation,
+    ConversationMessage,
+    ToolDefinition,
+    BatchRun,
+    AgentVersion,
+    AgentAccess,
 )
 
 __all__ = [
@@ -83,4 +90,16 @@ __all__ = [
     "UsageStat",
     "TenantModelRateLimit",
     "TenantQuota",
+    # 智能体
+    "Agent",
+    "AgentConversation",
+    "ConversationMessage",
+    # 工具定义
+    "ToolDefinition",
+    # 批量运行
+    "BatchRun",
+    # 智能体版本
+    "AgentVersion",
+    # 智能体访问权限
+    "AgentAccess",
 ]

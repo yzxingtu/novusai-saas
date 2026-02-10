@@ -162,7 +162,129 @@
     "started": "Task started",
     "completed": "Task completed",
     "failed": "Task execution failed",
-    "cancelled": "Task cancelled"
+    "cancelled": "Task cancelled",
+    "log": {
+      "captcha_cleaned": "Cleaned {count} expired captcha keys",
+      "captcha_cleanup_skipped": "Captcha cleanup skipped: {error}",
+      "health_check_result": "Health check: db={db}, redis={redis}",
+      "task_log_cleaned": "Soft-deleted {count} expired task logs (>30 days)",
+      "task_log_cleanup_failed": "Task log cleanup failed: {error}",
+      "quota_reset": "Agent daily quotas reset: cleaned {count} orphan keys",
+      "quota_reset_skipped": "Agent quota reset skipped: {error}",
+      "stats_reset": "Agent daily stats reset: {count} agents",
+      "stats_reset_skipped": "Agent stats reset skipped: {error}"
+    }
+  },
+  "agent": {
+    "created": "Agent created successfully",
+    "updated": "Agent updated successfully",
+    "deleted": "Agent deleted successfully",
+    "published": "Agent published successfully",
+    "error": {
+      "not_found": "Agent not found",
+      "name_exists": "Agent name already exists",
+      "already_published": "Agent is already published",
+      "daily_quota_exceeded": "Agent daily token quota exceeded",
+      "monthly_quota_exceeded": "Agent monthly token quota exceeded",
+      "concurrency_exceeded": "Agent concurrency limit exceeded",
+      "not_published": "Agent is not published and cannot be executed",
+      "invalid_status": "Invalid status value",
+      "invalid_status_transition": "Invalid status transition",
+      "batch_run_not_found": "Batch run not found",
+      "batch_not_cancellable": "Batch task cannot be cancelled in current status"
+    },
+    "batch": {
+      "cancelled": "Batch task cancelled"
+    },
+    "log": {
+      "published": "Agent published",
+      "daily_stats_reset": "Reset daily stats for {count} agents",
+      "template_syntax_error": "Template syntax error in agent {agent_id} prompt: {error}",
+      "undefined_variable": "Undefined variable in agent {agent_id} prompt: {error}",
+      "template_render_error": "Template render error in agent {agent_id} prompt: {error}"
+    },
+    "version": {
+      "rolled_back": "Agent rolled back successfully",
+      "field": {
+        "agent_id": "Agent ID",
+        "version": "Version",
+        "system_prompt": "System Prompt",
+        "model_id": "Model ID",
+        "temperature": "Temperature",
+        "max_tokens": "Max Tokens",
+        "top_p": "Top P",
+        "execution_mode": "Execution Mode",
+        "tool_bindings": "Tool Bindings",
+        "input_variables": "Input Variables",
+        "welcome_message": "Welcome Message",
+        "suggested_questions": "Suggested Questions",
+        "quota_config": "Quota Config",
+        "change_log": "Change Log",
+        "created_by": "Published By"
+      },
+      "error": {
+        "not_found": "Version record not found",
+        "version_not_found_n": "Version v{version} not found"
+      },
+      "log": {
+        "rolled_back": "Agent rolled back"
+      }
+    }
+  },
+  "tool_definition": {
+    "created": "Tool created successfully",
+    "updated": "Tool updated successfully",
+    "deleted": "Tool deleted successfully",
+    "field": {
+      "name": "Tool Name",
+      "description": "Description",
+      "type": "Tool Type",
+      "input_schema": "Input Schema",
+      "output_schema": "Output Schema",
+      "config": "Execution Config",
+      "timeout": "Timeout",
+      "is_system": "System Tool",
+      "is_active": "Status",
+      "test_arguments": "Test Arguments",
+      "test_success": "Execution Success",
+      "test_output": "Execution Output",
+      "test_error": "Error Message",
+      "test_duration": "Duration"
+    },
+    "error": {
+      "not_found": "Tool not found",
+      "name_exists": "Tool name already exists",
+      "invalid_type": "Invalid tool type",
+      "system_readonly": "System built-in tools cannot be modified or deleted"
+    }
+  },
+  "agent_chat": {
+    "field": {
+      "message": "User Message",
+      "conversation_id": "Conversation ID",
+      "variables": "Input Variables",
+      "reply_message": "Reply Message",
+      "tool_calls": "Tool Calls",
+      "total_tokens": "Total Tokens",
+      "duration_ms": "Duration (ms)"
+    },
+    "error": {
+      "conversation_not_found": "Conversation not found",
+      "conversation_archived": "Conversation is archived and cannot continue",
+      "execution_failed": "Agent execution failed"
+    },
+    "conversation_deleted": "Conversation deleted"
+  },
+  "conversation": {
+    "not_found": "Conversation not found",
+    "archived": "Conversation archived",
+    "batch_archived": "Batch archive completed",
+    "exported": "Conversation exported successfully",
+    "deleted": "Conversation deleted",
+    "already_archived": "Conversation is already archived",
+    "search_keyword_required": "Search keyword is required",
+    "agent_id": "Agent ID",
+    "before_days": "Archive before days"
   },
   "ai": {
     "request_failed": "AI request failed",
@@ -239,7 +361,25 @@
       "stream_chat_error": "Stream chat request failed",
       "embedding_request": "Sending embedding request",
       "embedding_error": "Embedding request failed",
-      "list_models_error": "Failed to list models"
+      "list_models_error": "Failed to list models",
+      "cache_get_failed": "Failed to get cache",
+      "cache_set": "Cache set successfully",
+      "cache_deleted": "Cache deleted",
+      "cache_delete_failed": "Failed to delete cache",
+      "cache_cleared": "Cache batch cleared",
+      "cache_clear_failed": "Failed to clear cache",
+      "cache_get_hit_rate_failed": "Failed to get cache hit rate",
+      "cache_reset_stats_failed": "Failed to reset cache stats",
+      "usage_recorded": "Usage recorded",
+      "async_log_start": "Async log recording started",
+      "async_log_complete": "Async log recording completed",
+      "health_check_start": "Starting provider health check",
+      "health_check_completed": "Provider health check completed",
+      "health_check_task_failed": "Health check task failed",
+      "health_no_api_key": "No active platform API key",
+      "health_skip_no_key": "No API key for provider, skipping health check",
+      "health_check_provider_failed": "Provider health check failed",
+      "health_check_result": "Health check result"
     }
   },
   "rbac": {
@@ -389,6 +529,42 @@
       "create": "Create Quota",
       "update": "Update Quota",
       "delete": "Delete Quota"
+    },
+    "agent": {
+      "list": "View Agent List",
+      "detail": "View Agent Details",
+      "create": "Create Agent",
+      "update": "Update Agent",
+      "delete": "Delete Agent",
+      "publish": "Publish Agent"
+    },
+    "agent_tool": {
+      "list": "View Tool List",
+      "detail": "View Tool Details",
+      "create": "Create Tool",
+      "update": "Update Tool",
+      "delete": "Delete Tool",
+      "test": "Test Execute Tool"
+    },
+    "agent_chat": {
+      "chat": "Send Chat Message",
+      "stream": "Stream Chat",
+      "conversations": "View Conversations",
+      "conversation_detail": "View Conversation Detail",
+      "delete_conversation": "Delete Conversation"
+    },
+    "agent_conversation": {
+      "list": "View Conversation List",
+      "search": "Search Conversation Messages",
+      "detail": "View Conversation Detail",
+      "archive": "Archive Conversation",
+      "batch_archive": "Batch Archive Conversations",
+      "delete": "Delete Conversation",
+      "export": "Export Conversation"
+    },
+    "ai_conversation": {
+      "list": "View All Tenant Conversations",
+      "detail": "View Conversation Detail (Audit)"
     }
   },
   "role": {
@@ -571,6 +747,54 @@
       "storage": "Storage Log",
       "auth": "Authentication Log",
       "impersonate": "Impersonate Audit Log"
+    },
+    "agent": {
+      "status": {
+        "draft": "Draft",
+        "published": "Published",
+        "disabled": "Disabled"
+      },
+      "execution_mode": {
+        "conversation": "Conversation",
+        "task": "Task",
+        "batch": "Batch",
+        "api": "API"
+      },
+      "tool_type": {
+        "http": "HTTP Request",
+        "database": "Database Query",
+        "email": "Send Email",
+        "code": "Custom Code",
+        "builtin": "Built-in"
+      },
+      "conversation_status": {
+        "active": "Active",
+        "archived": "Archived"
+      },
+      "message_role": {
+        "system": "System",
+        "user": "User",
+        "assistant": "Assistant",
+        "tool": "Tool"
+      },
+      "visibility": {
+        "public": "Public",
+        "private": "Private"
+      },
+      "access_type": {
+        "all_users": "All Users",
+        "org_node": "Organization Node",
+        "specific_users": "Specific Users",
+        "api_only": "API Only"
+      },
+      "batch_run_status": {
+        "pending": "Pending",
+        "running": "Running",
+        "completed": "Completed",
+        "partial_failed": "Partial Failed",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      }
     }
   },
   "config": {
@@ -1061,5 +1285,37 @@
     "file_not_found": "Log file not found",
     "deleted": "Log file deleted successfully",
     "cannot_delete_current": "Cannot delete current active log file"
+  },
+  "tool": {
+    "task": {
+      "default_user_message": "Please execute the task based on the instructions above."
+    },
+    "error": {
+      "prefix": "Error: {error}",
+      "not_found": "Tool '{name}' not found",
+      "blocked_by_hook": "Blocked by hook",
+      "no_executor": "No executor for tool type '{tool_type}'",
+      "execution_timeout": "Tool execution timed out after {timeout}s",
+      "missing_required_param": "Missing required parameter: {field}",
+      "param_type_mismatch": "Parameter '{name}' expected type '{expected_type}', got '{actual_type}'",
+      "call_limit_exceeded": "Tool call limit exceeded ({max_calls} per conversation)",
+      "invalid_url": "Invalid URL: {url}",
+      "protocol_not_allowed": "Protocol '{scheme}' not allowed, use http/https",
+      "url_no_hostname": "URL must contain a hostname",
+      "domain_not_allowed": "Domain '{hostname}' not in allowed domains",
+      "domain_blocked": "Domain '{hostname}' is blocked",
+      "internal_network_blocked": "Access to internal network ({ip}) is blocked",
+      "dns_resolve_failed": "Cannot resolve hostname: {hostname}",
+      "url_validation_failed": "URL validation failed: {detail}",
+      "empty_sql": "Empty SQL statement",
+      "sql_only_select": "Only SELECT/WITH statements are allowed",
+      "sql_write_blocked": "Write operations (INSERT/UPDATE/DELETE/DROP) are not allowed",
+      "sql_system_table_blocked": "Access to system tables (pg_catalog/information_schema) is blocked",
+      "email_rate_exceeded": "Email rate limit exceeded ({max_per_hour}/hour)",
+      "too_many_recipients": "Max {max} recipients allowed, got {got}",
+      "attachment_too_large": "Total attachment size exceeds {max_mb}MB limit",
+      "http_missing_url": "Tool config missing 'url'",
+      "http_timeout": "Request timed out"
+    }
   }
 }

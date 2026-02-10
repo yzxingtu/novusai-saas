@@ -37,6 +37,24 @@ from app.ai.exceptions import (
     is_retryable,
 )
 
+# 导出事件与钩子系统
+from app.ai.events import EventBus, get_event_bus, HookRegistry, get_hook_registry
+
+# 导出工具执行沙箱
+from app.ai.tools import ToolSandbox, ToolRegistry, get_tool_registry
+
+# 导出智能体配额与并发控制
+from app.ai.agent_quota import (
+    AgentQuotaConfig,
+    AgentQuotaManager,
+    AgentQuotaExceeded,
+    AgentConcurrencyLimiter,
+    AgentConcurrencyExceeded,
+)
+
+# 导出执行引擎
+from app.ai.engine import ExecutionDispatcher
+
 __all__ = [
     # 数据类型
     "ChatMessage",
@@ -63,4 +81,21 @@ __all__ = [
     "ContentFilterError",
     "ContextLengthExceededError",
     "is_retryable",
+    # 事件与钩子
+    "EventBus",
+    "get_event_bus",
+    "HookRegistry",
+    "get_hook_registry",
+    # 工具沙箱
+    "ToolSandbox",
+    "ToolRegistry",
+    "get_tool_registry",
+    # 智能体配额与并发
+    "AgentQuotaConfig",
+    "AgentQuotaManager",
+    "AgentQuotaExceeded",
+    "AgentConcurrencyLimiter",
+    "AgentConcurrencyExceeded",
+    # 执行引擎
+    "ExecutionDispatcher",
 ]

@@ -28,7 +28,10 @@
       "ai_monitor": "Monitoring & Analytics",
       "ai_gateway": "AI Gateway",
       "ai_gateway_api": "AI Gateway",
-      "ai_quota": "Quota Management"
+      "ai_quota": "Quota Management",
+      "ai_conversation": "Conversation Monitor",
+      "ai_agent": "Agent Management",
+      "ai_tool": "Tool Management"
     },
     "tenant": {
       "dashboard": "Dashboard",
@@ -50,7 +53,11 @@
       "ai_quota": "Quota Management",
       "ai_usage": "Usage Statistics",
       "ai_call_log": "Call Logs",
-      "ai_gateway": "AI Gateway"
+      "ai_gateway": "AI Gateway",
+      "agent": "Agent Management",
+      "agent_tool": "Tool Management",
+      "agent_chat": "Agent Chat",
+      "agent_conversation": "Conversation Management"
     }
   }
 }

@@ -6,14 +6,17 @@ AI 网关调用 API (Tenant)
 
 from fastapi import Request
 
+from app.ai.exceptions import AIGatewayError
 from app.ai.gateway import AIGateway
+from app.ai.quota import QuotaExceeded
+from app.ai.rate_limiter import RateLimitExceeded
 from app.ai.utils import parse_provider_and_model, parse_messages
 from app.core.base_controller import TenantController
 from app.core.deps import DbSession, ActiveTenantAdmin
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
-from app.exceptions import ExternalServiceException, BusinessException
+from app.exceptions import ExternalServiceException, BusinessException, NotFoundException
 from app.rbac.decorators import (
     permission_resource,
     action_create,
@@ -77,6 +80,8 @@ class TenantAIGatewayController(TenantController):
                     user_id=tenant_admin.id,
                 )
                 return success(data=response.__dict__, message=_("common.success"))
+            except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
+                raise
             except Exception as e:
                 raise ExternalServiceException(message=_("ai.error.call_failed") + f": {str(e)}")
 
@@ -114,6 +119,8 @@ class TenantAIGatewayController(TenantController):
                     user_id=tenant_admin.id,
                 )
                 return response
+            except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
+                raise
             except Exception as e:
                 raise ExternalServiceException(message=_("ai.error.call_failed") + f": {str(e)}")
 
@@ -141,6 +148,8 @@ class TenantAIGatewayController(TenantController):
                     tenant_id=tenant_admin.tenant_id,
                 )
                 return success(data=response.__dict__, message=_("common.success"))
+            except (AIGatewayError, RateLimitExceeded, QuotaExceeded, NotFoundException, BusinessException):
+                raise
             except Exception as e:
                 raise ExternalServiceException(message=_("ai.error.embedding_failed") + f": {str(e)}")
 

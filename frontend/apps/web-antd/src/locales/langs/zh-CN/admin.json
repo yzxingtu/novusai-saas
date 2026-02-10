@@ -190,6 +190,8 @@
     "selectAll": "全选",
     "unselectAll": "取消全选",
     "createdAt": "创建时间",
-    "unlimited": "无限制"
+    "unlimited": "无限制",
+    "toggleStatus": "切换状态",
+    "edit": "编辑"
   }
 }

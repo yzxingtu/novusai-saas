@@ -23,6 +23,10 @@ from app.api.tenant.ai_gateway import router as ai_gateway_router, TenantAIGatew
 from app.api.tenant.ai_quotas import router as ai_quotas_router, TenantAIQuotaController
 from app.api.tenant.ai_usage import router as ai_usage_router, TenantAIUsageController
 from app.api.tenant.ai_call_logs import router as ai_call_logs_router, TenantAICallLogController
+from app.api.tenant.agents import router as agents_router, TenantAgentController
+from app.api.tenant.conversations import router as conversations_router, TenantConversationController
+from app.api.tenant.tools import router as tools_router, TenantToolController
+from app.api.tenant.agent_chat import router as agent_chat_router, TenantAgentChatController
 
 # 创建租户管理后台路由器
 tenant_router = APIRouter()
@@ -43,6 +47,14 @@ tenant_router.include_router(ai_gateway_router)
 tenant_router.include_router(ai_quotas_router)
 tenant_router.include_router(ai_usage_router)
 tenant_router.include_router(ai_call_logs_router)
+# 智能体
+tenant_router.include_router(agents_router)
+# 对话管理
+tenant_router.include_router(conversations_router)
+# 工具管理
+tenant_router.include_router(tools_router)
+# 智能体对话
+tenant_router.include_router(agent_chat_router)
 
 
 __all__ = [
@@ -62,4 +74,12 @@ __all__ = [
     "TenantAIQuotaController",
     "TenantAIUsageController",
     "TenantAICallLogController",
+    # 智能体
+    "TenantAgentController",
+    # 对话管理
+    "TenantConversationController",
+    # 工具管理
+    "TenantToolController",
+    # 智能体对话
+    "TenantAgentChatController",
 ]

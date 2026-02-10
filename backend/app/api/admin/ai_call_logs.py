@@ -93,20 +93,31 @@ class AdminAICallLogController(GlobalController):
             tenant_id: Optional[int] = Query(None, description="租户 ID"),
             start_date: Optional[date] = Query(None, description="开始日期"),
             end_date: Optional[date] = Query(None, description="结束日期"),
-            group_by: Optional[str] = Query("daily", description="分组维度: daily/model/user"),
+            group_by: Optional[str] = Query(None, description="分组维度: daily/model/user，缺省返回汇总"),
         ):
             """
             获取调用统计信息
 
+            不传 group_by 时返回单个汇总 dict；
+            传 group_by=daily/model/user 时返回分组列表
+
             权限: ai_call_log:statistics
             """
             repo = AICallLogRepository(db)
-            statistics = await repo.get_statistics(
-                tenant_id=tenant_id,
-                start_date=start_date,
-                end_date=end_date,
-                group_by=group_by,
-            )
+
+            if group_by is None:
+                statistics = await repo.get_overall_summary(
+                    tenant_id=tenant_id,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+            else:
+                statistics = await repo.get_statistics(
+                    tenant_id=tenant_id,
+                    start_date=start_date,
+                    end_date=end_date,
+                    group_by=group_by,
+                )
 
             return success(data=statistics, message=_("common.success"))
 

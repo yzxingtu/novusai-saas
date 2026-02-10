@@ -654,6 +654,185 @@ export interface TestAIGatewayResult {
 // API 接口 - AI 网关测试
 // ============================================================
 
+// ============================================================
+// 类型定义 - 智能体管理
+// ============================================================
+
+/** 智能体信息 */
+export interface AIAgentInfo {
+  id: number;
+  tenant_id: number;
+  name: string;
+  description: null | string;
+  avatar: null | string;
+  status: string;
+  execution_mode: string;
+  model_id: number;
+  model_name: null | string;
+  published_version: null | number;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================
+// 类型定义 - 工具定义管理
+// ============================================================
+
+/** 工具定义信息 */
+export interface AIToolInfo {
+  id: number;
+  tenant_id: null | number;
+  name: string;
+  description: null | string;
+  type: string;
+  is_system: boolean;
+  is_active: boolean;
+  timeout: number;
+  input_schema: null | Record<string, unknown>;
+  output_schema: null | Record<string, unknown>;
+  config: null | Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 创建系统工具请求 */
+export interface AIToolCreateRequest {
+  name: string;
+  description?: null | string;
+  type?: string;
+  input_schema?: null | Record<string, unknown>;
+  output_schema?: null | Record<string, unknown>;
+  config?: null | Record<string, unknown>;
+  timeout?: number;
+  is_active?: boolean;
+}
+
+/** 更新系统工具请求 */
+export interface AIToolUpdateRequest {
+  name?: null | string;
+  description?: null | string;
+  type?: null | string;
+  input_schema?: null | Record<string, unknown>;
+  output_schema?: null | Record<string, unknown>;
+  config?: null | Record<string, unknown>;
+  timeout?: null | number;
+  is_active?: boolean | null;
+}
+
+// ============================================================
+// API 接口 - 智能体管理（平台）
+// ============================================================
+
+const AGENT_PREFIX = '/admin/ai/agents';
+
+/** 获取智能体列表 */
+export async function getAIAgentListApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<PageResponse<AIAgentInfo>> {
+  return requestClient.get<PageResponse<AIAgentInfo>>(
+    AGENT_PREFIX,
+    { params, ...options },
+  );
+}
+
+/** 获取智能体详情 */
+export async function getAIAgentDetailApi(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<AIAgentInfo> {
+  return requestClient.get<AIAgentInfo>(
+    `${AGENT_PREFIX}/${id}`,
+    options,
+  );
+}
+
+/** 更新智能体状态 */
+export async function updateAIAgentStatusApi(
+  id: number,
+  status: string,
+  options?: ApiRequestOptions,
+): Promise<AIAgentInfo> {
+  return requestClient.put<AIAgentInfo>(
+    `${AGENT_PREFIX}/${id}/status`,
+    {},
+    { params: { status }, ...options },
+  );
+}
+
+// ============================================================
+// API 接口 - 工具定义管理（平台）
+// ============================================================
+
+const TOOL_PREFIX = '/admin/ai/tools';
+
+/** 获取工具定义列表 */
+export async function getAIToolListApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<PageResponse<AIToolInfo>> {
+  return requestClient.get<PageResponse<AIToolInfo>>(
+    TOOL_PREFIX,
+    { params, ...options },
+  );
+}
+
+/** 获取工具定义详情 */
+export async function getAIToolDetailApi(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<AIToolInfo> {
+  return requestClient.get<AIToolInfo>(
+    `${TOOL_PREFIX}/${id}`,
+    options,
+  );
+}
+
+/** 创建系统工具 */
+export async function createAIToolApi(
+  data: AIToolCreateRequest,
+  options?: ApiRequestOptions,
+): Promise<AIToolInfo> {
+  return requestClient.post<AIToolInfo>(
+    TOOL_PREFIX,
+    data,
+    options,
+  );
+}
+
+/** 更新系统工具 */
+export async function updateAIToolApi(
+  id: number,
+  data: AIToolUpdateRequest,
+  options?: ApiRequestOptions,
+): Promise<AIToolInfo> {
+  return requestClient.put<AIToolInfo>(
+    `${TOOL_PREFIX}/${id}`,
+    data,
+    options,
+  );
+}
+
+/** 删除系统工具 */
+export async function deleteAIToolApi(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.delete(`${TOOL_PREFIX}/${id}`, options);
+}
+
+/** 切换工具状态 */
+export async function toggleAIToolStatusApi(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<AIToolInfo> {
+  return requestClient.put<AIToolInfo>(
+    `${TOOL_PREFIX}/${id}/status`,
+    {},
+    options,
+  );
+}
+
 /** 测试 AI 模型连通性 */
 export async function testAIGatewayApi(
   data: TestAIGatewayRequest,
@@ -766,4 +945,51 @@ export async function deleteAIQuotaApi(
   options?: ApiRequestOptions,
 ): Promise<void> {
   await requestClient.delete(`${QUOTA_PREFIX}/${id}`, options);
+}
+
+// ============================================================
+// 类型定义 - 对话监控
+// ============================================================
+
+/** 管理端对话列表项 */
+export interface AIConversationInfo {
+  id: number;
+  tenant_id: number;
+  agent_id: number;
+  user_id: number | null;
+  title: string | null;
+  status: string;
+  token_count: number;
+  cost: number;
+  agent_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================
+// API 接口 - 对话监控
+// ============================================================
+
+const CONV_PREFIX = '/admin/ai/conversations';
+
+/** 获取全租户对话列表 */
+export async function getAIConversationListApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<PageResponse<AIConversationInfo>> {
+  return requestClient.get<PageResponse<AIConversationInfo>>(
+    CONV_PREFIX,
+    { params, ...options },
+  );
+}
+
+/** 获取对话详情 */
+export async function getAIConversationDetailApi(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<Record<string, unknown>> {
+  return requestClient.get<Record<string, unknown>>(
+    `${CONV_PREFIX}/${id}`,
+    options,
+  );
 }

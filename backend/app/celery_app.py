@@ -69,6 +69,7 @@ celery_app.conf.task_modules = [
     "app.tasks",
     "app.tasks.scheduled",
     "app.tasks.ai_health_check",
+    "app.tasks.agent_batch",
 ]
 
 # ========================================
@@ -97,8 +98,18 @@ celery_app.conf.beat_schedule = {
         "options": {"queue": "scheduled"},
     },
     "ai-provider-health-check": {
-        "task": "tasks.ai.health_check",
+        "task": "app.tasks.ai_health_check.ai_provider_health_check",
         "schedule": 300.0,
+        "options": {"queue": "scheduled"},
+    },
+    "reset-agent-daily-quotas": {
+        "task": "app.tasks.scheduled.reset_agent_daily_quotas",
+        "schedule": 86400.0,
+        "options": {"queue": "scheduled"},
+    },
+    "reset-agent-daily-stats": {
+        "task": "app.tasks.scheduled.reset_agent_daily_stats",
+        "schedule": 86400.0,
         "options": {"queue": "scheduled"},
     },
 }

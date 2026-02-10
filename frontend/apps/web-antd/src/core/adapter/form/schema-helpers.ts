@@ -585,9 +585,9 @@ export function inputField(
 export function textareaField(
   fieldName: string,
   label: string,
-  options: { maxLength?: number; placeholder?: string; rows?: number } = {},
+  options: { maxLength?: number; placeholder?: string; required?: boolean; rows?: number } = {},
 ): VbenFormSchema {
-  const { placeholder, rows = 3, maxLength } = options;
+  const { placeholder, required = false, rows = 3, maxLength } = options;
 
   return {
     component: 'Textarea',
@@ -598,6 +598,7 @@ export function textareaField(
     },
     fieldName,
     label,
+    ...(required ? { rules: 'required' } : {}),
   };
 }
 

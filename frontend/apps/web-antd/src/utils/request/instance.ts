@@ -189,6 +189,10 @@ function createConfiguredClient(
     responseReturn: 'data',
   });
 
+  // SSE 请求通过 fetch 发送，不经过 Axios 拦截器，
+  // 需要显式设置 Token 获取函数
+  client.setTokenGetter(tokenGetter.getToken);
+
   if (withInterceptors) {
     // 请求拦截器
     client.addRequestInterceptor(

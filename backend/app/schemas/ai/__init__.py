@@ -23,6 +23,28 @@ from app.schemas.ai.call_log import (
     AICallLogResponse,
     AICallLogSummary,
 )
+from app.schemas.ai.agent import (
+    AgentCreate,
+    AgentUpdate,
+    AgentResponse,
+    AgentListItem,
+)
+from app.schemas.ai.conversation_message import (
+    ConversationMessageCreate,
+    ConversationMessageResponse,
+)
+from app.schemas.ai.tool_definition import (
+    ToolDefinitionCreate,
+    ToolDefinitionUpdate,
+    ToolDefinitionResponse,
+    ToolTestRequest,
+    ToolTestResponse,
+)
+from app.schemas.ai.batch_run import (
+    BatchRunCreate,
+    BatchRunResponse,
+    BatchRunProgress,
+)
 
 __all__ = [
     # Provider
@@ -40,4 +62,22 @@ __all__ = [
     # Call Log
     "AICallLogResponse",
     "AICallLogSummary",
+    # Agent
+    "AgentCreate",
+    "AgentUpdate",
+    "AgentResponse",
+    "AgentListItem",
+    # ConversationMessage
+    "ConversationMessageCreate",
+    "ConversationMessageResponse",
+    # ToolDefinition
+    "ToolDefinitionCreate",
+    "ToolDefinitionUpdate",
+    "ToolDefinitionResponse",
+    "ToolTestRequest",
+    "ToolTestResponse",
+    # BatchRun
+    "BatchRunCreate",
+    "BatchRunResponse",
+    "BatchRunProgress",
 ]

@@ -25,6 +25,16 @@ from app.enums.billing import BillingCycle
 from app.enums.log import UserTypeEnum, LogModuleEnum, LogCategoryEnum
 from app.enums.attachment import AttachmentVisibility, AttachmentStatus, AttachmentSource
 from app.enums.task import TaskStatusEnum, ScheduleTypeEnum, TaskScopeEnum
+from app.enums.agent import (
+    AgentStatusEnum,
+    AgentExecutionModeEnum,
+    ToolTypeEnum,
+    ConversationStatusEnum,
+    MessageRoleEnum,
+    AgentVisibilityEnum,
+    AccessTypeEnum,
+    BatchRunStatusEnum,
+)
 
 __all__ = [
     # 基类
@@ -63,4 +73,13 @@ __all__ = [
     "TaskStatusEnum",
     "ScheduleTypeEnum",
     "TaskScopeEnum",
+    # 智能体
+    "AgentStatusEnum",
+    "AgentExecutionModeEnum",
+    "ToolTypeEnum",
+    "ConversationStatusEnum",
+    "MessageRoleEnum",
+    "AgentVisibilityEnum",
+    "AccessTypeEnum",
+    "BatchRunStatusEnum",
 ]

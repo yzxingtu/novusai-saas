@@ -190,6 +190,8 @@
     "selectAll": "Select All",
     "unselectAll": "Unselect All",
     "createdAt": "Created At",
-    "unlimited": "Unlimited"
+    "unlimited": "Unlimited",
+    "toggleStatus": "Toggle Status",
+    "edit": "Edit"
   }
 }

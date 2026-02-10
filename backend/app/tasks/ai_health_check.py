@@ -9,12 +9,13 @@ import json
 import time
 from datetime import datetime
 
-from celery import shared_task
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker, Session
 
 from app.core.config import settings
 from app.core.logging import LogManager
+from app.core.i18n import _
+from app.tasks.base import register_task, BaseTask
 
 logger = LogManager.get_logger("tasks.ai")
 
@@ -48,13 +49,13 @@ def _get_redis():
     return redis.from_url(settings.redis_url, decode_responses=True)
 
 
-@shared_task(
-    bind=True,
-    name="tasks.ai.health_check",
+@register_task(
     queue="scheduled",
+    description="AI 供应商健康检查",
+    max_retries=1,
     ignore_result=True,
 )
-def ai_provider_health_check(self):
+def ai_provider_health_check(self: BaseTask):
     """
     AI 供应商健康检查
 
@@ -76,15 +77,15 @@ def ai_provider_health_check(self):
         result = db.execute(stmt)
         providers = result.scalars().all()
 
-        logger.info("Starting health check for %d providers", len(providers))
+        logger.info(_("ai.log.health_check_start"), provider_count=len(providers))
 
         for provider in providers:
             _check_provider_health(provider, db, redis_client)
 
-        logger.info("Health check completed for %d providers", len(providers))
+        logger.info(_("ai.log.health_check_completed"), provider_count=len(providers))
 
     except Exception as e:
-        logger.error("Health check task failed: %s", str(e))
+        logger.error(_("ai.log.health_check_task_failed"), error=str(e))
         raise
     finally:
         db.close()
@@ -122,10 +123,10 @@ def _check_provider_health(provider, db: Session, redis_client):
         api_key = result.scalar_one_or_none()
 
         if not api_key:
-            error_message = "No active platform API key"
+            error_message = _("ai.log.health_no_api_key")
             logger.warning(
-                "No API key for provider %s, skip health check",
-                provider.code,
+                _("ai.log.health_skip_no_key"),
+                provider=provider.code,
             )
         else:
             # 发送轻量级测试请求
@@ -140,9 +141,9 @@ def _check_provider_health(provider, db: Session, redis_client):
         error_message = str(e)
         response_time_ms = int((time.time() - start_time) * 1000)
         logger.error(
-            "Health check failed for provider %s: %s",
-            provider.code,
-            str(e),
+            _("ai.log.health_check_provider_failed"),
+            provider=provider.code,
+            error=str(e),
         )
 
     # 读取当前状态获取连续失败次数
@@ -193,12 +194,12 @@ def _check_provider_health(provider, db: Session, redis_client):
     redis_client.zremrangebyscore(history_key, 0, cutoff)
     redis_client.expire(history_key, HEALTH_HISTORY_TTL)
 
-    status_text = "healthy" if is_healthy else f"unhealthy (failures: {consecutive_failures})"
     logger.info(
-        "Health check: provider=%s status=%s response_time=%dms",
-        provider.code,
-        status_text,
-        response_time_ms,
+        _("ai.log.health_check_result"),
+        provider=provider.code,
+        is_healthy=is_healthy,
+        consecutive_failures=consecutive_failures,
+        response_time_ms=response_time_ms,
     )
 
 

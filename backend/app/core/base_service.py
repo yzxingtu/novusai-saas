@@ -389,7 +389,13 @@ class BaseService(Generic[ModelType, RepoType]):
         """
         自动设置排序值
         
-        如果模型配置了 __sortable__ 且未传入排序值（或为 0），自动计算
+        如果模型配置了 __sortable__ 且包含排序字段配置（"field" 键），
+        且模型实际拥有该排序字段，才自动计算排序值。
+        
+        注意：__sortable__ 有两种用法：
+        1. 排序配置: {"field": "sort_order", "step": 1000, "scope_fields": []}
+        2. 字段白名单: {"id": "id", "name": "name", ...}（仅用于 JSON:API 排序）
+        只有第一种才需要自动设置排序值。
         
         Args:
             data: 创建数据字典（可修改）
@@ -398,8 +404,16 @@ class BaseService(Generic[ModelType, RepoType]):
         if not sortable:
             return
         
+        # 只有包含 "field" 键的才是排序配置，否则只是字段白名单
+        if "field" not in sortable:
+            return
+        
         sort_field = sortable.get("field", "sort_order")
         scope_fields = sortable.get("scope_fields", [])
+        
+        # 模型上必须有该排序字段
+        if not hasattr(self.model, sort_field):
+            return
         
         # 检查是否已传入有效的排序值
         current_value = data.get(sort_field)

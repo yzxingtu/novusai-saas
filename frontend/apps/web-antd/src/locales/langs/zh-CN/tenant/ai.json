@@ -98,6 +98,11 @@
       "success": "成功",
       "failed": "失败",
       "timeout": "超时"
+    },
+    "filter": {
+      "all": "全部",
+      "onlySuccess": "仅成功",
+      "onlyFailed": "仅失败"
     }
   },
   "quota": {
@@ -142,6 +147,273 @@
       "updateSuccess": "配额更新成功",
       "deleteSuccess": "配额已删除"
     }
+  },
+  "agent": {
+    "title": "智能体管理",
+    "name": "智能体名称",
+    "description": "描述",
+    "status": "状态",
+    "executionMode": "执行模式",
+    "modelName": "关联模型",
+    "systemPrompt": "系统提示词",
+    "temperature": "温度",
+    "maxTokens": "最大 Token",
+    "topP": "Top P",
+    "welcomeMessage": "欢迎语",
+    "suggestedQuestions": "推荐问题 (JSON)",
+    "toolBindings": "工具绑定 (JSON)",
+    "createdAt": "创建时间",
+    "create": "创建智能体",
+    "publish": "发布",
+    "confirmDelete": "确认删除此智能体？",
+    "status_options": {
+      "draft": "草稿",
+      "published": "已发布",
+      "disabled": "已禁用"
+    },
+    "mode_options": {
+      "conversation": "对话模式",
+      "task": "任务模式",
+      "batch": "批处理",
+      "api": "API 模式"
+    },
+    "placeholder": {
+      "searchName": "搜索智能体名称",
+      "allStatuses": "全部状态",
+      "allModes": "全部模式",
+      "inputName": "请输入智能体名称",
+      "selectModel": "请选择 AI 模型",
+      "selectMode": "请选择执行模式",
+      "inputSystemPrompt": "请输入系统提示词，定义智能体的行为和角色",
+      "inputDescription": "请输入描述",
+      "inputTemperature": "0-2，值越高输出越随机",
+      "inputMaxTokens": "最大生成 Token 数量",
+      "inputTopP": "0-1，与 temperature 配合使用",
+      "inputWelcomeMessage": "用户首次打开对话时的欢迎语",
+      "inputSuggestedQuestions": "JSON 数组格式，如: [\"\u95ee\u98981\", \"\u95ee\u98982\"]",
+      "inputToolBindings": "JSON 数组格式，如: [{'{'}\"tool_id\": 1{'}'}]"
+    },
+    "help": {
+      "suggestedQuestions": "用户初次进入对话时显示的推荐问题，帮助用户快速开始",
+      "toolBindings": "绑定智能体可调用的工具，每个元素包含 tool_id 字段",
+      "inputVariables": "定义用户在发起对话前需要填写的变量，可用于模板化提示词"
+    },
+    "inputVariables": {
+      "title": "输入变量",
+      "label": "变量定义 (JSON)",
+      "placeholder": "JSON 数组格式，如: [{'{'}\"name\": \"topic\", \"label\": \"主题\", \"type\": \"text\", \"required\": true{'}'}]"
+    },
+    "contextConfig": {
+      "title": "上下文窗口",
+      "maxHistoryMessages": "最大历史消息条数",
+      "maxHistoryTokens": "最大历史 Token 数",
+      "placeholder": {
+        "maxHistoryMessages": "默认 20，0 使用系统默认",
+        "maxHistoryTokens": "0 表示不限制"
+      }
+    },
+    "quotaConfig": {
+      "title": "配额设置",
+      "conversationsPerDay": "每日对话上限",
+      "tokensPerDay": "每日 Token 上限",
+      "tokensPerMonth": "每月 Token 上限",
+      "maxTurnsPerConversation": "单次对话最大轮次",
+      "maxConcurrent": "最大并发数",
+      "userConversationsPerDay": "用户每日对话上限",
+      "placeholder": {
+        "conversationsPerDay": "0 表示不限制",
+        "tokensPerDay": "0 表示不限制",
+        "tokensPerMonth": "0 表示不限制",
+        "maxTurnsPerConversation": "默认 50",
+        "maxConcurrent": "默认 10",
+        "userConversationsPerDay": "0 表示不限制"
+      }
+    },
+    "messages": {
+      "createSuccess": "智能体创建成功",
+      "updateSuccess": "智能体更新成功",
+      "deleteSuccess": "智能体已删除",
+      "publishSuccess": "智能体发布成功",
+      "rollbackSuccess": "已回滚到版本 {version}",
+      "rollbackConfirm": "确认回滚到版本 {version}？当前草稿配置将被覆盖。"
+    },
+    "version": {
+      "title": "版本历史",
+      "version": "版本",
+      "changeLog": "变更说明",
+      "createdBy": "发布人",
+      "createdAt": "发布时间",
+      "current": "当前版本",
+      "rollback": "回滚",
+      "diff": "版本对比",
+      "detail": "版本详情",
+      "noVersions": "暂无发布版本",
+      "publishTitle": "发布智能体",
+      "publishDesc": "发布将冻结当前配置为新版本",
+      "changeLogPlaceholder": "请输入本次变更说明（可选）",
+      "diffTitle": "版本对比: v{v1} ↔ v{v2}",
+      "field": "字段",
+      "oldValue": "旧值",
+      "newValue": "新值",
+      "noDiff": "两个版本配置完全相同",
+      "selectVersion": "选择对比版本"
+    },
+    "access": {
+      "title": "访问权限",
+      "visibility": "可见性",
+      "accessType": "访问类型",
+      "orgNodes": "组织节点",
+      "users": "指定用户",
+      "visibility_options": {
+        "public": "公开",
+        "private": "私有"
+      },
+      "access_type_options": {
+        "all_users": "所有用户",
+        "org_node": "指定组织节点",
+        "specific_users": "指定用户",
+        "api_only": "仅 API"
+      },
+      "placeholder": {
+        "selectOrgNodes": "请选择组织节点",
+        "inputUserIds": "输入用户 ID，多个用英文逗号分隔"
+      },
+      "messages": {
+        "updateSuccess": "访问权限更新成功"
+      },
+      "hint": {
+        "public": "所有租户用户均可使用此智能体",
+        "private": "仅授权用户可使用此智能体",
+        "all_users": "租户内所有登录用户可访问",
+        "org_node": "仅指定组织节点下的用户可访问",
+        "specific_users": "仅指定用户可访问",
+        "api_only": "仅通过 API 调用可访问，前端用户不可见"
+      }
+    },
+    "test": {
+      "title": "测试对话",
+      "placeholder": "输入消息进行测试...",
+      "send": "发送",
+      "stop": "停止生成",
+      "clear": "清空对话",
+      "thinking": "思考中...",
+      "toolCalling": "调用工具: {name}",
+      "toolSuccess": "工具调用成功",
+      "toolFailed": "工具调用失败",
+      "tokenUsage": "Token 用量: {count}",
+      "duration": "耗时: {ms}ms",
+      "streamError": "流式响应出错",
+      "notPublished": "智能体尚未发布，无法测试",
+      "conversationId": "对话 ID: {id}"
+    }
+  },
+  "conversation": {
+    "title": "对话标题",
+    "pageTitle": "对话管理",
+    "agentName": "智能体",
+    "status": "状态",
+    "tokenCount": "Token 数量",
+    "cost": "费用",
+    "createdAt": "创建时间",
+    "messageCount": "消息数",
+    "messageList": "消息列表",
+    "untitled": "未命名对话",
+    "viewDetail": "查看详情",
+    "detailTitle": "对话详情",
+    "archive": "归档",
+    "export": "导出",
+    "batchArchive": "批量归档",
+    "archiveBeforeDays": "归档多少天前的对话",
+    "confirmArchive": "确认归档此对话？归档后不可恢复为活跃状态。",
+    "batchArchiveWarning": "此操作将归档所选时间范围内的所有活跃对话，请谨慎操作。",
+    "placeholder": {
+      "searchTitle": "搜索对话标题",
+      "allStatuses": "全部状态"
+    },
+    "status_options": {
+      "active": "活跃",
+      "archived": "已归档"
+    },
+    "batchArchiveOptions": {
+      "days7": "7 天前",
+      "days14": "14 天前",
+      "days30": "30 天前",
+      "days60": "60 天前",
+      "days90": "90 天前"
+    },
+    "messages": {
+      "archiveSuccess": "对话已归档",
+      "exportSuccess": "导出成功",
+      "deleteSuccess": "对话已删除",
+      "batchArchiveSuccess": "已归档 {count} 条对话"
+    }
+  },
+  "tool": {
+    "title": "工具管理",
+    "name": "工具名称",
+    "type": "类型",
+    "description": "描述",
+    "inputSchema": "输入 Schema (JSON)",
+    "config": "配置 (JSON)",
+    "timeout": "超时 (秒)",
+    "isSystem": "来源",
+    "isActive": "启用状态",
+    "createdAt": "创建时间",
+    "systemTag": "系统内置",
+    "customTag": "自定义",
+    "create": "添加工具",
+    "testExecute": "测试执行",
+    "confirmDelete": "确认删除此工具定义？",
+    "type_options": {
+      "http": "HTTP",
+      "database": "数据库查询",
+      "email": "邮件",
+      "builtin": "内置"
+    },
+    "placeholder": {
+      "searchName": "搜索工具名称",
+      "allTypes": "全部类型",
+      "inputName": "请输入工具名称",
+      "selectType": "请选择工具类型",
+      "inputDescription": "请输入工具描述",
+      "inputTimeout": "超时秒数 (1-300)",
+      "inputSchema": "JSON Schema 格式，如: {\"type\": \"object\", \"properties\": {}}",
+      "inputConfig": "工具运行配置，JSON 格式"
+    },
+    "test": {
+      "arguments": "执行参数",
+      "argumentsPlaceholder": "请输入 JSON 格式的参数",
+      "run": "执行",
+      "success": "成功",
+      "failed": "失败",
+      "output": "输出结果",
+      "errorDetail": "错误详情",
+      "invalidJson": "参数格式错误，请输入有效的 JSON",
+      "executeFailed": "工具测试执行失败"
+    },
+    "messages": {
+      "createSuccess": "工具创建成功",
+      "updateSuccess": "工具更新成功",
+      "deleteSuccess": "工具已删除"
+    }
+  },
+  "chat": {
+    "title": "智能体对话",
+    "selectAgent": "选择智能体",
+    "noAgents": "暂无可用智能体",
+    "newConversation": "新对话",
+    "history": "历史对话",
+    "noHistory": "暂无历史对话",
+    "inputPlaceholder": "输入消息...",
+    "send": "发送",
+    "sending": "发送中...",
+    "thinking": "思考中...",
+    "deleteConversation": "删除对话",
+    "confirmDelete": "确认删除此对话？删除后不可恢复。",
+    "welcomeTitle": "开始对话",
+    "welcomeDesc": "选择左侧智能体，开始一段新的对话",
+    "stopGeneration": "停止生成",
+    "copySuccess": "已复制"
   },
   "rateLimit": {
     "title": "速率限制",

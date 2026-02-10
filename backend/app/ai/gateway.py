@@ -121,7 +121,7 @@ class AIGateway:
         start_time = time.time()
 
         # 获取供应商、API Key 和模型信息
-        provider, api_key = await self._get_provider_and_key(provider_code, tenant_id)
+        provider, api_key = await self.get_provider_and_key(provider_code, tenant_id)
         ai_model = await self._get_model(model, provider.id)
 
         if not ai_model:
@@ -148,14 +148,19 @@ class AIGateway:
                 logger.info(_("ai.log.cache_hit"), cache_key=cache_key)
                 return ChatResponse(**cached_response)
 
-        # 2. 检查速率限制（仅租户调用）
+        # 2. 原子检查+记录速率限制 + 检查配额（仅租户调用）
+        estimated_input = 0
         if tenant_id:
+            estimated_input = TokenCounter.count_messages_tokens(
+                [dataclasses.asdict(msg) for msg in messages]
+            )
             try:
-                await RateLimiter.check_rate_limit(
+                await RateLimiter.check_and_record(
                     tenant_id=tenant_id,
                     model_id=model_id,
                     rpm_limit=ai_model.rpm_limit,
                     tpm_limit=ai_model.tpm_limit,
+                    estimated_tokens=estimated_input,
                 )
             except RateLimitExceeded as e:
                 logger.warning(
@@ -165,12 +170,7 @@ class AIGateway:
                 )
                 raise
 
-        # 3. 检查配额（仅租户调用）
-        if tenant_id:
             try:
-                estimated_input = TokenCounter.count_messages_tokens(
-                    [dataclasses.asdict(msg) for msg in messages]
-                )
                 await self.quota_manager.check_quota(
                     tenant_id=tenant_id,
                     model_id=model_id,
@@ -203,6 +203,21 @@ class AIGateway:
             # 尝试故障转移到备用模型
             fallback_model = await self.failover.get_fallback_model(model_id)
             if not fallback_model:
+                await self._log_call_failure(
+                    error=original_error,
+                    start_time=start_time,
+                    provider=provider,
+                    model=model,
+                    model_id=model_id,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    top_p=top_p,
+                    tools=tools,
+                    request_type=RequestTypeEnum.CHAT.value,
+                    tenant_id=tenant_id,
+                    user_id=user_id,
+                )
                 raise
 
             logger.info(
@@ -212,7 +227,7 @@ class AIGateway:
             )
 
             try:
-                fb_provider, fb_api_key = await self._get_provider_and_key(
+                fb_provider, fb_api_key = await self.get_provider_and_key(
                     fallback_model.provider.code, tenant_id
                 )
                 response, retry_count, used_api_key = await self._call_with_retry(
@@ -243,6 +258,21 @@ class AIGateway:
                     _("ai.log.fallback_failed"),
                     fallback_model=fallback_model.code,
                 )
+                await self._log_call_failure(
+                    error=original_error,
+                    start_time=start_time,
+                    provider=provider,
+                    model=model,
+                    model_id=model_id,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    top_p=top_p,
+                    tools=tools,
+                    request_type=RequestTypeEnum.CHAT.value,
+                    tenant_id=tenant_id,
+                    user_id=user_id,
+                )
                 raise original_error
 
         # 5. 计算延迟和使用量
@@ -272,18 +302,20 @@ class AIGateway:
                     latency_ms=latency_ms,
                 )
 
-                # 记录速率限制
-                await RateLimiter.record_request(
+                # 调整 TPM（从预估调整为实际）
+                await RateLimiter.adjust_tpm_after_response(
                     tenant_id=tenant_id,
                     model_id=model_id,
-                    tokens=total_tokens,
+                    estimated_tokens=estimated_input,
+                    actual_tokens=total_tokens,
                 )
 
-                # 记录配额使用
-                await self.quota_manager.record_usage(
+                # 调整配额用量（从预估调整为实际）
+                await self.quota_manager.adjust_usage(
                     tenant_id=tenant_id,
                     model_id=model_id,
-                    tokens=total_tokens,
+                    estimated_tokens=estimated_input,
+                    actual_tokens=total_tokens,
                 )
 
                 # 构建请求数据（含重试信息）
@@ -357,6 +389,70 @@ class AIGateway:
             else:
                 data[key] = value
         return data
+
+    async def _log_call_failure(
+        self,
+        error: Exception,
+        start_time: float,
+        provider: AIProvider,
+        model: str,
+        model_id: int,
+        messages: list[ChatMessage],
+        temperature: float,
+        max_tokens: int | None,
+        top_p: float,
+        tools: list[dict] | None,
+        request_type: str,
+        tenant_id: int | None = None,
+        user_id: int | None = None,
+    ) -> None:
+        """
+        记录失败调用日志到 DB（用于审计追踪）
+
+        Args:
+            error: 异常对象
+            start_time: 调用开始时间
+            provider: AI 供应商
+            model: 模型名称
+            model_id: 模型 ID
+            messages: 消息列表
+            temperature: 温度参数
+            max_tokens: 最大 tokens
+            top_p: 核采样参数
+            tools: 工具列表
+            request_type: 请求类型
+            tenant_id: 租户 ID
+            user_id: 用户 ID
+        """
+        if not tenant_id:
+            return
+        try:
+            latency_ms = int((time.time() - start_time) * 1000)
+            request_data = {
+                "messages": [dataclasses.asdict(msg) for msg in messages],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "top_p": top_p,
+                "tools": tools,
+            }
+            await self.call_log_service.log_call_async(
+                tenant_id=tenant_id,
+                model_id=model_id,
+                provider_id=provider.id,
+                request_type=request_type,
+                request_data=request_data,
+                response_data={"error": str(error)},
+                input_tokens=0,
+                output_tokens=0,
+                total_tokens=0,
+                cost=0,
+                latency_ms=latency_ms,
+                status=CallStatusEnum.FAILED.value,
+                user_id=user_id,
+                user_type=UserTypeEnum.TENANT_ADMIN.value,
+            )
+        except Exception as log_err:
+            logger.error(_("ai.log.record_usage_failed"), error=str(log_err))
 
     async def _call_with_retry(
         self,
@@ -620,24 +716,26 @@ class AIGateway:
             RateLimitExceeded: 速率限制超出
             QuotaExceeded: 配额超出
         """
+        start_time = time.time()
+
         # 获取供应商、API Key 和模型信息（在创建生成器之前）
-        provider, api_key = await self._get_provider_and_key(provider_code, tenant_id)
+        provider, api_key = await self.get_provider_and_key(provider_code, tenant_id)
         ai_model = await self._get_model(model, provider.id)
 
         if not ai_model:
             raise NotFoundException(message=_("ai.error.model_not_found"))
 
-        # 速率限制检查（仅租户调用）
+        # 原子检查+记录速率限制 + 配额检查（仅租户调用）
         if tenant_id:
-            await RateLimiter.check_rate_limit(
+            estimated_input = TokenCounter.count_messages_tokens(
+                [dataclasses.asdict(msg) for msg in messages]
+            )
+            await RateLimiter.check_and_record(
                 tenant_id=tenant_id,
                 model_id=ai_model.id,
                 rpm_limit=ai_model.rpm_limit,
                 tpm_limit=ai_model.tpm_limit,
-            )
-            # 配额检查
-            estimated_input = TokenCounter.count_messages_tokens(
-                [dataclasses.asdict(msg) for msg in messages]
+                estimated_tokens=estimated_input,
             )
             await self.quota_manager.check_quota(
                 tenant_id=tenant_id,
@@ -753,6 +851,21 @@ class AIGateway:
                 # 主模型所有重试失败，尝试故障转移
                 fallback_model = await self.failover.get_fallback_model(ai_model.id)
                 if not fallback_model:
+                    await self._log_call_failure(
+                        error=original_error,
+                        start_time=start_time,
+                        provider=provider,
+                        model=model,
+                        model_id=ai_model.id,
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        top_p=top_p,
+                        tools=tools,
+                        request_type=RequestTypeEnum.CHAT.value,
+                        tenant_id=tenant_id,
+                        user_id=user_id,
+                    )
                     raise
 
                 logger.info(
@@ -762,7 +875,7 @@ class AIGateway:
                 )
 
                 try:
-                    fb_provider, fb_api_key = await self._get_provider_and_key(
+                    fb_provider, fb_api_key = await self.get_provider_and_key(
                         fallback_model.provider.code, tenant_id
                     )
                     fb_adapter = AdapterRegistry.create_adapter(
@@ -794,6 +907,21 @@ class AIGateway:
                     logger.warning(
                         _("ai.log.fallback_failed"),
                         fallback_model=fallback_model.code,
+                    )
+                    await self._log_call_failure(
+                        error=original_error,
+                        start_time=start_time,
+                        provider=provider,
+                        model=model,
+                        model_id=ai_model.id,
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        top_p=top_p,
+                        tools=tools,
+                        request_type=RequestTypeEnum.CHAT.value,
+                        tenant_id=tenant_id,
+                        user_id=user_id,
                     )
                     raise original_error
 
@@ -858,7 +986,7 @@ class AIGateway:
         start_time = time.time()
 
         # 获取供应商、API Key 和模型信息
-        provider, api_key = await self._get_provider_and_key(provider_code, tenant_id)
+        provider, api_key = await self.get_provider_and_key(provider_code, tenant_id)
         ai_model = await self._get_model(model, provider.id)
 
         if not ai_model:
@@ -866,14 +994,19 @@ class AIGateway:
 
         model_id = ai_model.id
 
-        # 1. 检查速率限制（仅租户调用）
+        # 1. 原子检查+记录速率限制 + 配额检查（仅租户调用）
+        estimated_input = 0
         if tenant_id:
+            estimated_input = TokenCounter.count_messages_tokens(
+                [{"role": "user", "content": t} for t in texts]
+            )
             try:
-                await RateLimiter.check_rate_limit(
+                await RateLimiter.check_and_record(
                     tenant_id=tenant_id,
                     model_id=model_id,
                     rpm_limit=ai_model.rpm_limit,
                     tpm_limit=ai_model.tpm_limit,
+                    estimated_tokens=estimated_input,
                 )
             except RateLimitExceeded as e:
                 logger.warning(
@@ -883,12 +1016,7 @@ class AIGateway:
                 )
                 raise
 
-        # 2. 检查配额（仅租户调用）
-        if tenant_id:
             try:
-                estimated_input = TokenCounter.count_messages_tokens(
-                    [{"role": "user", "content": t} for t in texts]
-                )
                 await self.quota_manager.check_quota(
                     tenant_id=tenant_id,
                     model_id=model_id,
@@ -946,23 +1074,25 @@ class AIGateway:
                     latency_ms=latency_ms,
                 )
 
-                # 记录速率限制
-                await RateLimiter.record_request(
+                # 调整 TPM（从预估调整为实际）
+                await RateLimiter.adjust_tpm_after_response(
                     tenant_id=tenant_id,
                     model_id=model_id,
-                    tokens=total_tokens,
+                    estimated_tokens=estimated_input,
+                    actual_tokens=total_tokens,
                 )
 
-                # 记录配额使用
-                await self.quota_manager.record_usage(
+                # 调整配额用量（从预估调整为实际）
+                await self.quota_manager.adjust_usage(
                     tenant_id=tenant_id,
                     model_id=model_id,
-                    tokens=total_tokens,
+                    estimated_tokens=estimated_input,
+                    actual_tokens=total_tokens,
                 )
 
                 # 构建请求数据
                 request_data = {
-                    "texts": texts[:3],  # 截断避免过大
+                    "texts": texts[:3],
                     "text_count": len(texts),
                 }
 
@@ -1151,7 +1281,7 @@ class AIGateway:
                 "provider": provider.code,
             }
 
-    async def _get_provider_and_key(
+    async def get_provider_and_key(
         self,
         provider_code: str,
         tenant_id: int | None = None,

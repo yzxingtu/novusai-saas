@@ -11,6 +11,16 @@ import { IconifyIcon, Plus } from '@vben/icons';
 
 import { Badge, Card, message, Modal, Progress, Switch, Tag, Tooltip } from 'ant-design-vue';
 
+/** 复制 Key 预览到剪贴板 */
+async function onCopyKeyPreview(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    message.success($t('admin.ai.apiKey.messages.copied'));
+  } catch {
+    message.error($t('admin.ai.apiKey.messages.copyFailed'));
+  }
+}
+
 import { useCrudPage } from '#/adapter/vxe-table';
 import {
   getAIApiKeyListApi,
@@ -86,14 +96,21 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
           </div>
         </template>
 
-        <!-- Key 预览列 -->
+        <!-- Key 预览列：带复制按钮 -->
         <template #keyPreview_cell="{ row }">
-          <code
-            v-if="row.key_preview"
-            class="rounded bg-accent px-1.5 py-0.5 text-xs"
-          >
-            {{ row.key_preview }}
-          </code>
+          <div v-if="row.key_preview" class="flex items-center gap-1">
+            <code class="rounded bg-accent px-1.5 py-0.5 text-xs">
+              {{ row.key_preview }}
+            </code>
+            <Tooltip :title="$t('admin.ai.apiKey.messages.copy')">
+              <button
+                class="flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:text-primary"
+                @click="onCopyKeyPreview(row.key_preview)"
+              >
+                <IconifyIcon icon="lucide:copy" class="size-3" />
+              </button>
+            </Tooltip>
+          </div>
           <span v-else class="text-muted-foreground">-</span>
         </template>
 

@@ -139,7 +139,10 @@
     "messages": {
       "toggleSuccess": "API Key status updated",
       "confirmEnable": "Are you sure to enable this API Key?",
-      "confirmDisable": "Are you sure to disable this API Key? AI calls using this key will fail."
+      "confirmDisable": "Are you sure to disable this API Key? AI calls using this key will fail.",
+      "copy": "Copy Key",
+      "copied": "Copied to clipboard",
+      "copyFailed": "Copy failed"
     }
   },
   "callLog": {
@@ -251,6 +254,109 @@
       "allTenants": "All Tenants",
       "allPeriods": "All Periods",
       "allTypes": "All Types"
+    }
+  },
+  "agent": {
+    "title": "Agent Management",
+    "name": "Agent Name",
+    "status": "Status",
+    "executionMode": "Execution Mode",
+    "modelName": "Model",
+    "tenantId": "Tenant",
+    "version": "Version",
+    "viewDetail": "View Detail",
+    "status_options": {
+      "draft": "Draft",
+      "published": "Published",
+      "disabled": "Disabled"
+    },
+    "mode_options": {
+      "conversation": "Conversation",
+      "task": "Task",
+      "batch": "Batch",
+      "api": "API"
+    },
+    "placeholder": {
+      "searchName": "Search agent name",
+      "allStatuses": "All Statuses",
+      "allModes": "All Modes",
+      "allTenants": "All Tenants"
+    },
+    "summary": {
+      "total": "Total",
+      "published": "Published",
+      "draft": "Draft",
+      "disabled": "Disabled"
+    },
+    "messages": {
+      "toggleSuccess": "Agent status updated",
+      "confirmPublish": "Are you sure to publish this agent?",
+      "confirmDisable": "Are you sure to disable this agent? It will no longer be available."
+    }
+  },
+  "tool": {
+    "title": "Tool Management",
+    "name": "Tool Name",
+    "description": "Description",
+    "type": "Tool Type",
+    "isSystem": "Scope",
+    "isActive": "Status",
+    "tenantId": "Tenant",
+    "timeout": "Timeout (s)",
+    "type_options": {
+      "http": "HTTP",
+      "database": "Database",
+      "email": "Email",
+      "code": "Code",
+      "builtin": "Builtin"
+    },
+    "create": "Add System Tool",
+    "scope": {
+      "system": "System",
+      "tenant": "Tenant"
+    },
+    "filter": {
+      "systemOnly": "System Only",
+      "tenantOnly": "Tenant Only"
+    },
+    "inputSchema": "Input Schema",
+    "outputSchema": "Output Schema",
+    "config": "Tool Configuration",
+    "placeholder": {
+      "searchName": "Search tool name",
+      "allTypes": "All Types",
+      "allScopes": "All Scopes",
+      "allTenants": "All Tenants",
+      "inputName": "Enter tool name",
+      "inputDescription": "Enter description",
+      "selectType": "Select tool type",
+      "inputTimeout": "Timeout in seconds",
+      "inputSchema": "Input parameter schema in JSON format",
+      "config": "Tool configuration in JSON format"
+    },
+    "section": {
+      "basic": "Basic Info",
+      "advanced": "Advanced Configuration"
+    }
+  },
+  "conversation": {
+    "title": "Conversation Monitor",
+    "agentName": "Agent",
+    "userId": "User ID",
+    "tenantId": "Tenant ID",
+    "status": "Status",
+    "cost": "Cost",
+    "createdAt": "Created At",
+    "viewDetail": "View Detail",
+    "status_options": {
+      "active": "Active",
+      "archived": "Archived",
+      "closed": "Closed"
+    },
+    "placeholder": {
+      "agentId": "Agent ID",
+      "allStatuses": "All Statuses",
+      "allTenants": "All Tenants"
     }
   },
   "health": {
