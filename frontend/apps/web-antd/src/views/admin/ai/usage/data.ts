@@ -2,57 +2,64 @@
  * AI 使用量统计 - 表格列和搜索配置
  */
 import type { VbenFormSchema } from '#/adapter/form';
-import type { VxeTableGridOptions } from '#/adapter/vxe-table';
+import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
+import type { AIUsageStatInfo } from '#/api/admin/ai';
 
-import { dateField, select } from '#/adapter/form';
+import { searchDateRange, select } from '#/adapter/form';
 import { getAIModelListApi } from '#/api/admin/ai';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
+import { formatCost, formatTokens } from '#/utils/format';
 
-/**
- * 格式化 Token 数量
- */
-export function formatTokens(tokens: number | null | undefined): string {
-  if (!tokens) return '0';
-  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(2)}M`;
-  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}K`;
-  return `${tokens}`;
+export { formatCost, formatTokens };
+
+export function getRequestTypeColor(type: string | undefined): string {
+  switch (type) {
+    case 'chat': return 'blue';
+    case 'embedding': return 'purple';
+    case 'image': return 'magenta';
+    default: return 'default';
+  }
 }
 
-/**
- * 格式化费用
- */
-export function formatCost(cost: number | null | undefined): string {
-  if (!cost) return '$0.00';
-  return `$${Number(cost).toFixed(4)}`;
+export function formatLatency(ms: number | null | undefined): string {
+  if (!ms) return '-';
+  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.round(ms)}ms`;
 }
 
 /**
  * 表格列定义
  */
-export function useColumns(): VxeTableGridOptions['columns'] {
+export function useColumns(
+  _onActionClick?: OnActionClickFn<AIUsageStatInfo>,
+): VxeTableGridOptions['columns'] {
   return [
     {
       field: 'stat_date',
       title: $t('admin.ai.usage.statDate'),
       width: 120,
       sortable: true,
+      slots: { default: 'statDate_cell' },
     },
     {
       field: 'tenant_name',
       title: $t('admin.ai.usage.tenantName'),
-      width: 140,
+      minWidth: 140,
+      slots: { default: 'tenantName_cell' },
     },
     {
       field: 'model_name',
       title: $t('admin.ai.usage.modelName'),
-      width: 140,
+      minWidth: 140,
+      slots: { default: 'modelName_cell' },
     },
     {
       field: 'request_type',
       title: $t('admin.ai.usage.requestType'),
-      width: 100,
+      width: 110,
       align: 'center',
+      slots: { default: 'requestType_cell' },
     },
     {
       field: 'total_tokens',
@@ -86,7 +93,7 @@ export function useColumns(): VxeTableGridOptions['columns'] {
     {
       field: 'success_count',
       title: $t('admin.ai.usage.successRate'),
-      width: 120,
+      width: 140,
       align: 'center',
       slots: { default: 'successRate_cell' },
     },
@@ -103,6 +110,7 @@ export function useColumns(): VxeTableGridOptions['columns'] {
       title: $t('admin.ai.usage.avgLatency'),
       width: 130,
       align: 'right',
+      slots: { default: 'avgLatency_cell' },
     },
   ];
 }
@@ -144,12 +152,9 @@ export function useGridFormSchema(): VbenFormSchema[] {
       ],
       placeholder: $t('admin.ai.usage.requestType'),
     }),
-    dateField('filter[stat_date][gte]', $t('admin.ai.usage.placeholder.startDate'), {
-      placeholder: $t('admin.ai.usage.placeholder.startDate'),
-      showTime: false,
-    }),
-    dateField('filter[stat_date][lte]', $t('admin.ai.usage.placeholder.endDate'), {
-      placeholder: $t('admin.ai.usage.placeholder.endDate'),
+    searchDateRange({
+      field: 'stat_date',
+      label: $t('admin.ai.usage.statDate'),
       showTime: false,
     }),
   ];

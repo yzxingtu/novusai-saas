@@ -93,11 +93,61 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         path="/ai",
         sort_order=25,
     ),
+
+    # ---- 工作空间（子目录） ----
+    PermissionMeta(
+        code="menu:tenant.ai_workspace",
+        name="menu.tenant.ai_workspace",  # i18n key
+        type=PermissionType.MENU,
+        scope=PermissionScope.TENANT,
+        resource="menu",
+        action="tenant.ai_workspace",
+        icon="lucide:bot",
+        path="/ai/workspace",
+        sort_order=10,
+        parent_code="menu:tenant.ai_mgmt",
+    ),
+    # 子菜单由控制器声明:
+    # - menu:tenant.agent (智能体管理)
+    # - menu:tenant.agent_chat (智能体对话)
+    # - menu:tenant.knowledge_base (知识库)
+    # - menu:tenant.agent_tool (工具管理)
+
+    # ---- 设置（子目录） ----
+    PermissionMeta(
+        code="menu:tenant.ai_settings",
+        name="menu.tenant.ai_settings",  # i18n key
+        type=PermissionType.MENU,
+        scope=PermissionScope.TENANT,
+        resource="menu",
+        action="tenant.ai_settings",
+        icon="lucide:settings",
+        path="/ai/settings",
+        sort_order=20,
+        parent_code="menu:tenant.ai_mgmt",
+    ),
     # 子菜单由控制器声明:
     # - menu:tenant.ai_config (AI 配置)
-    # - menu:tenant.ai_quota (API Key / 配额)
-    # - menu:tenant.ai_tenant_usage (用量统计)
-    # - menu:tenant.ai_tenant_call_log (调用日志)
+    # - menu:tenant.ai_quota (配额管理)
+
+    # ---- 数据分析（子目录） ----
+    PermissionMeta(
+        code="menu:tenant.ai_analytics",
+        name="menu.tenant.ai_analytics",  # i18n key
+        type=PermissionType.MENU,
+        scope=PermissionScope.TENANT,
+        resource="menu",
+        action="tenant.ai_analytics",
+        icon="lucide:bar-chart-3",
+        path="/ai/analytics",
+        sort_order=30,
+        parent_code="menu:tenant.ai_mgmt",
+    ),
+    # 子菜单由控制器声明:
+    # - menu:tenant.ai_usage (用量统计)
+    # - menu:tenant.ai_call_log (调用日志)
+    # - menu:tenant.agent_conversation (对话管理)
+    # - menu:tenant.ai_action_log (操作审计)
 
     # ========================================
     # 系统维护（目录）

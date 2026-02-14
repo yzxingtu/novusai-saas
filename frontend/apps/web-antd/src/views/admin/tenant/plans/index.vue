@@ -66,6 +66,7 @@ const { Grid, FormDrawer, ExportModal, gridApi, onCreate, onRefresh } =
     i18nPrefix: 'admin.tenant.plan',
     nameField: 'name',
     defaultSort: 'sort_order',
+    recycleBin: true,
     customActions: {
       permissions: handleSetPermissions,
     },

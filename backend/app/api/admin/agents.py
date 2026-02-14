@@ -10,15 +10,19 @@ from app.core.base_controller import GlobalController
 from app.core.deps import DbSession, ActiveAdmin, QueryParams
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.core.response import success, paginated
+from app.core.response import success, created, deleted, paginated
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
     permission_resource,
     MenuConfig,
     action_read,
+    action_create,
     action_update,
+    action_delete,
 )
+from app.schemas.ai.agent import AdminAgentCreate, AdminAgentUpdate
+from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.services.ai.agent_service import AgentService, AdminAgentService
 
 logger = LogManager.get_logger("ai")
@@ -40,8 +44,10 @@ def _build_admin_agent_item(agent) -> dict:
         "name": agent.name,
         "description": agent.description,
         "avatar": agent.avatar,
+        "scope": agent.scope,
         "status": agent.status,
         "execution_mode": agent.execution_mode,
+        "is_system": agent.is_system,
         "model_id": agent.model_id,
         "model_name": model_name,
         "published_version": agent.published_version,
@@ -58,8 +64,8 @@ def _build_admin_agent_item(agent) -> dict:
         icon="lucide:bot",
         path="/ai/agents",
         component="ai/agents/index",
-        parent="ai_mgmt",
-        sort_order=60,
+        parent="ai_app",
+        sort_order=10,
     ),
 )
 class AdminAgentController(GlobalController):
@@ -70,11 +76,19 @@ class AdminAgentController(GlobalController):
     """
 
     prefix = "/ai/agents"
-    tags = ["智能体管理（平台）"]
+    tags = [_("menu.tags.admin_agent_mgmt")]
 
     def _register_routes(self) -> None:
         """注册路由"""
         router = self.router
+
+        # 回收站路由必须在 /{id} 之前注册，避免路径冲突
+        register_admin_recycle_bin_routes(
+            router=router,
+            service_class=AdminAgentService,
+            resource_name="admin_agent",
+            serialize=_build_admin_agent_item,
+        )
 
         @router.get("", summary="全租户智能体列表")
         @action_read("action.ai_agent.list")
@@ -104,6 +118,87 @@ class AdminAgentController(GlobalController):
                 page=query.page,
                 page_size=query.size,
             )
+
+        @router.post("", summary="创建智能体（支持全局/租户/管理端专属）")
+        @action_create("action.ai_agent.create")
+        async def create_agent(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            body: AdminAgentCreate,
+        ):
+            """
+            管理端创建智能体
+
+            支持 3 种 scope:
+            - tenant: 属于指定租户（需提供 tenant_id）
+            - global: 全局共享（所有租户可见）
+            - admin: 仅管理端可见
+
+            权限: ai_agent:create
+            """
+            service = AdminAgentService(db)
+            data = body.model_dump(exclude_unset=True)
+            agent = await service.create(data)
+            await db.commit()
+            await db.refresh(agent)
+
+            return created(
+                data=_build_admin_agent_item(agent),
+                message=_("agent.created"),
+            )
+
+        @router.put("/{agent_id}", summary="更新智能体")
+        @action_update("action.ai_agent.update")
+        async def update_agent(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            admin: ActiveAdmin,
+            body: AdminAgentUpdate,
+        ):
+            """
+            管理端更新智能体
+
+            权限: ai_agent:update
+            """
+            service = AdminAgentService(db)
+            agent = await service.get_by_id(agent_id)
+            if not agent:
+                raise NotFoundException(message=_("agent.error.not_found"))
+
+            data = body.model_dump(exclude_unset=True)
+            agent = await service.update(agent_id, data)
+            await db.commit()
+            await db.refresh(agent)
+
+            return success(
+                data=_build_admin_agent_item(agent),
+                message=_("agent.updated"),
+            )
+
+        @router.delete("/{agent_id}", summary="删除智能体")
+        @action_delete("action.ai_agent.delete")
+        async def delete_agent(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            管理端删除智能体
+
+            权限: ai_agent:delete
+            """
+            service = AdminAgentService(db)
+            agent = await service.get_by_id(agent_id)
+            if not agent:
+                raise NotFoundException(message=_("agent.error.not_found"))
+
+            await service.delete(agent_id)
+            await db.commit()
+
+            return deleted(message=_("agent.deleted"))
 
         @router.get("/{agent_id}", summary="智能体详情")
         @action_read("action.ai_agent.detail")
@@ -152,6 +247,7 @@ class AdminAgentController(GlobalController):
                 data=_build_admin_agent_item(updated),
                 message=_("common.success"),
             )
+
 
 
 # 导出路由器

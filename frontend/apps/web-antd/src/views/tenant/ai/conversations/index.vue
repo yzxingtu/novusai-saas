@@ -65,14 +65,17 @@ async function onExport(row: ConversationInfo) {
 }
 
 async function onDelete(row: ConversationInfo) {
-  await deleteConversationApi(row.id);
-  message.success($t('tenant.ai.conversation.messages.deleteSuccess'));
-  gridReload();
+  Modal.confirm({
+    title: $t('tenant.ai.conversation.confirmDelete'),
+    async onOk() {
+      await deleteConversationApi(row.id);
+      message.success($t('tenant.ai.conversation.messages.deleteSuccess'));
+      gridReload();
+    },
+  });
 }
 
-let gridReload: () => void;
-
-const { Grid } = useCrudPage<ConversationInfo>({
+const { Grid, onRefresh: gridReload } = useCrudPage<ConversationInfo>({
   api: {
     list: getConversationListApi,
     delete: deleteConversationApi,
@@ -88,9 +91,6 @@ const { Grid } = useCrudPage<ConversationInfo>({
     export: onExport,
     delete: onDelete,
   },
-  onMounted(grid) {
-    gridReload = () => grid.commitProxy('query');
-  },
 });
 
 function onBatchArchiveSuccess() {
@@ -99,7 +99,7 @@ function onBatchArchiveSuccess() {
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-4">
+  <Page auto-content-height :description="$t('tenant.ai.conversation.pageDesc')" content-class="flex flex-col gap-4">
     <!-- 详情抽屉 -->
     <ConversationDetail
       v-model:open="detailOpen"

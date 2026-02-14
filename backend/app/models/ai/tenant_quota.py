@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
 from app.core.i18n import _
+from app.enums.ai import QuotaPeriodEnum, QuotaTypeEnum
 
 
 class TenantQuota(TenantModel):
@@ -54,7 +55,7 @@ class TenantQuota(TenantModel):
     period: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="monthly",
+        default=QuotaPeriodEnum.MONTHLY.value,
         index=True,
         comment=_("enum.tenant_quota.period")
     )
@@ -70,7 +71,7 @@ class TenantQuota(TenantModel):
     quota_type: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="soft",
+        default=QuotaTypeEnum.SOFT.value,
         index=True,
         comment=_("enum.tenant_quota.quota_type")
     )

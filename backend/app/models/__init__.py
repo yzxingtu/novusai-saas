@@ -19,6 +19,8 @@ from app.models.system import (
     OperationLog,
     TaskLog,
     PeriodicTask,
+    Plugin,
+    TenantPlugin,
 )
 
 # 租户级模型
@@ -53,10 +55,15 @@ from app.models.ai import (
     Agent,
     AgentConversation,
     ConversationMessage,
-    ToolDefinition,
     BatchRun,
     AgentVersion,
     AgentAccess,
+    AIActionLog,
+    AITablePolicy,
+    AITablePolicyOverride,
+    SkillPackage,
+    Skill,
+    AgentSkillBinding,
 )
 
 __all__ = [
@@ -68,6 +75,8 @@ __all__ = [
     "OperationLog",
     "TaskLog",
     "PeriodicTask",
+    "Plugin",
+    "TenantPlugin",
     # 租户级
     "Tenant",
     "TenantAdmin",
@@ -94,12 +103,19 @@ __all__ = [
     "Agent",
     "AgentConversation",
     "ConversationMessage",
-    # 工具定义
-    "ToolDefinition",
     # 批量运行
     "BatchRun",
     # 智能体版本
     "AgentVersion",
     # 智能体访问权限
     "AgentAccess",
+    # AI 操作审计日志
+    "AIActionLog",
+    # AI 表策略
+    "AITablePolicy",
+    "AITablePolicyOverride",
+    # 技能包 & 技能
+    "SkillPackage",
+    "Skill",
+    "AgentSkillBinding",
 ]

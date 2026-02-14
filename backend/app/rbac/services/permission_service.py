@@ -84,8 +84,8 @@ class PermissionService:
         if admin.is_super:
             result = await self.db.execute(
                 select(Permission.id).where(
-                    Permission.is_enabled == True,
-                    Permission.is_deleted == False,
+                    Permission.is_enabled.is_(True),
+                    Permission.is_deleted.is_(False),
                     Permission.scope.in_(["admin", "both"]),
                 )
             )
@@ -127,7 +127,7 @@ class PermissionService:
         # 超级管理员可以管理所有角色
         if admin.is_super:
             result = await self.db.execute(
-                select(AdminRole.id).where(AdminRole.is_deleted == False)
+                select(AdminRole.id).where(AdminRole.is_deleted.is_(False))
             )
             return set(result.scalars().all())
 
@@ -146,7 +146,7 @@ class PermissionService:
         leader_roles_result = await self.db.execute(
             select(AdminRole.id).where(
                 AdminRole.leader_id == admin.id,
-                AdminRole.is_deleted == False,
+                AdminRole.is_deleted.is_(False),
             )
         )
         leader_role_ids = set(leader_roles_result.scalars().all())
@@ -169,7 +169,7 @@ class PermissionService:
         # 超级管理员可以看到所有角色
         if admin.is_super:
             result = await self.db.execute(
-                select(AdminRole.id).where(AdminRole.is_deleted == False)
+                select(AdminRole.id).where(AdminRole.is_deleted.is_(False))
             )
             return set(result.scalars().all())
         
@@ -239,8 +239,8 @@ class PermissionService:
                 .where(
                     Permission.parent_id.in_(menu_ids),
                     Permission.type == "operation",
-                    Permission.is_enabled == True,
-                    Permission.is_deleted == False,
+                    Permission.is_enabled.is_(True),
+                    Permission.is_deleted.is_(False),
                 )
             )
             for child in child_result.scalars().all():
@@ -333,8 +333,8 @@ class PermissionService:
                 # 无套餐：返回所有租户端权限（tenant/both 作用域）
                 result = await self.db.execute(
                     select(Permission.id).where(
-                        Permission.is_enabled == True,
-                        Permission.is_deleted == False,
+                        Permission.is_enabled.is_(True),
+                        Permission.is_deleted.is_(False),
                         Permission.scope.in_(["tenant", "both"]),
                     )
                 )
@@ -382,7 +382,7 @@ class PermissionService:
             result = await self.db.execute(
                 select(TenantAdminRole.id).where(
                     TenantAdminRole.tenant_id == tenant_admin.tenant_id,
-                    TenantAdminRole.is_deleted == False,
+                    TenantAdminRole.is_deleted.is_(False),
                 )
             )
             return set(result.scalars().all())
@@ -403,7 +403,7 @@ class PermissionService:
             select(TenantAdminRole.id).where(
                 TenantAdminRole.tenant_id == tenant_admin.tenant_id,
                 TenantAdminRole.leader_id == tenant_admin.id,
-                TenantAdminRole.is_deleted == False,
+                TenantAdminRole.is_deleted.is_(False),
             )
         )
         leader_role_ids = set(leader_roles_result.scalars().all())
@@ -429,7 +429,7 @@ class PermissionService:
             result = await self.db.execute(
                 select(TenantAdminRole.id).where(
                     TenantAdminRole.tenant_id == tenant_admin.tenant_id,
-                    TenantAdminRole.is_deleted == False,
+                    TenantAdminRole.is_deleted.is_(False),
                 )
             )
             return set(result.scalars().all())
@@ -535,8 +535,8 @@ class PermissionService:
         result = await self.db.execute(
             select(Permission)
             .where(
-                Permission.is_enabled == True,
-                Permission.is_deleted == False,
+                Permission.is_enabled.is_(True),
+                Permission.is_deleted.is_(False),
                 Permission.scope.in_([scope, "both"]),
             )
             .order_by(Permission.sort_order)
@@ -628,8 +628,8 @@ class PermissionService:
             select(Permission)
             .where(
                 Permission.id.in_(effective_ids),
-                Permission.is_enabled == True,
-                Permission.is_deleted == False,
+                Permission.is_enabled.is_(True),
+                Permission.is_deleted.is_(False),
             )
             .order_by(Permission.sort_order)
         )
@@ -661,8 +661,8 @@ class PermissionService:
             select(Permission)
             .where(
                 Permission.id.in_(effective_ids),
-                Permission.is_enabled == True,
-                Permission.is_deleted == False,
+                Permission.is_enabled.is_(True),
+                Permission.is_deleted.is_(False),
             )
             .order_by(Permission.sort_order)
         )
@@ -691,8 +691,8 @@ class PermissionService:
         # 超级管理员返回所有权限
         if admin.is_super:
             query = select(Permission).where(
-                Permission.is_enabled == True,
-                Permission.is_deleted == False,
+                Permission.is_enabled.is_(True),
+                Permission.is_deleted.is_(False),
                 Permission.scope.in_(["admin", "both"]),
             )
             if perm_type:
@@ -709,8 +709,8 @@ class PermissionService:
             
             query = select(Permission).where(
                 Permission.id.in_(effective_ids),
-                Permission.is_enabled == True,
-                Permission.is_deleted == False,
+                Permission.is_enabled.is_(True),
+                Permission.is_deleted.is_(False),
             )
             if perm_type:
                 query = query.where(Permission.type == perm_type)
@@ -761,8 +761,8 @@ class PermissionService:
         
         query = select(Permission).where(
             Permission.id.in_(effective_ids),
-            Permission.is_enabled == True,
-            Permission.is_deleted == False,
+            Permission.is_enabled.is_(True),
+            Permission.is_deleted.is_(False),
         )
         if perm_type:
             query = query.where(Permission.type == perm_type)
@@ -812,8 +812,8 @@ class PermissionService:
                 select(Permission)
                 .where(
                     Permission.id.in_(parent_ids_to_fetch),
-                    Permission.is_enabled == True,
-                    Permission.is_deleted == False,
+                    Permission.is_enabled.is_(True),
+                    Permission.is_deleted.is_(False),
                 )
             )
             parents = list(result.scalars().all())
@@ -904,8 +904,8 @@ class PermissionService:
             select(Permission)
             .where(
                 Permission.id.in_(effective_ids),
-                Permission.is_enabled == True,
-                Permission.is_deleted == False,
+                Permission.is_enabled.is_(True),
+                Permission.is_deleted.is_(False),
             )
         )
         user_permissions = list(result.scalars().all())
@@ -967,8 +967,8 @@ class PermissionService:
             select(Permission)
             .where(
                 Permission.id.in_(effective_ids),
-                Permission.is_enabled == True,
-                Permission.is_deleted == False,
+                Permission.is_enabled.is_(True),
+                Permission.is_deleted.is_(False),
             )
         )
         user_permissions = list(result.scalars().all())

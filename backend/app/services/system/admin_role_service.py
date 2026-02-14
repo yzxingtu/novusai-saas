@@ -263,7 +263,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         # 查询权限
         query = select(Permission).where(
             Permission.id.in_(permission_ids),
-            Permission.is_deleted == False,
+            Permission.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
         permissions = list(result.scalars().all())
@@ -343,7 +343,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         if leader_id:
             query = select(Admin).where(
                 Admin.id == leader_id,
-                Admin.is_deleted == False,
+                Admin.is_deleted.is_(False),
             )
             result = await self.db.execute(query)
             leader = result.scalar_one_or_none()
@@ -469,7 +469,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         # 获取管理员
         query = select(Admin).where(
             Admin.id == admin_id,
-            Admin.is_deleted == False,
+            Admin.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
         admin = result.scalar_one_or_none()
@@ -551,7 +551,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         # 获取管理员
         query = select(Admin).where(
             Admin.id == admin_id,
-            Admin.is_deleted == False,
+            Admin.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
         admin = result.scalar_one_or_none()
@@ -607,7 +607,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         # 获取管理员
         query = select(Admin).where(
             Admin.id == admin_id,
-            Admin.is_deleted == False,
+            Admin.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
         admin = result.scalar_one_or_none()
@@ -666,7 +666,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         # 获取管理员
         query = select(Admin).where(
             Admin.id == admin_id,
-            Admin.is_deleted == False,
+            Admin.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
         admin = result.scalar_one_or_none()
@@ -713,7 +713,7 @@ class AdminRoleService(GlobalService[AdminRole, AdminRoleRepository], RoleTreeMi
         # 获取管理员
         query = select(Admin).where(
             Admin.id == admin_id,
-            Admin.is_deleted == False,
+            Admin.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
         admin = result.scalar_one_or_none()

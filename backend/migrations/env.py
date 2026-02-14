@@ -41,14 +41,24 @@ from app.models import (
     Agent,
     AgentConversation,
     ConversationMessage,
-    # 工具定义
-    ToolDefinition,
     # 批量运行
     BatchRun,
     # 智能体版本
     AgentVersion,
     # 智能体访问权限
     AgentAccess,
+    # AI 操作审计日志
+    AIActionLog,
+    # AI 表策略
+    AITablePolicy,
+    AITablePolicyOverride,
+    # 技能包 & 技能
+    SkillPackage,
+    Skill,
+    AgentSkillBinding,
+    # 插件系统
+    Plugin,
+    TenantPlugin,
 )
 
 # Alembic 配置对象

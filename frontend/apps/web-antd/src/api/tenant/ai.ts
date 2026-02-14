@@ -452,3 +452,55 @@ export async function getTenantProviderSelectOptions(): Promise<TenantProviderOp
     return [];
   }
 }
+
+// ============================================================
+// AI 表策略覆盖
+// ============================================================
+
+/** 有效策略（全局 + 租户覆盖合并） */
+export interface EffectiveTablePolicy {
+  id: number;
+  table_name: string;
+  label: string;
+  description: string;
+  allow_read: boolean;
+  allow_create: boolean;
+  allow_update: boolean;
+  allow_delete: boolean;
+  max_rows: number;
+  blocked_columns: string[];
+  scope: string;
+  permission_code: string;
+  is_active: boolean;
+  override_id: null | number;
+  has_override: boolean;
+}
+
+/** 覆盖更新请求 */
+export interface TablePolicyOverrideRequest {
+  allow_read?: boolean;
+  allow_create?: boolean;
+  allow_update?: boolean;
+  allow_delete?: boolean;
+  max_rows?: number;
+  blocked_columns?: string[];
+  is_active?: boolean;
+}
+
+/** 获取当前租户的有效策略列表 */
+export async function getTenantTablePoliciesApi() {
+  return requestClient.get<EffectiveTablePolicy[]>('/tenant/ai/table-policies');
+}
+
+/** 创建/更新策略覆盖 */
+export async function upsertTablePolicyOverrideApi(
+  policyId: number,
+  data: TablePolicyOverrideRequest,
+) {
+  return requestClient.put(`/tenant/ai/table-policies/${policyId}/override`, data);
+}
+
+/** 删除策略覆盖（恢复全局） */
+export async function removeTablePolicyOverrideApi(policyId: number) {
+  return requestClient.delete(`/tenant/ai/table-policies/${policyId}/override`);
+}

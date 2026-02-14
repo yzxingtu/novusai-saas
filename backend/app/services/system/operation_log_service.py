@@ -315,7 +315,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         
         # 查询所有子角色（path 以当前角色 path 开头的）
         child_roles_query = select(AdminRole.id).where(
-            AdminRole.is_deleted == False,
+            AdminRole.is_deleted.is_(False),
             AdminRole.path.like(f"{current_role_path}%"),
         )
         result = await self.db.execute(child_roles_query)
@@ -324,7 +324,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         # 如果有子角色，查询这些角色下的所有成员
         if child_role_ids:
             admins_query = select(AdminModel.id).where(
-                AdminModel.is_deleted == False,
+                AdminModel.is_deleted.is_(False),
                 AdminModel.role_id.in_(child_role_ids),
             )
             result = await self.db.execute(admins_query)
@@ -366,7 +366,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         
         # 查询同租户内所有子角色（path 以当前角色 path 开头的）
         child_roles_query = select(TenantAdminRole.id).where(
-            TenantAdminRole.is_deleted == False,
+            TenantAdminRole.is_deleted.is_(False),
             TenantAdminRole.tenant_id == tenant_admin.tenant_id,
             TenantAdminRole.path.like(f"{current_role_path}%"),
         )
@@ -376,7 +376,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         # 如果有子角色，查询这些角色下的所有成员
         if child_role_ids:
             admins_query = select(TenantAdminModel.id).where(
-                TenantAdminModel.is_deleted == False,
+                TenantAdminModel.is_deleted.is_(False),
                 TenantAdminModel.tenant_id == tenant_admin.tenant_id,
                 TenantAdminModel.role_id.in_(child_role_ids),
             )

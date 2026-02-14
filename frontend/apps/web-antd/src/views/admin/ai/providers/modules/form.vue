@@ -35,7 +35,7 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
       sort_order: values.sort_order ?? 0,
       is_active: values.is_active ?? true,
     };
-    if (edit) {
+    if (!edit) {
       result.code = values.code;
     }
     return result;

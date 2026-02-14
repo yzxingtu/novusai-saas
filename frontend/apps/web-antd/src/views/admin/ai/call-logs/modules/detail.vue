@@ -26,19 +26,13 @@ const loading = ref(false);
 const detail = ref<AICallLogInfo | null>(null);
 
 watch(
-  () => props.logId,
-  async (id) => {
-    if (id && visible.value) {
+  [() => props.logId, visible],
+  async ([id, isVisible]) => {
+    if (id && isVisible) {
       await loadDetail(id);
     }
   },
 );
-
-watch(visible, async (val) => {
-  if (val && props.logId) {
-    await loadDetail(props.logId);
-  }
-});
 
 async function loadDetail(id: number) {
   loading.value = true;

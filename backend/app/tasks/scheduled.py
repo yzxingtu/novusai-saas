@@ -71,7 +71,8 @@ def system_health_check(self: BaseTask) -> dict:
     session = None
     try:
         session = sync_session_factory()
-        session.execute("SELECT 1")
+        from sqlalchemy import text
+        session.execute(text("SELECT 1"))
         results["db"] = "connected"
     except Exception as e:
         results["db"] = f"error: {e}"

@@ -5,6 +5,7 @@
   },
   "provider": {
     "title": "Provider Management",
+    "pageDesc": "Manage AI provider connections including API endpoints and status. Drag to adjust priority.",
     "name": "Provider Name",
     "code": "Provider Code",
     "type": "Provider Type",
@@ -37,6 +38,16 @@
       "noResults": "No matching icons found",
       "searchTip": "Type keywords to search icons"
     },
+    "help": {
+      "baseUrl": "The provider's API endpoint URL, e.g. https://api.openai.com/v1. Different providers have different URLs; self-hosted services need the actual address",
+      "type": "Currently only OpenAI-compatible format is supported. Most AI services (including Anthropic, Azure) are compatible",
+      "isActive": "When disabled, all models under this provider become unavailable and existing API calls will fail"
+    },
+    "summary": {
+      "total": "Total Providers",
+      "active": "Active",
+      "models": "Total Models"
+    },
     "messages": {
       "toggleSuccess": "Provider status updated",
       "confirmEnable": "Are you sure to enable this provider?",
@@ -45,6 +56,7 @@
   },
   "model": {
     "title": "Model Management",
+    "pageDesc": "Add and manage AI models. Auto-fill from remote when creating. Fallback models take over when primary is offline.",
     "name": "Model Name",
     "code": "Model Code",
     "type": "Model Type",
@@ -101,6 +113,16 @@
       "embedding": "Embedding",
       "image": "Image"
     },
+    "help": {
+      "code": "The model's API call code, e.g. gpt-4, claude-3-opus-20240229. Must match the code accepted by the provider's API",
+      "type": "Chat models for conversation and text generation; embedding models for knowledge base document vectorization; image models for image generation",
+      "contextWindow": "Maximum tokens the model can process (input + output). GPT-4 is 128K, Claude 3 is 200K",
+      "maxOutputTokens": "Maximum output tokens per request. Setting too high may increase cost and latency",
+      "functionCalling": "When enabled, the model can call tool functions. Requires the model to natively support Function Calling",
+      "fallbackModel": "Automatically switches to fallback model when current model is unavailable, ensuring service continuity",
+      "rpmLimit": "Maximum requests per minute. Requests exceeding this limit are throttled to protect the provider API",
+      "tpmLimit": "Maximum tokens per minute. Controls the total token consumption rate"
+    },
     "messages": {
       "toggleSuccess": "Model status updated",
       "confirmEnable": "Are you sure to enable this model?",
@@ -109,6 +131,7 @@
   },
   "apiKey": {
     "title": "API Key Management",
+    "pageDesc": "Manage platform and tenant-level API keys. Leave tenant empty for platform-wide shared keys.",
     "name": "Key Name",
     "providerId": "Provider",
     "providerName": "Provider",
@@ -118,6 +141,8 @@
     "keyPreview": "Key Preview",
     "isActive": "Status",
     "isAvailable": "Available",
+    "available": "Available",
+    "unavailable": "Unavailable",
     "usageLimit": "Usage Limit",
     "usageCount": "Used Count",
     "lastUsedAt": "Last Used",
@@ -136,6 +161,18 @@
       "allProviders": "All Providers",
       "inputUsageLimit": "Leave empty for unlimited"
     },
+    "help": {
+      "apiKey": "The API secret key from the provider. Stored encrypted. Cannot be viewed in full after creation",
+      "tenantId": "Leave empty for a platform-level key (shared by all tenants). Select a tenant for an exclusive key",
+      "usageLimit": "Maximum call count for this key. Automatically marked unavailable when reached. Leave empty for unlimited",
+      "isActive": "When manually disabled, this key is excluded from load balancing. Useful for temporarily pausing a key"
+    },
+    "summary": {
+      "total": "Total Keys",
+      "active": "Active",
+      "expiringSoon": "Expiring Soon",
+      "expired": "Expired"
+    },
     "messages": {
       "toggleSuccess": "API Key status updated",
       "confirmEnable": "Are you sure to enable this API Key?",
@@ -147,6 +184,7 @@
   },
   "callLog": {
     "title": "Call Logs",
+    "pageDesc": "View all tenant AI call records including token usage, cost, and response time.",
     "requestType": "Request Type",
     "inputTokens": "Input Tokens",
     "outputTokens": "Output Tokens",
@@ -169,6 +207,12 @@
       "failed": "Failed",
       "timeout": "Timeout"
     },
+    "summary": {
+      "totalCalls": "Total Calls",
+      "successRate": "Success Rate",
+      "avgLatency": "Avg Latency",
+      "totalCost": "Total Cost"
+    },
     "viewDetail": "View Detail",
     "detail": {
       "title": "Call Log Detail",
@@ -184,6 +228,7 @@
   },
   "usage": {
     "title": "Usage Statistics",
+    "pageDesc": "Daily statistics of calls, token consumption, and costs by tenant and model.",
     "statDate": "Date",
     "tenantId": "Tenant",
     "tenantName": "Tenant",
@@ -196,6 +241,7 @@
     "callCount": "Calls",
     "successCount": "Success",
     "failedCount": "Failed",
+    "successRate": "Success Rate",
     "totalCost": "Total Cost",
     "avgLatency": "Avg Latency (ms)",
     "maxLatency": "Max Latency (ms)",
@@ -219,6 +265,7 @@
   },
   "quota": {
     "title": "Quota Management",
+    "pageDesc": "Set token usage quotas for tenants. Soft limits warn only; hard limits reject requests when reached.",
     "tenantId": "Tenant",
     "tenantName": "Tenant",
     "modelId": "Model",
@@ -258,13 +305,32 @@
   },
   "agent": {
     "title": "Agent Management",
+    "pageDesc": "Manage all agents. Create global, tenant-specific, or admin-only agents. Publish, disable, or delete.",
+    "system": "System",
+    "systemAgent": "System Agent",
+    "systemAgentDesc": "System agents are platform built-in. Core fields cannot be modified, and they cannot be deleted or disabled.",
+    "systemFieldLocked": "This field cannot be modified for system agents",
+    "isSystem": "System",
     "name": "Agent Name",
+    "avatar": "Avatar",
+    "description": "Description",
     "status": "Status",
+    "scopeLabel": "Scope",
     "executionMode": "Execution Mode",
     "modelName": "Model",
     "tenantId": "Tenant",
     "version": "Version",
+    "systemPrompt": "System Prompt",
+    "temperature": "Temperature",
+    "maxTokens": "Max Tokens",
+    "create": "Create Agent",
+    "noDescription": "No description",
     "viewDetail": "View Detail",
+    "scope": {
+      "tenant": "Tenant",
+      "global": "Global",
+      "admin": "Admin Only"
+    },
     "status_options": {
       "draft": "Draft",
       "published": "Published",
@@ -280,13 +346,20 @@
       "searchName": "Search agent name",
       "allStatuses": "All Statuses",
       "allModes": "All Modes",
-      "allTenants": "All Tenants"
+      "allTenants": "All Tenants",
+      "tenantId": "Enter tenant ID",
+      "allTypes": "All Types"
+    },
+    "type_options": {
+      "system": "System Agent",
+      "custom": "Custom Agent"
     },
     "summary": {
       "total": "Total",
       "published": "Published",
       "draft": "Draft",
-      "disabled": "Disabled"
+      "disabled": "Disabled",
+      "system": "System"
     },
     "messages": {
       "toggleSuccess": "Agent status updated",
@@ -294,60 +367,20 @@
       "confirmDisable": "Are you sure to disable this agent? It will no longer be available."
     }
   },
-  "tool": {
-    "title": "Tool Management",
-    "name": "Tool Name",
-    "description": "Description",
-    "type": "Tool Type",
-    "isSystem": "Scope",
-    "isActive": "Status",
-    "tenantId": "Tenant",
-    "timeout": "Timeout (s)",
-    "type_options": {
-      "http": "HTTP",
-      "database": "Database",
-      "email": "Email",
-      "code": "Code",
-      "builtin": "Builtin"
-    },
-    "create": "Add System Tool",
-    "scope": {
-      "system": "System",
-      "tenant": "Tenant"
-    },
-    "filter": {
-      "systemOnly": "System Only",
-      "tenantOnly": "Tenant Only"
-    },
-    "inputSchema": "Input Schema",
-    "outputSchema": "Output Schema",
-    "config": "Tool Configuration",
-    "placeholder": {
-      "searchName": "Search tool name",
-      "allTypes": "All Types",
-      "allScopes": "All Scopes",
-      "allTenants": "All Tenants",
-      "inputName": "Enter tool name",
-      "inputDescription": "Enter description",
-      "selectType": "Select tool type",
-      "inputTimeout": "Timeout in seconds",
-      "inputSchema": "Input parameter schema in JSON format",
-      "config": "Tool configuration in JSON format"
-    },
-    "section": {
-      "basic": "Basic Info",
-      "advanced": "Advanced Configuration"
-    }
-  },
   "conversation": {
     "title": "Conversation Monitor",
+    "pageDesc": "Monitor all tenant AI conversations with detail view and cost statistics.",
     "agentName": "Agent",
     "userId": "User ID",
     "tenantId": "Tenant ID",
     "status": "Status",
+    "tokenCount": "Token Count",
     "cost": "Cost",
     "createdAt": "Created At",
     "viewDetail": "View Detail",
+    "messageList": "Messages",
+    "messageCount": "Message Count",
+    "conversationTitle": "Conversation Title",
     "status_options": {
       "active": "Active",
       "archived": "Archived",
@@ -359,8 +392,48 @@
       "allTenants": "All Tenants"
     }
   },
+  "actionLog": {
+    "title": "Action Audit",
+    "pageDesc": "Audit all agent-executed operations including DB queries and business actions with full traceability.",
+    "actionName": "Action Name",
+    "actionType": "Action Type",
+    "actionLevel": "Safety Level",
+    "status": "Status",
+    "tenantId": "Tenant ID",
+    "agentName": "Agent",
+    "operatorId": "Operator",
+    "executionTime": "Duration",
+    "createdAt": "Created At",
+    "viewDetail": "View Detail",
+    "type_options": {
+      "query": "Query",
+      "action": "Action",
+      "confirm": "Confirm"
+    },
+    "status_options": {
+      "success": "Success",
+      "failed": "Failed",
+      "rejected": "Rejected",
+      "pending": "Pending"
+    },
+    "level_options": {
+      "read": "Read Only",
+      "safe_write": "Safe Write",
+      "dangerous": "Dangerous"
+    },
+    "error": "Error",
+    "requestData": "Request Data",
+    "responseData": "Response Data",
+    "placeholder": {
+      "searchName": "Search action name",
+      "allTypes": "All Types",
+      "allStatuses": "All Statuses",
+      "allLevels": "All Levels"
+    }
+  },
   "health": {
     "title": "Health Status",
+    "pageDesc": "Real-time monitoring of AI provider connectivity, response times, and failure counts.",
     "providers": "providers",
     "refresh": "Refresh",
     "responseTime": "Response Time",
@@ -371,6 +444,348 @@
       "healthy": "Healthy",
       "degraded": "Degraded",
       "unavailable": "Unavailable"
+    }
+  },
+  "chat": {
+    "title": "AI Chat",
+    "pageDesc": "Test conversations with published agents. Select an agent to start or continue a chat.",
+    "selectAgent": "Select Agent",
+    "noAgents": "No published agents available",
+    "newConversation": "New Chat",
+    "history": "History",
+    "noHistory": "No conversation history",
+    "inputPlaceholder": "Type a message...",
+    "send": "Send",
+    "sending": "Sending...",
+    "thinking": "Thinking...",
+    "deleteConversation": "Delete conversation",
+    "confirmDelete": "Are you sure to delete this conversation? This action cannot be undone.",
+    "welcomeTitle": "Start a Conversation",
+    "welcomeDesc": "Select an agent on the left to start chatting",
+    "stopGeneration": "Stop generating",
+    "copySuccess": "Copied",
+    "toolSuccess": "Done",
+    "toolFailed": "Failed",
+    "generating": "Generating response...",
+    "addAttachment": "Add Attachment",
+    "uploadFailed": "File upload failed",
+    "file": "File"
+  },
+  "guidePage": {
+    "title": "AI Gateway Management Guide",
+    "subtitle": "Learn how to configure and manage the AI gateway to provide AI capabilities for tenants",
+    "setupTitle": "Platform Setup Flow",
+    "setup": {
+      "step1": {
+        "title": "Add AI Provider",
+        "desc": "Configure provider (OpenAI, Anthropic, Azure, etc.) API base URLs. Also supports custom OpenAI-compatible providers"
+      },
+      "step2": {
+        "title": "Configure Models",
+        "desc": "Add specific models (e.g. GPT-4, Claude 3) for providers, set pricing and capability tags. One-click remote fetch supported"
+      },
+      "step3": {
+        "title": "Add API Key",
+        "desc": "Platform keys are shared by all tenants; tenant keys are exclusive. System auto-handles load balancing and availability"
+      },
+      "step4": {
+        "title": "Health Check",
+        "desc": "Verify provider connections and model availability. Real-time monitoring ensures stable operation"
+      }
+    },
+    "sectionsTitle": "Management Features",
+    "sections": {
+      "monitoring": {
+        "title": "Usage Monitoring",
+        "desc": "View token consumption, call counts, cost statistics. Supports analysis by tenant and model dimensions"
+      },
+      "security": {
+        "title": "Security & Audit",
+        "desc": "AI action logs, conversation review, sensitive operation tracking for compliance and security"
+      },
+      "infra": {
+        "title": "Infrastructure",
+        "desc": "Provider health status, model configuration, platform tool management, quota allocation"
+      }
+    },
+    "faqTitle": "FAQ",
+    "faq": {
+      "faq1": {
+        "q": "What's the difference between platform and tenant API keys?",
+        "a": "Platform keys are managed by platform admins and shared by all tenants. Tenant keys are self-managed and exclusive. The system prefers tenant keys and falls back to platform keys when unavailable."
+      },
+      "faq2": {
+        "q": "How do I monitor AI service status?",
+        "a": "The health check page shows real-time connection status for each provider and model. Call logs record all request details including latency, token counts, and errors."
+      },
+      "faq3": {
+        "q": "How do I control tenant AI usage?",
+        "a": "Use quota management to set token limits and call count limits per tenant. Rate limits (RPM/TPM) can be configured per model."
+      },
+      "faq4": {
+        "q": "Which AI providers are supported?",
+        "a": "Built-in support for OpenAI, Anthropic, and Azure OpenAI. Also supports any OpenAI API-compatible provider (Ollama, vLLM, self-hosted services, etc.)."
+      }
+    }
+  },
+  "guide": {
+    "title": "🚀 AI Gateway Quick Start",
+    "subtitle": "Follow these steps to configure the AI gateway so tenants can use AI capabilities",
+    "dismiss": "Don't show again",
+    "showGuide": "Quick Start",
+    "totalTime": "Estimated total time: 5~10 minutes",
+    "step1": {
+      "title": "Add Provider",
+      "desc": "Configure AI provider (e.g. OpenAI, Anthropic) API endpoints",
+      "detail": "Add a provider and configure the API base URL. Supports OpenAI, Anthropic, Azure and other major providers, plus custom OpenAI-compatible endpoints",
+      "time": "~2 min"
+    },
+    "step2": {
+      "title": "Configure Models",
+      "desc": "Add available AI models, supports one-click remote model fetch",
+      "detail": "Add specific models (e.g. GPT-4, Claude 3) for each provider. Manually add or one-click fetch remote list. Set pricing and capability tags",
+      "time": "~2 min"
+    },
+    "step3": {
+      "title": "Add API Key",
+      "desc": "Configure provider API keys, set as platform-wide or tenant-specific",
+      "detail": "Platform keys are shared across all tenants; tenant keys are exclusive. System auto-handles load balancing and availability detection",
+      "time": "~1 min"
+    },
+    "step4": {
+      "title": "Monitor & Run",
+      "desc": "Check health status, call logs, and usage stats to ensure stability",
+      "detail": "Health check page shows real-time provider connection status and model availability. Call logs record every request detail for troubleshooting",
+      "time": "~2 min"
+    }
+  },
+  "skillPackage": {
+    "title": "Skill Package Management",
+    "pageDesc": "Manage platform-wide skill packages. Each package contains multiple skills and can be assigned to agents as a whole.",
+    "system": "System",
+    "name": "Package Name",
+    "description": "Description",
+    "avatar": "Icon",
+    "scope": "Scope",
+    "isActive": "Status",
+    "skillCount": "Skills",
+    "sortOrder": "Sort Order",
+    "create": "New Skill Package",
+    "placeholder": {
+      "searchName": "Search package name",
+      "inputName": "Enter package name",
+      "inputDescription": "Enter description",
+      "selectScope": "Select scope",
+      "selectTenant": "Select tenant",
+      "allScopes": "All scopes"
+    },
+    "scope_options": {
+      "tenant": "Specific Tenant",
+      "admin": "Admin Only",
+      "global": "Global"
+    },
+    "tenantId": "Tenant",
+    "help": {
+      "scope": "Admin Only: visible to admin only; Specific Tenant: visible to that tenant only; Global: visible to admin and all tenants"
+    },
+    "sourcePlugin": "Plugin",
+    "uploadZip": "Upload Skill Package",
+    "uploadDragText": "Click or drag a ZIP file here to upload",
+    "uploadDesc": "Supports standard skill package ZIP files containing SKILL.md",
+    "messages": {
+      "toggleSuccess": "Package status updated",
+      "confirmEnable": "Confirm enable this package?",
+      "confirmDisable": "Confirm disable this package?",
+      "uploadSuccess": "Skill package uploaded successfully",
+      "uploading": "Uploading..."
+    },
+    "detail": {
+      "title": "Package Details",
+      "skills": "Skills in Package",
+      "empty": "No skills yet, click the button above to add"
+    },
+    "valves": {
+      "configBtn": "Env Config",
+      "title": "Environment Variable Configuration",
+      "description": "Configure the environment variables required by this skill package. Fields marked in red are required. Sensitive values (like secrets) are displayed as password fields.",
+      "required": "Required",
+      "sensitiveHint": "Sensitive information, keep it safe",
+      "noSchema": "This skill package has no configurable environment variables",
+      "saveSuccess": "Environment variable configuration saved"
+    }
+  },
+  "skill": {
+    "title": "Skill Management",
+    "pageDesc": "Manage platform-wide skills including HTTP, email, code, knowledge base, data intelligence and more.",
+    "system": "System",
+    "name": "Skill Name",
+    "description": "Description",
+    "avatar": "Icon",
+    "type": "Skill Type",
+    "scope": "Scope",
+    "isActive": "Active",
+    "tenantId": "Tenant",
+    "timeout": "Timeout (s)",
+    "sortOrder": "Sort Order",
+    "create": "Add Skill",
+    "type_options": {
+      "toolkit": "Toolkit",
+      "knowledge_base": "Knowledge Base",
+      "data_intelligence": "Data Intelligence",
+      "builtin": "Built-in"
+    },
+    "scope_options": {
+      "tenant": "Specific Tenant",
+      "admin": "Admin Only",
+      "global": "Global"
+    },
+    "filter": {
+      "adminOnly": "Admin only",
+      "tenantOnly": "Tenant only"
+    },
+    "typeDesc": {
+      "toolkit": "Python Toolkit: Write a Tools class in the editor below. Each method is auto-registered as an LLM-callable tool. Supports Valves config and ZIP upload.",
+      "knowledge_base": "RAG Document Q&A: Link knowledge bases for automatic semantic retrieval and context injection. Select knowledge bases and tune retrieval parameters below.",
+      "data_intelligence": "Data Intelligence: Query databases via natural language using Text-to-SQL, with CRUD support. Select accessible table policies below.",
+      "builtin": "Built-in Tools: System-predefined tools, not editable. View the tool list below after creation."
+    },
+    "knowledgeBaseConfig": {
+      "title": "Knowledge Base Config",
+      "selectKb": "Knowledge Bases",
+      "selectKbPlaceholder": "Select knowledge bases",
+      "selectKbHelp": "Select knowledge bases this skill can access, multiple allowed",
+      "ragEnabled": "Enable RAG",
+      "topK": "Top K",
+      "scoreThreshold": "Score Threshold",
+      "searchMode": "Search Mode",
+      "rewriteStrategy": "Rewrite Strategy",
+      "rerankerEnabled": "Enable Reranker",
+      "contextTokenRatio": "Context Token Ratio",
+      "searchModeOptions": {
+        "vector": "Vector Search",
+        "keyword": "Keyword Search",
+        "hybrid": "Hybrid Search"
+      },
+      "rewriteOptions": {
+        "none": "None",
+        "hypothetical": "Hypothetical Document",
+        "step_back": "Step Back"
+      }
+    },
+    "builtinTools": {
+      "title": "Built-in Tools",
+      "hint": "Built-in tools are system-defined and read-only. Tool list is shown below.",
+      "toolList": "Tool List"
+    },
+    "toolkitEditor": {
+      "title": "Toolkit Editor",
+      "sourceCode": "Source",
+      "preview": "Parse Preview",
+      "tools": "Tool Methods",
+      "valves": "Valves Config",
+      "noTools": "No tool methods detected",
+      "noValves": "No Valves config defined",
+      "parameters": "Parameters",
+      "required": "Required",
+      "optional": "Optional",
+      "async": "Async",
+      "type": "Type",
+      "default": "Default",
+      "errors": "Parse Errors",
+      "parsing": "Parsing...",
+      "templateBlank": "Blank Template",
+      "templateExample": "Example Template",
+      "uploadFile": "Upload File",
+      "properties": "Properties",
+      "requiredFields": "Required Fields",
+      "onlyPyFiles": "Only .py files are supported"
+    },
+    "dataIntelligenceConfig": {
+      "title": "Data Intelligence Config",
+      "tablePolicies": "Table Policies",
+      "tablePoliciesPlaceholder": "Select accessible table policies",
+      "tablePoliciesHelp": "Select data table policies this skill can access, leave empty to use all available",
+      "maxRowsOverride": "Max Rows",
+      "maxRowsOverrideHelp": "Override default query row limit, 0 means use default",
+      "systemHint": "This is a system-wide shared skill that automatically uses all configured table policies.",
+      "toolListTitle": "Available Tools",
+      "tools": {
+        "dataQuery": "Query database using natural language, auto-generates safe SQL and returns results",
+        "dataCreate": "Insert new records into the specified table",
+        "dataUpdate": "Update existing records in the specified table",
+        "dataDelete": "Delete records from the specified table"
+      }
+    },
+    "placeholder": {
+      "searchName": "Search skill name",
+      "allTypes": "All types",
+      "allScopes": "All scopes",
+      "allTenants": "All tenants",
+      "inputName": "Enter skill name",
+      "inputDescription": "Enter description",
+      "selectType": "Select skill type",
+      "selectScope": "Select scope",
+      "selectTenant": "Select tenant",
+      "inputTimeout": "Timeout in seconds",
+      "inputConfig": "Skill configuration in JSON format",
+      "inputSchema": "Input parameter definition in JSON format"
+    },
+    "createGuide": "A skill is a capability unit for agents, belonging to a skill package. Select a type and configure parameters as guided, then bind it to an agent to use.",
+    "help": {
+      "type": "Toolkit: custom Python tools; Knowledge Base: RAG document Q&A; Data Intelligence: database query & CRUD; Builtin: system-predefined tools",
+      "scope": "Platform skills are globally available, tenant skills are limited to their tenant",
+      "config": "Runtime configuration for the skill",
+      "inputSchema": "Define the parameter structure the skill accepts",
+      "timeout": "Maximum execution time for the skill"
+    },
+    "testBtn": "Test",
+    "exportBtn": "Export",
+    "importBtn": "Import",
+    "messages": {
+      "toggleSuccess": "Skill status updated",
+      "confirmEnable": "Are you sure you want to enable this skill?",
+      "confirmDisable": "Are you sure you want to disable this skill?",
+      "testFailed": "Test request failed, please try again later",
+      "exportSuccess": "Skills exported successfully",
+      "exportFailed": "Failed to export skills",
+      "noSkillsToExport": "No skills to export",
+      "importConfirm": "Import {count} skills? Duplicate names will be skipped.",
+      "importResult": "Import complete: {created} created, {skipped} skipped",
+      "importFailed": "Failed to import skills",
+      "importInvalid": "Invalid file format, please upload a valid JSON file"
+    }
+  },
+  "tablePolicy": {
+    "title": "AI Table Policy Management",
+    "pageDesc": "Manage tables accessible to AI data queries, including CRUD permissions, row limits, and column blocking. Policies are auto-discovered and created by the system; admins can edit and adjust. The admin side has full access to all tables, while tenants can only access tenant-scoped tables.",
+    "tableName": "Table Name",
+    "label": "Display Name",
+    "description": "Description",
+    "keywords": "Keywords / Aliases",
+    "columnDescriptions": "Column Descriptions",
+    "allowRead": "Allow Read",
+    "allowCreate": "Allow Create",
+    "allowUpdate": "Allow Update",
+    "allowDelete": "Allow Delete",
+    "maxRows": "Max Rows",
+    "blockedColumns": "Blocked Columns",
+    "readonlyColumns": "Readonly Columns",
+    "permissionCode": "Permission Code",
+    "sortOrder": "Sort Order",
+    "isActive": "Active",
+    "crud": "CRUD Permissions",
+    "sync": "Sync Tables",
+    "syncSuccess": "Sync complete: {new} new, {existing} existing",
+    "syncConfirm": "Scan database and sync table policies? Existing policies will not be overwritten.",
+    "placeholder": {
+      "searchTableName": "Search table name",
+      "searchLabel": "Search display name",
+      "inputLabel": "Enter display name",
+      "inputDescription": "Enter table description",
+      "inputMaxRows": "Enter max rows",
+      "inputPermissionCode": "Enter permission code",
+      "selectBlockedColumns": "Select columns to block",
+      "selectReadonlyColumns": "Select readonly columns"
     }
   }
 }

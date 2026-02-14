@@ -35,7 +35,7 @@ from app.services.ai import AIModelService, AIProviderService, ProviderApiKeySer
         icon="lucide:settings-2",
         path="/ai/config",
         component="ai/config/index",
-        parent="ai_mgmt",
+        parent="ai_settings",
         sort_order=10,
     ),
 )
@@ -47,7 +47,7 @@ class TenantAIConfigController(TenantController):
     """
 
     prefix = "/ai/config"
-    tags = ["AI 配置"]
+    tags = [_("menu.tags.tenant_ai_config")]
 
     def _register_routes(self) -> None:
         """注册路由"""
@@ -96,7 +96,7 @@ class TenantAIConfigController(TenantController):
             权限: ai_config:keys
             """
             service = ProviderApiKeyService(db)
-            keys = await service.repo.get_keys_by_provider(
+            keys = await service.get_keys_by_provider(
                 provider_id=None,
                 tenant_id=tenant_admin.tenant_id,
             )

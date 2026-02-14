@@ -4,7 +4,7 @@
 提供 AgentAccess 的数据访问操作（基于租户隔离）
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import select, and_
 
@@ -21,7 +21,7 @@ class AgentAccessRepository(TenantRepository[AgentAccess]):
 
     model = AgentAccess
 
-    async def get_by_agent_id(self, agent_id: int) -> Optional[AgentAccess]:
+    async def get_by_agent_id(self, agent_id: int) -> AgentAccess | None:
         """
         按智能体 ID 获取访问权限配置
 
@@ -35,7 +35,7 @@ class AgentAccessRepository(TenantRepository[AgentAccess]):
             and_(
                 AgentAccess.tenant_id == self.tenant_id,
                 AgentAccess.agent_id == agent_id,
-                AgentAccess.is_deleted == False,
+                AgentAccess.is_deleted.is_(False),
             )
         )
         result = await self.db.execute(stmt)

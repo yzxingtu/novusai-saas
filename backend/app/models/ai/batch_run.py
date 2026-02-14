@@ -4,6 +4,7 @@
 跟踪智能体批量执行任务的进度和结果
 """
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, JSON
@@ -121,12 +122,12 @@ class BatchRun(TenantModel):
 
     # ==================== 时间 ====================
 
-    started_at: Mapped[str | None] = mapped_column(
+    started_at: Mapped[datetime | None] = mapped_column(
         DateTime,
         nullable=True,
         comment=_("enum.batch_run.started_at"),
     )
-    completed_at: Mapped[str | None] = mapped_column(
+    completed_at: Mapped[datetime | None] = mapped_column(
         DateTime,
         nullable=True,
         comment=_("enum.batch_run.completed_at"),

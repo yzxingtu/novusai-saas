@@ -171,34 +171,13 @@ class ExecutionDispatcher:
             # 7. 调整配额用量：从预估调整为实际（API 模式跳过）
             if not request.skip_quota:
                 actual_tokens = result.total_tokens or 0
-                diff = actual_tokens - estimated
-                if diff != 0:
-                    from app.core.redis import get_redis
-                    from datetime import date
-
-                    redis = await get_redis()
-                    today = date.today()
-
-                    # 调整日配额
-                    if quota_config.daily_token_limit > 0:
-                        daily_key = AgentQuotaManager._daily_key(
-                            request.tenant_id, agent.id, today,
-                        )
-                        if diff > 0:
-                            await redis.incrby(daily_key, diff)
-                        else:
-                            await redis.decrby(daily_key, abs(diff))
-
-                    # 调整月配额
-                    if quota_config.monthly_token_limit > 0:
-                        monthly_key = AgentQuotaManager._monthly_key(
-                            request.tenant_id, agent.id,
-                            today.year, today.month,
-                        )
-                        if diff > 0:
-                            await redis.incrby(monthly_key, diff)
-                        else:
-                            await redis.decrby(monthly_key, abs(diff))
+                await AgentQuotaManager.adjust_usage(
+                    tenant_id=request.tenant_id,
+                    agent_id=agent.id,
+                    estimated_tokens=estimated,
+                    actual_tokens=actual_tokens,
+                    config=quota_config,
+                )
                 # 记录用户级用量
                 if request.user_id:
                     await AgentQuotaManager.record_user_usage(
@@ -275,9 +254,8 @@ class ExecutionDispatcher:
         Returns:
             BatchResult（含 batch_run_id，status=pending）
         """
-        from datetime import datetime
-        from app.models.ai.batch_run import BatchRun
         from app.enums.agent import BatchRunStatusEnum
+        from app.repositories.ai.batch_run_repository import BatchRunRepository
 
         # 1. 校验 Agent
         agent_repo = AgentRepository(self.db, request.tenant_id)
@@ -297,24 +275,22 @@ class ExecutionDispatcher:
             config=quota_config,
         )
 
-        # 3. 创建 BatchRun 记录
+        # 3. 通过 Repository 创建 BatchRun 记录
+        batch_repo = BatchRunRepository(self.db, request.tenant_id)
         input_snapshot = [
             {"item_id": item.item_id, "input_variables": item.input_variables}
             for item in items
         ]
-        batch_run = BatchRun(
-            tenant_id=request.tenant_id,
-            agent_id=agent.id,
-            status=BatchRunStatusEnum.PENDING.value,
-            total_items=len(items),
-            completed_items=0,
-            failed_items=0,
-            max_workers=max_workers,
-            input_items=input_snapshot,
-            created_by=created_by,
-        )
-        self.db.add(batch_run)
-        await self.db.flush()
+        batch_run = await batch_repo.create({
+            "agent_id": agent.id,
+            "status": BatchRunStatusEnum.PENDING.value,
+            "total_items": len(items),
+            "completed_items": 0,
+            "failed_items": 0,
+            "max_workers": max_workers,
+            "input_items": input_snapshot,
+            "created_by": created_by,
+        })
 
         # 4. 提交 Celery 异步任务
         from app.tasks.agent_batch import execute_batch_run
@@ -323,9 +299,10 @@ class ExecutionDispatcher:
             tenant_id=request.tenant_id,
         )
 
-        # 保存 celery_task_id
-        batch_run.celery_task_id = celery_result.id
-        await self.db.flush()
+        # 通过 Repository 保存 celery_task_id
+        await batch_repo.update(batch_run.id, {
+            "celery_task_id": celery_result.id,
+        })
         await self.db.commit()
 
         logger.info(
@@ -355,7 +332,16 @@ class ExecutionDispatcher:
             tenant_id=request.tenant_id,
             agent_id=agent.id,
             config=self.sandbox_config,
+            user_id=request.user_id,
+            user_role=request.user_role,
+            permissions=request.permissions,
+            gateway=gateway,
+            db=self.db,
+            agent=agent,
         )
+        # 传递前端会话级授权
+        if request.consented_actions:
+            sandbox.consented_actions = set(request.consented_actions)
 
         mode = request.execution_mode
 

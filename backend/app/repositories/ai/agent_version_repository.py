@@ -2,7 +2,7 @@
 智能体版本 Repository
 """
 
-from typing import Optional, List
+from typing import List
 
 from sqlalchemy import select, and_
 
@@ -23,7 +23,7 @@ class AgentVersionRepository(TenantRepository[AgentVersion]):
         self,
         agent_id: int,
         version: int,
-    ) -> Optional[AgentVersion]:
+    ) -> AgentVersion | None:
         """
         按智能体 ID 和版本号获取版本记录
 
@@ -39,7 +39,7 @@ class AgentVersionRepository(TenantRepository[AgentVersion]):
                 AgentVersion.tenant_id == self.tenant_id,
                 AgentVersion.agent_id == agent_id,
                 AgentVersion.version == version,
-                AgentVersion.is_deleted == False,
+                AgentVersion.is_deleted.is_(False),
             )
         )
         result = await self.db.execute(stmt)
@@ -68,7 +68,7 @@ class AgentVersionRepository(TenantRepository[AgentVersion]):
                 and_(
                     AgentVersion.tenant_id == self.tenant_id,
                     AgentVersion.agent_id == agent_id,
-                    AgentVersion.is_deleted == False,
+                    AgentVersion.is_deleted.is_(False),
                 )
             )
             .order_by(AgentVersion.version.desc())
@@ -97,7 +97,7 @@ class AgentVersionRepository(TenantRepository[AgentVersion]):
             and_(
                 AgentVersion.tenant_id == self.tenant_id,
                 AgentVersion.agent_id == agent_id,
-                AgentVersion.is_deleted == False,
+                AgentVersion.is_deleted.is_(False),
             )
         )
         result = await self.db.execute(stmt)

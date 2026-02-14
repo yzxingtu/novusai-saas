@@ -21,7 +21,6 @@ from app.rbac.decorators import (
     MenuConfig,
     action_read,
 )
-from app.repositories.ai import AICallLogRepository
 from app.services.ai import CallLogService
 
 
@@ -33,7 +32,7 @@ from app.services.ai import CallLogService
         icon="lucide:scroll-text",
         path="/ai/monitor/call-logs",
         component="ai/call-logs/index",
-        parent="ai_monitor",
+        parent="ai_ops",
         sort_order=10,
     ),
 )
@@ -45,7 +44,7 @@ class AdminAICallLogController(GlobalController):
     """
 
     prefix = "/ai/call-logs"
-    tags = ["AI 调用日志"]
+    tags = [_("menu.tags.admin_ai_call_log")]
 
     def _register_routes(self) -> None:
         """注册路由"""
@@ -71,8 +70,8 @@ class AdminAICallLogController(GlobalController):
 
             权限: ai_call_log:list
             """
-            repo = AICallLogRepository(db)
-            items, total = await repo.query_list(spec)
+            service = CallLogService(db)
+            items, total = await service.query_list(spec)
 
             return success(
                 data=PageResponse.create(
@@ -103,16 +102,16 @@ class AdminAICallLogController(GlobalController):
 
             权限: ai_call_log:statistics
             """
-            repo = AICallLogRepository(db)
+            service = CallLogService(db)
 
             if group_by is None:
-                statistics = await repo.get_overall_summary(
+                statistics = await service.get_overall_summary(
                     tenant_id=tenant_id,
                     start_date=start_date,
                     end_date=end_date,
                 )
             else:
-                statistics = await repo.get_statistics(
+                statistics = await service.get_statistics(
                     tenant_id=tenant_id,
                     start_date=start_date,
                     end_date=end_date,
@@ -136,8 +135,8 @@ class AdminAICallLogController(GlobalController):
 
             权限: ai_call_log:failed
             """
-            repo = AICallLogRepository(db)
-            logs = await repo.get_failed_logs(
+            service = CallLogService(db)
+            logs = await service.get_failed_logs(
                 tenant_id=tenant_id,
                 start_date=start_date,
                 limit=limit,
@@ -158,8 +157,8 @@ class AdminAICallLogController(GlobalController):
 
             权限: ai_call_log:detail
             """
-            repo = AICallLogRepository(db)
-            log = await repo.get_by_id(log_id)
+            service = CallLogService(db)
+            log = await service.get_by_id(log_id)
 
             if not log:
                 raise NotFoundException(message=_("ai.error.call_log_not_found"))

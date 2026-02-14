@@ -97,7 +97,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:admin.platform_config (平台配置)
 
     # ========================================
-    # AI 网关管理（目录）
+    # AI 管理（目录）
     # ========================================
     PermissionMeta(
         code="menu:admin.ai_mgmt",
@@ -110,29 +110,65 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         path="/ai",
         sort_order=35,
     ),
-    # 子菜单由控制器声明:
-    # - menu:admin.ai_provider (AI 供应商)
-    # - menu:admin.ai_model (AI 模型)
-    # - menu:admin.ai_api_key (API Key 管理)
-    # - menu:admin.ai_quota (配额管理)
 
-    # ---- 监控与分析（子目录） ----
+    # ---- 基础设施（子目录） ----
     PermissionMeta(
-        code="menu:admin.ai_monitor",
-        name="menu.admin.ai_monitor",  # i18n key
+        code="menu:admin.ai_infra",
+        name="menu.admin.ai_infra",  # i18n key
         type=PermissionType.MENU,
         scope=PermissionScope.ADMIN,
         resource="menu",
-        action="admin.ai_monitor",
-        icon="lucide:activity",
-        path="/ai/monitor",
-        sort_order=36,
+        action="admin.ai_infra",
+        icon="lucide:server",
+        path="/ai/infra",
+        sort_order=10,
         parent_code="menu:admin.ai_mgmt",
     ),
     # 子菜单由控制器声明:
-    # - menu:admin.ai_call_log (调用日志)
-    # - menu:admin.ai_usage (用量统计)
+    # - menu:admin.ai_provider (供应商管理)
+    # - menu:admin.ai_model (模型管理)
+    # - menu:admin.ai_api_key (API Key 管理)
     # - menu:admin.ai_health (健康状态)
+
+    # ---- 智能应用（子目录） ----
+    PermissionMeta(
+        code="menu:admin.ai_app",
+        name="menu.admin.ai_app",  # i18n key
+        type=PermissionType.MENU,
+        scope=PermissionScope.ADMIN,
+        resource="menu",
+        action="admin.ai_app",
+        icon="lucide:bot",
+        path="/ai/app",
+        sort_order=20,
+        parent_code="menu:admin.ai_mgmt",
+    ),
+    # 子菜单由控制器声明:
+    # - menu:admin.ai_agent (智能体管理)
+    # - menu:admin.ai_tool (工具管理)
+    # - menu:admin.ai_knowledge_base (知识库)
+    # - menu:admin.admin_agent_chat (AI 对话)
+
+    # ---- 运营监控（子目录） ----
+    PermissionMeta(
+        code="menu:admin.ai_ops",
+        name="menu.admin.ai_ops",  # i18n key
+        type=PermissionType.MENU,
+        scope=PermissionScope.ADMIN,
+        resource="menu",
+        action="admin.ai_ops",
+        icon="lucide:bar-chart-3",
+        path="/ai/ops",
+        sort_order=30,
+        parent_code="menu:admin.ai_mgmt",
+    ),
+    # 子菜单由控制器声明:
+    # - menu:admin.ai_quota (配额管理)
+    # - menu:admin.ai_usage (用量统计)
+    # - menu:admin.ai_call_log (调用日志)
+    # - menu:admin.ai_conversation (对话监控)
+    # - menu:admin.ai_action_log (操作审计)
+    # - menu:admin.ai_platform_tool (平台工具)
 
     # ========================================
     # 系统维护（目录）
@@ -153,6 +189,35 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:admin.system_log (系统日志)
     # - menu:admin.task_log (任务日志)
     # - menu:admin.periodic_task (定时任务)
+
+    # ========================================
+    # 开发工具（目录）
+    # ========================================
+    PermissionMeta(
+        code="menu:admin.dev_tools",
+        name="menu.admin.dev_tools",  # i18n key
+        type=PermissionType.MENU,
+        scope=PermissionScope.ADMIN,
+        resource="menu",
+        action="admin.dev_tools",
+        icon="lucide:code-2",
+        path="/dev",
+        sort_order=90,
+    ),
+    # ---- CRUD Generator（叶子菜单） ----
+    PermissionMeta(
+        code="menu:admin.crud_generator",
+        name="menu.admin.crud_generator",  # i18n key
+        type=PermissionType.MENU,
+        scope=PermissionScope.ADMIN,
+        resource="menu",
+        action="admin.crud_generator",
+        icon="lucide:wand-2",
+        path="/dev/crud-generator",
+        component="admin/dev/crud-generator/index",
+        parent_code="menu:admin.dev_tools",
+        sort_order=10,
+    ),
 ]
 
 

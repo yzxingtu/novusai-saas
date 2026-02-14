@@ -71,23 +71,21 @@ class PermissionMiddleware:
     
     async def _load_permissions(self, request: Request, token: str) -> None:
         """加载用户权限到 request.state"""
-        # 尝试验证为平台管理员
-        user_id, _ = verify_token_with_scope(
-            token, TOKEN_SCOPE_ADMIN, TOKEN_TYPE_ACCESS
-        )
-        
-        if user_id:
+        from app.core.security import decode_token
+
+        payload = decode_token(token)
+        if not payload or payload.get("type") != TOKEN_TYPE_ACCESS:
+            return
+
+        scope = payload.get("scope")
+        user_id = payload.get("sub")
+        if not user_id:
+            return
+
+        if scope == TOKEN_SCOPE_ADMIN:
             await self._load_admin_permissions(request, int(user_id))
-            return
-        
-        # 尝试验证为租户管理员
-        user_id, _ = verify_token_with_scope(
-            token, TOKEN_SCOPE_TENANT_ADMIN, TOKEN_TYPE_ACCESS
-        )
-        
-        if user_id:
+        elif scope == TOKEN_SCOPE_TENANT_ADMIN:
             await self._load_tenant_admin_permissions(request, int(user_id))
-            return
     
     async def _load_admin_permissions(
         self, request: Request, admin_id: int

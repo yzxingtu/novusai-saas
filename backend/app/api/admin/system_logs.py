@@ -82,7 +82,7 @@ class AdminSystemLogController(GlobalController):
     """
     
     prefix = "/system-logs"
-    tags = ["系统日志管理"]
+    tags = ["System Log Management"]
     
     def _register_routes(self) -> None:
         """注册路由"""

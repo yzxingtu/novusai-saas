@@ -26,6 +26,7 @@ from app.schemas.ai.provider import (
     AIProviderResponse,
 )
 from app.schemas.common import ReorderRequest
+from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.services.ai import AIProviderService
 
 
@@ -37,7 +38,7 @@ from app.services.ai import AIProviderService
         icon="lucide:cpu",
         path="/ai/providers",
         component="ai/providers/index",
-        parent="ai_mgmt",
+        parent="ai_infra",
         sort_order=10,
     ),
 )
@@ -49,12 +50,59 @@ class AdminAIProviderController(GlobalController):
     """
 
     prefix = "/ai/providers"
-    tags = ["AI 供应商管理"]
+    tags = [_("menu.tags.admin_ai_provider")]
     service_class = AIProviderService
 
     def _register_routes(self) -> None:
         """注册路由"""
         router = self.router
+
+        # 回收站路由必须在 /{id} 之前注册，避免路径冲突
+        register_admin_recycle_bin_routes(
+            router=router,
+            service_class=AIProviderService,
+            resource_name="ai_provider",
+        )
+
+        @router.get("/adapter-types", summary="获取可用适配器类型列表")
+        @action_read("action.ai_provider.list")
+        async def list_adapter_types(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+        ):
+            """
+            获取所有可用的适配器类型（内置 + 插件注册）
+
+            返回每种适配器类型的名称、来源（builtin/plugin）、供应商信息。
+            前端用于供应商类型下拉列表。
+            """
+            from app.ai.adapters import AdapterRegistry
+            from app.plugins.manager import get_plugin_manager
+
+            manager = get_plugin_manager()
+            plugin_adapters = manager.get_plugin_adapters()
+            all_types = AdapterRegistry.list_adapters()
+
+            result = []
+            for adapter_type in all_types:
+                plugin_name = plugin_adapters.get(adapter_type)
+                info = manager.get_adapter_plugin_info(adapter_type)
+                entry = {
+                    "type": adapter_type,
+                    "source": "plugin" if plugin_name else "builtin",
+                    "plugin_name": plugin_name,
+                }
+                if info:
+                    entry["display_name"] = info.get("display_name", adapter_type)
+                    entry["icon"] = info.get("icon")
+                    entry["supports"] = info.get("supports")
+                    entry["models"] = info.get("models")
+                else:
+                    entry["display_name"] = adapter_type
+                result.append(entry)
+
+            return success(data=result)
 
         @router.get("", summary="获取 AI 供应商列表")
         @action_read("action.ai_provider.list")

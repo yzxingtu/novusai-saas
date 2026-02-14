@@ -149,6 +149,84 @@ const mainRoutes: RouteRecordRaw = {
             title: $t('tenant.ai.callLog.title'),
           },
         },
+        {
+          name: 'TenantAIKnowledgeBases',
+          path: 'knowledge-bases',
+          component: () =>
+            import('#/views/tenant/ai/knowledge-bases/index.vue'),
+          meta: {
+            icon: 'lucide:book-open',
+            title: $t('tenant.knowledgeBase.title'),
+          },
+        },
+        {
+          name: 'TenantAISkillPackages',
+          path: 'skill-packages',
+          component: () =>
+            import('#/views/tenant/ai/skill-packages/index.vue'),
+          meta: {
+            icon: 'lucide:package',
+            title: $t('tenant.ai.skillPackage.title'),
+          },
+        },
+        // TenantAISkillPackageDetail + TenantAISkills routes removed — Master-Detail layout in index.vue
+        {
+          name: 'TenantAIAgents',
+          path: 'agents',
+          component: () => import('#/views/tenant/ai/agents/index.vue'),
+          meta: {
+            icon: 'lucide:bot',
+            title: $t('tenant.ai.agent.title'),
+          },
+        },
+        {
+          name: 'TenantAIChat',
+          path: 'chat',
+          component: () => import('#/views/tenant/ai/chat/index.vue'),
+          meta: {
+            icon: 'lucide:message-square',
+            title: $t('tenant.ai.chat.title'),
+          },
+        },
+        {
+          name: 'TenantAIConversations',
+          path: 'conversations',
+          component: () =>
+            import('#/views/tenant/ai/conversations/index.vue'),
+          meta: {
+            icon: 'lucide:messages-square',
+            title: $t('tenant.ai.conversation.title'),
+          },
+        },
+        {
+          name: 'TenantAIActionLogs',
+          path: 'action-logs',
+          component: () =>
+            import('#/views/tenant/ai/action-logs/index.vue'),
+          meta: {
+            icon: 'lucide:file-text',
+            title: $t('tenant.ai.actionLog.title'),
+          },
+        },
+        {
+          name: 'TenantAIQuotas',
+          path: 'quotas',
+          component: () => import('#/views/tenant/ai/quotas/index.vue'),
+          meta: {
+            icon: 'lucide:gauge',
+            title: $t('tenant.ai.quota.title'),
+          },
+        },
+        {
+          name: 'TenantAITablePolicies',
+          path: 'table-policies',
+          component: () =>
+            import('#/views/tenant/ai/table-policies/index.vue'),
+          meta: {
+            icon: 'lucide:shield',
+            title: $t('tenant.ai.tablePolicy.title'),
+          },
+        },
       ],
     },
   ],

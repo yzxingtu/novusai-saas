@@ -181,9 +181,12 @@ class BaseService(Generic[ModelType, RepoType]):
         
         return instance
     
+    # 软删除默认层级，子类覆盖
+    _default_delete_level: str = "admin"
+
     async def delete(self, id: int, soft: bool = True) -> bool:
         """
-        删除记录
+        删除记录（软删除时进入回收站）
         
         Args:
             id: 记录 ID
@@ -195,14 +198,21 @@ class BaseService(Generic[ModelType, RepoType]):
         # 删除前钩子
         await self._before_delete(id)
         
-        # 执行删除
-        result = await self.repo.delete(id, soft=soft)
+        if soft:
+            instance = await self.repo.get_by_id(id)
+            if instance is None:
+                return False
+            instance.soft_delete(level=self._default_delete_level)
+            await self.repo.db.flush()
+        else:
+            result = await self.repo.delete(id, soft=False)
+            if not result:
+                return False
         
         # 删除后钩子
-        if result:
-            await self._after_delete(id)
+        await self._after_delete(id)
         
-        return result
+        return True
     
     async def exists(self, id: int) -> bool:
         """
@@ -373,6 +383,105 @@ class BaseService(Generic[ModelType, RepoType]):
         pass
     
     # ========================================
+    # 回收站钩子方法（子类可重写）
+    # ========================================
+
+    async def _before_restore(self, id: int) -> None:
+        """恢复前钩子"""
+        pass
+
+    async def _after_restore(self, instance: ModelType) -> None:
+        """恢复后钩子"""
+        pass
+
+    async def _before_permanent_delete(self, id: int) -> None:
+        """永久删除前钩子"""
+        pass
+
+    # ========================================
+    # 回收站方法
+    # ========================================
+
+    async def query_deleted_list(
+        self,
+        spec: QuerySpec,
+        delete_level: str | None = None,
+        scope: str | None = None,
+        forced_filters: list[FilterRule] | None = None,
+    ) -> tuple[list[ModelType], int]:
+        """
+        查询回收站列表
+
+        Args:
+            spec: 查询规格
+            delete_level: 删除层级过滤
+            scope: 作用域
+            forced_filters: 强制过滤条件
+
+        Returns:
+            (数据列表, 总数)
+        """
+        return await self.repo.query_deleted(
+            spec=spec,
+            delete_level=delete_level,
+            scope=scope,
+            forced_filters=forced_filters,
+        )
+
+    async def count_deleted(self, delete_level: str | None = None) -> int:
+        """统计回收站记录数量"""
+        return await self.repo.count_deleted(delete_level=delete_level)
+
+    async def restore(self, id: int) -> ModelType | None:
+        """
+        恢复已删除记录
+
+        Args:
+            id: 记录 ID
+
+        Returns:
+            恢复后的模型实例或 None
+        """
+        await self._before_restore(id)
+        instance = await self.repo.restore_by_id(id)
+        if instance:
+            await self._after_restore(instance)
+        return instance
+
+    async def escalate_delete(self, id: int) -> ModelType | None:
+        """
+        升级删除层级（tenant → admin）
+
+        Args:
+            id: 记录 ID
+
+        Returns:
+            更新后的模型实例或 None
+        """
+        return await self.repo.escalate_delete_by_id(id)
+
+    async def permanent_delete(self, id: int) -> bool:
+        """
+        永久删除记录
+
+        Args:
+            id: 记录 ID
+
+        Returns:
+            是否删除成功
+        """
+        await self._before_permanent_delete(id)
+        return await self.repo.permanent_delete(id)
+
+    async def batch_restore(self, ids: list[int]) -> int:
+        """批量恢复"""
+        return await self.repo.batch_restore(ids)
+
+    async def batch_permanent_delete(self, ids: list[int]) -> int:
+        """批量永久删除"""
+        return await self.repo.batch_permanent_delete(ids)
+
+    # ========================================
     # 通用排序方法
     # ========================================
     
@@ -460,6 +569,8 @@ class TenantService(BaseService[ModelType, RepoType]):
     自动注入租户隔离逻辑
     """
     
+    _default_delete_level: str = "tenant"
+
     def __init__(self, db: AsyncSession, tenant_id: int):
         """
         初始化租户服务

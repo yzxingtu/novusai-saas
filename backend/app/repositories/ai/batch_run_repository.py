@@ -43,7 +43,7 @@ class BatchRunRepository(TenantRepository[BatchRun]):
                 and_(
                     BatchRun.tenant_id == self.tenant_id,
                     BatchRun.agent_id == agent_id,
-                    BatchRun.is_deleted == False,
+                    BatchRun.is_deleted.is_(False),
                 )
             )
             .order_by(BatchRun.created_at.desc())
@@ -101,7 +101,7 @@ class BatchRunRepository(TenantRepository[BatchRun]):
                         BatchRunStatusEnum.PENDING.value,
                         BatchRunStatusEnum.RUNNING.value,
                     ]),
-                    BatchRun.is_deleted == False,
+                    BatchRun.is_deleted.is_(False),
                 )
             )
             .order_by(BatchRun.created_at.desc())

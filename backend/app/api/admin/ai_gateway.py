@@ -10,6 +10,7 @@ from app.ai.exceptions import AIGatewayError
 from app.ai.gateway import AIGateway
 from app.ai.quota import QuotaExceeded
 from app.ai.rate_limiter import RateLimitExceeded
+from app.ai.system_agent import SystemAgentService
 from app.ai.utils import parse_provider_and_model, parse_messages
 from app.core.base_controller import GlobalController
 from app.core.deps import DbSession, ActiveAdmin
@@ -42,7 +43,7 @@ class AdminAIGatewayController(GlobalController):
     """
 
     prefix = "/ai/gateway"
-    tags = [_("menu.admin.ai_gateway_api")]
+    tags = [_("menu.tags.admin_ai_gateway")]
 
     def _register_routes(self) -> None:
         router = self.router
@@ -68,8 +69,8 @@ class AdminAIGatewayController(GlobalController):
                 tools = [tool.model_dump() for tool in body.tools]
 
             try:
-                gateway = AIGateway(db)
-                response = await gateway.chat(
+                service = SystemAgentService(db)
+                response = await service.chat(
                     provider_code=provider_code,
                     messages=messages,
                     model=model,
@@ -107,8 +108,8 @@ class AdminAIGatewayController(GlobalController):
                 tools = [tool.model_dump() for tool in body.tools]
 
             try:
-                gateway = AIGateway(db)
-                response = await gateway.stream_chat(
+                service = SystemAgentService(db)
+                response = await service.stream_chat(
                     provider_code=provider_code,
                     messages=messages,
                     model=model,
@@ -140,8 +141,8 @@ class AdminAIGatewayController(GlobalController):
             provider_code, model = parse_provider_and_model(body.model_code)
 
             try:
-                gateway = AIGateway(db)
-                response = await gateway.embedding(
+                service = SystemAgentService(db)
+                response = await service.embedding(
                     provider_code=provider_code,
                     texts=body.texts,
                     model=model,

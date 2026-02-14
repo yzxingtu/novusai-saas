@@ -50,7 +50,7 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
         """
         query = select(self.model.id).where(
             self.model.code == code,
-            self.model.is_deleted == False,
+            self.model.is_deleted.is_(False),
         )
         if exclude_id:
             query = query.where(self.model.id != exclude_id)
@@ -73,7 +73,7 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
             .options(selectinload(self.model.permissions))
             .where(
                 self.model.id == plan_id,
-                self.model.is_deleted == False,
+                self.model.is_deleted.is_(False),
             )
         )
         result = await self.db.execute(query)
@@ -89,8 +89,8 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
         query = (
             select(self.model)
             .where(
-                self.model.is_active == True,
-                self.model.is_deleted == False,
+                self.model.is_active.is_(True),
+                self.model.is_deleted.is_(False),
             )
             .order_by(asc(self.model.sort_order), asc(self.model.id))
         )
@@ -112,7 +112,7 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
             .options(selectinload(self.model.tenants))
             .where(
                 self.model.id == plan_id,
-                self.model.is_deleted == False,
+                self.model.is_deleted.is_(False),
             )
         )
         result = await self.db.execute(query)
@@ -128,7 +128,7 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
         query = (
             select(self.model)
             .options(selectinload(self.model.permissions))
-            .where(self.model.is_deleted == False)
+            .where(self.model.is_deleted.is_(False))
             .order_by(asc(self.model.sort_order), asc(self.model.id))
         )
         result = await self.db.execute(query)

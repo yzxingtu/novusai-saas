@@ -65,7 +65,7 @@ class TenantRoleController(TenantController):
     """
     
     prefix = "/roles"
-    tags = ["租户角色管理"]
+    tags = ["Role Management (Tenant)"]
     
     def _register_routes(self) -> None:
         """注册路由"""
@@ -139,7 +139,7 @@ class TenantRoleController(TenantController):
                 .where(
                     TenantAdminRole.id == current_admin.role_id,
                     TenantAdminRole.tenant_id == current_admin.tenant_id,
-                    TenantAdminRole.is_deleted == False,
+                    TenantAdminRole.is_deleted.is_(False),
                 )
                 .options(
                     selectinload(TenantAdminRole.children),
@@ -235,7 +235,7 @@ class TenantRoleController(TenantController):
                 .where(
                     TenantAdminRole.id == role_id,
                     TenantAdminRole.tenant_id == current_admin.tenant_id,
-                    TenantAdminRole.is_deleted == False,
+                    TenantAdminRole.is_deleted.is_(False),
                 )
                 .options(
                     selectinload(TenantAdminRole.permissions),
@@ -406,8 +406,8 @@ class TenantRoleController(TenantController):
                         select(Permission.id).where(
                             Permission.id.in_(data.permission_ids),
                             Permission.scope.in_(["tenant", "both"]),
-                            Permission.is_enabled == True,
-                            Permission.is_deleted == False,
+                            Permission.is_enabled.is_(True),
+                            Permission.is_deleted.is_(False),
                         )
                     )
                     valid_perm_ids = [p for p in perm_result.scalars().all()]
@@ -511,8 +511,8 @@ class TenantRoleController(TenantController):
                         select(Permission.id).where(
                             Permission.id.in_(data.permission_ids),
                             Permission.scope.in_(["tenant", "both"]),
-                            Permission.is_enabled == True,
-                            Permission.is_deleted == False,
+                            Permission.is_enabled.is_(True),
+                            Permission.is_deleted.is_(False),
                         )
                     )
                     valid_perm_ids = [p for p in perm_result.scalars().all()]

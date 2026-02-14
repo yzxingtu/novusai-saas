@@ -1,0 +1,169 @@
+{# ============================================================
+   Jinja2 Template: Service
+   生成路径: app/services/{{ scope_dir }}/{{ module_snake }}_service.py
+
+   变量:
+     - config: CrudConfig
+     - model_class: PascalCase 模型类名
+     - module: kebab-case 模块名
+     - module_snake: snake_case 模块名
+     - scope: admin | tenant
+     - scope_dir: admin | tenant
+     - display_name: str
+     - hooks: list[str]
+   ============================================================ #}
+"""
+{{ display_name }} Service
+"""
+
+from typing import Any
+
+from app.models.{{ scope_dir }}.{{ module_snake }} import {{ model_class }}
+{% if scope == 'tenant' %}
+from app.repositories.{{ scope_dir }}.{{ module_snake }}_repository import {{ model_class }}Repository, Admin{{ model_class }}Repository
+from app.core.base_service import TenantService, GlobalService
+{% else %}
+from app.repositories.{{ scope_dir }}.{{ module_snake }}_repository import {{ model_class }}Repository
+from app.core.base_service import GlobalService
+{% endif %}
+from app.core.i18n import _
+from app.core.logging import LogManager
+from app.exceptions import BusinessException, NotFoundException
+
+logger = LogManager.get_logger("{{ module_snake }}")
+
+
+{% if scope == 'tenant' %}
+class {{ model_class }}Service(TenantService[{{ model_class }}, {{ model_class }}Repository]):
+    """
+    {{ display_name }} Service
+
+    提供{{ display_name }}的业务逻辑处理
+    """
+
+    model = {{ model_class }}
+    repository_class = {{ model_class }}Repository
+{% if 'before_create' in hooks %}
+
+    async def _before_create(self, data: dict[str, Any]) -> None:
+        """创建前钩子 — TODO: 实现业务逻辑"""
+        await super()._before_create(data)
+{% endif %}
+{% if 'after_create' in hooks %}
+
+    async def _after_create(self, instance: {{ model_class }}) -> None:
+        """创建后钩子 — TODO: 实现业务逻辑"""
+        pass
+{% endif %}
+{% if 'before_update' in hooks %}
+
+    async def _before_update(self, id: int, data: dict[str, Any]) -> None:
+        """更新前钩子 — TODO: 实现业务逻辑"""
+        await super()._before_update(id, data)
+{% endif %}
+{% if 'after_update' in hooks %}
+
+    async def _after_update(self, instance: {{ model_class }}, data: dict[str, Any]) -> None:
+        """更新后钩子 — TODO: 实现业务逻辑"""
+        pass
+{% endif %}
+{% if 'before_delete' in hooks %}
+
+    async def _before_delete(self, id: int) -> None:
+        """删除前钩子 — TODO: 实现业务逻辑"""
+        await super()._before_delete(id)
+{% endif %}
+{% if 'after_delete' in hooks %}
+
+    async def _after_delete(self, instance: {{ model_class }}) -> None:
+        """删除后钩子 — TODO: 实现业务逻辑"""
+        pass
+{% endif %}
+{% if 'before_restore' in hooks %}
+
+    async def _before_restore(self, instance: {{ model_class }}) -> None:
+        """恢复前钩子 — TODO: 实现业务逻辑"""
+        pass
+{% endif %}
+{% if 'after_restore' in hooks %}
+
+    async def _after_restore(self, instance: {{ model_class }}) -> None:
+        """恢复后钩子 — TODO: 实现业务逻辑"""
+        pass
+{% endif %}
+
+
+class Admin{{ model_class }}Service(GlobalService[{{ model_class }}, Admin{{ model_class }}Repository]):
+    """
+    管理端{{ display_name }} Service
+
+    无租户隔离，供平台管理端使用
+    """
+
+    model = {{ model_class }}
+    repository_class = Admin{{ model_class }}Repository
+
+
+__all__ = ["{{ model_class }}Service", "Admin{{ model_class }}Service"]
+{% else %}
+class {{ model_class }}Service(GlobalService[{{ model_class }}, {{ model_class }}Repository]):
+    """
+    {{ display_name }} Service
+
+    提供{{ display_name }}的业务逻辑处理
+    """
+
+    model = {{ model_class }}
+    repository_class = {{ model_class }}Repository
+{% if 'before_create' in hooks %}
+
+    async def _before_create(self, data: dict[str, Any]) -> None:
+        """创建前钩子 — TODO: 实现业务逻辑"""
+        await super()._before_create(data)
+{% endif %}
+{% if 'after_create' in hooks %}
+
+    async def _after_create(self, instance: {{ model_class }}) -> None:
+        """创建后钩子 — TODO: 实现业务逻辑"""
+        pass
+{% endif %}
+{% if 'before_update' in hooks %}
+
+    async def _before_update(self, id: int, data: dict[str, Any]) -> None:
+        """更新前钩子 — TODO: 实现业务逻辑"""
+        await super()._before_update(id, data)
+{% endif %}
+{% if 'after_update' in hooks %}
+
+    async def _after_update(self, instance: {{ model_class }}, data: dict[str, Any]) -> None:
+        """更新后钩子 — TODO: 实现业务逻辑"""
+        pass
+{% endif %}
+{% if 'before_delete' in hooks %}
+
+    async def _before_delete(self, id: int) -> None:
+        """删除前钩子 — TODO: 实现业务逻辑"""
+        await super()._before_delete(id)
+{% endif %}
+{% if 'after_delete' in hooks %}
+
+    async def _after_delete(self, instance: {{ model_class }}) -> None:
+        """删除后钩子 — TODO: 实现业务逻辑"""
+        pass
+{% endif %}
+{% if 'before_restore' in hooks %}
+
+    async def _before_restore(self, instance: {{ model_class }}) -> None:
+        """恢复前钩子 — TODO: 实现业务逻辑"""
+        pass
+{% endif %}
+{% if 'after_restore' in hooks %}
+
+    async def _after_restore(self, instance: {{ model_class }}) -> None:
+        """恢复后钩子 — TODO: 实现业务逻辑"""
+        pass
+{% endif %}
+
+
+__all__ = ["{{ model_class }}Service"]
+{% endif %}

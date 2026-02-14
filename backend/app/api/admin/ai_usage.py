@@ -31,7 +31,7 @@ from app.services.ai import MeteringService
         icon="lucide:bar-chart-3",
         path="/ai/monitor/usage",
         component="ai/usage/index",
-        parent="ai_monitor",
+        parent="ai_ops",
         sort_order=20,
     ),
 )
@@ -43,7 +43,7 @@ class AdminAIUsageController(GlobalController):
     """
 
     prefix = "/ai/usage"
-    tags = ["AI 使用量统计"]
+    tags = [_("menu.tags.admin_ai_usage")]
 
     def _register_routes(self) -> None:
         """注册路由"""
@@ -115,7 +115,7 @@ class AdminAIUsageController(GlobalController):
             from app.repositories.ai.usage_stat_repository import UsageStatRepository
 
             repo = UsageStatRepository(db)
-            items, total = await repo.query_list(spec)
+            items, total = await repo.query_list_with_names(spec)
 
             return success(
                 data=PageResponse.create(

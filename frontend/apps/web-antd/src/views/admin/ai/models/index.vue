@@ -84,13 +84,13 @@ async function onTestModel(row: AIModelInfo) {
     } else {
       message.error(
         $t('admin.ai.model.testFailed', {
-          error: result.error || 'Unknown error',
+          error: result.error || $t('common.requestFailed'),
         }),
       );
     }
   } catch {
     message.error(
-      $t('admin.ai.model.testFailed', { error: 'Request failed' }),
+      $t('admin.ai.model.testFailed', { error: $t('common.requestFailed') }),
     );
   } finally {
     hideLoading();
@@ -111,6 +111,7 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
     i18nPrefix: 'admin.ai.model',
     nameField: 'name',
     defaultSort: '-created_at',
+    recycleBin: true,
     customActions: {
       test: onTestModel,
     },
@@ -118,7 +119,7 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-4">
+  <Page auto-content-height :description="$t('admin.ai.model.pageDesc')" content-class="flex flex-col gap-4">
     <FormDrawer @success="onRefresh" />
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">

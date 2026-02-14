@@ -53,7 +53,7 @@ class TenantRepository(BaseRepository[Tenant]):
         """
         query = select(self.model.id).where(
             self.model.code == code,
-            self.model.is_deleted == False,
+            self.model.is_deleted.is_(False),
         )
         if exclude_id:
             query = query.where(self.model.id != exclude_id)

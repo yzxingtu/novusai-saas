@@ -7,9 +7,11 @@
  */
 defineOptions({ name: 'MarkdownRender' });
 
-import { computed } from 'vue';
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
 
 import { message } from 'ant-design-vue';
+
+import { $t } from '#/locales';
 
 import hljs from 'highlight.js/lib/core';
 import bash from 'highlight.js/lib/languages/bash';
@@ -106,7 +108,7 @@ function buildCodeBlock(highlighted: string, lang: string): string {
     `<div class="md-code-block">` +
     `<div class="md-code-header">` +
     `<span class="md-code-lang">${lang}</span>` +
-    `<button class="md-code-copy" data-code-id="${id}" onclick="window.__mdCopyCode__('${id}')">` +
+    `<button class="md-code-copy" data-code-id="${id}">` +
     `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>` +
     `</button>` +
     `</div>` +
@@ -115,18 +117,29 @@ function buildCodeBlock(highlighted: string, lang: string): string {
   );
 }
 
-// 注册全局复制函数
-if (typeof window !== 'undefined') {
-  (window as unknown as Record<string, unknown>).__mdCopyCode__ = (id: string) => {
-    const el = document.getElementById(id);
-    if (el) {
-      navigator.clipboard
-        .writeText(el.textContent || '')
-        .then(() => message.success('Copied'))
-        .catch(() => message.error('Copy failed'));
-    }
-  };
+const containerRef = ref<HTMLElement>();
+
+function handleCopyClick(e: Event) {
+  const btn = (e.target as HTMLElement).closest<HTMLElement>('.md-code-copy');
+  if (!btn) return;
+  const codeId = btn.dataset.codeId;
+  if (!codeId) return;
+  const el = document.getElementById(codeId);
+  if (el) {
+    navigator.clipboard
+      .writeText(el.textContent || '')
+      .then(() => message.success($t('common.copied')))
+      .catch(() => message.error($t('common.requestFailed')));
+  }
 }
+
+onMounted(() => {
+  containerRef.value?.addEventListener('click', handleCopyClick);
+});
+
+onBeforeUnmount(() => {
+  containerRef.value?.removeEventListener('click', handleCopyClick);
+});
 
 const renderedHtml = computed(() => {
   if (!props.content) return '';

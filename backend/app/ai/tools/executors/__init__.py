@@ -5,17 +5,21 @@
 """
 
 from app.ai.tools.executors.base import BaseToolExecutor
-from app.ai.tools.executors.http_executor import HttpToolExecutor
 from app.ai.tools.executors.builtin_executor import BuiltinToolExecutor
-from app.ai.tools.executors.code_executor import CodeToolExecutor
-from app.ai.tools.executors.database_executor import DatabaseToolExecutor
-from app.ai.tools.executors.email_executor import EmailToolExecutor
+from app.ai.tools.executors.text_to_sql_executor import TextToSQLExecutor
+from app.ai.tools.executors.toolkit_executor import ToolkitExecutor
+from app.ai.tools.executors.crud_executor import (
+    CreateRecordExecutor,
+    UpdateRecordExecutor,
+    DeleteRecordExecutor,
+)
 
 __all__ = [
     "BaseToolExecutor",
-    "HttpToolExecutor",
     "BuiltinToolExecutor",
-    "CodeToolExecutor",
-    "DatabaseToolExecutor",
-    "EmailToolExecutor",
+    "TextToSQLExecutor",
+    "ToolkitExecutor",
+    "CreateRecordExecutor",
+    "UpdateRecordExecutor",
+    "DeleteRecordExecutor",
 ]

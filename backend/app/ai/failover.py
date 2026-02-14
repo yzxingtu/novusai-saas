@@ -6,16 +6,15 @@ AI 供应商故障转移服务
 """
 
 import json
-from typing import Optional
-
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+
+from redis.exceptions import RedisError
 
 from app.core.logging import LogManager
 from app.core.redis import get_redis
 from app.core.i18n import _
 from app.models.ai import AIModel
+from app.repositories.ai.model_repository import AIModelRepository
 
 logger = LogManager.get_logger("ai.failover")
 
@@ -33,6 +32,7 @@ class FailoverService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self._model_repo = AIModelRepository(db)
 
     async def is_provider_healthy(self, provider_id: int) -> bool:
         """
@@ -56,7 +56,7 @@ class FailoverService:
             health = json.loads(data)
             return health.get("is_available", True)
 
-        except Exception as e:
+        except (RedisError, json.JSONDecodeError) as e:
             logger.error(_("ai.log.failover_health_check_failed"), error=str(e))
             # 查询失败时不阻断请求
             return True
@@ -65,7 +65,7 @@ class FailoverService:
         self,
         model_id: int,
         max_depth: int = 3,
-    ) -> Optional[AIModel]:
+    ) -> AIModel | None:
         """
         获取备用模型（沿 fallback 链查找第一个可用的）
 
@@ -80,16 +80,10 @@ class FailoverService:
         current_id = model_id
 
         for _ in range(max_depth):
-            # 获取当前模型
-            stmt = select(AIModel).where(
-                AIModel.id == current_id,
-                AIModel.is_active == True,
-                AIModel.is_deleted == False,
-            )
-            result = await self.db.execute(stmt)
-            model = result.scalar_one_or_none()
+            # 通过 Repository 获取当前模型
+            model = await self._model_repo.get_by_id(current_id)
 
-            if not model:
+            if not model or not model.is_active:
                 return None
 
             # 检查是否有 fallback
@@ -108,14 +102,8 @@ class FailoverService:
 
             visited.add(current_id)
 
-            # 获取备用模型（预加载 provider 关系，避免 DetachedInstanceError）
-            stmt = select(AIModel).where(
-                AIModel.id == fallback_id,
-                AIModel.is_active == True,
-                AIModel.is_deleted == False,
-            ).options(selectinload(AIModel.provider))
-            result = await self.db.execute(stmt)
-            fallback = result.scalar_one_or_none()
+            # 通过 Repository 获取备用模型（预加载 provider 关系）
+            fallback = await self._model_repo.get_active_with_provider(fallback_id)
 
             if not fallback:
                 return None
@@ -167,7 +155,7 @@ class FailoverService:
 
             return sorted(results, key=lambda x: x.get("provider_id", 0))
 
-        except Exception as e:
+        except (RedisError, json.JSONDecodeError) as e:
             logger.error(_("ai.log.failover_get_all_health_failed"), error=str(e))
             return []
 
@@ -202,7 +190,7 @@ class FailoverService:
 
             return results
 
-        except Exception as e:
+        except (RedisError, json.JSONDecodeError) as e:
             logger.error(
                 _("ai.log.failover_get_history_failed"),
                 provider_id=provider_id,

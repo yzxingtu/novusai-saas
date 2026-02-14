@@ -166,7 +166,7 @@ function transformMenuItem(
   // 构建 meta 对象
   // 后端的 name 字段是菜单显示名称，应作为 meta.title
   // 这是最重要的字段，必须设置，否则框架的 $t() 函数会报错
-  const meta: Record<string, any> & { title: string } = {
+  const meta: Record<string, boolean | number | string | string[] | undefined> & { title: string } = {
     title: item.name,
   };
 
@@ -274,14 +274,14 @@ function componentExists(componentPath: string): boolean {
  * @returns vben-admin 格式的菜单列表
  */
 /** 日志前缀 */
-const LOG_TAG = '[动态菜单]';
+const LOG_TAG = '[DynamicMenu]';
 
 export function transformMenuData(
   menus: BackendMenuItemRaw[],
   endpoint: ApiEndpoint = 'admin',
 ): RouteRecordStringComponent[] {
   if (!Array.isArray(menus)) {
-    console.warn(`${LOG_TAG} 无效的菜单数据:`, menus);
+    console.warn(`${LOG_TAG} Invalid menu data:`, menus);
     return [];
   }
 
@@ -344,24 +344,23 @@ function printMissingComponentsWarning(
 ): void {
   let endpointName: string;
   if (endpoint === 'admin') {
-    endpointName = '平台管理端';
+    endpointName = 'Admin';
   } else if (endpoint === 'tenant') {
-    endpointName = '租户端';
+    endpointName = 'Tenant';
   } else {
-    endpointName = '用户端';
+    endpointName = 'User';
   }
 
-  // 使用 console.warn 输出缺失组件信息
   const componentList = missingComponents
     .map(
-      ({ menuName, expectedFile }) => `  • 「${menuName}」 → ${expectedFile}`,
+      ({ menuName, expectedFile }) => `  - "${menuName}" -> ${expectedFile}`,
     )
     .join('\n');
 
   console.warn(
-    `${LOG_TAG} 📦 ${endpointName}有 ${missingComponents.length} 个菜单页面组件尚未创建:\n` +
-      `请在以下路径创建对应的 Vue 组件文件:\n${componentList}\n` +
-      `提示: 这些菜单将显示为 404 页面，直到创建对应组件`,
+    `${LOG_TAG} ${endpointName}: ${missingComponents.length} menu component(s) not found:\n` +
+      `Please create the corresponding Vue component files:\n${componentList}\n` +
+      `Note: these menus will show as 404 pages until the components are created.`,
   );
 }
 
@@ -383,20 +382,21 @@ function generateRouteName(path: string, endpoint: ApiEndpoint): string {
  * @param menus 菜单数据
  * @returns 是否需要转换
  */
-export function needsTransform(menus: any[]): boolean {
+export function needsTransform(menus: unknown[]): boolean {
   if (!Array.isArray(menus) || menus.length === 0) {
     return false;
   }
 
-  const firstItem = menus[0];
+  const firstItem = menus[0] as Record<string, unknown>;
 
-  // 检查是否有 snake_case 字段
+  // Check for snake_case fields
   return (
     'parent_id' in firstItem ||
     'sort_order' in firstItem ||
-    (firstItem.meta &&
-      ('hide_in_menu' in firstItem.meta ||
-        'hide_in_tab' in firstItem.meta ||
-        'affix_tab' in firstItem.meta))
+    (typeof firstItem.meta === 'object' &&
+      firstItem.meta !== null &&
+      ('hide_in_menu' in (firstItem.meta as Record<string, unknown>) ||
+        'hide_in_tab' in (firstItem.meta as Record<string, unknown>) ||
+        'affix_tab' in (firstItem.meta as Record<string, unknown>)))
   );
 }

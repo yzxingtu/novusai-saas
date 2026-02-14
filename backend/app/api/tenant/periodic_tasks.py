@@ -46,7 +46,7 @@ class TenantPeriodicTaskController(TenantController):
     """
 
     prefix = "/periodic-tasks"
-    tags = ["定时任务管理"]
+    tags = ["Periodic Task Management"]
     service_class = TenantPeriodicTaskService
 
     def _register_routes(self) -> None:

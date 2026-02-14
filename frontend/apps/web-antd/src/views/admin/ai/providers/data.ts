@@ -3,7 +3,9 @@
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { AIProviderInfo } from '#/api/admin/ai';
+import type { AdapterTypeInfo, AIProviderInfo } from '#/api/admin/ai';
+
+import { ref } from 'vue';
 
 import {
   iconField,
@@ -14,9 +16,32 @@ import {
   textareaField,
 } from '#/adapter/form';
 import { dragColumn } from '#/adapter/vxe-table';
+import { getAdapterTypesApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
 
+/** 缓存适配器类型列表 */
+const adapterTypesCache = ref<AdapterTypeInfo[]>([]);
+
+/** 加载适配器类型（含插件注册的） */
+export async function loadAdapterTypes(): Promise<AdapterTypeInfo[]> {
+  if (adapterTypesCache.value.length > 0) return adapterTypesCache.value;
+  try {
+    const data = await getAdapterTypesApi();
+    adapterTypesCache.value = data;
+    return data;
+  } catch {
+    return [{ type: 'openai_compatible', source: 'builtin', display_name: 'OpenAI Compatible' }];
+  }
+}
+
 function getProviderTypeOptions() {
+  const types = adapterTypesCache.value;
+  if (types.length > 0) {
+    return types.map((t) => ({
+      label: t.source === 'plugin' ? `${t.display_name} (Plugin)` : t.display_name,
+      value: t.type,
+    }));
+  }
   return [
     { label: $t('admin.ai.provider.type_options.openai_compatible'), value: 'openai_compatible' },
   ];
@@ -27,6 +52,8 @@ function getProviderTypeOptions() {
  */
 export function getProviderTypeText(type: string | undefined): string {
   if (!type) return '-';
+  const cached = adapterTypesCache.value.find((t) => t.type === type);
+  if (cached) return cached.display_name;
   switch (type) {
     case 'openai_compatible': {
       return $t('admin.ai.provider.type_options.openai_compatible');
@@ -35,6 +62,15 @@ export function getProviderTypeText(type: string | undefined): string {
       return type;
     }
   }
+}
+
+/**
+ * 获取适配器来源文本
+ */
+export function getAdapterSource(type: string | undefined): 'builtin' | 'plugin' {
+  if (!type) return 'builtin';
+  const cached = adapterTypesCache.value.find((t) => t.type === type);
+  return cached?.source ?? 'builtin';
 }
 
 /**
@@ -48,19 +84,13 @@ export function useColumns<T = AIProviderInfo>(
     {
       field: 'name',
       title: $t('admin.ai.provider.name'),
-      minWidth: 200,
+      minWidth: 280,
       slots: { default: 'name_cell' },
-    },
-    {
-      field: 'code',
-      title: $t('admin.ai.provider.code'),
-      width: 150,
-      slots: { default: 'code_cell' },
     },
     {
       field: 'type',
       title: $t('admin.ai.provider.type'),
-      width: 150,
+      width: 160,
       align: 'center',
       slots: { default: 'type_cell' },
     },
@@ -69,11 +99,12 @@ export function useColumns<T = AIProviderInfo>(
       title: $t('admin.ai.provider.modelCount'),
       width: 100,
       align: 'center',
+      slots: { default: 'modelCount_cell' },
     },
     {
       field: 'is_active',
       title: $t('admin.ai.provider.isActive'),
-      width: 100,
+      width: 130,
       align: 'center',
       slots: { default: 'isActive_cell' },
     },
@@ -128,23 +159,32 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
           }),
         ]
       : []),
-    select('type', $t('admin.ai.provider.type'), {
-      options: getProviderTypeOptions(),
-      required: true,
-      placeholder: $t('admin.ai.provider.placeholder.selectType'),
-    }),
-    inputField('base_url', $t('admin.ai.provider.baseUrl'), {
-      placeholder: $t('admin.ai.provider.placeholder.inputBaseUrl'),
-    }),
+    {
+      ...select('type', $t('admin.ai.provider.type'), {
+        options: getProviderTypeOptions(),
+        required: true,
+        placeholder: $t('admin.ai.provider.placeholder.selectType'),
+      }),
+      help: $t('admin.ai.provider.help.type'),
+    },
+    {
+      ...inputField('base_url', $t('admin.ai.provider.baseUrl'), {
+        placeholder: $t('admin.ai.provider.placeholder.inputBaseUrl'),
+      }),
+      help: $t('admin.ai.provider.help.baseUrl'),
+    },
     textareaField('description', $t('admin.ai.provider.description'), {
       placeholder: $t('admin.ai.provider.placeholder.inputDescription'),
     }),
     iconField('icon', $t('admin.ai.provider.icon'), {
       placeholder: 'lucide:cpu',
     }),
-    switchField('is_active', $t('admin.ai.provider.isActive'), {
-      defaultValue: true,
-    }),
+    {
+      ...switchField('is_active', $t('admin.ai.provider.isActive'), {
+        defaultValue: true,
+      }),
+      help: $t('admin.ai.provider.help.isActive'),
+    },
   ];
 }
 

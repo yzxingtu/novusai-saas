@@ -72,16 +72,30 @@ export function useColumns<T = AIApiKeyInfo>(
     {
       field: 'is_active',
       title: $t('admin.ai.apiKey.isActive'),
-      width: 100,
+      width: 120,
       align: 'center',
       slots: { default: 'isActive_cell' },
     },
     {
       field: 'is_available',
       title: $t('admin.ai.apiKey.isAvailable'),
-      width: 100,
+      width: 140,
       align: 'center',
       slots: { default: 'isAvailable_cell' },
+    },
+    {
+      field: 'expires_at',
+      title: $t('admin.ai.apiKey.expiresAt'),
+      width: 140,
+      align: 'center',
+      slots: { default: 'expiresAt_cell' },
+    },
+    {
+      field: 'created_at',
+      title: $t('admin.common.createdAt'),
+      width: 140,
+      sortable: true,
+      slots: { default: 'createdAt_cell' },
     },
     {
       align: 'center',
@@ -115,6 +129,11 @@ export function useGridFormSchema(): VbenFormSchema[] {
       api: getProviderSelectOptions,
       placeholder: $t('admin.ai.apiKey.placeholder.allProviders'),
     }),
+    select('filter[tenant_id]', $t('admin.ai.apiKey.tenantName'), {
+      api: getTenantSelectApi,
+      params: { is_active: 'true' },
+      placeholder: $t('admin.ai.apiKey.tenantName'),
+    }),
   ];
 }
 
@@ -145,12 +164,13 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
 
   // 仅新建模式显示 api_key 字段
   if (!isEdit) {
-    fields.push(
-      inputField('api_key', $t('admin.ai.apiKey.apiKey'), {
+    fields.push({
+      ...inputField('api_key', $t('admin.ai.apiKey.apiKey'), {
         required: true,
         placeholder: $t('admin.ai.apiKey.placeholder.inputApiKey'),
       }),
-    );
+      help: $t('admin.ai.apiKey.help.apiKey'),
+    });
   }
 
   const tenantField = select('tenant_id', $t('admin.ai.apiKey.tenantId'), {
@@ -167,14 +187,23 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
   }
 
   fields.push(
-    tenantField,
-    numberField('usage_limit', $t('admin.ai.apiKey.usageLimit'), {
-      min: 0,
-      placeholder: $t('admin.ai.apiKey.placeholder.inputUsageLimit'),
-    }),
-    switchField('is_active', $t('admin.ai.apiKey.isActive'), {
-      defaultValue: true,
-    }),
+    {
+      ...tenantField,
+      help: $t('admin.ai.apiKey.help.tenantId'),
+    },
+    {
+      ...numberField('usage_limit', $t('admin.ai.apiKey.usageLimit'), {
+        min: 0,
+        placeholder: $t('admin.ai.apiKey.placeholder.inputUsageLimit'),
+      }),
+      help: $t('admin.ai.apiKey.help.usageLimit'),
+    },
+    {
+      ...switchField('is_active', $t('admin.ai.apiKey.isActive'), {
+        defaultValue: true,
+      }),
+      help: $t('admin.ai.apiKey.help.isActive'),
+    },
   );
 
   return fields;

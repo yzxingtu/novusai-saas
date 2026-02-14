@@ -13,12 +13,25 @@ from app.repositories.ai.agent_conversation_repository import (
     AdminAgentConversationRepository,
 )
 from app.repositories.ai.conversation_message_repository import ConversationMessageRepository
-from app.repositories.ai.tool_definition_repository import (
-    ToolDefinitionRepository,
-    AdminToolDefinitionRepository,
-)
 from app.repositories.ai.batch_run_repository import BatchRunRepository
 from app.repositories.ai.agent_access_repository import AgentAccessRepository
+from app.repositories.ai.agent_version_repository import AgentVersionRepository
+from app.repositories.ai.action_log_repository import AIActionLogRepository
+from app.repositories.ai.tenant_quota_repository import (
+    TenantQuotaRepository,
+    AdminTenantQuotaRepository,
+)
+from app.repositories.ai.tenant_rate_limit_repository import TenantModelRateLimitRepository
+from app.repositories.ai.knowledge_base_repository import (
+    KnowledgeBaseRepository,
+    AdminKnowledgeBaseRepository,
+    KnowledgeDocumentRepository,
+    DocumentChunkRepository,
+)
+from app.repositories.ai.table_policy_repository import AITablePolicyRepository
+from app.repositories.ai.table_policy_override_repository import AITablePolicyOverrideRepository
+from app.repositories.ai.skill_repository import SkillRepository, AdminSkillRepository
+from app.repositories.ai.agent_skill_binding_repository import AgentSkillBindingRepository
 
 __all__ = [
     "AIProviderRepository",
@@ -31,8 +44,20 @@ __all__ = [
     "AgentConversationRepository",
     "AdminAgentConversationRepository",
     "ConversationMessageRepository",
-    "ToolDefinitionRepository",
-    "AdminToolDefinitionRepository",
     "BatchRunRepository",
     "AgentAccessRepository",
+    "AgentVersionRepository",
+    "AIActionLogRepository",
+    "TenantQuotaRepository",
+    "AdminTenantQuotaRepository",
+    "TenantModelRateLimitRepository",
+    "KnowledgeBaseRepository",
+    "AdminKnowledgeBaseRepository",
+    "KnowledgeDocumentRepository",
+    "DocumentChunkRepository",
+    "AITablePolicyRepository",
+    "AITablePolicyOverrideRepository",
+    "SkillRepository",
+    "AdminSkillRepository",
+    "AgentSkillBindingRepository",
 ]

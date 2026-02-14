@@ -7,7 +7,7 @@ import { useRouter } from 'vue-router';
 import { AuthenticationLoginExpiredModal } from '@vben/common-ui';
 import { VBEN_DOC_URL, VBEN_GITHUB_URL } from '@vben/constants';
 import { useWatermark } from '@vben/hooks';
-import { BookOpenText, CircleHelp, SvgGithubIcon } from '@vben/icons';
+import { BookOpenText, CircleHelp, IconifyIcon, SvgGithubIcon } from '@vben/icons';
 import {
   BasicLayout,
   LockScreen,
@@ -18,14 +18,16 @@ import { preferences } from '@vben/preferences';
 import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
 import { openWindow } from '@vben/utils';
 
+import { Tooltip } from 'ant-design-vue';
 import { message } from 'ant-design-vue';
 
 import { getApiEndpoint } from '#/api';
 import { $t } from '#/locales';
 import { generateAccess } from '#/router/access';
 import { accessRoutes } from '#/router/routes';
-import { useMultiAuthStore } from '#/store';
+import { useGlobalAIChatStore, useMultiAuthStore } from '#/store';
 import LoginForm from '#/views/_core/authentication/login.vue';
+import GlobalAIChat from '#/views/_core/global-ai-chat/GlobalAIChat.vue';
 
 const notifications = ref<NotificationItem[]>([
   {
@@ -83,6 +85,7 @@ const notifications = ref<NotificationItem[]>([
 const router = useRouter();
 const userStore = useUserStore();
 const multiAuthStore = useMultiAuthStore();
+const globalAIChatStore = useGlobalAIChatStore();
 const accessStore = useAccessStore();
 const tabbarStore = useTabbarStore();
 const { destroyWatermark, updateWatermark } = useWatermark();
@@ -263,6 +266,16 @@ watch(
         @make-all="handleMakeAll"
       />
     </template>
+    <template #header-right-51>
+      <Tooltip :title="$t('common.globalAiChat.title')" placement="bottom">
+        <div
+          class="hover:bg-accent flex cursor-pointer items-center justify-center rounded-md p-1.5 transition-colors"
+          @click="globalAIChatStore.toggle()"
+        >
+          <IconifyIcon icon="lucide:bot" class="size-4" />
+        </div>
+      </Tooltip>
+    </template>
     <template #extra>
       <AuthenticationLoginExpiredModal
         v-model:open="accessStore.loginExpired"
@@ -270,6 +283,7 @@ watch(
       >
         <LoginForm />
       </AuthenticationLoginExpiredModal>
+      <GlobalAIChat />
     </template>
     <template #lock-screen>
       <LockScreen :avatar @to-login="handleLogout" />

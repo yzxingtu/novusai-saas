@@ -87,7 +87,7 @@ class ConfigSyncService:
         
         # 获取数据库中已有的分组
         result = await self.db.execute(
-            select(SystemConfigGroup).where(SystemConfigGroup.is_deleted == False)
+            select(SystemConfigGroup).where(SystemConfigGroup.is_deleted.is_(False))
         )
         db_groups = {g.code: g for g in result.scalars().all()}
         
@@ -140,13 +140,13 @@ class ConfigSyncService:
         
         # 获取数据库中的分组映射
         result = await self.db.execute(
-            select(SystemConfigGroup).where(SystemConfigGroup.is_deleted == False)
+            select(SystemConfigGroup).where(SystemConfigGroup.is_deleted.is_(False))
         )
         group_map = {g.code: g.id for g in result.scalars().all()}
         
         # 获取数据库中已有的配置项
         result = await self.db.execute(
-            select(SystemConfig).where(SystemConfig.is_deleted == False)
+            select(SystemConfig).where(SystemConfig.is_deleted.is_(False))
         )
         db_configs: dict[tuple[int, str], SystemConfig] = {}
         for config in result.scalars().all():

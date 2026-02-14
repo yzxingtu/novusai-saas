@@ -1,0 +1,79 @@
+{# ============================================================
+   Jinja2 Template: 前端表单组件 form.vue
+   生成路径: views/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s/modules/form.vue
+
+   变量:
+     - config: CrudConfig
+     - model_class: PascalCase
+     - module: kebab-case
+     - module_snake: snake_case
+     - scope / scope_dir: admin | tenant
+     - fields: list[FieldConfig]
+     - i18n_prefix: str
+     - parent_menu: str
+   ============================================================ #}
+{% raw %}<script lang="ts" setup>{% endraw %}
+
+defineOptions({ name: '{{ scope_dir | capitalize }}{{ model_class }}Form' });
+/**
+ * {{ scope_dir }}端{{ display_name }}新建/编辑表单抽屉
+ */
+import type { {{ model_class }}Item } from '#/api/{{ scope_dir }}/{{ module }}s';
+
+import { computed } from 'vue';
+
+import { useVbenForm } from '#/adapter/form';
+import { useCrudDrawer } from '#/composables';
+import { $t } from '#/locales';
+
+import { useFormSchema } from '../data';
+
+const emits = defineEmits<{ success: [] }>();
+
+const [Form, formApi] = useVbenForm({
+  schema: useFormSchema(),
+  showDefaultActions: false,
+});
+
+const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<{{ model_class }}Item>({
+  formApi,
+  schema: useFormSchema,
+  apiPath: '/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s',
+  fields: [
+{% for field in fields %}
+{% if field.in_form %}
+    '{{ field.name }}',
+{% endif %}
+{% endfor %}
+{% for rel in relations %}
+{% if rel.type.value == 'belongs_to' %}
+    '{{ rel.foreign_key or (rel.name + '_id') }}',
+{% endif %}
+{% endfor %}
+{% if has_status_toggle %}
+    'is_active',
+{% endif %}
+{% if config.drag_sort %}
+    'sort_order',
+{% endif %}
+  ],
+  onSuccess: () => {
+    emits('success');
+  },
+});
+
+defineExpose({ openNew, openEdit });
+
+const title = computed(() =>
+  isEdit.value
+    ? $t('{{ i18n_prefix }}.edit')
+    : $t('{{ i18n_prefix }}.create'),
+);
+{% raw %}</script>{% endraw %}
+
+{% raw %}<template>{% endraw %}
+
+  <Drawer :title="title" class="w-[{{ config.form_config.drawer_width }}]">
+    <Form />
+  </Drawer>
+{% raw %}</template>{% endraw %}

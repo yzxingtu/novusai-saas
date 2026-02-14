@@ -1,0 +1,60 @@
+{# ============================================================
+   Jinja2 Template: Repository
+   生成路径: app/repositories/{{ scope_dir }}/{{ module_snake }}_repository.py
+
+   变量:
+     - config: CrudConfig
+     - model_class: PascalCase 模型类名
+     - module: kebab-case 模块名
+     - module_snake: snake_case 模块名
+     - scope: admin | tenant
+     - scope_dir: admin | tenant
+     - display_name: str
+   ============================================================ #}
+"""
+{{ display_name }} Repository
+"""
+
+from app.models.{{ scope_dir }}.{{ module_snake }} import {{ model_class }}
+{% if scope == 'tenant' %}
+from app.core.base_repository import TenantRepository, BaseRepository
+{% else %}
+from app.core.base_repository import BaseRepository
+{% endif %}
+
+
+{% if scope == 'tenant' %}
+class {{ model_class }}Repository(TenantRepository[{{ model_class }}]):
+    """
+    租户级{{ display_name }} Repository
+
+    提供基于租户隔离的{{ display_name }}数据访问
+    """
+
+    model = {{ model_class }}
+
+
+class Admin{{ model_class }}Repository(BaseRepository[{{ model_class }}]):
+    """
+    管理端{{ display_name }} Repository
+
+    无租户隔离，供平台管理端全局查询使用
+    """
+
+    model = {{ model_class }}
+
+
+__all__ = ["{{ model_class }}Repository", "Admin{{ model_class }}Repository"]
+{% else %}
+class {{ model_class }}Repository(BaseRepository[{{ model_class }}]):
+    """
+    {{ display_name }} Repository
+
+    提供{{ display_name }}数据访问
+    """
+
+    model = {{ model_class }}
+
+
+__all__ = ["{{ model_class }}Repository"]
+{% endif %}

@@ -169,6 +169,14 @@ class AIModel(BaseModel):
         lazy="selectin",
     )
     
+    @property
+    def provider_name(self) -> str | None:
+        return self.provider.name if self.provider else None
+
+    @property
+    def fallback_model_name(self) -> str | None:
+        return self.fallback_model.name if self.fallback_model else None
+
     def __repr__(self) -> str:
         return f"<AIModel(id={self.id}, code={self.code}, name={self.name})>"
 

@@ -9,6 +9,7 @@ from typing import Any
 
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
+from app.enums.agent import AgentExecutionModeEnum
 
 
 @dataclass
@@ -32,9 +33,21 @@ class ExecutionRequest:
     user_id: int | None = None
     messages: list[ChatMessage] = field(default_factory=list)
     input_variables: dict[str, Any] = field(default_factory=dict)
-    execution_mode: str = "conversation"
+    execution_mode: str = AgentExecutionModeEnum.CONVERSATION.value
     stream: bool = False
     conversation_id: int | None = None
+    knowledge_base_ids: list[int] | None = None
+
+    # 用户附件（图片/文件，附加到最新用户消息）
+    attachments: list[dict[str, Any]] | None = None
+
+    # 会话级授权（前端 sessionStorage 传入，格式: ["read:agents", "create:agents"]）
+    consented_actions: list[str] | None = None
+
+    # 用户角色（platform_admin / tenant_admin / tenant_user）
+    user_role: str = "tenant_admin"
+    # 用户 RBAC 权限码集合
+    permissions: set[str] | None = None
 
     # API 模式控制标志（由调用方或 dispatcher 自动设置）
     skip_quota: bool = False

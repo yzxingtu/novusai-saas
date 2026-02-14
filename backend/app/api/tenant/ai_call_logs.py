@@ -29,7 +29,7 @@ from app.repositories.ai import AICallLogRepository
         icon="lucide:scroll-text",
         path="/ai/call-logs",
         component="ai/call-logs/index",
-        parent="ai_mgmt",
+        parent="ai_analytics",
         sort_order=40,
     ),
 )
@@ -41,7 +41,7 @@ class TenantAICallLogController(TenantController):
     """
 
     prefix = "/ai/call-logs"
-    tags = ["AI 调用日志"]
+    tags = [_("menu.tags.tenant_ai_call_log")]
 
     def _register_routes(self) -> None:
         """注册路由"""

@@ -1,0 +1,262 @@
+"""
+技能包 Repository
+"""
+
+from sqlalchemy import func, or_, select, and_
+
+from app.models.ai.skill import Skill
+from app.models.ai.skill_package import SkillPackage
+from app.core.base_repository import TenantRepository, BaseRepository
+from app.enums.common import ResourceScopeEnum
+from app.schemas.common.query import QuerySpec, FilterRule
+
+
+class SkillPackageRepository(TenantRepository[SkillPackage]):
+    """
+    租户级技能包 Repository
+
+    提供基于租户隔离的技能包数据访问。
+    查询时自动包含 scope=global 的全局技能包。
+    """
+
+    model = SkillPackage
+
+    async def get_by_id(
+        self, id: int, include_deleted: bool = False
+    ) -> SkillPackage | None:
+        """根据 ID 获取技能包，允许访问全局技能包"""
+        instance = await BaseRepository.get_by_id(self, id, include_deleted)
+        if instance and hasattr(instance, "tenant_id"):
+            if instance.scope == ResourceScopeEnum.GLOBAL.value:
+                return instance
+            if instance.tenant_id != self.tenant_id:
+                return None
+        return instance
+
+    async def query_list(
+        self,
+        spec: QuerySpec,
+        scope: str | None = None,
+        forced_filters: list[FilterRule] | None = None,
+        include_deleted: bool = False,
+    ) -> tuple[list[SkillPackage], int]:
+        """
+        租户级技能包列表查询
+
+        自动注入条件：(tenant_id = X) OR (scope = 'global')
+        """
+        allowed_fields = self.get_allowed_fields(scope)
+        all_fields = self.get_allowed_fields(None)
+
+        query = select(self.model)
+
+        if not include_deleted:
+            query = query.where(self.model.is_deleted.is_(False))
+
+        query = query.where(
+            or_(
+                self.model.tenant_id == self.tenant_id,
+                self.model.scope == ResourceScopeEnum.GLOBAL.value,
+            )
+        )
+
+        return await self._apply_spec_and_execute(
+            query, spec, allowed_fields, all_fields, forced_filters
+        )
+
+    async def get_by_name(
+        self,
+        name: str,
+        exclude_id: int | None = None,
+    ) -> SkillPackage | None:
+        """
+        按名称查找技能包（同租户内唯一性检查）
+        """
+        conditions = [
+            SkillPackage.tenant_id == self.tenant_id,
+            SkillPackage.name == name,
+            SkillPackage.is_deleted.is_(False),
+        ]
+        if exclude_id is not None:
+            conditions.append(SkillPackage.id != exclude_id)
+
+        stmt = select(SkillPackage).where(and_(*conditions))
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_with_skill_count(
+        self,
+        package_id: int,
+    ) -> dict | None:
+        """
+        获取技能包详情及其包含的技能数量
+        """
+        pkg = await self.get_by_id(package_id)
+        if not pkg:
+            return None
+
+        count_stmt = select(func.count()).where(
+            Skill.package_id == package_id,
+            Skill.is_deleted.is_(False),
+        )
+        count_result = await self.db.execute(count_stmt)
+        skill_count = count_result.scalar() or 0
+
+        data = pkg.to_dict()
+        data["skill_count"] = skill_count
+        return data
+
+    async def get_skill_counts_batch(
+        self,
+        package_ids: list[int],
+    ) -> dict[int, int]:
+        """
+        批量获取技能包的技能数量
+
+        Args:
+            package_ids: 技能包 ID 列表
+
+        Returns:
+            {package_id: skill_count} 映射
+        """
+        if not package_ids:
+            return {}
+
+        stmt = (
+            select(Skill.package_id, func.count().label("cnt"))
+            .where(
+                Skill.package_id.in_(package_ids),
+                Skill.is_deleted.is_(False),
+            )
+            .group_by(Skill.package_id)
+        )
+        result = await self.db.execute(stmt)
+        return {row.package_id: row.cnt for row in result.all()}
+
+    async def get_active_packages(self) -> list[SkillPackage]:
+        """
+        获取当前租户所有已激活的技能包
+        """
+        stmt = (
+            select(SkillPackage)
+            .where(
+                and_(
+                    SkillPackage.tenant_id == self.tenant_id,
+                    SkillPackage.is_active.is_(True),
+                    SkillPackage.is_deleted.is_(False),
+                )
+            )
+            .order_by(SkillPackage.sort_order, SkillPackage.created_at.desc())
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+
+class AdminSkillPackageRepository(BaseRepository[SkillPackage]):
+    """
+    管理端技能包 Repository
+
+    无租户隔离，供平台管理端全局查询使用
+    """
+
+    model = SkillPackage
+
+    async def get_with_skill_count(
+        self,
+        package_id: int,
+    ) -> dict | None:
+        """
+        获取技能包详情及其包含的技能数量（管理端，无租户隔离）
+        """
+        pkg = await self.get_by_id(package_id)
+        if not pkg:
+            return None
+
+        count_stmt = select(func.count()).where(
+            Skill.package_id == package_id,
+            Skill.is_deleted.is_(False),
+        )
+        count_result = await self.db.execute(count_stmt)
+        skill_count = count_result.scalar() or 0
+
+        data = pkg.to_dict()
+        data["skill_count"] = skill_count
+        return data
+
+    async def get_skill_counts_batch(
+        self,
+        package_ids: list[int],
+    ) -> dict[int, int]:
+        """
+        批量获取技能包的技能数量
+
+        Args:
+            package_ids: 技能包 ID 列表
+
+        Returns:
+            {package_id: skill_count} 映射
+        """
+        if not package_ids:
+            return {}
+
+        stmt = (
+            select(Skill.package_id, func.count().label("cnt"))
+            .where(
+                Skill.package_id.in_(package_ids),
+                Skill.is_deleted.is_(False),
+            )
+            .group_by(Skill.package_id)
+        )
+        result = await self.db.execute(stmt)
+        return {row.package_id: row.cnt for row in result.all()}
+
+    async def get_by_source_plugin(
+        self,
+        plugin_name: str,
+    ) -> SkillPackage | None:
+        """
+        按来源插件名查找技能包（含已软删除的）
+
+        用于插件启用时幂等检查和禁用/卸载时定位记录。
+        """
+        stmt = select(SkillPackage).where(
+            and_(
+                SkillPackage.source_plugin == plugin_name,
+                SkillPackage.scope == "admin",
+            )
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_by_name_in_scope(
+        self,
+        name: str,
+        scope: str,
+        tenant_id: int | None = None,
+        exclude_id: int | None = None,
+    ) -> SkillPackage | None:
+        """
+        在指定作用域内按名称查找技能包
+        """
+        conditions = [
+            SkillPackage.name == name,
+            SkillPackage.scope == scope,
+            SkillPackage.is_deleted.is_(False),
+        ]
+        if scope == "tenant" and tenant_id is not None:
+            conditions.append(SkillPackage.tenant_id == tenant_id)
+        elif scope in ("admin", "global"):
+            conditions.append(SkillPackage.tenant_id.is_(None))
+
+        if exclude_id is not None:
+            conditions.append(SkillPackage.id != exclude_id)
+
+        stmt = select(SkillPackage).where(and_(*conditions))
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+
+__all__ = [
+    "SkillPackageRepository",
+    "AdminSkillPackageRepository",
+]

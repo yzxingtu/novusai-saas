@@ -127,7 +127,8 @@ class AuthService:
         # 查询管理员
         result = await self.db.execute(
             select(Admin).where(
-                or_(Admin.username == username, Admin.email == username)
+                or_(Admin.username == username, Admin.email == username),
+                Admin.is_deleted.is_(False),
             )
         )
         admin = result.scalar_one_or_none()
@@ -239,7 +240,8 @@ class AuthService:
             # 处理平台管理员
             result = await self.db.execute(
                 select(Admin).where(
-                    or_(Admin.username == username, Admin.email == username)
+                    or_(Admin.username == username, Admin.email == username),
+                    Admin.is_deleted.is_(False),
                 )
             )
             user = result.scalar_one_or_none()
@@ -247,7 +249,8 @@ class AuthService:
             # 处理租户管理员
             result = await self.db.execute(
                 select(TenantAdmin).where(
-                    or_(TenantAdmin.username == username, TenantAdmin.email == username)
+                    or_(TenantAdmin.username == username, TenantAdmin.email == username),
+                    TenantAdmin.is_deleted.is_(False),
                 )
             )
             user = result.scalar_one_or_none()
@@ -255,7 +258,8 @@ class AuthService:
             # 处理租户用户
             result = await self.db.execute(
                 select(TenantUser).where(
-                    or_(TenantUser.username == username, TenantUser.email == username)
+                    or_(TenantUser.username == username, TenantUser.email == username),
+                    TenantUser.is_deleted.is_(False),
                 )
             )
             user = result.scalar_one_or_none()
@@ -406,7 +410,10 @@ class AuthService:
         
         # 查询管理员
         result = await self.db.execute(
-            select(Admin).where(Admin.id == int(admin_id))
+            select(Admin).where(
+                Admin.id == int(admin_id),
+                Admin.is_deleted.is_(False),
+            )
         )
         admin = result.scalar_one_or_none()
         
@@ -477,7 +484,8 @@ class AuthService:
                 or_(
                     TenantAdmin.username == username,
                     TenantAdmin.email == username,
-                )
+                ),
+                TenantAdmin.is_deleted.is_(False),
             )
         )
         tenant_admin = result.scalar_one_or_none()
@@ -575,7 +583,10 @@ class AuthService:
         
         # 查询租户管理员
         result = await self.db.execute(
-            select(TenantAdmin).where(TenantAdmin.id == int(admin_id))
+            select(TenantAdmin).where(
+                TenantAdmin.id == int(admin_id),
+                TenantAdmin.is_deleted.is_(False),
+            )
         )
         tenant_admin = result.scalar_one_or_none()
         
@@ -639,15 +650,18 @@ class AuthService:
         if payload is None:
             raise AuthenticationException(message=_("auth.impersonate_token_invalid"))
         
-        admin_id = payload.get("admin_id")
+        admin_id = int(payload["sub"]) if payload.get("sub") else None
         target_tenant_id = payload.get("target_tenant_id")
         target_role_id = payload.get("target_role_id")
+        
+        if admin_id is None:
+            raise AuthenticationException(message=_("auth.impersonate_token_invalid"))
         
         # 验证租户状态
         tenant_result = await self.db.execute(
             select(Tenant).where(
                 Tenant.id == target_tenant_id,
-                Tenant.is_deleted == False,
+                Tenant.is_deleted.is_(False),
             )
         )
         tenant = tenant_result.scalar_one_or_none()
@@ -659,8 +673,8 @@ class AuthService:
         owner_result = await self.db.execute(
             select(TenantAdmin).where(
                 TenantAdmin.tenant_id == target_tenant_id,
-                TenantAdmin.is_owner == True,
-                TenantAdmin.is_deleted == False,
+                TenantAdmin.is_owner.is_(True),
+                TenantAdmin.is_deleted.is_(False),
             )
         )
         tenant_owner = owner_result.scalar_one_or_none()
@@ -670,7 +684,10 @@ class AuthService:
         
         # 获取执行 impersonate 的平台管理员信息
         platform_admin_result = await self.db.execute(
-            select(Admin).where(Admin.id == admin_id)
+            select(Admin).where(
+                Admin.id == admin_id,
+                Admin.is_deleted.is_(False),
+            )
         )
         platform_admin = platform_admin_result.scalar_one_or_none()
         platform_admin_username = platform_admin.username if platform_admin else "unknown"
@@ -734,7 +751,8 @@ class AuthService:
                     TenantUser.username == username,
                     TenantUser.email == username,
                     TenantUser.phone == username,
-                )
+                ),
+                TenantUser.is_deleted.is_(False),
             )
         )
         user = result.scalar_one_or_none()
@@ -823,7 +841,10 @@ class AuthService:
         
         # 查询用户
         result = await self.db.execute(
-            select(TenantUser).where(TenantUser.id == int(user_id))
+            select(TenantUser).where(
+                TenantUser.id == int(user_id),
+                TenantUser.is_deleted.is_(False),
+            )
         )
         user = result.scalar_one_or_none()
         

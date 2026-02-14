@@ -17,7 +17,7 @@ const props = withDefaults(
     uploadUrl?: string;
   }>(),
   {
-    uploadUrl: '/admin/files/upload',
+    uploadUrl: '/admin/attachments/upload',
   },
 );
 

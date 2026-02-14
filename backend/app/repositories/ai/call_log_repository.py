@@ -5,7 +5,6 @@ AI 调用日志 Repository
 """
 
 from datetime import date, datetime
-from typing import Optional
 from sqlalchemy import select, func, and_, or_, case
 
 from app.core.base_repository import BaseRepository
@@ -26,10 +25,10 @@ class AICallLogRepository(BaseRepository[AICallLog]):
     
     async def get_statistics(
         self,
-        tenant_id: Optional[int] = None,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
-        group_by: Optional[str] = None
+        tenant_id: int | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        group_by: str | None = None
     ) -> list[dict]:
         """
         获取统计信息
@@ -52,10 +51,10 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             func.sum(AICallLog.cost).label("total_cost"),
             func.avg(AICallLog.latency_ms).label("avg_latency"),
             func.sum(case(
-                (AICallLog.status == "success", 1), else_=0
+                (AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0
             )).label("success_count"),
             func.sum(case(
-                (AICallLog.status == "failed", 1), else_=0
+                (AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0
             )).label("failed_count"),
         ]
         
@@ -120,8 +119,8 @@ class AICallLogRepository(BaseRepository[AICallLog]):
     async def get_by_request_hash(
         self,
         request_hash: str,
-        tenant_id: Optional[int] = None
-    ) -> Optional[AICallLog]:
+        tenant_id: int | None = None
+    ) -> AICallLog | None:
         """
         根据请求哈希查询日志(用于缓存命中检测)
         
@@ -148,7 +147,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
     
     async def get_recent_logs(
         self,
-        tenant_id: Optional[int] = None,
+        tenant_id: int | None = None,
         limit: int = 100,
         offset: int = 0
     ) -> list[AICallLog]:
@@ -176,8 +175,8 @@ class AICallLogRepository(BaseRepository[AICallLog]):
     
     async def get_failed_logs(
         self,
-        tenant_id: Optional[int] = None,
-        start_date: Optional[date] = None,
+        tenant_id: int | None = None,
+        start_date: date | None = None,
         limit: int = 100
     ) -> list[AICallLog]:
         """
@@ -210,9 +209,9 @@ class AICallLogRepository(BaseRepository[AICallLog]):
 
     async def get_overall_summary(
         self,
-        tenant_id: Optional[int] = None,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        tenant_id: int | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> dict:
         """
         获取总体统计汇总（单个 dict，非分组列表）
@@ -225,10 +224,10 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             func.sum(AICallLog.cost).label("total_cost"),
             func.avg(AICallLog.latency_ms).label("avg_latency"),
             func.sum(case(
-                (AICallLog.status == "success", 1), else_=0
+                (AICallLog.status == CallStatusEnum.SUCCESS.value, 1), else_=0
             )).label("success_calls"),
             func.sum(case(
-                (AICallLog.status == "failed", 1), else_=0
+                (AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0
             )).label("failed_calls"),
         )
 

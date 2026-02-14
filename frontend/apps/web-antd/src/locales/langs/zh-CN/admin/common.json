@@ -1,6 +1,9 @@
 {
   "operation": "操作",
   "more": "更多",
+  "edit": "编辑",
+  "delete": "删除",
+  "confirmDelete": "确定要删除吗？",
   "enable": "启用",
   "disable": "禁用",
   "enabled": "已启用",
@@ -14,5 +17,8 @@
   "selectAll": "全选",
   "unselectAll": "取消全选",
   "createdAt": "创建时间",
-  "unlimited": "无限制"
+  "unlimited": "无限制",
+  "total": "共",
+  "reset": "重置",
+  "noData": "暂无数据"
 }

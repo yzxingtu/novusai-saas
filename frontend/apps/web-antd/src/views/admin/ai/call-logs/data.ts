@@ -5,9 +5,12 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { AICallLogInfo } from '#/api/admin/ai';
 
-import { searchInput, select } from '#/adapter/form';
+import { searchDateRange, searchInput, select } from '#/adapter/form';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
+import { formatCost } from '#/utils/format';
+
+export { formatCost };
 
 function getStatusOptions() {
   return [
@@ -39,16 +42,6 @@ export function getStatusText(status: string | undefined): string {
 }
 
 /**
- * 格式化费用
- */
-export function formatCost(cost: null | number | undefined): string {
-  if (cost === null || cost === undefined) return '-';
-  if (cost === 0) return '$0';
-  if (cost < 0.001) return `$${cost.toFixed(6)}`;
-  return `$${cost.toFixed(4)}`;
-}
-
-/**
  * 表格列定义
  */
 export function useColumns<T = AICallLogInfo>(
@@ -65,14 +58,15 @@ export function useColumns<T = AICallLogInfo>(
     {
       field: 'model_name',
       title: $t('admin.ai.callLog.modelName'),
-      width: 180,
+      minWidth: 180,
       slots: { default: 'modelName_cell' },
     },
     {
       field: 'provider_name',
       title: $t('admin.ai.callLog.providerName'),
-      width: 140,
+      minWidth: 140,
       align: 'center',
+      slots: { default: 'providerName_cell' },
     },
     {
       field: 'tenant_name',
@@ -90,7 +84,7 @@ export function useColumns<T = AICallLogInfo>(
     },
     {
       field: 'total_tokens',
-      title: 'Tokens',
+      title: $t('admin.ai.callLog.totalTokens'),
       width: 140,
       align: 'center',
       slots: { default: 'tokens_cell' },
@@ -152,6 +146,10 @@ export function useGridFormSchema(): VbenFormSchema[] {
       api: getTenantSelectApi,
       params: { is_active: 'true' },
       placeholder: $t('admin.ai.callLog.tenantName'),
+    }),
+    searchDateRange({
+      field: 'created_at',
+      label: $t('admin.ai.callLog.createdAt'),
     }),
   ];
 }

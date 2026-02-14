@@ -78,7 +78,7 @@ class AdminRepository(BaseRepository[Admin]):
             管理员实例或 None
         """
         query = select(self.model).where(
-            self.model.is_deleted == False,
+            self.model.is_deleted.is_(False),
             or_(
                 self.model.username == username_or_email,
                 self.model.email == username_or_email,
@@ -100,7 +100,7 @@ class AdminRepository(BaseRepository[Admin]):
         """
         query = select(self.model.id).where(
             self.model.username == username,
-            self.model.is_deleted == False,
+            self.model.is_deleted.is_(False),
         )
         if exclude_id:
             query = query.where(self.model.id != exclude_id)
@@ -121,7 +121,7 @@ class AdminRepository(BaseRepository[Admin]):
         """
         query = select(self.model.id).where(
             self.model.email == email,
-            self.model.is_deleted == False,
+            self.model.is_deleted.is_(False),
         )
         if exclude_id:
             query = query.where(self.model.id != exclude_id)
@@ -145,7 +145,7 @@ class AdminRepository(BaseRepository[Admin]):
         
         query = select(self.model.id).where(
             self.model.phone == phone,
-            self.model.is_deleted == False,
+            self.model.is_deleted.is_(False),
         )
         if exclude_id:
             query = query.where(self.model.id != exclude_id)

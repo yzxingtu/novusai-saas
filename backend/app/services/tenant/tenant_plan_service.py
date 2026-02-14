@@ -282,7 +282,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
             select(Permission)
             .where(
                 Permission.id.in_(permission_ids),
-                Permission.is_deleted == False,
+                Permission.is_deleted.is_(False),
                 Permission.type == PermissionType.MENU.value,
                 Permission.scope.in_([
                     PermissionScope.TENANT.value,
@@ -305,7 +305,7 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
         query = (
             select(Permission)
             .where(
-                Permission.is_deleted == False,
+                Permission.is_deleted.is_(False),
                 Permission.type == PermissionType.MENU.value,
                 Permission.scope.in_([
                     PermissionScope.TENANT.value,

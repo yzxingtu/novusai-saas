@@ -211,8 +211,24 @@ class OpenAIAdapter(BaseAdapter):
         for msg in messages:
             openai_msg: dict = {
                 "role": msg.role,
-                "content": msg.content,
             }
+
+            # 多模态内容：user 消息含图片附件时，转换为 content 数组
+            if msg.role == "user" and msg.attachments:
+                content_parts: list[dict] = []
+                if msg.content:
+                    content_parts.append({"type": "text", "text": msg.content})
+                for att in msg.attachments:
+                    att_type = att.get("type", "")
+                    att_url = att.get("url", "")
+                    if att_type == "image" and att_url:
+                        content_parts.append({
+                            "type": "image_url",
+                            "image_url": {"url": att_url},
+                        })
+                openai_msg["content"] = content_parts if content_parts else msg.content
+            else:
+                openai_msg["content"] = msg.content
             
             if msg.name:
                 openai_msg["name"] = msg.name
@@ -231,14 +247,35 @@ class OpenAIAdapter(BaseAdapter):
         """
         转换 OpenAI 聊天响应为统一格式
         """
+        if not response.choices:
+            return ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
+                model=model,
+                finish_reason="stop",
+            )
         choice = response.choices[0]
         message = choice.message
         
+        # 将 OpenAI SDK tool_calls 对象转为 dict 列表
+        tool_calls_dicts: list[dict] | None = None
+        if message.tool_calls:
+            tool_calls_dicts = [
+                {
+                    "id": tc.id,
+                    "type": tc.type,
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in message.tool_calls
+            ]
+
         # 构建统一消息格式
         chat_message = ChatMessage(
             role=message.role,
             content=message.content or "",
-            tool_calls=message.tool_calls,
+            tool_calls=tool_calls_dicts,
         )
         
         # 提取 Token 使用量
@@ -254,7 +291,7 @@ class OpenAIAdapter(BaseAdapter):
             total_tokens=total_tokens,
             model=model,
             finish_reason=choice.finish_reason,
-            tool_calls=message.tool_calls,
+            tool_calls=tool_calls_dicts,
             raw_response=response.model_dump() if hasattr(response, "model_dump") else None,
         )
     
@@ -262,6 +299,8 @@ class OpenAIAdapter(BaseAdapter):
         """
         转换 OpenAI 流式响应块为统一格式
         """
+        if not chunk.choices:
+            return ChatChunk(delta="")
         choice = chunk.choices[0]
         delta = choice.delta
         

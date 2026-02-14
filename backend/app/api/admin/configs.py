@@ -109,7 +109,7 @@ class AdminConfigController(GlobalController):
     """
     
     prefix = "/configs"
-    tags = ["系统配置"]
+    tags = ["System Configuration"]
     
     def _register_routes(self) -> None:
         """注册路由"""

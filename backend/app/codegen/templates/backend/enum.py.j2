@@ -1,0 +1,49 @@
+{# ============================================================
+   Jinja2 Template: 枚举定义
+   生成路径: app/enums/{{ scope_dir }}/{{ module }}.py
+   ============================================================ #}
+"""
+{{ display_name }}相关枚举
+
+{{ description }}
+"""
+
+from app.enums.base import LabeledStrEnum
+
+{% for enum in enums %}
+
+class {{ enum.name }}(LabeledStrEnum):
+    """{{ enum.description or enum.name }}"""
+{% for opt in enum.values %}
+    {{ opt.value | upper }} = ("{{ opt.value }}", "enum.{{ module }}.{{ enum.name | snake }}.{{ opt.value }}")
+{% endfor %}
+
+{% if enum.transitions %}
+    @classmethod
+    def get_transitions(cls) -> dict[str, list[str]]:
+        """获取状态流转映射: from_state → [to_state, ...]"""
+        return {
+{% for tr in enum.transitions %}
+{% if loop.changed(tr.from_state) %}
+            cls.{{ tr.from_state | upper }}.value: [
+{% endif %}
+                cls.{{ tr.to_state | upper }}.value,
+{% if loop.last or loop.nextitem.from_state != tr.from_state %}
+            ],
+{% endif %}
+{% endfor %}
+        }
+
+    @classmethod
+    def can_transition(cls, from_state: str, to_state: str) -> bool:
+        """检查状态流转是否合法"""
+        allowed = cls.get_transitions().get(from_state, [])
+        return to_state in allowed
+{% endif %}
+{% endfor %}
+
+__all__ = [
+{% for enum in enums %}
+    "{{ enum.name }}",
+{% endfor %}
+]

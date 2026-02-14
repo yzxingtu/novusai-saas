@@ -57,7 +57,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
         """
         query = select(self.model).where(
             self.model.hash == file_hash,
-            self.model.is_deleted == False,
+            self.model.is_deleted.is_(False),
         )
         if tenant_id is not None:
             query = query.where(self.model.tenant_id == tenant_id)
@@ -75,7 +75,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
             总大小（字节）
         """
         query = select(func.coalesce(func.sum(self.model.size), 0)).where(
-            self.model.is_deleted == False,
+            self.model.is_deleted.is_(False),
         )
         if tenant_id is not None:
             query = query.where(self.model.tenant_id == tenant_id)
@@ -112,7 +112,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
                 func.count(self.model.id).label("count"),
                 func.coalesce(func.sum(self.model.size), 0).label("total_size"),
             )
-            .where(self.model.is_deleted == False)
+            .where(self.model.is_deleted.is_(False))
             .group_by(self.model.tenant_id)
             .order_by(func.sum(self.model.size).desc())
         )

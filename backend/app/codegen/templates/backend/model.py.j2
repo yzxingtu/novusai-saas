@@ -1,0 +1,379 @@
+{# ============================================================
+   Jinja2 Template: SQLAlchemy Model
+   生成路径: app/models/{{ scope_dir }}/{{ module }}.py
+   
+   变量:
+     - config: CrudConfig
+     - model_class: PascalCase 模型类名
+     - module: kebab-case 模块名
+     - scope: admin | tenant
+     - scope_dir: admin | tenant
+     - table_name: snake_case 表名
+     - fields: list[FieldConfig]
+     - relations: list[RelationConfig]
+     - enums: list[EnumDefinition]
+     - selectable: SelectableConfig | None
+     - indexes: list[IndexConfig]
+     - has_status_toggle: bool
+   ============================================================ #}
+"""
+{{ display_name }}模型
+{% if description %}
+
+{{ description }}
+{% endif %}
+"""
+{% set ns = namespace(has_fk=false, has_json=false, has_text=false, has_float=false, has_decimal=false, has_datetime=false, has_date=false) %}
+{% for field in fields %}
+{% if field.relation_ref %}{% set ns.has_fk = true %}{% endif %}
+{% if field.type.value == 'json' %}{% set ns.has_json = true %}{% endif %}
+{% if field.type.value == 'text' %}{% set ns.has_text = true %}{% endif %}
+{% if field.type.value in ('float',) %}{% set ns.has_float = true %}{% endif %}
+{% if field.type.value == 'decimal' %}{% set ns.has_decimal = true %}{% endif %}
+{% if field.type.value == 'datetime' %}{% set ns.has_datetime = true %}{% endif %}
+{% if field.type.value == 'date' %}{% set ns.has_date = true %}{% endif %}
+{% endfor %}
+
+from sqlalchemy import (
+    Boolean,
+{% if ns.has_date %}
+    Date,
+{% endif %}
+{% if ns.has_datetime %}
+    DateTime,
+{% endif %}
+{% if ns.has_decimal %}
+    Numeric,
+{% endif %}
+{% if ns.has_float %}
+    Float,
+{% endif %}
+{% if ns.has_fk %}
+    ForeignKey,
+{% endif %}
+{% if indexes %}
+    Index,
+{% endif %}
+    Integer,
+{% if ns.has_json %}
+    JSON,
+{% endif %}
+    String,
+{% if ns.has_text %}
+    Text,
+{% endif %}
+)
+from sqlalchemy.orm import Mapped, mapped_column{% if relations %}, relationship{% endif %}
+{% if ns.has_datetime or ns.has_date %}
+
+from datetime import {% if ns.has_datetime %}datetime{% endif %}{% if ns.has_datetime and ns.has_date %}, {% endif %}{% if ns.has_date %}date{% endif %}
+
+{% endif %}
+{% if scope == 'tenant' %}
+from app.core.base_model import TenantModel
+{% else %}
+from app.core.base_model import BaseModel
+{% endif %}
+{% if enums %}
+{% for enum in enums %}
+from app.enums.{{ scope_dir }}.{{ module }} import {{ enum.name }}
+{% endfor %}
+{% endif %}
+
+
+{% if scope == 'tenant' %}
+class {{ model_class }}(TenantModel):
+{% else %}
+class {{ model_class }}(BaseModel):
+{% endif %}
+    """
+    {{ display_name }}模型
+{% if scope == 'tenant' %}
+
+    租户级资源，通过 tenant_id 隔离
+{% endif %}
+    """
+
+    __tablename__ = "{{ table_name }}"
+
+    # 允许前端筛选的字段
+    __filterable__ = {
+        "id": "id",
+{% if scope == 'tenant' %}
+        "tenant_id": "tenant_id",
+{% endif %}
+{% for field in fields %}
+{% if field.filterable %}
+        "{{ field.name }}": "{{ field.name }}",
+{% endif %}
+{% endfor %}
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+    }
+
+    # 允许排序的字段
+    __sortable__ = {
+        "id": "id",
+{% for field in fields %}
+{% if field.sortable %}
+        "{{ field.name }}": "{{ field.name }}",
+{% endif %}
+{% endfor %}
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+    }
+{% if selectable %}
+
+    # 下拉选项配置
+    __selectable__ = {
+        "label": "{{ selectable.label_field }}",
+        "value": "{{ selectable.value_field }}",
+{% if selectable.search_fields %}
+        "search": {{ selectable.search_fields | tojson }},
+{% endif %}
+{% if selectable.extra_fields %}
+        "extra": {{ selectable.extra_fields | tojson }},
+{% endif %}
+    }
+{% endif %}
+
+    # ==================== 字段定义 ====================
+{% for field in fields %}
+
+{% if field.type.value == 'string' %}
+    {{ field.name }}: Mapped[{{ 'str' if field.required else 'str | None' }}] = mapped_column(
+        String({{ field.max_length or 255 }}),
+{% if field.nullable is false or field.required %}
+        nullable={{ 'False' if field.required else 'True' }},
+{% else %}
+        nullable=True,
+{% endif %}
+{% if field.unique %}
+        unique=True,
+{% endif %}
+{% if field.index %}
+        index=True,
+{% endif %}
+{% if field.default is not none %}
+        default="{{ field.default }}",
+{% elif not field.required %}
+        default=None,
+{% endif %}
+        comment="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'text' %}
+    {{ field.name }}: Mapped[{{ 'str' if field.required else 'str | None' }}] = mapped_column(
+        Text,
+        nullable={{ 'False' if field.required else 'True' }},
+{% if field.default is not none %}
+        default="{{ field.default }}",
+{% elif not field.required %}
+        default=None,
+{% endif %}
+        comment="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'integer' %}
+    {{ field.name }}: Mapped[{{ 'int' if field.required else 'int | None' }}] = mapped_column(
+        Integer,
+        nullable={{ 'False' if field.required else 'True' }},
+{% if field.unique %}
+        unique=True,
+{% endif %}
+{% if field.index %}
+        index=True,
+{% endif %}
+{% if field.default is not none %}
+        default={{ field.default }},
+{% elif not field.required %}
+        default=None,
+{% endif %}
+        comment="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'float' %}
+    {{ field.name }}: Mapped[{{ 'float' if field.required else 'float | None' }}] = mapped_column(
+        Float,
+        nullable={{ 'False' if field.required else 'True' }},
+{% if field.default is not none %}
+        default={{ field.default }},
+{% elif not field.required %}
+        default=None,
+{% endif %}
+        comment="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'decimal' %}
+    {{ field.name }}: Mapped[{{ 'float' if field.required else 'float | None' }}] = mapped_column(
+        Numeric(precision=10, scale=2),
+        nullable={{ 'False' if field.required else 'True' }},
+{% if field.default is not none %}
+        default={{ field.default }},
+{% elif not field.required %}
+        default=None,
+{% endif %}
+        comment="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'boolean' %}
+    {{ field.name }}: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default={{ field.default if field.default is not none else 'False' }},
+        comment="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'datetime' %}
+    {{ field.name }}: Mapped[{{ 'datetime' if field.required else 'datetime | None' }}] = mapped_column(
+        DateTime,
+        nullable={{ 'False' if field.required else 'True' }},
+{% if not field.required %}
+        default=None,
+{% endif %}
+        comment="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'date' %}
+    {{ field.name }}: Mapped[{{ 'date' if field.required else 'date | None' }}] = mapped_column(
+        Date,
+        nullable={{ 'False' if field.required else 'True' }},
+{% if not field.required %}
+        default=None,
+{% endif %}
+        comment="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'json' %}
+    {{ field.name }}: Mapped[{{ 'dict | list' if field.required else 'dict | list | None' }}] = mapped_column(
+        JSON,
+        nullable={{ 'False' if field.required else 'True' }},
+{% if field.default is not none %}
+        default={{ field.default }},
+{% elif not field.required %}
+        default=None,
+{% endif %}
+        comment="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'enum' %}
+    {{ field.name }}: Mapped[{{ 'str' if field.required else 'str | None' }}] = mapped_column(
+        String(50),
+        nullable={{ 'False' if field.required else 'True' }},
+{% if field.index or field.searchable %}
+        index=True,
+{% endif %}
+{% if field.default is not none %}
+        default="{{ field.default }}",
+{% elif field.enum_ref and enums %}
+{% for enum in enums %}
+{% if enum.name == field.enum_ref and enum.values %}
+        default={{ enum.name }}.{{ enum.values[0].value | upper }}.value,
+{% endif %}
+{% endfor %}
+{% elif not field.required %}
+        default=None,
+{% endif %}
+        comment="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'file' %}
+{% if field.upload and field.upload.max_count > 1 %}
+    {{ field.name }}: Mapped[list | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=list,
+        comment="{{ field.label_zh }}",
+    )
+{% else %}
+    {{ field.name }}: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        default=None,
+        comment="{{ field.label_zh }}",
+    )
+{% endif %}
+{% endif %}
+{% endfor %}
+{% if has_status_toggle %}
+
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        index=True,
+        comment="是否启用",
+    )
+{% endif %}
+{% if config.drag_sort %}
+
+    sort_order: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="排序序号",
+    )
+{% endif %}
+
+    # ==================== 关联关系 ====================
+{% for rel in relations %}
+{% if rel.type.value == 'belongs_to' %}
+
+    {{ rel.foreign_key or (rel.name + '_id') }}: Mapped[{{ 'int' if not rel.nullable else 'int | None' }}] = mapped_column(
+        Integer,
+        ForeignKey("{{ rel.target_table }}.id", ondelete="{{ 'CASCADE' if rel.cascade_delete else 'RESTRICT' }}"),
+        nullable={{ 'True' if rel.nullable else 'False' }},
+        index=True,
+        comment="{{ rel.comment_zh or rel.name }}",
+    )
+
+    {{ rel.name }}: Mapped["{{ rel.target_model }}"] = relationship(
+        "{{ rel.target_model }}",
+        lazy="noload",
+    )
+{% elif rel.type.value == 'has_many' %}
+
+    {{ rel.name }}: Mapped[list["{{ rel.target_model }}"]] = relationship(
+        "{{ rel.target_model }}",
+        lazy="noload",
+{% if rel.cascade_delete %}
+        cascade="all, delete-orphan",
+{% endif %}
+    )
+{% elif rel.type.value == 'self_ref_tree' %}
+
+    parent_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("{{ table_name }}.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+        comment="父级ID",
+    )
+    path: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+        default=None,
+        comment="层级路径",
+    )
+    level: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="层级深度",
+    )
+
+    children: Mapped[list["{{ model_class }}"]] = relationship(
+        "{{ model_class }}",
+        lazy="noload",
+    )
+{% endif %}
+{% endfor %}
+{% if indexes %}
+
+    # ==================== 复合索引 ====================
+
+    __table_args__ = (
+{% for idx in indexes %}
+        Index(
+            "{{ idx.name or ('ix_' + table_name + '_' + idx.fields | join('_')) }}",
+{% for f in idx.fields %}
+            "{{ f }}",
+{% endfor %}
+            unique={{ idx.unique }},
+        ),
+{% endfor %}
+    )
+{% endif %}
+
+
+__all__ = ["{{ model_class }}"]

@@ -40,7 +40,7 @@ class AIModelRepository(BaseRepository[AIModel]):
         )
         
         if not include_deleted:
-            stmt = stmt.where(AIModel.is_deleted == False)
+            stmt = stmt.where(AIModel.is_deleted.is_(False))
         
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
@@ -65,7 +65,7 @@ class AIModelRepository(BaseRepository[AIModel]):
         )
         
         if not include_deleted:
-            stmt = stmt.where(AIModel.is_deleted == False)
+            stmt = stmt.where(AIModel.is_deleted.is_(False))
         
         stmt = stmt.order_by(AIModel.created_at.desc())
         
@@ -87,8 +87,8 @@ class AIModelRepository(BaseRepository[AIModel]):
         """
         stmt = select(AIModel).where(
             AIModel.provider_id == provider_id,
-            AIModel.is_active == True,
-            AIModel.is_deleted == False
+            AIModel.is_active.is_(True),
+            AIModel.is_deleted.is_(False)
         ).order_by(
             AIModel.created_at.desc()
         )
@@ -116,7 +116,7 @@ class AIModelRepository(BaseRepository[AIModel]):
         
         stmt = select(func.count(AIModel.id)).where(
             AIModel.code == code,
-            AIModel.is_deleted == False
+            AIModel.is_deleted.is_(False)
         )
         
         if exclude_id is not None:
@@ -125,6 +125,28 @@ class AIModelRepository(BaseRepository[AIModel]):
         result = await self.db.execute(stmt)
         count = result.scalar() or 0
         return count > 0
+    async def get_active_with_provider(
+        self, model_id: int
+    ) -> AIModel | None:
+        """
+        获取启用的模型（预加载 provider 关系）
+
+        Args:
+            model_id: 模型 ID
+
+        Returns:
+            AIModel 对象或 None
+        """
+        from sqlalchemy.orm import selectinload
+
+        stmt = select(AIModel).where(
+            AIModel.id == model_id,
+            AIModel.is_active.is_(True),
+            AIModel.is_deleted.is_(False),
+        ).options(selectinload(AIModel.provider))
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_active_by_name_and_provider(
         self, name: str, provider_id: int
     ) -> AIModel | None:
@@ -141,8 +163,8 @@ class AIModelRepository(BaseRepository[AIModel]):
         stmt = select(AIModel).where(
             AIModel.provider_id == provider_id,
             AIModel.name == name,
-            AIModel.is_active == True,
-            AIModel.is_deleted == False,
+            AIModel.is_active.is_(True),
+            AIModel.is_deleted.is_(False),
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()

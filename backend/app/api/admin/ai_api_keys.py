@@ -98,7 +98,7 @@ def _build_api_key_response(key) -> dict:
         icon="lucide:key",
         path="/ai/api-keys",
         component="ai/api-keys/index",
-        parent="ai_mgmt",
+        parent="ai_infra",
         sort_order=30,
     ),
 )
@@ -110,7 +110,7 @@ class AdminAIApiKeyController(GlobalController):
     """
 
     prefix = "/ai/api-keys"
-    tags = ["AI API Key 管理"]
+    tags = [_("menu.tags.admin_ai_api_key")]
     service_class = ProviderApiKeyService
 
     def _register_routes(self) -> None:
@@ -162,7 +162,7 @@ class AdminAIApiKeyController(GlobalController):
             权限: ai_api_key:list_by_provider
             """
             service = ProviderApiKeyService(db)
-            keys = await service.repo.get_keys_by_provider(
+            keys = await service.get_keys_by_provider(
                 provider_id=provider_id,
                 tenant_id=tenant_id,
             )

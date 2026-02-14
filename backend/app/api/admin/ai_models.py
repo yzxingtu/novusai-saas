@@ -6,15 +6,13 @@
 
 from fastapi import Query, Request
 
-from app.ai.adapters import AdapterRegistry
 from app.core.base_controller import GlobalController
 from app.core.deps import DbSession, QueryParams, ActiveAdmin
 from app.core.base_schema import PageResponse
 from app.core.i18n import _
-from app.core.logging import LogManager
 from app.core.response import success
 from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException, ExternalServiceException
+from app.exceptions import NotFoundException
 from app.rbac.decorators import (
     permission_resource,
     MenuConfig,
@@ -23,15 +21,13 @@ from app.rbac.decorators import (
     action_update,
     action_delete,
 )
-from app.repositories.ai import AIProviderRepository, ProviderApiKeyRepository
 from app.schemas.ai.model import (
     AIModelCreate,
     AIModelUpdate,
     AIModelResponse,
 )
+from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.services.ai import AIModelService
-
-logger = LogManager.get_logger("ai")
 
 
 @permission_resource(
@@ -42,7 +38,7 @@ logger = LogManager.get_logger("ai")
         icon="lucide:brain",
         path="/ai/models",
         component="ai/models/index",
-        parent="ai_mgmt",
+        parent="ai_infra",
         sort_order=20,
     ),
 )
@@ -54,12 +50,19 @@ class AdminAIModelController(GlobalController):
     """
 
     prefix = "/ai/models"
-    tags = ["AI 模型管理"]
+    tags = [_("menu.tags.admin_ai_model")]
     service_class = AIModelService
 
     def _register_routes(self) -> None:
         """注册路由"""
         router = self.router
+
+        # 回收站路由必须在 /{id} 之前注册，避免路径冲突
+        register_admin_recycle_bin_routes(
+            router=router,
+            service_class=AIModelService,
+            resource_name="ai_model",
+        )
 
         @router.get("", summary="获取 AI 模型列表")
         @action_read("action.ai_model.list")
@@ -128,43 +131,13 @@ class AdminAIModelController(GlobalController):
 
             权限: ai_model:list
             """
-            # 获取供应商
-            provider_repo = AIProviderRepository(db)
-            provider = await provider_repo.get_by_id(provider_id)
-            if not provider or not provider.is_active:
-                raise NotFoundException(message=_("ai.error.provider_not_found"))
+            service = AIModelService(db)
+            remote_models = await service.fetch_remote_models(provider_id)
 
-            # 获取可用的 API Key
-            api_key_repo = ProviderApiKeyRepository(db)
-            api_key = await api_key_repo.get_available_key(
-                provider_id=provider.id,
-                tenant_id=None,
+            return success(
+                data=remote_models,
+                message=_("common.success"),
             )
-            if not api_key or not api_key.is_available():
-                raise NotFoundException(message=_("ai.error.no_api_key"))
-
-            try:
-                # 创建适配器并拉取模型列表
-                adapter = AdapterRegistry.create_adapter(
-                    provider_type=provider.type,
-                    api_key=api_key.decrypt_key(),
-                    base_url=provider.base_url,
-                )
-                remote_models = await adapter.list_models()
-
-                return success(
-                    data=remote_models,
-                    message=_("common.success"),
-                )
-            except Exception as e:
-                logger.error(
-                    _("ai.error.fetch_remote_models_failed"),
-                    provider=provider.code,
-                    error=str(e),
-                )
-                raise ExternalServiceException(
-                    message=_("ai.error.fetch_remote_models_failed") + f": {str(e)}"
-                )
 
         @router.get("/{model_id}", summary="获取 AI 模型详情")
         @action_read("action.ai_model.detail")

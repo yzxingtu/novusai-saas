@@ -44,7 +44,7 @@ class TenantTaskLogController(TenantController):
     """
 
     prefix = "/tasks"
-    tags = ["任务日志管理"]
+    tags = ["Task Log Management"]
     service_class = TenantTaskLogService
 
     def _register_routes(self) -> None:

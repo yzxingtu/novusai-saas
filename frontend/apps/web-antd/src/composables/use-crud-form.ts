@@ -144,6 +144,22 @@ export interface UseCrudDrawerOptions<T = any> {
   /** 成功回调 */
   onSuccess?: () => void;
 
+  /**
+   * 保存后回调（可选）
+   *
+   * 在 API 请求成功后、onSuccess 之前调用。
+   * 可用于保存关联数据（如技能脚本）。
+   *
+   * @param response API 响应数据
+   * @param formValues 表单原始值
+   * @param isEdit 是否编辑模式
+   */
+  afterSave?: (
+    response: any,
+    formValues: Record<string, any>,
+    isEdit: boolean,
+  ) => Promise<void> | void;
+
   /** 打开时额外操作（如加载远程数据） */
   onOpen?: () => Promise<void> | void;
 
@@ -177,6 +193,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
     defaults,
     toFormValues: customToFormValues,
     onSuccess,
+    afterSave,
     onOpen,
     afterOpen,
     apiPath,
@@ -219,7 +236,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
       drawerApi.lock();
 
       try {
-        await (isEdit.value && recordId.value
+        const response = await (isEdit.value && recordId.value
           ? requestClient.put(
               `${resource.value}/${recordId.value}`,
               requestData,
@@ -232,6 +249,9 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
               showSuccessMessage: true,
               successMessage: $t('ui.actionMessage.createSuccess'),
             }));
+        if (afterSave) {
+          await afterSave(response, values, isEdit.value);
+        }
         await onSuccess?.();
         drawerApi.close();
       } catch {

@@ -1,0 +1,131 @@
+{# ============================================================
+   Jinja2 Template: 前端左右分栏布局 index_split.vue.j2
+   生成路径: views/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s/index.vue
+   LayoutVariant = split
+   左侧列表 + 右侧详情预览
+   ============================================================ #}
+{% raw %}<script lang="ts" setup>{% endraw %}
+
+/**
+ * {{ scope_dir }}端{{ display_name }}管理 — 左右分栏布局
+ */
+import type { {{ model_class }}Item } from '#/api/{{ scope_dir }}/{{ module }}s';
+
+defineOptions({ name: '{{ scope_dir | capitalize }}{{ model_class }}Split' });
+
+import { ref } from 'vue';
+
+import { Page } from '@vben/common-ui';
+
+import { Card{% set ns = namespace(has_tag=false) %}{% for field in fields %}{% if field.list_render and field.list_render.value == 'tag' %}{% set ns.has_tag = true %}{% endif %}{% endfor %}{% if ns.has_tag %}, Tag{% endif %} } from 'ant-design-vue';
+
+import { useCrudPage } from '#/adapter/vxe-table';
+import {
+  delete{{ model_class }}Api,
+  get{{ model_class }}DetailApi,
+  get{{ model_class }}ListApi,
+} from '#/api/{{ scope_dir }}/{{ module }}s';
+import { $t } from '#/locales';
+import { formatDate } from '#/utils/common';
+
+import {
+{% for enum in enums %}
+{% for field in fields %}
+{% if field.enum_ref == enum.name and field.in_list and field.list_render and field.list_render.value == 'tag' %}
+  get{{ enum.name }}Color,
+  get{{ enum.name }}Text,
+{% endif %}
+{% endfor %}
+{% endfor %}
+  useColumns,
+  useGridFormSchema,
+} from './data';
+import {{ model_class }}Form from './modules/form.vue';
+
+const selectedItem = ref<{{ model_class }}Item | null>(null);
+const detailLoading = ref(false);
+
+const { Grid, FormDrawer } = useCrudPage<{{ model_class }}Item>({
+  api: {
+    list: get{{ model_class }}ListApi,
+    delete: delete{{ model_class }}Api,
+    resource: '/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s',
+  },
+  columns: useColumns,
+  searchSchema: useGridFormSchema(),
+  formComponent: {{ model_class }}Form,
+  i18nPrefix: '{{ i18n_prefix }}',
+  nameField: '{{ fields[0].name if fields else 'name' }}',
+  defaultSort: '{{ config.list_config.default_sort }}',
+{% if recyclable %}
+  recycleBin: true,
+{% endif %}
+  customActions: {
+    detail: onRowClick,
+  },
+});
+
+async function onRowClick(row: {{ model_class }}Item) {
+  detailLoading.value = true;
+  try {
+    selectedItem.value = await get{{ model_class }}DetailApi(row.id);
+  } finally {
+    detailLoading.value = false;
+  }
+}
+{% raw %}</script>{% endraw %}
+
+{% raw %}<template>{% endraw %}
+
+  <Page auto-content-height content-class="flex gap-4">
+    <FormDrawer />
+
+    <!-- 左侧列表 -->
+    <Card class="w-3/5" :body-style="{ padding: '16px', height: '100%' }">
+      <Grid />
+    </Card>
+
+    <!-- 右侧详情 -->
+    <Card class="w-2/5" :body-style="{ padding: '16px' }">
+      <template v-if="selectedItem">
+        <h3 class="mb-4 text-lg font-medium">
+          {% raw %}{{ {% endraw %}selectedItem.{{ fields[0].name if fields else 'id' }}{% raw %} }}{% endraw %}
+
+        </h3>
+        <div class="space-y-3">
+{% for field in fields %}
+{% if field.in_list %}
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-muted-foreground">
+              {% raw %}{{ {% endraw %}$t('{{ i18n_prefix }}.field.{{ field.name }}'){% raw %} }}{% endraw %}
+
+            </span>
+{% if field.list_render and field.list_render.value == 'tag' and field.enum_ref %}
+            <Tag :color="get{{ field.enum_ref }}Color(selectedItem.{{ field.name }})">
+              {% raw %}{{ {% endraw %}get{{ field.enum_ref }}Text(selectedItem.{{ field.name }}){% raw %} }}{% endraw %}
+
+            </Tag>
+{% else %}
+            <span class="text-sm">{% raw %}{{ {% endraw %}selectedItem.{{ field.name }} ?? '-'{% raw %} }}{% endraw %}</span>
+{% endif %}
+          </div>
+{% endif %}
+{% endfor %}
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-muted-foreground">
+              {% raw %}{{ {% endraw %}$t('{{ scope_dir }}.common.createdAt'){% raw %} }}{% endraw %}
+
+            </span>
+            <span class="text-sm">{% raw %}{{ {% endraw %}formatDate(selectedItem.created_at){% raw %} }}{% endraw %}</span>
+          </div>
+        </div>
+      </template>
+      <template v-else>
+        <div class="flex h-full items-center justify-center text-muted-foreground">
+          {% raw %}{{ {% endraw %}$t('{{ i18n_prefix }}.selectToView'){% raw %} }}{% endraw %}
+
+        </div>
+      </template>
+    </Card>
+  </Page>
+{% raw %}</template>{% endraw %}

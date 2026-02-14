@@ -4,7 +4,7 @@
 定义系统通用的状态枚举
 """
 
-from app.enums.base import IntEnum, StrEnum
+from app.enums.base import IntEnum, LabeledStrEnum, StrEnum
 
 
 class StatusEnum(IntEnum):
@@ -66,6 +66,21 @@ class PriorityEnum(IntEnum):
     URGENT = (4, "enum.priority.urgent")
 
 
+class ResourceScopeEnum(LabeledStrEnum):
+    """资源作用域枚举（知识库、智能体等共用）"""
+
+    TENANT = ("tenant", "enum.resource_scope.tenant")
+    GLOBAL = ("global", "enum.resource_scope.global")
+    ADMIN = ("admin", "enum.resource_scope.admin")
+
+
+class DeleteLevelEnum(LabeledStrEnum):
+    """删除层级枚举（两级回收站）"""
+
+    TENANT = ("tenant", "enum.delete_level.tenant")
+    ADMIN = ("admin", "enum.delete_level.admin")
+
+
 __all__ = [
     "StatusEnum",
     "BoolEnum",
@@ -74,4 +89,6 @@ __all__ = [
     "SortOrderEnum",
     "OperationTypeEnum",
     "PriorityEnum",
+    "ResourceScopeEnum",
+    "DeleteLevelEnum",
 ]

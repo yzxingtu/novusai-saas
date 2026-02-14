@@ -27,6 +27,7 @@ import type {
   BaseRow,
   FormMode,
   OnActionClickParams,
+  RecycleBinConfig,
   ToggleStatusApi,
   UseCrudPageOptions,
 } from './types';
@@ -40,7 +41,7 @@ import { message, Modal } from 'ant-design-vue';
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
 
-import { CrudGrid, useExportModal } from './components';
+import { CrudGrid, RecycleBinDrawer, useExportModal } from './components';
 import { useGridSearchFormOptions, useVbenVxeGrid } from './use-vxe-grid';
 
 /**
@@ -70,7 +71,14 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       zoom: true,
     },
     customActions = {},
+    recycleBin,
   } = options;
+
+  // ==================== 回收站配置 ====================
+  const recycleBinEnabled = !!recycleBin;
+  const recycleBinConfig: RecycleBinConfig =
+    typeof recycleBin === 'object' ? recycleBin : {};
+  const recycleBinRef = ref<InstanceType<typeof RecycleBinDrawer> | null>(null);
 
   // ==================== 表单弹窗 ====================
   let FormPopup:
@@ -174,6 +182,10 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         successMessage: $t(`${i18nPrefix}.messages.deleteSuccess`),
       });
       onRefresh();
+      // 刷新回收站计数
+      if (recycleBinEnabled) {
+        recycleBinRef.value?.refreshCount();
+      }
     } finally {
       setProcessing(row.id, false);
     }
@@ -348,26 +360,50 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   // 赋值给闭包引用
   gridApi = _gridApi;
 
-  // 包装 Grid 组件，自动添加导出按钮和导出弹窗
+  /** 打开回收站 */
+  function openRecycleBin() {
+    recycleBinRef.value?.open();
+  }
+
+  // 包装 Grid 组件，自动添加导出按钮、回收站按钮和弹窗
   const Grid = defineComponent({
     name: 'CrudPageGrid',
     inheritAttrs: false,
     setup(_, { attrs, slots }) {
-      return () =>
-        h('div', { class: 'crud-page-grid h-full' }, [
+      return () => {
+        const children = [
           h(
             CrudGrid,
             {
               grid: OriginalGrid,
               showExport: showExportButton,
+              showRecycleBin: recycleBinEnabled,
+              recycleBinCount: recycleBinRef.value?.deletedCount ?? 0,
               onExport: openExportModal,
-              ...attrs, // 传递所有属性和事件监听器
+              onRecycleBin: openRecycleBin,
+              ...attrs,
             },
             slots,
           ),
-          // 渲染导出弹窗组件
           h(ExportModal),
-        ]);
+        ];
+
+        // 渲染回收站抽屉
+        if (recycleBinEnabled) {
+          children.push(
+            h(RecycleBinDrawer, {
+              ref: recycleBinRef,
+              resource: api.resource,
+              nameField:
+                recycleBinConfig.nameField ?? (nameField as string),
+              columns: recycleBinConfig.columns,
+              onRestored: onRefresh,
+            }),
+          );
+        }
+
+        return h('div', { class: 'crud-page-grid h-full' }, children);
+      };
     },
   });
 
@@ -395,5 +431,9 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     handleActionClick,
     handleToggleStatus,
     createToggleHandler,
+
+    // 回收站
+    openRecycleBin,
+    recycleBinRef,
   };
 }

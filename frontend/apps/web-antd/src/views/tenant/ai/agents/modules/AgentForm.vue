@@ -2,24 +2,59 @@
 defineOptions({ name: 'TenantAgentForm' });
 /**
  * 租户端智能体新建/编辑表单抽屉
+ * 支持向导模式（新建）和经典模式（编辑）
  */
 import type { AgentInfo } from '#/api/tenant/agents';
 
-import { computed } from 'vue';
+interface AgentDetailWithBindings extends AgentInfo {
+  _package_ids?: number[];
+}
+
+import { computed, ref } from 'vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { getAgentDetailApi } from '#/api/tenant/agents';
+import {
+  batchBindPackagesApi,
+  getAgentDetailApi,
+  getAgentSkillsApi,
+} from '#/api/tenant/agents';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
-import { getFormDefaults, useFormSchema } from '../data';
+import {
+  getFormDefaults,
+  getWizardSteps,
+  useFormSchema,
+  useWizardFormSchema,
+} from '../data';
+
+const TOTAL_STEPS = 4;
 
 const emits = defineEmits<{ success: [] }>();
+
+const wizardMode = ref(false);
+const currentStep = ref(0);
+const pendingPackageIds = ref<number[]>([]);
 
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(),
   showDefaultActions: false,
 });
+
+function goStep(step: number) {
+  currentStep.value = step;
+  formApi.setValues({ _wizard_step: step });
+}
+
+function prevStep() {
+  if (currentStep.value > 0) goStep(currentStep.value - 1);
+}
+
+function nextStep() {
+  if (currentStep.value < TOTAL_STEPS - 1) goStep(currentStep.value + 1);
+}
+
+const wizardSteps = computed(() => getWizardSteps());
 
 /**
  * 安全解析 JSON 数组字符串
@@ -42,14 +77,16 @@ function toJsonArrayString(arr: unknown[] | null | undefined): string {
   return JSON.stringify(arr, null, 2);
 }
 
-const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<AgentInfo>({
+const { Drawer, isEdit, recordId, openNew: _openNew, openEdit: _openEdit } = useCrudDrawer<AgentInfo>({
   formApi,
   schema: useFormSchema,
   defaults: getFormDefaults,
   apiPath: '/tenant/ai/agents',
   transform: (values) => {
+    pendingPackageIds.value = (values.package_ids as number[]) || [];
     return {
       name: values.name,
+      avatar: values.avatar || null,
       model_id: values.model_id,
       execution_mode: values.execution_mode,
       system_prompt: values.system_prompt,
@@ -59,7 +96,6 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<AgentInfo>({
       top_p: values.top_p ?? null,
       welcome_message: values.welcome_message || null,
       suggested_questions: safeJsonArrayParse(values.suggested_questions_str),
-      tool_bindings: safeJsonArrayParse(values.tool_bindings_str),
       input_variables: safeJsonArrayParse(values.input_variables_str),
       context_config: {
         max_history_messages: values.context_max_history_messages ?? 20,
@@ -80,6 +116,7 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<AgentInfo>({
     const cc = (data.context_config ?? {}) as Record<string, number>;
     return {
       name: data.name,
+      avatar: data.avatar || '',
       model_id: data.model_id,
       execution_mode: data.execution_mode,
       system_prompt: data.system_prompt,
@@ -89,10 +126,10 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<AgentInfo>({
       top_p: data.top_p,
       welcome_message: data.welcome_message,
       suggested_questions_str: toJsonArrayString(data.suggested_questions as unknown[] | null),
-      tool_bindings_str: toJsonArrayString(data.tool_bindings as unknown[] | null),
       input_variables_str: toJsonArrayString(data.input_variables as unknown[] | null),
       context_max_history_messages: cc.max_history_messages ?? 20,
       context_max_history_tokens: cc.max_history_tokens ?? 0,
+      package_ids: (data as AgentDetailWithBindings)._package_ids || [],
       quota_conversations_per_day: qc.conversations_per_day ?? 0,
       quota_tokens_per_day: qc.daily_token_limit ?? 0,
       quota_tokens_per_month: qc.monthly_token_limit ?? 0,
@@ -101,13 +138,42 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<AgentInfo>({
       quota_user_conversations_per_day: qc.user_conversations_per_day ?? 0,
     };
   },
-  onSuccess: () => {
+  onSuccess: async () => {
+    const agentId = recordId.value as number | undefined;
+    if (agentId && pendingPackageIds.value.length >= 0) {
+      try {
+        await batchBindPackagesApi(agentId, pendingPackageIds.value);
+      } catch {
+        // package binding errors are non-fatal
+      }
+    }
     emits('success');
   },
   detailApi: async (id) => {
-    return await getAgentDetailApi(id as number);
+    const agent = await getAgentDetailApi(id as number);
+    try {
+      const bindings = await getAgentSkillsApi(id as number);
+      (agent as AgentDetailWithBindings)._package_ids = bindings.map((b) => b.package_id);
+    } catch {
+      (agent as AgentDetailWithBindings)._package_ids = [];
+    }
+    return agent;
   },
 });
+
+function openNew() {
+  wizardMode.value = true;
+  currentStep.value = 0;
+  formApi.setState({ schema: useWizardFormSchema() });
+  _openNew();
+  setTimeout(() => formApi.setValues({ _wizard_step: 0 }), 50);
+}
+
+function openEdit(record: AgentInfo) {
+  wizardMode.value = false;
+  formApi.setState({ schema: useFormSchema() });
+  _openEdit(record);
+}
 
 defineExpose({ openNew, openEdit });
 
@@ -116,10 +182,31 @@ const title = computed(() =>
     ? $t('common.edit')
     : $t('tenant.ai.agent.create'),
 );
+
+const isLastStep = computed(() => currentStep.value === TOTAL_STEPS - 1);
+const isFirstStep = computed(() => currentStep.value === 0);
 </script>
 
 <template>
   <Drawer :title="title" class="w-[640px]">
+    <div v-if="wizardMode" class="mb-6">
+      <a-steps :current="currentStep" size="small">
+        <a-step
+          v-for="(step, idx) in wizardSteps"
+          :key="idx"
+          :title="step.title"
+          :description="step.description"
+        />
+      </a-steps>
+    </div>
     <Form />
+    <div v-if="wizardMode" class="mt-4 flex justify-between">
+      <a-button :disabled="isFirstStep" @click="prevStep">
+        {{ $t('shared.common.prevStep') }}
+      </a-button>
+      <a-button v-if="!isLastStep" type="primary" @click="nextStep">
+        {{ $t('shared.common.nextStep') }}
+      </a-button>
+    </div>
   </Drawer>
 </template>

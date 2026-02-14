@@ -77,6 +77,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 f"configs={config_sync_result['configs']}"
             )
 
+        # 同步 AI 表策略（自动发现新表并创建默认策略）
+        from app.services.ai.table_policy_sync_service import sync_table_policies
+        
+        async with async_session_factory() as db:
+            policy_sync_result = await sync_table_policies(db)
+            logger.info(
+                f"Table policies synced: "
+                f"new={policy_sync_result['new']}, "
+                f"existing={policy_sync_result['existing']}, "
+                f"blocked={policy_sync_result['blocked']}"
+            )
+
         # 初始化 Redis 连接
         from app.core.redis import RedisManager
         try:
@@ -84,6 +96,41 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("Redis initialized")
         except Exception as redis_err:
             logger.warning(f"Redis initialization failed: {redis_err}")
+
+        # 注册内置插件 + 加载已启用的插件
+        from app.plugins.discovery import (
+            register_builtin_plugins,
+            load_enabled_plugins,
+            auto_install_local_plugins,
+        )
+        from app.plugins.manager import get_plugin_manager
+        get_plugin_manager().set_app(app)
+        try:
+            async with async_session_factory() as db:
+                # 注册内置插件（首次启动时自动安装并启用）
+                await register_builtin_plugins(db)
+
+                # 开发模式：自动安装本地发现的插件
+                if settings.APP_ENV == "development":
+                    auto_result = await auto_install_local_plugins(db)
+                    if auto_result["installed"] or auto_result["errors"]:
+                        logger.info(
+                            f"Auto-install local plugins: "
+                            f"installed={auto_result['installed']}, "
+                            f"skipped={auto_result['skipped']}, "
+                            f"errors={len(auto_result['errors'])}"
+                        )
+
+                # 加载所有已启用的插件
+                plugin_result = await load_enabled_plugins(db)
+                if plugin_result["loaded"] or plugin_result["failed"]:
+                    logger.info(
+                        f"Plugins loaded: "
+                        f"loaded={plugin_result['loaded']}, "
+                        f"failed={plugin_result['failed']}"
+                    )
+        except Exception as plugin_err:
+            logger.warning(f"Plugin loading failed: {plugin_err}")
 
         # 验证 Celery broker 连通性
         try:
@@ -318,6 +365,13 @@ def create_application() -> FastAPI:
     from app.api.public import public_router
     app.include_router(public_router, prefix="/api/public")
     
+    # ========================================
+    # Dev-only 路由（仅开发环境）
+    # ========================================
+    if settings.APP_ENV == "development":
+        from app.api.admin.dev_crud import router as dev_crud_router
+        admin_router.include_router(dev_crud_router)
+
     # ========================================
     # 挂载本地存储静态文件目录
     # ========================================

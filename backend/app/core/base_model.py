@@ -10,7 +10,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, inspect
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, inspect
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import DeclarativeBase
 
@@ -54,6 +54,18 @@ class BaseModel(Base):
         index=True,
         comment="软删除标记"
     )
+    deleted_at = Column(
+        DateTime,
+        nullable=True,
+        default=None,
+        comment="删除时间"
+    )
+    delete_level = Column(
+        String(20),
+        nullable=True,
+        default=None,
+        comment="删除层级: tenant=租户回收站, admin=管理端回收站"
+    )
     
     @declared_attr
     def __tablename__(cls) -> str:
@@ -88,14 +100,29 @@ class BaseModel(Base):
                 result[col_name] = getattr(self, attr.key)
         return result
     
-    def soft_delete(self) -> None:
-        """软删除"""
+    def soft_delete(self, level: str = "admin") -> None:
+        """
+        软删除
+        
+        Args:
+            level: 删除层级 ('tenant' 或 'admin')
+        """
         self.is_deleted = True
+        self.deleted_at = datetime.utcnow()
+        self.delete_level = level
         self.updated_at = datetime.utcnow()
     
     def restore(self) -> None:
         """恢复软删除"""
         self.is_deleted = False
+        self.deleted_at = None
+        self.delete_level = None
+        self.updated_at = datetime.utcnow()
+    
+    def escalate_delete(self) -> None:
+        """升级删除层级（tenant → admin），重置删除时间"""
+        self.delete_level = "admin"
+        self.deleted_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()
     
     def update_from_dict(self, data: dict[str, Any]) -> None:

@@ -65,7 +65,7 @@ class AdminRoleController(GlobalController):
     """
     
     prefix = "/roles"
-    tags = ["平台角色管理"]
+    tags = ["Role Management (Platform)"]
     
     def _register_routes(self) -> None:
         """注册路由"""
@@ -138,7 +138,7 @@ class AdminRoleController(GlobalController):
                 select(AdminRole)
                 .where(
                     AdminRole.id == current_admin.role_id,
-                    AdminRole.is_deleted == False,
+                    AdminRole.is_deleted.is_(False),
                 )
                 .options(
                     selectinload(AdminRole.children),
@@ -230,7 +230,7 @@ class AdminRoleController(GlobalController):
             # 先查询角色是否存在
             result = await db.execute(
                 select(AdminRole)
-                .where(AdminRole.id == role_id, AdminRole.is_deleted == False)
+                .where(AdminRole.id == role_id, AdminRole.is_deleted.is_(False))
                 .options(
                     selectinload(AdminRole.permissions),
                     selectinload(AdminRole.children),

@@ -154,8 +154,8 @@ class TenantMiddleware:
             result = await db.execute(
                 select(Tenant).where(
                     Tenant.code == tenant_code,
-                    Tenant.is_active == True,
-                    Tenant.is_deleted == False,
+                    Tenant.is_active.is_(True),
+                    Tenant.is_deleted.is_(False),
                 )
             )
             return result.scalar_one_or_none()
@@ -168,8 +168,8 @@ class TenantMiddleware:
             result = await db.execute(
                 select(TenantDomain).where(
                     TenantDomain.domain == domain,
-                    TenantDomain.is_verified == True,
-                    TenantDomain.is_deleted == False,
+                    TenantDomain.is_verified.is_(True),
+                    TenantDomain.is_deleted.is_(False),
                 )
             )
             tenant_domain = result.scalar_one_or_none()

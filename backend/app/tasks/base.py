@@ -48,6 +48,7 @@ class BaseTask(Task):
             f"Task succeeded: {self.name} [{task_id}] "
             f"elapsed={elapsed:.2f}s"
         )
+        self._update_periodic_task_timestamps()
 
     def on_failure(self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any) -> None:
         elapsed = self._get_elapsed()
@@ -55,6 +56,7 @@ class BaseTask(Task):
             f"Task failed: {self.name} [{task_id}] "
             f"elapsed={elapsed:.2f}s error={exc!r}"
         )
+        self._update_periodic_task_timestamps()
 
     def on_retry(self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any) -> None:
         logger.warning(
@@ -69,6 +71,58 @@ class BaseTask(Task):
 
     def get_db_session(self) -> Session:
         return sync_session_factory()
+
+    def _update_periodic_task_timestamps(self) -> None:
+        """更新 periodic_tasks 表中的 last_run_at 和 next_run_at"""
+        session = None
+        try:
+            from datetime import datetime, timedelta
+            from app.models.system.periodic_task import PeriodicTask
+
+            session = sync_session_factory()
+            task = (
+                session.query(PeriodicTask)
+                .filter(
+                    PeriodicTask.task_path == self.name,
+                    PeriodicTask.is_deleted.is_(False),
+                )
+                .first()
+            )
+            if not task:
+                return
+
+            now = datetime.now()
+            task.last_run_at = now
+
+            # 计算 next_run_at
+            if task.schedule_type == "cron" and task.cron_expression:
+                try:
+                    from celery.schedules import crontab
+                    parts = task.cron_expression.strip().split()
+                    if len(parts) == 5:
+                        schedule = crontab(
+                            minute=parts[0],
+                            hour=parts[1],
+                            day_of_month=parts[2],
+                            month_of_year=parts[3],
+                            day_of_week=parts[4],
+                        )
+                        remaining = schedule.remaining_estimate(now)
+                        task.next_run_at = now + timedelta(seconds=remaining)
+                except Exception:
+                    pass
+            elif task.schedule_type == "interval" and task.interval_seconds:
+                task.next_run_at = now + timedelta(seconds=task.interval_seconds)
+
+            session.commit()
+            logger.info(f"Updated periodic task timestamps: {self.name}")
+        except Exception as e:
+            logger.warning(f"Failed to update periodic task timestamps: {e}")
+            if session:
+                session.rollback()
+        finally:
+            if session:
+                session.close()
 
 
 class TenantTask(BaseTask):

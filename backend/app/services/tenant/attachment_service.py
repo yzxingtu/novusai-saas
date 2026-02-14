@@ -322,7 +322,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         result = await self.db.execute(
             select(Tenant)
             .options(selectinload(Tenant.tenant_plan))
-            .where(Tenant.id == self.tenant_id, Tenant.is_deleted == False)
+            .where(Tenant.id == self.tenant_id, Tenant.is_deleted.is_(False))
         )
         tenant = result.scalar_one_or_none()
         if not tenant:

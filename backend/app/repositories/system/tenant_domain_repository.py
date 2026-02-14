@@ -56,8 +56,8 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
         """
         query = select(self.model).where(
             self.model.tenant_id == tenant_id,
-            self.model.is_primary == True,
-            self.model.is_deleted == False,
+            self.model.is_primary.is_(True),
+            self.model.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
@@ -76,7 +76,7 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
             select(self.model)
             .where(
                 self.model.tenant_id == tenant_id,
-                self.model.is_deleted == False,
+                self.model.is_deleted.is_(False),
             )
             .order_by(
                 self.model.is_primary.desc(),  # 主域名排在前面
@@ -103,7 +103,7 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
         """
         query = select(self.model.id).where(
             self.model.domain == domain,
-            self.model.is_deleted == False,
+            self.model.is_deleted.is_(False),
         )
         if exclude_id:
             query = query.where(self.model.id != exclude_id)
@@ -151,8 +151,8 @@ class TenantDomainRepository(BaseRepository[TenantDomain]):
             update(self.model)
             .where(
                 self.model.tenant_id == tenant_id,
-                self.model.is_primary == True,
-                self.model.is_deleted == False,
+                self.model.is_primary.is_(True),
+                self.model.is_deleted.is_(False),
             )
             .values(is_primary=False)
         )

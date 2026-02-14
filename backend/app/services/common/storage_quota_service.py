@@ -47,7 +47,7 @@ class StorageQuotaService:
                 func.count(Attachment.id).label("file_count"),
             ).where(
                 Attachment.tenant_id == tenant_id,
-                Attachment.is_deleted == False,
+                Attachment.is_deleted.is_(False),
             )
         )
         row = result.one()
@@ -92,7 +92,7 @@ class StorageQuotaService:
                 func.count(Attachment.id).label("file_count"),
             ).where(
                 Attachment.tenant_id.in_(tenant_ids),
-                Attachment.is_deleted == False,
+                Attachment.is_deleted.is_(False),
             ).group_by(Attachment.tenant_id)
         )
         rows = result.all()
@@ -146,7 +146,7 @@ class StorageQuotaService:
         result = await self.db.execute(
             select(func.coalesce(func.sum(Attachment.size), 0)).where(
                 Attachment.tenant_id == tenant_id,
-                Attachment.is_deleted == False,
+                Attachment.is_deleted.is_(False),
             )
         )
         return int(result.scalar() or 0)
@@ -164,7 +164,7 @@ class StorageQuotaService:
         result = await self.db.execute(
             select(func.count(Attachment.id)).where(
                 Attachment.tenant_id == tenant_id,
-                Attachment.is_deleted == False,
+                Attachment.is_deleted.is_(False),
             )
         )
         return int(result.scalar() or 0)
@@ -184,7 +184,7 @@ class StorageQuotaService:
             .options(selectinload(Tenant.tenant_plan))
             .where(
                 Tenant.id == tenant_id,
-                Tenant.is_deleted == False,
+                Tenant.is_deleted.is_(False),
             )
         )
         return result.scalar_one_or_none()
@@ -204,7 +204,7 @@ class StorageQuotaService:
             .options(selectinload(Tenant.tenant_plan))
             .where(
                 Tenant.id.in_(tenant_ids),
-                Tenant.is_deleted == False,
+                Tenant.is_deleted.is_(False),
             )
         )
         return list(result.scalars().all())

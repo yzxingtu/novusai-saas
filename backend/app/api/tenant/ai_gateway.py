@@ -7,9 +7,9 @@ AI 网关调用 API (Tenant)
 from fastapi import Request
 
 from app.ai.exceptions import AIGatewayError
-from app.ai.gateway import AIGateway
 from app.ai.quota import QuotaExceeded
 from app.ai.rate_limiter import RateLimitExceeded
+from app.ai.system_agent import SystemAgentService
 from app.ai.utils import parse_provider_and_model, parse_messages
 from app.core.base_controller import TenantController
 from app.core.deps import DbSession, ActiveTenantAdmin
@@ -40,7 +40,7 @@ class TenantAIGatewayController(TenantController):
     """
 
     prefix = "/ai/gateway"
-    tags = ["AI 网关"]
+    tags = [_("menu.tags.tenant_ai_gateway")]
 
     def _register_routes(self) -> None:
         router = self.router
@@ -66,8 +66,8 @@ class TenantAIGatewayController(TenantController):
                 tools = [tool.model_dump() for tool in body.tools]
 
             try:
-                gateway = AIGateway(db)
-                response = await gateway.chat(
+                service = SystemAgentService(db)
+                response = await service.chat(
                     provider_code=provider_code,
                     messages=messages,
                     model=model,
@@ -106,8 +106,8 @@ class TenantAIGatewayController(TenantController):
                 tools = [tool.model_dump() for tool in body.tools]
 
             try:
-                gateway = AIGateway(db)
-                response = await gateway.stream_chat(
+                service = SystemAgentService(db)
+                response = await service.stream_chat(
                     provider_code=provider_code,
                     messages=messages,
                     model=model,
@@ -140,8 +140,8 @@ class TenantAIGatewayController(TenantController):
             provider_code, model = parse_provider_and_model(body.model_code)
 
             try:
-                gateway = AIGateway(db)
-                response = await gateway.embedding(
+                service = SystemAgentService(db)
+                response = await service.embedding(
                     provider_code=provider_code,
                     texts=body.texts,
                     model=model,

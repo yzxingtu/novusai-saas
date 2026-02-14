@@ -27,7 +27,7 @@ from app.ai.failover import FailoverService
         icon="lucide:heart-pulse",
         path="/ai/monitor/health",
         component="ai/health/index",
-        parent="ai_monitor",
+        parent="ai_infra",
         sort_order=30,
     ),
 )
@@ -39,7 +39,7 @@ class AdminAIHealthController(GlobalController):
     """
 
     prefix = "/ai/health"
-    tags = ["AI 健康状态"]
+    tags = [_("menu.tags.admin_ai_health")]
 
     def _register_routes(self) -> None:
         """注册路由"""

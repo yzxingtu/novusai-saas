@@ -307,8 +307,8 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             select(TenantAdminRole).where(
                 TenantAdminRole.tenant_id == self.tenant_id,
                 TenantAdminRole.code == "tenant_root",
-                TenantAdminRole.is_system == True,
-                TenantAdminRole.is_deleted == False,
+                TenantAdminRole.is_system.is_(True),
+                TenantAdminRole.is_deleted.is_(False),
             )
         )
         return result.scalar_one_or_none()

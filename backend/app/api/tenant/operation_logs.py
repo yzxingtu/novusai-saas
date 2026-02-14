@@ -37,7 +37,7 @@ class TenantOperationLogController(TenantController):
     """
     
     prefix = "/operation-logs"
-    tags = ["租户操作日志"]
+    tags = ["Tenant Operation Logs"]
     
     def _register_routes(self) -> None:
         """注册路由"""

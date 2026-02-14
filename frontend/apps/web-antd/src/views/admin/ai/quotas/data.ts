@@ -146,8 +146,9 @@ export function useColumns<T = AIQuotaInfo>(
     {
       field: 'created_at',
       title: $t('admin.common.createdAt'),
-      width: 170,
+      width: 130,
       sortable: true,
+      slots: { default: 'createdAt_cell' },
     },
     {
       align: 'center',

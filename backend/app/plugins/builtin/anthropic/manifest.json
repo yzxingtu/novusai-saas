@@ -1,0 +1,48 @@
+{
+  "name": "novusai-anthropic-adapter",
+  "display_name": "Anthropic Claude",
+  "version": "1.0.0",
+  "description": "Adapter plugin for Anthropic Claude models (Claude 3 Opus, Sonnet, Haiku)",
+  "author": "NovusAI",
+  "homepage": "https://docs.anthropic.com",
+  "icon": "lucide:sparkles",
+  "entry_point": "app.plugins.builtin.anthropic.plugin.AnthropicPlugin",
+  "plugin_type": "adapter",
+  "is_system": false,
+  "platform_version": ">=1.0.0",
+  "required_permissions": [
+    "http:outbound"
+  ],
+  "dependencies": {},
+  "conflicts": [],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "api_key": {
+        "type": "string",
+        "title": "API Key",
+        "description": "Anthropic API key",
+        "format": "password"
+      },
+      "base_url": {
+        "type": "string",
+        "title": "Base URL",
+        "description": "API base URL (optional, for proxy)",
+        "default": "https://api.anthropic.com"
+      },
+      "default_model": {
+        "type": "string",
+        "title": "Default Model",
+        "description": "Default Claude model to use",
+        "default": "claude-sonnet-4-20250514",
+        "enum": [
+          "claude-sonnet-4-20250514",
+          "claude-3-5-sonnet-20241022",
+          "claude-3-5-haiku-20241022",
+          "claude-3-opus-20240229"
+        ]
+      }
+    },
+    "required": ["api_key"]
+  }
+}

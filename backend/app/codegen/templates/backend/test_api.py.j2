@@ -1,0 +1,176 @@
+{# ============================================================
+   Jinja2 Template: API 测试脚手架
+   生成路径: tests/api/test_{{ scope_dir }}_{{ module_snake }}.py
+
+   变量:
+     - config: CrudConfig
+     - model_class: PascalCase
+     - module: kebab-case
+     - module_snake: snake_case
+     - scope / scope_dir: admin | tenant
+     - fields: list[FieldConfig]
+     - relations: list[RelationConfig]
+     - display_name: str
+     - parent_menu: str
+     - has_status_toggle: bool
+   ============================================================ #}
+#!/usr/bin/env python3
+"""
+{{ display_name }}管理 API 测试模块
+
+测试 /{{ scope_dir }}/{{ parent_menu }}/{{ module }}s/* 接口
+"""
+import sys
+import os
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from tests.api.base import (
+    BaseAPITest,
+    assert_success,
+    assert_error,
+    assert_has_keys,
+    assert_true,
+    assert_equals,
+    config,
+)
+
+
+class Test{{ scope_dir | capitalize }}{{ model_class }}(BaseAPITest):
+    """{{ display_name }}管理测试"""
+
+    module_name = "{{ display_name }}管理 (/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s)"
+
+    PREFIX = "/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s"
+
+    def setup(self) -> None:
+        """测试前登录"""
+        self._do_login()
+        timestamp = int(time.time())
+{% for field in fields %}
+{% if field.required and field.type.value == 'string' and loop.index == 1 %}
+        self._test_data["{{ field.name }}"] = f"test_{{ module_snake }}_{timestamp}"
+{% endif %}
+{% endfor %}
+
+    def teardown(self) -> None:
+        """测试后清理"""
+        item_id = self._test_data.get("created_id")
+        if item_id:
+            try:
+                self.client.delete(f"{self.PREFIX}/{item_id}")
+            except Exception:
+                pass
+
+    def _run_tests(self) -> None:
+        """运行所有测试"""
+        self.run_test("获取{{ display_name }}列表", self.test_list)
+        self.run_test("创建{{ display_name }}", self.test_create)
+        self.run_test("获取{{ display_name }}详情", self.test_detail)
+        self.run_test("更新{{ display_name }}", self.test_update)
+        self.run_test("删除{{ display_name }}", self.test_delete)
+
+    # ---- 列表 ----
+
+    def test_list(self) -> None:
+        """测试获取{{ display_name }}列表"""
+        resp = self.client.get(self.PREFIX)
+        data = assert_success(resp, "获取{{ display_name }}列表失败")
+        assert_has_keys(data["data"], ["items", "total", "page", "page_size", "pages"])
+
+    # ---- 创建 ----
+
+    def test_create(self) -> None:
+        """测试创建{{ display_name }}"""
+        payload = {
+{% for field in fields %}
+{% if field.in_form and field.required %}
+{% if field.type.value in ('string',) %}
+            "{{ field.name }}": self._test_data.get("{{ field.name }}", "test_value"),
+{% elif field.type.value == 'text' %}
+            "{{ field.name }}": "测试{{ field.label_zh }}",
+{% elif field.type.value == 'integer' %}
+            "{{ field.name }}": 1,
+{% elif field.type.value in ('float', 'decimal') %}
+            "{{ field.name }}": 100.0,
+{% elif field.type.value == 'boolean' %}
+            "{{ field.name }}": True,
+{% elif field.type.value == 'enum' %}
+{% if field.enum_ref and enums %}
+{% for enum in enums %}
+{% if enum.name == field.enum_ref and enum.values %}
+            "{{ field.name }}": "{{ enum.values[0].value }}",
+{% endif %}
+{% endfor %}
+{% else %}
+            "{{ field.name }}": "default",
+{% endif %}
+{% endif %}
+{% endif %}
+{% endfor %}
+{% for rel in relations %}
+{% if rel.type.value == 'belongs_to' and not rel.nullable %}
+            "{{ rel.foreign_key or (rel.name + '_id') }}": 1,
+{% endif %}
+{% endfor %}
+        }
+        resp = self.client.post(self.PREFIX, json=payload)
+        data = assert_success(resp, "创建{{ display_name }}失败")
+        assert_has_keys(data["data"], ["id"])
+        self._test_data["created_id"] = data["data"]["id"]
+
+    # ---- 详情 ----
+
+    def test_detail(self) -> None:
+        """测试获取{{ display_name }}详情"""
+        item_id = self._test_data.get("created_id")
+        if not item_id:
+            self.skip("跳过：未创建{{ display_name }}")
+            return
+        resp = self.client.get(f"{self.PREFIX}/{item_id}")
+        data = assert_success(resp, "获取{{ display_name }}详情失败")
+        assert_has_keys(data["data"], ["id"])
+
+    # ---- 更新 ----
+
+    def test_update(self) -> None:
+        """测试更新{{ display_name }}"""
+        item_id = self._test_data.get("created_id")
+        if not item_id:
+            self.skip("跳过：未创建{{ display_name }}")
+            return
+        payload = {
+{% for field in fields %}
+{% if field.in_form and loop.index == 1 %}
+{% if field.type.value in ('string',) %}
+            "{{ field.name }}": f"updated_{int(time.time())}",
+{% elif field.type.value == 'text' %}
+            "{{ field.name }}": "已更新",
+{% elif field.type.value == 'integer' %}
+            "{{ field.name }}": 2,
+{% elif field.type.value in ('float', 'decimal') %}
+            "{{ field.name }}": 200.0,
+{% endif %}
+{% endif %}
+{% endfor %}
+        }
+        resp = self.client.put(f"{self.PREFIX}/{item_id}", json=payload)
+        data = assert_success(resp, "更新{{ display_name }}失败")
+
+    # ---- 删除 ----
+
+    def test_delete(self) -> None:
+        """测试删除{{ display_name }}"""
+        item_id = self._test_data.get("created_id")
+        if not item_id:
+            self.skip("跳过：未创建{{ display_name }}")
+            return
+        resp = self.client.delete(f"{self.PREFIX}/{item_id}")
+        assert_success(resp, "删除{{ display_name }}失败")
+        self._test_data.pop("created_id", None)
+
+
+if __name__ == "__main__":
+    tester = Test{{ scope_dir | capitalize }}{{ model_class }}()
+    tester.run()

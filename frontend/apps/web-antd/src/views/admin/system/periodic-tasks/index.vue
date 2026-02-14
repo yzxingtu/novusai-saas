@@ -60,6 +60,7 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
     i18nPrefix: 'admin.system.periodicTask',
     nameField: 'name',
     defaultSort: '-created_at',
+    recycleBin: true,
     customActions: {
       trigger: onTriggerTask,
     },

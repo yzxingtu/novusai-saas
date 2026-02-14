@@ -8,8 +8,8 @@ from app.ai.tools.types import ToolParameter, ToolDefinition, ToolResult
 from app.ai.tools.registry import ToolRegistry, get_tool_registry
 from app.ai.tools.sandbox import ToolSandbox, SandboxConfig
 from app.ai.tools.executors.base import BaseToolExecutor
-from app.ai.tools.executors.http_executor import HttpToolExecutor
 from app.ai.tools.executors.builtin_executor import BuiltinToolExecutor
+from app.ai.tools.executors.toolkit_executor import ToolkitExecutor
 
 __all__ = [
     # 类型
@@ -24,6 +24,6 @@ __all__ = [
     "SandboxConfig",
     # 执行器
     "BaseToolExecutor",
-    "HttpToolExecutor",
     "BuiltinToolExecutor",
+    "ToolkitExecutor",
 ]

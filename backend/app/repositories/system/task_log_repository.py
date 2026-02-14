@@ -43,7 +43,7 @@ class TaskLogRepository(BaseRepository[TaskLog]):
             select(TaskLog)
             .where(
                 TaskLog.status == TaskStatusEnum.FAILED.value,
-                TaskLog.is_deleted == False,  # noqa: E712
+                TaskLog.is_deleted.is_(False),  # noqa: E712
             )
             .order_by(TaskLog.created_at.desc())
             .limit(limit)
@@ -66,7 +66,7 @@ class TaskLogRepository(BaseRepository[TaskLog]):
             .where(
                 TaskLog.created_at >= start_date,
                 TaskLog.created_at <= end_date,
-                TaskLog.is_deleted == False,  # noqa: E712
+                TaskLog.is_deleted.is_(False),  # noqa: E712
             )
             .group_by(TaskLog.status)
         )

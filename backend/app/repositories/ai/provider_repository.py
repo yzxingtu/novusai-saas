@@ -41,7 +41,7 @@ class AIProviderRepository(BaseRepository[AIProvider]):
         query = select(self.model).options(selectinload(AIProvider.models))
 
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
 
         if forced_filters:
             query = self._apply_filters(query, forced_filters, all_fields)
@@ -81,7 +81,7 @@ class AIProviderRepository(BaseRepository[AIProvider]):
         )
         
         if not include_deleted:
-            stmt = stmt.where(AIProvider.is_deleted == False)
+            stmt = stmt.where(AIProvider.is_deleted.is_(False))
         
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
@@ -100,8 +100,8 @@ class AIProviderRepository(BaseRepository[AIProvider]):
             AIProvider 列表
         """
         stmt = select(AIProvider).where(
-            AIProvider.is_active == True,
-            AIProvider.is_deleted == False
+            AIProvider.is_active.is_(True),
+            AIProvider.is_deleted.is_(False)
         ).order_by(
             AIProvider.sort_order.asc(),
             AIProvider.created_at.desc()
@@ -130,7 +130,7 @@ class AIProviderRepository(BaseRepository[AIProvider]):
         """
         stmt = select(AIProvider.id).where(
             AIProvider.code == code,
-            AIProvider.is_deleted == False
+            AIProvider.is_deleted.is_(False)
         )
         
         if exclude_id:

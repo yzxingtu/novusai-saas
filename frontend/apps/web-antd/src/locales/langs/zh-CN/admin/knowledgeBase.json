@@ -1,0 +1,41 @@
+{
+  "title": "知识库管理",
+  "pageDesc": "管理全平台知识库，支持创建全局/租户/管理端专属知识库，查看文档、分块和存储情况。",
+  "create": "创建知识库",
+  "stats": {
+    "totalKnowledgeBases": "知识库总数",
+    "totalDocuments": "文档总数",
+    "totalChunks": "分块总数",
+    "totalStorage": "总存储大小"
+  },
+  "field": {
+    "tenantName": "租户",
+    "name": "知识库名称",
+    "description": "描述",
+    "scope": "可见范围",
+    "tenantId": "所属租户 ID",
+    "tenantIdPlaceholder": "请输入租户 ID",
+    "embeddingModel": "Embedding 模型",
+    "documentCount": "文档数",
+    "totalChunks": "分块数",
+    "totalSizeBytes": "存储大小",
+    "status": "状态",
+    "createdAt": "创建时间",
+    "chunkSize": "分块大小",
+    "chunkOverlap": "分块重叠",
+    "topK": "检索 Top K",
+    "scoreThreshold": "分数阈值"
+  },
+  "scope": {
+    "tenant": "指定租户",
+    "global": "全局共享",
+    "admin": "仅管理端"
+  },
+  "status": {
+    "active": "启用",
+    "disabled": "禁用"
+  },
+  "detail": "知识库详情",
+  "forceDelete": "强制删除",
+  "forceDeleteConfirm": "确认强制删除该知识库？此操作不可撤销。"
+}

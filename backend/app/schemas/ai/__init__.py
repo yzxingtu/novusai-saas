@@ -33,13 +33,6 @@ from app.schemas.ai.conversation_message import (
     ConversationMessageCreate,
     ConversationMessageResponse,
 )
-from app.schemas.ai.tool_definition import (
-    ToolDefinitionCreate,
-    ToolDefinitionUpdate,
-    ToolDefinitionResponse,
-    ToolTestRequest,
-    ToolTestResponse,
-)
 from app.schemas.ai.batch_run import (
     BatchRunCreate,
     BatchRunResponse,
@@ -70,12 +63,6 @@ __all__ = [
     # ConversationMessage
     "ConversationMessageCreate",
     "ConversationMessageResponse",
-    # ToolDefinition
-    "ToolDefinitionCreate",
-    "ToolDefinitionUpdate",
-    "ToolDefinitionResponse",
-    "ToolTestRequest",
-    "ToolTestResponse",
     # BatchRun
     "BatchRunCreate",
     "BatchRunResponse",

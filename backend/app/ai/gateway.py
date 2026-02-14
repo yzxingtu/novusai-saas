@@ -9,8 +9,7 @@ import asyncio
 import dataclasses
 import time
 from decimal import Decimal
-from typing import AsyncIterator, Optional
-
+from typing import Any, AsyncIterator, Awaitable, Callable, TypeVar
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +29,8 @@ from app.ai.types import (
     ChatResponse,
     ChatChunk,
     EmbeddingResponse,
+    TestModelResult,
+    messages_to_dicts,
 )
 from app.ai.cache import AIResponseCache
 from app.ai.failover import FailoverService
@@ -51,6 +52,8 @@ logger = LogManager.get_logger("ai")
 MAX_RETRIES = 3
 RETRY_BASE_DELAY = 1.0  # 基础延迟（秒）
 RETRY_MULTIPLIER = 2.0  # 指数倍数
+
+_T = TypeVar("_T")
 
 
 class AIGateway:
@@ -77,6 +80,111 @@ class AIGateway:
         self.model_repo = AIModelRepository(db)
         self.call_log_service = CallLogService(db)
 
+    # ========================================
+    # 通用前置检查 / 后置记录
+    # ========================================
+
+    async def _check_rate_and_quota(
+        self,
+        tenant_id: int,
+        model_id: int,
+        ai_model: AIModel,
+        estimated_tokens: int,
+    ) -> None:
+        """
+        原子检查速率限制 + 配额（仅租户调用时执行）
+
+        Args:
+            tenant_id: 租户 ID
+            model_id: 模型 ID
+            ai_model: 模型对象（含 rpm_limit / tpm_limit）
+            estimated_tokens: 预估 token 数
+        """
+        try:
+            await RateLimiter.check_and_record(
+                tenant_id=tenant_id,
+                model_id=model_id,
+                rpm_limit=ai_model.rpm_limit,
+                tpm_limit=ai_model.tpm_limit,
+                estimated_tokens=estimated_tokens,
+            )
+        except RateLimitExceeded as e:
+            logger.warning(
+                _("ai.log.rate_limit_blocked"),
+                tenant_id=tenant_id,
+                error=str(e),
+            )
+            raise
+
+        try:
+            await self.quota_manager.check_quota(
+                tenant_id=tenant_id,
+                model_id=model_id,
+                estimated_tokens=estimated_tokens,
+            )
+        except QuotaExceeded as e:
+            logger.warning(
+                _("ai.log.quota_blocked"),
+                tenant_id=tenant_id,
+                error=str(e),
+            )
+            raise
+
+    async def _record_usage_and_adjust(
+        self,
+        tenant_id: int,
+        model_id: int,
+        request_type: str,
+        input_tokens: int,
+        output_tokens: int,
+        total_tokens: int,
+        cost: float,
+        estimated_input: int,
+        latency_ms: int,
+        user_id: int | None = None,
+    ) -> None:
+        """
+        记录使用量 + 调整 TPM/配额（从预估调整为实际）
+
+        Args:
+            tenant_id: 租户 ID
+            model_id: 模型 ID
+            request_type: 请求类型（chat / embedding）
+            input_tokens: 实际输入 tokens
+            output_tokens: 实际输出 tokens
+            total_tokens: 实际总 tokens
+            cost: 费用
+            estimated_input: 预估输入 tokens
+            latency_ms: 延迟毫秒
+            user_id: 用户 ID
+        """
+        await self.metering.record_usage(
+            tenant_id=tenant_id,
+            model_id=model_id,
+            request_type=request_type,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost=cost,
+            success=True,
+            user_id=user_id,
+            latency_ms=latency_ms or None,
+        )
+
+        if estimated_input > 0:
+            await RateLimiter.adjust_tpm_after_response(
+                tenant_id=tenant_id,
+                model_id=model_id,
+                estimated_tokens=estimated_input,
+                actual_tokens=total_tokens,
+                request_minute_key=int(time.time()) // 60,
+            )
+            await self.quota_manager.adjust_usage(
+                tenant_id=tenant_id,
+                model_id=model_id,
+                estimated_tokens=estimated_input,
+                actual_tokens=total_tokens,
+            )
+
     async def chat(
         self,
         provider_code: str,
@@ -88,7 +196,7 @@ class AIGateway:
         stream: bool = False,
         tools: list[dict] | None = None,
         tenant_id: int | None = None,
-        user_id: Optional[int] = None,
+        user_id: int | None = None,
         **kwargs
     ) -> ChatResponse:
         """
@@ -137,7 +245,7 @@ class AIGateway:
             cache_key = AIResponseCache._generate_cache_key(
                 provider_code=provider_code,
                 model=model,
-                messages=[dataclasses.asdict(msg) for msg in messages],
+                messages=messages_to_dicts(messages),
                 temperature=temperature,
                 max_tokens=max_tokens,
                 tools=tools,
@@ -152,52 +260,22 @@ class AIGateway:
         estimated_input = 0
         if tenant_id:
             estimated_input = TokenCounter.count_messages_tokens(
-                [dataclasses.asdict(msg) for msg in messages]
+                messages_to_dicts(messages)
             )
-            try:
-                await RateLimiter.check_and_record(
-                    tenant_id=tenant_id,
-                    model_id=model_id,
-                    rpm_limit=ai_model.rpm_limit,
-                    tpm_limit=ai_model.tpm_limit,
-                    estimated_tokens=estimated_input,
-                )
-            except RateLimitExceeded as e:
-                logger.warning(
-                    _("ai.log.rate_limit_blocked"),
-                    tenant_id=tenant_id,
-                    error=str(e),
-                )
-                raise
-
-            try:
-                await self.quota_manager.check_quota(
-                    tenant_id=tenant_id,
-                    model_id=model_id,
-                    estimated_tokens=estimated_input,
-                )
-            except QuotaExceeded as e:
-                logger.warning(
-                    _("ai.log.quota_blocked"),
-                    tenant_id=tenant_id,
-                    error=str(e),
-                )
-                raise
+            await self._check_rate_and_quota(tenant_id, model_id, ai_model, estimated_input)
 
         # 4. 调用适配器（含指数退避重试 + 故障转移）
         try:
-            response, retry_count, used_api_key = await self._call_with_retry(
+            response, retry_count, used_api_key = await self._retry_with_backoff(
                 provider=provider,
                 api_key=api_key,
                 model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                top_p=top_p,
-                stream=stream,
-                tools=tools,
+                call_fn=lambda adapter: adapter.chat(
+                    messages=messages, model=model, temperature=temperature,
+                    max_tokens=max_tokens, top_p=top_p, stream=stream,
+                    tools=tools, **kwargs,
+                ),
                 tenant_id=tenant_id,
-                **kwargs,
             )
         except AIGatewayError as original_error:
             # 尝试故障转移到备用模型
@@ -230,18 +308,16 @@ class AIGateway:
                 fb_provider, fb_api_key = await self.get_provider_and_key(
                     fallback_model.provider.code, tenant_id
                 )
-                response, retry_count, used_api_key = await self._call_with_retry(
+                response, retry_count, used_api_key = await self._retry_with_backoff(
                     provider=fb_provider,
                     api_key=fb_api_key,
                     model=fallback_model.code,
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=top_p,
-                    stream=stream,
-                    tools=tools,
+                    call_fn=lambda adapter: adapter.chat(
+                        messages=messages, model=fallback_model.code,
+                        temperature=temperature, max_tokens=max_tokens,
+                        top_p=top_p, stream=stream, tools=tools, **kwargs,
+                    ),
                     tenant_id=tenant_id,
-                    **kwargs,
                 )
                 # 更新引用用于后续计量
                 provider = fb_provider
@@ -290,37 +366,22 @@ class AIGateway:
         # 7. 记录使用量和日志
         if tenant_id:
             try:
-                await self.metering.record_usage(
+                await self._record_usage_and_adjust(
                     tenant_id=tenant_id,
                     model_id=model_id,
                     request_type=RequestTypeEnum.CHAT.value,
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
+                    total_tokens=total_tokens,
                     cost=cost,
-                    success=True,
-                    user_id=user_id,
+                    estimated_input=estimated_input,
                     latency_ms=latency_ms,
-                )
-
-                # 调整 TPM（从预估调整为实际）
-                await RateLimiter.adjust_tpm_after_response(
-                    tenant_id=tenant_id,
-                    model_id=model_id,
-                    estimated_tokens=estimated_input,
-                    actual_tokens=total_tokens,
-                )
-
-                # 调整配额用量（从预估调整为实际）
-                await self.quota_manager.adjust_usage(
-                    tenant_id=tenant_id,
-                    model_id=model_id,
-                    estimated_tokens=estimated_input,
-                    actual_tokens=total_tokens,
+                    user_id=user_id,
                 )
 
                 # 构建请求数据（含重试信息）
                 request_data = {
-                    "messages": [dataclasses.asdict(msg) for msg in messages],
+                    "messages": messages_to_dicts(messages),
                     "temperature": temperature,
                     "max_tokens": max_tokens,
                     "top_p": top_p,
@@ -370,7 +431,7 @@ class AIGateway:
         """
         安全序列化 ChatResponse
 
-        处理 Decimal → str、排除 raw_response 避免序列化失败。
+        递归处理 Decimal → str、dataclass → dict，排除 raw_response。
 
         Args:
             response: ChatResponse 实例
@@ -378,16 +439,22 @@ class AIGateway:
         Returns:
             JSON 可序列化的字典
         """
+        def _safe_value(val: Any) -> Any:
+            if isinstance(val, Decimal):
+                return str(val)
+            if dataclasses.is_dataclass(val) and not isinstance(val, type):
+                return {k: _safe_value(v) for k, v in val.__dict__.items()}
+            if isinstance(val, dict):
+                return {k: _safe_value(v) for k, v in val.items()}
+            if isinstance(val, (list, tuple)):
+                return [_safe_value(item) for item in val]
+            return val
+
         data = {}
         for key, value in response.__dict__.items():
             if key == "raw_response":
                 continue
-            if isinstance(value, Decimal):
-                data[key] = str(value)
-            elif dataclasses.is_dataclass(value) and not isinstance(value, type):
-                data[key] = dataclasses.asdict(value)
-            else:
-                data[key] = value
+            data[key] = _safe_value(value)
         return data
 
     async def _log_call_failure(
@@ -429,7 +496,7 @@ class AIGateway:
         try:
             latency_ms = int((time.time() - start_time) * 1000)
             request_data = {
-                "messages": [dataclasses.asdict(msg) for msg in messages],
+                "messages": messages_to_dicts(messages),
                 "temperature": temperature,
                 "max_tokens": max_tokens,
                 "top_p": top_p,
@@ -454,43 +521,30 @@ class AIGateway:
         except Exception as log_err:
             logger.error(_("ai.log.record_usage_failed"), error=str(log_err))
 
-    async def _call_with_retry(
+    async def _retry_with_backoff(
         self,
         provider: AIProvider,
         api_key: ProviderApiKey,
         model: str,
-        messages: list[ChatMessage],
-        temperature: float = 0.7,
-        max_tokens: int | None = None,
-        top_p: float = 1.0,
-        stream: bool = False,
-        tools: list[dict] | None = None,
+        call_fn: Callable[[Any], Awaitable[_T]],
         tenant_id: int | None = None,
-        **kwargs,
-    ) -> tuple[ChatResponse, int, ProviderApiKey]:
+        log_key: str = "ai.log.gateway_chat_call",
+    ) -> tuple[_T, int, ProviderApiKey]:
         """
-        带指数退避重试的适配器调用
+        通用指数退避重试
 
-        最多 3 次重试，间隔 1s/2s/4s。
-        仅对 ProviderTimeoutError、ProviderConnectionError 和 HTTP 5xx 重试。
-        4xx 错误（认证、参数等）直接抛出。
-        重试时尝试切换 API Key。
+        创建适配器 → 调用 call_fn(adapter) → 处理异常/重试/Key 轮换。
 
         Args:
             provider: AI 供应商
             api_key: 当前 API Key
             model: 模型名称
-            messages: 消息列表
-            temperature: 温度参数
-            max_tokens: 最大 tokens
-            top_p: 核采样参数
-            stream: 是否流式
-            tools: 工具列表
-            tenant_id: 租户 ID
-            **kwargs: 其他参数
+            call_fn: 接收 adapter 实例并返回结果的异步函数
+            tenant_id: 租户 ID（用于获取备用 Key）
+            log_key: 日志 i18n key
 
         Returns:
-            (ChatResponse, retry_count, used_api_key) 元组
+            (response, retry_count, used_api_key) 元组
 
         Raises:
             AIGatewayError: 所有重试均失败后抛出最后一个异常
@@ -498,9 +552,8 @@ class AIGateway:
         current_key = api_key
         last_error: AIGatewayError | None = None
 
-        for attempt in range(MAX_RETRIES + 1):  # 0 = 首次, 1~3 = 重试
+        for attempt in range(MAX_RETRIES + 1):
             try:
-                # 创建适配器
                 adapter = AdapterRegistry.create_adapter(
                     provider_type=provider.type,
                     api_key=current_key.decrypt_key(),
@@ -508,22 +561,13 @@ class AIGateway:
                 )
 
                 logger.info(
-                    _("ai.log.gateway_chat_call"),
+                    _(log_key),
                     provider=provider.code,
                     model=model,
                     attempt=attempt,
                 )
 
-                response = await adapter.chat(
-                    messages=messages,
-                    model=model,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=top_p,
-                    stream=stream,
-                    tools=tools,
-                    **kwargs,
-                )
+                response = await call_fn(adapter)
 
                 if attempt > 0:
                     logger.info(
@@ -538,7 +582,6 @@ class AIGateway:
             except AIGatewayError as e:
                 last_error = e
 
-                # 不可重试的异常直接抛出
                 if not is_retryable(e):
                     logger.error(
                         _("ai.log.non_retryable_error"),
@@ -549,7 +592,6 @@ class AIGateway:
                     )
                     raise
 
-                # 已达最大重试次数
                 if attempt >= MAX_RETRIES:
                     logger.error(
                         _("ai.log.max_retries_exhausted"),
@@ -560,10 +602,7 @@ class AIGateway:
                     )
                     raise
 
-                # 计算退避延迟
                 delay = RETRY_BASE_DELAY * (RETRY_MULTIPLIER ** attempt)
-
-                # 如果供应商指定了 retry_after，使用更大的值
                 if e.retry_after and e.retry_after > delay:
                     delay = float(e.retry_after)
 
@@ -577,7 +616,6 @@ class AIGateway:
                     error=str(e),
                 )
 
-                # 尝试切换 API Key
                 next_key = await self._get_next_api_key(
                     provider_id=provider.id,
                     current_key_id=current_key.id,
@@ -592,11 +630,9 @@ class AIGateway:
                     )
                     current_key = next_key
 
-                # 等待退避延迟
                 await asyncio.sleep(delay)
 
             except Exception as e:
-                # 非 AIGatewayError 的异常（不应该出现，但兜底处理）
                 logger.error(
                     _("ai.log.unexpected_error"),
                     provider=provider.code,
@@ -610,7 +646,6 @@ class AIGateway:
                     original_error=e,
                 )
 
-        # 理论上不会走到这里，但兜底
         if last_error:
             raise last_error
         raise ProviderError(
@@ -628,14 +663,16 @@ class AIGateway:
         output_tokens: int,
         total_tokens: int,
         cost: float = 0,
-        tenant_id: Optional[int] = None,
-        user_id: Optional[int] = None,
+        tenant_id: int | None = None,
+        user_id: int | None = None,
         model_id: int = 0,
+        estimated_input: int = 0,
+        latency_ms: int = 0,
     ):
         """
         流式响应完成回调
 
-        记录日志和更新使用统计
+        记录日志、更新使用统计、调整 TPM/配额（与非流式路径对齐）
 
         Args:
             provider: AI 供应商
@@ -648,6 +685,8 @@ class AIGateway:
             tenant_id: 租户 ID
             user_id: 用户 ID
             model_id: 模型 ID
+            estimated_input: 预估输入 tokens（用于 TPM/配额校正）
+            latency_ms: 延迟毫秒数
         """
         # 更新 API Key 使用计数
         api_key.increment_usage()
@@ -655,21 +694,45 @@ class AIGateway:
         # 记录使用量（如果提供了 tenant_id）
         if tenant_id:
             try:
-                await self.metering.record_usage(
+                await self._record_usage_and_adjust(
                     tenant_id=tenant_id,
                     model_id=model_id,
                     request_type=RequestTypeEnum.CHAT.value,
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
+                    total_tokens=total_tokens,
                     cost=cost,
-                    success=True,
+                    estimated_input=estimated_input,
+                    latency_ms=latency_ms,
                     user_id=user_id,
-                    latency_ms=None,
                 )
+
+                # 异步记录调用日志
+                await self.call_log_service.log_call_async(
+                    tenant_id=tenant_id,
+                    model_id=model_id,
+                    provider_id=provider.id,
+                    request_type=RequestTypeEnum.CHAT.value,
+                    request_data={"_stream": True},
+                    response_data={
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "total_tokens": total_tokens,
+                    },
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens,
+                    cost=cost,
+                    latency_ms=latency_ms,
+                    status=CallStatusEnum.SUCCESS.value,
+                    user_id=user_id,
+                    user_type=UserTypeEnum.TENANT_ADMIN.value,
+                )
+
             except Exception as e:
                 logger.error(_("ai.log.stream_usage_failed"), error=str(e))
 
-        await self.db.flush()
+        await self.db.commit()
 
         logger.info(
             _("ai.log.stream_completed"),
@@ -690,7 +753,7 @@ class AIGateway:
         top_p: float = 1.0,
         tools: list[dict] | None = None,
         tenant_id: int | None = None,
-        user_id: Optional[int] = None,
+        user_id: int | None = None,
         **kwargs
     ) -> StreamingResponse:
         """
@@ -726,22 +789,12 @@ class AIGateway:
             raise NotFoundException(message=_("ai.error.model_not_found"))
 
         # 原子检查+记录速率限制 + 配额检查（仅租户调用）
+        estimated_input = 0
         if tenant_id:
             estimated_input = TokenCounter.count_messages_tokens(
-                [dataclasses.asdict(msg) for msg in messages]
+                messages_to_dicts(messages)
             )
-            await RateLimiter.check_and_record(
-                tenant_id=tenant_id,
-                model_id=ai_model.id,
-                rpm_limit=ai_model.rpm_limit,
-                tpm_limit=ai_model.tpm_limit,
-                estimated_tokens=estimated_input,
-            )
-            await self.quota_manager.check_quota(
-                tenant_id=tenant_id,
-                model_id=ai_model.id,
-                estimated_tokens=estimated_input,
-            )
+            await self._check_rate_and_quota(tenant_id, ai_model.id, ai_model, estimated_input)
 
         async def generate_chunks() -> AsyncIterator[ChatChunk]:
             """内部异步生成器，使用已获取的 provider, api_key, ai_model
@@ -929,12 +982,13 @@ class AIGateway:
         async def on_complete(input_tokens: int, output_tokens: int, total_tokens: int):
             """流式完成回调"""
             if provider and api_key and ai_model:
-                # 计算费用
+                # 计算费用和延迟
                 cost = CostCalculator.calculate_cost(
                     ai_model, input_tokens, output_tokens
                 )
+                stream_latency_ms = int((time.time() - start_time) * 1000)
 
-                # 更新 API Key 使用计数并记录使用量
+                # 更新 API Key 使用计数并记录使用量（含 TPM/配额校正 + 调用日志）
                 await self._on_stream_complete(
                     provider=provider,
                     api_key=api_key,
@@ -946,6 +1000,8 @@ class AIGateway:
                     tenant_id=tenant_id,
                     user_id=user_id,
                     model_id=ai_model.id,
+                    estimated_input=estimated_input,
+                    latency_ms=stream_latency_ms,
                 )
 
         # 创建 SSE 流式响应
@@ -963,7 +1019,7 @@ class AIGateway:
         texts: list[str],
         model: str,
         tenant_id: int | None = None,
-        user_id: Optional[int] = None,
+        user_id: int | None = None,
         **kwargs
     ) -> EmbeddingResponse:
         """
@@ -1000,52 +1056,18 @@ class AIGateway:
             estimated_input = TokenCounter.count_messages_tokens(
                 [{"role": "user", "content": t} for t in texts]
             )
-            try:
-                await RateLimiter.check_and_record(
-                    tenant_id=tenant_id,
-                    model_id=model_id,
-                    rpm_limit=ai_model.rpm_limit,
-                    tpm_limit=ai_model.tpm_limit,
-                    estimated_tokens=estimated_input,
-                )
-            except RateLimitExceeded as e:
-                logger.warning(
-                    _("ai.log.rate_limit_blocked"),
-                    tenant_id=tenant_id,
-                    error=str(e),
-                )
-                raise
+            await self._check_rate_and_quota(tenant_id, model_id, ai_model, estimated_input)
 
-            try:
-                await self.quota_manager.check_quota(
-                    tenant_id=tenant_id,
-                    model_id=model_id,
-                    estimated_tokens=estimated_input,
-                )
-            except QuotaExceeded as e:
-                logger.warning(
-                    _("ai.log.quota_blocked"),
-                    tenant_id=tenant_id,
-                    error=str(e),
-                )
-                raise
-
-        # 3. 调用适配器
-        adapter = AdapterRegistry.create_adapter(
-            provider_type=provider.type,
-            api_key=api_key.decrypt_key(),
-            base_url=provider.base_url,
-        )
-
-        logger.info(
-            _("ai.log.gateway_embedding_call"),
-            provider=provider_code,
+        # 3. 调用适配器（含指数退避重试 + API Key 轮换）
+        response, _retry_count, used_api_key = await self._retry_with_backoff(
+            provider=provider,
+            api_key=api_key,
             model=model,
-        )
-        response = await adapter.embedding(
-            texts=texts,
-            model=model,
-            **kwargs,
+            call_fn=lambda adapter: adapter.embedding(
+                texts=texts, model=model, **kwargs,
+            ),
+            tenant_id=tenant_id,
+            log_key="ai.log.gateway_embedding_call",
         )
 
         # 4. 计算延迟和使用量
@@ -1056,38 +1078,23 @@ class AIGateway:
 
         cost = CostCalculator.calculate_cost(ai_model, input_tokens, 0) if ai_model else 0
 
-        # 5. 更新 API Key 使用计数
-        api_key.increment_usage()
+        # 5. 更新 API Key 使用计数（使用实际成功的 Key，重试可能已轮换）
+        used_api_key.increment_usage()
 
         # 6. 记录使用量和日志
         if tenant_id:
             try:
-                await self.metering.record_usage(
+                await self._record_usage_and_adjust(
                     tenant_id=tenant_id,
                     model_id=model_id,
                     request_type=RequestTypeEnum.EMBEDDING.value,
                     input_tokens=input_tokens,
                     output_tokens=0,
+                    total_tokens=total_tokens,
                     cost=cost,
-                    success=True,
-                    user_id=user_id,
+                    estimated_input=estimated_input,
                     latency_ms=latency_ms,
-                )
-
-                # 调整 TPM（从预估调整为实际）
-                await RateLimiter.adjust_tpm_after_response(
-                    tenant_id=tenant_id,
-                    model_id=model_id,
-                    estimated_tokens=estimated_input,
-                    actual_tokens=total_tokens,
-                )
-
-                # 调整配额用量（从预估调整为实际）
-                await self.quota_manager.adjust_usage(
-                    tenant_id=tenant_id,
-                    model_id=model_id,
-                    estimated_tokens=estimated_input,
-                    actual_tokens=total_tokens,
+                    user_id=user_id,
                 )
 
                 # 构建请求数据
@@ -1129,11 +1136,11 @@ class AIGateway:
         self,
         provider_id: int,
         model_code: str,
-        test_prompt: str = "你好",
+        test_prompt: str = "Hello",
         stream: bool = False,
         temperature: float = 0.7,
         max_tokens: int | None = 500,
-    ) -> dict:
+    ) -> TestModelResult:
         """
         测试模型连通性和响应质量（不记录日志）
 
@@ -1148,32 +1155,17 @@ class AIGateway:
             max_tokens: 最大生成 tokens
 
         Returns:
-            dict: 测试结果，包含：
-                - connected: bool - 是否连通
-                - latency_ms: int - 响应时间（毫秒）
-                - input_tokens: int - 输入 tokens
-                - output_tokens: int - 输出 tokens
-                - total_tokens: int - 总 tokens
-                - response_text: str - 响应文本
-                - error: str | None - 错误信息
-                - model: str - 模型名称
-                - provider: str - 供应商代码
+            TestModelResult: 类型化测试结果
         """
         # 通过 Repository 查询供应商
         provider = await self.provider_repo.get_by_id(provider_id)
 
         if not provider or not provider.is_active:
-            return {
-                "connected": False,
-                "latency_ms": 0,
-                "input_tokens": 0,
-                "output_tokens": 0,
-                "total_tokens": 0,
-                "response_text": "",
-                "error": _("ai.provider_not_found"),
-                "model": model_code,
-                "provider": "",
-            }
+            return TestModelResult(
+                connected=False,
+                error=_("ai.provider_not_found"),
+                model=model_code,
+            )
 
         # 通过 Repository 获取平台级 API Key
         api_key = await self.api_key_repo.get_available_key(
@@ -1182,17 +1174,12 @@ class AIGateway:
         )
 
         if not api_key or not api_key.is_available():
-            return {
-                "connected": False,
-                "latency_ms": 0,
-                "input_tokens": 0,
-                "output_tokens": 0,
-                "total_tokens": 0,
-                "response_text": "",
-                "error": _("ai.no_api_key"),
-                "model": model_code,
-                "provider": provider.code,
-            }
+            return TestModelResult(
+                connected=False,
+                error=_("ai.no_api_key"),
+                model=model_code,
+                provider=provider.code,
+            )
 
         # 构建测试消息
         messages = [
@@ -1211,33 +1198,32 @@ class AIGateway:
             )
 
             if stream:
-                # 流式响应测试（只返回第一个 chunk）
+                # 流式响应测试（只取前 5 个 chunk）
                 response_chunks = []
-                async for chunk in adapter.stream_chat(
+                stream_gen = adapter.stream_chat(
                     messages=messages,
                     model=model_code,
                     temperature=temperature,
                     max_tokens=max_tokens,
-                ):
-                    response_chunks.append(chunk.delta or "")
-                    # 只取前 5 个 chunk 进行测试
-                    if len(response_chunks) >= 5:
-                        break
+                )
+                try:
+                    async for chunk in stream_gen:
+                        response_chunks.append(chunk.delta or "")
+                        if len(response_chunks) >= 5:
+                            break
+                finally:
+                    await stream_gen.aclose()
 
                 latency_ms = int((time.time() - start_time) * 1000)
                 response_text = "".join(response_chunks)
 
-                return {
-                    "connected": True,
-                    "latency_ms": latency_ms,
-                    "input_tokens": 0,  # 流式响应可能没有 token 计数
-                    "output_tokens": 0,
-                    "total_tokens": 0,
-                    "response_text": response_text,
-                    "error": None,
-                    "model": model_code,
-                    "provider": provider.code,
-                }
+                return TestModelResult(
+                    connected=True,
+                    latency_ms=latency_ms,
+                    response_text=response_text,
+                    model=model_code,
+                    provider=provider.code,
+                )
             else:
                 # 非流式响应测试
                 response = await adapter.chat(
@@ -1253,33 +1239,28 @@ class AIGateway:
                 # 提取响应文本
                 response_text = response.message.content or ""
 
-                return {
-                    "connected": True,
-                    "latency_ms": latency_ms,
-                    "input_tokens": response.input_tokens or 0,
-                    "output_tokens": response.output_tokens or 0,
-                    "total_tokens": response.total_tokens or 0,
-                    "response_text": response_text,
-                    "error": None,
-                    "model": model_code,
-                    "provider": provider.code,
-                }
+                return TestModelResult(
+                    connected=True,
+                    latency_ms=latency_ms,
+                    input_tokens=response.input_tokens or 0,
+                    output_tokens=response.output_tokens or 0,
+                    total_tokens=response.total_tokens or 0,
+                    response_text=response_text,
+                    model=model_code,
+                    provider=provider.code,
+                )
 
         except Exception as e:
             latency_ms = int((time.time() - start_time) * 1000)
             logger.error(_("ai.log.model_test_failed"), provider=provider.code, model=model_code, error=str(e))
 
-            return {
-                "connected": False,
-                "latency_ms": latency_ms,
-                "input_tokens": 0,
-                "output_tokens": 0,
-                "total_tokens": 0,
-                "response_text": "",
-                "error": str(e),
-                "model": model_code,
-                "provider": provider.code,
-            }
+            return TestModelResult(
+                connected=False,
+                latency_ms=latency_ms,
+                error=str(e),
+                model=model_code,
+                provider=provider.code,
+            )
 
     async def get_provider_and_key(
         self,
@@ -1320,7 +1301,7 @@ class AIGateway:
 
         return provider, api_key
 
-    async def _get_model(self, model_name: str, provider_id: int) -> Optional[AIModel]:
+    async def _get_model(self, model_name: str, provider_id: int) -> AIModel | None:
         """
         获取模型信息
 
@@ -1338,7 +1319,7 @@ class AIGateway:
         provider_id: int,
         current_key_id: int,
         tenant_id: int | None = None,
-    ) -> Optional[ProviderApiKey]:
+    ) -> ProviderApiKey | None:
         """
         获取下一个可用的 API Key（用于重试时轮换）
 

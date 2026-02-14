@@ -107,7 +107,10 @@ async def get_current_admin(
         raise credentials_exception
     
     result = await db.execute(
-        select(Admin).where(Admin.id == int(user_id))
+        select(Admin).where(
+            Admin.id == int(user_id),
+            Admin.is_deleted.is_(False),
+        )
     )
     admin = result.scalar_one_or_none()
     
@@ -173,7 +176,10 @@ async def get_current_tenant_admin(
         raise credentials_exception
     
     result = await db.execute(
-        select(TenantAdmin).where(TenantAdmin.id == int(user_id))
+        select(TenantAdmin).where(
+            TenantAdmin.id == int(user_id),
+            TenantAdmin.is_deleted.is_(False),
+        )
     )
     tenant_admin = result.scalar_one_or_none()
     
@@ -239,7 +245,10 @@ async def get_current_tenant_user(
         raise credentials_exception
     
     result = await db.execute(
-        select(TenantUser).where(TenantUser.id == int(user_id))
+        select(TenantUser).where(
+            TenantUser.id == int(user_id),
+            TenantUser.is_deleted.is_(False),
+        )
     )
     user = result.scalar_one_or_none()
     

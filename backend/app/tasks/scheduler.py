@@ -38,8 +38,8 @@ def load_periodic_tasks_from_db() -> dict:
         tasks = (
             session.query(PeriodicTask)
             .filter(
-                PeriodicTask.is_active == True,  # noqa: E712
-                PeriodicTask.is_deleted == False,  # noqa: E712
+                PeriodicTask.is_active.is_(True),  # noqa: E712
+                PeriodicTask.is_deleted.is_(False),  # noqa: E712
             )
             .all()
         )

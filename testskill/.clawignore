@@ -1,0 +1,29 @@
+# 环境与密钥
+.env
+.env.*
+!.env.example
+
+# Python 虚拟环境
+.venv/
+
+# 依赖锁定文件
+uv.lock
+*.lock
+
+# 编译缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# egg-info
+*.egg-info/

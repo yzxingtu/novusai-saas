@@ -18,7 +18,7 @@ import { getTenantAICallLogListApi } from '#/api/tenant/ai';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
-import { formatCost, getStatusText, useColumns, useGridFormSchema } from './data';
+import { formatCost, getStatusColor, getStatusText, useColumns, useGridFormSchema } from './data';
 import CallLogDetail from './modules/CallLogDetail.vue';
 
 const detailOpen = ref(false);
@@ -58,7 +58,7 @@ const { Grid, gridApi } = useCrudPage<TenantAICallLogInfo>({
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-4">
+  <Page auto-content-height :description="$t('tenant.ai.callLog.pageDesc')" content-class="flex flex-col gap-4">
     <!-- 详情抽屉 -->
     <CallLogDetail
       v-model:open="detailOpen"
@@ -118,15 +118,7 @@ const { Grid, gridApi } = useCrudPage<TenantAICallLogInfo>({
 
         <!-- 状态列 -->
         <template #status_cell="{ row }">
-          <Tag
-            :color="
-              row.status === 'success'
-                ? 'success'
-                : row.status === 'failed'
-                  ? 'error'
-                  : 'warning'
-            "
-          >
+          <Tag :color="getStatusColor(row.status)">
             {{ getStatusText(row.status) }}
           </Tag>
         </template>

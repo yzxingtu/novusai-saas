@@ -1,0 +1,413 @@
+"""
+Celery 异步文档处理任务
+
+处理流程：解析 → 分块 → Embedding → 存储 → 更新统计
+支持断点续传（从 error_stage 恢复）和 Redis 进度上报
+"""
+
+from __future__ import annotations
+
+import asyncio
+from datetime import datetime, timezone
+
+from app.core.logging import LogManager
+from app.tasks.base import register_task, TenantTask
+
+logger = LogManager.get_logger("ai.rag.processor")
+
+# Redis 进度 Key 模板，TTL 1 小时
+PROGRESS_KEY_TEMPLATE = "kb:doc:progress:{document_id}"
+PROGRESS_TTL = 3600
+
+
+async def _report_progress(
+    document_id: int,
+    stage: str,
+    progress: int,
+    total_chunks: int = 0,
+    processed_chunks: int = 0,
+) -> None:
+    """上报处理进度到 Redis"""
+    try:
+        from app.core.redis import cache_set
+        key = PROGRESS_KEY_TEMPLATE.format(document_id=document_id)
+        await cache_set(key, {
+            "stage": stage,
+            "progress": min(progress, 100),
+            "total_chunks": total_chunks,
+            "processed_chunks": processed_chunks,
+        }, ttl=PROGRESS_TTL)
+    except Exception:
+        pass  # 进度上报失败不影响主流程
+
+
+async def _clear_progress(document_id: int) -> None:
+    """清除 Redis 进度数据"""
+    try:
+        from app.core.redis import cache_delete
+        key = PROGRESS_KEY_TEMPLATE.format(document_id=document_id)
+        await cache_delete(key)
+    except Exception:
+        pass
+
+
+async def _load_and_parse_document(db, doc, tenant_id) -> list:
+    """
+    加载并解析文档内容，返回 ParsedPage 列表
+
+    统一处理 QA 类型和文件类型的文档加载逻辑，
+    避免在解析/分块/嵌入阶段重复相同代码。
+    """
+    from sqlalchemy import select
+
+    from app.ai.rag.parser import get_parser, QaPairParser
+    from app.enums.knowledge_base import DocumentTypeEnum
+    from app.models.tenant.attachment import Attachment
+    from app.storage import storage_manager
+    from app.configs.service import ConfigService
+
+    if doc.file_type == DocumentTypeEnum.QA.value:
+        import json
+        qa_data = json.loads(doc.metadata_extra or "{}")
+        qa_parser = QaPairParser()
+        return await qa_parser.parse_qa(
+            question=qa_data.get("question", ""),
+            answer=qa_data.get("answer", ""),
+            file_name=doc.file_name,
+        )
+
+    if not doc.attachment_id:
+        raise ValueError("Document has no attachment")
+
+    attachment_stmt = select(Attachment).where(
+        Attachment.id == doc.attachment_id,
+        Attachment.is_deleted.is_(False),
+    )
+    att_result = await db.execute(attachment_stmt)
+    attachment = att_result.scalar_one_or_none()
+    if not attachment:
+        raise ValueError("Attachment not found")
+
+    config_service = ConfigService(db)
+    storage_config = await config_service.resolve_storage_config(
+        tenant_id=tenant_id,
+    )
+    driver = storage_manager.get_driver(storage_config)
+    file_content = await driver.get(attachment.path)
+
+    parser = get_parser(doc.file_type)
+    return await parser.parse(file_content, doc.file_name)
+
+
+async def get_document_progress(document_id: int) -> dict | None:
+    """
+    获取文档处理进度（供 API 调用）
+
+    优先读 Redis，如果无数据返回 None
+    """
+    from app.core.redis import cache_get
+    key = PROGRESS_KEY_TEMPLATE.format(document_id=document_id)
+    return await cache_get(key)
+
+
+@register_task(
+    queue="ai_gateway",
+    description="异步处理知识库文档（解析→分块→Embedding→存储）",
+    max_retries=3,
+    base=TenantTask,
+    soft_time_limit=600,
+    time_limit=660,
+    acks_late=True,
+)
+def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict:
+    """
+    文档处理主任务（支持断点续传）
+
+    断点续传机制：
+    - error_stage='parsing' → 从解析阶段重新开始
+    - error_stage='chunking' → 从分块阶段开始
+    - error_stage='embedding' → 从上次成功的 chunk_index 继续
+
+    每个阶段实时上报 Redis 进度，完成后清除。
+
+    Args:
+        tenant_id: 租户 ID
+        document_id: 文档 ID
+
+    Returns:
+        处理结果摘要
+    """
+
+    async def _execute() -> dict:
+        from sqlalchemy import select, func
+
+        from app.ai.gateway import AIGateway
+        from app.ai.rag.chunker import get_chunker
+        from app.ai.rag.parser import get_parser, QaPairParser
+        from app.core.database import async_session_factory
+        from app.enums.knowledge_base import DocumentStatusEnum, DocumentTypeEnum
+        from app.models.ai.document_chunk import DocumentChunk
+        from app.models.tenant.attachment import Attachment
+        from app.repositories.ai.knowledge_base_repository import (
+            DocumentChunkRepository,
+            KnowledgeBaseRepository,
+            KnowledgeDocumentRepository,
+        )
+        from app.storage import storage_manager
+        from app.configs.service import ConfigService
+
+        async with async_session_factory() as db:
+            try:
+                # ===== 1. 加载文档和知识库 =====
+                doc_repo = KnowledgeDocumentRepository(db, tenant_id)
+                doc = await doc_repo.get_by_id(document_id)
+                if not doc:
+                    logger.error("Document %d not found", document_id)
+                    return {"error": "Document not found"}
+
+                kb_repo = KnowledgeBaseRepository(db, tenant_id)
+                kb = await kb_repo.get_by_id(doc.knowledge_base_id)
+                if not kb:
+                    logger.error("KnowledgeBase %d not found", doc.knowledge_base_id)
+                    return {"error": "KnowledgeBase not found"}
+
+                # 断点续传：检查 error_stage 决定起始阶段
+                resume_stage = doc.error_stage  # None = 从头开始
+                skip_parsing = resume_stage in ("chunking", "embedding")
+                skip_chunking = resume_stage == "embedding"
+
+                logger.info(
+                    "Processing document %d (type=%s, kb=%d, resume=%s)",
+                    document_id, doc.file_type, kb.id, resume_stage or "full",
+                )
+
+                # 重置错误信息
+                doc.error_message = None
+                doc.error_stage = None
+                if not doc.processing_started_at:
+                    doc.processing_started_at = datetime.now(timezone.utc)
+                await db.commit()
+
+                pages = None
+                chunk_data_list = None
+
+                # ===== 2. 解析阶段 =====
+                if not skip_parsing:
+                    doc.status = DocumentStatusEnum.PARSING.value
+                    await db.commit()
+                    await _report_progress(document_id, "parsing", 0)
+
+                    pages = await _load_and_parse_document(db, doc, tenant_id)
+
+                    await _report_progress(document_id, "parsing", 100)
+
+                    if not pages:
+                        logger.warning("Document %d parsed with 0 pages", document_id)
+
+                # ===== 3. 分块阶段 =====
+                if not skip_chunking:
+                    doc.status = DocumentStatusEnum.CHUNKING.value
+                    await db.commit()
+                    await _report_progress(document_id, "chunking", 0)
+
+                    # 如果跳过了解析（从 chunking 恢复），需要重新解析
+                    if pages is None:
+                        pages = await _load_and_parse_document(db, doc, tenant_id)
+
+                    chunker = get_chunker(
+                        strategy=kb.chunk_strategy,
+                        chunk_size=kb.chunk_size,
+                        chunk_overlap=kb.chunk_overlap,
+                    )
+                    chunk_data_list = chunker.chunk(pages or [])
+                    await _report_progress(document_id, "chunking", 100)
+
+                # ===== 4. Embedding 阶段（支持断点续传） =====
+                doc.status = DocumentStatusEnum.EMBEDDING.value
+                await db.commit()
+
+                gateway = AIGateway(db)
+                embedding_model = kb.embedding_model
+                if not embedding_model:
+                    raise ValueError("Embedding model not configured")
+                provider = embedding_model.provider
+                if not provider:
+                    raise ValueError("Embedding model provider not found")
+
+                # 断点续传：如果从 embedding 阶段恢复，查询已有分块数
+                existing_chunk_count = 0
+                if skip_chunking:
+                    # 需要重新生成 chunk_data_list（从 embedding 恢复）
+                    if chunk_data_list is None:
+                        # 重新解析+分块（跳过 embedding 阶段已完成的部分）
+                        pages = await _load_and_parse_document(db, doc, tenant_id)
+
+                        chunker = get_chunker(
+                            strategy=kb.chunk_strategy,
+                            chunk_size=kb.chunk_size,
+                            chunk_overlap=kb.chunk_overlap,
+                        )
+                        chunk_data_list = chunker.chunk(pages or [])
+
+                    # 查询已成功写入的分块数（用于断点续传）
+                    count_stmt = (
+                        select(func.count(DocumentChunk.id))
+                        .where(
+                            DocumentChunk.document_id == document_id,
+                            DocumentChunk.tenant_id == tenant_id,
+                            DocumentChunk.is_deleted.is_(False),
+                            DocumentChunk.embedding.isnot(None),
+                        )
+                    )
+                    count_result = await db.execute(count_stmt)
+                    existing_chunk_count = count_result.scalar() or 0
+                    logger.info(
+                        "Resuming embedding from chunk %d/%d for doc %d",
+                        existing_chunk_count, len(chunk_data_list), document_id,
+                    )
+
+                if chunk_data_list is None:
+                    chunk_data_list = []
+
+                total_chunks = len(chunk_data_list)
+                total_char_count = sum(c.char_count for c in chunk_data_list)
+
+                # 从断点位置开始 Embedding
+                chunks_to_embed = chunk_data_list[existing_chunk_count:]
+                batch_size = 100
+                all_embeddings: list[list[float]] = []
+                total_token_count = 0
+                processed_so_far = existing_chunk_count
+
+                await _report_progress(
+                    document_id, "embedding", 
+                    int(processed_so_far / max(total_chunks, 1) * 100),
+                    total_chunks, processed_so_far,
+                )
+
+                for i in range(0, len(chunks_to_embed), batch_size):
+                    batch = chunks_to_embed[i:i + batch_size]
+                    texts = [c.content for c in batch]
+
+                    response = await gateway.embedding(
+                        provider_code=provider.code,
+                        texts=texts,
+                        model=embedding_model.code,
+                        tenant_id=tenant_id,
+                    )
+
+                    all_embeddings.extend(response.embeddings)
+                    total_token_count += response.total_tokens or 0
+                    processed_so_far += len(batch)
+
+                    # 上报进度
+                    await _report_progress(
+                        document_id, "embedding",
+                        int(processed_so_far / max(total_chunks, 1) * 100),
+                        total_chunks, processed_so_far,
+                    )
+
+                    logger.info(
+                        "Embedding %d/%d for doc %d",
+                        processed_so_far, total_chunks, document_id,
+                    )
+
+                # ===== 5. 批量写入 document_chunks =====
+                chunk_repo = DocumentChunkRepository(db, tenant_id)
+
+                if existing_chunk_count == 0:
+                    # 全新处理：先删除旧分块
+                    await chunk_repo.delete_by_document(document_id, soft=False)
+
+                # 只写入新生成的分块
+                write_batch_size = 500
+                for i in range(0, len(chunks_to_embed), write_batch_size):
+                    batch = chunks_to_embed[i:i + write_batch_size]
+                    batch_data = []
+                    for idx, cd in enumerate(batch):
+                        embedding_vec = (
+                            all_embeddings[idx + i - 0]  # all_embeddings 从0开始对应 chunks_to_embed
+                            if (idx + i) < len(all_embeddings)
+                            else None
+                        )
+                        batch_data.append({
+                            "document_id": document_id,
+                            "knowledge_base_id": kb.id,
+                            "chunk_index": cd.chunk_index,
+                            "content": cd.content,
+                            "content_hash": cd.content_hash,
+                            "char_count": cd.char_count,
+                            "token_count": 0,
+                            "embedding": embedding_vec,
+                            "metadata_": cd.metadata,
+                            "tenant_id": tenant_id,
+                        })
+                    await chunk_repo.create_many(batch_data)
+
+                # ===== 6. 更新文档统计 =====
+                doc.status = DocumentStatusEnum.COMPLETED.value
+                doc.chunk_count = total_chunks
+                doc.token_count = total_token_count
+                doc.char_count = total_char_count
+                doc.processing_completed_at = datetime.now(timezone.utc)
+                doc.error_message = None
+                doc.error_stage = None
+                await db.commit()
+
+                # ===== 7. 更新知识库统计 =====
+                await kb_repo.update_statistics(kb.id)
+                await db.commit()
+
+                # 清除 Redis 进度
+                await _clear_progress(document_id)
+
+                logger.info(
+                    "Document %d processed: %d chunks, %d tokens",
+                    document_id, total_chunks, total_token_count,
+                )
+
+                return {
+                    "document_id": document_id,
+                    "chunks": total_chunks,
+                    "tokens": total_token_count,
+                    "status": "completed",
+                }
+
+            except Exception as exc:
+                logger.error(
+                    "Document %d processing failed: %s",
+                    document_id, str(exc),
+                    exc_info=True,
+                )
+                try:
+                    error_stage = None
+                    if doc.status == DocumentStatusEnum.PARSING.value:
+                        error_stage = "parsing"
+                    elif doc.status == DocumentStatusEnum.CHUNKING.value:
+                        error_stage = "chunking"
+                    elif doc.status == DocumentStatusEnum.EMBEDDING.value:
+                        error_stage = "embedding"
+
+                    doc.status = DocumentStatusEnum.ERROR.value
+                    doc.error_message = str(exc)[:2000]
+                    doc.error_stage = error_stage
+                    doc.retry_count = (doc.retry_count or 0) + 1
+                    await db.commit()
+
+                    # 上报错误进度
+                    await _report_progress(
+                        document_id, "error", 0,
+                    )
+                except Exception:
+                    pass
+
+                return {
+                    "document_id": document_id,
+                    "status": "error",
+                    "error": str(exc)[:500],
+                }
+
+    return asyncio.run(_execute())
+
+
+__all__ = ["process_document", "get_document_progress"]

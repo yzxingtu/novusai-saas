@@ -45,7 +45,7 @@ from app.services.common import StorageQuotaService
 )
 class TenantAttachmentController(TenantController):
     prefix = "/attachments"
-    tags = ["附件管理"]
+    tags = ["Attachment Management"]
 
     def _register_routes(self) -> None:
         router = self.router

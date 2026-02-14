@@ -2,20 +2,22 @@
 租户 AI 配额配置 Schema
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional
+from __future__ import annotations
+
 from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TenantQuotaBase(BaseModel):
     """租户配额配置基础 Schema"""
     
-    model_id: Optional[int] = Field(None, description="模型 ID（None 表示全局配额）")
+    model_id: int | None = Field(None, description="模型 ID（None 表示全局配额）")
     period: str = Field(default="monthly", description="周期（daily/monthly）")
     limit: int = Field(..., gt=0, description="配额限制（Token 数量）")
     quota_type: str = Field(default="soft", description="配额类型（soft/hard）")
-    warning_threshold: Optional[int] = Field(default=80, ge=0, le=100, description="预警阈值（百分比）")
-    description: Optional[str] = Field(None, max_length=500, description="描述")
+    warning_threshold: int | None = Field(default=80, ge=0, le=100, description="预警阈值（百分比）")
+    description: str | None = Field(None, max_length=500, description="描述")
 
 
 class TenantQuotaCreate(TenantQuotaBase):
@@ -33,11 +35,11 @@ class AdminTenantQuotaCreate(TenantQuotaBase):
 class TenantQuotaUpdate(BaseModel):
     """更新租户配额配置"""
     
-    limit: Optional[int] = Field(None, gt=0, description="配额限制")
-    quota_type: Optional[str] = Field(None, description="配额类型")
-    warning_threshold: Optional[int] = Field(None, ge=0, le=100, description="预警阈值")
-    description: Optional[str] = Field(None, max_length=500, description="描述")
-    is_active: Optional[bool] = Field(None, description="是否启用")
+    limit: int | None = Field(None, gt=0, description="配额限制")
+    quota_type: str | None = Field(None, description="配额类型")
+    warning_threshold: int | None = Field(None, ge=0, le=100, description="预警阈值")
+    description: str | None = Field(None, max_length=500, description="描述")
+    is_active: bool | None = Field(None, description="是否启用")
 
 
 class TenantQuotaResponse(TenantQuotaBase):
@@ -46,13 +48,38 @@ class TenantQuotaResponse(TenantQuotaBase):
     id: int
     tenant_id: int
     is_active: bool
-    tenant_name: Optional[str] = Field(None, description="租户名称")
-    model_name: Optional[str] = Field(None, description="模型名称")
+    tenant_name: str | None = Field(None, description="租户名称")
+    model_name: str | None = Field(None, description="模型名称")
     created_at: datetime
     updated_at: datetime
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def from_orm_model(cls, obj) -> "TenantQuotaResponse":
+        """从 ORM 对象构建响应，自动提取关联 model_name"""
+        model_name = None
+        try:
+            model_obj = getattr(obj, "model", None)
+            if model_obj is not None:
+                model_name = model_obj.name
+        except (AttributeError, Exception):
+            pass
+
+        return cls(
+            id=obj.id,
+            tenant_id=obj.tenant_id,
+            model_id=obj.model_id,
+            period=obj.period,
+            limit=obj.limit,
+            quota_type=obj.quota_type,
+            warning_threshold=obj.warning_threshold,
+            is_active=obj.is_active,
+            description=obj.description,
+            model_name=model_name,
+            created_at=obj.created_at,
+            updated_at=obj.updated_at,
+        )
 
 
 class TenantQuotaWithUsage(BaseModel):

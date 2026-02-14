@@ -1,0 +1,41 @@
+{
+  "title": "Knowledge Base Management",
+  "pageDesc": "Manage all knowledge bases. Create global, tenant-specific, or admin-only knowledge bases. View documents, chunks, and storage.",
+  "create": "Create Knowledge Base",
+  "stats": {
+    "totalKnowledgeBases": "Total Knowledge Bases",
+    "totalDocuments": "Total Documents",
+    "totalChunks": "Total Chunks",
+    "totalStorage": "Total Storage"
+  },
+  "field": {
+    "tenantName": "Tenant",
+    "name": "Knowledge Base Name",
+    "description": "Description",
+    "scope": "Scope",
+    "tenantId": "Tenant ID",
+    "tenantIdPlaceholder": "Enter tenant ID",
+    "embeddingModel": "Embedding Model",
+    "documentCount": "Documents",
+    "totalChunks": "Chunks",
+    "totalSizeBytes": "Storage Size",
+    "status": "Status",
+    "createdAt": "Created At",
+    "chunkSize": "Chunk Size",
+    "chunkOverlap": "Chunk Overlap",
+    "topK": "Top K",
+    "scoreThreshold": "Score Threshold"
+  },
+  "scope": {
+    "tenant": "Tenant",
+    "global": "Global",
+    "admin": "Admin Only"
+  },
+  "status": {
+    "active": "Active",
+    "disabled": "Disabled"
+  },
+  "detail": "Knowledge Base Detail",
+  "forceDelete": "Force Delete",
+  "forceDeleteConfirm": "Force delete this knowledge base? This action cannot be undone."
+}

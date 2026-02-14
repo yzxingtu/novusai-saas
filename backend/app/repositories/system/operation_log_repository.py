@@ -128,7 +128,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
                 update(self.model)
                 .where(
                     self.model.created_at < before_date,
-                    self.model.is_deleted == False,
+                    self.model.is_deleted.is_(False),
                 )
                 .values(is_deleted=True)
             )
@@ -160,7 +160,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
                 self.model.module,
                 func.count(self.model.id).label("count")
             )
-            .where(self.model.is_deleted == False)
+            .where(self.model.is_deleted.is_(False))
             .group_by(self.model.module)
         )
         
@@ -200,7 +200,7 @@ class OperationLogRepository(BaseRepository[OperationLog]):
                 self.model.action,
                 func.count(self.model.id).label("count")
             )
-            .where(self.model.is_deleted == False)
+            .where(self.model.is_deleted.is_(False))
             .group_by(self.model.action)
         )
         

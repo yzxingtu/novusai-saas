@@ -6,6 +6,7 @@
 
 import time
 
+from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import AgentExecutionModeEnum, BatchRunStatusEnum
 from app.models.ai.agent import Agent
@@ -33,8 +34,6 @@ class BatchEngine(BaseEngine):
         execute 仅用于满足 BaseEngine 接口。
         批量执行应使用 execute_batch()。
         """
-        from app.core.i18n import _
-
         return ExecutionResult(
             success=False,
             error=_("agent.error.use_execute_batch"),

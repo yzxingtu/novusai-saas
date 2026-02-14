@@ -20,8 +20,8 @@ class TenantDomainTenantRepository(TenantRepository[TenantDomain]):
     async def get_primary_domain(self, tenant_id: int) -> TenantDomain | None:
         query = select(self.model).where(
             self.model.tenant_id == self.tenant_id,
-            self.model.is_primary == True,
-            self.model.is_deleted == False,
+            self.model.is_primary.is_(True),
+            self.model.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
@@ -31,7 +31,7 @@ class TenantDomainTenantRepository(TenantRepository[TenantDomain]):
             select(self.model)
             .where(
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False,
+                self.model.is_deleted.is_(False),
             )
             .order_by(
                 self.model.is_primary.desc(),
@@ -48,7 +48,7 @@ class TenantDomainTenantRepository(TenantRepository[TenantDomain]):
     ) -> bool:
         query = select(self.model.id).where(
             self.model.domain == domain,
-            self.model.is_deleted == False,
+            self.model.is_deleted.is_(False),
         )
         if exclude_id:
             query = query.where(self.model.id != exclude_id)
@@ -70,8 +70,8 @@ class TenantDomainTenantRepository(TenantRepository[TenantDomain]):
             update(self.model)
             .where(
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_primary == True,
-                self.model.is_deleted == False,
+                self.model.is_primary.is_(True),
+                self.model.is_deleted.is_(False),
             )
             .values(is_primary=False)
         )

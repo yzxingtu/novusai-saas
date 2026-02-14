@@ -13,6 +13,7 @@ import {
   textareaField,
 } from '#/adapter/form';
 import { getTenantAIModelsApi } from '#/api/tenant/ai';
+import { getSkillPackageSelectApi } from '#/api/tenant/skill-packages';
 import { $t } from '#/locales';
 
 // ============ 状态辅助 ============
@@ -146,6 +147,23 @@ export async function getModelSelectOptions() {
   }
 }
 
+// ============ 技能包下拉 ============
+
+/**
+ * 获取技能包下拉选项（用于 Agent 绑定）
+ */
+export async function getPackageSelectOptions() {
+  try {
+    const data = await getSkillPackageSelectApi();
+    return data.map((p) => ({
+      label: p.label,
+      value: p.value,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 // ============ 表格列 ============
 
 /**
@@ -237,7 +255,7 @@ export function useColumns<T = AgentListItem>(
             accessCodes: ['agent:list'],
           },
           'edit',
-          'delete',
+          { code: 'delete', show: (row: AgentListItem) => !row.is_system },
         ],
       },
       field: 'operation',
@@ -280,6 +298,14 @@ export function useFormSchema(): VbenFormSchema[] {
       required: true,
       placeholder: $t('tenant.ai.agent.placeholder.inputName'),
     }),
+    {
+      component: 'ImageUpload',
+      fieldName: 'avatar',
+      label: $t('tenant.ai.agent.avatar'),
+      componentProps: {
+        uploadUrl: '/tenant/attachments/upload',
+      },
+    },
     select('model_id', $t('tenant.ai.agent.modelName'), {
       api: getModelSelectOptions,
       required: true,
@@ -298,23 +324,35 @@ export function useFormSchema(): VbenFormSchema[] {
     textareaField('description', $t('tenant.ai.agent.description'), {
       placeholder: $t('tenant.ai.agent.placeholder.inputDescription'),
     }),
-    numberField('temperature', $t('tenant.ai.agent.temperature'), {
-      min: 0,
-      max: 2,
-      placeholder: $t('tenant.ai.agent.placeholder.inputTemperature'),
-    }),
-    numberField('max_tokens', $t('tenant.ai.agent.maxTokens'), {
-      min: 1,
-      placeholder: $t('tenant.ai.agent.placeholder.inputMaxTokens'),
-    }),
-    numberField('top_p', $t('tenant.ai.agent.topP'), {
-      min: 0,
-      max: 1,
-      placeholder: $t('tenant.ai.agent.placeholder.inputTopP'),
-    }),
-    textareaField('welcome_message', $t('tenant.ai.agent.welcomeMessage'), {
-      placeholder: $t('tenant.ai.agent.placeholder.inputWelcomeMessage'),
-    }),
+    {
+      ...numberField('temperature', $t('tenant.ai.agent.temperature'), {
+        min: 0,
+        max: 2,
+        placeholder: $t('tenant.ai.agent.placeholder.inputTemperature'),
+      }),
+      help: $t('tenant.ai.agent.help.temperature'),
+    },
+    {
+      ...numberField('max_tokens', $t('tenant.ai.agent.maxTokens'), {
+        min: 1,
+        placeholder: $t('tenant.ai.agent.placeholder.inputMaxTokens'),
+      }),
+      help: $t('tenant.ai.agent.help.maxTokens'),
+    },
+    {
+      ...numberField('top_p', $t('tenant.ai.agent.topP'), {
+        min: 0,
+        max: 1,
+        placeholder: $t('tenant.ai.agent.placeholder.inputTopP'),
+      }),
+      help: $t('tenant.ai.agent.help.topP'),
+    },
+    {
+      ...textareaField('welcome_message', $t('tenant.ai.agent.welcomeMessage'), {
+        placeholder: $t('tenant.ai.agent.placeholder.inputWelcomeMessage'),
+      }),
+      help: $t('tenant.ai.agent.help.welcomeMessage'),
+    },
     {
       ...textareaField('suggested_questions_str', $t('tenant.ai.agent.suggestedQuestions'), {
         placeholder: $t('tenant.ai.agent.placeholder.inputSuggestedQuestions'),
@@ -323,22 +361,28 @@ export function useFormSchema(): VbenFormSchema[] {
       help: $t('tenant.ai.agent.help.suggestedQuestions'),
     },
     {
-      ...textareaField('tool_bindings_str', $t('tenant.ai.agent.toolBindings'), {
-        placeholder: $t('tenant.ai.agent.placeholder.inputToolBindings'),
-        rows: 4,
-      }),
-      help: $t('tenant.ai.agent.help.toolBindings'),
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getPackageSelectOptions,
+        class: 'w-full',
+        mode: 'multiple',
+        placeholder: $t('tenant.ai.agent.placeholder.selectSkillPackages'),
+        showSearch: true,
+        optionFilterProp: 'label',
+      },
+      fieldName: 'package_ids',
+      label: $t('tenant.ai.agent.skillPackageBindings'),
+      help: $t('tenant.ai.agent.help.skillPackageBindings'),
     },
     // ============ 输入变量 ============
     {
       component: 'Divider',
       fieldName: '_input_variables_divider',
       label: '',
-      componentProps: {
-        children: $t('tenant.ai.agent.inputVariables.title'),
-        orientation: 'left',
-        dashed: true,
-      },
+      hideLabel: true,
+      componentProps: { orientation: 'left', dashed: true },
+      renderComponentContent: () => ({ default: () => $t('tenant.ai.agent.inputVariables.title') }),
     },
     {
       ...textareaField('input_variables_str', $t('tenant.ai.agent.inputVariables.label'), {
@@ -352,54 +396,129 @@ export function useFormSchema(): VbenFormSchema[] {
       component: 'Divider',
       fieldName: '_context_divider',
       label: '',
-      componentProps: {
-        children: $t('tenant.ai.agent.contextConfig.title'),
-        orientation: 'left',
-        dashed: true,
-      },
+      hideLabel: true,
+      componentProps: { orientation: 'left', dashed: true },
+      renderComponentContent: () => ({ default: () => $t('tenant.ai.agent.contextConfig.title') }),
     },
-    numberField('context_max_history_messages', $t('tenant.ai.agent.contextConfig.maxHistoryMessages'), {
-      min: 0,
-      placeholder: $t('tenant.ai.agent.contextConfig.placeholder.maxHistoryMessages'),
-    }),
-    numberField('context_max_history_tokens', $t('tenant.ai.agent.contextConfig.maxHistoryTokens'), {
-      min: 0,
-      placeholder: $t('tenant.ai.agent.contextConfig.placeholder.maxHistoryTokens'),
-    }),
+    {
+      ...numberField('context_max_history_messages', $t('tenant.ai.agent.contextConfig.maxHistoryMessages'), {
+        min: 0,
+        placeholder: $t('tenant.ai.agent.contextConfig.placeholder.maxHistoryMessages'),
+      }),
+      help: $t('tenant.ai.agent.help.contextMaxHistoryMessages'),
+    },
+    {
+      ...numberField('context_max_history_tokens', $t('tenant.ai.agent.contextConfig.maxHistoryTokens'), {
+        min: 0,
+        placeholder: $t('tenant.ai.agent.contextConfig.placeholder.maxHistoryTokens'),
+      }),
+      help: $t('tenant.ai.agent.help.contextMaxHistoryTokens'),
+    },
     // ============ 配额设置 ============
     {
       component: 'Divider',
       fieldName: '_quota_divider',
       label: '',
-      componentProps: {
-        children: $t('tenant.ai.agent.quotaConfig.title'),
-        orientation: 'left',
-        dashed: true,
-      },
+      hideLabel: true,
+      componentProps: { orientation: 'left', dashed: true },
+      renderComponentContent: () => ({ default: () => $t('tenant.ai.agent.quotaConfig.title') }),
     },
-    numberField('quota_conversations_per_day', $t('tenant.ai.agent.quotaConfig.conversationsPerDay'), {
-      min: 0,
-      placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.conversationsPerDay'),
-    }),
-    numberField('quota_tokens_per_day', $t('tenant.ai.agent.quotaConfig.tokensPerDay'), {
-      min: 0,
-      placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.tokensPerDay'),
-    }),
-    numberField('quota_tokens_per_month', $t('tenant.ai.agent.quotaConfig.tokensPerMonth'), {
-      min: 0,
-      placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.tokensPerMonth'),
-    }),
-    numberField('quota_max_turns', $t('tenant.ai.agent.quotaConfig.maxTurnsPerConversation'), {
-      min: 0,
-      placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.maxTurnsPerConversation'),
-    }),
-    numberField('quota_max_concurrent', $t('tenant.ai.agent.quotaConfig.maxConcurrent'), {
-      min: 0,
-      placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.maxConcurrent'),
-    }),
-    numberField('quota_user_conversations_per_day', $t('tenant.ai.agent.quotaConfig.userConversationsPerDay'), {
-      min: 0,
-      placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.userConversationsPerDay'),
+    {
+      ...numberField('quota_conversations_per_day', $t('tenant.ai.agent.quotaConfig.conversationsPerDay'), {
+        min: 0,
+        placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.conversationsPerDay'),
+      }),
+      help: $t('tenant.ai.agent.help.quotaConversationsPerDay'),
+    },
+    {
+      ...numberField('quota_tokens_per_day', $t('tenant.ai.agent.quotaConfig.tokensPerDay'), {
+        min: 0,
+        placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.tokensPerDay'),
+      }),
+      help: $t('tenant.ai.agent.help.quotaTokensPerDay'),
+    },
+    {
+      ...numberField('quota_tokens_per_month', $t('tenant.ai.agent.quotaConfig.tokensPerMonth'), {
+        min: 0,
+        placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.tokensPerMonth'),
+      }),
+      help: $t('tenant.ai.agent.help.quotaTokensPerMonth'),
+    },
+    {
+      ...numberField('quota_max_turns', $t('tenant.ai.agent.quotaConfig.maxTurnsPerConversation'), {
+        min: 0,
+        placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.maxTurnsPerConversation'),
+      }),
+      help: $t('tenant.ai.agent.help.quotaMaxTurns'),
+    },
+    {
+      ...numberField('quota_max_concurrent', $t('tenant.ai.agent.quotaConfig.maxConcurrent'), {
+        min: 0,
+        placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.maxConcurrent'),
+      }),
+      help: $t('tenant.ai.agent.help.quotaMaxConcurrent'),
+    },
+    {
+      ...numberField('quota_user_conversations_per_day', $t('tenant.ai.agent.quotaConfig.userConversationsPerDay'), {
+        min: 0,
+        placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.userConversationsPerDay'),
+      }),
+      help: $t('tenant.ai.agent.help.quotaUserConversationsPerDay'),
+    },
+  ];
+}
+
+// ============ 向导模式 ============
+
+/**
+ * 向导步骤定义
+ */
+export function getWizardSteps() {
+  return [
+    { title: $t('tenant.ai.agent.wizard.step1'), description: $t('tenant.ai.agent.wizard.step1Desc') },
+    { title: $t('tenant.ai.agent.wizard.step2'), description: $t('tenant.ai.agent.wizard.step2Desc') },
+    { title: $t('tenant.ai.agent.wizard.step3'), description: $t('tenant.ai.agent.wizard.step3Desc') },
+    { title: $t('tenant.ai.agent.wizard.step4'), description: $t('tenant.ai.agent.wizard.step4Desc') },
+  ];
+}
+
+/**
+ * 字段 → 步骤映射
+ */
+const FIELD_STEP_MAP: Record<string, number> = {
+  name: 0, avatar: 0, model_id: 0, execution_mode: 0, system_prompt: 0, description: 0,
+  temperature: 1, max_tokens: 1, top_p: 1, welcome_message: 1,
+  suggested_questions_str: 1, package_ids: 1,
+  _input_variables_divider: 2, input_variables_str: 2,
+  _context_divider: 2, context_max_history_messages: 2, context_max_history_tokens: 2,
+  _quota_divider: 3, quota_conversations_per_day: 3, quota_tokens_per_day: 3,
+  quota_tokens_per_month: 3, quota_max_turns: 3, quota_max_concurrent: 3,
+  quota_user_conversations_per_day: 3,
+};
+
+/**
+ * 向导模式表单 Schema — 与 useFormSchema 相同字段，但按步骤显示/隐藏
+ */
+export function useWizardFormSchema(): VbenFormSchema[] {
+  const baseSchema = useFormSchema();
+  return [
+    {
+      component: 'Input',
+      fieldName: '_wizard_step',
+      label: '',
+      defaultValue: 0,
+      dependencies: { triggerFields: [], show: false },
+    },
+    ...baseSchema.map((field) => {
+      const step = FIELD_STEP_MAP[field.fieldName] ?? 0;
+      const existingTriggers = field.dependencies?.triggerFields ?? [];
+      return {
+        ...field,
+        dependencies: {
+          triggerFields: ['_wizard_step', ...existingTriggers],
+          if: (values: Record<string, unknown>) => values._wizard_step === step,
+        },
+      };
     }),
   ];
 }
@@ -412,7 +531,7 @@ export function getFormDefaults(): Record<string, unknown> {
     execution_mode: 'conversation',
     temperature: 0.7,
     suggested_questions_str: '[]',
-    tool_bindings_str: '[]',
+    package_ids: [],
     input_variables_str: '[]',
     context_max_history_messages: 20,
     context_max_history_tokens: 0,

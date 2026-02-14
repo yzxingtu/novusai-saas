@@ -1,0 +1,13 @@
+{
+  "action_level": {
+    "read": "Read Only",
+    "safe_write": "Safe Write",
+    "dangerous": "Dangerous"
+  },
+  "action_status": {
+    "success": "Success",
+    "failed": "Failed",
+    "rejected": "Rejected",
+    "pending_confirm": "Pending Confirm"
+  }
+}

@@ -1,0 +1,149 @@
+"""
+文档分块模型
+
+定义分块文本内容、向量、元数据等，包含 pgvector 向量字段和 HNSW 索引
+"""
+
+from typing import TYPE_CHECKING
+
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.base_model import TenantModel
+from app.core.i18n import _
+
+
+class DocumentChunk(TenantModel):
+    """
+    文档分块模型
+
+    存储分块文本内容、Embedding 向量、元数据等
+    属于租户级资源，通过 tenant_id 隔离
+
+    向量索引使用 HNSW（在 Alembic 迁移中手动创建）：
+    - 适合增量写入场景
+    - 写入后立即可查
+    - 查询性能 O(log n)
+    """
+
+    __tablename__ = "document_chunks"
+
+    # 允许前端筛选的字段
+    __filterable__ = {
+        "id": "id",
+        "document_id": "document_id",
+        "knowledge_base_id": "knowledge_base_id",
+        "chunk_index": "chunk_index",
+        "tenant_id": "tenant_id",
+    }
+
+    # 允许排序的字段
+    __sortable__ = {
+        "id": "id",
+        "chunk_index": "chunk_index",
+        "char_count": "char_count",
+        "token_count": "token_count",
+        "created_at": "created_at",
+    }
+
+    # ==================== 关联 ====================
+
+    document_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("knowledge_documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment=_("knowledge_base.chunk_model.document_id"),
+    )
+    knowledge_base_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("knowledge_bases.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment=_("knowledge_base.chunk_model.knowledge_base_id"),
+    )
+
+    # ==================== 分块内容 ====================
+
+    chunk_index: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment=_("knowledge_base.chunk_model.chunk_index"),
+    )
+    content: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment=_("knowledge_base.chunk_model.content"),
+    )
+    content_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        comment=_("knowledge_base.chunk_model.content_hash"),
+    )
+    char_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment=_("knowledge_base.chunk_model.char_count"),
+    )
+    token_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment=_("knowledge_base.chunk_model.token_count"),
+    )
+
+    # ==================== 向量 ====================
+
+    # pgvector 向量字段，维度从知识库配置获取
+    # 使用通用维度 1536，实际维度由知识库 embedding_dimensions 决定
+    embedding = mapped_column(
+        Vector(1536),
+        nullable=True,
+        comment=_("knowledge_base.chunk_model.embedding"),
+    )
+
+    # ==================== 元数据 ====================
+
+    # 结构化存储来源信息: page, heading, source, paragraph, row_index 等
+    metadata_ = mapped_column(
+        "metadata",
+        JSON,
+        nullable=True,
+        default=dict,
+        comment=_("knowledge_base.chunk_model.metadata"),
+    )
+
+    # ==================== 复合索引 ====================
+
+    __table_args__ = (
+        UniqueConstraint(
+            "document_id", "chunk_index",
+            name="uq_doc_chunk_index",
+        ),
+        Index("ix_chunk_kb", "knowledge_base_id"),
+        # HNSW 向量索引和 tsvector GIN 索引在 Alembic 迁移中通过 raw SQL 创建
+    )
+
+    # ==================== 关系 ====================
+
+    document = relationship(
+        "KnowledgeDocument",
+        back_populates="chunks",
+        lazy="selectin",
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<DocumentChunk(id={self.id}, document_id={self.document_id}, "
+            f"chunk_index={self.chunk_index}, tenant_id={self.tenant_id})>"
+        )
+
+
+if TYPE_CHECKING:
+    from app.models.ai.knowledge_document import KnowledgeDocument
+
+
+__all__ = ["DocumentChunk"]

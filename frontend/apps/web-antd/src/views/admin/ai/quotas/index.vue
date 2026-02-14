@@ -9,11 +9,12 @@ defineOptions({ name: 'AIQuotaList' });
 import { Page } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
-import { Card, Tag } from 'ant-design-vue';
+import { Card, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { getAIQuotaListApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
+import { formatDate, formatRelativeTime } from '#/utils/common';
 
 import {
   getFormDefaults,
@@ -51,7 +52,7 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-4">
+  <Page auto-content-height :description="$t('admin.ai.quota.pageDesc')" content-class="flex flex-col gap-4">
     <FormDrawer @success="onRefresh" />
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
@@ -113,6 +114,15 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
                 : $t('admin.common.disabled')
             }}
           </Tag>
+        </template>
+
+        <!-- 创建时间列 -->
+        <template #createdAt_cell="{ row }">
+          <Tooltip :title="formatDate(row.created_at)">
+            <span class="text-muted-foreground">
+              {{ formatRelativeTime(row.created_at) }}
+            </span>
+          </Tooltip>
         </template>
 
         <!-- 工具栏 -->

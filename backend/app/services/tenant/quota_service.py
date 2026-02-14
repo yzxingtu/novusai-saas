@@ -206,7 +206,7 @@ class QuotaService:
         # 统计当前管理员数
         query = select(func.count(TenantAdmin.id)).where(
             TenantAdmin.tenant_id == self.tenant.id,
-            TenantAdmin.is_deleted == False,
+            TenantAdmin.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
         current = result.scalar() or 0
@@ -258,8 +258,8 @@ class QuotaService:
         # 统计当前自定义域名数（排除主域名/子域名）
         query = select(func.count(TenantDomain.id)).where(
             TenantDomain.tenant_id == self.tenant.id,
-            TenantDomain.is_deleted == False,
-            TenantDomain.is_primary == False,  # 仅统计自定义域名
+            TenantDomain.is_deleted.is_(False),
+            TenantDomain.is_primary.is_(False),  # 仅统计自定义域名
         )
         result = await self.db.execute(query)
         current = result.scalar() or 0

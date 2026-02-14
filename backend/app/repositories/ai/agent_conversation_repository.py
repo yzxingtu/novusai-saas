@@ -3,7 +3,7 @@
 """
 
 from datetime import date, datetime
-from typing import List, Optional
+from typing import List
 
 from sqlalchemy import select, update, and_, func
 
@@ -44,7 +44,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
                 and_(
                     AgentConversation.tenant_id == self.tenant_id,
                     AgentConversation.agent_id == agent_id,
-                    AgentConversation.is_deleted == False,
+                    AgentConversation.is_deleted.is_(False),
                 )
             )
             .order_by(AgentConversation.created_at.desc())
@@ -75,7 +75,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
         escaped = keyword.replace("%", "\\%").replace("_", "\\_")
         base_cond = and_(
             AgentConversation.tenant_id == self.tenant_id,
-            AgentConversation.is_deleted == False,
+            AgentConversation.is_deleted.is_(False),
             AgentConversation.title.ilike(f"%{escaped}%"),
         )
 
@@ -100,7 +100,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
     async def get_conversations_before(
         self,
         before_date: date,
-        agent_id: Optional[int] = None,
+        agent_id: int | None = None,
     ) -> List[AgentConversation]:
         """
         获取指定日期前的 active 对话（用于批量归档）
@@ -116,7 +116,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
 
         conditions = [
             AgentConversation.tenant_id == self.tenant_id,
-            AgentConversation.is_deleted == False,
+            AgentConversation.is_deleted.is_(False),
             AgentConversation.status == ConversationStatusEnum.ACTIVE.value,
             AgentConversation.updated_at < before_dt,
         ]
@@ -131,7 +131,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
     async def get_conversation_ids_before(
         self,
         before_date: date,
-        agent_id: Optional[int] = None,
+        agent_id: int | None = None,
         batch_size: int = 1000,
     ) -> List[int]:
         """
@@ -149,7 +149,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
 
         conditions = [
             AgentConversation.tenant_id == self.tenant_id,
-            AgentConversation.is_deleted == False,
+            AgentConversation.is_deleted.is_(False),
             AgentConversation.status == ConversationStatusEnum.ACTIVE.value,
             AgentConversation.updated_at < before_dt,
         ]
@@ -190,7 +190,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
                 and_(
                     AgentConversation.tenant_id == self.tenant_id,
                     AgentConversation.id.in_(ids),
-                    AgentConversation.is_deleted == False,
+                    AgentConversation.is_deleted.is_(False),
                 )
             )
             .values(status=status)

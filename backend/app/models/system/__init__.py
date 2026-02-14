@@ -13,6 +13,8 @@ from app.models.system.config import (
 from app.models.system.operation_log import OperationLog
 from app.models.system.task_log import TaskLog
 from app.models.system.periodic_task import PeriodicTask
+from app.models.system.plugin import Plugin
+from app.models.system.tenant_plugin import TenantPlugin
 
 __all__ = [
     "Admin",
@@ -22,4 +24,6 @@ __all__ = [
     "OperationLog",
     "TaskLog",
     "PeriodicTask",
+    "Plugin",
+    "TenantPlugin",
 ]

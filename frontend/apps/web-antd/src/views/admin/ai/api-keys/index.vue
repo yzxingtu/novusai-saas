@@ -4,22 +4,10 @@
  */
 import type { AIApiKeyInfo } from '#/api/admin/ai';
 
-defineOptions({ name: 'AIApiKeyList' });
-
 import { Page } from '@vben/common-ui';
 import { IconifyIcon, Plus } from '@vben/icons';
 
-import { Badge, Card, message, Modal, Progress, Switch, Tag, Tooltip } from 'ant-design-vue';
-
-/** 复制 Key 预览到剪贴板 */
-async function onCopyKeyPreview(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-    message.success($t('admin.ai.apiKey.messages.copied'));
-  } catch {
-    message.error($t('admin.ai.apiKey.messages.copyFailed'));
-  }
-}
+import { Card, message, Modal, Progress, Switch, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import {
@@ -31,6 +19,18 @@ import { formatDate, formatRelativeTime } from '#/utils/common';
 
 import { getFormDefaults, useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
+
+defineOptions({ name: 'AIApiKeyList' });
+
+/** 复制 Key 预览到剪贴板 */
+async function onCopyKeyPreview(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    message.success($t('admin.ai.apiKey.messages.copied'));
+  } catch {
+    message.error($t('admin.ai.apiKey.messages.copyFailed'));
+  }
+}
 
 function onToggleActive(row: AIApiKeyInfo) {
   const isDisabling = row.is_active;
@@ -67,7 +67,7 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-4">
+  <Page auto-content-height :description="$t('admin.ai.apiKey.pageDesc')" content-class="flex flex-col gap-4">
     <FormDrawer @success="onRefresh" />
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
@@ -133,9 +133,9 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
             <Progress
               :percent="Math.min(100, Math.round((row.usage_count / row.usage_limit) * 100))"
               :show-info="false"
-              :stroke-color="(row.usage_count / row.usage_limit) >= 0.9 ? '#ef4444' : (row.usage_count / row.usage_limit) >= 0.7 ? '#f59e0b' : '#22c55e'"
+              :stroke-color="(row.usage_count / row.usage_limit) >= 0.9 ? 'hsl(var(--destructive))' : (row.usage_count / row.usage_limit) >= 0.7 ? 'hsl(var(--warning))' : 'hsl(var(--success))'"
               size="small"
-              class="w-20"
+              class="w-24"
             />
           </div>
           <span v-else class="text-muted-foreground">
@@ -143,20 +143,52 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
           </span>
         </template>
 
+        <!-- 过期时间列 -->
+        <template #expiresAt_cell="{ row }">
+          <template v-if="row.expires_at">
+            <Tooltip :title="formatDate(row.expires_at)">
+              <span
+                class="text-sm"
+                :class="new Date(row.expires_at) < new Date() ? 'text-destructive' : new Date(row.expires_at) < new Date(Date.now() + 7 * 86400000) ? 'text-warning' : 'text-muted-foreground'"
+              >
+                {{ formatRelativeTime(row.expires_at) }}
+              </span>
+            </Tooltip>
+          </template>
+          <span v-else class="text-muted-foreground">-</span>
+        </template>
+
+        <!-- 创建时间列 -->
+        <template #createdAt_cell="{ row }">
+          <Tooltip :title="formatDate(row.created_at)">
+            <span class="text-muted-foreground">
+              {{ formatRelativeTime(row.created_at) }}
+            </span>
+          </Tooltip>
+        </template>
+
         <!-- 启用状态列 -->
         <template #isActive_cell="{ row }">
           <Switch
             v-access:code="['ai_api_key:toggle_status']"
             :checked="row.is_active"
+            :checked-children="$t('admin.common.enabled')"
+            :un-checked-children="$t('admin.common.disabled')"
             size="small"
             @change="() => onToggleActive(row)"
           />
         </template>
 
-        <!-- 可用状态列：圆点 + 过期警告 -->
+        <!-- 可用状态列：禁用开关 + 过期警告 -->
         <template #isAvailable_cell="{ row }">
           <div class="flex items-center justify-center gap-1">
-            <Badge :status="row.is_available ? 'success' : 'error'" />
+            <Switch
+              :checked="row.is_available"
+              :checked-children="$t('admin.ai.apiKey.available')"
+              :un-checked-children="$t('admin.ai.apiKey.unavailable')"
+              size="small"
+              disabled
+            />
             <Tooltip
               v-if="row.expires_at && new Date(row.expires_at) < new Date(Date.now() + 7 * 86400000)"
               :title="$t('admin.ai.apiKey.expiresAt') + ': ' + formatDate(row.expires_at)"
@@ -179,9 +211,7 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
           >
             <div class="flex items-center gap-2 text-primary">
               <Plus class="size-4" />
-              <span class="font-medium">{{
-                $t('admin.ai.apiKey.create')
-              }}</span>
+              <span class="font-medium">{{ $t('admin.ai.apiKey.create') }}</span>
             </div>
           </Card>
         </template>

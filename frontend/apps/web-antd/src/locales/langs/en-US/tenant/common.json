@@ -13,6 +13,7 @@
   "save": "Save",
   "edit": "Edit",
   "delete": "Delete",
+  "confirmDelete": "Are you sure you want to delete?",
   "create": "Create",
   "detail": "Detail",
   "actions": "Actions",
@@ -23,5 +24,6 @@
   "loading": "Loading...",
   "success": "Success",
   "failed": "Failed",
-  "noData": "No data"
+  "noData": "No data",
+  "createdAt": "Created At"
 }

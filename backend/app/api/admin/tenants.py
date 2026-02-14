@@ -41,6 +41,7 @@ from app.schemas.system import (
     TenantResetOwnerPasswordRequest,
 )
 from app.schemas.common.select import SelectResponse
+from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.services.system import TenantService
 from app.services.common import StorageQuotaService
 
@@ -73,12 +74,19 @@ class AdminTenantController(GlobalController):
     """
     
     prefix = "/tenants"
-    tags = ["租户管理"]
+    tags = ["Tenant Management"]
     service_class = TenantService
     
     def _register_routes(self) -> None:
         """注册路由"""
         router = self.router
+
+        # 回收站路由必须在 /{id} 之前注册，避免路径冲突
+        register_admin_recycle_bin_routes(
+            router=router,
+            service_class=TenantService,
+            resource_name="tenant",
+        )
         
         @router.get("/select", summary="获取租户下拉选项")
         @action_read("action.tenant.select")
@@ -360,7 +368,7 @@ class AdminTenantController(GlobalController):
                     select(TenantAdminRole).where(
                         TenantAdminRole.id == role_id,
                         TenantAdminRole.tenant_id == tenant_id,
-                        TenantAdminRole.is_deleted == False,
+                        TenantAdminRole.is_deleted.is_(False),
                     )
                 )
                 role = role_result.scalar_one_or_none()
@@ -420,6 +428,7 @@ class AdminTenantController(GlobalController):
             await db.commit()
             
             return success(message=_("tenant.owner_password_reset"))
+
 
 
 # 导出路由器

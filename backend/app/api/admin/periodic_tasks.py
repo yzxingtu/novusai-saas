@@ -25,6 +25,7 @@ from app.schemas.system import (
     PeriodicTaskUpdateRequest,
     PeriodicTaskToggleRequest,
 )
+from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.services.system import PeriodicTaskService
 
 
@@ -46,11 +47,18 @@ class AdminPeriodicTaskController(GlobalController):
     """
 
     prefix = "/periodic-tasks"
-    tags = ["定时任务管理"]
+    tags = ["Periodic Task Management"]
     service_class = PeriodicTaskService
 
     def _register_routes(self) -> None:
         router = self.router
+
+        # 回收站路由必须在 /{task_id} 之前注册，避免路径冲突
+        register_admin_recycle_bin_routes(
+            router=router,
+            service_class=PeriodicTaskService,
+            resource_name="periodic_task",
+        )
 
         @router.get("", summary="获取定时任务列表")
         @action_read("action.periodic_task.list")

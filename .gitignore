@@ -161,9 +161,12 @@ lerna-debug.log*
 *.ipr
 *.iws
 .warp/
-.cursor/
+.cursor/*
+!.cursor/rules/
 .trae/
-.windsurf/
+.windsurf/*
+!.windsurf/workflows/
+!.windsurf/rules/
 
 # VS Code
 .vscode/

@@ -172,7 +172,23 @@
       "quota_reset": "智能体每日配额重置: 已清理 {count} 个孤立 key",
       "quota_reset_skipped": "智能体配额重置跳过: {error}",
       "stats_reset": "智能体每日统计重置: {count} 个智能体",
-      "stats_reset_skipped": "智能体统计重置跳过: {error}"
+      "stats_reset_skipped": "智能体统计重置跳过: {error}",
+      "recycle_bin_cleaned": "回收站清理完成: {model} 物理删除 {count} 条过期记录",
+      "recycle_bin_cleanup_total": "回收站清理汇总: 共清理 {total} 条记录，耗时 {elapsed:.2f}s",
+      "recycle_bin_cleanup_failed": "回收站清理失败: {error}",
+      "recycle_bin_cleanup_skipped": "回收站自动清理未启用"
+    }
+  },
+  "recycle_bin": {
+    "restored": "已恢复",
+    "permanently_deleted": "已永久删除",
+    "escalated": "已移入管理端回收站",
+    "error": {
+      "not_found": "回收站中未找到该记录",
+      "not_in_recycle_bin": "该记录不在回收站中",
+      "restore_failed": "恢复失败",
+      "already_deleted": "该记录已被删除",
+      "batch_too_large": "批量操作数量超出限制（最多 100 条）"
     }
   },
   "agent": {
@@ -191,7 +207,10 @@
       "invalid_status": "无效的状态值",
       "invalid_status_transition": "无效的状态转换",
       "batch_run_not_found": "批处理运行记录不存在",
-      "batch_not_cancellable": "批处理任务当前状态不可取消"
+      "batch_not_cancellable": "批处理任务当前状态不可取消",
+      "tenant_id_required": "scope 为 tenant 时必须指定 tenant_id",
+      "system_protected": "系统智能体不可删除或修改关键属性",
+      "system_agent_not_found": "系统智能体未找到，请先执行数据库迁移"
     },
     "batch": {
       "cancelled": "批处理任务已取消"
@@ -231,31 +250,174 @@
       }
     }
   },
-  "tool_definition": {
-    "created": "工具创建成功",
-    "updated": "工具更新成功",
-    "deleted": "工具删除成功",
+  "skill_package": {
+    "created": "技能包创建成功",
+    "updated": "技能包更新成功",
+    "deleted": "技能包删除成功",
     "field": {
-      "name": "工具名称",
-      "description": "工具描述",
-      "type": "工具类型",
-      "input_schema": "输入 Schema",
-      "output_schema": "输出 Schema",
-      "config": "执行配置",
-      "timeout": "超时时间",
-      "is_system": "系统工具",
+      "name": "技能包名称",
+      "description": "技能包描述",
+      "avatar": "技能包图标",
+      "scope": "作用域",
       "is_active": "启用状态",
-      "test_arguments": "测试参数",
-      "test_success": "执行成功",
-      "test_output": "执行输出",
-      "test_error": "错误信息",
-      "test_duration": "耗时"
+      "sort_order": "排序",
+      "is_system": "系统技能包",
+      "source_plugin": "来源插件",
+      "valves_schema": "配置项定义",
+      "valves_config": "配置项值"
     },
     "error": {
-      "not_found": "工具不存在",
-      "name_exists": "工具名称已存在",
-      "invalid_type": "无效的工具类型",
-      "system_readonly": "系统内置工具不可修改或删除"
+      "not_found": "技能包不存在",
+      "name_exists": "技能包名称已存在",
+      "invalid_scope": "无效的作用域",
+      "system_protected": "系统技能包不可删除或修改关键属性",
+      "file_required": "请选择要上传的文件",
+      "file_must_be_zip": "仅支持 .zip 格式的技能包文件",
+      "no_valves_schema": "该技能包没有可配置项",
+      "invalid_valves_config": "valves_config 必须是 JSON 对象",
+      "valves_missing_required": "缺少必填配置项: {fields}"
+    }
+  },
+  "skill": {
+    "created": "技能创建成功",
+    "updated": "技能更新成功",
+    "deleted": "技能删除成功",
+    "field": {
+      "package_id": "所属技能包",
+      "name": "技能名称",
+      "description": "技能描述",
+      "avatar": "技能图标",
+      "type": "技能类型",
+      "scope": "作用域",
+      "config": "技能配置",
+      "input_schema": "输入 Schema",
+      "output_schema": "输出 Schema",
+      "is_active": "启用状态",
+      "sort_order": "排序",
+      "timeout": "超时时间",
+      "script_content": "脚本内容",
+      "script_language": "脚本语言",
+      "toolkit_content": "Toolkit 源码",
+      "toolkit_meta": "Toolkit 元数据",
+      "is_system": "系统技能"
+    },
+    "error": {
+      "not_found": "技能不存在",
+      "name_exists": "技能名称已存在",
+      "invalid_type": "无效的技能类型",
+      "invalid_scope": "无效的作用域",
+      "system_protected": "系统技能不可删除或修改关键属性",
+      "toolkit_parse_failed": "Toolkit 源码解析失败: {error}"
+    },
+    "test": {
+      "unknown_type": "未知的技能类型: {type}",
+      "kb_no_ids": "未配置知识库 ID",
+      "kb_missing": "知识库不存在: {ids}",
+      "kb_ok": "知识库验证通过：{count} 个知识库，共 {docs} 个文档",
+      "di_ok": "数据库连接正常，{tables} 个表策略可用",
+      "di_fail": "数据库连接异常",
+      "di_error": "数据库连接失败: {error}",
+      "http_no_url": "未配置请求 URL",
+      "http_ok": "HTTP 请求成功，状态码: {status}",
+      "http_timeout": "HTTP 请求超时: {url}",
+      "http_error": "HTTP 请求失败: {error}",
+      "email_missing": "邮件配置缺失: {fields}",
+      "email_ok": "邮件配置验证通过 ({host}:{port})",
+      "code_ok_no_template": "代码技能配置正常 (语言: {lang}，无模板)",
+      "code_ok": "代码技能配置正常 (语言: {lang})",
+      "builtin_no_name": "未配置内置功能名称",
+      "builtin_ok": "内置功能验证通过: {name}",
+      "script_no_content": "未配置脚本内容",
+      "script_unsupported_language": "不支持的脚本语言: {language}",
+      "script_ok": "脚本执行成功 (语言: {lang}，耗时: {duration}ms)",
+      "script_error": "脚本执行失败: {error}",
+      "toolkit_no_content": "未配置 Toolkit 源码",
+      "toolkit_invalid": "Toolkit 源码校验失败: {errors}",
+      "toolkit_ok": "Toolkit 解析成功 (工具数: {tools}，含 Valves: {valves})",
+      "toolkit_error": "Toolkit 解析失败: {error}"
+    },
+    "import": {
+      "error": {
+        "no_name": "第 {index} 项缺少技能名称",
+        "no_type": "第 {index} 项 ({name}) 缺少技能类型"
+      }
+    }
+  },
+  "skill_script": {
+    "created": "脚本创建成功",
+    "updated": "脚本更新成功",
+    "deleted": "脚本删除成功",
+    "field": {
+      "skill_id": "所属技能",
+      "filename": "文件名",
+      "content": "脚本内容",
+      "language": "脚本语言",
+      "is_entry": "入口脚本",
+      "sort_order": "排序"
+    },
+    "error": {
+      "not_found": "脚本不存在",
+      "filename_exists": "同一技能下文件名已存在",
+      "multiple_entry": "每个技能只能有一个入口脚本",
+      "no_entry": "技能缺少入口脚本",
+      "entry_required": "不能删除入口脚本，请先设置其他脚本为入口"
+    }
+  },
+  "agent_skill_binding": {
+    "field": {
+      "agent_id": "智能体ID",
+      "package_id": "技能包ID",
+      "enabled": "启用状态",
+      "config_override": "配置覆盖",
+      "sort_order": "排序"
+    },
+    "error": {
+      "already_bound": "该技能包已绑定到此智能体",
+      "package_not_found": "技能包不存在",
+      "binding_not_found": "该技能包未绑定到此智能体",
+      "agent_not_found": "智能体不存在"
+    }
+  },
+  "platform_tool": {
+    "get_dashboard_stats": {
+      "name": "获取仪表盘统计",
+      "description": "获取租户仪表盘统计数据：总用户数、今日活跃用户、AI 调用次数、存储使用量"
+    },
+    "list_users": {
+      "name": "查询用户列表",
+      "description": "查询租户终端用户列表，支持按邮箱、状态和日期范围筛选"
+    },
+    "list_roles": {
+      "name": "查询角色列表",
+      "description": "查询租户管理角色及层级关系"
+    },
+    "list_agents": {
+      "name": "查询智能体列表",
+      "description": "查询当前租户配置的 AI 智能体列表"
+    },
+    "create_role": {
+      "name": "创建角色",
+      "description": "为租户创建新的管理角色"
+    },
+    "update_user_status": {
+      "name": "更新用户状态",
+      "description": "启用或禁用租户终端用户"
+    },
+    "delete_user": {
+      "name": "删除用户",
+      "description": "删除租户终端用户（AI 不可直接执行，仅提供操作指引）"
+    },
+    "batch_modify": {
+      "name": "批量修改",
+      "description": "批量修改数据（AI 不可直接执行，仅提供操作指引）"
+    },
+    "created": "平台工具创建成功",
+    "updated": "平台工具更新成功",
+    "deleted": "平台工具删除成功",
+    "error": {
+      "not_found": "平台工具不存在",
+      "name_exists": "平台工具名称已存在",
+      "builtin_readonly": "内置平台工具不可删除"
     }
   },
   "agent_chat": {
@@ -266,7 +428,11 @@
       "reply_message": "回复消息",
       "tool_calls": "工具调用",
       "total_tokens": "总 Token 数",
-      "duration_ms": "耗时（毫秒）"
+      "duration_ms": "耗时（毫秒）",
+      "confirm_id": "确认操作 ID",
+      "confirm_action": "确认或取消",
+      "knowledge_base_ids": "关联知识库 ID 列表",
+      "consented_actions": "会话级授权操作列表"
     },
     "error": {
       "conversation_not_found": "对话不存在",
@@ -305,7 +471,14 @@
       "context_length_exceeded": "输入内容超出模型上下文长度限制",
       "content_filtered": "内容被安全策略拦截",
       "quota_not_found": "配额配置不存在",
-      "fallback_self_reference": "备用模型不能指向自身"
+      "fallback_self_reference": "备用模型不能指向自身",
+      "embedding_empty_result": "Embedding 返回空结果",
+      "embedding_model_not_configured": "该知识库未配置 Embedding 模型",
+      "embedding_provider_not_found": "Embedding 模型的供应商未找到",
+      "model_code_exists": "模型代码已存在",
+      "provider_code_exists": "供应商代码已存在",
+      "api_key_not_found": "API Key 不存在",
+      "fetch_remote_models_failed": "从供应商拉取模型列表失败"
     },
     "quota": {
       "created": "配额配置创建成功",
@@ -380,6 +553,61 @@
       "health_skip_no_key": "供应商无 API Key，跳过健康检查",
       "health_check_provider_failed": "供应商健康检查失败",
       "health_check_result": "健康检查结果"
+    },
+    "rag": {
+      "context_header": "---参考资料（仅供参考，请基于以下资料回答用户问题，如资料不足请据实说明）：",
+      "source_label": "来源：{name}",
+      "page_label": "第{page}页"
+    }
+  },
+  "knowledge_base": {
+    "created": "知识库创建成功",
+    "updated": "知识库更新成功",
+    "deleted": "知识库删除成功",
+    "reindex_started": "重新向量化已启动",
+    "error": {
+      "not_found": "知识库不存在",
+      "name_exists": "知识库名称已存在",
+      "quota_exceeded": "知识库数量已达上限",
+      "storage_exceeded": "知识库存储空间已达上限",
+      "document_limit_exceeded": "文档数量已达上限",
+      "chunk_limit_exceeded": "分块总数已达上限",
+      "disabled": "知识库已禁用",
+      "tenant_id_required": "scope 为 tenant 时必须指定 tenant_id"
+    },
+    "document": {
+      "uploaded": "文档上传成功",
+      "deleted": "文档删除成功",
+      "retry_started": "文档重试处理已启动",
+      "error": {
+        "not_found": "文档不存在",
+        "duplicate": "相同文档已存在",
+        "not_error_status": "文档未处于失败状态，无法重试",
+        "max_retries_exceeded": "文档已达最大重试次数",
+        "parse_failed": "文档解析失败",
+        "unsupported_type": "不支持的文档类型"
+      }
+    },
+    "chunk": {
+      "updated": "分块内容更新成功",
+      "deleted": "分块删除成功",
+      "error": {
+        "not_found": "分块不存在"
+      }
+    },
+    "qa": {
+      "question": "问题",
+      "answer": "答案",
+      "created": "Q&A 问答对添加成功"
+    },
+    "log": {
+      "process_started": "文档处理已启动",
+      "process_completed": "文档处理完成",
+      "process_failed": "文档处理失败",
+      "embedding_batch": "Embedding 批处理进度",
+      "reindex_completed": "重新向量化完成",
+      "search_cache_hit": "检索缓存命中",
+      "search_cache_miss": "检索缓存未命中"
     }
   },
   "rbac": {
@@ -763,11 +991,14 @@
         "api": "API 模式"
       },
       "tool_type": {
-        "http": "HTTP 请求",
-        "database": "数据库查询",
-        "email": "发送邮件",
-        "code": "自定义代码",
-        "builtin": "内置工具"
+        "toolkit": "工具集",
+        "builtin": "内置工具",
+        "text_to_sql": "Text-to-SQL 查询",
+        "data_create": "数据创建",
+        "data_update": "数据更新",
+        "data_delete": "数据删除",
+        "plugin": "插件",
+        "crud_generator": "CRUD 代码生成器"
       },
       "conversation_status": {
         "active": "进行中",
@@ -789,6 +1020,12 @@
         "specific_users": "指定用户",
         "api_only": "仅 API"
       },
+      "input_variable_type": {
+        "text": "文本",
+        "number": "数字",
+        "select": "选择",
+        "textarea": "多行文本"
+      },
       "batch_run_status": {
         "pending": "等待中",
         "running": "运行中",
@@ -796,6 +1033,102 @@
         "partial_failed": "部分失败",
         "failed": "已失败",
         "cancelled": "已取消"
+      }
+    },
+    "action_level": {
+      "read": "只读查询",
+      "safe_write": "安全写入",
+      "dangerous": "危险操作"
+    },
+    "action_type": {
+      "query": "数据查询",
+      "action": "执行操作",
+      "confirm": "需确认操作"
+    },
+    "action_status": {
+      "success": "成功",
+      "failed": "失败",
+      "rejected": "已拒绝",
+      "pending_confirm": "待确认"
+    },
+    "resource_scope": {
+      "tenant": "租户专属",
+      "global": "全局共享",
+      "admin": "仅管理端"
+    },
+    "delete_level": {
+      "tenant": "租户回收站",
+      "admin": "管理端回收站"
+    },
+    "table_policy": {
+      "scope": {
+        "platform": "平台级",
+        "tenant": "租户级",
+        "all": "全部"
+      }
+    },
+    "skill": {
+      "type": {
+        "knowledge_base": "知识库",
+        "data_intelligence": "数据智能",
+        "toolkit": "工具集",
+        "builtin": "内置功能"
+      },
+      "scope": {
+        "tenant": "租户技能",
+        "admin": "管理技能"
+      }
+    },
+    "plugin_type": {
+      "adapter": "AI 适配器",
+      "tool": "工具执行器",
+      "hook": "事件钩子",
+      "api": "API 端点",
+      "skill": "技能扩展",
+      "composite": "复合插件"
+    },
+    "plugin_status": {
+      "installed": "已安装",
+      "enabled": "已启用",
+      "disabled": "已禁用",
+      "error": "异常"
+    },
+    "knowledge_base": {
+      "status": {
+        "active": "启用",
+        "disabled": "已禁用"
+      },
+      "document_status": {
+        "pending": "等待处理",
+        "parsing": "解析中",
+        "chunking": "分块中",
+        "embedding": "向量化中",
+        "completed": "已完成",
+        "error": "处理失败"
+      },
+      "document_type": {
+        "pdf": "PDF 文档",
+        "docx": "Word 文档",
+        "txt": "文本文件",
+        "md": "Markdown 文档",
+        "csv": "CSV 表格",
+        "qa": "Q&A 问答对",
+        "url": "网页链接"
+      },
+      "chunk_strategy": {
+        "recursive": "递归分割",
+        "semantic": "语义分块",
+        "paragraph": "段落分块"
+      },
+      "search_mode": {
+        "hybrid": "混合检索",
+        "vector": "向量检索",
+        "keyword": "关键词检索"
+      },
+      "rewrite_strategy": {
+        "none": "不改写",
+        "multi": "多查询改写",
+        "hyde": "假设文档嵌入"
       }
     }
   },
@@ -1318,7 +1651,195 @@
       "too_many_recipients": "收件人数量超限，最多 {max} 人，当前 {got} 人",
       "attachment_too_large": "附件总大小超出 {max_mb}MB 限制",
       "http_missing_url": "工具配置缺少 'url'",
-      "http_timeout": "HTTP 请求超时"
+      "http_timeout": "HTTP 请求超时",
+      "script_no_content": "脚本内容为空",
+      "script_unsupported_language": "不支持的脚本语言: {language}",
+      "script_timeout": "脚本执行超时（{timeout}秒）",
+      "script_execution_failed": "脚本执行失败: {error}",
+      "code_missing_template": "代码模板未配置",
+      "code_execution_timeout": "代码执行超时（{timeout}秒）",
+      "code_prohibited_pattern": "代码中包含禁止的模式: {pattern}"
+    }
+  },
+  "data_intelligence": {
+    "sql": {
+      "empty": "SQL 语句为空",
+      "select_only": "仅允许 SELECT 查询",
+      "dangerous_keyword": "禁止使用危险关键字: {keyword}",
+      "write_in_subquery": "SQL 中包含写操作",
+      "table_not_allowed": "不允许查询表: {table}",
+      "blocked_function": "禁止调用函数: {func}",
+      "no_line_comment": "SQL 中不允许包含行注释(--)",
+      "no_block_comment": "SQL 中不允许包含块注释(/**/)",
+      "system_table_blocked": "禁止访问系统表"
+    },
+    "isolation": {
+      "no_table_ref": "SQL 中未找到表引用，无法注入租户隔离",
+      "unknown_table": "未知的表: {table}",
+      "no_tenant_column": "表 {table} 缺少租户隔离列"
+    },
+    "executor": {
+      "readonly_not_configured": "只读数据库连接未配置，请设置 AI_READONLY_DB_URL",
+      "missing_question": "缺少查询问题",
+      "missing_tenant": "缺少租户信息",
+      "execution_error": "数据查询执行失败，请稍后重试",
+      "no_accessible_tables": "当前权限无法查询任何数据表，请联系管理员"
+    },
+    "generator": {
+      "no_relevant_tables": "未找到与问题相关的数据表",
+      "validation_failed": "SQL 生成失败，无法生成安全的查询语句",
+      "generation_error": "SQL 生成过程出错，请尝试重新描述问题",
+      "empty_response": "AI 未返回有效内容",
+      "parse_error": "无法解析 AI 返回的内容",
+      "cannot_generate": "无法为该问题生成查询语句"
+    },
+    "formatter": {
+      "no_data": "查询未返回数据",
+      "number_summary": "{label} 的结果为 {value}",
+      "row_count": "共返回 {count} 条数据",
+      "truncated": "（结果已截断，仅显示前 200 条）",
+      "masked": "已对 {columns} 列进行脱敏处理"
+    },
+    "action": {
+      "not_found": "操作 '{name}' 不存在",
+      "permission_denied": "权限不足，无法执行此操作",
+      "rate_exceeded": "操作频率超限，请稍后再试",
+      "confirm_expired": "确认已过期或无效，请重新操作",
+      "execution_error": "操作执行失败，请稍后重试",
+      "no_service_configured": "该操作未配置服务方法",
+      "dangerous_guidance": "此操作为高危操作，无法通过 AI 执行，请按以下步骤在管理后台手动操作",
+      "dangerous_reason": "高危操作需要管理员在系统后台确认执行，以确保数据安全",
+      "step_login": "登录管理后台",
+      "step_navigate": "导航到对应功能页面",
+      "step_execute": "手动执行操作并确认",
+      "default_confirm": "确认要执行操作 '{action}' 吗？",
+      "confirm_create_role": "确认要创建角色 '{name}' 吗？",
+      "confirm_update_user_status": "确认要将用户 {user_id} 的状态修改为 {status} 吗？"
+    },
+    "crud": {
+      "no_context": "缺少执行上下文（数据库会话未注入）",
+      "table_not_found": "表 '{table}' 不存在或未启用 AI 访问策略",
+      "operation_denied": "表 '{table}' 不允许执行 {operation} 操作",
+      "record_not_found": "表 '{table}' 中未找到 ID={id} 的记录",
+      "blocked_columns_violation": "以下列禁止写入: {columns}",
+      "permission_denied": "权限不足，无法对表 '{table}' 执行 {action} 操作",
+      "cross_tenant_denied": "禁止跨租户数据访问",
+      "invalid_table_name": "表名 '{table}' 包含非法字符，仅允许小写字母、数字和下划线"
+    }
+  },
+  "ai_action_log": {
+    "not_found": "AI 操作日志不存在"
+  },
+  "ai_query_log": {
+    "not_found": "AI 查询日志不存在",
+    "field": {
+      "agent_id": "智能体 ID",
+      "user_id": "操作者 ID",
+      "user_role": "操作者角色",
+      "question": "查询问题",
+      "generated_sql": "生成的 SQL",
+      "final_sql": "最终执行的 SQL",
+      "row_count": "返回行数",
+      "status": "执行状态",
+      "error_message": "错误信息",
+      "duration_ms": "执行耗时(ms)",
+      "confidence": "置信度"
+    }
+  },
+  "agent_confirm": {
+    "invalid_action": "无效的操作，仅支持 confirm/cancel",
+    "cancelled": "操作已取消",
+    "cancel_failed": "取消失败，确认可能已过期"
+  },
+  "ai_table_policy": {
+    "not_found": "AI 表策略不存在",
+    "field": {
+      "table_name": "表名",
+      "label": "显示名称",
+      "description": "表描述",
+      "keywords": "关键词/别名",
+      "column_descriptions": "列描述",
+      "allow_read": "允许查询",
+      "allow_create": "允许创建",
+      "allow_update": "允许更新",
+      "allow_delete": "允许删除",
+      "max_rows": "单次查询最大行数",
+      "blocked_columns": "屏蔽列",
+      "readonly_columns": "只读列",
+      "scope": "作用域",
+      "permission_code": "权限码",
+      "sort_order": "排序",
+      "is_active": "启用状态"
+    }
+  },
+  "ai_table_policy_override": {
+    "not_found": "AI 表策略覆盖不存在",
+    "cannot_expand": "租户只能收紧策略，不能超出全局设置",
+    "field": {
+      "policy_id": "策略 ID",
+      "allow_read": "覆盖查询权限",
+      "allow_create": "覆盖创建权限",
+      "allow_update": "覆盖更新权限",
+      "allow_delete": "覆盖删除权限",
+      "max_rows": "覆盖最大行数",
+      "blocked_columns": "追加屏蔽列",
+      "is_active": "覆盖启用状态"
+    }
+  },
+  "plugin": {
+    "not_found": "插件不存在",
+    "already_exists": "插件名称已存在",
+    "is_system": "系统内置插件不可执行此操作",
+    "cannot_uninstall_system": "系统内置插件不可卸载",
+    "cannot_disable_system": "系统内置插件不可禁用",
+    "dependency_missing": "缺少依赖插件: {name}",
+    "dependency_conflict": "与已安装插件冲突: {name}",
+    "has_dependents": "其他插件依赖此插件: {names}",
+    "invalid_manifest": "插件 manifest 不合法",
+    "entry_point_not_found": "入口点加载失败: {entry_point}",
+    "install_hook_failed": "插件安装钩子执行失败",
+    "enable_hook_failed": "插件启用钩子执行失败",
+    "already_at_version": "插件已是当前版本: {version}",
+    "has_conflicts": "与已安装插件冲突",
+    "unmet_dependencies": "缺少依赖插件",
+    "platform_version_mismatch": "不满足平台版本要求",
+    "file_must_be_nap": "文件必须为 .nap 格式",
+    "file_must_be_zip_or_nap": "文件必须为 .zip 或 .nap 格式",
+    "file_required": "请选择要上传的文件",
+    "plugin_dir_not_found": "插件源码目录未找到",
+    "dependency_not_installed": "未安装",
+    "dependency_version_mismatch": "已安装版本 {version} 不匹配",
+    "config_validation_failed": "插件配置校验失败",
+    "upgrade_hook_failed": "插件升级钩子执行失败",
+    "install_success": "插件安装成功",
+    "uninstall_success": "插件卸载成功",
+    "enable_success": "插件启用成功",
+    "disable_success": "插件禁用成功",
+    "field": {
+      "name": "插件标识",
+      "display_name": "显示名称",
+      "version": "版本号",
+      "description": "描述",
+      "author": "作者",
+      "plugin_type": "插件类型",
+      "status": "状态",
+      "entry_point": "入口点",
+      "is_system": "系统内置",
+      "config_schema": "配置 Schema",
+      "default_config": "默认配置",
+      "icon": "图标",
+      "homepage": "主页"
+    }
+  },
+  "tenant_plugin": {
+    "not_found": "租户插件记录不存在",
+    "plugin_not_enabled": "该插件未在平台启用",
+    "enable_success": "插件已为租户启用",
+    "disable_success": "插件已为租户禁用",
+    "field": {
+      "plugin_id": "插件 ID",
+      "is_active": "启用状态",
+      "config": "自定义配置"
     }
   }
 }

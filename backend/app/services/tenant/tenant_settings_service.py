@@ -140,7 +140,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         result = await self.db.execute(
             select(func.count(TenantDomain.id)).where(
                 TenantDomain.tenant_id == self.tenant_id,
-                TenantDomain.is_deleted == False,
+                TenantDomain.is_deleted.is_(False),
             )
         )
         return result.scalar() or 0
@@ -155,7 +155,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         result = await self.db.execute(
             select(TenantDomain).where(
                 TenantDomain.tenant_id == self.tenant_id,
-                TenantDomain.is_deleted == False,
+                TenantDomain.is_deleted.is_(False),
             ).order_by(TenantDomain.is_primary.desc(), TenantDomain.created_at)
         )
         return list(result.scalars().all())
@@ -177,7 +177,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
             select(TenantDomain).where(
                 TenantDomain.id == domain_id,
                 TenantDomain.tenant_id == self.tenant_id,
-                TenantDomain.is_deleted == False,
+                TenantDomain.is_deleted.is_(False),
             )
         )
         domain = result.scalar_one_or_none()
@@ -228,7 +228,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         existing_result = await self.db.execute(
             select(TenantDomain).where(
                 TenantDomain.domain == domain.lower(),
-                TenantDomain.is_deleted == False,
+                TenantDomain.is_deleted.is_(False),
             )
         )
         if existing_result.scalar_one_or_none():
@@ -350,7 +350,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
             TenantDomain.__table__.update()
             .where(
                 TenantDomain.tenant_id == self.tenant_id,
-                TenantDomain.is_primary == True,
+                TenantDomain.is_primary.is_(True),
             )
             .values(is_primary=False)
         )

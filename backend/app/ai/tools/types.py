@@ -4,8 +4,13 @@
 定义工具参数、工具定义、工具执行结果等数据类
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @dataclass
@@ -67,6 +72,9 @@ class ToolDefinition:
     config: dict[str, Any] = field(default_factory=dict)
     enabled: bool = True
     timeout: int = 30
+    source_skill_id: int | None = None
+    source_skill_name: str | None = None
+    source_skill_type: str | None = None
 
     @property
     def input_schema(self) -> dict[str, Any]:
@@ -136,6 +144,21 @@ class ToolResult:
     error: str = ""
     duration_ms: int = 0
 
+    @classmethod
+    def error_result(
+        cls,
+        tool_call_id: str,
+        error: str,
+        name: str = "",
+    ) -> "ToolResult":
+        """快捷构造错误结果"""
+        return cls(
+            tool_call_id=tool_call_id,
+            name=name,
+            success=False,
+            error=error,
+        )
+
     def to_message(self) -> dict[str, Any]:
         """
         转换为 OpenAI tool message 格式
@@ -151,8 +174,58 @@ class ToolResult:
         }
 
 
+@dataclass
+class ExecutionContext:
+    """
+    工具执行上下文
+
+    封装当前执行环境的租户、用户、权限等信息，
+    供 TextToSQLExecutor / CRUD Executor 等执行器使用。
+
+    Attributes:
+        tenant_id: 租户 ID
+        agent_id: 智能体 ID
+        user_id: 当前操作用户 ID（可为 None 表示匿名 / API 调用）
+        user_role: 用户角色（platform_admin / tenant_admin / tenant_user）
+        permissions: 用户权限码集合（用于 RBAC 校验）
+        db: 异步数据库会话（可选，供需要 DB 访问的执行器使用）
+    """
+
+    tenant_id: int
+    agent_id: int
+    user_id: int | None = None
+    user_role: str = "tenant_admin"
+    permissions: set[str] = field(default_factory=set)
+    db: AsyncSession | None = None
+    consented_actions: set[str] = field(default_factory=set)  # "read:agents", "create:agents"
+    skill_id: int | None = None
+
+    @property
+    def is_platform_admin(self) -> bool:
+        return self.user_role == "platform_admin"
+
+    @property
+    def is_superadmin(self) -> bool:
+        return "*" in self.permissions
+
+
+def to_openai_tools(definitions: list[ToolDefinition]) -> list[dict[str, Any]]:
+    """
+    批量转换为 OpenAI function calling 格式
+
+    Args:
+        definitions: 工具定义列表
+
+    Returns:
+        OpenAI tools schema list
+    """
+    return [d.to_openai_schema() for d in definitions if d.enabled]
+
+
 __all__ = [
     "ToolParameter",
     "ToolDefinition",
     "ToolResult",
+    "ExecutionContext",
+    "to_openai_tools",
 ]

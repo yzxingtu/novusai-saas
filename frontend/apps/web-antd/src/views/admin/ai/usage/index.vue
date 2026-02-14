@@ -2,20 +2,20 @@
 /**
  * 平台管理端 AI 使用量统计页面
  */
-defineOptions({ name: 'AdminAIUsage' });
-
 import { computed, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Card, Progress, Spin, Tooltip } from 'ant-design-vue';
+import { Card, Progress, Spin, Tag, Tooltip } from 'ant-design-vue';
 
-import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { useCrudPage } from '#/adapter/vxe-table';
 import { getAICallLogStatisticsApi, getAIUsageStatsApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
 
-import { formatCost, formatTokens, useColumns, useGridFormSchema } from './data';
+import { formatCost, formatLatency, formatTokens, getRequestTypeColor, useColumns, useGridFormSchema } from './data';
+
+defineOptions({ name: 'AdminAIUsage' });
 
 // ============================================================
 // Summary statistics
@@ -100,42 +100,26 @@ onMounted(loadSummary);
 // Grid
 // ============================================================
 
-const [Grid] = useVbenVxeGrid({
-  gridOptions: {
-    columns: useColumns(),
-    proxyConfig: {
-      ajax: {
-        query: async ({ page: pager, form: formValues }: { form: Record<string, unknown>; page: { currentPage: number; pageSize: number } }) => {
-          const params: Record<string, unknown> = {
-            ...formValues,
-            'page[number]': pager.currentPage,
-            'page[size]': pager.pageSize,
-            sort: '-stat_date',
-          };
-          const res = await getAIUsageStatsApi(params);
-          return {
-            items: res.items,
-            total: res.total,
-          };
-        },
-      },
-    },
-    pagerConfig: {
-      pageSize: 20,
-    },
-    toolbarConfig: {
-      search: true,
-    },
+const { Grid } = useCrudPage({
+  api: {
+    list: getAIUsageStatsApi,
+    resource: '/admin/ai/usage/stats',
   },
-  formOptions: {
-    schema: useGridFormSchema(),
-    submitOnChange: true,
+  columns: useColumns,
+  searchSchema: useGridFormSchema(),
+  i18nPrefix: 'admin.ai.usage',
+  defaultSort: '-stat_date',
+  toolbar: {
+    search: true,
+    refresh: true,
+    export: true,
+    zoom: true,
   },
 });
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-4">
+  <Page auto-content-height :description="$t('admin.ai.usage.pageDesc')" content-class="flex flex-col gap-4">
     <!-- Summary statistics cards -->
     <Spin :spinning="summaryLoading">
       <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -169,6 +153,36 @@ const [Grid] = useVbenVxeGrid({
     <!-- Data table -->
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
+        <!-- 统计日期 -->
+        <template #statDate_cell="{ row }">
+          <span class="font-mono text-sm text-foreground">
+            {{ row.stat_date }}
+          </span>
+        </template>
+
+        <!-- 租户 -->
+        <template #tenantName_cell="{ row }">
+          <span v-if="row.tenant_name" class="text-foreground">
+            {{ row.tenant_name }}
+          </span>
+          <span v-else class="text-muted-foreground">-</span>
+        </template>
+
+        <!-- 模型 -->
+        <template #modelName_cell="{ row }">
+          <div class="flex items-center gap-1.5">
+            <IconifyIcon icon="lucide:brain" class="size-3.5 text-muted-foreground" />
+            <span class="text-foreground">{{ row.model_name || '-' }}</span>
+          </div>
+        </template>
+
+        <!-- 请求类型 -->
+        <template #requestType_cell="{ row }">
+          <Tag :color="getRequestTypeColor(row.request_type)" class="!m-0">
+            {{ row.request_type || '-' }}
+          </Tag>
+        </template>
+
         <!-- Total Tokens -->
         <template #totalTokens_cell="{ row }">
           <span class="font-mono text-foreground">
@@ -195,17 +209,27 @@ const [Grid] = useVbenVxeGrid({
           <Tooltip :title="`${$t('admin.ai.usage.successCount')}: ${row.success_count} | ${$t('admin.ai.usage.failedCount')}: ${row.failed_count}`">
             <Progress
               :percent="row.call_count > 0 ? Math.round((row.success_count / row.call_count) * 100) : 0"
-              :stroke-color="(row.success_count / row.call_count) >= 0.95 ? '#22c55e' : (row.success_count / row.call_count) >= 0.8 ? '#f59e0b' : '#ef4444'"
+              :stroke-color="(row.success_count / row.call_count) >= 0.95 ? 'hsl(var(--success))' : (row.success_count / row.call_count) >= 0.8 ? 'hsl(var(--warning))' : 'hsl(var(--destructive))'"
               size="small"
-              class="w-16"
+              class="w-24"
             />
           </Tooltip>
         </template>
 
         <!-- Total Cost -->
         <template #totalCost_cell="{ row }">
-          <span class="font-mono text-warning">
+          <span class="font-mono" :class="row.total_cost > 0 ? 'text-warning' : 'text-muted-foreground'">
             {{ formatCost(row.total_cost) }}
+          </span>
+        </template>
+
+        <!-- 平均延迟 -->
+        <template #avgLatency_cell="{ row }">
+          <span
+            class="font-mono text-sm"
+            :class="row.avg_latency_ms > 5000 ? 'text-destructive' : row.avg_latency_ms > 2000 ? 'text-warning' : 'text-success'"
+          >
+            {{ formatLatency(row.avg_latency_ms) }}
           </span>
         </template>
       </Grid>

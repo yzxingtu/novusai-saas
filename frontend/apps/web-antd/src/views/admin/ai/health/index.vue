@@ -65,7 +65,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-4">
+  <Page auto-content-height :description="$t('admin.ai.health.pageDesc')" content-class="flex flex-col gap-4">
     <!-- 顶部操作栏 -->
     <Card :body-style="{ padding: '12px 16px' }">
       <div class="flex items-center justify-between">

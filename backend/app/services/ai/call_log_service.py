@@ -7,7 +7,7 @@ AI 调用日志服务
 import json
 import hashlib
 from typing import Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.base_service import BaseService
 from app.core.logging import LogManager
@@ -194,7 +194,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             request_metadata={
                 "request": sanitized_request,
                 "response": truncated_response,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )
 
@@ -211,6 +211,47 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         )
 
         return call_log
+
+    async def get_statistics(
+        self,
+        tenant_id: int | None = None,
+        start_date=None,
+        end_date=None,
+        group_by: str = "daily",
+    ):
+        """获取调用统计信息（委托给 Repository）"""
+        return await self.repo.get_statistics(
+            tenant_id=tenant_id,
+            start_date=start_date,
+            end_date=end_date,
+            group_by=group_by,
+        )
+
+    async def get_overall_summary(
+        self,
+        tenant_id: int | None = None,
+        start_date=None,
+        end_date=None,
+    ):
+        """获取调用汇总统计（委托给 Repository）"""
+        return await self.repo.get_overall_summary(
+            tenant_id=tenant_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+    async def get_failed_logs(
+        self,
+        tenant_id: int | None = None,
+        start_date=None,
+        limit: int = 100,
+    ):
+        """获取失败的调用日志（委托给 Repository）"""
+        return await self.repo.get_failed_logs(
+            tenant_id=tenant_id,
+            start_date=start_date,
+            limit=limit,
+        )
 
     async def log_call_async(
         self,

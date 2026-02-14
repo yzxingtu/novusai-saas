@@ -11,6 +11,7 @@ from app.core.base_service import TenantService
 from app.core.i18n import _
 from app.ai.quota import UsageTracker
 from app.core.logging import LogManager
+from app.enums.ai import QuotaPeriodEnum, QuotaTypeEnum
 
 
 logger = LogManager.get_logger("ai.quota_service")
@@ -27,7 +28,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
     async def get_quota(
         self,
         model_id: Optional[int] = None,
-        period: str = "monthly"
+        period: str = QuotaPeriodEnum.MONTHLY.value
     ) -> Optional[TenantQuota]:
         """
         获取租户配额配置
@@ -46,7 +47,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
     async def get_quota_with_usage(
         self,
         model_id: Optional[int] = None,
-        period: str = "monthly"
+        period: str = QuotaPeriodEnum.MONTHLY.value
     ) -> Optional[Dict[str, Any]]:
         """
         获取配额配置及当前使用量
@@ -118,7 +119,7 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
     async def check_quota_warning(
         self,
         model_id: Optional[int] = None,
-        period: str = "monthly"
+        period: str = QuotaPeriodEnum.MONTHLY.value
     ) -> Dict[str, Any]:
         """
         检查配额预警状态
@@ -143,12 +144,30 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
             "quota_type": quota_with_usage["quota"].quota_type,
         }
 
+    async def get_active_quotas(
+        self,
+        period: Optional[str] = None,
+    ) -> List[TenantQuota]:
+        """
+        获取租户活跃配额列表
+
+        Args:
+            period: 周期过滤（可选）
+
+        Returns:
+            TenantQuota 列表
+        """
+        return await self.repo.get_active_quotas(
+            tenant_id=self.tenant_id,
+            period=period,
+        )
+
     async def create_quota(
         self,
         model_id: Optional[int],
         period: str,
         limit: int,
-        quota_type: str = "soft",
+        quota_type: str = QuotaTypeEnum.SOFT.value,
         warning_threshold: Optional[int] = None,
         description: Optional[str] = None
     ) -> TenantQuota:

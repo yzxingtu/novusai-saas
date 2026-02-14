@@ -23,6 +23,21 @@ class AgentAccess(TenantModel):
 
     __tablename__ = "agent_access"
 
+    # 允许前端筛选的字段
+    __filterable__ = {
+        "id": "id",
+        "agent_id": "agent_id",
+        "access_type": "access_type",
+        "tenant_id": "tenant_id",
+        "created_at": "created_at",
+    }
+
+    # 允许排序的字段
+    __sortable__ = {
+        "id": "id",
+        "created_at": "created_at",
+    }
+
     # 关联的智能体（一对一）
     agent_id: Mapped[int] = mapped_column(
         Integer,

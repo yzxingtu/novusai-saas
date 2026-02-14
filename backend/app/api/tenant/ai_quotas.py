@@ -34,59 +34,6 @@ from app.services.ai.tenant_quota_service import TenantQuotaService
 from app.services.ai.tenant_rate_limit_service import TenantRateLimitService
 
 
-def _build_quota_dict(quota) -> dict:
-    """
-    从 ORM 对象构建配额字典，提取 model_name
-    """
-    model_name = None
-    try:
-        model_obj = getattr(quota, 'model', None)
-        if model_obj is not None:
-            model_name = model_obj.name
-    except (AttributeError, Exception):
-        pass
-
-    return {
-        "id": quota.id,
-        "tenant_id": quota.tenant_id,
-        "model_id": quota.model_id,
-        "period": quota.period,
-        "limit": quota.limit,
-        "quota_type": quota.quota_type,
-        "warning_threshold": quota.warning_threshold,
-        "is_active": quota.is_active,
-        "description": quota.description,
-        "model_name": model_name,
-        "created_at": quota.created_at,
-        "updated_at": quota.updated_at,
-    }
-
-
-def _build_rate_limit_dict(rate_limit) -> dict:
-    """
-    从 ORM 对象构建速率限制字典，提取 model_name
-    """
-    model_name = None
-    try:
-        model_obj = getattr(rate_limit, 'model', None)
-        if model_obj is not None:
-            model_name = model_obj.name
-    except (AttributeError, Exception):
-        pass
-
-    return {
-        "id": rate_limit.id,
-        "tenant_id": rate_limit.tenant_id,
-        "model_id": rate_limit.model_id,
-        "rpm_limit": rate_limit.rpm_limit,
-        "tpm_limit": rate_limit.tpm_limit,
-        "description": rate_limit.description,
-        "is_active": rate_limit.is_active,
-        "model_name": model_name,
-        "created_at": rate_limit.created_at,
-        "updated_at": rate_limit.updated_at,
-    }
-
 
 @permission_resource(
     resource="ai_quota",
@@ -96,7 +43,7 @@ def _build_rate_limit_dict(rate_limit) -> dict:
         icon="lucide:gauge",
         path="/ai/quotas",
         component="ai/quotas/index",
-        parent="ai_mgmt",
+        parent="ai_settings",
         sort_order=20,
     ),
 )
@@ -108,7 +55,7 @@ class TenantAIQuotaController(TenantController):
     """
 
     prefix = "/ai/quotas"
-    tags = ["AI 配额管理"]
+    tags = [_("menu.tags.tenant_ai_quota")]
 
     def _register_routes(self) -> None:
         """注册路由"""
@@ -146,7 +93,7 @@ class TenantAIQuotaController(TenantController):
                 result = []
                 for item in raw_list:
                     result.append({
-                        "quota": _build_quota_dict(item["quota"]),
+                        "quota": TenantQuotaResponse.from_orm_model(item["quota"]).model_dump(),
                         "usage": item["usage"],
                         "limit": item["limit"],
                         "usage_percent": item["usage_percent"],
@@ -155,11 +102,10 @@ class TenantAIQuotaController(TenantController):
                         "remaining": item["remaining"],
                     })
             else:
-                quotas = await service.repo.get_active_quotas(
-                    tenant_id=tenant_admin.tenant_id,
+                quotas = await service.get_active_quotas(
                     period=period,
                 )
-                result = [_build_quota_dict(q) for q in quotas]
+                result = [TenantQuotaResponse.from_orm_model(q).model_dump() for q in quotas]
 
             return success(data=result, message=_("common.success"))
 
@@ -181,11 +127,10 @@ class TenantAIQuotaController(TenantController):
             权限: ai_quota:list_rate_limits
             """
             service = TenantRateLimitService(db, tenant_admin.tenant_id)
-            items = await service.repo.get_active_limits(
-                tenant_id=tenant_admin.tenant_id,
+            items = await service.get_active_limits(
                 model_id=model_id,
             )
-            result = [_build_rate_limit_dict(item) for item in items]
+            result = [TenantRateLimitResponse.from_orm_model(item).model_dump() for item in items]
 
             return success(data=result, message=_("common.success"))
 
@@ -246,7 +191,7 @@ class TenantAIQuotaController(TenantController):
             权限: ai_quota:update_rate_limit
             """
             service = TenantRateLimitService(db, tenant_admin.tenant_id)
-            rate_limit = await service.repo.get_by_id(rate_limit_id)
+            rate_limit = await service.get_by_id(rate_limit_id)
 
             if not rate_limit:
                 raise NotFoundException(message=_("ai.error.rate_limit_not_found"))
@@ -255,7 +200,7 @@ class TenantAIQuotaController(TenantController):
                 raise AuthorizationException(message=_("common.forbidden"))
 
             update_data = data.model_dump(exclude_unset=True)
-            updated = await service.repo.update(rate_limit.id, update_data)
+            updated = await service.update(rate_limit.id, update_data)
             await db.commit()
 
             return success(data=updated, message=_("ai.rate_limit.updated"))
@@ -274,7 +219,7 @@ class TenantAIQuotaController(TenantController):
             权限: ai_quota:delete_rate_limit
             """
             service = TenantRateLimitService(db, tenant_admin.tenant_id)
-            rate_limit = await service.repo.get_by_id(rate_limit_id)
+            rate_limit = await service.get_by_id(rate_limit_id)
 
             if not rate_limit:
                 raise NotFoundException(message=_("ai.error.rate_limit_not_found"))
@@ -282,7 +227,7 @@ class TenantAIQuotaController(TenantController):
             if rate_limit.tenant_id != tenant_admin.tenant_id:
                 raise AuthorizationException(message=_("common.forbidden"))
 
-            await service.repo.delete(rate_limit_id)
+            await service.delete(rate_limit_id)
             await db.commit()
 
             return success(message=_("ai.rate_limit.deleted"))
@@ -303,7 +248,7 @@ class TenantAIQuotaController(TenantController):
             权限: ai_quota:detail_quota
             """
             service = TenantQuotaService(db, tenant_admin.tenant_id)
-            quota = await service.repo.get_by_id(quota_id)
+            quota = await service.get_by_id(quota_id)
 
             if not quota:
                 raise NotFoundException(message=_("ai.error.quota_not_found"))
@@ -317,7 +262,7 @@ class TenantAIQuotaController(TenantController):
 
             if quota_with_usage:
                 response_data = {
-                    "quota": _build_quota_dict(quota_with_usage["quota"]),
+                    "quota": TenantQuotaResponse.from_orm_model(quota_with_usage["quota"]).model_dump(),
                     "usage": quota_with_usage["usage"],
                     "limit": quota_with_usage["limit"],
                     "usage_percent": quota_with_usage["usage_percent"],
@@ -371,7 +316,7 @@ class TenantAIQuotaController(TenantController):
             权限: ai_quota:update_quota
             """
             service = TenantQuotaService(db, tenant_admin.tenant_id)
-            quota = await service.repo.get_by_id(quota_id)
+            quota = await service.get_by_id(quota_id)
 
             if not quota:
                 raise NotFoundException(message=_("ai.error.quota_not_found"))
@@ -380,7 +325,7 @@ class TenantAIQuotaController(TenantController):
                 raise AuthorizationException(message=_("common.forbidden"))
 
             update_data = data.model_dump(exclude_unset=True)
-            updated = await service.repo.update(quota.id, update_data)
+            updated = await service.update(quota.id, update_data)
             await db.commit()
 
             return success(data=updated, message=_("ai.quota.updated"))
@@ -399,7 +344,7 @@ class TenantAIQuotaController(TenantController):
             权限: ai_quota:delete_quota
             """
             service = TenantQuotaService(db, tenant_admin.tenant_id)
-            quota = await service.repo.get_by_id(quota_id)
+            quota = await service.get_by_id(quota_id)
 
             if not quota:
                 raise NotFoundException(message=_("ai.error.quota_not_found"))
@@ -407,7 +352,7 @@ class TenantAIQuotaController(TenantController):
             if quota.tenant_id != tenant_admin.tenant_id:
                 raise AuthorizationException(message=_("common.forbidden"))
 
-            await service.repo.delete(quota_id)
+            await service.delete(quota_id)
             await db.commit()
 
             return success(message=_("ai.quota.deleted"))

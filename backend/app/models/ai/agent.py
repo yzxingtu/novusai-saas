@@ -6,12 +6,13 @@
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text, JSON
+from sqlalchemy import Boolean, Column, Float, ForeignKey, Index, Integer, String, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
 from app.core.i18n import _
 from app.enums.agent import AgentStatusEnum, AgentExecutionModeEnum, AgentVisibilityEnum
+from app.enums.common import ResourceScopeEnum
 
 
 class Agent(TenantModel):
@@ -24,15 +25,25 @@ class Agent(TenantModel):
 
     __tablename__ = "agents"
 
+    # 覆盖 TenantModel 的 tenant_id，改为可选（scope=global/admin 时为 NULL）
+    tenant_id = Column(
+        Integer,
+        nullable=True,
+        index=True,
+        comment="租户ID（scope=tenant 时必填，global/admin 时为 NULL）"
+    )
+
     # 允许前端筛选的字段
     __filterable__ = {
         "id": "id",
         "name": "name",
         "status": "status",
+        "scope": "scope",
         "visibility": "visibility",
         "execution_mode": "execution_mode",
         "model_id": "model_id",
         "tenant_id": "tenant_id",
+        "is_system": "is_system",
         "created_at": "created_at",
     }
 
@@ -44,6 +55,16 @@ class Agent(TenantModel):
         "created_at": "created_at",
         "updated_at": "updated_at",
     }
+
+    # ==================== 作用域 ====================
+
+    scope: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=ResourceScopeEnum.TENANT.value,
+        index=True,
+        comment=_("enum.agent_model.scope"),
+    )
 
     # ==================== 基本信息 ====================
 
@@ -135,6 +156,8 @@ class Agent(TenantModel):
 
     # ==================== 工具与变量 ====================
 
+    # DEPRECATED: replaced by AgentSkillBinding (SkillPackage-based architecture)
+    # Retained for backward compatibility; no active callers remain.
     tool_bindings: Mapped[list | None] = mapped_column(
         JSON,
         nullable=True,
@@ -146,6 +169,21 @@ class Agent(TenantModel):
         nullable=True,
         default=list,
         comment=_("enum.agent_model.input_variables"),
+    )
+
+    # ==================== 知识库（RAG）配置 ====================
+
+    knowledge_base_ids: Mapped[list | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=list,
+        comment=_("enum.agent_model.knowledge_base_ids"),
+    )
+    rag_config: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
+        comment=_("enum.agent_model.rag_config"),
     )
 
     # ==================== 上下文配置 ====================
@@ -161,6 +199,16 @@ class Agent(TenantModel):
         nullable=True,
         default=None,
         comment=_("enum.agent_model.output_schema"),
+    )
+
+    # ==================== 系统标记 ====================
+
+    is_system: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        index=True,
+        comment=_("enum.agent_model.is_system"),
     )
 
     # ==================== 交互配置 ====================
@@ -199,6 +247,14 @@ class Agent(TenantModel):
         cascade="all, delete-orphan",
     )
 
+    # 技能绑定（新 Skill 架构）
+    skill_bindings = relationship(
+        "AgentSkillBinding",
+        lazy="noload",
+        cascade="all, delete-orphan",
+        order_by="AgentSkillBinding.sort_order",
+    )
+
     def __repr__(self) -> str:
         return f"<Agent(id={self.id}, name={self.name}, tenant_id={self.tenant_id})>"
 
@@ -206,6 +262,7 @@ class Agent(TenantModel):
 if TYPE_CHECKING:
     from app.models.ai.model import AIModel
     from app.models.ai.agent_conversation import AgentConversation
+    from app.models.ai.agent_skill_binding import AgentSkillBinding
 
 
 __all__ = ["Agent"]

@@ -49,7 +49,7 @@ class AdminTaskController(GlobalController):
     """
 
     prefix = "/tasks"
-    tags = ["任务管理"]
+    tags = ["Task Management"]
     service_class = TaskLogService
 
     def _register_routes(self) -> None:

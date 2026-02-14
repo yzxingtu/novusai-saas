@@ -25,8 +25,13 @@ from app.api.tenant.ai_usage import router as ai_usage_router, TenantAIUsageCont
 from app.api.tenant.ai_call_logs import router as ai_call_logs_router, TenantAICallLogController
 from app.api.tenant.agents import router as agents_router, TenantAgentController
 from app.api.tenant.conversations import router as conversations_router, TenantConversationController
-from app.api.tenant.tools import router as tools_router, TenantToolController
 from app.api.tenant.agent_chat import router as agent_chat_router, TenantAgentChatController
+from app.api.tenant.ai_action_logs import router as ai_action_logs_router, TenantAIActionLogController
+from app.api.tenant.knowledge_bases import router as knowledge_bases_router, TenantKnowledgeBaseController
+from app.api.tenant.ai_table_policies import router as ai_table_policies_router, TenantAITablePolicyController
+from app.api.tenant.plugins import router as plugins_router, TenantPluginController
+from app.api.tenant.skill_packages import router as skill_packages_router, TenantSkillPackageController
+from app.api.tenant.skills import router as skills_router, TenantSkillController
 
 # 创建租户管理后台路由器
 tenant_router = APIRouter()
@@ -51,10 +56,19 @@ tenant_router.include_router(ai_call_logs_router)
 tenant_router.include_router(agents_router)
 # 对话管理
 tenant_router.include_router(conversations_router)
-# 工具管理
-tenant_router.include_router(tools_router)
 # 智能体对话
 tenant_router.include_router(agent_chat_router)
+# AI 操作审计
+tenant_router.include_router(ai_action_logs_router)
+# 知识库
+tenant_router.include_router(knowledge_bases_router)
+# AI 表策略覆盖
+tenant_router.include_router(ai_table_policies_router)
+# 插件系统
+tenant_router.include_router(plugins_router)
+# 技能包 & 技能管理
+tenant_router.include_router(skill_packages_router)
+tenant_router.include_router(skills_router)
 
 
 __all__ = [
@@ -78,8 +92,17 @@ __all__ = [
     "TenantAgentController",
     # 对话管理
     "TenantConversationController",
-    # 工具管理
-    "TenantToolController",
     # 智能体对话
     "TenantAgentChatController",
+    # AI 操作审计
+    "TenantAIActionLogController",
+    # 知识库
+    "TenantKnowledgeBaseController",
+    # AI 表策略覆盖
+    "TenantAITablePolicyController",
+    # 插件系统
+    "TenantPluginController",
+    # 技能包 & 技能管理
+    "TenantSkillPackageController",
+    "TenantSkillController",
 ]

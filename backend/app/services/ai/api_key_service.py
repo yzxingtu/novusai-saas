@@ -120,6 +120,26 @@ class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository
         """
         await self.repo.update_usage_count(key_id, increment)
 
+    async def get_keys_by_provider(
+        self,
+        provider_id: int | None = None,
+        tenant_id: int | None = None,
+    ) -> list[ProviderApiKey]:
+        """
+        获取供应商的 API Key 列表
+
+        Args:
+            provider_id: 供应商 ID（None 则不限）
+            tenant_id: 租户 ID（None 则不限）
+
+        Returns:
+            ProviderApiKey 列表
+        """
+        return await self.repo.get_keys_by_provider(
+            provider_id=provider_id,
+            tenant_id=tenant_id,
+        )
+
     async def get_available_key(
         self,
         provider_id: int,

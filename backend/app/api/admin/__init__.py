@@ -31,7 +31,13 @@ from app.api.admin.ai_health import router as ai_health_router, AdminAIHealthCon
 from app.api.admin.ai_quotas import router as ai_quotas_router, AdminAIQuotaController
 from app.api.admin.ai_conversations import router as ai_conversations_router, AdminAIConversationController
 from app.api.admin.agents import router as ai_agents_router, AdminAgentController
-from app.api.admin.tools import router as ai_tools_router, AdminToolController
+from app.api.admin.ai_action_logs import router as ai_action_logs_router, AdminAIActionLogController
+from app.api.admin.ai_agent_chat import router as ai_agent_chat_router, AdminAgentChatController
+from app.api.admin.knowledge_bases import router as ai_knowledge_bases_router, AdminKnowledgeBaseController
+from app.api.admin.ai_table_policies import router as ai_table_policies_router, AdminAITablePolicyController
+from app.api.admin.plugins import router as plugins_router, AdminPluginController
+from app.api.admin.skill_packages import router as ai_skill_packages_router, AdminSkillPackageController
+from app.api.admin.skills import router as ai_skills_router, AdminSkillController
 
 # 创建平台管理后台路由器
 admin_router = APIRouter()
@@ -62,7 +68,19 @@ admin_router.include_router(ai_quotas_router)
 admin_router.include_router(ai_conversations_router)
 # 智能体引擎
 admin_router.include_router(ai_agents_router)
-admin_router.include_router(ai_tools_router)
+# AI 操作审计
+admin_router.include_router(ai_action_logs_router)
+# AI 对话
+admin_router.include_router(ai_agent_chat_router)
+# 知识库监控
+admin_router.include_router(ai_knowledge_bases_router)
+# AI 表策略
+admin_router.include_router(ai_table_policies_router)
+# 插件系统
+admin_router.include_router(plugins_router)
+# 技能包 & 技能管理
+admin_router.include_router(ai_skill_packages_router)
+admin_router.include_router(ai_skills_router)
 
 
 __all__ = [
@@ -92,5 +110,17 @@ __all__ = [
     "AdminAIConversationController",
     # 智能体引擎
     "AdminAgentController",
-    "AdminToolController",
+    # AI 操作审计
+    "AdminAIActionLogController",
+    # AI 对话
+    "AdminAgentChatController",
+    # 知识库监控
+    "AdminKnowledgeBaseController",
+    # AI 表策略
+    "AdminAITablePolicyController",
+    # 插件系统
+    "AdminPluginController",
+    # 技能包 & 技能管理
+    "AdminSkillPackageController",
+    "AdminSkillController",
 ]

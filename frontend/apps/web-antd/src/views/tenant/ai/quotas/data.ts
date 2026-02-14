@@ -12,6 +12,9 @@ import {
 } from '#/adapter/form';
 import { getTenantAIModelsApi } from '#/api/tenant/ai';
 import { $t } from '#/locales';
+import { formatTokens } from '#/utils/format';
+
+export { formatTokens };
 
 /**
  * 获取模型下拉选项
@@ -84,15 +87,6 @@ export function getQuotaTypeText(type: string | undefined): string {
   }
 }
 
-/**
- * 格式化 Token 数量
- */
-export function formatTokens(num: null | number | undefined): string {
-  if (!num) return '-';
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
-  if (num >= 1000) return `${(num / 1000).toFixed(0)}K`;
-  return `${num}`;
-}
 
 // ============ 配额表单 ============
 

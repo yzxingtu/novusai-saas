@@ -71,6 +71,9 @@ dependencies = [
 
     # DNS
     "dnspython>=2.4.0",
+
+    # YAML parsing
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]

@@ -111,7 +111,7 @@ onMounted(loadSummary);
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-4">
+  <Page auto-content-height :description="$t('tenant.ai.usage.pageDesc')" content-class="flex flex-col gap-4">
     <!-- 日期范围筛选 -->
     <Card :body-style="{ padding: '12px 16px' }">
       <div class="flex flex-wrap items-center gap-3">

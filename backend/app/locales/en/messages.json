@@ -172,7 +172,23 @@
       "quota_reset": "Agent daily quotas reset: cleaned {count} orphan keys",
       "quota_reset_skipped": "Agent quota reset skipped: {error}",
       "stats_reset": "Agent daily stats reset: {count} agents",
-      "stats_reset_skipped": "Agent stats reset skipped: {error}"
+      "stats_reset_skipped": "Agent stats reset skipped: {error}",
+      "recycle_bin_cleaned": "Recycle bin cleanup: {model} permanently deleted {count} expired records",
+      "recycle_bin_cleanup_total": "Recycle bin cleanup summary: {total} records cleaned, elapsed {elapsed:.2f}s",
+      "recycle_bin_cleanup_failed": "Recycle bin cleanup failed: {error}",
+      "recycle_bin_cleanup_skipped": "Recycle bin auto-cleanup is disabled"
+    }
+  },
+  "recycle_bin": {
+    "restored": "Restored successfully",
+    "permanently_deleted": "Permanently deleted",
+    "escalated": "Moved to admin recycle bin",
+    "error": {
+      "not_found": "Record not found in recycle bin",
+      "not_in_recycle_bin": "Record is not in recycle bin",
+      "restore_failed": "Restore failed",
+      "already_deleted": "Record is already deleted",
+      "batch_too_large": "Batch operation exceeds limit (max 100 items)"
     }
   },
   "agent": {
@@ -191,7 +207,10 @@
       "invalid_status": "Invalid status value",
       "invalid_status_transition": "Invalid status transition",
       "batch_run_not_found": "Batch run not found",
-      "batch_not_cancellable": "Batch task cannot be cancelled in current status"
+      "batch_not_cancellable": "Batch task cannot be cancelled in current status",
+      "tenant_id_required": "tenant_id is required when scope is tenant",
+      "system_protected": "System agent cannot be deleted or have key properties modified",
+      "system_agent_not_found": "System agent not found, please run database migrations first"
     },
     "batch": {
       "cancelled": "Batch task cancelled"
@@ -231,31 +250,174 @@
       }
     }
   },
-  "tool_definition": {
-    "created": "Tool created successfully",
-    "updated": "Tool updated successfully",
-    "deleted": "Tool deleted successfully",
+  "skill_package": {
+    "created": "Skill package created successfully",
+    "updated": "Skill package updated successfully",
+    "deleted": "Skill package deleted successfully",
     "field": {
-      "name": "Tool Name",
+      "name": "Package Name",
       "description": "Description",
-      "type": "Tool Type",
-      "input_schema": "Input Schema",
-      "output_schema": "Output Schema",
-      "config": "Execution Config",
-      "timeout": "Timeout",
-      "is_system": "System Tool",
+      "avatar": "Icon",
+      "scope": "Scope",
       "is_active": "Status",
-      "test_arguments": "Test Arguments",
-      "test_success": "Execution Success",
-      "test_output": "Execution Output",
-      "test_error": "Error Message",
-      "test_duration": "Duration"
+      "sort_order": "Sort Order",
+      "is_system": "System Package",
+      "source_plugin": "Source Plugin",
+      "valves_schema": "Configuration Schema",
+      "valves_config": "Configuration Values"
     },
     "error": {
-      "not_found": "Tool not found",
-      "name_exists": "Tool name already exists",
-      "invalid_type": "Invalid tool type",
-      "system_readonly": "System built-in tools cannot be modified or deleted"
+      "not_found": "Skill package not found",
+      "name_exists": "Skill package name already exists",
+      "invalid_scope": "Invalid scope",
+      "system_protected": "System skill package cannot be deleted or have key properties modified",
+      "file_required": "Please select a file to upload",
+      "file_must_be_zip": "Only .zip skill package files are supported",
+      "no_valves_schema": "This skill package has no configurable options",
+      "invalid_valves_config": "valves_config must be a JSON object",
+      "valves_missing_required": "Missing required configuration fields: {fields}"
+    }
+  },
+  "skill": {
+    "created": "Skill created successfully",
+    "updated": "Skill updated successfully",
+    "deleted": "Skill deleted successfully",
+    "field": {
+      "package_id": "Skill Package",
+      "name": "Skill Name",
+      "description": "Description",
+      "avatar": "Icon",
+      "type": "Skill Type",
+      "scope": "Scope",
+      "config": "Skill Config",
+      "input_schema": "Input Schema",
+      "output_schema": "Output Schema",
+      "is_active": "Status",
+      "sort_order": "Sort Order",
+      "timeout": "Timeout",
+      "script_content": "Script Content",
+      "script_language": "Script Language",
+      "toolkit_content": "Toolkit Source Code",
+      "toolkit_meta": "Toolkit Metadata",
+      "is_system": "System Skill"
+    },
+    "error": {
+      "not_found": "Skill not found",
+      "name_exists": "Skill name already exists",
+      "invalid_type": "Invalid skill type",
+      "invalid_scope": "Invalid scope",
+      "system_protected": "System skill cannot be deleted or have key properties modified",
+      "toolkit_parse_failed": "Toolkit source parsing failed: {error}"
+    },
+    "test": {
+      "unknown_type": "Unknown skill type: {type}",
+      "kb_no_ids": "No knowledge base IDs configured",
+      "kb_missing": "Knowledge bases not found: {ids}",
+      "kb_ok": "Knowledge base verified: {count} bases, {docs} documents",
+      "di_ok": "Database connection OK, {tables} table policies available",
+      "di_fail": "Database connection failed",
+      "di_error": "Database connection error: {error}",
+      "http_no_url": "No request URL configured",
+      "http_ok": "HTTP request succeeded, status: {status}",
+      "http_timeout": "HTTP request timed out: {url}",
+      "http_error": "HTTP request failed: {error}",
+      "email_missing": "Email config missing: {fields}",
+      "email_ok": "Email config verified ({host}:{port})",
+      "code_ok_no_template": "Code skill config OK (language: {lang}, no template)",
+      "code_ok": "Code skill config OK (language: {lang})",
+      "builtin_no_name": "No builtin function name configured",
+      "builtin_ok": "Builtin function verified: {name}",
+      "script_no_content": "No script content configured",
+      "script_unsupported_language": "Unsupported script language: {language}",
+      "script_ok": "Script executed successfully (language: {lang}, duration: {duration}ms)",
+      "script_error": "Script execution failed: {error}",
+      "toolkit_no_content": "No toolkit source code configured",
+      "toolkit_invalid": "Toolkit validation failed: {errors}",
+      "toolkit_ok": "Toolkit parsed successfully (tools: {tools}, has valves: {valves})",
+      "toolkit_error": "Toolkit parse error: {error}"
+    },
+    "import": {
+      "error": {
+        "no_name": "Item #{index} missing skill name",
+        "no_type": "Item #{index} ({name}) missing skill type"
+      }
+    }
+  },
+  "skill_script": {
+    "created": "Script created successfully",
+    "updated": "Script updated successfully",
+    "deleted": "Script deleted successfully",
+    "field": {
+      "skill_id": "Skill",
+      "filename": "Filename",
+      "content": "Script Content",
+      "language": "Language",
+      "is_entry": "Entry Script",
+      "sort_order": "Sort Order"
+    },
+    "error": {
+      "not_found": "Script not found",
+      "filename_exists": "Filename already exists in this skill",
+      "multiple_entry": "Each skill can only have one entry script",
+      "no_entry": "Skill is missing an entry script",
+      "entry_required": "Cannot delete the entry script, please set another script as entry first"
+    }
+  },
+  "agent_skill_binding": {
+    "field": {
+      "agent_id": "Agent ID",
+      "package_id": "Skill Package ID",
+      "enabled": "Enabled",
+      "config_override": "Config Override",
+      "sort_order": "Sort Order"
+    },
+    "error": {
+      "already_bound": "This skill package is already bound to this agent",
+      "package_not_found": "Skill package not found",
+      "binding_not_found": "This skill package is not bound to this agent",
+      "agent_not_found": "Agent not found"
+    }
+  },
+  "platform_tool": {
+    "get_dashboard_stats": {
+      "name": "Get Dashboard Stats",
+      "description": "Get tenant dashboard statistics: total users, active users today, AI call count, storage usage"
+    },
+    "list_users": {
+      "name": "List Users",
+      "description": "List tenant end users with filtering by email, status, and date range"
+    },
+    "list_roles": {
+      "name": "List Roles",
+      "description": "List tenant admin roles with hierarchy"
+    },
+    "list_agents": {
+      "name": "List Agents",
+      "description": "List AI agents configured for this tenant"
+    },
+    "create_role": {
+      "name": "Create Role",
+      "description": "Create a new admin role for the tenant"
+    },
+    "update_user_status": {
+      "name": "Update User Status",
+      "description": "Enable or disable a tenant end user"
+    },
+    "delete_user": {
+      "name": "Delete User",
+      "description": "Delete a tenant end user (AI cannot execute directly, provides guidance only)"
+    },
+    "batch_modify": {
+      "name": "Batch Modify",
+      "description": "Batch modify data (AI cannot execute directly, provides guidance only)"
+    },
+    "created": "Platform tool created successfully",
+    "updated": "Platform tool updated successfully",
+    "deleted": "Platform tool deleted successfully",
+    "error": {
+      "not_found": "Platform tool not found",
+      "name_exists": "Platform tool name already exists",
+      "builtin_readonly": "Built-in platform tools cannot be deleted"
     }
   },
   "agent_chat": {
@@ -266,7 +428,11 @@
       "reply_message": "Reply Message",
       "tool_calls": "Tool Calls",
       "total_tokens": "Total Tokens",
-      "duration_ms": "Duration (ms)"
+      "duration_ms": "Duration (ms)",
+      "confirm_id": "Confirm ID",
+      "confirm_action": "Confirm or Cancel",
+      "knowledge_base_ids": "Knowledge Base IDs",
+      "consented_actions": "Session-level consented actions"
     },
     "error": {
       "conversation_not_found": "Conversation not found",
@@ -305,7 +471,14 @@
       "context_length_exceeded": "Input exceeds model context length limit",
       "content_filtered": "Content blocked by safety policy",
       "quota_not_found": "Quota configuration not found",
-      "fallback_self_reference": "Fallback model cannot reference itself"
+      "fallback_self_reference": "Fallback model cannot reference itself",
+      "embedding_empty_result": "Embedding returned empty result",
+      "embedding_model_not_configured": "Embedding model not configured for this knowledge base",
+      "embedding_provider_not_found": "Embedding model provider not found",
+      "model_code_exists": "Model code already exists",
+      "provider_code_exists": "Provider code already exists",
+      "api_key_not_found": "API Key not found",
+      "fetch_remote_models_failed": "Failed to fetch models from provider"
     },
     "quota": {
       "created": "Quota configuration created",
@@ -380,6 +553,61 @@
       "health_skip_no_key": "No API key for provider, skipping health check",
       "health_check_provider_failed": "Provider health check failed",
       "health_check_result": "Health check result"
+    },
+    "rag": {
+      "context_header": "---Reference materials (for reference only, please answer based on the following materials; if insufficient, state so):",
+      "source_label": "Source: {name}",
+      "page_label": "Page {page}"
+    }
+  },
+  "knowledge_base": {
+    "created": "Knowledge base created successfully",
+    "updated": "Knowledge base updated successfully",
+    "deleted": "Knowledge base deleted successfully",
+    "reindex_started": "Re-indexing started",
+    "error": {
+      "not_found": "Knowledge base not found",
+      "name_exists": "Knowledge base name already exists",
+      "quota_exceeded": "Knowledge base limit reached",
+      "storage_exceeded": "Knowledge base storage limit reached",
+      "document_limit_exceeded": "Document limit reached",
+      "chunk_limit_exceeded": "Chunk limit reached",
+      "disabled": "Knowledge base is disabled",
+      "tenant_id_required": "tenant_id is required when scope is tenant"
+    },
+    "document": {
+      "uploaded": "Document uploaded successfully",
+      "deleted": "Document deleted successfully",
+      "retry_started": "Document retry started",
+      "error": {
+        "not_found": "Document not found",
+        "duplicate": "Duplicate document already exists",
+        "not_error_status": "Document is not in error status, cannot retry",
+        "max_retries_exceeded": "Maximum retries exceeded",
+        "parse_failed": "Document parsing failed",
+        "unsupported_type": "Unsupported document type"
+      }
+    },
+    "chunk": {
+      "updated": "Chunk content updated successfully",
+      "deleted": "Chunk deleted successfully",
+      "error": {
+        "not_found": "Chunk not found"
+      }
+    },
+    "qa": {
+      "question": "Question",
+      "answer": "Answer",
+      "created": "Q&A pair added successfully"
+    },
+    "log": {
+      "process_started": "Document processing started",
+      "process_completed": "Document processing completed",
+      "process_failed": "Document processing failed",
+      "embedding_batch": "Embedding batch progress",
+      "reindex_completed": "Re-indexing completed",
+      "search_cache_hit": "Search cache hit",
+      "search_cache_miss": "Search cache miss"
     }
   },
   "rbac": {
@@ -761,11 +989,14 @@
         "api": "API"
       },
       "tool_type": {
-        "http": "HTTP Request",
-        "database": "Database Query",
-        "email": "Send Email",
-        "code": "Custom Code",
-        "builtin": "Built-in"
+        "toolkit": "Toolkit",
+        "builtin": "Built-in",
+        "text_to_sql": "Text-to-SQL Query",
+        "data_create": "Data Create",
+        "data_update": "Data Update",
+        "data_delete": "Data Delete",
+        "plugin": "Plugin",
+        "crud_generator": "CRUD Code Generator"
       },
       "conversation_status": {
         "active": "Active",
@@ -787,6 +1018,12 @@
         "specific_users": "Specific Users",
         "api_only": "API Only"
       },
+      "input_variable_type": {
+        "text": "Text",
+        "number": "Number",
+        "select": "Select",
+        "textarea": "Textarea"
+      },
       "batch_run_status": {
         "pending": "Pending",
         "running": "Running",
@@ -794,6 +1031,102 @@
         "partial_failed": "Partial Failed",
         "failed": "Failed",
         "cancelled": "Cancelled"
+      }
+    },
+    "action_level": {
+      "read": "Read Only",
+      "safe_write": "Safe Write",
+      "dangerous": "Dangerous"
+    },
+    "action_type": {
+      "query": "Query",
+      "action": "Action",
+      "confirm": "Confirm Required"
+    },
+    "action_status": {
+      "success": "Success",
+      "failed": "Failed",
+      "rejected": "Rejected",
+      "pending_confirm": "Pending Confirm"
+    },
+    "resource_scope": {
+      "tenant": "Tenant Only",
+      "global": "Global",
+      "admin": "Admin Only"
+    },
+    "delete_level": {
+      "tenant": "Tenant Recycle Bin",
+      "admin": "Admin Recycle Bin"
+    },
+    "plugin_type": {
+      "adapter": "AI Adapter",
+      "tool": "Tool Executor",
+      "hook": "Event Hook",
+      "api": "API Endpoint",
+      "skill": "Skill Extension",
+      "composite": "Composite"
+    },
+    "plugin_status": {
+      "installed": "Installed",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "error": "Error"
+    },
+    "table_policy": {
+      "scope": {
+        "platform": "Platform",
+        "tenant": "Tenant",
+        "all": "All"
+      }
+    },
+    "skill": {
+      "type": {
+        "knowledge_base": "Knowledge Base",
+        "data_intelligence": "Data Intelligence",
+        "toolkit": "Toolkit",
+        "builtin": "Built-in"
+      },
+      "scope": {
+        "tenant": "Tenant Skill",
+        "admin": "Admin Skill"
+      }
+    },
+    "knowledge_base": {
+      "status": {
+        "active": "Active",
+        "disabled": "Disabled"
+      },
+      "document_status": {
+        "pending": "Pending",
+        "parsing": "Parsing",
+        "chunking": "Chunking",
+        "embedding": "Embedding",
+        "completed": "Completed",
+        "error": "Error"
+      },
+      "document_type": {
+        "pdf": "PDF Document",
+        "docx": "Word Document",
+        "txt": "Text File",
+        "md": "Markdown Document",
+        "csv": "CSV Spreadsheet",
+        "qa": "Q&A Pair",
+        "url": "Web URL"
+      },
+      "chunk_strategy": {
+        "recursive": "Recursive Split",
+        "semantic": "Semantic Chunking",
+        "paragraph": "Paragraph Chunking"
+      },
+      "search_mode": {
+        "hybrid": "Hybrid Search",
+        "vector": "Vector Search",
+        "keyword": "Keyword Search"
+      },
+      "rewrite_strategy": {
+        "none": "No Rewrite",
+        "multi": "Multi-Query Rewrite",
+        "hyde": "HyDE (Hypothetical Document)"
       }
     }
   },
@@ -1315,7 +1648,195 @@
       "too_many_recipients": "Max {max} recipients allowed, got {got}",
       "attachment_too_large": "Total attachment size exceeds {max_mb}MB limit",
       "http_missing_url": "Tool config missing 'url'",
-      "http_timeout": "Request timed out"
+      "http_timeout": "Request timed out",
+      "script_no_content": "Script content is empty",
+      "script_unsupported_language": "Unsupported script language: {language}",
+      "script_timeout": "Script execution timed out after {timeout}s",
+      "script_execution_failed": "Script execution failed: {error}",
+      "code_missing_template": "Code template not configured",
+      "code_execution_timeout": "Code execution timed out after {timeout}s",
+      "code_prohibited_pattern": "Prohibited pattern in code: {pattern}"
+    }
+  },
+  "data_intelligence": {
+    "sql": {
+      "empty": "SQL statement is empty",
+      "select_only": "Only SELECT queries are allowed",
+      "dangerous_keyword": "Dangerous keyword blocked: {keyword}",
+      "write_in_subquery": "Write operations detected in SQL",
+      "table_not_allowed": "Table not allowed: {table}",
+      "blocked_function": "Blocked function: {func}",
+      "no_line_comment": "Line comments (--) not allowed in SQL",
+      "no_block_comment": "Block comments (/**/) not allowed in SQL",
+      "system_table_blocked": "Access to system tables is blocked"
+    },
+    "isolation": {
+      "no_table_ref": "No table references found, cannot inject tenant isolation",
+      "unknown_table": "Unknown table: {table}",
+      "no_tenant_column": "Table {table} has no tenant isolation column"
+    },
+    "executor": {
+      "readonly_not_configured": "Readonly database not configured, set AI_READONLY_DB_URL",
+      "missing_question": "Missing query question",
+      "missing_tenant": "Missing tenant information",
+      "execution_error": "Data query execution failed, please try again later",
+      "no_accessible_tables": "No accessible tables for current permissions, please contact administrator"
+    },
+    "generator": {
+      "no_relevant_tables": "No relevant tables found for your question",
+      "validation_failed": "SQL generation failed, unable to generate a safe query",
+      "generation_error": "SQL generation error, please try rephrasing your question",
+      "empty_response": "AI returned no valid content",
+      "parse_error": "Unable to parse AI response",
+      "cannot_generate": "Cannot generate a query for this question"
+    },
+    "formatter": {
+      "no_data": "Query returned no data",
+      "number_summary": "The result for {label} is {value}",
+      "row_count": "Returned {count} rows",
+      "truncated": "(Results truncated, showing first 200 rows)",
+      "masked": "Columns {columns} have been masked for privacy"
+    },
+    "action": {
+      "not_found": "Action '{name}' not found",
+      "permission_denied": "Permission denied for this action",
+      "rate_exceeded": "Action rate limit exceeded, please try again later",
+      "confirm_expired": "Confirmation expired or invalid, please try again",
+      "execution_error": "Action execution failed, please try again later",
+      "no_service_configured": "No service method configured for this action",
+      "dangerous_guidance": "This is a high-risk operation that cannot be executed via AI. Please follow the steps below in the admin panel",
+      "dangerous_reason": "High-risk operations require manual confirmation in the admin panel to ensure data safety",
+      "step_login": "Log in to the admin panel",
+      "step_navigate": "Navigate to the corresponding feature page",
+      "step_execute": "Manually execute and confirm the operation",
+      "default_confirm": "Are you sure you want to execute '{action}'?",
+      "confirm_create_role": "Are you sure you want to create role '{name}'?",
+      "confirm_update_user_status": "Are you sure you want to change user {user_id} status to {status}?"
+    },
+    "crud": {
+      "no_context": "Missing execution context (database session not injected)",
+      "table_not_found": "Table '{table}' does not exist or has no active AI access policy",
+      "operation_denied": "Table '{table}' does not allow {operation} operations",
+      "record_not_found": "Record ID={id} not found in table '{table}'",
+      "blocked_columns_violation": "The following columns cannot be written: {columns}",
+      "permission_denied": "Permission denied: cannot {action} on table '{table}'",
+      "cross_tenant_denied": "Cross-tenant data access is not allowed",
+      "invalid_table_name": "Table name '{table}' contains invalid characters, only lowercase letters, digits and underscores are allowed"
+    }
+  },
+  "ai_action_log": {
+    "not_found": "AI action log not found"
+  },
+  "ai_query_log": {
+    "not_found": "AI query log not found",
+    "field": {
+      "agent_id": "Agent ID",
+      "user_id": "Operator ID",
+      "user_role": "Operator Role",
+      "question": "Query Question",
+      "generated_sql": "Generated SQL",
+      "final_sql": "Final Executed SQL",
+      "row_count": "Row Count",
+      "status": "Execution Status",
+      "error_message": "Error Message",
+      "duration_ms": "Duration (ms)",
+      "confidence": "Confidence"
+    }
+  },
+  "agent_confirm": {
+    "invalid_action": "Invalid action, only confirm/cancel supported",
+    "cancelled": "Action cancelled",
+    "cancel_failed": "Cancel failed, confirmation may have expired"
+  },
+  "ai_table_policy": {
+    "not_found": "AI table policy not found",
+    "field": {
+      "table_name": "Table Name",
+      "label": "Display Name",
+      "description": "Description",
+      "keywords": "Keywords / Aliases",
+      "column_descriptions": "Column Descriptions",
+      "allow_read": "Allow Read",
+      "allow_create": "Allow Create",
+      "allow_update": "Allow Update",
+      "allow_delete": "Allow Delete",
+      "max_rows": "Max Rows Per Query",
+      "blocked_columns": "Blocked Columns",
+      "readonly_columns": "Read-only Columns",
+      "scope": "Scope",
+      "permission_code": "Permission Code",
+      "sort_order": "Sort Order",
+      "is_active": "Active"
+    }
+  },
+  "ai_table_policy_override": {
+    "not_found": "AI table policy override not found",
+    "cannot_expand": "Tenant can only restrict policies, not exceed global settings",
+    "field": {
+      "policy_id": "Policy ID",
+      "allow_read": "Override Read Permission",
+      "allow_create": "Override Create Permission",
+      "allow_update": "Override Update Permission",
+      "allow_delete": "Override Delete Permission",
+      "max_rows": "Override Max Rows",
+      "blocked_columns": "Additional Blocked Columns",
+      "is_active": "Override Active Status"
+    }
+  },
+  "plugin": {
+    "not_found": "Plugin not found",
+    "already_exists": "Plugin name already exists",
+    "is_system": "System built-in plugin cannot perform this action",
+    "cannot_uninstall_system": "System built-in plugin cannot be uninstalled",
+    "cannot_disable_system": "System built-in plugin cannot be disabled",
+    "dependency_missing": "Missing dependency plugin: {name}",
+    "dependency_conflict": "Conflicts with installed plugin: {name}",
+    "has_dependents": "Other plugins depend on this plugin: {names}",
+    "invalid_manifest": "Invalid plugin manifest",
+    "entry_point_not_found": "Failed to load entry point: {entry_point}",
+    "install_hook_failed": "Plugin install hook execution failed",
+    "enable_hook_failed": "Plugin enable hook execution failed",
+    "already_at_version": "Plugin is already at version: {version}",
+    "has_conflicts": "Conflicts with installed plugin",
+    "unmet_dependencies": "Missing dependency plugins",
+    "platform_version_mismatch": "Platform version requirement not met",
+    "file_must_be_nap": "File must be in .nap format",
+    "file_must_be_zip_or_nap": "File must be in .zip or .nap format",
+    "file_required": "Please select a file to upload",
+    "plugin_dir_not_found": "Plugin source directory not found",
+    "dependency_not_installed": "not installed",
+    "dependency_version_mismatch": "installed version {version} does not match",
+    "config_validation_failed": "Plugin config validation failed",
+    "upgrade_hook_failed": "Plugin upgrade hook execution failed",
+    "install_success": "Plugin installed successfully",
+    "uninstall_success": "Plugin uninstalled successfully",
+    "enable_success": "Plugin enabled successfully",
+    "disable_success": "Plugin disabled successfully",
+    "field": {
+      "name": "Plugin ID",
+      "display_name": "Display Name",
+      "version": "Version",
+      "description": "Description",
+      "author": "Author",
+      "plugin_type": "Plugin Type",
+      "status": "Status",
+      "entry_point": "Entry Point",
+      "is_system": "System Built-in",
+      "config_schema": "Config Schema",
+      "default_config": "Default Config",
+      "icon": "Icon",
+      "homepage": "Homepage"
+    }
+  },
+  "tenant_plugin": {
+    "not_found": "Tenant plugin record not found",
+    "plugin_not_enabled": "This plugin is not enabled on the platform",
+    "enable_success": "Plugin enabled for tenant",
+    "disable_success": "Plugin disabled for tenant",
+    "field": {
+      "plugin_id": "Plugin ID",
+      "is_active": "Active",
+      "config": "Custom Config"
     }
   }
 }

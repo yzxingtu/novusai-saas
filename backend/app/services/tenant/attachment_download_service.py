@@ -41,7 +41,7 @@ class AttachmentDownloadService:
             result = await self.db.execute(
                 select(Attachment).where(
                     Attachment.id == attachment_id,
-                    Attachment.is_deleted == False,
+                    Attachment.is_deleted.is_(False),
                 )
             )
             attachment = result.scalar_one_or_none()

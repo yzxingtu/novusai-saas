@@ -13,6 +13,8 @@ from app.enums.common import (
     SortOrderEnum,
     OperationTypeEnum,
     PriorityEnum,
+    ResourceScopeEnum,
+    DeleteLevelEnum,
 )
 from app.enums.rbac import (
     PermissionType,
@@ -29,11 +31,21 @@ from app.enums.agent import (
     AgentStatusEnum,
     AgentExecutionModeEnum,
     ToolTypeEnum,
+    SkillTypeEnum,
     ConversationStatusEnum,
     MessageRoleEnum,
     AgentVisibilityEnum,
     AccessTypeEnum,
     BatchRunStatusEnum,
+)
+from app.enums.plugin import PluginTypeEnum, PluginStatusEnum
+from app.enums.knowledge_base import (
+    KBStatusEnum,
+    DocumentStatusEnum,
+    DocumentTypeEnum,
+    ChunkStrategyEnum,
+    SearchModeEnum,
+    RewriteStrategyEnum,
 )
 
 __all__ = [
@@ -49,6 +61,8 @@ __all__ = [
     "SortOrderEnum",
     "OperationTypeEnum",
     "PriorityEnum",
+    "ResourceScopeEnum",
+    "DeleteLevelEnum",
     # RBAC
     "PermissionType",
     "PermissionScope",
@@ -77,9 +91,20 @@ __all__ = [
     "AgentStatusEnum",
     "AgentExecutionModeEnum",
     "ToolTypeEnum",
+    "SkillTypeEnum",
     "ConversationStatusEnum",
     "MessageRoleEnum",
     "AgentVisibilityEnum",
     "AccessTypeEnum",
     "BatchRunStatusEnum",
+    # 插件
+    "PluginTypeEnum",
+    "PluginStatusEnum",
+    # 知识库
+    "KBStatusEnum",
+    "DocumentStatusEnum",
+    "DocumentTypeEnum",
+    "ChunkStrategyEnum",
+    "SearchModeEnum",
+    "RewriteStrategyEnum",
 ]

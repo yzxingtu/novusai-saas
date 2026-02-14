@@ -74,7 +74,7 @@ def _build_conversation_list_item(conv) -> dict:
         icon="lucide:message-square-text",
         path="/ai/conversations",
         component="ai/conversations/index",
-        parent="ai_mgmt",
+        parent="ai_analytics",
         sort_order=20,
     ),
 )
@@ -86,7 +86,7 @@ class TenantConversationController(TenantController):
     """
 
     prefix = "/ai/conversations"
-    tags = ["对话管理"]
+    tags = [_("tag.conversation_management")]
 
     def _register_routes(self) -> None:
         """注册路由"""
@@ -227,7 +227,7 @@ class TenantConversationController(TenantController):
             """
             service = ConversationService(db, tenant_admin.tenant_id)
 
-            conv = await service.repo.get_by_id(conversation_id)
+            conv = await service.get_by_id(conversation_id)
             if not conv:
                 raise NotFoundException(message=_("conversation.not_found"))
 

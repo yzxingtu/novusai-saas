@@ -5,8 +5,9 @@
 """
 
 import asyncio
+import threading
 from collections import defaultdict
-from typing import Any, Callable, Coroutine, Type
+from typing import Any, Callable, Coroutine
 
 from app.ai.events.types import BaseEvent
 from app.core.logging import LogManager
@@ -45,18 +46,21 @@ class EventBus:
     """
 
     _instance: "EventBus | None" = None
+    _lock: threading.Lock = threading.Lock()
 
     def __init__(self) -> None:
         # event_type -> sorted list of _Subscription
-        self._subscribers: dict[Type[BaseEvent], list[_Subscription]] = defaultdict(list)
+        self._subscribers: dict[type[BaseEvent], list[_Subscription]] = defaultdict(list)
         # 保持 fire-and-forget task 引用，防止 GC 中断执行
         self._background_tasks: set[asyncio.Task] = set()
 
     @classmethod
     def get_instance(cls) -> "EventBus":
-        """获取单例实例"""
+        """获取单例实例（线程安全）"""
         if cls._instance is None:
-            cls._instance = cls()
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls()
         return cls._instance
 
     @classmethod
@@ -70,7 +74,7 @@ class EventBus:
 
     def subscribe(
         self,
-        event_type: Type[BaseEvent],
+        event_type: type[BaseEvent],
         handler: EventHandler,
         priority: int = 0,
     ) -> None:
@@ -97,7 +101,7 @@ class EventBus:
 
     def unsubscribe(
         self,
-        event_type: Type[BaseEvent],
+        event_type: type[BaseEvent],
         handler: EventHandler,
     ) -> bool:
         """
@@ -188,11 +192,11 @@ class EventBus:
     # 工具方法
     # ========================================
 
-    def has_subscribers(self, event_type: Type[BaseEvent]) -> bool:
+    def has_subscribers(self, event_type: type[BaseEvent]) -> bool:
         """检查事件类型是否有订阅者"""
         return len(self._subscribers.get(event_type, [])) > 0
 
-    def subscriber_count(self, event_type: Type[BaseEvent]) -> int:
+    def subscriber_count(self, event_type: type[BaseEvent]) -> int:
         """获取事件类型的订阅者数量"""
         return len(self._subscribers.get(event_type, []))
 

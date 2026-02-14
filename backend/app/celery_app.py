@@ -68,8 +68,10 @@ celery_app.conf.task_routes = {
 celery_app.conf.task_modules = [
     "app.tasks",
     "app.tasks.scheduled",
+    "app.tasks.recycle_bin",
     "app.tasks.ai_health_check",
     "app.tasks.agent_batch",
+    "app.ai.rag.processor",
 ]
 
 # ========================================
@@ -110,6 +112,12 @@ celery_app.conf.beat_schedule = {
     "reset-agent-daily-stats": {
         "task": "app.tasks.scheduled.reset_agent_daily_stats",
         "schedule": 86400.0,
+        "options": {"queue": "scheduled"},
+    },
+    "cleanup-recycle-bin": {
+        "task": "app.tasks.recycle_bin.cleanup_recycle_bin",
+        "schedule": 86400.0,
+        "kwargs": {"retention_days": 30},
         "options": {"queue": "scheduled"},
     },
 }

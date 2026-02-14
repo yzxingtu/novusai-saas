@@ -1,0 +1,32 @@
+{# ============================================================
+   Jinja2 Template: 后端中文 messages JSON
+   生成路径: 追加到 app/locales/zh_CN/messages.json
+
+   变量:
+     - config: CrudConfig
+     - module_snake: snake_case
+     - display_name: str
+   ============================================================ #}
+{
+  "{{ module_snake }}": {
+    "not_found": "{{ display_name }}不存在",
+    "created": "{{ display_name }}创建成功",
+    "updated": "{{ display_name }}更新成功",
+    "deleted": "{{ display_name }}删除成功",
+    "error": {
+      "not_found": "{{ display_name }}不存在",
+      "name_exists": "{{ display_name }}名称已存在",
+      "create_failed": "{{ display_name }}创建失败",
+      "update_failed": "{{ display_name }}更新失败",
+      "delete_failed": "{{ display_name }}删除失败"
+{% if config.has_status_toggle %}
+      ,"toggle_failed": "状态切换失败"
+{% endif %}
+    },
+    "field": {
+{% for field in fields %}
+      "{{ field.name }}": "{{ field.label_zh }}"{{ ',' if not loop.last }}
+{% endfor %}
+    }
+  }
+}

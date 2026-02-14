@@ -107,7 +107,7 @@ class TenantConfigController(TenantController):
     """
     
     prefix = "/configs"
-    tags = ["租户配置"]
+    tags = ["Tenant Configuration"]
     
     def _register_routes(self) -> None:
         """注册路由"""

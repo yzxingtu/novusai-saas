@@ -2,6 +2,7 @@
   "title": "AI Management",
   "model": {
     "title": "Available Models",
+    "pageDesc": "View AI models available to your tenant, including capabilities and pricing.",
     "name": "Model Name",
     "code": "Model Code",
     "type": "Type",
@@ -31,6 +32,7 @@
   },
   "apiKey": {
     "title": "API Key Management",
+    "pageDesc": "Manage tenant API keys. Each key is bound to a provider for AI call authentication.",
     "name": "Key Name",
     "providerId": "Provider",
     "providerName": "Provider",
@@ -55,6 +57,7 @@
   },
   "usage": {
     "title": "Usage Statistics",
+    "pageDesc": "View AI call volume, token consumption, and cost trend charts for your tenant.",
     "summary": {
       "totalTokens": "Total Tokens",
       "totalCost": "Total Cost",
@@ -75,6 +78,7 @@
   },
   "callLog": {
     "title": "Call Logs",
+    "pageDesc": "View all AI call records in your tenant, including status, usage, and error details.",
     "requestType": "Request Type",
     "inputTokens": "Input Tokens",
     "outputTokens": "Output Tokens",
@@ -107,6 +111,7 @@
   },
   "quota": {
     "title": "Quota Management",
+    "pageDesc": "Set model token usage quotas. Soft limits warn only; hard limits reject excess requests.",
     "modelId": "Model",
     "modelName": "Model Name",
     "period": "Period",
@@ -150,7 +155,10 @@
   },
   "agent": {
     "title": "Agent Management",
+    "pageDesc": "Create and manage agents. Configure model, tools, and knowledge base, then publish. Supports versioning and rollback.",
+    "system": "System",
     "name": "Agent Name",
+    "avatar": "Avatar",
     "description": "Description",
     "status": "Status",
     "executionMode": "Execution Mode",
@@ -162,8 +170,20 @@
     "welcomeMessage": "Welcome Message",
     "suggestedQuestions": "Suggested Questions (JSON)",
     "toolBindings": "Tool Bindings (JSON)",
+    "skillBindings": "Skill Bindings",
+    "skillPackageBindings": "Skill Package Bindings",
     "createdAt": "Created At",
     "create": "Create Agent",
+    "wizard": {
+      "step1": "Basic Info",
+      "step1Desc": "Name, model, mode",
+      "step2": "Generation",
+      "step2Desc": "Params, welcome, tools",
+      "step3": "Knowledge & Context",
+      "step3Desc": "KB, RAG, variables",
+      "step4": "Quotas",
+      "step4Desc": "Usage limits"
+    },
     "publish": "Publish",
     "confirmDelete": "Are you sure to delete this agent?",
     "status_options": {
@@ -191,12 +211,34 @@
       "inputTopP": "0-1, used together with temperature",
       "inputWelcomeMessage": "Welcome message shown when user starts a conversation",
       "inputSuggestedQuestions": "JSON array format, e.g.: [\"Question 1\", \"Question 2\"]",
-      "inputToolBindings": "JSON array format, e.g.: [{'{'}\"tool_id\": 1{'}'}]"
+      "inputToolBindings": "JSON array format, e.g.: [{'{'}\"tool_id\": 1{'}'}]",
+      "selectSkills": "Select skills to bind",
+      "selectSkillPackages": "Select skill packages to bind"
     },
     "help": {
+      "temperature": "Controls output randomness. 0 = deterministic, 2 = highly random. Recommended: 0~0.3 for precise tasks, 0.7~1.2 for creative writing",
+      "maxTokens": "Maximum tokens per response. Leave empty for model default. ~2 tokens per Chinese character",
+      "topP": "Nucleus sampling parameter, works with temperature to control diversity. Usually keep at 1, avoid adjusting both simultaneously",
+      "welcomeMessage": "Auto-displayed when user opens a new conversation. Leave empty to skip",
       "suggestedQuestions": "Shown to users when starting a new conversation, helping them get started quickly",
       "toolBindings": "Bind tools the agent can invoke during conversations, each item contains a tool_id field",
-      "inputVariables": "Define variables users fill in before starting a conversation, useful for prompt templates"
+      "skillBindings": "Select skills the agent can use. Skills include knowledge base, data intelligence, HTTP calls, and more",
+      "skillPackageBindings": "Select skill packages the agent can use. Each package contains multiple skills, and the agent will gain all skills within the bound packages",
+      "inputVariables": "Define variables users fill in before starting a conversation, useful for prompt templates",
+      "dataIntelligenceEnabled": "When enabled, the agent can use Text-to-SQL to query data and execute business actions",
+      "contextMaxHistoryMessages": "Number of recent messages to keep as context. More context = richer but higher token cost",
+      "contextMaxHistoryTokens": "Max tokens for history messages. 0 = no extra limit, controlled by message count only",
+      "quotaConversationsPerDay": "Max conversations per day for this agent, 0 = unlimited",
+      "quotaTokensPerDay": "Max tokens consumed per day for this agent, 0 = unlimited",
+      "quotaTokensPerMonth": "Max tokens consumed per month for this agent, 0 = unlimited",
+      "quotaMaxTurns": "Max back-and-forth turns per conversation. Exceeded = prompt user to start new chat",
+      "quotaMaxConcurrent": "Max simultaneous active conversations for this agent",
+      "quotaUserConversationsPerDay": "Max conversations per user per day with this agent, 0 = unlimited",
+      "ragTopK": "Number of most relevant document chunks returned per retrieval. Higher = more references but may introduce noise",
+      "ragScoreThreshold": "Results scoring below this threshold are discarded. Higher = stricter, recommended 0.3~0.7",
+      "ragSearchMode": "Vector search for semantic similarity, keyword for exact match, hybrid combines both",
+      "ragRewriteStrategy": "Rewrites user query to improve retrieval. Hypothetical generates an imagined answer, Step Back generalizes the question",
+      "ragContextTokenRatio": "Max ratio of total context budget for KB content. E.g., 0.3 = at most 30% of token budget"
     },
     "inputVariables": {
       "title": "Input Variables",
@@ -207,10 +249,41 @@
       "title": "Context Window",
       "maxHistoryMessages": "Max History Messages",
       "maxHistoryTokens": "Max History Tokens",
+      "dataIntelligenceEnabled": "Data Intelligence",
       "placeholder": {
         "maxHistoryMessages": "Default 20, 0 uses system default",
         "maxHistoryTokens": "0 = no limit"
       }
+    },
+    "knowledgeBase": {
+      "title": "Knowledge Base (RAG)",
+      "selectLabel": "Knowledge Bases",
+      "selectPlaceholder": "Select knowledge bases",
+      "selectHelp": "Select knowledge bases for the agent to retrieve, supports multiple",
+      "ragEnabled": "Enable RAG Retrieval",
+      "ragEnabledHelp": "When enabled, automatically retrieves relevant content from linked knowledge bases",
+      "topK": "Retrieval Count (Top-K)",
+      "topKPlaceholder": "Number of chunks returned per retrieval",
+      "scoreThreshold": "Score Threshold",
+      "scoreThresholdPlaceholder": "0-1, results below this score will be filtered",
+      "searchMode": "Search Mode",
+      "searchModePlaceholder": "Select search mode",
+      "searchModeOptions": {
+        "vector": "Vector Search",
+        "keyword": "Keyword Search",
+        "hybrid": "Hybrid Search"
+      },
+      "rewriteStrategy": "Query Rewrite Strategy",
+      "rewritePlaceholder": "Select rewrite strategy",
+      "rewriteOptions": {
+        "none": "None",
+        "hypothetical": "Hypothetical Document",
+        "step_back": "Step Back"
+      },
+      "rerankerEnabled": "Enable Reranker",
+      "rerankerEnabledHelp": "Re-ranks retrieval results for improved accuracy",
+      "contextTokenRatio": "Context Token Ratio",
+      "contextTokenRatioPlaceholder": "0-1, max ratio of context occupied by KB content"
     },
     "quotaConfig": {
       "title": "Quota Settings",
@@ -309,6 +382,7 @@
   },
   "conversation": {
     "title": "Title",
+    "pageDesc": "Manage agent conversation records. View details, archive, and perform batch operations.",
     "pageTitle": "Conversations",
     "agentName": "Agent",
     "status": "Status",
@@ -348,57 +422,9 @@
       "batchArchiveSuccess": "{count} conversations archived"
     }
   },
-  "tool": {
-    "title": "Tool Management",
-    "name": "Tool Name",
-    "type": "Type",
-    "description": "Description",
-    "inputSchema": "Input Schema (JSON)",
-    "config": "Config (JSON)",
-    "timeout": "Timeout (s)",
-    "isSystem": "Source",
-    "isActive": "Status",
-    "createdAt": "Created At",
-    "systemTag": "System",
-    "customTag": "Custom",
-    "create": "Add Tool",
-    "testExecute": "Test Execute",
-    "confirmDelete": "Are you sure to delete this tool?",
-    "type_options": {
-      "http": "HTTP",
-      "database": "Database Query",
-      "email": "Email",
-      "builtin": "Built-in"
-    },
-    "placeholder": {
-      "searchName": "Search tool name",
-      "allTypes": "All Types",
-      "inputName": "Enter tool name",
-      "selectType": "Select tool type",
-      "inputDescription": "Enter tool description",
-      "inputTimeout": "Timeout in seconds (1-300)",
-      "inputSchema": "JSON Schema format, e.g.: {\"type\": \"object\", \"properties\": {}}",
-      "inputConfig": "Tool runtime config, JSON format"
-    },
-    "test": {
-      "arguments": "Arguments",
-      "argumentsPlaceholder": "Enter arguments in JSON format",
-      "run": "Execute",
-      "success": "Success",
-      "failed": "Failed",
-      "output": "Output",
-      "errorDetail": "Error Detail",
-      "invalidJson": "Invalid JSON format, please enter valid JSON",
-      "executeFailed": "Tool test execution failed"
-    },
-    "messages": {
-      "createSuccess": "Tool created successfully",
-      "updateSuccess": "Tool updated successfully",
-      "deleteSuccess": "Tool deleted"
-    }
-  },
   "chat": {
     "title": "Agent Chat",
+    "pageDesc": "Chat with agents. Select one from the left to start a new or continue an existing conversation.",
     "selectAgent": "Select Agent",
     "noAgents": "No agents available",
     "newConversation": "New Chat",
@@ -413,10 +439,173 @@
     "welcomeTitle": "Start a Conversation",
     "welcomeDesc": "Select an agent from the sidebar to begin a new conversation",
     "stopGeneration": "Stop",
-    "copySuccess": "Copied"
+    "copySuccess": "Copied",
+    "ragSources": "References",
+    "ragSourceCount": "{count} sources",
+    "toolSuccess": "Done",
+    "toolFailed": "Failed",
+    "toolRunning": "Running...",
+    "optimizingTools": "Optimized tool selection: {selected} of {total} tools selected",
+    "generating": "Generating response...",
+    "addAttachment": "Add Attachment",
+    "uploadFailed": "File upload failed",
+    "file": "File"
+  },
+  "data": {
+    "rowCount": "{count} rows",
+    "queryTime": "{ms}ms",
+    "tableView": "Table",
+    "chartView": "Chart",
+    "sqlView": "SQL",
+    "noChartData": "Insufficient data for chart"
+  },
+  "actionLog": {
+    "title": "Action Audit",
+    "pageDesc": "View all agent-executed operations including SQL queries and business action audit details.",
+    "actionName": "Action Name",
+    "actionType": "Action Type",
+    "status": "Status",
+    "agentName": "Agent",
+    "createdAt": "Executed At",
+    "executionTime": "Duration (ms)",
+    "sqlStatement": "SQL Statement",
+    "resultSummary": "Result Summary",
+    "errorMessage": "Error Message",
+    "viewDetail": "View Detail",
+    "stats": {
+      "title": "Audit Statistics",
+      "totalActions": "Total Actions",
+      "successRate": "Success Rate",
+      "todayActions": "Today",
+      "typeDistribution": "Type Distribution"
+    },
+    "type_options": {
+      "query": "Data Query",
+      "action": "Business Action",
+      "confirm": "Confirm Action"
+    },
+    "status_options": {
+      "success": "Success",
+      "failed": "Failed",
+      "rejected": "Rejected",
+      "pending": "Pending"
+    },
+    "placeholder": {
+      "searchName": "Search action name",
+      "allTypes": "All Types",
+      "allStatuses": "All Statuses"
+    }
+  },
+  "action": {
+    "confirmTitle": "Action Confirmation",
+    "confirmWarning": "The AI agent requests to perform the following action. Please confirm to proceed.",
+    "name": "Action Name",
+    "description": "Description",
+    "level": "Safety Level",
+    "params": "Parameters",
+    "countdown": "Auto-cancel in {seconds}s",
+    "reject": "Reject",
+    "confirmExecute": "Confirm"
+  },
+  "guide": {
+    "title": "🚀 AI Agent Quick Start",
+    "subtitle": "Follow these steps to create and publish an agent, then start chatting",
+    "dismiss": "Don't show again",
+    "showGuide": "Quick Start",
+    "totalTime": "Estimated total time: 10~15 minutes",
+    "step1": {
+      "title": "Create Agent",
+      "desc": "Configure name, model, system prompt, and basic settings",
+      "detail": "Select an AI model, write a system prompt to define the agent's role and behavior, adjust generation parameters like temperature",
+      "time": "~3 min"
+    },
+    "step2": {
+      "title": "Bind Tools & Knowledge Base",
+      "desc": "Optional: bind tools for extended capabilities, link knowledge bases for RAG",
+      "detail": "Create HTTP/database tools for external service calls; upload documents to knowledge bases and bind them for document Q&A",
+      "time": "~5 min"
+    },
+    "step3": {
+      "title": "Publish Agent",
+      "desc": "Publishing creates a version snapshot, users can then start chatting",
+      "detail": "Click publish to create a version snapshot. You can roll back to previous versions anytime; changes require re-publishing",
+      "time": "~1 min"
+    },
+    "step4": {
+      "title": "Start Chatting",
+      "desc": "Go to the chat page, select an agent and begin a conversation",
+      "detail": "Select a published agent on the chat page and test conversations. View RAG sources and tool call logs inline",
+      "time": "~2 min"
+    }
+  },
+  "guidePage": {
+    "title": "AI Agent Guide",
+    "subtitle": "Learn the core capabilities of the AI module and get started quickly",
+    "featuresTitle": "Core Capabilities",
+    "features": {
+      "chat": {
+        "title": "Intelligent Chat",
+        "desc": "Multi-turn conversations with AI agents, supporting context memory, tool calling, and streaming output"
+      },
+      "sql": {
+        "title": "Data Intelligence (Text-to-SQL)",
+        "desc": "Query business data with natural language. AI generates safe SQL and visualizes results automatically"
+      },
+      "rag": {
+        "title": "Document Q&A (RAG)",
+        "desc": "Upload documents to knowledge bases. Agents answer questions based on document content with hybrid retrieval"
+      }
+    },
+    "quickStartTitle": "Quick Start",
+    "quickStart": {
+      "step1": {
+        "title": "Create an Agent",
+        "desc": "Select a model, write a system prompt, configure temperature and other parameters"
+      },
+      "step2": {
+        "title": "Create Tools (Optional)",
+        "desc": "Configure HTTP, database, and other tools to let agents call external services"
+      },
+      "step3": {
+        "title": "Create Knowledge Base (Optional)",
+        "desc": "Upload documents for auto-parsing, chunking, and vectorization. Bind to agents for document Q&A"
+      },
+      "step4": {
+        "title": "Publish the Agent",
+        "desc": "Click publish to create a version snapshot. Users can then start using the agent"
+      },
+      "step5": {
+        "title": "Start Chatting",
+        "desc": "Select a published agent on the chat page and test conversation quality"
+      }
+    },
+    "faqTitle": "FAQ",
+    "faq": {
+      "faq1": {
+        "q": "How do I enable knowledge base Q&A for an agent?",
+        "a": "Create a knowledge base and upload documents. Once processing completes, select the knowledge base in the agent's Knowledge Base section, enable RAG, and publish."
+      },
+      "faq2": {
+        "q": "What does the temperature parameter do?",
+        "a": "Temperature controls response randomness. 0 is most deterministic (good for data queries), 0.7 is balanced (general chat), 1.0+ is more creative (writing tasks)."
+      },
+      "faq3": {
+        "q": "How does tool calling work?",
+        "a": "When an agent determines it needs to call a tool during conversation, it automatically sends requests. HTTP tools call external APIs, database tools execute queries. Results are injected into the conversation context."
+      },
+      "faq4": {
+        "q": "How do I limit agent usage?",
+        "a": "In the agent edit page's Quota Settings section, configure daily conversation limits, daily/monthly token limits, max concurrency, etc. New requests are rejected once quotas are exceeded."
+      },
+      "faq5": {
+        "q": "What document formats are supported?",
+        "a": "Knowledge bases support PDF, Word (.docx), Markdown (.md), plain text (.txt), and CSV file uploads."
+      }
+    }
   },
   "rateLimit": {
     "title": "Rate Limits",
+    "pageDesc": "Set model call rate limits. RPM limits requests per minute; TPM limits tokens per minute.",
     "modelId": "Model",
     "modelName": "Model Name",
     "rpmLimit": "RPM Limit",
@@ -438,6 +627,196 @@
       "createSuccess": "Rate limit created successfully",
       "updateSuccess": "Rate limit updated successfully",
       "deleteSuccess": "Rate limit deleted"
+    }
+  },
+  "tablePolicy": {
+    "title": "Data Access Policies",
+    "pageDesc": "View and override AI data access policies. Overrides can only restrict (tighten), not expand.",
+    "tableName": "Table Name",
+    "label": "Display Name",
+    "allowRead": "Read",
+    "allowCreate": "Create",
+    "allowUpdate": "Update",
+    "allowDelete": "Delete",
+    "maxRows": "Max Rows",
+    "blockedColumns": "Blocked Columns",
+    "scope": "Scope",
+    "hasOverride": "Overridden",
+    "globalDefault": "Global Default",
+    "overridden": "Overridden",
+    "editOverride": "Edit Override",
+    "resetOverride": "Reset to Default",
+    "resetConfirm": "Reset to global default policy? Current override will be removed.",
+    "placeholder": {
+      "searchTable": "Search table name"
+    },
+    "messages": {
+      "overrideSuccess": "Policy override saved",
+      "resetSuccess": "Reset to global default policy"
+    }
+  },
+  "skillPackage": {
+    "title": "Skill Packages",
+    "pageDesc": "Manage skill packages. Each package contains multiple skills and can be assigned to agents as a whole.",
+    "system": "System",
+    "name": "Package Name",
+    "description": "Description",
+    "skillCount": "Skills",
+    "isActive": "Status",
+    "scope": "Scope",
+    "sortOrder": "Sort Order",
+    "create": "New Skill Package",
+    "scope_options": {
+      "tenant": "Tenant",
+      "global": "Global"
+    },
+    "placeholder": {
+      "searchName": "Search package name",
+      "inputName": "Enter package name",
+      "inputDescription": "Enter description"
+    },
+    "uploadZip": "Upload Skill Package",
+    "uploadDragText": "Click or drag a ZIP file here to upload",
+    "uploadDesc": "Supports standard skill package ZIP files containing SKILL.md",
+    "messages": {
+      "toggleSuccess": "Package status updated",
+      "uploadSuccess": "Skill package uploaded successfully",
+      "uploading": "Uploading..."
+    },
+    "detail": {
+      "title": "Package Details",
+      "skills": "Skills in Package",
+      "empty": "No skills yet, click the button above to add"
+    },
+    "valves": {
+      "configBtn": "Env Config",
+      "title": "Environment Variable Configuration",
+      "description": "Configure the environment variables required by this skill package. Fields marked in red are required. Sensitive values (like secrets) are displayed as password fields.",
+      "required": "Required",
+      "sensitiveHint": "Sensitive information, keep it safe",
+      "noSchema": "This skill package has no configurable environment variables",
+      "saveSuccess": "Environment variable configuration saved"
+    }
+  },
+  "skill": {
+    "title": "Skill Management",
+    "pageDesc": "Create and manage skills. Skills are capability units that can be bound to agents to extend their functionality.",
+    "system": "System",
+    "name": "Skill Name",
+    "type": "Type",
+    "scope": "Scope",
+    "description": "Description",
+    "config": "Config (JSON)",
+    "inputSchema": "Input Schema (JSON)",
+    "timeout": "Timeout (s)",
+    "isActive": "Status",
+    "sortOrder": "Sort Order",
+    "createdAt": "Created At",
+    "create": "Add Skill",
+    "testBtn": "Test",
+    "testFailed": "Test request failed, please try again later",
+    "scopeTenant": "Tenant",
+    "scopeAdmin": "Platform",
+    "type_options": {
+      "toolkit": "Toolkit",
+      "knowledge_base": "Knowledge Base",
+      "data_intelligence": "Data Intelligence",
+      "builtin": "Builtin"
+    },
+    "typeDesc": {
+      "toolkit": "Python Toolkit: Write a Tools class in the editor below. Each method is auto-registered as an LLM-callable tool. Supports Valves config and ZIP upload.",
+      "knowledge_base": "RAG Document Q&A: Link one or more knowledge bases. The agent will auto-retrieve relevant context during conversations. Select knowledge bases and tune retrieval parameters below.",
+      "data_intelligence": "Data Intelligence: Query databases via natural language using Text-to-SQL, with CRUD support. Select accessible table policies below to control data scope.",
+      "builtin": "Built-in Tools: System-predefined tools (e.g. date calculation, math), not editable. View the tool list below after creation."
+    },
+    "knowledgeBaseConfig": {
+      "title": "Knowledge Base Config",
+      "selectKb": "Knowledge Bases",
+      "selectKbPlaceholder": "Select knowledge bases",
+      "selectKbHelp": "Select knowledge bases this skill can access, multiple allowed",
+      "ragEnabled": "Enable RAG",
+      "topK": "Top K",
+      "scoreThreshold": "Score Threshold",
+      "searchMode": "Search Mode",
+      "rewriteStrategy": "Rewrite Strategy",
+      "rerankerEnabled": "Enable Reranker",
+      "contextTokenRatio": "Context Token Ratio",
+      "searchModeOptions": {
+        "vector": "Vector Search",
+        "keyword": "Keyword Search",
+        "hybrid": "Hybrid Search"
+      },
+      "rewriteOptions": {
+        "none": "None",
+        "hypothetical": "Hypothetical Document",
+        "step_back": "Step Back"
+      }
+    },
+    "builtinTools": {
+      "title": "Built-in Tools",
+      "hint": "Built-in tools are system-defined and read-only. Tool list is shown below.",
+      "toolList": "Tool List"
+    },
+    "toolkitEditor": {
+      "title": "Toolkit Editor",
+      "sourceCode": "Source",
+      "preview": "Parse Preview",
+      "tools": "Tool Methods",
+      "valves": "Valves Config",
+      "noTools": "No tool methods detected",
+      "noValves": "No Valves config defined",
+      "parameters": "Parameters",
+      "required": "Required",
+      "optional": "Optional",
+      "async": "Async",
+      "type": "Type",
+      "default": "Default",
+      "errors": "Parse Errors",
+      "parsing": "Parsing...",
+      "templateBlank": "Blank Template",
+      "templateExample": "Example Template",
+      "uploadFile": "Upload File",
+      "properties": "Properties",
+      "requiredFields": "Required Fields",
+      "onlyPyFiles": "Only .py files are supported"
+    },
+    "dataIntelligenceConfig": {
+      "title": "Data Intelligence Config",
+      "tablePolicies": "Table Policies",
+      "tablePoliciesPlaceholder": "Select accessible table policies",
+      "tablePoliciesHelp": "Select data table policies this skill can access, leave empty to use all available",
+      "maxRowsOverride": "Max Rows",
+      "maxRowsOverrideHelp": "Override default query row limit, 0 means use default",
+      "systemHint": "This is a system-wide shared skill that automatically uses all configured table policies.",
+      "toolListTitle": "Available Tools",
+      "tools": {
+        "dataQuery": "Query database using natural language, auto-generates safe SQL and returns results",
+        "dataCreate": "Insert new records into the specified table",
+        "dataUpdate": "Update existing records in the specified table",
+        "dataDelete": "Delete records from the specified table"
+      }
+    },
+    "placeholder": {
+      "searchName": "Search skill name",
+      "allTypes": "All types",
+      "inputName": "Enter skill name",
+      "selectType": "Select skill type",
+      "inputDescription": "Enter skill description",
+      "inputTimeout": "Timeout in seconds (1-300)",
+      "inputConfig": "Skill configuration in JSON format",
+      "inputSchema": "JSON Schema format"
+    },
+    "createGuide": "A skill is a capability unit for agents, belonging to a skill package. Select a type and configure parameters as guided, then bind it to an agent to use.",
+    "help": {
+      "type": "Toolkit: custom Python tools; Knowledge Base: RAG document Q&A; Data Intelligence: database query & CRUD; Builtin: system-predefined tools",
+      "config": "Runtime configuration for the skill. Different types have different config structures",
+      "inputSchema": "Define the parameter structure the skill accepts (OpenAI Function Calling format)",
+      "timeout": "Maximum execution time for the skill, auto-terminates on timeout"
+    },
+    "messages": {
+      "createSuccess": "Skill created successfully",
+      "updateSuccess": "Skill updated successfully",
+      "deleteSuccess": "Skill deleted"
     }
   }
 }

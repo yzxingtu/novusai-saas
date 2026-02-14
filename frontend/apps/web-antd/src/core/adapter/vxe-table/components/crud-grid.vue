@@ -6,9 +6,9 @@
  */
 import { computed, useAttrs, useSlots } from 'vue';
 
-import { Download } from '@vben/icons';
+import { Download, IconifyIcon } from '@vben/icons';
 
-import { Button, Tooltip } from 'ant-design-vue';
+import { Badge, Button, Tooltip } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
@@ -28,6 +28,12 @@ interface Props {
   showExport?: boolean;
   /** 导出按钮点击回调 */
   onExport?: () => void;
+  /** 是否显示回收站按钮 */
+  showRecycleBin?: boolean;
+  /** 回收站记录数量 */
+  recycleBinCount?: number;
+  /** 回收站按钮点击回调 */
+  onRecycleBin?: () => void;
 }
 
 const attrs = useAttrs();
@@ -67,6 +73,19 @@ const hasToolbarToolsSlot = computed(() => 'toolbar-tools' in slots);
         name="toolbar-tools"
         v-bind="slotProps || {}"
       ></slot>
+      <Tooltip v-if="showRecycleBin" :title="$t('common.recycleBin.title')">
+        <Badge :count="props.recycleBinCount" :offset="[-4, 4]" size="small">
+          <Button
+            shape="circle"
+            class="ml-2"
+            @click="props.onRecycleBin"
+          >
+            <template #icon>
+              <IconifyIcon icon="lucide:trash-2" class="size-4" />
+            </template>
+          </Button>
+        </Badge>
+      </Tooltip>
       <Tooltip v-if="showExport" :title="$t('common.export')">
         <Button
           type="primary"

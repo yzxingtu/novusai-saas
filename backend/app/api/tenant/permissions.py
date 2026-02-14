@@ -32,7 +32,7 @@ class TenantPermissionController(TenantController):
     """
     
     prefix = "/permissions"
-    tags = ["租户权限管理"]
+    tags = ["Permission Management (Tenant)"]
     
     def _register_routes(self) -> None:
         """注册路由"""

@@ -11,7 +11,18 @@ import { requestClient } from '#/utils/request';
 // ============================================================
 
 /** 供应商类型 */
-export type ProviderType = 'openai_compatible';
+export type ProviderType = string;
+
+/** 适配器类型信息 */
+export interface AdapterTypeInfo {
+  type: string;
+  source: 'builtin' | 'plugin';
+  plugin_name?: null | string;
+  display_name: string;
+  icon?: null | string;
+  supports?: Record<string, boolean>;
+  models?: Array<{ code: string; name: string }>;
+}
 
 /** AI 供应商信息 */
 export interface AIProviderInfo {
@@ -221,6 +232,16 @@ export async function getAIProviderListApi(
   return requestClient.get<PageResponse<AIProviderInfo>>(
     PROVIDER_PREFIX,
     { params, ...options },
+  );
+}
+
+/** 获取可用适配器类型列表（内置 + 插件） */
+export async function getAdapterTypesApi(
+  options?: ApiRequestOptions,
+): Promise<AdapterTypeInfo[]> {
+  return requestClient.get<AdapterTypeInfo[]>(
+    `${PROVIDER_PREFIX}/adapter-types`,
+    options,
   );
 }
 
@@ -661,62 +682,53 @@ export interface TestAIGatewayResult {
 /** 智能体信息 */
 export interface AIAgentInfo {
   id: number;
-  tenant_id: number;
+  tenant_id: number | null;
   name: string;
   description: null | string;
   avatar: null | string;
+  scope: string;
   status: string;
   execution_mode: string;
+  is_system: boolean;
   model_id: number;
   model_name: null | string;
   published_version: null | number;
+  system_prompt: null | string;
+  temperature: number;
+  max_tokens: number;
+  knowledge_base_ids: number[] | null;
+  tool_ids: number[] | null;
   created_at: string;
   updated_at: string;
 }
 
-// ============================================================
-// 类型定义 - 工具定义管理
-// ============================================================
-
-/** 工具定义信息 */
-export interface AIToolInfo {
-  id: number;
-  tenant_id: null | number;
-  name: string;
-  description: null | string;
-  type: string;
-  is_system: boolean;
-  is_active: boolean;
-  timeout: number;
-  input_schema: null | Record<string, unknown>;
-  output_schema: null | Record<string, unknown>;
-  config: null | Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
-}
-
-/** 创建系统工具请求 */
-export interface AIToolCreateRequest {
+/** 创建智能体请求 */
+export interface AIAgentCreateRequest {
   name: string;
   description?: null | string;
-  type?: string;
-  input_schema?: null | Record<string, unknown>;
-  output_schema?: null | Record<string, unknown>;
-  config?: null | Record<string, unknown>;
-  timeout?: number;
-  is_active?: boolean;
+  scope: string;
+  tenant_id?: number | null;
+  model_id: number;
+  execution_mode?: string;
+  system_prompt?: null | string;
+  temperature?: number;
+  max_tokens?: number;
+  knowledge_base_ids?: number[];
+  tool_ids?: number[];
 }
 
-/** 更新系统工具请求 */
-export interface AIToolUpdateRequest {
-  name?: null | string;
+/** 更新智能体请求 */
+export interface AIAgentUpdateRequest {
+  name?: string;
   description?: null | string;
-  type?: null | string;
-  input_schema?: null | Record<string, unknown>;
-  output_schema?: null | Record<string, unknown>;
-  config?: null | Record<string, unknown>;
-  timeout?: null | number;
-  is_active?: boolean | null;
+  scope?: string;
+  tenant_id?: number | null;
+  model_id?: number;
+  system_prompt?: null | string;
+  temperature?: number;
+  max_tokens?: number;
+  knowledge_base_ids?: number[];
+  tool_ids?: number[];
 }
 
 // ============================================================
@@ -760,77 +772,33 @@ export async function updateAIAgentStatusApi(
   );
 }
 
-// ============================================================
-// API 接口 - 工具定义管理（平台）
-// ============================================================
-
-const TOOL_PREFIX = '/admin/ai/tools';
-
-/** 获取工具定义列表 */
-export async function getAIToolListApi(
-  params?: Record<string, unknown>,
+/** 创建智能体 */
+export async function createAIAgentApi(
+  data: AIAgentCreateRequest,
   options?: ApiRequestOptions,
-): Promise<PageResponse<AIToolInfo>> {
-  return requestClient.get<PageResponse<AIToolInfo>>(
-    TOOL_PREFIX,
-    { params, ...options },
-  );
+): Promise<AIAgentInfo> {
+  return requestClient.post<AIAgentInfo>(AGENT_PREFIX, data, options);
 }
 
-/** 获取工具定义详情 */
-export async function getAIToolDetailApi(
+/** 更新智能体 */
+export async function updateAIAgentApi(
   id: number,
+  data: AIAgentUpdateRequest,
   options?: ApiRequestOptions,
-): Promise<AIToolInfo> {
-  return requestClient.get<AIToolInfo>(
-    `${TOOL_PREFIX}/${id}`,
-    options,
-  );
-}
-
-/** 创建系统工具 */
-export async function createAIToolApi(
-  data: AIToolCreateRequest,
-  options?: ApiRequestOptions,
-): Promise<AIToolInfo> {
-  return requestClient.post<AIToolInfo>(
-    TOOL_PREFIX,
+): Promise<AIAgentInfo> {
+  return requestClient.put<AIAgentInfo>(
+    `${AGENT_PREFIX}/${id}`,
     data,
     options,
   );
 }
 
-/** 更新系统工具 */
-export async function updateAIToolApi(
-  id: number,
-  data: AIToolUpdateRequest,
-  options?: ApiRequestOptions,
-): Promise<AIToolInfo> {
-  return requestClient.put<AIToolInfo>(
-    `${TOOL_PREFIX}/${id}`,
-    data,
-    options,
-  );
-}
-
-/** 删除系统工具 */
-export async function deleteAIToolApi(
+/** 删除智能体 */
+export async function deleteAIAgentApi(
   id: number,
   options?: ApiRequestOptions,
 ): Promise<void> {
-  await requestClient.delete(`${TOOL_PREFIX}/${id}`, options);
-}
-
-/** 切换工具状态 */
-export async function toggleAIToolStatusApi(
-  id: number,
-  options?: ApiRequestOptions,
-): Promise<AIToolInfo> {
-  return requestClient.put<AIToolInfo>(
-    `${TOOL_PREFIX}/${id}/status`,
-    {},
-    options,
-  );
+  await requestClient.delete(`${AGENT_PREFIX}/${id}`, options);
 }
 
 /** 测试 AI 模型连通性 */
@@ -992,4 +960,176 @@ export async function getAIConversationDetailApi(
     `${CONV_PREFIX}/${id}`,
     options,
   );
+}
+
+// ============================================================
+// 类型定义 - AI 表策略
+// ============================================================
+
+/** AI 表策略信息 */
+export interface AITablePolicyInfo {
+  id: number;
+  table_name: string;
+  label: string;
+  description: string | null;
+  keywords: string[] | null;
+  column_descriptions: Record<string, string> | null;
+  allow_read: boolean;
+  allow_create: boolean;
+  allow_update: boolean;
+  allow_delete: boolean;
+  max_rows: number;
+  blocked_columns: string[] | null;
+  readonly_columns: string[] | null;
+  permission_code: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 更新表策略请求 */
+export interface AITablePolicyUpdateRequest {
+  label?: string;
+  description?: string | null;
+  keywords?: string[] | null;
+  column_descriptions?: Record<string, string> | null;
+  allow_read?: boolean;
+  allow_create?: boolean;
+  allow_update?: boolean;
+  allow_delete?: boolean;
+  max_rows?: number;
+  blocked_columns?: string[] | null;
+  readonly_columns?: string[] | null;
+  permission_code?: string;
+  sort_order?: number;
+  is_active?: boolean;
+}
+
+/** 表列信息 */
+export interface TableColumnInfo {
+  name: string;
+  type: string;
+  comment: string;
+}
+
+// ============================================================
+// API 接口 - AI 表策略
+// ============================================================
+
+const TABLE_POLICY_PREFIX = '/admin/ai/table-policies';
+
+/** 获取表策略列表 */
+export async function getAITablePolicyListApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<PageResponse<AITablePolicyInfo>> {
+  return requestClient.get<PageResponse<AITablePolicyInfo>>(
+    TABLE_POLICY_PREFIX,
+    { params, ...options },
+  );
+}
+
+/** 获取表策略详情 */
+export async function getAITablePolicyDetailApi(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<AITablePolicyInfo> {
+  return requestClient.get<AITablePolicyInfo>(
+    `${TABLE_POLICY_PREFIX}/${id}`,
+    options,
+  );
+}
+
+/** 更新表策略 */
+export async function updateAITablePolicyApi(
+  id: number,
+  data: AITablePolicyUpdateRequest,
+  options?: ApiRequestOptions,
+): Promise<AITablePolicyInfo> {
+  return requestClient.put<AITablePolicyInfo>(
+    `${TABLE_POLICY_PREFIX}/${id}`,
+    data,
+    options,
+  );
+}
+
+/** 获取表的列信息 */
+export async function getAITablePolicyColumnsApi(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<TableColumnInfo[]> {
+  return requestClient.get<TableColumnInfo[]>(
+    `${TABLE_POLICY_PREFIX}/${id}/columns`,
+    options,
+  );
+}
+
+/** 触发表策略同步 */
+export async function syncAITablePoliciesApi(
+  options?: ApiRequestOptions,
+): Promise<Record<string, number>> {
+  return requestClient.post<Record<string, number>>(
+    `${TABLE_POLICY_PREFIX}/sync`,
+    {},
+    options,
+  );
+}
+
+// ============================================================
+// 技能管理 (Skill)
+// ============================================================
+
+const SKILL_PREFIX = '/admin/ai/skills';
+
+/** 技能信息 */
+export interface SkillInfo {
+  id: number;
+  tenant_id: null | number;
+  name: string;
+  description: null | string;
+  avatar: null | string;
+  type: string;
+  scope: string;
+  is_active: boolean;
+  sort_order: number;
+  timeout: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 获取技能列表 */
+export async function getSkillListApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+) {
+  return requestClient.get(SKILL_PREFIX, { params, ...options });
+}
+
+/** 获取技能详情 */
+export async function getSkillDetailApi(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<SkillInfo> {
+  return requestClient.get<SkillInfo>(`${SKILL_PREFIX}/${id}`, options);
+}
+
+/** 切换技能状态 */
+export async function toggleSkillStatusApi(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<SkillInfo> {
+  return requestClient.put<SkillInfo>(
+    `${SKILL_PREFIX}/${id}/status`,
+    {},
+    options,
+  );
+}
+
+/** 删除技能 */
+export async function deleteSkillApi(
+  id: number,
+  options?: ApiRequestOptions,
+) {
+  return requestClient.delete(`${SKILL_PREFIX}/${id}`, options);
 }

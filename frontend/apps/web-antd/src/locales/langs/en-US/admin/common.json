@@ -1,6 +1,9 @@
 {
   "operation": "Operation",
   "more": "More",
+  "edit": "Edit",
+  "delete": "Delete",
+  "confirmDelete": "Are you sure you want to delete?",
   "enable": "Enable",
   "disable": "Disable",
   "enabled": "Enabled",
@@ -13,5 +16,9 @@
   "accountStatus": "Account Status",
   "selectAll": "Select All",
   "unselectAll": "Unselect All",
-  "createdAt": "Created At"
+  "createdAt": "Created At",
+  "unlimited": "Unlimited",
+  "total": "Total",
+  "reset": "Reset",
+  "noData": "No data"
 }

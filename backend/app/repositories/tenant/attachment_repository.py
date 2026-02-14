@@ -64,7 +64,7 @@ class AttachmentRepository(TenantRepository[Attachment]):
             select(self.model).where(
                 self.model.tenant_id == self.tenant_id,
                 self.model.hash == file_hash,
-                self.model.is_deleted == False,
+                self.model.is_deleted.is_(False),
             )
         )
         return result.scalar_one_or_none()
@@ -77,7 +77,7 @@ class AttachmentRepository(TenantRepository[Attachment]):
             select(self.model).where(
                 self.model.tenant_id == self.tenant_id,
                 self.model.path == path,
-                self.model.is_deleted == False,
+                self.model.is_deleted.is_(False),
             )
         )
         return result.scalar_one_or_none()
@@ -89,7 +89,7 @@ class AttachmentRepository(TenantRepository[Attachment]):
         result = await self.db.execute(
             select(func.coalesce(func.sum(self.model.size), 0)).where(
                 self.model.tenant_id == self.tenant_id,
-                self.model.is_deleted == False,
+                self.model.is_deleted.is_(False),
             )
         )
         return int(result.scalar() or 0)

@@ -66,7 +66,7 @@ class BaseRepository(Generic[ModelType]):
         query = select(self.model).where(self.model.id == id)
         
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
@@ -92,7 +92,7 @@ class BaseRepository(Generic[ModelType]):
         query = select(self.model).where(self.model.id.in_(ids))
         
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         result = await self.db.execute(query)
         return list(result.scalars().all())
@@ -121,7 +121,7 @@ class BaseRepository(Generic[ModelType]):
         query = select(self.model)
         
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         # 应用过滤条件
         for key, value in filters.items():
@@ -158,7 +158,7 @@ class BaseRepository(Generic[ModelType]):
         query = select(func.count(self.model.id))
         
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         # 应用过滤条件
         for key, value in filters.items():
@@ -246,7 +246,7 @@ class BaseRepository(Generic[ModelType]):
         stmt = (
             update(self.model)
             .where(self.model.id.in_(ids))
-            .where(self.model.is_deleted == False)
+            .where(self.model.is_deleted.is_(False))
             .values(**data)
         )
         result = await self.db.execute(stmt)
@@ -301,7 +301,7 @@ class BaseRepository(Generic[ModelType]):
             stmt = (
                 update(self.model)
                 .where(self.model.id.in_(ids))
-                .where(self.model.is_deleted == False)
+                .where(self.model.is_deleted.is_(False))
                 .values(is_deleted=True)
             )
         else:
@@ -328,7 +328,7 @@ class BaseRepository(Generic[ModelType]):
         query = select(func.count(self.model.id)).where(self.model.id == id)
         
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         result = await self.db.execute(query)
         count = result.scalar() or 0
@@ -352,7 +352,7 @@ class BaseRepository(Generic[ModelType]):
         query = select(self.model)
         
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         for key, value in filters.items():
             if hasattr(self.model, key) and value is not None:
@@ -540,9 +540,11 @@ class BaseRepository(Generic[ModelType]):
                 case FilterOp.gte:
                     predicates.append(col >= v1)
                 case FilterOp.like:
-                    predicates.append(col.like(f"%{v1}%"))
+                    escaped = str(v1).replace("%", r"\%").replace("_", r"\_")
+                    predicates.append(col.like(f"%{escaped}%", escape="\\"))
                 case FilterOp.ilike:
-                    predicates.append(col.ilike(f"%{v1}%"))
+                    escaped = str(v1).replace("%", r"\%").replace("_", r"\_")
+                    predicates.append(col.ilike(f"%{escaped}%", escape="\\"))
                 case FilterOp.in_:
                     # 支持逗号分隔的字符串或列表
                     if isinstance(v1, str):
@@ -645,7 +647,7 @@ class BaseRepository(Generic[ModelType]):
         
         # 应用软删除过滤
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         # 先应用强制过滤条件（不受 scope 限制）
         if forced_filters:
@@ -750,7 +752,7 @@ class BaseRepository(Generic[ModelType]):
             return items, len(items)
         
         # 列表模式
-        query = select(self.model).where(self.model.is_deleted == False)
+        query = select(self.model).where(self.model.is_deleted.is_(False))
         
         # 应用额外过滤条件
         if filters:
@@ -760,11 +762,12 @@ class BaseRepository(Generic[ModelType]):
         
         # 应用搜索条件（OR 多字段）
         if search:
+            escaped_search = str(search).replace("%", r"\%").replace("_", r"\_")
             search_predicates = []
             for field_name in search_fields:
                 if hasattr(self.model, field_name):
                     col = getattr(self.model, field_name)
-                    search_predicates.append(col.ilike(f"%{search}%"))
+                    search_predicates.append(col.ilike(f"%{escaped_search}%", escape="\\"))
             if search_predicates:
                 query = query.where(or_(*search_predicates))
         
@@ -821,7 +824,7 @@ class BaseRepository(Generic[ModelType]):
         # 懒加载模式：仅返回指定父节点的直接子节点
         if parent_id is not None:
             query = select(self.model).where(
-                self.model.is_deleted == False,
+                self.model.is_deleted.is_(False),
                 getattr(self.model, parent_field) == parent_id,
             )
             
@@ -845,7 +848,7 @@ class BaseRepository(Generic[ModelType]):
             )
         
         # 全量树模式：返回完整树结构
-        query = select(self.model).where(self.model.is_deleted == False)
+        query = select(self.model).where(self.model.is_deleted.is_(False))
         
         # 应用额外过滤条件
         if filters:
@@ -855,11 +858,12 @@ class BaseRepository(Generic[ModelType]):
         
         # 应用搜索条件
         if search:
+            escaped_search = str(search).replace("%", r"\%").replace("_", r"\_")
             search_predicates = []
             for field_name in search_fields:
                 if hasattr(self.model, field_name):
                     col = getattr(self.model, field_name)
-                    search_predicates.append(col.ilike(f"%{search}%"))
+                    search_predicates.append(col.ilike(f"%{escaped_search}%", escape="\\"))
             if search_predicates:
                 query = query.where(or_(*search_predicates))
         
@@ -1064,7 +1068,7 @@ class BaseRepository(Generic[ModelType]):
         # 构建查询
         sort_column = getattr(self.model, sort_field)
         query = select(func.coalesce(func.max(sort_column), 0)).where(
-            self.model.is_deleted == False
+            self.model.is_deleted.is_(False)
         )
         
         # 应用作用域过滤
@@ -1117,23 +1121,233 @@ class BaseRepository(Generic[ModelType]):
                 f"Model {self.model.__name__} does not have field '{sort_field}'"
             )
         
-        # 批量更新：使用 CASE WHEN 一次性更新所有记录
-        # 这比逐条更新效率更高
-        updated_count = 0
-        for index, record_id in enumerate(ordered_ids, start=1):
-            new_sort_value = step * index
-            stmt = (
-                update(self.model)
-                .where(
-                    self.model.id == record_id,
-                    self.model.is_deleted == False,
-                )
-                .values(**{sort_field: new_sort_value})
+        # 批量更新：使用 CASE WHEN 一次性更新所有记录（单条 SQL）
+        from sqlalchemy import case
+
+        cases = {
+            record_id: step * index
+            for index, record_id in enumerate(ordered_ids, start=1)
+        }
+        stmt = (
+            update(self.model)
+            .where(
+                self.model.id.in_(ordered_ids),
+                self.model.is_deleted.is_(False),
             )
-            result = await self.db.execute(stmt)
-            updated_count += result.rowcount
-        
-        return updated_count
+            .values(**{sort_field: case(cases, value=self.model.id)})
+        )
+        result = await self.db.execute(stmt)
+        return result.rowcount
+
+
+    # ==================== 回收站方法 ====================
+
+    async def query_deleted(
+        self,
+        spec: QuerySpec,
+        delete_level: str | None = None,
+        scope: str | None = None,
+        forced_filters: list[FilterRule] | None = None,
+    ) -> tuple[list[ModelType], int]:
+        """
+        查询回收站（已删除记录）
+
+        Args:
+            spec: 查询规格（筛选/排序/分页）
+            delete_level: 删除层级过滤 ('tenant' 或 'admin')，为 None 则查全部
+            scope: 作用域
+            forced_filters: 强制过滤条件
+
+        Returns:
+            (数据列表, 总数)
+        """
+        allowed_fields = self.get_allowed_fields(scope)
+        all_fields = self.get_allowed_fields(None)
+
+        query = select(self.model).where(self.model.is_deleted.is_(True))
+
+        if delete_level:
+            query = query.where(self.model.delete_level == delete_level)
+
+        if forced_filters:
+            query = self._apply_filters(query, forced_filters, all_fields)
+
+        if spec.filters:
+            query = self._apply_filters(query, spec.filters, allowed_fields)
+
+        count_query = select(func.count()).select_from(query.subquery())
+        count_result = await self.db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        sortable_fields = dict(self.get_sortable_fields())
+        # 回收站自动允许 deleted_at 排序
+        if hasattr(self.model, "deleted_at") and "deleted_at" not in sortable_fields:
+            sortable_fields["deleted_at"] = self.model.deleted_at
+        # 回收站默认按删除时间倒序
+        if not spec.sort and hasattr(self.model, "deleted_at"):
+            query = query.order_by(desc(self.model.deleted_at))
+        else:
+            query = self._apply_sort(query, spec.sort, sortable_fields)
+
+        query = query.offset(spec.offset).limit(spec.limit)
+
+        result = await self.db.execute(query)
+        items = list(result.scalars().all())
+
+        return items, total
+
+    async def count_deleted(
+        self,
+        delete_level: str | None = None,
+    ) -> int:
+        """
+        统计回收站记录数量
+
+        Args:
+            delete_level: 删除层级过滤
+
+        Returns:
+            已删除记录数量
+        """
+        query = select(func.count(self.model.id)).where(
+            self.model.is_deleted.is_(True)
+        )
+        if delete_level:
+            query = query.where(self.model.delete_level == delete_level)
+
+        result = await self.db.execute(query)
+        return result.scalar() or 0
+
+    async def restore_by_id(self, id: int) -> ModelType | None:
+        """
+        恢复已删除记录
+
+        Args:
+            id: 记录 ID
+
+        Returns:
+            恢复后的模型实例或 None
+        """
+        instance = await self.get_by_id(id, include_deleted=True)
+        if instance is None or not instance.is_deleted:
+            return None
+
+        instance.restore()
+        await self.db.flush()
+        await self.db.refresh(instance)
+        return instance
+
+    async def escalate_delete_by_id(self, id: int) -> ModelType | None:
+        """
+        升级删除层级（tenant → admin），重置删除时间
+
+        Args:
+            id: 记录 ID
+
+        Returns:
+            更新后的模型实例或 None
+        """
+        instance = await self.get_by_id(id, include_deleted=True)
+        if instance is None or not instance.is_deleted:
+            return None
+        # 仅 tenant 级别才可升级，已在 admin 级别则无需重复操作
+        if getattr(instance, "delete_level", None) == "admin":
+            return instance
+
+        instance.escalate_delete()
+        await self.db.flush()
+        await self.db.refresh(instance)
+        return instance
+
+    async def permanent_delete(self, id: int) -> bool:
+        """
+        物理删除记录
+
+        Args:
+            id: 记录 ID
+
+        Returns:
+            是否删除成功
+        """
+        instance = await self.get_by_id(id, include_deleted=True)
+        if instance is None:
+            return False
+
+        await self.db.delete(instance)
+        await self.db.flush()
+        return True
+
+    async def batch_restore(self, ids: list[int]) -> int:
+        """
+        批量恢复已删除记录
+
+        Args:
+            ids: ID 列表
+
+        Returns:
+            恢复的记录数量
+        """
+        if not ids:
+            return 0
+
+        from datetime import datetime
+
+        stmt = (
+            update(self.model)
+            .where(
+                self.model.id.in_(ids),
+                self.model.is_deleted.is_(True),
+            )
+            .values(
+                is_deleted=False,
+                deleted_at=None,
+                delete_level=None,
+                updated_at=datetime.utcnow(),
+            )
+        )
+        result = await self.db.execute(stmt)
+        return result.rowcount
+
+    async def batch_permanent_delete(self, ids: list[int]) -> int:
+        """
+        批量物理删除记录
+
+        Args:
+            ids: ID 列表
+
+        Returns:
+            删除的记录数量
+        """
+        if not ids:
+            return 0
+
+        stmt = delete(self.model).where(
+            self.model.id.in_(ids),
+            self.model.is_deleted.is_(True),
+        )
+        result = await self.db.execute(stmt)
+        return result.rowcount
+
+    async def cleanup_expired(self, days: int = 30) -> int:
+        """
+        清理超过指定天数的已删除记录（物理删除）
+
+        Args:
+            days: 保留天数，默认 30
+
+        Returns:
+            清理的记录数量
+        """
+        from datetime import datetime, timedelta
+
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        stmt = delete(self.model).where(
+            self.model.is_deleted.is_(True),
+            self.model.deleted_at.is_not(None),
+            self.model.deleted_at < cutoff,
+        )
+        result = await self.db.execute(stmt)
+        return result.rowcount
 
 
 class TenantRepository(BaseRepository[ModelType]):
@@ -1262,6 +1476,75 @@ class TenantRepository(BaseRepository[ModelType]):
             page=page,
             page_size=page_size,
         )
+
+    async def query_deleted(
+        self,
+        spec: QuerySpec,
+        delete_level: str | None = None,
+        scope: str | None = None,
+        forced_filters: list[FilterRule] | None = None,
+    ) -> tuple[list[ModelType], int]:
+        """租户级回收站查询，自动注入 tenant_id"""
+        tenant_filter = FilterRule(field="tenant_id", value=self.tenant_id)
+        all_forced = [tenant_filter] + (forced_filters or [])
+        return await super().query_deleted(
+            spec=spec,
+            delete_level=delete_level,
+            scope=scope,
+            forced_filters=all_forced,
+        )
+
+    async def count_deleted(
+        self,
+        delete_level: str | None = None,
+    ) -> int:
+        """租户级回收站计数，自动注入 tenant_id"""
+        query = select(func.count(self.model.id)).where(
+            self.model.is_deleted.is_(True),
+            self.model.tenant_id == self.tenant_id,
+        )
+        if delete_level:
+            query = query.where(self.model.delete_level == delete_level)
+
+        result = await self.db.execute(query)
+        return result.scalar() or 0
+
+    async def batch_restore(self, ids: list[int]) -> int:
+        """租户级批量恢复，自动注入 tenant_id 防止跨租户操作"""
+        if not ids:
+            return 0
+
+        from datetime import datetime
+
+        stmt = (
+            update(self.model)
+            .where(
+                self.model.id.in_(ids),
+                self.model.is_deleted.is_(True),
+                self.model.tenant_id == self.tenant_id,
+            )
+            .values(
+                is_deleted=False,
+                deleted_at=None,
+                delete_level=None,
+                updated_at=datetime.utcnow(),
+            )
+        )
+        result = await self.db.execute(stmt)
+        return result.rowcount
+
+    async def batch_permanent_delete(self, ids: list[int]) -> int:
+        """租户级批量物理删除，自动注入 tenant_id 防止跨租户操作"""
+        if not ids:
+            return 0
+
+        stmt = delete(self.model).where(
+            self.model.id.in_(ids),
+            self.model.is_deleted.is_(True),
+            self.model.tenant_id == self.tenant_id,
+        )
+        result = await self.db.execute(stmt)
+        return result.rowcount
 
 
 # 导出

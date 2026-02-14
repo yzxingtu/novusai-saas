@@ -1,0 +1,75 @@
+{# ============================================================
+   Jinja2 Template: 前端中文 i18n JSON
+   生成路径: locales/langs/zh-CN/{{ scope_dir }}/{{ module_snake }}.json
+   
+   作为 source of truth，包含所有字段 label、placeholder、
+   确认弹窗文本、枚举标签等。
+
+   变量:
+     - config: CrudConfig
+     - model_class: PascalCase
+     - module_snake: snake_case
+     - scope / scope_dir: admin | tenant
+     - fields: list[FieldConfig]
+     - enums: list[EnumDefinition]
+     - display_name: str
+     - has_status_toggle: bool
+     - permissions: PermissionConfig | None
+   ============================================================ #}
+{
+  "title": "{{ display_name }}管理",
+  "pageDesc": "管理{{ display_name }}数据，支持新建、编辑、删除等操作。",
+  "create": "新建{{ display_name }}",
+  "edit": "编辑{{ display_name }}",
+  "detail": "{{ display_name }}详情",
+  "search": "搜索{{ display_name }}",
+  "selectToView": "请选择一条记录查看详情",
+  "confirmDelete": "确认删除此{{ display_name }}？",
+  "field": {
+{% for field in fields %}
+    "{{ field.name }}": "{{ field.label_zh }}"{{ ',' if not loop.last or has_status_toggle or config.drag_sort }}
+{% endfor %}
+{% if has_status_toggle %}
+    "isActive": "是否启用"{{ ',' if config.drag_sort }}
+{% endif %}
+{% if config.drag_sort %}
+    "sortOrder": "排序"
+{% endif %}
+  },
+  "placeholder": {
+{% set ph = namespace(items=[]) %}
+{% for field in fields %}
+{% if field.searchable %}
+{% set ph.items = ph.items + ['"search' + (field.name | capitalize) + '": "请输入' + field.label_zh + '"'] %}
+{% elif field.in_form %}
+{% if field.type.value in ('string', 'text') %}
+{% set ph.items = ph.items + ['"input' + (field.name | capitalize) + '": "请输入' + field.label_zh + '"'] %}
+{% elif field.type.value in ('enum',) or field.form_component.value == 'Select' %}
+{% set ph.items = ph.items + ['"select' + (field.name | capitalize) + '": "请选择' + field.label_zh + '"'] %}
+{% endif %}
+{% endif %}
+{% endfor %}
+{% for item in ph.items %}
+    {{ item }}{{ ',' if not loop.last }}
+{% endfor %}
+  },
+{% if enums %}
+  "enum": {
+{% for enum in enums %}
+    "{{ enum.name | snake }}": {
+{% for opt in enum.values %}
+      "{{ opt.value }}": "{{ opt.label_zh }}"{{ ',' if not loop.last }}
+{% endfor %}
+    }{{ ',' if not loop.last }}
+{% endfor %}
+  },
+{% endif %}
+  "messages": {
+    "createSuccess": "{{ display_name }}创建成功",
+    "updateSuccess": "{{ display_name }}更新成功",
+    "deleteSuccess": "{{ display_name }}已删除"
+{% if has_status_toggle %}
+    ,"toggleStatusSuccess": "状态切换成功"
+{% endif %}
+  }
+}

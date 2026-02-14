@@ -19,6 +19,7 @@ export interface AgentListItem {
   description: string | null;
   status: string;
   execution_mode: string;
+  is_system: boolean;
   model_name: string | null;
   published_version: number | null;
   visibility: string;
@@ -51,6 +52,7 @@ export interface AgentInfo extends AgentListItem {
   max_tokens: number | null;
   top_p: number | null;
   published_version: number | null;
+  /** @deprecated replaced by AgentSkillBinding */
   tool_bindings: unknown[] | null;
   input_variables: unknown[] | null;
   welcome_message: string | null;
@@ -59,6 +61,8 @@ export interface AgentInfo extends AgentListItem {
   quota_config: Record<string, unknown> | null;
   context_config: Record<string, unknown> | null;
   output_schema: unknown[] | null;
+  knowledge_base_ids: number[] | null;
+  rag_config: Record<string, unknown> | null;
 }
 
 /** 创建智能体请求 */
@@ -72,6 +76,7 @@ export interface AgentCreateRequest {
   max_tokens?: number | null;
   top_p?: number | null;
   execution_mode?: string;
+  /** @deprecated replaced by AgentSkillBinding */
   tool_bindings?: unknown[] | null;
   input_variables?: unknown[] | null;
   welcome_message?: string | null;
@@ -80,6 +85,8 @@ export interface AgentCreateRequest {
   output_schema?: unknown[] | null;
   quota_config?: Record<string, unknown> | null;
   visibility?: string;
+  knowledge_base_ids?: number[] | null;
+  rag_config?: Record<string, unknown> | null;
 }
 
 /** 更新智能体请求 */
@@ -94,6 +101,7 @@ export interface AgentUpdateRequest {
   top_p?: number | null;
   status?: string | null;
   execution_mode?: string | null;
+  /** @deprecated replaced by AgentSkillBinding */
   tool_bindings?: unknown[] | null;
   input_variables?: unknown[] | null;
   welcome_message?: string | null;
@@ -102,6 +110,8 @@ export interface AgentUpdateRequest {
   output_schema?: unknown[] | null;
   quota_config?: Record<string, unknown> | null;
   visibility?: string | null;
+  knowledge_base_ids?: number[] | null;
+  rag_config?: Record<string, unknown> | null;
 }
 
 /** 发布智能体请求 */
@@ -302,6 +312,64 @@ export async function updateAgentAccessApi(
   return requestClient.put<AgentAccessConfig>(
     `${PREFIX}/${id}/access`,
     data,
+    options,
+  );
+}
+
+// ============================================================
+// 技能包绑定 API
+// ============================================================
+
+/** 技能包绑定信息 */
+export interface AgentSkillBindingInfo {
+  id: number;
+  agent_id: number;
+  package_id: number;
+  enabled: boolean;
+  config_override: Record<string, unknown> | null;
+  sort_order: number;
+  package: {
+    id: number;
+    name: string;
+    description: string | null;
+    avatar: string | null;
+    scope: string;
+    is_active: boolean;
+  };
+}
+
+/** 获取智能体绑定的技能包列表 */
+export async function getAgentSkillsApi(
+  agentId: number,
+  options?: ApiRequestOptions,
+): Promise<AgentSkillBindingInfo[]> {
+  return requestClient.get<AgentSkillBindingInfo[]>(
+    `${PREFIX}/${agentId}/skills`,
+    options,
+  );
+}
+
+/** 批量绑定技能包（替换模式） */
+export async function batchBindPackagesApi(
+  agentId: number,
+  packageIds: number[],
+  options?: ApiRequestOptions,
+): Promise<AgentSkillBindingInfo[]> {
+  return requestClient.put<AgentSkillBindingInfo[]>(
+    `${PREFIX}/${agentId}/skills/batch`,
+    { package_ids: packageIds },
+    options,
+  );
+}
+
+/** 解绑技能包 */
+export async function unbindPackageApi(
+  agentId: number,
+  packageId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.delete(
+    `${PREFIX}/${agentId}/skills/${packageId}`,
     options,
   );
 }

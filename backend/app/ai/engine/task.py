@@ -53,7 +53,7 @@ class TaskEngine(BaseEngine):
                 messages.append(self._user_message(_(_DEFAULT_TASK_USER_MSG_KEY)))
 
             # 2. 解析工具（按租户隔离）
-            tools = self._resolve_tools(agent, tenant_id=request.tenant_id)
+            tools = await self._resolve_tools(agent, tenant_id=request.tenant_id)
 
             # 3. 调用 LLM
             response = await self._call_llm(

@@ -2,6 +2,7 @@
   "title": "AI 管理",
   "model": {
     "title": "可用模型",
+    "pageDesc": "查看平台分配给当前租户的可用 AI 模型及其能力和定价。",
     "name": "模型名称",
     "code": "模型代码",
     "type": "类型",
@@ -31,6 +32,7 @@
   },
   "apiKey": {
     "title": "API Key 管理",
+    "pageDesc": "管理租户专属的 API Key。每个 Key 绑定一个供应商，用于 AI 接口调用鉴权。",
     "name": "Key 名称",
     "providerId": "供应商",
     "providerName": "供应商",
@@ -55,6 +57,7 @@
   },
   "usage": {
     "title": "用量统计",
+    "pageDesc": "查看租户的 AI 调用量、Token 消耗和费用趋势图表。",
     "summary": {
       "totalTokens": "总 Tokens",
       "totalCost": "总费用",
@@ -75,6 +78,7 @@
   },
   "callLog": {
     "title": "调用日志",
+    "pageDesc": "查看租户内所有 AI 调用记录，包括状态、用量和错误详情。",
     "requestType": "请求类型",
     "inputTokens": "输入 Tokens",
     "outputTokens": "输出 Tokens",
@@ -107,6 +111,7 @@
   },
   "quota": {
     "title": "配额管理",
+    "pageDesc": "设置模型 Token 用量配额。软限制仅告警，硬限制将拒绝超额请求。",
     "modelId": "模型",
     "modelName": "模型名称",
     "period": "周期",
@@ -150,7 +155,10 @@
   },
   "agent": {
     "title": "智能体管理",
+    "pageDesc": "创建和管理智能体。配置模型、工具、知识库后发布即可使用，支持版本管理和回滚。",
+    "system": "系统",
     "name": "智能体名称",
+    "avatar": "头像",
     "description": "描述",
     "status": "状态",
     "executionMode": "执行模式",
@@ -162,8 +170,20 @@
     "welcomeMessage": "欢迎语",
     "suggestedQuestions": "推荐问题 (JSON)",
     "toolBindings": "工具绑定 (JSON)",
+    "skillBindings": "技能绑定",
+    "skillPackageBindings": "技能包绑定",
     "createdAt": "创建时间",
     "create": "创建智能体",
+    "wizard": {
+      "step1": "基本信息",
+      "step1Desc": "名称、模型、模式",
+      "step2": "生成设置",
+      "step2Desc": "参数、欢迎语、工具",
+      "step3": "知识与上下文",
+      "step3Desc": "知识库、RAG、变量",
+      "step4": "配额设置",
+      "step4Desc": "用量限制"
+    },
     "publish": "发布",
     "confirmDelete": "确认删除此智能体？",
     "status_options": {
@@ -191,12 +211,34 @@
       "inputTopP": "0-1，与 temperature 配合使用",
       "inputWelcomeMessage": "用户首次打开对话时的欢迎语",
       "inputSuggestedQuestions": "JSON 数组格式，如: [\"\u95ee\u98981\", \"\u95ee\u98982\"]",
-      "inputToolBindings": "JSON 数组格式，如: [{'{'}\"tool_id\": 1{'}'}]"
+      "inputToolBindings": "JSON 数组格式，如: [{'{'}\"tool_id\": 1{'}'}]",
+      "selectSkills": "请选择要绑定的技能",
+      "selectSkillPackages": "请选择要绑定的技能包"
     },
     "help": {
+      "temperature": "控制输出的随机性。0 表示确定性输出，2 表示高度随机。推荐：精确任务用 0~0.3，创意写作用 0.7~1.2",
+      "maxTokens": "单次回复的最大 Token 数量。留空使用模型默认值。1 个中文字约 2 个 Token",
+      "topP": "核采样参数，与 temperature 配合控制多样性。通常保持默认 1，不建议同时调整两者",
+      "welcomeMessage": "用户首次打开对话时自动显示的欢迎语，留空则不显示",
       "suggestedQuestions": "用户初次进入对话时显示的推荐问题，帮助用户快速开始",
       "toolBindings": "绑定智能体可调用的工具，每个元素包含 tool_id 字段",
-      "inputVariables": "定义用户在发起对话前需要填写的变量，可用于模板化提示词"
+      "skillBindings": "选择智能体可使用的技能。技能包含知识库、数据智能、HTTP 调用等能力",
+      "skillPackageBindings": "选择智能体可使用的技能包。每个技能包包含多个技能，智能体将获得包内所有技能",
+      "inputVariables": "定义用户在发起对话前需要填写的变量，可用于模板化提示词",
+      "dataIntelligenceEnabled": "开启后智能体可使用 Text-to-SQL 查询数据并执行业务操作",
+      "contextMaxHistoryMessages": "保留最近多少条消息作为上下文。越多上下文越丰富，但 Token 消耗越大",
+      "contextMaxHistoryTokens": "历史消息的最大 Token 数。0 表示不额外限制，由消息条数控制",
+      "quotaConversationsPerDay": "该智能体每天允许的最大对话数，0 表示不限制",
+      "quotaTokensPerDay": "该智能体每天允许消耗的最大 Token 数，0 表示不限制",
+      "quotaTokensPerMonth": "该智能体每月允许消耗的最大 Token 数，0 表示不限制",
+      "quotaMaxTurns": "单次对话允许的最大来回轮次，超过后提示用户开启新对话",
+      "quotaMaxConcurrent": "该智能体允许同时进行的最大并发对话数",
+      "quotaUserConversationsPerDay": "每个用户每天与该智能体的最大对话数，0 表示不限制",
+      "ragTopK": "每次检索从知识库返回的最相关文档分块数量。数值越大，参考资料越多但可能引入噪音",
+      "ragScoreThreshold": "相似度得分低于此阈值的结果将被丢弃。值越高越严格，建议 0.3~0.7",
+      "ragSearchMode": "向量检索适合语义相似，关键词检索适合精确匹配，混合模式综合两者优势",
+      "ragRewriteStrategy": "对用户问题进行改写以提升检索效果。假设文档生成假想答案再检索，回退提问将问题泛化",
+      "ragContextTokenRatio": "知识库内容在总上下文中占的最大比例。如 0.3 表示最多使用 30% 的 Token 预算"
     },
     "inputVariables": {
       "title": "输入变量",
@@ -207,10 +249,41 @@
       "title": "上下文窗口",
       "maxHistoryMessages": "最大历史消息条数",
       "maxHistoryTokens": "最大历史 Token 数",
+      "dataIntelligenceEnabled": "数据智能",
       "placeholder": {
         "maxHistoryMessages": "默认 20，0 使用系统默认",
         "maxHistoryTokens": "0 表示不限制"
       }
+    },
+    "knowledgeBase": {
+      "title": "知识库 (RAG)",
+      "selectLabel": "关联知识库",
+      "selectPlaceholder": "请选择要关联的知识库",
+      "selectHelp": "选择智能体可检索的知识库，支持多选",
+      "ragEnabled": "启用 RAG 检索",
+      "ragEnabledHelp": "开启后，对话时自动检索关联知识库中的相关内容",
+      "topK": "检索数量 (Top-K)",
+      "topKPlaceholder": "每次检索返回的分块数量",
+      "scoreThreshold": "相似度阈值",
+      "scoreThresholdPlaceholder": "0-1，低于此分数的结果将被过滤",
+      "searchMode": "检索模式",
+      "searchModePlaceholder": "请选择检索模式",
+      "searchModeOptions": {
+        "vector": "向量检索",
+        "keyword": "关键词检索",
+        "hybrid": "混合检索"
+      },
+      "rewriteStrategy": "查询改写策略",
+      "rewritePlaceholder": "请选择改写策略",
+      "rewriteOptions": {
+        "none": "不改写",
+        "hypothetical": "假设文档",
+        "step_back": "回退提问"
+      },
+      "rerankerEnabled": "启用重排序",
+      "rerankerEnabledHelp": "开启后使用 Reranker 对结果二次排序，提升准确度",
+      "contextTokenRatio": "上下文 Token 比例",
+      "contextTokenRatioPlaceholder": "0-1，知识库内容占上下文的最大比例"
     },
     "quotaConfig": {
       "title": "配额设置",
@@ -309,6 +382,7 @@
   },
   "conversation": {
     "title": "对话标题",
+    "pageDesc": "管理智能体对话记录。支持查看详情、归档和批量操作。",
     "pageTitle": "对话管理",
     "agentName": "智能体",
     "status": "状态",
@@ -348,57 +422,9 @@
       "batchArchiveSuccess": "已归档 {count} 条对话"
     }
   },
-  "tool": {
-    "title": "工具管理",
-    "name": "工具名称",
-    "type": "类型",
-    "description": "描述",
-    "inputSchema": "输入 Schema (JSON)",
-    "config": "配置 (JSON)",
-    "timeout": "超时 (秒)",
-    "isSystem": "来源",
-    "isActive": "启用状态",
-    "createdAt": "创建时间",
-    "systemTag": "系统内置",
-    "customTag": "自定义",
-    "create": "添加工具",
-    "testExecute": "测试执行",
-    "confirmDelete": "确认删除此工具定义？",
-    "type_options": {
-      "http": "HTTP",
-      "database": "数据库查询",
-      "email": "邮件",
-      "builtin": "内置"
-    },
-    "placeholder": {
-      "searchName": "搜索工具名称",
-      "allTypes": "全部类型",
-      "inputName": "请输入工具名称",
-      "selectType": "请选择工具类型",
-      "inputDescription": "请输入工具描述",
-      "inputTimeout": "超时秒数 (1-300)",
-      "inputSchema": "JSON Schema 格式，如: {\"type\": \"object\", \"properties\": {}}",
-      "inputConfig": "工具运行配置，JSON 格式"
-    },
-    "test": {
-      "arguments": "执行参数",
-      "argumentsPlaceholder": "请输入 JSON 格式的参数",
-      "run": "执行",
-      "success": "成功",
-      "failed": "失败",
-      "output": "输出结果",
-      "errorDetail": "错误详情",
-      "invalidJson": "参数格式错误，请输入有效的 JSON",
-      "executeFailed": "工具测试执行失败"
-    },
-    "messages": {
-      "createSuccess": "工具创建成功",
-      "updateSuccess": "工具更新成功",
-      "deleteSuccess": "工具已删除"
-    }
-  },
   "chat": {
     "title": "智能体对话",
+    "pageDesc": "与智能体对话。左侧选择智能体，可开始新对话或继续历史对话。",
     "selectAgent": "选择智能体",
     "noAgents": "暂无可用智能体",
     "newConversation": "新对话",
@@ -413,10 +439,173 @@
     "welcomeTitle": "开始对话",
     "welcomeDesc": "选择左侧智能体，开始一段新的对话",
     "stopGeneration": "停止生成",
-    "copySuccess": "已复制"
+    "copySuccess": "已复制",
+    "ragSources": "引用来源",
+    "ragSourceCount": "{count} 个来源",
+    "toolSuccess": "完成",
+    "toolFailed": "失败",
+    "toolRunning": "执行中...",
+    "optimizingTools": "已优化工具选择：{total} 个工具中筛选了 {selected} 个",
+    "generating": "正在生成回复...",
+    "addAttachment": "添加附件",
+    "uploadFailed": "文件上传失败",
+    "file": "文件"
+  },
+  "data": {
+    "rowCount": "共 {count} 行",
+    "queryTime": "耗时 {ms}ms",
+    "tableView": "表格",
+    "chartView": "图表",
+    "sqlView": "SQL",
+    "noChartData": "数据不足，无法生成图表"
+  },
+  "actionLog": {
+    "title": "操作审计",
+    "pageDesc": "查看智能体执行的所有操作记录，包括 SQL 查询和业务操作的详细审计。",
+    "actionName": "操作名称",
+    "actionType": "操作类型",
+    "status": "状态",
+    "agentName": "智能体",
+    "createdAt": "执行时间",
+    "executionTime": "耗时 (ms)",
+    "sqlStatement": "SQL 语句",
+    "resultSummary": "结果摘要",
+    "errorMessage": "错误信息",
+    "viewDetail": "查看详情",
+    "stats": {
+      "title": "审计统计",
+      "totalActions": "总操作数",
+      "successRate": "成功率",
+      "todayActions": "今日操作",
+      "typeDistribution": "类型分布"
+    },
+    "type_options": {
+      "query": "数据查询",
+      "action": "业务操作",
+      "confirm": "确认操作"
+    },
+    "status_options": {
+      "success": "成功",
+      "failed": "失败",
+      "rejected": "已拒绝",
+      "pending": "待确认"
+    },
+    "placeholder": {
+      "searchName": "搜索操作名称",
+      "allTypes": "全部类型",
+      "allStatuses": "全部状态"
+    }
+  },
+  "action": {
+    "confirmTitle": "操作确认",
+    "confirmWarning": "AI 智能体请求执行以下操作，请确认后继续",
+    "name": "操作名称",
+    "description": "操作描述",
+    "level": "安全等级",
+    "params": "操作参数",
+    "countdown": "将在 {seconds} 秒后自动取消",
+    "reject": "拒绝",
+    "confirmExecute": "确认执行"
+  },
+  "guide": {
+    "title": "🚀 AI 智能体快速入门",
+    "subtitle": "按以下步骤创建并发布智能体，开始使用 AI 对话",
+    "dismiss": "不再显示",
+    "showGuide": "快速入门",
+    "totalTime": "预计总耗时 10~15 分钟",
+    "step1": {
+      "title": "创建智能体",
+      "desc": "配置名称、模型、系统提示词等基本信息",
+      "detail": "选择 AI 模型，编写系统提示词定义智能体角色和行为，设置温度等生成参数",
+      "time": "~3 分钟"
+    },
+    "step2": {
+      "title": "绑定工具和知识库",
+      "desc": "可选：绑定工具扩展能力，关联知识库实现 RAG 检索",
+      "detail": "创建 HTTP/数据库等工具让智能体调用外部服务；上传文档到知识库，绑定后支持文档问答",
+      "time": "~5 分钟"
+    },
+    "step3": {
+      "title": "发布智能体",
+      "desc": "发布后生成版本，用户即可开始对话",
+      "detail": "点击发布按钮创建版本快照。可随时回滚到历史版本，修改后需重新发布",
+      "time": "~1 分钟"
+    },
+    "step4": {
+      "title": "开始对话",
+      "desc": "前往对话页面，选择智能体开始对话测试",
+      "detail": "在对话页面选择已发布的智能体，测试对话效果。支持查看 RAG 来源和工具调用记录",
+      "time": "~2 分钟"
+    }
+  },
+  "guidePage": {
+    "title": "AI 智能体使用指南",
+    "subtitle": "了解 AI 模块的核心能力，快速上手创建智能体并开始对话",
+    "featuresTitle": "核心能力",
+    "features": {
+      "chat": {
+        "title": "智能对话",
+        "desc": "与 AI 智能体进行多轮对话，支持上下文记忆、工具调用、流式输出"
+      },
+      "sql": {
+        "title": "数据智能（Text-to-SQL）",
+        "desc": "用自然语言查询业务数据，AI 自动生成安全 SQL 并可视化展示结果"
+      },
+      "rag": {
+        "title": "文档问答（RAG）",
+        "desc": "上传文档到知识库，智能体基于文档内容回答问题，支持混合检索"
+      }
+    },
+    "quickStartTitle": "快速上手",
+    "quickStart": {
+      "step1": {
+        "title": "创建智能体",
+        "desc": "选择模型，编写系统提示词，配置温度等参数"
+      },
+      "step2": {
+        "title": "创建工具（可选）",
+        "desc": "配置 HTTP、数据库等工具，让智能体调用外部服务"
+      },
+      "step3": {
+        "title": "创建知识库（可选）",
+        "desc": "上传文档，系统自动解析分块和向量化，绑定到智能体后支持文档问答"
+      },
+      "step4": {
+        "title": "发布智能体",
+        "desc": "点击发布按钮创建版本快照，发布后用户即可使用"
+      },
+      "step5": {
+        "title": "开始对话",
+        "desc": "在对话页面选择已发布的智能体，开始测试对话效果"
+      }
+    },
+    "faqTitle": "常见问题",
+    "faq": {
+      "faq1": {
+        "q": "如何让智能体使用知识库回答问题？",
+        "a": "创建知识库并上传文档，等文档处理完成后，在智能体编辑页面的「知识库」部分选择该知识库并启用 RAG，发布后即可生效。"
+      },
+      "faq2": {
+        "q": "温度参数有什么作用？",
+        "a": "温度控制回答的随机性。0 最确定（适合数据查询），0.7 适中（通用对话），1.0+ 更有创造性（适合创意写作）。"
+      },
+      "faq3": {
+        "q": "工具调用是如何工作的？",
+        "a": "智能体在对话中判断需要调用工具时，会自动发起请求。HTTP 工具调用外部 API，数据库工具执行查询。工具调用结果会自动注入到对话上下文中。"
+      },
+      "faq4": {
+        "q": "如何限制智能体的使用量？",
+        "a": "在智能体编辑页面的「配额设置」部分，可配置每日对话数、每日/每月 Token 限制、最大并发数等。超出配额后将拒绝新请求。"
+      },
+      "faq5": {
+        "q": "支持哪些文档格式？",
+        "a": "知识库支持 PDF、Word（.docx）、Markdown（.md）、纯文本（.txt）和 CSV 格式的文件上传。"
+      }
+    }
   },
   "rateLimit": {
     "title": "速率限制",
+    "pageDesc": "设置模型调用的速率限制。RPM 限制每分钟请求数，TPM 限制每分钟 Token 数。",
     "modelId": "模型",
     "modelName": "模型名称",
     "rpmLimit": "RPM 限制",
@@ -438,6 +627,196 @@
       "createSuccess": "速率限制创建成功",
       "updateSuccess": "速率限制更新成功",
       "deleteSuccess": "速率限制已删除"
+    }
+  },
+  "tablePolicy": {
+    "title": "数据访问策略",
+    "pageDesc": "查看和覆盖 AI 数据访问策略。覆盖只能收紧（限制更多），不能放开。",
+    "tableName": "表名",
+    "label": "显示名称",
+    "allowRead": "查询",
+    "allowCreate": "创建",
+    "allowUpdate": "更新",
+    "allowDelete": "删除",
+    "maxRows": "最大行数",
+    "blockedColumns": "屏蔽列",
+    "scope": "作用域",
+    "hasOverride": "已覆盖",
+    "globalDefault": "全局默认",
+    "overridden": "已覆盖",
+    "editOverride": "编辑覆盖",
+    "resetOverride": "恢复默认",
+    "resetConfirm": "确认恢复到全局默认策略？当前覆盖将被删除。",
+    "placeholder": {
+      "searchTable": "搜索表名"
+    },
+    "messages": {
+      "overrideSuccess": "策略覆盖已保存",
+      "resetSuccess": "已恢复全局默认策略"
+    }
+  },
+  "skillPackage": {
+    "title": "技能包管理",
+    "pageDesc": "管理技能包，每个技能包包含多个技能，可整体分配给智能体使用。",
+    "system": "系统",
+    "name": "技能包名称",
+    "description": "描述",
+    "skillCount": "技能数",
+    "isActive": "启用状态",
+    "scope": "作用域",
+    "sortOrder": "排序",
+    "create": "新建技能包",
+    "scope_options": {
+      "tenant": "租户",
+      "global": "全局共享"
+    },
+    "placeholder": {
+      "searchName": "搜索技能包名称",
+      "inputName": "请输入技能包名称",
+      "inputDescription": "请输入描述"
+    },
+    "uploadZip": "上传技能包",
+    "uploadDragText": "点击或拖拽 ZIP 文件到此处上传",
+    "uploadDesc": "支持包含 SKILL.md 的标准技能包 ZIP 文件",
+    "messages": {
+      "toggleSuccess": "技能包状态已更新",
+      "uploadSuccess": "技能包上传成功",
+      "uploading": "正在上传..."
+    },
+    "detail": {
+      "title": "技能包详情",
+      "skills": "包内技能",
+      "empty": "暂无技能，点击右上角添加"
+    },
+    "valves": {
+      "configBtn": "环境配置",
+      "title": "环境变量配置",
+      "description": "配置该技能包运行所需的环境变量。带有红色标记的为必填项，敏感信息（如密钥）会以密码形式显示。",
+      "required": "必填",
+      "sensitiveHint": "敏感信息，请妥善保管",
+      "noSchema": "该技能包没有可配置的环境变量",
+      "saveSuccess": "环境变量配置已保存"
+    }
+  },
+  "skill": {
+    "title": "技能管理",
+    "pageDesc": "创建和管理技能。技能是智能体的能力单元，可绑定到智能体以扩展其功能。",
+    "system": "系统",
+    "name": "技能名称",
+    "type": "类型",
+    "scope": "作用域",
+    "description": "描述",
+    "config": "配置 (JSON)",
+    "inputSchema": "输入 Schema (JSON)",
+    "timeout": "超时 (秒)",
+    "isActive": "启用状态",
+    "sortOrder": "排序",
+    "createdAt": "创建时间",
+    "create": "添加技能",
+    "testBtn": "测试",
+    "testFailed": "测试请求失败，请稍后重试",
+    "scopeTenant": "租户",
+    "scopeAdmin": "平台",
+    "type_options": {
+      "toolkit": "Toolkit 工具包",
+      "knowledge_base": "知识库",
+      "data_intelligence": "数据智能",
+      "builtin": "内置"
+    },
+    "typeDesc": {
+      "toolkit": "Python 工具包：在下方编辑器中编写 Tools 类，每个方法自动注册为 LLM 可调用的工具。支持 Valves 配置和 ZIP 上传。",
+      "knowledge_base": "RAG 文档问答：关联一个或多个知识库，智能体对话时自动进行语义检索并注入上下文。请在下方选择知识库并调整检索参数。",
+      "data_intelligence": "数据智能：通过 Text-to-SQL 实现自然语言查询数据库，支持 CRUD 操作。请在下方选择可访问的表策略来控制数据范围。",
+      "builtin": "内置工具：由系统预定义的基础工具（如日期计算、数学运算等），不可编辑。创建后可在下方查看工具列表。"
+    },
+    "knowledgeBaseConfig": {
+      "title": "知识库配置",
+      "selectKb": "关联知识库",
+      "selectKbPlaceholder": "请选择要关联的知识库",
+      "selectKbHelp": "选择该技能可访问的知识库，可多选",
+      "ragEnabled": "启用 RAG",
+      "topK": "检索数量 (Top K)",
+      "scoreThreshold": "得分阈值",
+      "searchMode": "检索模式",
+      "rewriteStrategy": "查询改写策略",
+      "rerankerEnabled": "启用重排序",
+      "contextTokenRatio": "上下文 Token 比例",
+      "searchModeOptions": {
+        "vector": "向量检索",
+        "keyword": "关键词检索",
+        "hybrid": "混合检索"
+      },
+      "rewriteOptions": {
+        "none": "不改写",
+        "hypothetical": "假设性文档",
+        "step_back": "回退提问"
+      }
+    },
+    "builtinTools": {
+      "title": "内置工具",
+      "hint": "内置工具由系统定义，不可编辑。工具列表显示在下方。",
+      "toolList": "工具列表"
+    },
+    "toolkitEditor": {
+      "title": "Toolkit 编辑器",
+      "sourceCode": "源码",
+      "preview": "解析预览",
+      "tools": "工具方法",
+      "valves": "Valves 配置",
+      "noTools": "未检测到工具方法",
+      "noValves": "未定义 Valves 配置",
+      "parameters": "参数",
+      "required": "必填",
+      "optional": "可选",
+      "async": "异步",
+      "type": "类型",
+      "default": "默认值",
+      "errors": "解析错误",
+      "parsing": "解析中...",
+      "templateBlank": "空白模板",
+      "templateExample": "示例模板",
+      "uploadFile": "上传文件",
+      "properties": "属性",
+      "requiredFields": "必填字段",
+      "onlyPyFiles": "仅支持 .py 文件"
+    },
+    "dataIntelligenceConfig": {
+      "title": "数据智能配置",
+      "tablePolicies": "表策略",
+      "tablePoliciesPlaceholder": "请选择可访问的表策略",
+      "tablePoliciesHelp": "选择该技能可访问的数据表策略，留空则使用所有可用策略",
+      "maxRowsOverride": "最大返回行数",
+      "maxRowsOverrideHelp": "覆盖默认查询返回行数限制，0 表示使用默认值",
+      "systemHint": "此为系统全局共享技能，自动使用所有已配置的表策略，无需手动选择。",
+      "toolListTitle": "可用工具",
+      "tools": {
+        "dataQuery": "自然语言查询数据库，自动生成安全 SQL 并返回结果",
+        "dataCreate": "向指定表中插入新记录",
+        "dataUpdate": "更新指定表中的已有记录",
+        "dataDelete": "删除指定表中的记录"
+      }
+    },
+    "placeholder": {
+      "searchName": "搜索技能名称",
+      "allTypes": "全部类型",
+      "inputName": "请输入技能名称",
+      "selectType": "请选择技能类型",
+      "inputDescription": "请输入技能描述",
+      "inputTimeout": "超时秒数 (1-300)",
+      "inputConfig": "技能配置，JSON 格式",
+      "inputSchema": "JSON Schema 格式"
+    },
+    "createGuide": "技能是智能体的能力单元，属于某个技能包。选择类型后按提示配置对应参数，创建完成后绑定到智能体即可使用。",
+    "help": {
+      "type": "Toolkit: 自定义 Python 工具；知识库: RAG 文档问答；数据智能: 数据库查询与操作；内置: 系统预定义工具",
+      "config": "技能运行时的配置信息。不同类型有不同的配置结构",
+      "inputSchema": "定义技能接收的参数结构（OpenAI Function Calling 格式）",
+      "timeout": "技能执行的最大等待时间，超时后自动终止"
+    },
+    "messages": {
+      "createSuccess": "技能创建成功",
+      "updateSuccess": "技能更新成功",
+      "deleteSuccess": "技能已删除"
     }
   }
 }

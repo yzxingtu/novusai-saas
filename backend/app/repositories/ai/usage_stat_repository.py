@@ -5,12 +5,12 @@
 """
 
 from datetime import date
-from typing import Optional
 from sqlalchemy import select, func, and_
 
 from app.core.base_repository import BaseRepository
 from app.models.ai import UsageStat
 from app.models.ai.model import AIModel
+from app.models.tenant.tenant import Tenant
 
 
 class UsageStatRepository(BaseRepository[UsageStat]):
@@ -19,13 +19,68 @@ class UsageStatRepository(BaseRepository[UsageStat]):
     """
     model = UsageStat
 
+    async def query_list_with_names(
+        self,
+        spec,
+    ) -> tuple[list[dict], int]:
+        """
+        查询使用量统计列表，附带 tenant_name 和 model_name
+        """
+        items, total = await self.query_list(spec)
+
+        if not items:
+            return [], total
+
+        # 批量查询 tenant 和 model 名称
+        tenant_ids = {item.tenant_id for item in items}
+        model_ids = {item.model_id for item in items}
+
+        tenant_map: dict[int, str] = {}
+        if tenant_ids:
+            stmt = select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
+            result = await self.db.execute(stmt)
+            tenant_map = {row.id: row.name for row in result.all()}
+
+        model_map: dict[int, str] = {}
+        if model_ids:
+            stmt = select(AIModel.id, AIModel.name).where(AIModel.id.in_(model_ids))
+            result = await self.db.execute(stmt)
+            model_map = {row.id: row.name for row in result.all()}
+
+        enriched = []
+        for item in items:
+            data = {
+                "id": item.id,
+                "tenant_id": item.tenant_id,
+                "user_id": item.user_id,
+                "model_id": item.model_id,
+                "request_type": item.request_type,
+                "stat_date": item.stat_date,
+                "input_tokens": item.input_tokens,
+                "output_tokens": item.output_tokens,
+                "total_tokens": item.total_tokens,
+                "call_count": item.call_count,
+                "success_count": item.success_count,
+                "failed_count": item.failed_count,
+                "total_cost": float(item.total_cost or 0),
+                "avg_latency_ms": item.avg_latency_ms,
+                "max_latency_ms": item.max_latency_ms,
+                "tenant_name": tenant_map.get(item.tenant_id, "-"),
+                "model_name": model_map.get(item.model_id, "-"),
+                "created_at": item.created_at,
+                "updated_at": item.updated_at,
+            }
+            enriched.append(data)
+
+        return enriched, total
+
     async def get_or_create_stat(
         self,
         tenant_id: int,
         model_id: int,
         request_type: str,
         stat_date: date,
-        user_id: Optional[int] = None,
+        user_id: int | None = None,
     ) -> UsageStat:
         """
         获取或创建统计记录
@@ -58,8 +113,8 @@ class UsageStatRepository(BaseRepository[UsageStat]):
     async def get_tenant_usage_summary(
         self,
         tenant_id: int,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> dict:
         """
         获取租户使用量汇总
@@ -96,8 +151,8 @@ class UsageStatRepository(BaseRepository[UsageStat]):
         self,
         tenant_id: int,
         user_id: int,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> dict:
         """
         获取用户使用量汇总
@@ -130,8 +185,8 @@ class UsageStatRepository(BaseRepository[UsageStat]):
     async def get_model_usage_summary(
         self,
         model_id: int,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> dict:
         """
         获取模型使用量汇总
@@ -162,8 +217,8 @@ class UsageStatRepository(BaseRepository[UsageStat]):
     async def get_daily_stats(
         self,
         tenant_id: int,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> list[dict]:
         """
         获取租户每日用量统计
@@ -207,8 +262,8 @@ class UsageStatRepository(BaseRepository[UsageStat]):
     async def get_model_stats(
         self,
         tenant_id: int,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> list[dict]:
         """
         获取租户按模型维度的用量统计

@@ -179,6 +179,97 @@ const mainRoutes: RouteRecordRaw = {
             },
           ],
         },
+        {
+          name: 'AdminAIKnowledgeBases',
+          path: 'knowledge-bases',
+          component: () =>
+            import('#/views/admin/ai/knowledge-bases/index.vue'),
+          meta: {
+            icon: 'lucide:book-open',
+            title: $t('admin.knowledgeBase.title'),
+          },
+        },
+        {
+          name: 'AdminAISkillPackages',
+          path: 'skill-packages',
+          component: () =>
+            import('#/views/admin/ai/skill-packages/index.vue'),
+          meta: {
+            icon: 'lucide:package',
+            title: $t('admin.ai.skillPackage.title'),
+          },
+        },
+        // AdminAISkillPackageDetail + AdminAISkills routes removed — Master-Detail layout in index.vue
+        {
+          name: 'AdminAIAgents',
+          path: 'agents',
+          component: () => import('#/views/admin/ai/agents/index.vue'),
+          meta: {
+            icon: 'lucide:bot',
+            title: $t('admin.ai.agent.title'),
+          },
+        },
+        {
+          name: 'AdminAIChat',
+          path: 'chat',
+          component: () => import('#/views/admin/ai/chat/index.vue'),
+          meta: {
+            icon: 'lucide:message-square',
+            title: $t('admin.ai.chat.title'),
+          },
+        },
+        {
+          name: 'AdminAIConversations',
+          path: 'conversations',
+          component: () =>
+            import('#/views/admin/ai/conversations/index.vue'),
+          meta: {
+            icon: 'lucide:messages-square',
+            title: $t('admin.ai.conversation.title'),
+          },
+        },
+        {
+          name: 'AdminAIActionLogs',
+          path: 'action-logs',
+          component: () =>
+            import('#/views/admin/ai/action-logs/index.vue'),
+          meta: {
+            icon: 'lucide:file-text',
+            title: $t('admin.ai.actionLog.title'),
+          },
+        },
+        {
+          name: 'AdminAITablePolicies',
+          path: 'table-policies',
+          component: () =>
+            import('#/views/admin/ai/table-policies/index.vue'),
+          meta: {
+            icon: 'lucide:shield',
+            title: $t('admin.ai.tablePolicy.title'),
+          },
+        },
+      ],
+    },
+    // Fallback 静态注册：开发工具（后端菜单动态路由优先生效）
+    {
+      name: 'AdminDevTools',
+      path: 'dev',
+      meta: {
+        hideInMenu: true,
+        icon: 'lucide:code-2',
+        title: $t('admin.dev.title'),
+      },
+      children: [
+        {
+          name: 'AdminDevCrudGenerator',
+          path: 'crud-generator',
+          component: () =>
+            import('#/views/admin/dev/crud-generator/index.vue'),
+          meta: {
+            icon: 'lucide:wand-2',
+            title: $t('admin.dev.crudGenerator.title'),
+          },
+        },
       ],
     },
   ],

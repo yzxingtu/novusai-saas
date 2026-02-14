@@ -49,6 +49,7 @@ from app.schemas.tenant.plan import (
 )
 from app.schemas.common.select import SelectResponse
 from app.schemas.common import ReorderRequest
+from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.services.tenant import TenantPlanService
 from app.exceptions import NotFoundException
 
@@ -73,12 +74,19 @@ class AdminPlanController(GlobalController):
     """
     
     prefix = "/plans"
-    tags = ["套餐管理"]
+    tags = ["Plan Management"]
     service_class = TenantPlanService
     
     def _register_routes(self) -> None:
         """注册路由"""
         router = self.router
+
+        # 回收站路由必须在 /{id} 之前注册，避免路径冲突
+        register_admin_recycle_bin_routes(
+            router=router,
+            service_class=TenantPlanService,
+            resource_name="tenant_plan",
+        )
         
         @router.get("/select", summary="获取套餐下拉选项")
         @action_read("action.tenant_plan.select")
@@ -404,6 +412,7 @@ class AdminPlanController(GlobalController):
                 data=TenantPlanDetailResponse.from_model(plan),
                 message=_("tenant_plan.permissions_updated"),
             )
+
 
 
 # 导出路由器

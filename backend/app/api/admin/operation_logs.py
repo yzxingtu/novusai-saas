@@ -46,7 +46,7 @@ class AdminOperationLogController(GlobalController):
     """
     
     prefix = "/operation-logs"
-    tags = ["操作日志管理"]
+    tags = ["Operation Log Management"]
     service_class = OperationLogService
     
     def _register_routes(self) -> None:

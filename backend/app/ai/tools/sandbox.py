@@ -5,10 +5,13 @@
 EventBus 事件发布和 Hook 触发
 """
 
+from __future__ import annotations
+
 import asyncio
+import json
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.ai.events.bus import get_event_bus
 from app.ai.events.hooks import HookPoint, get_hook_registry
@@ -21,15 +24,26 @@ from app.ai.tools.security import (
 )
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.executors.builtin_executor import BuiltinToolExecutor
-from app.ai.tools.executors.code_executor import CodeToolExecutor
-from app.ai.tools.executors.database_executor import DatabaseToolExecutor
-from app.ai.tools.executors.email_executor import EmailToolExecutor
-from app.ai.tools.executors.http_executor import HttpToolExecutor
+from app.ai.tools.executors.text_to_sql_executor import TextToSQLExecutor
+from app.ai.tools.executors.crud_executor import (
+    CreateRecordExecutor,
+    DeleteRecordExecutor,
+    UpdateRecordExecutor,
+)
+from app.ai.tools.executors.crud_generator_executor import CrudGeneratorExecutor
+from app.ai.tools.executors.plugin_executor import PluginSkillExecutor
+from app.ai.tools.executors.toolkit_executor import ToolkitExecutor
 from app.ai.tools.registry import ToolRegistry, get_tool_registry
-from app.ai.tools.types import ToolDefinition, ToolResult
+from app.ai.tools.types import ExecutionContext, ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import ToolTypeEnum
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.ai.gateway import AIGateway
+    from app.models.ai.agent import Agent
 
 logger = LogManager.get_logger("ai.tool.sandbox")
 
@@ -76,6 +90,12 @@ class ToolSandbox:
         agent_id: int,
         config: SandboxConfig | None = None,
         registry: ToolRegistry | None = None,
+        user_id: int | None = None,
+        user_role: str = "tenant_admin",
+        permissions: set[str] | None = None,
+        gateway: AIGateway | None = None,
+        db: AsyncSession | None = None,
+        agent: Agent | None = None,
     ):
         """
         Args:
@@ -83,11 +103,24 @@ class ToolSandbox:
             agent_id: 智能体 ID
             config: 沙箱配置
             registry: 工具注册表（默认使用全局单例）
+            user_id: 当前操作用户 ID（可选，传递给 ExecutionContext）
+            user_role: 用户角色（platform_admin / tenant_admin / tenant_user）
+            permissions: 用户 RBAC 权限码集合
+            gateway: AI 网关（可选，供 TextToSQLExecutor 使用）
+            db: 数据库会话（可选，供 TextToSQLExecutor 使用）
+            agent: 智能体模型实例（可选，供 TextToSQLExecutor 使用）
         """
         self.tenant_id = tenant_id
         self.agent_id = agent_id
+        self.user_id = user_id
+        self.user_role = user_role
+        self.permissions = permissions or set()
+        self.consented_actions: set[str] = set()
         self.config = config or SandboxConfig()
         self.registry = registry or get_tool_registry(tenant_id)
+        self._gateway = gateway
+        self._db = db
+        self._agent = agent
 
         # 初始化执行器
         self._executors: dict[str, BaseToolExecutor] = {}
@@ -95,22 +128,29 @@ class ToolSandbox:
 
     def _init_executors(self) -> None:
         """初始化各类型执行器"""
-        self._executors[ToolTypeEnum.HTTP.value] = HttpToolExecutor(
-            allowed_domains=self.config.allowed_domains,
-            blocked_domains=self.config.blocked_domains,
-            max_response_size=self.config.max_output_size,
+        # Toolkit 执行器（新架构核心）
+        self._executors[ToolTypeEnum.TOOLKIT.value] = ToolkitExecutor(
             timeout=self.config.timeout_seconds,
+            max_output_size=self.config.max_output_size,
         )
         self._executors[ToolTypeEnum.BUILTIN.value] = BuiltinToolExecutor()
-        self._executors[ToolTypeEnum.DATABASE.value] = DatabaseToolExecutor(
-            timeout=self.config.timeout_seconds,
+        # Text-to-SQL 执行器（需要 AIGateway 注入）
+        if self._gateway and self._db:
+            self._executors[ToolTypeEnum.TEXT_TO_SQL.value] = TextToSQLExecutor(
+                gateway=self._gateway,
+                db=self._db,
+                agent=self._agent,
+            )
+        # 通用 CRUD 执行器
+        self._executors[ToolTypeEnum.DATA_CREATE.value] = CreateRecordExecutor()
+        self._executors[ToolTypeEnum.DATA_UPDATE.value] = UpdateRecordExecutor()
+        self._executors[ToolTypeEnum.DATA_DELETE.value] = DeleteRecordExecutor()
+        # CRUD Generator 执行器
+        self._executors[ToolTypeEnum.CRUD_GENERATOR.value] = CrudGeneratorExecutor(
+            gateway=self._gateway,
         )
-        self._executors[ToolTypeEnum.EMAIL.value] = EmailToolExecutor(
-            tenant_id=self.tenant_id,
-        )
-        self._executors[ToolTypeEnum.CODE.value] = CodeToolExecutor(
-            timeout=self.config.timeout_seconds,
-        )
+        # 插件 Skill 执行器
+        self._executors[ToolTypeEnum.PLUGIN.value] = PluginSkillExecutor()
 
     def get_executor(self, tool_type: str) -> BaseToolExecutor | None:
         """获取指定类型的执行器"""
@@ -213,11 +253,23 @@ class ToolSandbox:
                 error=_("tool.error.no_executor", tool_type=definition.tool_type),
             )
 
-        # 5. 超时控制下执行（优先使用工具独立超时，否则回退到全局配置）
+        # 5. 构建 ExecutionContext（含 RBAC 权限信息 + 会话授权）
+        context = ExecutionContext(
+            tenant_id=self.tenant_id,
+            agent_id=self.agent_id,
+            user_id=self.user_id,
+            user_role=self.user_role,
+            permissions=self.permissions,
+            db=self._db,
+            consented_actions=self.consented_actions,
+            skill_id=definition.source_skill_id,
+        )
+
+        # 6. 超时控制下执行（优先使用工具独立超时，否则回退到全局配置）
         tool_timeout = definition.timeout or self.config.timeout_seconds
         try:
             result = await asyncio.wait_for(
-                executor.execute(definition, tool_call_id, arguments),
+                executor.execute(definition, tool_call_id, arguments, context=context),
                 timeout=tool_timeout,
             )
         except asyncio.TimeoutError:
@@ -251,14 +303,14 @@ class ToolSandbox:
                 duration_ms=duration_ms,
             )
 
-        # 6. 输出脱敏 + 截断
+        # 7. 输出脱敏 + 截断
         if result.success:
             result.output, _ = OutputSanitizer.sanitize(
                 result.output,
                 max_size=self.config.max_output_size,
             )
 
-        # 7. AFTER_TOOL_CALL 钩子
+        # 9. AFTER_TOOL_CALL 钩子
         await hook_registry.trigger(
             HookPoint.AFTER_TOOL_CALL,
             tenant_id=self.tenant_id,
@@ -267,7 +319,7 @@ class ToolSandbox:
             result=result,
         )
 
-        # 8. 发布结果事件
+        # 10. 发布结果事件
         if result.success:
             await event_bus.publish(ToolCallCompleted(
                 tenant_id=self.tenant_id,

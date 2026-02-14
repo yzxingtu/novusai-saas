@@ -1,0 +1,42 @@
+{
+  "pageTitle": "插件管理",
+  "pageDesc": "查看和管理可用插件，启用或禁用插件功能",
+  "displayName": "插件名称",
+  "version": "版本",
+  "description": "描述",
+  "author": "作者",
+  "pluginType": "类型",
+  "status": "状态",
+  "isSystem": "系统插件",
+  "enable": "启用",
+  "disable": "禁用",
+  "configure": "配置",
+  "enabled": "已启用",
+  "disabled": "未启用",
+  "platformDisabled": "平台已禁用",
+  "filterAll": "全部",
+  "filterEnabled": "已启用",
+  "filterNotEnabled": "未启用",
+  "searchPlaceholder": "搜索插件…",
+  "totalPlugins": "共 {count} 个可用插件",
+  "noPlugins": "暂无可用插件",
+  "noPluginsDesc": "平台管理员尚未启用任何插件",
+  "noResults": "没有找到匹配的插件",
+  "by": "by",
+  "type_options": {
+    "adapter": "适配器",
+    "tool": "工具",
+    "hook": "钩子",
+    "api": "API",
+    "skill": "技能",
+    "composite": "复合"
+  },
+  "messages": {
+    "confirmEnable": "确定要启用此插件吗？",
+    "confirmDisable": "确定要禁用此插件吗？",
+    "enableSuccess": "插件已启用",
+    "disableSuccess": "插件已禁用",
+    "configureSuccess": "插件配置已更新",
+    "platformDisabledTip": "此插件已被平台管理员禁用，暂不可用"
+  }
+}

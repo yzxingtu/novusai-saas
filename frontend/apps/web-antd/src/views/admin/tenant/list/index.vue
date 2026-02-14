@@ -155,6 +155,7 @@ const {
   formComponent: Form,
   i18nPrefix: 'admin.tenant',
   nameField: 'name',
+  recycleBin: true,
   customActions: {
     impersonate: onImpersonate,
     impersonateInCurrentTab: onImpersonateInCurrentTab,

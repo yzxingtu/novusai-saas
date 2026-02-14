@@ -4,7 +4,7 @@ AI API Key Repository
 处理 AI API Key 数据访问
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,23 +43,23 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
             stmt = select(ProviderApiKey).where(
                 ProviderApiKey.provider_id == provider_id,
                 ProviderApiKey.tenant_id == tenant_id,
-                ProviderApiKey.is_active == True,
-                ProviderApiKey.is_deleted == False
+                ProviderApiKey.is_active.is_(True),
+                ProviderApiKey.is_deleted.is_(False)
             ).order_by(
                 ProviderApiKey.created_at.desc()
             )
             result = await self.db.execute(stmt)
             key = result.scalar_one_or_none()
             
-            if key:
+            if key and key.is_available():
                 return key
         
         # 回退到平台级 Key
         stmt = select(ProviderApiKey).where(
             ProviderApiKey.provider_id == provider_id,
             ProviderApiKey.tenant_id == None,
-            ProviderApiKey.is_active == True,
-            ProviderApiKey.is_deleted == False
+            ProviderApiKey.is_active.is_(True),
+            ProviderApiKey.is_deleted.is_(False)
         ).order_by(
             ProviderApiKey.created_at.desc()
         )
@@ -88,31 +88,53 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         Returns:
             ProviderApiKey 列表（按使用次数升序，实现负载均衡）
         """
-        conditions = [
+        base_conditions = [
             ProviderApiKey.provider_id == provider_id,
-            ProviderApiKey.is_active == True,
-            ProviderApiKey.is_deleted == False,
+            ProviderApiKey.is_active.is_(True),
+            ProviderApiKey.is_deleted.is_(False),
         ]
         
         if tenant_id:
             # 优先使用租户级 Key
-            conditions.append(ProviderApiKey.tenant_id == tenant_id)
+            tenant_conditions = base_conditions + [
+                ProviderApiKey.tenant_id == tenant_id,
+            ]
+            stmt = select(ProviderApiKey).where(
+                and_(*tenant_conditions)
+            ).order_by(
+                ProviderApiKey.usage_count.asc(),
+                ProviderApiKey.created_at.desc()
+            )
+            result = await self.db.execute(stmt)
+            keys = [key for key in result.scalars().all() if key.is_available()]
+            if keys:
+                return keys
+            
+            # 回退到平台级 Key
+            platform_conditions = base_conditions + [
+                ProviderApiKey.tenant_id == None,
+            ]
+            stmt = select(ProviderApiKey).where(
+                and_(*platform_conditions)
+            ).order_by(
+                ProviderApiKey.usage_count.asc(),
+                ProviderApiKey.created_at.desc()
+            )
+            result = await self.db.execute(stmt)
+            return [key for key in result.scalars().all() if key.is_available()]
         else:
             # 平台级调用，只使用平台级 Key
-            conditions.append(ProviderApiKey.tenant_id == None)
-        
-        stmt = select(ProviderApiKey).where(
-            and_(*conditions)
-        ).order_by(
-            ProviderApiKey.usage_count.asc(),  # 使用次数少的优先（负载均衡）
-            ProviderApiKey.created_at.desc()
-        )
-        
-        result = await self.db.execute(stmt)
-        keys = list(result.scalars().all())
-        
-        # 过滤出真正可用的 Key
-        return [key for key in keys if key.is_available()]
+            conditions = base_conditions + [
+                ProviderApiKey.tenant_id == None,
+            ]
+            stmt = select(ProviderApiKey).where(
+                and_(*conditions)
+            ).order_by(
+                ProviderApiKey.usage_count.asc(),
+                ProviderApiKey.created_at.desc()
+            )
+            result = await self.db.execute(stmt)
+            return [key for key in result.scalars().all() if key.is_available()]
     
     async def get_keys_by_provider(
         self,
@@ -136,7 +158,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         ]
         
         if not include_deleted:
-            conditions.append(ProviderApiKey.is_deleted == False)
+            conditions.append(ProviderApiKey.is_deleted.is_(False))
         
         if tenant_id is not None:
             conditions.append(ProviderApiKey.tenant_id == tenant_id)
@@ -171,8 +193,8 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
             stmt = select(ProviderApiKey).where(
                 ProviderApiKey.provider_id == provider_id,
                 ProviderApiKey.id != exclude_key_id,
-                ProviderApiKey.is_active == True,
-                ProviderApiKey.is_deleted == False,
+                ProviderApiKey.is_active.is_(True),
+                ProviderApiKey.is_deleted.is_(False),
                 (
                     (ProviderApiKey.tenant_id == tenant_id)
                     | (ProviderApiKey.tenant_id == None)
@@ -183,8 +205,8 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
                 ProviderApiKey.provider_id == provider_id,
                 ProviderApiKey.id != exclude_key_id,
                 ProviderApiKey.tenant_id == None,
-                ProviderApiKey.is_active == True,
-                ProviderApiKey.is_deleted == False,
+                ProviderApiKey.is_active.is_(True),
+                ProviderApiKey.is_deleted.is_(False),
             ).order_by(ProviderApiKey.created_at.desc())
 
         result = await self.db.execute(stmt)
@@ -210,7 +232,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         key = await self.get_by_id(key_id)
         if key:
             key.usage_count += increment
-            key.last_used_at = datetime.utcnow()
+            key.last_used_at = datetime.now(timezone.utc)
             await self.db.commit()
 
 

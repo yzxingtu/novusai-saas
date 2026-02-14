@@ -7,6 +7,9 @@ import type { TenantAICallLogInfo } from '#/api/tenant/ai';
 
 import { searchInput, select } from '#/adapter/form';
 import { $t } from '#/locales';
+import { formatCost } from '#/utils/format';
+
+export { formatCost };
 
 function getStatusOptions() {
   return [
@@ -30,13 +33,15 @@ export function getStatusText(status: string | undefined): string {
 }
 
 /**
- * 格式化费用
+ * 获取状态颜色
  */
-export function formatCost(cost: null | number | undefined): string {
-  if (cost === null || cost === undefined) return '-';
-  if (cost === 0) return '$0';
-  if (cost < 0.001) return `$${cost.toFixed(6)}`;
-  return `$${cost.toFixed(4)}`;
+export function getStatusColor(status: string | undefined): string {
+  switch (status) {
+    case 'success': return 'success';
+    case 'failed': return 'error';
+    case 'timeout': return 'warning';
+    default: return 'default';
+  }
 }
 
 /**

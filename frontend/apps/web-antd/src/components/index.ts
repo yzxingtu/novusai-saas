@@ -35,3 +35,6 @@ export { PermissionSelector } from './business/permission-selector';
 
 // 角色树
 export { RoleTreeNode } from './business/role-tree';
+
+// JSON Schema 动态表单渲染
+export { SchemaForm } from './business/schema-form';

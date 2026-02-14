@@ -57,8 +57,8 @@ def _build_admin_conversation_item(conv) -> dict:
         icon="lucide:message-square-text",
         path="/ai/conversations",
         component="ai/conversations/index",
-        parent="ai_mgmt",
-        sort_order=50,
+        parent="ai_ops",
+        sort_order=20,
     ),
 )
 class AdminAIConversationController(GlobalController):
@@ -69,7 +69,7 @@ class AdminAIConversationController(GlobalController):
     """
 
     prefix = "/ai/conversations"
-    tags = ["对话监控"]
+    tags = [_("menu.tags.admin_ai_conversation")]
 
     def _register_routes(self) -> None:
         """注册路由"""

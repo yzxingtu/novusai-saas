@@ -4,22 +4,98 @@
  */
 import type { AICallLogInfo } from '#/api/admin/ai';
 
-defineOptions({ name: 'AICallLogList' });
-
-import { ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Card, Tag, Tooltip } from 'ant-design-vue';
+import { Card, Spin, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
-import { getAICallLogListApi } from '#/api/admin/ai';
+import { getAICallLogListApi, getAICallLogStatisticsApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
-import { formatDate } from '#/utils/common';
+import { formatDate, formatRelativeTime } from '#/utils/common';
 
 import { formatCost, getStatusText, useColumns, useGridFormSchema } from './data';
 import CallLogDetail from './modules/detail.vue';
+
+defineOptions({ name: 'AICallLogList' });
+
+// ========== 统计摘要 ==========
+
+const summaryLoading = ref(false);
+const summaryData = ref({
+  total_calls: 0,
+  success_calls: 0,
+  total_tokens: 0,
+  total_cost: 0,
+  avg_latency_ms: 0,
+});
+
+const successRate = computed(() => {
+  const { total_calls, success_calls } = summaryData.value;
+  if (total_calls === 0) return '0%';
+  return `${((success_calls / total_calls) * 100).toFixed(1)}%`;
+});
+
+const summaryCards = computed(() => [
+  {
+    key: 'totalCalls',
+    label: $t('admin.ai.callLog.summary.totalCalls'),
+    value: summaryData.value.total_calls.toLocaleString(),
+    icon: 'lucide:phone-call',
+    bgClass: 'bg-primary/10',
+    iconClass: 'text-primary',
+  },
+  {
+    key: 'successRate',
+    label: $t('admin.ai.callLog.summary.successRate'),
+    value: successRate.value,
+    icon: 'lucide:check-circle',
+    bgClass: 'bg-success/10',
+    iconClass: 'text-success',
+  },
+  {
+    key: 'avgLatency',
+    label: $t('admin.ai.callLog.summary.avgLatency'),
+    value: summaryData.value.avg_latency_ms
+      ? `${Math.round(summaryData.value.avg_latency_ms)}ms`
+      : '-',
+    icon: 'lucide:timer',
+    bgClass: 'bg-warning/10',
+    iconClass: 'text-warning',
+  },
+  {
+    key: 'totalCost',
+    label: $t('admin.ai.callLog.summary.totalCost'),
+    value: formatCost(summaryData.value.total_cost),
+    icon: 'lucide:dollar-sign',
+    bgClass: 'bg-destructive/10',
+    iconClass: 'text-destructive',
+  },
+]);
+
+async function loadSummary() {
+  summaryLoading.value = true;
+  try {
+    const res = await getAICallLogStatisticsApi();
+    summaryData.value = {
+      total_calls: (res.total_calls as number) || 0,
+      success_calls: (res.success_calls as number) || 0,
+      total_tokens: (res.total_tokens as number) || 0,
+      total_cost: (res.total_cost as number) || 0,
+      avg_latency_ms: (res.avg_latency_ms as number) || 0,
+    };
+  } catch {
+    // handled by interceptor
+  } finally {
+    summaryLoading.value = false;
+  }
+}
+
+onMounted(loadSummary);
+
+// ========== 详情抽屉 ==========
 
 const detailOpen = ref(false);
 const detailLogId = ref<null | number>(null);
@@ -28,6 +104,8 @@ function onViewDetail(row: AICallLogInfo) {
   detailLogId.value = row.id;
   detailOpen.value = true;
 }
+
+// ========== Grid ==========
 
 const { Grid } = useCrudPage<AICallLogInfo>({
   api: {
@@ -45,20 +123,52 @@ const { Grid } = useCrudPage<AICallLogInfo>({
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-4">
+  <Page auto-content-height :description="$t('admin.ai.callLog.pageDesc')" content-class="flex flex-col gap-4">
     <!-- 详情抽屉 -->
     <CallLogDetail
       v-model:visible="detailOpen"
       :log-id="detailLogId"
     />
 
+    <!-- 统计摘要 -->
+    <Spin :spinning="summaryLoading">
+      <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <Card
+          v-for="stat in summaryCards"
+          :key="stat.key"
+          :body-style="{ padding: '16px' }"
+        >
+          <div class="flex items-center gap-3">
+            <div
+              class="flex size-10 items-center justify-center rounded-lg"
+              :class="stat.bgClass"
+            >
+              <IconifyIcon
+                :icon="stat.icon"
+                class="size-5"
+                :class="stat.iconClass"
+              />
+            </div>
+            <div>
+              <div class="text-sm text-muted-foreground">{{ stat.label }}</div>
+              <div class="text-lg font-semibold text-foreground">
+                {{ stat.value }}
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </Spin>
+
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
         <!-- 调用时间列 -->
         <template #createdAt_cell="{ row }">
-          <span class="text-muted-foreground">
-            {{ formatDate(row.created_at) }}
-          </span>
+          <Tooltip :title="formatDate(row.created_at)">
+            <span class="text-muted-foreground">
+              {{ formatRelativeTime(row.created_at) }}
+            </span>
+          </Tooltip>
         </template>
 
         <!-- 模型名称列 -->
@@ -72,6 +182,15 @@ const { Grid } = useCrudPage<AICallLogInfo>({
               {{ row.model_name || '-' }}
             </code>
           </div>
+        </template>
+
+        <!-- 供应商列 -->
+        <template #providerName_cell="{ row }">
+          <div v-if="row.provider_name" class="flex items-center justify-center gap-1.5">
+            <IconifyIcon icon="lucide:cpu" class="size-3.5 text-muted-foreground" />
+            <span class="text-foreground">{{ row.provider_name }}</span>
+          </div>
+          <span v-else class="text-muted-foreground">-</span>
         </template>
 
         <!-- 租户列 -->
@@ -114,7 +233,7 @@ const { Grid } = useCrudPage<AICallLogInfo>({
 
         <!-- 费用列 -->
         <template #cost_cell="{ row }">
-          <span class="font-mono text-sm" :class="row.cost > 0 ? 'text-foreground' : 'text-muted-foreground'">
+          <span class="font-mono text-sm" :class="row.cost > 0 ? 'text-warning' : 'text-muted-foreground'">
             {{ formatCost(row.cost) }}
           </span>
         </template>

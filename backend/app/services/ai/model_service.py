@@ -135,6 +135,58 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
         await self.db.flush()
 
 
+    async def fetch_remote_models(self, provider_id: int) -> list:
+        """
+        从供应商远程拉取可用模型列表
+
+        Args:
+            provider_id: 供应商 ID
+
+        Returns:
+            远程模型列表
+
+        Raises:
+            NotFoundException: 供应商或 API Key 不存在
+            ExternalServiceException: 远程调用失败
+        """
+        from app.ai.adapters import AdapterRegistry
+        from app.exceptions import ExternalServiceException
+        from app.repositories.ai import AIProviderRepository, ProviderApiKeyRepository
+        from app.core.logging import LogManager
+
+        _logger = LogManager.get_logger("ai")
+
+        provider_repo = AIProviderRepository(self.db)
+        provider = await provider_repo.get_by_id(provider_id)
+        if not provider or not provider.is_active:
+            raise NotFoundException(message=_("ai.error.provider_not_found"))
+
+        api_key_repo = ProviderApiKeyRepository(self.db)
+        api_key = await api_key_repo.get_available_key(
+            provider_id=provider.id,
+            tenant_id=None,
+        )
+        if not api_key or not api_key.is_available():
+            raise NotFoundException(message=_("ai.error.no_api_key"))
+
+        try:
+            adapter = AdapterRegistry.create_adapter(
+                provider_type=provider.type,
+                api_key=api_key.decrypt_key(),
+                base_url=provider.base_url,
+            )
+            return await adapter.list_models()
+        except Exception as e:
+            _logger.error(
+                _("ai.error.fetch_remote_models_failed"),
+                provider=provider.code,
+                error=str(e),
+            )
+            raise ExternalServiceException(
+                message=_("ai.error.fetch_remote_models_failed") + f": {str(e)}"
+            )
+
+
 __all__ = [
     "AIModelService",
 ]

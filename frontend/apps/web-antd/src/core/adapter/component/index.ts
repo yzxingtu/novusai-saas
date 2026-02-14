@@ -98,6 +98,7 @@ const Cascader = defineAsyncComponent(
   () => import('ant-design-vue/es/cascader'),
 );
 const Upload = defineAsyncComponent(() => import('ant-design-vue/es/upload'));
+const Alert = defineAsyncComponent(() => import('ant-design-vue/es/alert'));
 const Image = defineAsyncComponent(() => import('ant-design-vue/es/image'));
 const PreviewGroup = defineAsyncComponent(() =>
   import('ant-design-vue/es/image').then((res) => res.ImagePreviewGroup),
@@ -360,6 +361,7 @@ const withPreviewUpload = () => {
 
 // 这里需要自行根据业务组件库进行适配，需要用到的组件都需要在这里类型说明
 export type ComponentType =
+  | 'Alert'
   | 'ApiCascader'
   | 'ApiSelect'
   | 'ApiTreeSelect'
@@ -373,6 +375,7 @@ export type ComponentType =
   | 'Divider'
   | 'IconPicker'
   | 'IconSelector'
+  | 'ImageUpload'
   | 'Input'
   | 'InputNumber'
   | 'InputPassword'
@@ -383,6 +386,8 @@ export type ComponentType =
   | 'RangePicker'
   | 'Rate'
   | 'Select'
+  | 'ToolkitEditor'
+  | 'ValvesConfigForm'
   | 'Space'
   | 'Switch'
   | 'Textarea'
@@ -396,6 +401,7 @@ async function initComponentAdapter() {
     // 如果你的组件体积比较大，可以使用异步加载
     // Button: () =>
     // import('xxx').then((res) => res.Button),
+    Alert,
     ApiCascader: withDefaultPlaceholder(ApiComponent, 'select', {
       component: Cascader,
       fieldNames: { label: 'label', value: 'value', children: 'children' },
@@ -438,6 +444,9 @@ async function initComponentAdapter() {
       modelValueProp: 'value',
     }),
     IconSelector,
+    ImageUpload: defineAsyncComponent(
+      () => import('#/components/business/image-upload/ImageUpload.vue'),
+    ),
     Input: withDefaultPlaceholder(Input, 'input'),
     InputNumber: withDefaultPlaceholder(InputNumber, 'input'),
     InputPassword: withDefaultPlaceholder(InputPassword, 'input'),
@@ -450,6 +459,12 @@ async function initComponentAdapter() {
     RadioGroup,
     RangePicker,
     Rate,
+    ToolkitEditor: defineAsyncComponent(
+      () => import('#/components/business/toolkit-editor/ToolkitEditor.vue'),
+    ),
+    ValvesConfigForm: defineAsyncComponent(
+      () => import('#/components/business/toolkit-editor/ValvesConfigForm.vue'),
+    ),
     Select: withDefaultPlaceholder(Select, 'select'),
     Space,
     Switch,

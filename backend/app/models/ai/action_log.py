@@ -1,0 +1,160 @@
+"""
+AI 操作审计日志模型
+
+记录 Text-to-SQL 查询和 API 业务操作的审计日志，
+用于安全追溯、合规审计和操作分析
+"""
+
+from sqlalchemy import Index, Integer, String, Text, JSON
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.core.base_model import TenantModel
+from app.core.i18n import _
+from app.enums.agent import ActionStatusEnum
+
+
+class AIActionLog(TenantModel):
+    """
+    AI 操作审计日志
+
+    记录每次 Text-to-SQL 或 API Action 的详细信息，包括：
+    - 操作者（operator_id 关联 tenant_admins）
+    - 操作类型和安全等级
+    - 请求和响应数据（JSON）
+    - 执行状态和耗时
+    """
+
+    __tablename__ = "ai_action_logs"
+
+    # 允许前端筛选的字段
+    __filterable__ = {
+        "id": "id",
+        "tenant_id": "tenant_id",
+        "agent_id": "agent_id",
+        "conversation_id": "conversation_id",
+        "operator_id": "operator_id",
+        "skill_id": "skill_id",
+        "action_name": "action_name",
+        "action_type": "action_type",
+        "action_level": "action_level",
+        "status": "status",
+        "created_at": "created_at",
+    }
+
+    # 允许排序的字段
+    __sortable__ = {
+        "id": "id",
+        "created_at": "created_at",
+        "duration_ms": "duration_ms",
+    }
+
+    # 智能体 ID
+    agent_id: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        index=True,
+        comment=_("ai_action_log.field.agent_id"),
+    )
+
+    # 对话 ID
+    conversation_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+        comment=_("ai_action_log.field.conversation_id"),
+    )
+
+    # 来源 Skill ID（可为 NULL，向后兼容旧数据）
+    skill_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+        comment=_("ai_action_log.field.skill_id"),
+    )
+
+    # 操作者 ID（关联 tenant_admins 或 tenant_users）
+    operator_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+        comment=_("ai_action_log.field.operator_id"),
+    )
+
+    # 操作名称（如 text_to_sql、create_order 等）
+    action_name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        index=True,
+        comment=_("ai_action_log.field.action_name"),
+    )
+
+    # 操作类型（对应 ActionTypeEnum: query/action/confirm）
+    action_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        comment=_("ai_action_log.field.action_type"),
+    )
+
+    # 安全等级（对应 ActionLevelEnum: read/safe_write/dangerous）
+    action_level: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        comment=_("ai_action_log.field.action_level"),
+    )
+
+    # 请求数据（JSON 格式，如 SQL 语句、API 参数等）
+    request_data: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        comment=_("ai_action_log.field.request_data"),
+    )
+
+    # 响应数据（JSON 格式，如查询结果摘要、操作结果等）
+    response_data: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        comment=_("ai_action_log.field.response_data"),
+    )
+
+    # 执行状态（success/failed/rejected/pending_confirm）
+    status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default=ActionStatusEnum.SUCCESS.value,
+        index=True,
+        comment=_("ai_action_log.field.status"),
+    )
+
+    # 错误信息
+    error_message: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment=_("ai_action_log.field.error_message"),
+    )
+
+    # 执行耗时（毫秒）
+    duration_ms: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment=_("ai_action_log.field.duration_ms"),
+    )
+
+    # ==================== 索引 ====================
+
+    __table_args__ = (
+        # 操作类型 + 创建时间复合索引（用于按类型查询审计记录）
+        Index("idx_ai_action_logs_type_created", "action_type", "created_at"),
+        # 租户 + 创建时间复合索引（用于按租户查询最近记录）
+        Index("idx_ai_action_logs_tenant_created", "tenant_id", "created_at"),
+        # 操作者 + 创建时间复合索引（用于按操作者追溯记录）
+        Index("idx_ai_action_logs_operator_created", "operator_id", "created_at"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<AIActionLog(id={self.id}, tenant_id={self.tenant_id}, "
+            f"action_name={self.action_name}, status={self.status})>"
+        )
+
+
+__all__ = ["AIActionLog"]

@@ -8,8 +8,6 @@ TPM（每分钟 Token 数）使用独立的 INCRBY 累加计数器。
 
 import os
 import time
-from typing import Optional
-
 from app.core.redis import get_redis
 from app.core.logging import LogManager
 from app.core.i18n import _
@@ -62,12 +60,24 @@ class RateLimiter:
     return -1
     """
 
+    # Lua 脚本：原子调整 TPM（INCRBY + 不低于 0 保护）
+    # KEYS[1] = tpm_key, ARGV[1] = diff
+    # 返回调整后的值
+    _TPM_ADJUST_LUA = """
+    local new_val = redis.call('INCRBY', KEYS[1], ARGV[1])
+    if new_val < 0 then
+        redis.call('SET', KEYS[1], '0', 'KEEPTTL')
+        return 0
+    end
+    return new_val
+    """
+
     @staticmethod
     async def check_and_record(
         tenant_id: int,
         model_id: int,
-        rpm_limit: Optional[int] = None,
-        tpm_limit: Optional[int] = None,
+        rpm_limit: int | None = None,
+        tpm_limit: int | None = None,
         estimated_tokens: int = 0,
     ) -> bool:
         """
@@ -163,6 +173,7 @@ class RateLimiter:
         model_id: int,
         estimated_tokens: int,
         actual_tokens: int,
+        request_minute_key: int | None = None,
     ) -> None:
         """
         响应后调整 TPM：从预估值调整为实际值
@@ -172,22 +183,22 @@ class RateLimiter:
             model_id: 模型 ID
             estimated_tokens: 预估 Token 数量（已预扣）
             actual_tokens: 实际 Token 数量
+            request_minute_key: 请求时的分钟 key（int(start_time)//60），
+                避免跨分钟边界时调整到错误的 key。缺省时使用当前时间。
         """
         diff = actual_tokens - estimated_tokens
         if diff == 0:
             return
         redis = await get_redis()
-        current_time = int(time.time())
-        minute_key = current_time // 60
+        minute_key = request_minute_key if request_minute_key is not None else int(time.time()) // 60
         tpm_key = f"{RateLimiter.PREFIX_TPM}{tenant_id}:{model_id}:{minute_key}"
-        if diff > 0:
-            await redis.incrby(tpm_key, diff)
-        else:
-            # DECRBY 回滚，但不低于 0
-            current_val = await redis.get(tpm_key)
-            if current_val:
-                new_val = max(0, int(current_val) + diff)
-                await redis.set(tpm_key, new_val, keepttl=True)
+        # 原子调整：INCRBY + 不低于 0 保护（消除 TOCTOU 竞态）
+        await redis.eval(
+            RateLimiter._TPM_ADJUST_LUA,
+            1,
+            tpm_key,
+            str(diff),
+        )
 
     @staticmethod
     async def _sliding_window_count(

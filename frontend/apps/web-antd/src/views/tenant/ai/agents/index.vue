@@ -9,11 +9,13 @@ defineOptions({ name: 'TenantAgentList' });
 import { ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
-import { IconifyIcon, Plus } from '@vben/icons';
+import { Plus } from '@vben/icons';
 
 import { Card, Input, message, Modal, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
+
+import QuickStartGuide from '../_components/QuickStartGuide.vue';
 import {
   deleteAgentApi,
   getAgentListApi,
@@ -132,6 +134,7 @@ const { Grid } = useCrudPage<AgentListItem>({
   i18nPrefix: 'tenant.ai.agent',
   nameField: 'name',
   defaultSort: '-created_at',
+  recycleBin: true,
   customActions: {
     access: onAccess,
     test: onTest,
@@ -154,7 +157,8 @@ function onVersionSuccess() {
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-4">
+  <Page auto-content-height :description="$t('tenant.ai.agent.pageDesc')" content-class="flex flex-col gap-4">
+    <QuickStartGuide />
     <!-- 表单抽屉 -->
     <AgentForm ref="agentFormRef" @success="onFormSuccess" />
     <!-- 访问权限抽屉 -->
@@ -204,12 +208,26 @@ function onVersionSuccess() {
 
         <!-- 名称列 -->
         <template #name_cell="{ row }">
-          <div class="flex items-center gap-1.5">
-            <IconifyIcon
-              icon="lucide:bot"
-              class="size-3.5 text-muted-foreground"
-            />
-            <span class="font-medium">{{ row.name }}</span>
+          <div class="flex items-center gap-2.5">
+            <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-medium text-primary">
+              <img
+                v-if="row.avatar"
+                :src="row.avatar"
+                :alt="row.name"
+                class="size-full rounded-lg object-cover"
+              />
+              <span v-else>{{ row.name?.charAt(0)?.toUpperCase() || '?' }}</span>
+            </div>
+            <span class="font-medium text-foreground">{{ row.name }}</span>
+            <Tag v-if="row.is_system" color="purple" class="ml-1" style="font-size: 10px; line-height: 16px; padding: 0 4px;">
+              {{ $t('tenant.ai.agent.system') }}
+            </Tag>
+          </div>
+          <div
+            v-if="row.description"
+            class="mt-0.5 truncate text-xs text-muted-foreground"
+          >
+            {{ row.description }}
           </div>
         </template>
 

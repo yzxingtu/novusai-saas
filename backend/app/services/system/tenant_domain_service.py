@@ -69,7 +69,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         """
         result = await self.db.execute(
             select(Tenant)
-            .where(Tenant.id == tenant_id, Tenant.is_deleted == False)
+            .where(Tenant.id == tenant_id, Tenant.is_deleted.is_(False))
             .options(selectinload(Tenant.tenant_plan))
         )
         return result.scalar_one_or_none()

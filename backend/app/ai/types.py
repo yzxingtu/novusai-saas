@@ -15,12 +15,16 @@ class ChatMessage:
     聊天消息
     
     统一的聊天消息格式，适配所有供应商
+    
+    多模态内容：当 attachments 不为空时，adapter 层会将 content + attachments
+    转换为 OpenAI 的 content 数组格式（text + image_url 部分）。
     """
     role: Literal["system", "user", "assistant", "tool"]
     content: str
     name: str | None = None
     tool_calls: list[dict] | None = None
     tool_call_id: str | None = None
+    attachments: list[dict] | None = None
 
 
 @dataclass
@@ -129,10 +133,36 @@ class ImageResponse:
     metadata: dict = field(default_factory=dict)
 
 
+@dataclass
+class TestModelResult:
+    """
+    模型测试结果
+
+    test_model 方法的类型化返回值
+    """
+    connected: bool
+    latency_ms: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    response_text: str = ""
+    error: str | None = None
+    model: str = ""
+    provider: str = ""
+
+
+def messages_to_dicts(messages: list[ChatMessage]) -> list[dict]:
+    """将 ChatMessage 列表转换为 dict 列表（避免重复 dataclasses.asdict 调用）"""
+    from dataclasses import asdict
+    return [asdict(msg) for msg in messages]
+
+
 __all__ = [
     "ChatMessage",
     "ChatResponse",
     "ChatChunk",
     "EmbeddingResponse",
     "ImageResponse",
+    "TestModelResult",
+    "messages_to_dicts",
 ]

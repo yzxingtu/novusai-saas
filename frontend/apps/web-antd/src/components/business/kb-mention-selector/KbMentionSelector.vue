@@ -1,0 +1,142 @@
+<script lang="ts" setup>
+/**
+ * 知识库 @ 提及选择器
+ *
+ * 在对话输入区域显示已选知识库标签，点击 @ 按钮弹出可选知识库列表。
+ * 通过 props.fetchApi 传入不同的 API 函数，管理端和租户端共用。
+ */
+defineOptions({ name: 'KbMentionSelector' });
+
+import { ref, onMounted } from 'vue';
+
+import { IconifyIcon } from '@vben/icons';
+
+import { Popover, Tag, Spin } from 'ant-design-vue';
+
+import { $t } from '#/locales';
+
+export interface KBItem {
+  id: number;
+  name: string;
+  scope: string;
+  description: string | null;
+}
+
+const props = defineProps<{
+  fetchApi: (...args: unknown[]) => Promise<unknown[]>;
+}>();
+
+const selectedKBs = defineModel<number[]>('selectedIds', { default: () => [] });
+
+const kbList = ref<KBItem[]>([]);
+const loading = ref(false);
+const popoverVisible = ref(false);
+
+async function loadKBList() {
+  if (kbList.value.length > 0) return;
+  loading.value = true;
+  try {
+    kbList.value = (await props.fetchApi()) as KBItem[];
+  } catch {
+    kbList.value = [];
+  } finally {
+    loading.value = false;
+  }
+}
+
+function toggleKB(id: number) {
+  const idx = selectedKBs.value.indexOf(id);
+  if (idx >= 0) {
+    selectedKBs.value = selectedKBs.value.filter((v) => v !== id);
+  } else {
+    selectedKBs.value = [...selectedKBs.value, id];
+  }
+}
+
+function removeKB(id: number) {
+  selectedKBs.value = selectedKBs.value.filter((v) => v !== id);
+}
+
+function getKBName(id: number): string {
+  return kbList.value.find((kb) => kb.id === id)?.name ?? `KB#${id}`;
+}
+
+function getScopeColor(scope: string): string {
+  switch (scope) {
+    case 'global': return 'blue';
+    case 'admin': return 'purple';
+    case 'tenant': return 'green';
+    default: return 'default';
+  }
+}
+
+onMounted(loadKBList);
+</script>
+
+<template>
+  <div class="flex flex-wrap items-center gap-1.5">
+    <!-- 已选知识库标签 -->
+    <Tag
+      v-for="kbId in selectedKBs"
+      :key="kbId"
+      closable
+      color="processing"
+      class="m-0"
+      @close="removeKB(kbId)"
+    >
+      <IconifyIcon icon="lucide:book-open" class="mr-0.5 inline size-3" />
+      {{ getKBName(kbId) }}
+    </Tag>
+
+    <!-- @ 按钮 -->
+    <Popover
+      v-model:open="popoverVisible"
+      trigger="click"
+      placement="topLeft"
+      :arrow="false"
+    >
+      <template #content>
+        <div class="w-64">
+          <div class="mb-2 text-xs font-medium text-muted-foreground">
+            {{ $t('shared.kbMention.title') }}
+          </div>
+          <Spin v-if="loading" size="small" class="flex justify-center py-4" />
+          <div v-else-if="kbList.length === 0" class="py-3 text-center text-xs text-muted-foreground">
+            {{ $t('shared.kbMention.empty') }}
+          </div>
+          <div v-else class="max-h-48 space-y-1 overflow-y-auto">
+            <div
+              v-for="kb in kbList"
+              :key="kb.id"
+              class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent"
+              :class="selectedKBs.includes(kb.id) ? 'bg-primary/10' : ''"
+              @click="toggleKB(kb.id)"
+            >
+              <IconifyIcon
+                :icon="selectedKBs.includes(kb.id) ? 'lucide:check-square' : 'lucide:square'"
+                class="size-4 shrink-0"
+                :class="selectedKBs.includes(kb.id) ? 'text-primary' : 'text-muted-foreground'"
+              />
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-foreground">{{ kb.name }}</div>
+                <div v-if="kb.description" class="truncate text-xs text-muted-foreground">
+                  {{ kb.description }}
+                </div>
+              </div>
+              <Tag :color="getScopeColor(kb.scope)" class="m-0 text-xs">
+                {{ kb.scope }}
+              </Tag>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <div
+        class="flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        :title="$t('shared.kbMention.title')"
+      >
+        <IconifyIcon icon="lucide:at-sign" class="size-4" />
+      </div>
+    </Popover>
+  </div>
+</template>

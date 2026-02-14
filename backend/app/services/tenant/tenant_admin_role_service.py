@@ -266,7 +266,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         # 查询权限
         query = select(Permission).where(
             Permission.id.in_(permission_ids),
-            Permission.is_deleted == False,
+            Permission.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
         permissions = list(result.scalars().all())
@@ -347,7 +347,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
             query = select(TenantAdmin).where(
                 TenantAdmin.id == leader_id,
                 TenantAdmin.tenant_id == self.tenant_id,
-                TenantAdmin.is_deleted == False,
+                TenantAdmin.is_deleted.is_(False),
             )
             result = await self.db.execute(query)
             leader = result.scalar_one_or_none()
@@ -412,7 +412,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         query = select(TenantAdmin).where(
             TenantAdmin.id == admin_id,
             TenantAdmin.tenant_id == self.tenant_id,
-            TenantAdmin.is_deleted == False,
+            TenantAdmin.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
         admin = result.scalar_one_or_none()
@@ -459,7 +459,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         query = select(TenantAdmin).where(
             TenantAdmin.id == admin_id,
             TenantAdmin.tenant_id == self.tenant_id,
-            TenantAdmin.is_deleted == False,
+            TenantAdmin.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
         admin = result.scalar_one_or_none()
@@ -631,7 +631,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         query = select(TenantAdmin).where(
             TenantAdmin.id == admin_id,
             TenantAdmin.tenant_id == self.tenant_id,
-            TenantAdmin.is_deleted == False,
+            TenantAdmin.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
         admin = result.scalar_one_or_none()
@@ -714,7 +714,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         query = select(TenantAdmin).where(
             TenantAdmin.id == admin_id,
             TenantAdmin.tenant_id == self.tenant_id,
-            TenantAdmin.is_deleted == False,
+            TenantAdmin.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
         admin = result.scalar_one_or_none()
@@ -771,7 +771,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         query = select(TenantAdmin).where(
             TenantAdmin.id == admin_id,
             TenantAdmin.tenant_id == self.tenant_id,
-            TenantAdmin.is_deleted == False,
+            TenantAdmin.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
         admin = result.scalar_one_or_none()

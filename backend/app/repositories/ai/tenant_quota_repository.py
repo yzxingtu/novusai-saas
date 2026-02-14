@@ -2,7 +2,7 @@
 租户 AI 配额配置 Repository
 """
 
-from typing import Optional, List
+from typing import List
 from sqlalchemy import select, and_, or_
 
 from app.models.ai import TenantQuota
@@ -28,9 +28,9 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
     async def get_by_tenant_and_model(
         self,
         tenant_id: int,
-        model_id: Optional[int] = None,
+        model_id: int | None = None,
         period: str = "monthly"
-    ) -> Optional[TenantQuota]:
+    ) -> TenantQuota | None:
         """
         获取租户对指定模型的配额配置
         
@@ -47,7 +47,7 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
                 TenantQuota.tenant_id == tenant_id,
                 TenantQuota.model_id == model_id,
                 TenantQuota.period == period,
-                TenantQuota.is_deleted == False,
+                TenantQuota.is_deleted.is_(False),
             )
         )
         
@@ -57,7 +57,7 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
     async def get_active_quotas(
         self,
         tenant_id: int,
-        period: Optional[str] = None
+        period: str | None = None
     ) -> List[TenantQuota]:
         """
         获取租户所有激活的配额配置
@@ -71,8 +71,8 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
         """
         conditions = [
             TenantQuota.tenant_id == tenant_id,
-            TenantQuota.is_active == True,
-            TenantQuota.is_deleted == False,
+            TenantQuota.is_active.is_(True),
+            TenantQuota.is_deleted.is_(False),
         ]
         
         if period:

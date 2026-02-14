@@ -20,7 +20,9 @@ from app.rbac.decorators import (
     action_create,
     action_delete,
 )
-from app.schemas.ai.agent_chat import AgentChatRequest
+from app.rbac.services.permission_service import PermissionService
+from app.enums.agent import ConfirmActionEnum
+from app.schemas.ai.agent_chat import AgentChatRequest, AgentConfirmRequest
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.agent_service import AgentService
 from app.services.ai.conversation_service import ConversationService
@@ -34,7 +36,7 @@ from app.services.ai.conversation_service import ConversationService
         icon="lucide:message-square",
         path="/ai/chat",
         component="ai/chat/index",
-        parent="ai_mgmt",
+        parent="ai_workspace",
         sort_order=20,
     ),
 )
@@ -46,7 +48,7 @@ class TenantAgentChatController(TenantController):
     """
 
     prefix = "/ai/agent-chat"
-    tags = ["智能体对话"]
+    tags = [_("menu.tags.tenant_agent_chat")]
 
     def _register_routes(self) -> None:
         """注册路由"""
@@ -93,6 +95,8 @@ class TenantAgentChatController(TenantController):
             """
             await _check_agent_access(db, tenant_admin.tenant_id, agent_id, tenant_admin.id)
 
+            perm_service = PermissionService(db)
+            user_perms = await perm_service.get_tenant_admin_permissions(tenant_admin)
             service = AgentChatService(db, tenant_admin.tenant_id)
             result = await service.chat(
                 agent_id=agent_id,
@@ -100,6 +104,11 @@ class TenantAgentChatController(TenantController):
                 conversation_id=data.conversation_id,
                 variables=data.variables,
                 user_id=tenant_admin.id,
+                knowledge_base_ids=data.knowledge_base_ids,
+                user_role="tenant_admin",
+                permissions=user_perms,
+                consented_actions=data.consented_actions,
+                attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
             )
 
             return success(data=result.model_dump())
@@ -126,6 +135,8 @@ class TenantAgentChatController(TenantController):
             """
             await _check_agent_access(db, tenant_admin.tenant_id, agent_id, tenant_admin.id)
 
+            perm_service = PermissionService(db)
+            user_perms = await perm_service.get_tenant_admin_permissions(tenant_admin)
             service = AgentChatService(db, tenant_admin.tenant_id)
 
             return await service.stream_chat(
@@ -134,7 +145,51 @@ class TenantAgentChatController(TenantController):
                 conversation_id=data.conversation_id,
                 variables=data.variables,
                 user_id=tenant_admin.id,
+                knowledge_base_ids=data.knowledge_base_ids,
+                user_role="tenant_admin",
+                permissions=user_perms,
+                consented_actions=data.consented_actions,
+                attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
             )
+
+        # ========================================
+        # 操作确认
+        # ========================================
+
+        @router.post("/confirm", summary="确认/取消 AI 操作")
+        @action_create("action.agent_chat.confirm")
+        async def confirm_action(
+            request: Request,
+            db: DbSession,
+            data: AgentConfirmRequest,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            处理 AI 操作确认或取消
+
+            - action="confirm": 验证 confirm_id 并执行操作
+            - action="cancel": 删除 confirm_id，取消操作
+
+            权限: agent_chat:confirm
+            """
+            service = AgentChatService(db, tenant_admin.tenant_id)
+
+            if data.action == ConfirmActionEnum.CANCEL.value:
+                result = await service.cancel_action(data.confirm_id)
+                msg_key = (
+                    _("agent_confirm.cancelled")
+                    if result["status"] == "cancelled"
+                    else _("agent_confirm.cancel_failed")
+                )
+                return success(data=result, message=msg_key)
+
+            # confirm
+            result = await service.confirm_action(
+                confirm_id=data.confirm_id,
+                tenant_id=tenant_admin.tenant_id,
+                user_id=tenant_admin.id,
+            )
+            return success(data=result)
 
         # ========================================
         # 对话管理
@@ -189,6 +244,11 @@ class TenantAgentChatController(TenantController):
             权限: agent_chat:conversation_detail
             """
             service = ConversationService(db, tenant_admin.tenant_id)
+            conversation = await service.get_by_id(conversation_id)
+            if not conversation or conversation.agent_id != agent_id:
+                raise NotFoundException(
+                    message=_("agent_chat.error.conversation_not_found"),
+                )
             result = await service.get_conversation_detail(conversation_id)
 
             return success(data=result)
@@ -212,8 +272,8 @@ class TenantAgentChatController(TenantController):
             """
             service = ConversationService(db, tenant_admin.tenant_id)
 
-            conversation = await service.repo.get_by_id(conversation_id)
-            if not conversation:
+            conversation = await service.get_by_id(conversation_id)
+            if not conversation or conversation.agent_id != agent_id:
                 raise NotFoundException(
                     message=_("agent_chat.error.conversation_not_found"),
                 )

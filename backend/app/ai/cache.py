@@ -7,7 +7,9 @@ AI 响应缓存服务
 
 import json
 import hashlib
-from typing import Optional, Any
+from typing import Any
+
+from redis.exceptions import RedisError
 
 from app.core.config import settings
 from app.core.redis import get_redis
@@ -40,8 +42,8 @@ class AIResponseCache:
         model: str,
         messages: list,
         temperature: float,
-        max_tokens: Optional[int] = None,
-        tools: Optional[list] = None,
+        max_tokens: int | None = None,
+        tools: list | None = None,
     ) -> str:
         """
         生成缓存键
@@ -74,7 +76,7 @@ class AIResponseCache:
         return f"{AIResponseCache.CACHE_PREFIX}{hash_value}"
 
     @staticmethod
-    async def get(cache_key: str) -> Optional[dict]:
+    async def get(cache_key: str) -> dict | None:
         """
         获取缓存响应
 
@@ -110,7 +112,7 @@ class AIResponseCache:
             await AIResponseCache._record_hit(redis, hit=False)
             return None
 
-        except Exception as e:
+        except (RedisError, json.JSONDecodeError) as e:
             logger.error(_("ai.log.cache_get_failed"), error=str(e))
             return None
 
@@ -118,7 +120,7 @@ class AIResponseCache:
     async def set(
         cache_key: str,
         response_data: dict,
-        ttl: Optional[int] = None,
+        ttl: int | None = None,
     ) -> None:
         """
         设置缓存响应
@@ -140,7 +142,7 @@ class AIResponseCache:
 
             logger.info(_("ai.log.cache_set"), cache_key=cache_key[:40], ttl=ttl)
 
-        except Exception as e:
+        except (RedisError, TypeError) as e:
             logger.error(_("ai.log.cache_set_failed"), error=str(e))
 
     @staticmethod
@@ -156,7 +158,7 @@ class AIResponseCache:
             await redis.delete(cache_key)
             logger.info(_("ai.log.cache_deleted"), cache_key=cache_key[:40])
 
-        except Exception as e:
+        except RedisError as e:
             logger.error(_("ai.log.cache_delete_failed"), error=str(e))
 
     @staticmethod
@@ -177,7 +179,7 @@ class AIResponseCache:
                 await redis.delete(*keys)
                 logger.info(_("ai.log.cache_cleared"), pattern=pattern, count=len(keys))
 
-        except Exception as e:
+        except RedisError as e:
             logger.error(_("ai.log.cache_clear_failed"), error=str(e))
 
     @staticmethod
@@ -195,7 +197,7 @@ class AIResponseCache:
                 await redis.hincrby(AIResponseCache.STATS_KEY, "hits", 1)
             else:
                 await redis.hincrby(AIResponseCache.STATS_KEY, "misses", 1)
-        except Exception:
+        except RedisError:
             pass  # 统计失败不影响主流程
 
     @staticmethod
@@ -226,7 +228,7 @@ class AIResponseCache:
                 "total": total,
                 "hit_rate": round(hit_rate, 4),
             }
-        except Exception as e:
+        except RedisError as e:
             logger.error(_("ai.log.cache_get_hit_rate_failed"), error=str(e))
             return {"hits": 0, "misses": 0, "total": 0, "hit_rate": 0.0}
 
@@ -236,7 +238,7 @@ class AIResponseCache:
         try:
             redis = await get_redis()
             await redis.delete(AIResponseCache.STATS_KEY)
-        except Exception as e:
+        except RedisError as e:
             logger.error(_("ai.log.cache_reset_stats_failed"), error=str(e))
 
 

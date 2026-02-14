@@ -42,7 +42,7 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
                 and_(
                     ConversationMessage.tenant_id == self.tenant_id,
                     ConversationMessage.conversation_id == conversation_id,
-                    ConversationMessage.is_deleted == False,
+                    ConversationMessage.is_deleted.is_(False),
                 )
             )
             .order_by(ConversationMessage.sequence.asc())
@@ -66,7 +66,7 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
             and_(
                 ConversationMessage.tenant_id == self.tenant_id,
                 ConversationMessage.conversation_id == conversation_id,
-                ConversationMessage.is_deleted == False,
+                ConversationMessage.is_deleted.is_(False),
             )
         )
         result = await self.db.execute(stmt)
@@ -87,7 +87,7 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
             and_(
                 ConversationMessage.tenant_id == self.tenant_id,
                 ConversationMessage.conversation_id == conversation_id,
-                ConversationMessage.is_deleted == False,
+                ConversationMessage.is_deleted.is_(False),
             )
         )
         result = await self.db.execute(stmt)
@@ -107,7 +107,7 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
             and_(
                 ConversationMessage.tenant_id == self.tenant_id,
                 ConversationMessage.conversation_id == conversation_id,
-                ConversationMessage.is_deleted == False,
+                ConversationMessage.is_deleted.is_(False),
             )
         )
         result = await self.db.execute(stmt)
@@ -134,7 +134,7 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
         escaped = keyword.replace("%", "\\%").replace("_", "\\_")
         base_cond = and_(
             ConversationMessage.tenant_id == self.tenant_id,
-            ConversationMessage.is_deleted == False,
+            ConversationMessage.is_deleted.is_(False),
             ConversationMessage.content.ilike(f"%{escaped}%"),
         )
 
@@ -178,7 +178,7 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
                 and_(
                     ConversationMessage.tenant_id == self.tenant_id,
                     ConversationMessage.conversation_id == conversation_id,
-                    ConversationMessage.is_deleted == False,
+                    ConversationMessage.is_deleted.is_(False),
                 )
             )
             .order_by(ConversationMessage.sequence.desc())

@@ -4,7 +4,6 @@ AI 调用配额管理服务
 管理租户的 Token 配额、月度预算和使用量追踪
 """
 
-from typing import Optional
 from datetime import date, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
@@ -34,6 +33,18 @@ class UsageTracker:
     PREFIX_DAILY = "ai:usage:daily:"
     PREFIX_MONTHLY = "ai:usage:monthly:"
 
+    # Lua 脚本：原子调整用量（INCRBY + 不低于 0 保护）
+    # KEYS[1] = usage_key, ARGV[1] = diff
+    # 返回调整后的值
+    _USAGE_ADJUST_LUA = """
+    local new_val = redis.call('INCRBY', KEYS[1], ARGV[1])
+    if new_val < 0 then
+        redis.call('SET', KEYS[1], '0', 'KEEPTTL')
+        return 0
+    end
+    return new_val
+    """
+
     # Lua 脚本：原子预扣减+检查
     # 返回 -1 表示成功（已预扣），>= 0 表示当前用量（超限，已回滚）
     _QUOTA_CHECK_AND_RECORD_LUA = """
@@ -55,7 +66,7 @@ class UsageTracker:
     async def get_daily_usage(
         tenant_id: int,
         model_id: int,
-        stat_date: Optional[date] = None
+        stat_date: date | None = None
     ) -> int:
         """
         获取当日 Token 使用量
@@ -79,8 +90,8 @@ class UsageTracker:
     async def get_monthly_usage(
         tenant_id: int,
         model_id: int,
-        year: Optional[int] = None,
-        month: Optional[int] = None
+        year: int | None = None,
+        month: int | None = None
     ) -> int:
         """
         获取当月 Token 使用量
@@ -162,7 +173,7 @@ class UsageTracker:
         tenant_id: int,
         model_id: int,
         tokens: int,
-        stat_date: Optional[date] = None
+        stat_date: date | None = None
     ):
         """
         记录 Token 使用量
@@ -227,16 +238,14 @@ class UsageTracker:
             f"{today.year}-{today.month:02d}"
         )
 
-        if diff > 0:
-            await redis.incrby(daily_key, diff)
-            await redis.incrby(monthly_key, diff)
-        else:
-            # 回滚多扣的部分，但不低于 0
-            for key in (daily_key, monthly_key):
-                current_val = await redis.get(key)
-                if current_val:
-                    new_val = max(0, int(current_val) + diff)
-                    await redis.set(key, new_val, keepttl=True)
+        # 原子调整：INCRBY + 不低于 0 保护（消除 TOCTOU 竞态）
+        for key in (daily_key, monthly_key):
+            await redis.eval(
+                UsageTracker._USAGE_ADJUST_LUA,
+                1,
+                key,
+                str(diff),
+            )
 
 
 class QuotaManager:
@@ -338,7 +347,7 @@ class QuotaManager:
         tenant_id: int,
         model_id: int,
         tokens: int,
-        stat_date: Optional[date] = None
+        stat_date: date | None = None
     ):
         """
         记录使用量（用于软限制或无配额场景）
@@ -375,7 +384,7 @@ class QuotaManager:
         self,
         tenant_id: int,
         model_id: int
-    ) -> Optional[TenantQuota]:
+    ) -> TenantQuota | None:
         """
         获取租户配额配置
         
@@ -390,8 +399,8 @@ class QuotaManager:
             and_(
                 TenantQuota.tenant_id == tenant_id,
                 TenantQuota.model_id == model_id,
-                TenantQuota.is_active == True,
-                TenantQuota.is_deleted == False,
+                TenantQuota.is_active.is_(True),
+                TenantQuota.is_deleted.is_(False),
             )
         ).order_by(TenantQuota.created_at.desc())
         

@@ -107,6 +107,17 @@ class AgentQuotaManager:
     PREFIX_DAILY_CONV = "ai:agent_quota:daily_conv:"
     PREFIX_USER = "ai:agent_quota:user:"
 
+    # Lua 脚本：原子调整用量（INCRBY + 不低于 0 保护）
+    # KEYS[1] = key, ARGV[1] = diff
+    _ADJUST_LUA = """
+    local new_val = redis.call('INCRBY', KEYS[1], ARGV[1])
+    if new_val < 0 then
+        redis.call('SET', KEYS[1], '0', 'KEEPTTL')
+        return 0
+    end
+    return new_val
+    """
+
     # Lua 脚本：原子预扣减+检查（与 UsageTracker 同模式）
     # KEYS[1] = key, ARGV[1] = estimated_tokens, ARGV[2] = limit, ARGV[3] = expire_seconds
     # 返回 -1 表示成功（已预扣），>= 0 表示当前用量（超限，已回滚）
@@ -268,11 +279,12 @@ class AgentQuotaManager:
                     agent_id=agent_id,
                     quota_type="monthly",
                 ))
-                # 回滚日配额预扣减
+                # 回滚日配额预扣减（原子操作，防止值为负）
                 if config.daily_token_limit > 0:
-                    daily_key = AgentQuotaManager._daily_key(tenant_id, agent_id, today)
-                    redis = await get_redis()
-                    await redis.decrby(daily_key, estimated_tokens)
+                    await AgentQuotaManager._atomic_adjust(
+                        AgentQuotaManager._daily_key(tenant_id, agent_id, today),
+                        -estimated_tokens,
+                    )
 
                 raise AgentQuotaExceeded(
                     _("agent.error.monthly_quota_exceeded"),
@@ -296,6 +308,63 @@ class AgentQuotaManager:
                     ))
 
         return True
+
+    @staticmethod
+    async def _atomic_adjust(key: str, diff: int) -> int:
+        """
+        原子调整用量（INCRBY + 不低于 0 保护）
+
+        Args:
+            key: Redis 键
+            diff: 调整量（可正可负）
+
+        Returns:
+            调整后的值
+        """
+        redis = await get_redis()
+        result = await redis.eval(
+            AgentQuotaManager._ADJUST_LUA,
+            1,
+            key,
+            str(diff),
+        )
+        return int(result)
+
+    @staticmethod
+    async def adjust_usage(
+        tenant_id: int,
+        agent_id: int,
+        estimated_tokens: int,
+        actual_tokens: int,
+        config: AgentQuotaConfig | None = None,
+    ) -> None:
+        """
+        响应后调整配额用量：从预估值调整为实际值
+
+        Args:
+            tenant_id: 租户 ID
+            agent_id: 智能体 ID
+            estimated_tokens: 预估 Token 数量（已预扣）
+            actual_tokens: 实际 Token 数量
+            config: 配额配置（可选，用于判断哪些维度需要调整）
+        """
+        diff = actual_tokens - estimated_tokens
+        if diff == 0:
+            return
+
+        today = date.today()
+
+        # 调整日配额
+        if not config or config.daily_token_limit > 0:
+            daily_key = AgentQuotaManager._daily_key(tenant_id, agent_id, today)
+            await AgentQuotaManager._atomic_adjust(daily_key, diff)
+
+        # 调整月配额
+        if not config or config.monthly_token_limit > 0:
+            monthly_key = AgentQuotaManager._monthly_key(
+                tenant_id, agent_id, today.year, today.month,
+            )
+            await AgentQuotaManager._atomic_adjust(monthly_key, diff)
 
     @staticmethod
     async def record_usage(

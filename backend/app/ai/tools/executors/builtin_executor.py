@@ -8,11 +8,15 @@ import json
 import math
 import time
 from datetime import datetime, timezone
-from typing import Any, Callable, Coroutine
+from typing import TYPE_CHECKING, Any, Callable, Coroutine
 
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
+from app.core.i18n import _
 from app.core.logging import LogManager
+
+if TYPE_CHECKING:
+    from app.ai.tools.types import ExecutionContext
 
 logger = LogManager.get_logger("ai.tool.builtin")
 
@@ -41,6 +45,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
         definition: ToolDefinition,
         tool_call_id: str,
         arguments: dict[str, Any],
+        context: "ExecutionContext | None" = None,
     ) -> ToolResult:
         """执行内置函数"""
         start = time.perf_counter()
@@ -52,7 +57,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
                 tool_call_id=tool_call_id,
                 name=func_name,
                 success=False,
-                error=f"Builtin function '{func_name}' not found",
+                error=_("tool.builtin.not_found", name=func_name),
             )
 
         try:
@@ -134,12 +139,12 @@ class BuiltinToolExecutor(BaseToolExecutor):
         仅允许数学运算和常量，禁止任何函数调用或导入
         """
         if not expression:
-            return "Error: empty expression"
+            return _("tool.builtin.empty_expression")
 
         # 仅允许安全字符
         allowed_chars = set("0123456789+-*/.() eE")
         if not all(c in allowed_chars for c in expression.replace(" ", "")):
-            return "Error: expression contains unsafe characters"
+            return _("tool.builtin.unsafe_characters")
 
         try:
             result = eval(expression, {"__builtins__": {}}, {"math": math})  # noqa: S307

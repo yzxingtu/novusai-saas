@@ -44,7 +44,7 @@ class AdminTenantDomainController(GlobalController):
     """
     
     prefix = "/tenants/{tenant_id}/domains"
-    tags = ["租户域名管理"]
+    tags = ["Tenant Domain Management"]
     service_class = TenantDomainService
     
     def _register_routes(self) -> None:

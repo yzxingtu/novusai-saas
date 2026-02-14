@@ -118,6 +118,30 @@ class AgentVersion(TenantModel):
         default=None,
         comment=_("agent.version.field.quota_config"),
     )
+    knowledge_base_ids: Mapped[list | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
+        comment=_("agent.version.field.knowledge_base_ids"),
+    )
+    rag_config: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
+        comment=_("agent.version.field.rag_config"),
+    )
+    context_config: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
+        comment=_("agent.version.field.context_config"),
+    )
+    output_schema: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
+        comment=_("agent.version.field.output_schema"),
+    )
 
     # ==================== 版本元信息 ====================
 

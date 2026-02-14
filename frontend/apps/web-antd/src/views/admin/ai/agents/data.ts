@@ -1,20 +1,40 @@
 /**
- * 智能体管理（平台端） - 表格列、搜索配置
+ * 智能体管理（平台端） - 辅助函数、表单 Schema
  */
 import type { VbenFormSchema } from '#/adapter/form';
-import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { AIAgentInfo } from '#/api/admin/ai';
+import type { AIModelInfo } from '#/api/admin/ai';
 
-import { searchInput, select } from '#/adapter/form';
+import { inputField, numberField, select, textareaField } from '#/adapter/form';
+import { getAIModelListApi } from '#/api/admin/ai';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 
-function getStatusOptions() {
+// ============ 类型辅助（系统/自定义）============
+
+export function getTypeOptions() {
   return [
-    { label: $t('admin.ai.agent.status_options.draft'), value: 'draft' },
-    { label: $t('admin.ai.agent.status_options.published'), value: 'published' },
-    { label: $t('admin.ai.agent.status_options.disabled'), value: 'disabled' },
+    { label: $t('admin.ai.agent.type_options.system'), value: 'true' },
+    { label: $t('admin.ai.agent.type_options.custom'), value: 'false' },
   ];
+}
+
+// ============ Scope 辅助 ============
+
+export function getScopeOptions() {
+  return [
+    { label: $t('admin.ai.agent.scope.tenant'), value: 'tenant' },
+    { label: $t('admin.ai.agent.scope.global'), value: 'global' },
+    { label: $t('admin.ai.agent.scope.admin'), value: 'admin' },
+  ];
+}
+
+export function getScopeColor(scope: string | undefined): string {
+  switch (scope) {
+    case 'global': return 'blue';
+    case 'admin': return 'purple';
+    case 'tenant': return 'green';
+    default: return 'default';
+  }
 }
 
 function getExecutionModeOptions() {
@@ -24,6 +44,41 @@ function getExecutionModeOptions() {
     { label: $t('admin.ai.agent.mode_options.batch'), value: 'batch' },
     { label: $t('admin.ai.agent.mode_options.api'), value: 'api' },
   ];
+}
+
+// ============ Chat 模型下拉 ============
+
+export async function getChatModelOptions() {
+  try {
+    const res = await getAIModelListApi({ 'page[size]': 100 });
+    return (res.items || [])
+      .filter((m: AIModelInfo) => {
+        const name = (m.name || '').toLowerCase();
+        return !name.includes('embed');
+      })
+      .map((m: AIModelInfo) => ({
+        label: `${m.name} (${m.provider_name || '-'})`,
+        value: m.id,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+// ============ 表单默认值 ============
+
+export function getFormDefaults() {
+  return {
+    name: '',
+    description: '',
+    scope: 'global',
+    tenant_id: null,
+    model_id: undefined,
+    execution_mode: 'conversation',
+    system_prompt: '',
+    temperature: 0.7,
+    max_tokens: 4096,
+  };
 }
 
 /**
@@ -71,112 +126,79 @@ export function getExecutionModeText(mode: string | undefined): string {
   }
 }
 
-/**
- * 表格列定义
- */
-export function useColumns<T = AIAgentInfo>(
-  onActionClick: OnActionClickFn<T>,
-): VxeTableGridOptions['columns'] {
-  return [
-    {
-      field: 'name',
-      title: $t('admin.ai.agent.name'),
-      minWidth: 160,
-      slots: { default: 'name_cell' },
-    },
-    {
-      field: 'status',
-      title: $t('admin.ai.agent.status'),
-      width: 110,
-      align: 'center',
-      slots: { default: 'status_cell' },
-    },
-    {
-      field: 'execution_mode',
-      title: $t('admin.ai.agent.executionMode'),
-      width: 120,
-      align: 'center',
-      slots: { default: 'mode_cell' },
-    },
-    {
-      field: 'model_name',
-      title: $t('admin.ai.agent.modelName'),
-      width: 160,
-      align: 'center',
-      slots: { default: 'modelName_cell' },
-    },
-    {
-      field: 'tenant_id',
-      title: $t('admin.ai.agent.tenantId'),
-      width: 100,
-      align: 'center',
-    },
-    {
-      field: 'published_version',
-      title: $t('admin.ai.agent.version'),
-      width: 90,
-      align: 'center',
-      slots: { default: 'version_cell' },
-    },
-    {
-      field: 'created_at',
-      title: $t('admin.common.createdAt'),
-      width: 170,
-      sortable: true,
-    },
-    {
-      align: 'center',
-      cellRender: {
-        attrs: {
-          resource: 'ai_agent',
-          nameField: 'name',
-          nameTitle: $t('admin.ai.agent.name'),
-          onClick: onActionClick,
-        },
-        name: 'CellOperation',
-        options: [
-          {
-            code: 'toggleStatus',
-            text: $t('admin.common.toggleStatus'),
-            icon: 'lucide:toggle-right',
-            accessCodes: ['ai_agent:update'],
-          },
-          {
-            code: 'detail',
-            text: $t('admin.ai.agent.viewDetail'),
-            icon: 'lucide:eye',
-            accessCodes: ['ai_agent:detail'],
-          },
-        ],
-      },
-      field: 'operation',
-      fixed: 'right',
-      title: $t('admin.common.operation'),
-      width: 160,
-    },
-  ];
-}
+// ============ 编辑表单 ============
 
 /**
- * 搜索表单 Schema
+ * 编辑表单 Schema
+ * @param _isEdit 是否编辑模式
+ * @param isSystem 是否系统智能体（锁定核心字段）
  */
-export function useGridFormSchema(): VbenFormSchema[] {
+export function useFormSchema(_isEdit = false, isSystem = false): VbenFormSchema[] {
+  const locked = isSystem
+    ? { disabled: true, help: $t('admin.ai.agent.systemFieldLocked') }
+    : {};
+
   return [
-    searchInput('filter[name][ilike]', $t('admin.ai.agent.name'), {
-      placeholder: $t('admin.ai.agent.placeholder.searchName'),
+    inputField('name', $t('admin.ai.agent.name'), {
+      required: true,
+      ...locked,
     }),
-    select('filter[status][eq]', $t('admin.ai.agent.status'), {
-      options: getStatusOptions(),
-      placeholder: $t('admin.ai.agent.placeholder.allStatuses'),
+    {
+      component: 'ImageUpload',
+      fieldName: 'avatar',
+      label: $t('admin.ai.agent.avatar'),
+      componentProps: {
+        uploadUrl: '/admin/attachments/upload',
+      },
+    },
+    textareaField('description', $t('admin.ai.agent.description'), {
+      rows: 2,
     }),
-    select('filter[execution_mode][eq]', $t('admin.ai.agent.executionMode'), {
-      options: getExecutionModeOptions(),
-      placeholder: $t('admin.ai.agent.placeholder.allModes'),
+    {
+      ...select('scope', $t('admin.ai.agent.scopeLabel'), {
+        options: getScopeOptions(),
+        required: true,
+        ...locked,
+      }),
+    },
+    {
+      ...select('tenant_id', $t('admin.ai.agent.tenantId'), {
+        api: getTenantSelectApi,
+        params: { is_active: 'true' },
+        placeholder: $t('admin.ai.agent.placeholder.tenantId'),
+      }),
+      ...(isSystem ? { help: $t('admin.ai.agent.systemFieldLocked') } : {}),
+      dependencies: {
+        show(values: Record<string, unknown>) {
+          return values.scope === 'tenant';
+        },
+        triggerFields: ['scope'],
+      },
+    },
+    {
+      ...select('model_id', $t('admin.ai.agent.modelName'), {
+        api: getChatModelOptions,
+        required: true,
+      }),
+    },
+    {
+      ...select('execution_mode', $t('admin.ai.agent.executionMode'), {
+        options: getExecutionModeOptions(),
+        required: true,
+        ...locked,
+      }),
+    },
+    textareaField('system_prompt', $t('admin.ai.agent.systemPrompt'), {
+      rows: 5,
     }),
-    select('filter[tenant_id]', $t('admin.ai.agent.tenantId'), {
-      api: getTenantSelectApi,
-      params: { is_active: 'true' },
-      placeholder: $t('admin.ai.agent.placeholder.allTenants'),
+    numberField('temperature', $t('admin.ai.agent.temperature'), {
+      min: 0,
+      max: 2,
+      precision: 1,
+    }),
+    numberField('max_tokens', $t('admin.ai.agent.maxTokens'), {
+      min: 1,
+      max: 128000,
     }),
   ];
 }

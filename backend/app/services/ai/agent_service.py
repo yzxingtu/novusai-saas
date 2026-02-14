@@ -2,12 +2,16 @@
 智能体 Service
 """
 
-from typing import Any, Dict, List
+from datetime import datetime
+from typing import Any
+
+from sqlalchemy import update
 
 from app.repositories.ai.agent_repository import AgentRepository, AdminAgentRepository
 from app.repositories.ai.agent_version_repository import AgentVersionRepository
 from app.repositories.ai.agent_access_repository import AgentAccessRepository
 from app.models.ai.agent import Agent
+from app.models.ai.agent_conversation import AgentConversation
 from app.models.ai.agent_version import AgentVersion
 from app.core.base_service import TenantService, GlobalService
 from app.core.i18n import _
@@ -26,11 +30,14 @@ _VERSION_SNAPSHOT_FIELDS = [
     "max_tokens",
     "top_p",
     "execution_mode",
-    "tool_bindings",
     "input_variables",
     "welcome_message",
     "suggested_questions",
     "quota_config",
+    "context_config",
+    "output_schema",
+    # NOTE: tool_bindings / knowledge_base_ids / rag_config removed —
+    # replaced by AgentSkillBinding architecture (SkillPackage-based)
 ]
 
 
@@ -52,7 +59,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         """获取访问权限 Repository"""
         return AgentAccessRepository(self.db, self.tenant_id)
 
-    async def _before_create(self, data: Dict[str, Any]) -> None:
+    async def _before_create(self, data: dict[str, Any]) -> None:
         """创建前校验：名称唯一性"""
         await super()._before_create(data)
 
@@ -62,9 +69,15 @@ class AgentService(TenantService[Agent, AgentRepository]):
             if existing:
                 raise BusinessException(message=_("agent.error.name_exists"))
 
-    async def _before_update(self, id: int, data: Dict[str, Any]) -> None:
-        """更新前校验：名称唯一性"""
+    async def _before_update(self, id: int, data: dict[str, Any]) -> None:
+        """更新前校验：名称唯一性、系统智能体保护"""
         await super()._before_update(id, data)
+
+        agent = await self.repo.get_by_id(id)
+        if agent and agent.is_system:
+            protected = {"is_system", "status", "scope", "execution_mode"}
+            if protected & set(data.keys()):
+                raise BusinessException(message=_("agent.error.system_protected"))
 
         name = data.get("name")
         if name:
@@ -72,7 +85,57 @@ class AgentService(TenantService[Agent, AgentRepository]):
             if existing:
                 raise BusinessException(message=_("agent.error.name_exists"))
 
-    async def get_agent_detail(self, agent_id: int) -> Dict[str, Any]:
+    async def _before_delete(self, id: int) -> None:
+        """删除前校验：系统智能体不可删除，级联软删除对话"""
+        await super()._before_delete(id)
+        agent = await self.repo.get_by_id(id)
+        if not agent:
+            raise NotFoundException(message=_("agent.error.not_found"))
+        if agent.is_system:
+            raise BusinessException(message=_("agent.error.system_protected"))
+
+        # 级联软删除智能体的对话记录
+        level = self._default_delete_level
+        now = datetime.utcnow()
+        await self.repo.db.execute(
+            update(AgentConversation)
+            .where(
+                AgentConversation.agent_id == id,
+                AgentConversation.is_deleted.is_(False),
+            )
+            .values(is_deleted=True, deleted_at=now, delete_level=level, updated_at=now)
+        )
+
+    async def escalate_delete(self, id: int) -> Agent | None:
+        """升级删除层级，级联升级对话记录"""
+        instance = await self.repo.escalate_delete_by_id(id)
+        if instance is None:
+            return None
+
+        now = datetime.utcnow()
+        await self.repo.db.execute(
+            update(AgentConversation)
+            .where(
+                AgentConversation.agent_id == id,
+                AgentConversation.is_deleted.is_(True),
+            )
+            .values(delete_level="admin", deleted_at=now, updated_at=now)
+        )
+        return instance
+
+    async def _after_restore(self, instance: Agent) -> None:
+        """恢复后：级联恢复对话记录"""
+        now = datetime.utcnow()
+        await self.repo.db.execute(
+            update(AgentConversation)
+            .where(
+                AgentConversation.agent_id == instance.id,
+                AgentConversation.is_deleted.is_(True),
+            )
+            .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
+        )
+
+    async def get_agent_detail(self, agent_id: int) -> dict[str, Any]:
         """
         获取智能体详情（含关联模型信息）
 
@@ -134,7 +197,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         new_version = latest_version + 1
 
         # 创建版本快照
-        version_data: Dict[str, Any] = {
+        version_data: dict[str, Any] = {
             "agent_id": agent_id,
             "version": new_version,
             "tenant_id": self.tenant_id,
@@ -189,7 +252,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
             raise NotFoundException(message=_("agent.version.error.not_found"))
 
         # 将版本配置回写到 Agent
-        rollback_data: Dict[str, Any] = {
+        rollback_data: dict[str, Any] = {
             "status": AgentStatusEnum.DRAFT.value,
         }
         for field_name in _VERSION_SNAPSHOT_FIELDS:
@@ -209,7 +272,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
     async def get_versions(
         self,
         agent_id: int,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         获取智能体版本历史列表
 
@@ -231,7 +294,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         self,
         agent_id: int,
         version: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         获取智能体版本详情
 
@@ -254,7 +317,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         agent_id: int,
         v1: int,
         v2: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         对比两个版本的字段差异
 
@@ -281,7 +344,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
             )
 
         # 对比快照字段
-        diff: Dict[str, Any] = {}
+        diff: dict[str, Any] = {}
         for field_name in _VERSION_SNAPSHOT_FIELDS:
             val1 = getattr(record_v1, field_name)
             val2 = getattr(record_v2, field_name)
@@ -300,7 +363,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
     # 访问权限管理
     # ========================================
 
-    async def get_access_config(self, agent_id: int) -> Dict[str, Any]:
+    async def get_access_config(self, agent_id: int) -> dict[str, Any]:
         """
         获取智能体访问权限配置
 
@@ -332,7 +395,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         access_type: str,
         org_node_ids: list[int] | None = None,
         user_ids: list[int] | None = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         更新智能体访问权限配置
 
@@ -442,11 +505,94 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
     """
     平台管理端智能体 Service
 
-    提供跨租户的智能体列表查询和状态管理
+    提供跨租户的智能体列表查询、CRUD 和状态管理
     """
 
     model = Agent
     repository_class = AdminAgentRepository
+
+    async def _before_create(self, data: dict[str, Any]) -> None:
+        """创建前校验：scope + tenant_id 一致性、名称唯一性"""
+        await super()._before_create(data)
+
+        from app.enums.common import ResourceScopeEnum
+
+        scope = data.get("scope", ResourceScopeEnum.TENANT.value)
+        tenant_id = data.get("tenant_id")
+
+        if scope == ResourceScopeEnum.TENANT.value:
+            if not tenant_id:
+                raise BusinessException(
+                    message=_("agent.error.tenant_id_required"),
+                )
+        else:
+            data["tenant_id"] = None
+
+        name = data.get("name")
+        if name:
+            existing = await self._check_name_unique(name, tenant_id=data.get("tenant_id"), scope=scope)
+            if existing:
+                raise BusinessException(message=_("agent.error.name_exists"))
+
+    async def _before_update(self, id: int, data: dict[str, Any]) -> None:
+        """更新前校验：scope 变更时的一致性、名称唯一性、系统智能体保护"""
+        await super()._before_update(id, data)
+
+        from app.enums.common import ResourceScopeEnum
+
+        agent = await self.repo.get_by_id(id)
+        if not agent:
+            raise NotFoundException(message=_("agent.error.not_found"))
+
+        # 系统智能体不允许修改关键字段
+        if agent.is_system:
+            protected = {"is_system", "status", "scope", "execution_mode"}
+            if protected & set(data.keys()):
+                raise BusinessException(message=_("agent.error.system_protected"))
+
+        scope = data.get("scope", agent.scope)
+        tenant_id = data.get("tenant_id", agent.tenant_id)
+
+        if scope == ResourceScopeEnum.TENANT.value:
+            if not tenant_id:
+                raise BusinessException(
+                    message=_("agent.error.tenant_id_required"),
+                )
+        else:
+            data["tenant_id"] = None
+            tenant_id = None
+
+        name = data.get("name")
+        if name:
+            existing = await self._check_name_unique(name, tenant_id=tenant_id, scope=scope, exclude_id=id)
+            if existing:
+                raise BusinessException(message=_("agent.error.name_exists"))
+
+    async def _check_name_unique(
+        self,
+        name: str,
+        tenant_id: int | None,
+        scope: str,
+        exclude_id: int | None = None,
+    ) -> Agent | None:
+        """检查同 scope+tenant_id 下名称是否重复"""
+        from sqlalchemy import select, and_
+
+        conditions = [
+            Agent.name == name,
+            Agent.scope == scope,
+            Agent.is_deleted.is_(False),
+        ]
+        if tenant_id is not None:
+            conditions.append(Agent.tenant_id == tenant_id)
+        else:
+            conditions.append(Agent.tenant_id.is_(None))
+        if exclude_id is not None:
+            conditions.append(Agent.id != exclude_id)
+
+        stmt = select(Agent).where(and_(*conditions))
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def query_list(self, query: Any) -> tuple[list[Agent], int]:
         """
@@ -459,6 +605,27 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
             (items, total)
         """
         return await self.repo.query_list(query)
+
+    async def _before_delete(self, id: int) -> None:
+        """删除前校验：系统智能体不可删除，级联软删除对话"""
+        await super()._before_delete(id)
+        agent = await self.repo.get_by_id(id)
+        if not agent:
+            raise NotFoundException(message=_("agent.error.not_found"))
+        if agent.is_system:
+            raise BusinessException(message=_("agent.error.system_protected"))
+
+        # 级联软删除智能体的对话记录
+        level = self._default_delete_level
+        now = datetime.utcnow()
+        await self.repo.db.execute(
+            update(AgentConversation)
+            .where(
+                AgentConversation.agent_id == id,
+                AgentConversation.is_deleted.is_(False),
+            )
+            .values(is_deleted=True, deleted_at=now, delete_level=level, updated_at=now)
+        )
 
     async def update_status(self, agent_id: int, status: str) -> Agent:
         """
@@ -482,6 +649,9 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         agent = await self.repo.get_by_id(agent_id)
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
+
+        if agent.is_system:
+            raise BusinessException(message=_("agent.error.system_protected"))
 
         # 状态机校验：disabled 只能从 published 转入
         if (

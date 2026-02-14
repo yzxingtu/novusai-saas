@@ -142,7 +142,7 @@ onMounted(loadQuotas);
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-4">
+  <Page auto-content-height :description="$t('tenant.ai.quota.pageDesc')" content-class="flex flex-col gap-4">
     <!-- 表单抽屉 -->
     <QuotaForm ref="quotaFormRef" @success="loadQuotas" />
     <RateLimitForm ref="rateLimitFormRef" @success="loadRateLimits" />

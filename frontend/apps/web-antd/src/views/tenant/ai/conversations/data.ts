@@ -7,6 +7,9 @@ import type { ConversationInfo } from '#/api/tenant/conversations';
 
 import { searchInput, select } from '#/adapter/form';
 import { $t } from '#/locales';
+import { formatCost } from '#/utils/format';
+
+export { formatCost };
 
 function getStatusOptions() {
   return [
@@ -34,16 +37,6 @@ export function formatTokenCount(count: null | number | undefined): string {
   if (count === null || count === undefined) return '-';
   if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
   return String(count);
-}
-
-/**
- * 格式化费用
- */
-export function formatCost(cost: null | number | undefined): string {
-  if (cost === null || cost === undefined) return '-';
-  if (cost === 0) return '$0';
-  if (cost < 0.001) return `$${cost.toFixed(6)}`;
-  return `$${cost.toFixed(4)}`;
 }
 
 /**

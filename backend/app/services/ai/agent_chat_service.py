@@ -28,6 +28,7 @@ from app.ai.engine.types import ExecutionRequest, ExecutionResult
 from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.gateway import AIGateway
 from app.ai.tools.sandbox import ToolSandbox
+from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -121,6 +122,11 @@ class AgentChatService:
         conversation_id: int | None = None,
         variables: dict[str, Any] | None = None,
         user_id: int | None = None,
+        knowledge_base_ids: list[int] | None = None,
+        user_role: str = "tenant_admin",
+        permissions: set[str] | None = None,
+        consented_actions: list[str] | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> AgentChatResponse:
         """
         非流式对话
@@ -134,6 +140,8 @@ class AgentChatService:
             conversation_id: 对话 ID（续接时传入）
             variables: 输入变量（注入到 system_prompt 占位符）
             user_id: 用户 ID
+            user_role: 用户角色（platform_admin / tenant_admin / tenant_user）
+            permissions: 用户 RBAC 权限码集合
 
         Returns:
             AgentChatResponse
@@ -172,8 +180,12 @@ class AgentChatService:
             max_tokens=ctx_cfg.get("max_history_tokens", MAX_HISTORY_TOKENS),
         )
 
-        # 3. 追加新用户消息
-        all_messages = [*history_messages, ChatMessage(role="user", content=message)]
+        # 3. 追加新用户消息（含附件）
+        user_msg = ChatMessage(
+            role="user", content=message,
+            attachments=[a if isinstance(a, dict) else a.model_dump() for a in attachments] if attachments else None,
+        )
+        all_messages = [*history_messages, user_msg]
 
         # 4. 构建执行请求
         request = ExecutionRequest(
@@ -184,6 +196,10 @@ class AgentChatService:
             input_variables=variables or {},
             execution_mode=AgentExecutionModeEnum.CONVERSATION.value,
             conversation_id=conversation.id,
+            knowledge_base_ids=knowledge_base_ids,
+            consented_actions=consented_actions,
+            user_role=user_role,
+            permissions=permissions,
         )
 
         # 5. 调用分发器
@@ -238,6 +254,11 @@ class AgentChatService:
         conversation_id: int | None = None,
         variables: dict[str, Any] | None = None,
         user_id: int | None = None,
+        knowledge_base_ids: list[int] | None = None,
+        user_role: str = "tenant_admin",
+        permissions: set[str] | None = None,
+        consented_actions: list[str] | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> StreamingResponse:
         """
         流式对话（返回 StreamingResponse）
@@ -250,6 +271,8 @@ class AgentChatService:
             conversation_id: 对话 ID（续接时传入）
             variables: 输入变量
             user_id: 用户 ID
+            user_role: 用户角色（platform_admin / tenant_admin / tenant_user）
+            permissions: 用户 RBAC 权限码集合
 
         Returns:
             StreamingResponse (SSE)
@@ -274,6 +297,9 @@ class AgentChatService:
                 user_id=user_id,
             )
 
+        # 1.6 提交对话创建，确保 on_stream_complete 回调的独立 session 能看到它
+        await self.db.commit()
+
         # 2. 加载历史消息（使用 agent 的 context_config 窗口控制）
         ctx_cfg = agent.context_config or {}
         history_messages = await self._load_history_as_chat_messages(
@@ -282,8 +308,12 @@ class AgentChatService:
             max_tokens=ctx_cfg.get("max_history_tokens", MAX_HISTORY_TOKENS),
         )
 
-        # 3. 追加新用户消息
-        all_messages = [*history_messages, ChatMessage(role="user", content=message)]
+        # 3. 追加新用户消息（含附件）
+        user_msg = ChatMessage(
+            role="user", content=message,
+            attachments=[a if isinstance(a, dict) else a.model_dump() for a in attachments] if attachments else None,
+        )
+        all_messages = [*history_messages, user_msg]
 
         # 4. 构建执行请求（标记为流式）
         request = ExecutionRequest(
@@ -295,11 +325,19 @@ class AgentChatService:
             execution_mode=AgentExecutionModeEnum.CONVERSATION.value,
             stream=True,
             conversation_id=conversation.id,
+            knowledge_base_ids=knowledge_base_ids,
+            consented_actions=consented_actions,
         )
 
         # 5. 配额/并发/钩子前置检查（与 dispatcher.dispatch 对等）
         quota_config = AgentQuotaConfig.from_dict(agent.quota_config)
         lock_token: str = ""
+
+        # 预估输入 Token 以启用原子预扣减（与 dispatcher 一致）
+        estimated_tokens = max(
+            sum(estimate_tokens(m.content or "") for m in all_messages),
+            100,  # 至少 100 tokens（system prompt + 生成开销）
+        )
 
         try:
             # 并发控制
@@ -311,11 +349,12 @@ class AgentChatService:
                     tenant_max_concurrent=quota_config.tenant_max_concurrent,
                 )
 
-            # 配额检查
+            # 配额检查（含原子预扣减，防止并发超限）
             await AgentQuotaManager.check_quota(
                 tenant_id=self.tenant_id,
                 agent_id=agent_id,
                 config=quota_config,
+                estimated_tokens=estimated_tokens,
             )
             if user_id:
                 await AgentQuotaManager.check_user_quota(
@@ -356,6 +395,12 @@ class AgentChatService:
         sandbox = ToolSandbox(
             tenant_id=self.tenant_id,
             agent_id=agent_id,
+            user_id=user_id,
+            user_role=user_role,
+            permissions=permissions,
+            gateway=gateway,
+            db=self.db,
+            agent=agent,
         )
         engine = ConversationEngine(
             db=self.db,
@@ -401,20 +446,24 @@ class AgentChatService:
                             await cb_db.rollback()
                             raise
 
-                # 配额记录
-                if result.total_tokens > 0:
-                    await AgentQuotaManager.record_usage(
+                # 配额调整：从预估调整为实际（与 dispatcher 对等）
+                actual_tokens = result.total_tokens or 0
+                await AgentQuotaManager.adjust_usage(
+                    tenant_id=self.tenant_id,
+                    agent_id=agent_id,
+                    estimated_tokens=estimated_tokens,
+                    actual_tokens=actual_tokens,
+                    config=quota_config,
+                )
+
+                # 用户级用量记录
+                if user_id and actual_tokens > 0:
+                    await AgentQuotaManager.record_user_usage(
                         tenant_id=self.tenant_id,
                         agent_id=agent_id,
-                        tokens=result.total_tokens,
+                        user_id=user_id,
+                        tokens=actual_tokens,
                     )
-                    if user_id:
-                        await AgentQuotaManager.record_user_usage(
-                            tenant_id=self.tenant_id,
-                            agent_id=agent_id,
-                            user_id=user_id,
-                            tokens=result.total_tokens,
-                        )
 
                 # AFTER_EXECUTE 钩子
                 await hook_registry.trigger(
@@ -546,12 +595,18 @@ class AgentChatService:
             if msg.role == MessageRoleEnum.SYSTEM.value:
                 continue
 
+            # 从 metadata 恢复附件（用于多模态历史消息）
+            msg_attachments = None
+            if msg.metadata_ and isinstance(msg.metadata_, dict):
+                msg_attachments = msg.metadata_.get("attachments")
+
             chat_messages.append(
                 ChatMessage(
                     role=msg.role,
                     content=msg.content or "",
                     tool_calls=msg.tool_calls,
                     tool_call_id=msg.tool_call_id,
+                    attachments=msg_attachments,
                 ),
             )
 
@@ -562,7 +617,62 @@ class AgentChatService:
                 removed = chat_messages.pop(0)
                 total -= estimate_tokens(removed.content or "")
 
+        # 清理孤立的 tool 消息（前面没有 tool_calls 的 assistant 消息）
+        chat_messages = self._sanitize_tool_messages(chat_messages)
+
         return chat_messages
+
+    @staticmethod
+    def _sanitize_tool_messages(
+        messages: list[ChatMessage],
+    ) -> list[ChatMessage]:
+        """清理孤立的 tool/tool_calls 消息，防止 LLM API 400 错误
+
+        规则：
+        - role=tool 的消息前面必须有一条带 tool_calls 的 assistant 消息
+        - 如果截断导致 assistant(tool_calls) 丢失，相关的 tool 消息也要移除
+        - 如果 tool 消息被移除，对应的 assistant(tool_calls) 也要移除
+        """
+        if not messages:
+            return messages
+
+        # 收集所有 assistant 消息中声明的 tool_call id
+        declared_tc_ids: set[str] = set()
+        for msg in messages:
+            if msg.role == "assistant" and msg.tool_calls:
+                for tc in msg.tool_calls:
+                    tc_id = tc.get("id", "")
+                    if tc_id:
+                        declared_tc_ids.add(tc_id)
+
+        # 第一遍：移除 tool_call_id 不在声明集合中的 tool 消息
+        cleaned: list[ChatMessage] = []
+        for msg in messages:
+            if msg.role == "tool":
+                if msg.tool_call_id and msg.tool_call_id in declared_tc_ids:
+                    cleaned.append(msg)
+                # else: 孤立的 tool 消息，跳过
+            else:
+                cleaned.append(msg)
+
+        # 第二遍：收集实际保留的 tool 回复的 id
+        answered_tc_ids: set[str] = set()
+        for msg in cleaned:
+            if msg.role == "tool" and msg.tool_call_id:
+                answered_tc_ids.add(msg.tool_call_id)
+
+        # 第三遍：移除 tool_calls 中所有 id 都没有对应 tool 回复的 assistant 消息
+        result: list[ChatMessage] = []
+        for msg in cleaned:
+            if msg.role == "assistant" and msg.tool_calls:
+                tc_ids_in_msg = {tc.get("id", "") for tc in msg.tool_calls}
+                if tc_ids_in_msg & answered_tc_ids:
+                    result.append(msg)
+                # else: assistant 的 tool_calls 全部没有 tool 回复，跳过
+            else:
+                result.append(msg)
+
+        return result
 
     # ========================================
     # 内部方法：消息持久化
@@ -603,6 +713,13 @@ class AgentChatService:
         if not new_messages:
             return []
 
+        # 构建 tool_call_id → ToolResult 的查找表（用于存储工具执行结果元数据）
+        tool_result_map: dict[str, ToolResult] = {}
+        if result.tool_results:
+            for tr in result.tool_results:
+                if tr.tool_call_id:
+                    tool_result_map[tr.tool_call_id] = tr
+
         # 获取下一个 sequence
         next_seq = await self.message_repo.get_next_sequence(conversation.id)
         tool_calls_collected: list[dict[str, Any]] = []
@@ -612,6 +729,7 @@ class AgentChatService:
             content = msg_dict.get("content", "")
             tool_calls = msg_dict.get("tool_calls")
             tool_call_id = msg_dict.get("tool_call_id")
+            attachments = msg_dict.get("attachments")
 
             # 收集 tool_calls 用于响应
             if tool_calls:
@@ -619,6 +737,19 @@ class AgentChatService:
 
             # 估算 token 数（CJK 感知，精确值在 LLM 层记录）
             token_estimate = estimate_tokens(content) if content else 0
+
+            # 附件存入 metadata（用于历史消息回显）
+            metadata = None
+            if attachments:
+                metadata = {"attachments": attachments}
+
+            # tool 角色消息：存储工具执行成功/失败状态到 metadata
+            if role == "tool" and tool_call_id and tool_call_id in tool_result_map:
+                tr = tool_result_map[tool_call_id]
+                metadata = metadata or {}
+                metadata["tool_success"] = tr.success
+                if not tr.success and tr.error:
+                    metadata["tool_error"] = tr.error
 
             await self.message_repo.create({
                 "tenant_id": self.tenant_id,
@@ -629,6 +760,7 @@ class AgentChatService:
                 "token_count": token_estimate,
                 "tool_calls": tool_calls,
                 "tool_call_id": tool_call_id,
+                "metadata_": metadata,
             })
 
         # 递增 message_count 冗余计数
@@ -672,6 +804,62 @@ class AgentChatService:
         await self.conversation_repo.update(
             conversation.id,
             update_data,
+        )
+
+
+    # ========================================
+    # 操作确认/取消
+    # ========================================
+
+    @staticmethod
+    async def cancel_action(confirm_id: str) -> dict[str, str]:
+        """
+        取消 AI 操作确认
+
+        删除 Redis 中的 confirm_id 记录
+
+        Args:
+            confirm_id: 确认 ID
+
+        Returns:
+            {"status": "cancelled" | "expired"}
+        """
+        from app.core.redis import get_redis
+        from app.ai.constants import action_confirm_key
+
+        redis = await get_redis()
+        key = action_confirm_key(confirm_id)
+        deleted_count = await redis.delete(key)
+
+        if deleted_count:
+            return {"status": "cancelled"}
+        return {"status": "expired"}
+
+    async def confirm_action(
+        self,
+        confirm_id: str,
+        tenant_id: int,
+        user_id: int,
+    ) -> dict[str, Any]:
+        """
+        确认并执行 AI 操作
+
+        旧版 ActionExecutor 已废弃，新的 CRUD 工具使用内联确认（confirmed 参数）。
+        此方法仅处理遗留的 Redis 确认数据。
+
+        Args:
+            confirm_id: 确认 ID
+            tenant_id: 租户 ID
+            user_id: 用户 ID
+
+        Returns:
+            操作执行结果
+
+        Raises:
+            BusinessException: 确认已过期
+        """
+        raise BusinessException(
+            message=_("data_intelligence.action.confirm_expired"),
         )
 
 

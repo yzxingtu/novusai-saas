@@ -236,7 +236,7 @@ class ConfigService:
                     and_(
                         SystemConfigValue.config_id == config_id,
                         SystemConfigValue.tenant_id == tenant_id,
-                        SystemConfigValue.is_deleted == False,
+                        SystemConfigValue.is_deleted.is_(False),
                     )
                 )
             )
@@ -386,7 +386,7 @@ class ConfigService:
                 and_(
                     SystemConfigValue.config_id == config_id,
                     SystemConfigValue.tenant_id == tenant_id,
-                    SystemConfigValue.is_deleted == False,
+                    SystemConfigValue.is_deleted.is_(False),
                 )
             )
         )
@@ -487,7 +487,7 @@ class ConfigService:
                 and_(
                     SystemConfigValue.config_id == config_id,
                     SystemConfigValue.tenant_id == tenant_id,
-                    SystemConfigValue.is_deleted == False,
+                    SystemConfigValue.is_deleted.is_(False),
                 )
             )
         )
@@ -537,7 +537,7 @@ class ConfigService:
             select(SystemConfig.id).where(
                 and_(
                     SystemConfig.key == key,
-                    SystemConfig.is_deleted == False,
+                    SystemConfig.is_deleted.is_(False),
                 )
             )
         )

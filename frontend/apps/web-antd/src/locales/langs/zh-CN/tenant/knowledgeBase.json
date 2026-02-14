@@ -1,0 +1,114 @@
+{
+  "title": "知识库管理",
+  "pageDesc": "创建和管理知识库。上传文档后自动分块和向量化，可绑定到智能体实现 RAG 检索增强。",
+  "create": "创建知识库",
+  "edit": "编辑知识库",
+  "detail": "知识库详情",
+  "search": "搜索知识库",
+  "empty": "暂无知识库，点击上方按钮创建",
+  "field": {
+    "name": "知识库名称",
+    "description": "描述",
+    "avatar": "图标",
+    "embeddingModel": "Embedding 模型",
+    "embeddingDimensions": "向量维度",
+    "chunkSize": "分块大小",
+    "chunkOverlap": "分块重叠",
+    "chunkStrategy": "分块策略",
+    "searchMode": "检索模式",
+    "topK": "返回数量 (Top-K)",
+    "scoreThreshold": "相似度阈值",
+    "status": "状态",
+    "chunkStrategyRecursive": "递归分块",
+    "chunkStrategySemantic": "语义分块",
+    "chunkStrategyParagraph": "段落分块",
+    "searchModeHybrid": "混合检索",
+    "searchModeVector": "向量检索",
+    "searchModeKeyword": "关键词检索",
+    "documentCount": "文档数",
+    "totalChunks": "分块数",
+    "totalSizeBytes": "存储大小"
+  },
+  "document": {
+    "title": "文档管理",
+    "upload": "上传文档",
+    "uploadHint": "支持 PDF、Word、TXT、Markdown、CSV 格式",
+    "addUrl": "添加网页",
+    "addQa": "添加 Q&A",
+    "delete": "删除文档",
+    "retry": "重试",
+    "field": {
+      "fileName": "文件名",
+      "fileType": "类型",
+      "fileSize": "大小",
+      "chunkCount": "分块数",
+      "tokenCount": "Token 消耗",
+      "status": "状态",
+      "errorMessage": "错误信息",
+      "createdAt": "上传时间"
+    },
+    "status": {
+      "pending": "等待处理",
+      "parsing": "解析中",
+      "chunking": "分块中",
+      "embedding": "向量化中",
+      "completed": "已完成",
+      "error": "处理失败"
+    }
+  },
+  "chunk": {
+    "title": "分块预览",
+    "edit": "编辑分块",
+    "delete": "删除分块",
+    "field": {
+      "content": "内容",
+      "chunkIndex": "序号",
+      "charCount": "字符数",
+      "tokenCount": "Token 数"
+    }
+  },
+  "searchTest": {
+    "title": "检索测试",
+    "placeholder": "输入查询内容进行检索测试...",
+    "search": "搜索",
+    "noResults": "未找到相关内容",
+    "score": "相似度",
+    "source": "来源",
+    "page": "第 {page} 页"
+  },
+  "ragConfig": {
+    "title": "RAG 配置",
+    "enabled": "启用 RAG",
+    "topK": "检索数量",
+    "scoreThreshold": "相似度阈值",
+    "searchMode": "检索模式",
+    "rewriteStrategy": "查询改写",
+    "rerankerEnabled": "启用重排序",
+    "contextTokenRatio": "上下文 Token 比例"
+  },
+  "reindex": {
+    "title": "重新向量化",
+    "confirm": "确认重新向量化？这将重新处理所有文档。",
+    "started": "重新向量化已启动"
+  },
+  "quota": {
+    "exceeded": "知识库配额已达上限",
+    "storageExceeded": "存储空间不足"
+  },
+  "status": {
+    "active": "启用",
+    "disabled": "禁用"
+  },
+  "help": {
+    "embeddingModel": "将文本转换为向量的模型。创建后不可更改，更换模型需重建知识库",
+    "chunkSize": "每个文档分块的目标字符数。越大包含的上下文越完整，但检索精度可能下降。推荐 512~1024",
+    "chunkOverlap": "相邻分块之间重叠的字符数。适当重叠可避免语义被截断。推荐为 chunkSize 的 10%~20%",
+    "chunkStrategy": "递归分块: 按标题/段落/句子逐级拆分，适合大多数文档；语义分块: 基于语义相似度拆分，适合长文本；段落分块: 按自然段落拆分，适合格式规整的文档",
+    "searchMode": "混合检索综合向量语义匹配和关键词精确匹配，效果最佳。纯向量适合语义搜索，纯关键词适合精确术语查找",
+    "topK": "每次检索返回的最相关分块数量。数值越大参考越全面，但可能引入噪音",
+    "scoreThreshold": "低于此相似度分数的结果将被过滤。值越高越严格，0 表示不过滤。推荐 0.3~0.7",
+    "uploadTypes": "支持格式：PDF、Word (.docx)、TXT、Markdown (.md)、CSV。单文件建议不超过 20MB",
+    "statusDesc": "等待处理→解析中→分块中→向量化中→已完成。任一步骤失败可点击重试"
+  },
+  "deleteConfirm": "确认删除知识库「{name}」？所有文档和分块数据将被永久删除。"
+}

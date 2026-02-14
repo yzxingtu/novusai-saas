@@ -250,8 +250,8 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         result = await self.db.execute(
             select(TenantAdmin).where(
                 TenantAdmin.tenant_id == tenant_id,
-                TenantAdmin.is_owner == True,
-                TenantAdmin.is_deleted == False,
+                TenantAdmin.is_owner.is_(True),
+                TenantAdmin.is_deleted.is_(False),
             )
         )
         owner = result.scalar_one_or_none()

@@ -78,7 +78,7 @@ def _build_quota_response(quota) -> dict:
         icon="lucide:gauge",
         path="/ai/quotas",
         component="ai/quotas/index",
-        parent="ai_mgmt",
+        parent="ai_ops",
         sort_order=50,
     ),
 )
@@ -90,7 +90,7 @@ class AdminAIQuotaController(GlobalController):
     """
 
     prefix = "/ai/quotas"
-    tags = [_("menu.admin.ai_quota")]
+    tags = [_("menu.tags.admin_ai_quota")]
     service_class = TenantQuotaService
 
     def _register_routes(self) -> None:

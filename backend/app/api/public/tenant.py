@@ -51,8 +51,8 @@ async def get_tenant_public_config(request: Request, db: DbSession, tenant_code:
         result = await db.execute(
             select(Tenant).where(
                 Tenant.code == tenant_code,
-                Tenant.is_active == True,
-                Tenant.is_deleted == False,
+                Tenant.is_active.is_(True),
+                Tenant.is_deleted.is_(False),
             )
         )
         tenant = result.scalar_one_or_none()

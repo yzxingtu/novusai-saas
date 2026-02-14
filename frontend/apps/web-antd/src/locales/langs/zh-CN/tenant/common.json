@@ -13,6 +13,7 @@
   "save": "保存",
   "edit": "编辑",
   "delete": "删除",
+  "confirmDelete": "确定要删除吗？",
   "create": "创建",
   "detail": "详情",
   "actions": "操作",
@@ -23,5 +24,6 @@
   "loading": "加载中...",
   "success": "操作成功",
   "failed": "操作失败",
-  "noData": "暂无数据"
+  "noData": "暂无数据",
+  "createdAt": "创建时间"
 }

@@ -74,7 +74,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         """
         query = select(self.model).where(
             self.model.tenant_id == self.tenant_id,
-            self.model.is_deleted == False,
+            self.model.is_deleted.is_(False),
             or_(
                 self.model.username == username_or_email,
                 self.model.email == username_or_email,
@@ -101,7 +101,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         query = select(self.model.id).where(
             self.model.tenant_id == self.tenant_id,
             self.model.username == username,
-            self.model.is_deleted == False,
+            self.model.is_deleted.is_(False),
         )
         if exclude_id:
             query = query.where(self.model.id != exclude_id)
@@ -127,7 +127,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         query = select(self.model.id).where(
             self.model.tenant_id == self.tenant_id,
             self.model.email == email,
-            self.model.is_deleted == False,
+            self.model.is_deleted.is_(False),
         )
         if exclude_id:
             query = query.where(self.model.id != exclude_id)
@@ -156,7 +156,7 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         query = select(self.model.id).where(
             self.model.tenant_id == self.tenant_id,
             self.model.phone == phone,
-            self.model.is_deleted == False,
+            self.model.is_deleted.is_(False),
         )
         if exclude_id:
             query = query.where(self.model.id != exclude_id)

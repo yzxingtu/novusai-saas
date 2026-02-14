@@ -7,7 +7,7 @@ AI 供应商健康检查定时任务
 
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker, Session
@@ -71,8 +71,8 @@ def ai_provider_health_check(self: BaseTask):
     try:
         # 获取所有启用的供应商
         stmt = select(AIProvider).where(
-            AIProvider.is_active == True,
-            AIProvider.is_deleted == False,
+            AIProvider.is_active.is_(True),
+            AIProvider.is_deleted.is_(False),
         )
         result = db.execute(stmt)
         providers = result.scalars().all()
@@ -116,8 +116,8 @@ def _check_provider_health(provider, db: Session, redis_client):
         stmt = select(ProviderApiKey).where(
             ProviderApiKey.provider_id == provider_id,
             ProviderApiKey.tenant_id == None,
-            ProviderApiKey.is_active == True,
-            ProviderApiKey.is_deleted == False,
+            ProviderApiKey.is_active.is_(True),
+            ProviderApiKey.is_deleted.is_(False),
         ).limit(1)
         result = db.execute(stmt)
         api_key = result.scalar_one_or_none()
@@ -171,7 +171,7 @@ def _check_provider_health(provider, db: Session, redis_client):
         "error_message": error_message,
         "consecutive_failures": consecutive_failures,
         "is_available": consecutive_failures < CONSECUTIVE_FAILURES_THRESHOLD,
-        "checked_at": datetime.utcnow().isoformat(),
+        "checked_at": datetime.now(timezone.utc).isoformat(),
     }
 
     redis_client.setex(
@@ -185,7 +185,7 @@ def _check_provider_health(provider, db: Session, redis_client):
         "is_healthy": is_healthy,
         "response_time_ms": response_time_ms,
         "error_message": error_message,
-        "checked_at": datetime.utcnow().isoformat(),
+        "checked_at": datetime.now(timezone.utc).isoformat(),
     }, ensure_ascii=False)
 
     redis_client.zadd(history_key, {history_entry: time.time()})

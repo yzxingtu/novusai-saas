@@ -7,6 +7,9 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import { searchInput, select } from '#/adapter/form';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
+import { formatCost, formatTokens } from '#/utils/format';
+
+export { formatCost, formatTokens };
 
 function getStatusOptions() {
   return [
@@ -82,7 +85,7 @@ export function useColumns<T = Record<string, unknown>>(
     },
     {
       field: 'token_count',
-      title: 'Tokens',
+      title: $t('admin.ai.conversation.tokenCount'),
       width: 110,
       align: 'right',
       slots: { default: 'tokens_cell' },
@@ -148,22 +151,3 @@ export function useGridFormSchema(): VbenFormSchema[] {
   ];
 }
 
-/**
- * 格式化费用
- */
-export function formatCost(cost: null | number | undefined): string {
-  if (cost === null || cost === undefined) return '-';
-  if (cost === 0) return '$0';
-  if (cost < 0.001) return `$${cost.toFixed(6)}`;
-  return `$${cost.toFixed(4)}`;
-}
-
-/**
- * 格式化 Tokens
- */
-export function formatTokens(tokens: number | undefined): string {
-  if (!tokens) return '0';
-  if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(2)}M`;
-  if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}K`;
-  return `${tokens}`;
-}

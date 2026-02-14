@@ -157,6 +157,24 @@ export interface UseCrudPageOptions<T extends BaseRow = BaseRow> {
 
   /** 自定义操作处理器（用于扩展非标准操作） */
   customActions?: Record<string, (row: T) => void>;
+
+  /**
+   * 回收站配置
+   * - true: 启用回收站，使用默认配置
+   * - RecycleBinConfig: 启用并自定义
+   * - false/undefined: 不启用
+   */
+  recycleBin?: boolean | RecycleBinConfig;
+}
+
+/**
+ * 回收站配置
+ */
+export interface RecycleBinConfig {
+  /** 名称字段，默认 'name' */
+  nameField?: string;
+  /** 自定义列配置 */
+  columns?: Array<{ title: string; dataIndex: string; width?: number }>;
 }
 
 /**

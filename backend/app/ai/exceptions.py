@@ -5,8 +5,6 @@ AI 网关统一异常层次
 使上层业务代码无需感知具体供应商差异。
 """
 
-from typing import Optional
-
 from app.core.i18n import _
 
 

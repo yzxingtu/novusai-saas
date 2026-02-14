@@ -6,10 +6,11 @@ import type { AIConversationInfo } from '#/api/admin/ai';
 
 defineOptions({ name: 'AdminAIConversations' });
 
-import { Page } from '@vben/common-ui';
-import { IconifyIcon } from '@vben/icons';
+import { ref } from 'vue';
 
-import { Card, Tag, Tooltip } from 'ant-design-vue';
+import { Page } from '@vben/common-ui';
+
+import { Card, Tag } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { getAIConversationListApi } from '#/api/admin/ai';
@@ -17,6 +18,15 @@ import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
 import { formatCost, formatTokens, getStatusText, useColumns, useGridFormSchema } from './data';
+import ConversationDetail from './modules/ConversationDetail.vue';
+
+const detailOpen = ref(false);
+const detailId = ref<null | number>(null);
+
+function onViewDetail(row: AIConversationInfo) {
+  detailId.value = row.id;
+  detailOpen.value = true;
+}
 
 const { Grid } = useCrudPage<AIConversationInfo>({
   api: {
@@ -27,11 +37,19 @@ const { Grid } = useCrudPage<AIConversationInfo>({
   searchSchema: useGridFormSchema(),
   i18nPrefix: 'admin.ai.conversation',
   defaultSort: '-created_at',
+  customActions: {
+    detail: onViewDetail,
+  },
 });
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-4">
+  <Page auto-content-height :description="$t('admin.ai.conversation.pageDesc')" content-class="flex flex-col gap-4">
+    <ConversationDetail
+      v-model:open="detailOpen"
+      :conversation-id="detailId"
+    />
+
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
         <!-- 标题列 -->

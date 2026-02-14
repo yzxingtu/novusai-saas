@@ -58,7 +58,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         """
         query = select(self.model.id).where(
             self.model.code == code,
-            self.model.is_deleted == False,
+            self.model.is_deleted.is_(False),
         )
         if exclude_id:
             query = query.where(self.model.id != exclude_id)
@@ -88,7 +88,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         )
         
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         query = query.order_by(self.model.sort_order.asc(), self.model.id.asc())
         
@@ -126,7 +126,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         )
         
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         query = query.order_by(self.model.level.asc())
         
@@ -165,7 +165,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         )
         
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         query = query.order_by(self.model.level.asc(), self.model.sort_order.asc())
         
@@ -220,7 +220,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
             )
         
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         # 加载子角色和管理员关联，支持 children_count/has_children/has_admins 属性
         query = query.options(
@@ -252,7 +252,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         )
         
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         result = await self.db.execute(query)
         count = result.scalar() or 0
@@ -278,7 +278,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         )
         
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         result = await self.db.execute(query)
         return result.scalar() or 0
@@ -320,7 +320,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         )
         
         if not include_deleted:
-            query = query.where(Admin.is_deleted == False)
+            query = query.where(Admin.is_deleted.is_(False))
         
         result = await self.db.execute(query)
         count = result.scalar() or 0
@@ -348,7 +348,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         )
         
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         query = query.order_by(self.model.sort_order.asc(), self.model.id.asc())
         
@@ -414,7 +414,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
                 )
             )
             if not include_deleted:
-                role_ids_query = role_ids_query.where(self.model.is_deleted == False)
+                role_ids_query = role_ids_query.where(self.model.is_deleted.is_(False))
             
             role_ids_result = await self.db.execute(role_ids_query)
             role_ids = [r for r in role_ids_result.scalars().all()]
@@ -429,7 +429,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
             base_conditions = [Admin.role_id == role_id]
         
         if not include_deleted:
-            base_conditions.append(Admin.is_deleted == False)
+            base_conditions.append(Admin.is_deleted.is_(False))
         
         # 搜索条件
         if search:
@@ -481,7 +481,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         )
         
         if not include_deleted:
-            query = query.where(Admin.is_deleted == False)
+            query = query.where(Admin.is_deleted.is_(False))
         
         result = await self.db.execute(query)
         return result.scalar() or 0
@@ -506,7 +506,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         )
         
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         query = query.options(
             selectinload(self.model.admins),
@@ -534,7 +534,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         )
         
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         # 加载关联数据
         query = query.options(
@@ -570,7 +570,7 @@ class AdminRoleRepository(BaseRepository[AdminRole]):
         )
         
         if not include_deleted:
-            query = query.where(self.model.is_deleted == False)
+            query = query.where(self.model.is_deleted.is_(False))
         
         # 加载关联数据
         query = query.options(

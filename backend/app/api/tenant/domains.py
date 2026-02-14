@@ -51,7 +51,7 @@ class TenantDomainController(TenantController):
     """
 
     prefix = "/domains"
-    tags = ["租户域名管理"]
+    tags = ["Tenant Domain Management"]
     service_class = TenantDomainTenantService
 
     def _register_routes(self) -> None:

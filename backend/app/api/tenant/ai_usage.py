@@ -30,7 +30,7 @@ from app.services.ai import MeteringService
         icon="lucide:bar-chart-3",
         path="/ai/usage",
         component="ai/usage/index",
-        parent="ai_mgmt",
+        parent="ai_analytics",
         sort_order=30,
     ),
 )
@@ -42,7 +42,7 @@ class TenantAIUsageController(TenantController):
     """
 
     prefix = "/ai/usage"
-    tags = ["AI 使用量统计"]
+    tags = [_("menu.tags.tenant_ai_usage")]
 
     def _register_routes(self) -> None:
         """注册路由"""

@@ -206,23 +206,35 @@ export function useFormSchema(
       required: true,
       placeholder: $t('admin.ai.model.placeholder.inputName'),
     }),
-    inputField('code', $t('admin.ai.model.code'), {
-      required: true,
-      placeholder: $t('admin.ai.model.placeholder.inputCode'),
-    }),
-    select('type', $t('admin.ai.model.type'), {
-      options: getModelTypeOptions(),
-      required: true,
-      placeholder: $t('admin.ai.model.placeholder.selectType'),
-    }),
-    numberField('context_window', $t('admin.ai.model.contextWindow'), {
-      min: 0,
-      placeholder: $t('admin.ai.model.placeholder.inputContextWindow'),
-    }),
-    numberField('max_output_tokens', $t('admin.ai.model.maxOutputTokens'), {
-      min: 0,
-      placeholder: $t('admin.ai.model.placeholder.inputMaxOutput'),
-    }),
+    {
+      ...inputField('code', $t('admin.ai.model.code'), {
+        required: true,
+        placeholder: $t('admin.ai.model.placeholder.inputCode'),
+      }),
+      help: $t('admin.ai.model.help.code'),
+    },
+    {
+      ...select('type', $t('admin.ai.model.type'), {
+        options: getModelTypeOptions(),
+        required: true,
+        placeholder: $t('admin.ai.model.placeholder.selectType'),
+      }),
+      help: $t('admin.ai.model.help.type'),
+    },
+    {
+      ...numberField('context_window', $t('admin.ai.model.contextWindow'), {
+        min: 0,
+        placeholder: $t('admin.ai.model.placeholder.inputContextWindow'),
+      }),
+      help: $t('admin.ai.model.help.contextWindow'),
+    },
+    {
+      ...numberField('max_output_tokens', $t('admin.ai.model.maxOutputTokens'), {
+        min: 0,
+        placeholder: $t('admin.ai.model.placeholder.inputMaxOutput'),
+      }),
+      help: $t('admin.ai.model.help.maxOutputTokens'),
+    },
     switchField('is_active', $t('admin.ai.model.isActive'), {
       defaultValue: true,
     }),
@@ -238,19 +250,28 @@ export function useFormSchema(
     }),
 
     dividerField('rate_limit_divider', $t('admin.ai.model.section.rateLimit')),
-    numberField('rpm_limit', $t('admin.ai.model.rpmLimit'), {
-      min: 0,
-      placeholder: $t('admin.ai.model.placeholder.inputRpmLimit'),
-    }),
-    numberField('tpm_limit', $t('admin.ai.model.tpmLimit'), {
-      min: 0,
-      placeholder: $t('admin.ai.model.placeholder.inputTpmLimit'),
-    }),
+    {
+      ...numberField('rpm_limit', $t('admin.ai.model.rpmLimit'), {
+        min: 0,
+        placeholder: $t('admin.ai.model.placeholder.inputRpmLimit'),
+      }),
+      help: $t('admin.ai.model.help.rpmLimit'),
+    },
+    {
+      ...numberField('tpm_limit', $t('admin.ai.model.tpmLimit'), {
+        min: 0,
+        placeholder: $t('admin.ai.model.placeholder.inputTpmLimit'),
+      }),
+      help: $t('admin.ai.model.help.tpmLimit'),
+    },
 
     dividerField('capability_divider', $t('admin.ai.model.section.capability')),
-    switchField('supports_function_calling', $t('admin.ai.model.functionCalling'), {
-      defaultValue: false,
-    }),
+    {
+      ...switchField('supports_function_calling', $t('admin.ai.model.functionCalling'), {
+        defaultValue: false,
+      }),
+      help: $t('admin.ai.model.help.functionCalling'),
+    },
     switchField('supports_vision', $t('admin.ai.model.vision'), {
       defaultValue: false,
     }),
@@ -259,10 +280,13 @@ export function useFormSchema(
     }),
 
     dividerField('failover_divider', $t('admin.ai.model.section.failover')),
-    select('fallback_model_id', $t('admin.ai.model.fallbackModel'), {
-      api: () => getModelSelectOptions(currentModelId),
-      placeholder: $t('admin.ai.model.placeholder.selectFallback'),
-    }),
+    {
+      ...select('fallback_model_id', $t('admin.ai.model.fallbackModel'), {
+        api: () => getModelSelectOptions(currentModelId),
+        placeholder: $t('admin.ai.model.placeholder.selectFallback'),
+      }),
+      help: $t('admin.ai.model.help.fallbackModel'),
+    },
   ];
 }
 

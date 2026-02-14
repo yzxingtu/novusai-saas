@@ -32,7 +32,7 @@ class AdminPermissionController(GlobalController):
     """
     
     prefix = "/permissions"
-    tags = ["平台权限管理"]
+    tags = ["Permission Management (Platform)"]
     
     def _register_routes(self) -> None:
         """注册路由"""
