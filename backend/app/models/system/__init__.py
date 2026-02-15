@@ -15,6 +15,7 @@ from app.models.system.task_log import TaskLog
 from app.models.system.periodic_task import PeriodicTask
 from app.models.system.plugin import Plugin
 from app.models.system.tenant_plugin import TenantPlugin
+from app.models.system.crud_generation_record import CrudGenerationRecord
 
 __all__ = [
     "Admin",
@@ -26,4 +27,5 @@ __all__ = [
     "PeriodicTask",
     "Plugin",
     "TenantPlugin",
+    "CrudGenerationRecord",
 ]

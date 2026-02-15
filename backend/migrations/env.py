@@ -59,6 +59,8 @@ from app.models import (
     # 插件系统
     Plugin,
     TenantPlugin,
+    # 代码生成记录
+    CrudGenerationRecord,
 )
 
 # Alembic 配置对象

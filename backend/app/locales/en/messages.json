@@ -1128,6 +1128,41 @@
         "multi": "Multi-Query Rewrite",
         "hyde": "HyDE (Hypothetical Document)"
       }
+    },
+    "codegen": {
+      "operation": {
+        "preview": "Preview",
+        "generate": "Generate",
+        "rollback": "Rollback",
+        "delete": "Delete"
+      },
+      "status": {
+        "success": "Success",
+        "partial_failure": "Partial Failure",
+        "failed": "Failed",
+        "rolled_back": "Rolled Back"
+      }
+    }
+  },
+  "crud_generation_record": {
+    "field": {
+      "operator_id": "Operator",
+      "operator_name": "Operator Name",
+      "operation_type": "Operation Type",
+      "module_name": "Module Name",
+      "table_name": "Table Name",
+      "config_snapshot": "Config Snapshot",
+      "batch_project_snapshot": "Batch Project Snapshot",
+      "file_manifest": "File Manifest",
+      "file_count": "File Count",
+      "status": "Status",
+      "error_detail": "Error Detail",
+      "duration_ms": "Duration (ms)",
+      "parent_record_id": "Parent Record",
+      "metadata": "Metadata"
+    },
+    "error": {
+      "not_found": "Generation record not found"
     }
   },
   "config": {

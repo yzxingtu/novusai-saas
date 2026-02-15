@@ -270,6 +270,16 @@ const mainRoutes: RouteRecordRaw = {
             title: $t('admin.dev.crudGenerator.title'),
           },
         },
+        {
+          name: 'AdminDevCrudRecords',
+          path: 'crud-records',
+          component: () =>
+            import('#/views/admin/dev/crud-generator/records/index.vue'),
+          meta: {
+            icon: 'lucide:history',
+            title: $t('admin.dev.crudGenerator.records.title'),
+          },
+        },
       ],
     },
   ],

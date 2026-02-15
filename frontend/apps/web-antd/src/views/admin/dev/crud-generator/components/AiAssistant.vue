@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
 
 import { Button, Drawer, Empty, Input, Spin, Tag, Tooltip } from 'ant-design-vue';
 
@@ -7,10 +7,47 @@ import { MarkdownRender } from '#/components/business/markdown-render';
 import { $t } from '#/locales';
 
 import type { UseCrudAiAssistantReturn } from '../composables/use-crud-ai-assistant';
+import type { WizardStep } from '../types';
 
 const props = defineProps<{
   assistant: UseCrudAiAssistantReturn;
+  currentStep?: WizardStep;
 }>();
+
+interface QuickAction {
+  icon: string;
+  key: string;
+  prompt: string;
+}
+
+const stepQuickActions = computed<QuickAction[]>(() => {
+  const step = props.currentStep ?? 0;
+  const actions: Record<number, QuickAction[]> = {
+    0: [
+      { icon: 'icon-[lucide--wand-2]', key: 'generateFromDesc', prompt: '根据我当前填写的模块名和表名，帮我生成完整的 CRUD 配置（包括字段、搜索、列表、表单配置）' },
+      { icon: 'icon-[lucide--database]', key: 'generateFromTable', prompt: '根据我当前配置的表名，推断表结构并生成字段定义' },
+      { icon: 'icon-[lucide--check-circle]', key: 'optimizeBasic', prompt: '检查并优化我当前的基本信息配置，包括命名规范、scope 选择等' },
+    ],
+    1: [
+      { icon: 'icon-[lucide--list-plus]', key: 'suggestFields', prompt: '根据当前模块和表名，推荐常见字段' },
+      { icon: 'icon-[lucide--file-code]', key: 'importDDL', prompt: '请帮我从 DDL 语句解析字段。我会在下一条消息粘贴 DDL' },
+      { icon: 'icon-[lucide--sparkles]', key: 'optimizeFields', prompt: '检查并优化当前字段配置：类型是否正确、命名是否规范、是否需要索引' },
+    ],
+    2: [
+      { icon: 'icon-[lucide--table]', key: 'optimizeList', prompt: '为当前字段推荐最佳的列表配置：列宽度、渲染预设、对齐方式' },
+      { icon: 'icon-[lucide--search]', key: 'suggestSearch', prompt: '根据字段语义推荐搜索字段和操作符' },
+    ],
+    3: [
+      { icon: 'icon-[lucide--layout]', key: 'optimizeForm', prompt: '为当前字段推荐最佳的表单配置：组件类型、分组结构、校验规则' },
+      { icon: 'icon-[lucide--group]', key: 'suggestGroups', prompt: '根据字段语义自动推荐表单分组结构' },
+    ],
+    4: [
+      { icon: 'icon-[lucide--scan-search]', key: 'reviewCode', prompt: '审查当前生成的代码，检查规范性和潜在问题' },
+      { icon: 'icon-[lucide--languages]', key: 'translateLabels', prompt: '帮我翻译所有字段的中英文标签' },
+    ],
+  };
+  return actions[step] ?? [];
+});
 
 const T = 'admin.dev.crudGenerator.aiAssistant';
 
@@ -93,31 +130,15 @@ onMounted(() => {
               </p>
               <div class="flex flex-wrap gap-2">
                 <Button
+                  v-for="action in stepQuickActions"
+                  :key="action.key"
                   size="small"
-                  @click="sendQuickAction($t(`${T}.suggestFields`))"
+                  @click="sendQuickAction(action.prompt)"
                 >
                   <template #icon>
-                    <span class="icon-[lucide--list-plus] size-3.5" />
+                    <span :class="[action.icon, 'size-3.5']" />
                   </template>
-                  {{ $t(`${T}.suggestFields`) }}
-                </Button>
-                <Button
-                  size="small"
-                  @click="sendQuickAction($t(`${T}.translateLabels`))"
-                >
-                  <template #icon>
-                    <span class="icon-[lucide--languages] size-3.5" />
-                  </template>
-                  {{ $t(`${T}.translateLabels`) }}
-                </Button>
-                <Button
-                  size="small"
-                  @click="sendQuickAction($t(`${T}.analyzeIntent`))"
-                >
-                  <template #icon>
-                    <span class="icon-[lucide--brain] size-3.5" />
-                  </template>
-                  {{ $t(`${T}.analyzeIntent`) }}
+                  {{ $t(`${T}.actions.${action.key}`) }}
                 </Button>
               </div>
             </div>

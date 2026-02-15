@@ -570,6 +570,13 @@ export interface BatchCrudProject {
 
 export type WizardStep = 0 | 1 | 2 | 3 | 4;
 
+export interface StepWarning {
+  step: WizardStep;
+  field?: string;
+  message: string;
+  severity: 'error' | 'info' | 'warning';
+}
+
 export interface WizardState {
   currentStep: WizardStep;
   config: CrudConfig;

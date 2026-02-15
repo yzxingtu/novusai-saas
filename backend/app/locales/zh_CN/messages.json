@@ -1130,6 +1130,41 @@
         "multi": "多查询改写",
         "hyde": "假设文档嵌入"
       }
+    },
+    "codegen": {
+      "operation": {
+        "preview": "预览",
+        "generate": "生成",
+        "rollback": "回滚",
+        "delete": "删除"
+      },
+      "status": {
+        "success": "成功",
+        "partial_failure": "部分失败",
+        "failed": "失败",
+        "rolled_back": "已回滚"
+      }
+    }
+  },
+  "crud_generation_record": {
+    "field": {
+      "operator_id": "操作人",
+      "operator_name": "操作人名称",
+      "operation_type": "操作类型",
+      "module_name": "模块名称",
+      "table_name": "表名",
+      "config_snapshot": "配置快照",
+      "batch_project_snapshot": "批量项目快照",
+      "file_manifest": "文件清单",
+      "file_count": "文件数量",
+      "status": "状态",
+      "error_detail": "错误详情",
+      "duration_ms": "耗时(ms)",
+      "parent_record_id": "关联记录",
+      "metadata": "元数据"
+    },
+    "error": {
+      "not_found": "生成记录不存在"
     }
   },
   "config": {

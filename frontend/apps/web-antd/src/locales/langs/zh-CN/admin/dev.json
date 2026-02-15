@@ -289,7 +289,21 @@
       "quickActions": "快捷操作",
       "suggestFields": "AI 推荐字段",
       "translateLabels": "AI 翻译标签",
-      "analyzeIntent": "分析业务意图"
+      "analyzeIntent": "分析业务意图",
+      "actions": {
+        "generateFromDesc": "生成完整配置",
+        "generateFromTable": "从表名推断",
+        "optimizeBasic": "优化基本信息",
+        "suggestFields": "推荐字段",
+        "importDDL": "导入 DDL",
+        "optimizeFields": "优化字段",
+        "optimizeList": "优化列表配置",
+        "suggestSearch": "推荐搜索字段",
+        "optimizeForm": "优化表单配置",
+        "suggestGroups": "推荐分组",
+        "reviewCode": "审查代码",
+        "translateLabels": "翻译标签"
+      }
     },
     "command": {
       "title": "命令面板",
@@ -522,6 +536,16 @@
       "addEntity": "添加实体",
       "removeEntity": "删除实体",
       "confirmRemove": "确认删除实体「{name}」？相关的跨表关联也会被移除。",
+      "batchDelete": {
+        "select": "批量选择",
+        "cancel": "取消选择",
+        "selectAll": "全选",
+        "remove": "删除 {count} 个",
+        "title": "批量删除实体",
+        "content": "确认删除选中的 {count} 个实体？相关的跨表关联也会被移除。",
+        "confirm": "确认删除",
+        "success": "已删除 {count} 个实体"
+      },
       "noEntities": "暂无实体，请添加",
       "entityCount": "{count} 个实体",
       "tabs": {
@@ -554,7 +578,14 @@
         "errors": "校验错误",
         "warnings": "校验警告",
         "noIssues": "校验通过",
-        "jumpTo": "跳转"
+        "jumpTo": "跳转",
+        "module_required": "模块名不能为空",
+        "table_required": "表名不能为空",
+        "no_fields": "请至少定义一个字段",
+        "no_list_fields": "没有字段设置为在列表中显示",
+        "search_no_operator": "搜索字段缺少操作符",
+        "no_form_fields": "没有字段设置为在表单中显示",
+        "group_field_missing": "分组引用的字段不存在"
       },
       "newEntity": {
         "title": "新建实体",
@@ -608,6 +639,101 @@
       "icon": "图标",
       "color": "颜色",
       "ellipsis": "省略"
+    },
+    "history": {
+      "title": "生成历史",
+      "refresh": "刷新",
+      "noRecords": "暂无生成记录",
+      "viewAll": "查看全部记录",
+      "files": "个文件",
+      "justNow": "刚刚",
+      "minutesAgo": "{n} 分钟前",
+      "hoursAgo": "{n} 小时前",
+      "daysAgo": "{n} 天前"
+    },
+    "deleteFiles": {
+      "title": "删除生成的代码文件",
+      "warning": "将删除模块 {module} ({table}) 生成的所有代码文件，此操作不可撤销。",
+      "totalFiles": "总文件数",
+      "existing": "已存在",
+      "noFiles": "未找到已生成的文件",
+      "confirm": "删除 {count} 个文件",
+      "success": "已成功删除 {count} 个文件",
+      "failed": "删除失败，请重试",
+      "previewFailed": "加载文件列表失败",
+      "button": "删除已生成代码"
+    },
+    "records": {
+      "title": "生成记录",
+      "stats": {
+        "total": "总记录数",
+        "generates": "生成次数",
+        "previews": "预览次数",
+        "avgDuration": "平均耗时"
+      },
+      "type": {
+        "preview": "预览",
+        "generate": "生成",
+        "rollback": "回滚",
+        "delete": "删除"
+      },
+      "status": {
+        "success": "成功",
+        "partialFailure": "部分失败",
+        "failed": "失败",
+        "rolledBack": "已回滚"
+      },
+      "column": {
+        "operationType": "操作类型",
+        "moduleName": "模块名",
+        "tableName": "表名",
+        "fileCount": "文件数",
+        "status": "状态",
+        "duration": "耗时",
+        "operator": "操作人",
+        "createdAt": "创建时间",
+        "actions": "操作"
+      },
+      "filter": {
+        "modulePlaceholder": "模块名搜索",
+        "operationType": "操作类型",
+        "status": "状态",
+        "search": "搜索",
+        "reset": "重置"
+      },
+      "action": {
+        "viewDetail": "查看详情",
+        "delete": "删除",
+        "deleteConfirm": "确认删除该记录？",
+        "restoreConfig": "恢复配置"
+      },
+      "totalRecords": "共 {total} 条",
+      "deleteSuccess": "删除成功",
+      "deleteFailed": "删除失败",
+      "loadFailed": "加载失败",
+      "configCopied": "配置已复制",
+      "detail": {
+        "title": "生成记录详情",
+        "overview": "概览",
+        "fileManifest": "文件清单",
+        "configSnapshot": "配置快照",
+        "errorDetail": "错误详情",
+        "copyConfig": "复制配置",
+        "noFiles": "无文件记录",
+        "noConfig": "无配置快照"
+      },
+      "fileOp": {
+        "written": "写入",
+        "merged": "合并",
+        "skipped": "跳过",
+        "error": "错误",
+        "preview": "预览"
+      },
+      "fileCol": {
+        "path": "文件路径",
+        "operation": "操作",
+        "size": "大小"
+      }
     },
     "layout": {
       "title": "页面布局",

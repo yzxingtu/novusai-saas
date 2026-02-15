@@ -351,6 +351,14 @@ def create_application() -> FastAPI:
     
     # 注册平台管理后台路由 (/admin/*)
     from app.api.admin import admin_router
+
+    # Dev-only 路由（仅开发环境，必须在 include_router 之前注册）
+    if settings.APP_ENV == "development":
+        from app.api.admin.dev_crud import router as dev_crud_router
+        from app.api.admin.dev_crud_records import router as dev_crud_records_router
+        admin_router.include_router(dev_crud_router)
+        admin_router.include_router(dev_crud_records_router)
+
     app.include_router(admin_router, prefix="/admin")
     
     # 注册租户管理后台路由 (/tenant/*)
@@ -364,13 +372,6 @@ def create_application() -> FastAPI:
     # 注册公共 API 路由 (/api/public/*) - 无需认证，用于租户登录页获取配置
     from app.api.public import public_router
     app.include_router(public_router, prefix="/api/public")
-    
-    # ========================================
-    # Dev-only 路由（仅开发环境）
-    # ========================================
-    if settings.APP_ENV == "development":
-        from app.api.admin.dev_crud import router as dev_crud_router
-        admin_router.include_router(dev_crud_router)
 
     # ========================================
     # 挂载本地存储静态文件目录

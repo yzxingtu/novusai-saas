@@ -39,6 +39,7 @@ from app.enums.agent import (
     BatchRunStatusEnum,
 )
 from app.enums.plugin import PluginTypeEnum, PluginStatusEnum
+from app.enums.codegen import CodegenOperationType, CodegenRecordStatus
 from app.enums.knowledge_base import (
     KBStatusEnum,
     DocumentStatusEnum,
@@ -100,6 +101,9 @@ __all__ = [
     # 插件
     "PluginTypeEnum",
     "PluginStatusEnum",
+    # 代码生成
+    "CodegenOperationType",
+    "CodegenRecordStatus",
     # 知识库
     "KBStatusEnum",
     "DocumentStatusEnum",

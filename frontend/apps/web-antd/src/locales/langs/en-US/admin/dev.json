@@ -289,7 +289,21 @@
       "quickActions": "Quick Actions",
       "suggestFields": "AI Suggest Fields",
       "translateLabels": "AI Translate Labels",
-      "analyzeIntent": "Analyze Business Intent"
+      "analyzeIntent": "Analyze Business Intent",
+      "actions": {
+        "generateFromDesc": "Generate Full Config",
+        "generateFromTable": "Infer from Table",
+        "optimizeBasic": "Optimize Basic Info",
+        "suggestFields": "Suggest Fields",
+        "importDDL": "Import DDL",
+        "optimizeFields": "Optimize Fields",
+        "optimizeList": "Optimize List Config",
+        "suggestSearch": "Suggest Search Fields",
+        "optimizeForm": "Optimize Form Config",
+        "suggestGroups": "Suggest Groups",
+        "reviewCode": "Review Code",
+        "translateLabels": "Translate Labels"
+      }
     },
     "command": {
       "title": "Command Palette",
@@ -522,6 +536,16 @@
       "addEntity": "Add Entity",
       "removeEntity": "Remove Entity",
       "confirmRemove": "Remove entity \"{name}\"? Related cross-relations will also be removed.",
+      "batchDelete": {
+        "select": "Batch Select",
+        "cancel": "Cancel Selection",
+        "selectAll": "Select All",
+        "remove": "Delete {count}",
+        "title": "Batch Delete Entities",
+        "content": "Remove {count} selected entities? Related cross-relations will also be removed.",
+        "confirm": "Confirm Delete",
+        "success": "Deleted {count} entities"
+      },
       "noEntities": "No entities yet, please add one",
       "entityCount": "{count} entities",
       "tabs": {
@@ -554,6 +578,13 @@
         "errors": "Validation Errors",
         "warnings": "Validation Warnings",
         "noIssues": "Validation Passed",
+        "module_required": "Module name is required",
+        "table_required": "Table name is required",
+        "no_fields": "Please define at least one field",
+        "no_list_fields": "No fields are set to show in list",
+        "search_no_operator": "Search field missing operator",
+        "no_form_fields": "No fields are set to show in form",
+        "group_field_missing": "Group references a non-existent field",
         "jumpTo": "Jump to"
       },
       "newEntity": {
@@ -608,6 +639,101 @@
       "icon": "Icon",
       "color": "Color",
       "ellipsis": "Ellipsis"
+    },
+    "history": {
+      "title": "Generation History",
+      "refresh": "Refresh",
+      "noRecords": "No generation records",
+      "viewAll": "View all records",
+      "files": "files",
+      "justNow": "Just now",
+      "minutesAgo": "{n} min ago",
+      "hoursAgo": "{n} hr ago",
+      "daysAgo": "{n} days ago"
+    },
+    "deleteFiles": {
+      "title": "Delete Generated Code Files",
+      "warning": "All generated code files for module {module} ({table}) will be deleted. This action cannot be undone.",
+      "totalFiles": "Total files",
+      "existing": "Existing",
+      "noFiles": "No generated files found",
+      "confirm": "Delete {count} files",
+      "success": "Successfully deleted {count} files",
+      "failed": "Delete failed, please try again",
+      "previewFailed": "Failed to load file list",
+      "button": "Delete Generated Code"
+    },
+    "records": {
+      "title": "Generation Records",
+      "stats": {
+        "total": "Total Records",
+        "generates": "Generations",
+        "previews": "Previews",
+        "avgDuration": "Avg Duration"
+      },
+      "type": {
+        "preview": "Preview",
+        "generate": "Generate",
+        "rollback": "Rollback",
+        "delete": "Delete"
+      },
+      "status": {
+        "success": "Success",
+        "partialFailure": "Partial Failure",
+        "failed": "Failed",
+        "rolledBack": "Rolled Back"
+      },
+      "column": {
+        "operationType": "Operation",
+        "moduleName": "Module",
+        "tableName": "Table",
+        "fileCount": "Files",
+        "status": "Status",
+        "duration": "Duration",
+        "operator": "Operator",
+        "createdAt": "Created At",
+        "actions": "Actions"
+      },
+      "filter": {
+        "modulePlaceholder": "Search module...",
+        "operationType": "Operation Type",
+        "status": "Status",
+        "search": "Search",
+        "reset": "Reset"
+      },
+      "action": {
+        "viewDetail": "View Detail",
+        "delete": "Delete",
+        "deleteConfirm": "Confirm delete this record?",
+        "restoreConfig": "Restore Config"
+      },
+      "totalRecords": "Total {total} records",
+      "deleteSuccess": "Deleted successfully",
+      "deleteFailed": "Delete failed",
+      "loadFailed": "Load failed",
+      "configCopied": "Config copied",
+      "detail": {
+        "title": "Generation Record Detail",
+        "overview": "Overview",
+        "fileManifest": "File Manifest",
+        "configSnapshot": "Config Snapshot",
+        "errorDetail": "Error Detail",
+        "copyConfig": "Copy Config",
+        "noFiles": "No file records",
+        "noConfig": "No config snapshot"
+      },
+      "fileOp": {
+        "written": "Written",
+        "merged": "Merged",
+        "skipped": "Skipped",
+        "error": "Error",
+        "preview": "Preview"
+      },
+      "fileCol": {
+        "path": "File Path",
+        "operation": "Operation",
+        "size": "Size"
+      }
     },
     "layout": {
       "title": "Page Layout",

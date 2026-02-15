@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
-import { Button, message, Radio, Steps, Tooltip } from 'ant-design-vue';
+import { Alert, Button, message, Radio, Steps, Tooltip } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
@@ -25,6 +25,9 @@ import { useCrudConfig } from './composables/use-crud-config';
 import { useMockData } from './composables/use-mock-data';
 import { useShortcuts } from './composables/use-shortcuts';
 
+import DeleteConfirmModal from './components/DeleteConfirmModal.vue';
+import HistoryPopover from './components/HistoryPopover.vue';
+
 import type { WizardStep } from './types';
 
 const crudConfig = useCrudConfig();
@@ -38,6 +41,7 @@ const {
   canUndo,
   canRedo,
   snapshot,
+  stepWarnings,
   nextStep,
   prevStep,
   goToStep,
@@ -65,6 +69,9 @@ const { mockData } = useMockData(() => config.value);
 
 const touchedPaths = useTouchedPaths();
 
+// Delete confirmation modal ref
+const deleteModalRef = ref<InstanceType<typeof DeleteConfirmModal> | null>(null);
+
 // ============================================================
 // AI Assistant
 // ============================================================
@@ -75,6 +82,11 @@ const aiAssistant = useCrudAiAssistant({
   snapshot,
   touchedPaths,
 });
+
+// Sync current step to AI assistant context
+watch(currentStep, (step) => {
+  aiAssistant.setCurrentStep(step);
+}, { immediate: true });
 
 // ============================================================
 // Wizard ↔ Code dual mode
@@ -315,6 +327,9 @@ function handleStepClick(step: number) {
           </Button>
         </Tooltip>
 
+        <!-- History Popover -->
+        <HistoryPopover @restore-config="loadConfig" />
+
         <!-- Command Palette trigger -->
         <Tooltip title="Ctrl+K">
           <Button
@@ -416,11 +431,32 @@ function handleStepClick(step: number) {
     />
 
     <!-- AI Assistant Drawer -->
-    <AiAssistant :assistant="aiAssistant" />
+    <AiAssistant :assistant="aiAssistant" :current-step="currentStep" />
+
+    <!-- Delete Confirmation Modal -->
+    <DeleteConfirmModal ref="deleteModalRef" :config="config" />
+
+    <!-- Step Warnings -->
+    <Alert
+      v-if="stepWarnings.length > 0"
+      class="mt-3"
+      :type="stepWarnings.some((w) => w.severity === 'error') ? 'error' : 'warning'"
+      show-icon
+      closable
+    >
+      <template #message>
+        <ul class="m-0 list-disc pl-4 text-xs">
+          <li v-for="(w, i) in stepWarnings" :key="i">
+            <span v-if="w.field" class="font-mono">{{ w.field }}: </span>
+            {{ $t(`admin.dev.crudGenerator.validation.${w.message}`) }}
+          </li>
+        </ul>
+      </template>
+    </Alert>
 
     <!-- Footer: Navigation -->
     <div class="mt-6 flex items-center justify-between border-t pt-4">
-      <div>
+      <div class="flex items-center gap-2">
         <Button
           v-if="isDirty"
           danger
@@ -428,6 +464,17 @@ function handleStepClick(step: number) {
           @click="resetConfig"
         >
           {{ $t('admin.dev.crudGenerator.reset') }}
+        </Button>
+        <Button
+          v-if="currentStep === 4 && config.module && config.table_name"
+          danger
+          size="small"
+          @click="deleteModalRef?.open()"
+        >
+          <template #icon>
+            <span class="icon-[lucide--trash-2] size-3.5" />
+          </template>
+          {{ $t('admin.dev.crudGenerator.deleteFiles.button') }}
         </Button>
       </div>
 

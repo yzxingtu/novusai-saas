@@ -5,11 +5,11 @@
  * 支持 50 步撤销历史。
  */
 
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { useManualRefHistory } from '@vueuse/core';
 
-import type { CrudConfig, WizardStep } from '../types';
+import type { CrudConfig, StepWarning, WizardStep } from '../types';
 
 // ============================================================
 // 默认配置工厂
@@ -215,6 +215,48 @@ export function useCrudConfig() {
     commit();
   }
 
+  /** 校验指定步骤的配置完整性（返回警告列表，不阻止前进） */
+  function validateStep(step: WizardStep): StepWarning[] {
+    const warnings: StepWarning[] = [];
+    const c = config.value;
+
+    if (step === 0) {
+      if (!c.module) warnings.push({ step: 0, field: 'module', message: 'module_required', severity: 'error' });
+      if (!c.table_name) warnings.push({ step: 0, field: 'table_name', message: 'table_required', severity: 'error' });
+    } else if (step === 1) {
+      if (c.fields.length === 0) warnings.push({ step: 1, message: 'no_fields', severity: 'error' });
+    } else if (step === 2) {
+      const hasListField = c.fields.some((f) => f.in_list);
+      if (!hasListField && c.fields.length > 0) {
+        warnings.push({ step: 2, message: 'no_list_fields', severity: 'warning' });
+      }
+      const searchFields = c.search_config?.fields ?? [];
+      for (const sf of searchFields) {
+        if (!sf.operator) {
+          warnings.push({ step: 2, field: sf.field, message: 'search_no_operator', severity: 'warning' });
+        }
+      }
+    } else if (step === 3) {
+      const hasFormField = c.fields.some((f) => f.in_form);
+      if (!hasFormField && c.fields.length > 0) {
+        warnings.push({ step: 3, message: 'no_form_fields', severity: 'warning' });
+      }
+      const groups = c.form_config?.groups ?? [];
+      for (const g of groups) {
+        const fieldNames = new Set(c.fields.map((f) => f.name));
+        for (const gf of g.fields ?? []) {
+          if (!fieldNames.has(gf)) {
+            warnings.push({ step: 3, field: gf, message: 'group_field_missing', severity: 'warning' });
+          }
+        }
+      }
+    }
+
+    return warnings;
+  }
+
+  const stepWarnings = computed(() => validateStep(currentStep.value));
+
   /** 跳转到指定步骤 */
   function goToStep(step: WizardStep) {
     snapshot();
@@ -248,6 +290,10 @@ export function useCrudConfig() {
     canRedo,
     snapshot,
     history,
+
+    // 校验
+    stepWarnings,
+    validateStep,
 
     // 操作
     resetConfig,

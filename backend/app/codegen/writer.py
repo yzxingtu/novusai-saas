@@ -10,6 +10,7 @@ CRUD 代码生成器 — Writer（文件写入器）
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from dataclasses import dataclass, field
@@ -66,6 +67,7 @@ class WriteResult:
     merged: list[str] = field(default_factory=list)
     errors: list[dict[str, str]] = field(default_factory=list)
     ddl_preview: str = ""
+    file_hashes: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -75,6 +77,7 @@ class WriteResult:
             "errors": self.errors,
             "ddl_preview": self.ddl_preview,
             "total_files": len(self.written) + len(self.merged),
+            "file_hashes": self.file_hashes,
         }
 
 
@@ -225,6 +228,7 @@ class CrudWriter:
         files: dict[str, str],
         conflict_action: ConflictAction = ConflictAction.SKIP,
         force_paths: set[str] | None = None,
+        backup_record_id: int | None = None,
     ) -> WriteResult:
         """将文件写入磁盘
 
@@ -232,10 +236,22 @@ class CrudWriter:
             files: Generator 输出的 {相对路径: 内容}
             conflict_action: 冲突时的默认处理策略
             force_paths: 强制覆盖的路径集合（无论 conflict_action）
+            backup_record_id: 生成记录 ID，传入时自动备份被覆盖的文件
 
         Returns:
             WriteResult 包含写入/跳过/合并/错误详情
         """
+        # 写盘前备份（best-effort）
+        if backup_record_id is not None:
+            try:
+                from app.codegen.backup import BackupEngine
+                engine = BackupEngine(self._root)
+                engine.backup_existing_files(files, record_id=backup_record_id)
+            except Exception as exc:
+                import logging
+                logging.getLogger("app").warning(
+                    "Backup failed (non-blocking): %s", exc,
+                )
         result = WriteResult()
         force_paths = force_paths or set()
 
@@ -262,6 +278,9 @@ class CrudWriter:
                 try:
                     self._write_file(rel_path, content)
                     result.written.append(rel_path)
+                    result.file_hashes[rel_path] = hashlib.sha256(
+                        content.encode("utf-8")
+                    ).hexdigest()
                 except OSError as e:
                     result.errors.append(
                         {"path": rel_path, "error": str(e),
@@ -284,6 +303,9 @@ class CrudWriter:
                 try:
                     self._write_file(rel_path, content)
                     result.written.append(rel_path)
+                    result.file_hashes[rel_path] = hashlib.sha256(
+                        content.encode("utf-8")
+                    ).hexdigest()
                 except OSError as e:
                     result.errors.append(
                         {"path": rel_path, "error": str(e),
@@ -296,6 +318,9 @@ class CrudWriter:
                     merged = self._merge_i18n_json(existing_content, content)
                     self._write_file(rel_path, merged)
                     result.merged.append(rel_path)
+                    result.file_hashes[rel_path] = hashlib.sha256(
+                        merged.encode("utf-8")
+                    ).hexdigest()
                 except (OSError, ValueError) as e:
                     result.errors.append(
                         {"path": rel_path, "error": str(e),

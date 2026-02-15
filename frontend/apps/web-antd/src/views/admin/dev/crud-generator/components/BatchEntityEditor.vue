@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Card,
+  Checkbox,
   Empty,
   Input,
   Modal,
@@ -14,6 +15,7 @@ import {
   Tabs,
   Tag,
   Tooltip,
+  message,
 } from 'ant-design-vue';
 
 import { $t } from '#/locales';
@@ -42,6 +44,59 @@ const props = defineProps<{
 }>();
 
 const T = 'admin.dev.crudGenerator.batchEditor';
+
+// ---- Batch selection ----
+const batchSelectMode = ref(false);
+const selectedModules = ref<Set<string>>(new Set());
+
+function toggleBatchSelect() {
+  batchSelectMode.value = !batchSelectMode.value;
+  selectedModules.value.clear();
+}
+
+function toggleEntitySelection(mod: string) {
+  const s = new Set(selectedModules.value);
+  if (s.has(mod)) s.delete(mod);
+  else s.add(mod);
+  selectedModules.value = s;
+}
+
+function selectAllEntities() {
+  const all = props.editor.filteredEntities.value.map((e) => e.module);
+  if (selectedModules.value.size === all.length) {
+    selectedModules.value = new Set();
+  } else {
+    selectedModules.value = new Set(all);
+  }
+}
+
+const isAllSelected = computed(
+  () =>
+    props.editor.filteredEntities.value.length > 0 &&
+    selectedModules.value.size === props.editor.filteredEntities.value.length,
+);
+
+function batchRemoveEntities() {
+  const modules = [...selectedModules.value];
+  if (modules.length === 0) return;
+
+  Modal.confirm({
+    title: $t(`${T}.batchDelete.title`),
+    content: $t(`${T}.batchDelete.content`, { count: modules.length }),
+    okText: $t(`${T}.batchDelete.confirm`),
+    okButtonProps: { danger: true },
+    onOk() {
+      for (const mod of modules) {
+        props.editor.removeEntity(mod);
+      }
+      selectedModules.value.clear();
+      batchSelectMode.value = false;
+      message.success(
+        $t(`${T}.batchDelete.success`, { count: modules.length }),
+      );
+    },
+  });
+}
 
 // ---- New entity dialog ----
 const showNewEntityDialog = ref(false);
@@ -232,13 +287,26 @@ function onBasicFieldChange(fieldName: string) {
           </div>
         </template>
         <template #extra>
-          <Tooltip :title="$t(`${T}.addEntity`)">
-            <Button size="small" type="text" @click="openNewEntityDialog">
-              <template #icon>
-                <span class="icon-[lucide--plus] size-4" />
-              </template>
-            </Button>
-          </Tooltip>
+          <div class="flex items-center gap-1">
+            <Tooltip :title="batchSelectMode ? $t(`${T}.batchDelete.cancel`) : $t(`${T}.batchDelete.select`)">
+              <Button
+                :type="batchSelectMode ? 'primary' : 'text'"
+                size="small"
+                @click="toggleBatchSelect"
+              >
+                <template #icon>
+                  <span class="icon-[lucide--check-square] size-3.5" />
+                </template>
+              </Button>
+            </Tooltip>
+            <Tooltip :title="$t(`${T}.addEntity`)">
+              <Button size="small" type="text" @click="openNewEntityDialog">
+                <template #icon>
+                  <span class="icon-[lucide--plus] size-4" />
+                </template>
+              </Button>
+            </Tooltip>
+          </div>
         </template>
 
         <!-- Search -->
@@ -254,6 +322,24 @@ function onBasicFieldChange(fieldName: string) {
           </template>
         </Input>
 
+        <!-- Batch action bar -->
+        <div v-if="batchSelectMode" class="mb-2 flex items-center gap-2">
+          <Checkbox :checked="isAllSelected" @change="selectAllEntities">
+            <span class="text-xs">{{ $t(`${T}.batchDelete.selectAll`) }}</span>
+          </Checkbox>
+          <Button
+            v-if="selectedModules.size > 0"
+            danger
+            size="small"
+            @click="batchRemoveEntities"
+          >
+            <template #icon>
+              <span class="icon-[lucide--trash-2] size-3" />
+            </template>
+            {{ $t(`${T}.batchDelete.remove`, { count: selectedModules.size }) }}
+          </Button>
+        </div>
+
         <!-- Entity List -->
         <div v-if="editor.filteredEntities.value.length > 0" class="space-y-1">
           <div
@@ -262,12 +348,21 @@ function onBasicFieldChange(fieldName: string) {
             class="group flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-accent"
             :class="{
               'bg-primary/10 text-primary': entity.module === editor.selectedModule.value,
+              'bg-destructive/5': batchSelectMode && selectedModules.has(entity.module),
             }"
-            @click="editor.selectEntity(entity.module)"
+            @click="batchSelectMode ? toggleEntitySelection(entity.module) : editor.selectEntity(entity.module)"
           >
-            <div class="flex min-w-0 flex-1 flex-col">
-              <span class="truncate text-sm font-medium">{{ entity.display_name || entity.module }}</span>
-              <span class="truncate text-xs text-muted-foreground">{{ entity.module }}</span>
+            <div class="flex min-w-0 flex-1 items-center gap-2">
+              <Checkbox
+                v-if="batchSelectMode"
+                :checked="selectedModules.has(entity.module)"
+                @click.stop
+                @change="toggleEntitySelection(entity.module)"
+              />
+              <div class="flex min-w-0 flex-1 flex-col">
+                <span class="truncate text-sm font-medium">{{ entity.display_name || entity.module }}</span>
+                <span class="truncate text-xs text-muted-foreground">{{ entity.module }}</span>
+              </div>
             </div>
             <div class="flex shrink-0 items-center gap-1">
               <Badge

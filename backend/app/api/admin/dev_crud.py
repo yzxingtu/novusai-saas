@@ -27,11 +27,13 @@ from fastapi import APIRouter, Body, Path, Query
 from pydantic import BaseModel, Field, field_validator
 
 from app.codegen.generator import CrudGenerator
+from app.codegen.record_tracker import GenerationTimer, track_generation
 from app.codegen.schemas import CrudConfig, ScopeType
 from app.codegen.writer import ConflictAction, CrudWriter
 from app.core.config import settings
 from app.core.response import success, error
-from app.core.deps import SuperAdmin
+from app.core.deps import DbSession, SuperAdmin
+from app.enums.codegen import CodegenOperationType
 
 router = APIRouter(prefix="/dev/crud", tags=["Dev - CRUD Generator"])
 
@@ -137,6 +139,7 @@ def _scope_warnings(config: CrudConfig) -> list[str]:
 @router.post("/preview")
 async def preview_generate(
     _admin: SuperAdmin,
+    db: DbSession,
     req: PreviewRequest = Body(...),
 ) -> dict[str, Any]:
     """预览生成代码（不写入磁盘）
@@ -149,11 +152,22 @@ async def preview_generate(
     writer = _get_writer()
     warnings = _scope_warnings(req.config)
 
-    files = gen.generate(req.config)
-    preview_data = writer.preview(
-        files,
-        include_content=req.include_content,
-        warnings=warnings,
+    with GenerationTimer() as timer:
+        files = gen.generate(req.config)
+        preview_data = writer.preview(
+            files,
+            include_content=req.include_content,
+            warnings=warnings,
+        )
+
+    await track_generation(
+        db,
+        config=req.config,
+        files=files,
+        operation_type=CodegenOperationType.PREVIEW.value,
+        operator_id=_admin.id,
+        operator_name=_admin.username,
+        duration_ms=timer.duration_ms,
     )
 
     return success(data=preview_data)
@@ -162,6 +176,7 @@ async def preview_generate(
 @router.post("/generate")
 async def generate_code(
     _admin: SuperAdmin,
+    db: DbSession,
     req: GenerateRequest = Body(...),
 ) -> dict[str, Any]:
     """生成代码并写入磁盘
@@ -173,31 +188,43 @@ async def generate_code(
     writer = _get_writer()
     warnings = _scope_warnings(req.config)
 
-    files = gen.generate(req.config)
+    with GenerationTimer() as timer:
+        files = gen.generate(req.config)
 
-    # confirmed=false → 仅预览
-    if not req.confirmed:
-        preview_data = writer.preview(files, warnings=warnings)
-        preview_data["confirmed"] = False
-        return success(data=preview_data)
+        # confirmed=false → 仅预览
+        if not req.confirmed:
+            preview_data = writer.preview(files, warnings=warnings)
+            preview_data["confirmed"] = False
+            return success(data=preview_data)
 
-    # confirmed=true → 实际写入
-    action_map = {
-        "skip": ConflictAction.SKIP,
-        "overwrite": ConflictAction.OVERWRITE,
-        "merge": ConflictAction.MERGE,
-    }
-    action = action_map.get(req.conflict_action, ConflictAction.SKIP)
+        # confirmed=true → 实际写入
+        action_map = {
+            "skip": ConflictAction.SKIP,
+            "overwrite": ConflictAction.OVERWRITE,
+            "merge": ConflictAction.MERGE,
+        }
+        action = action_map.get(req.conflict_action, ConflictAction.SKIP)
 
-    result = writer.write(
-        files,
-        conflict_action=action,
-        force_paths=set(req.force_paths) if req.force_paths else None,
-    )
+        result = writer.write(
+            files,
+            conflict_action=action,
+            force_paths=set(req.force_paths) if req.force_paths else None,
+        )
 
     result_data = result.to_dict()
     result_data["confirmed"] = True
     result_data["warnings"] = warnings
+
+    await track_generation(
+        db,
+        config=req.config,
+        files=files,
+        operation_type=CodegenOperationType.GENERATE.value,
+        operator_id=_admin.id,
+        operator_name=_admin.username,
+        write_result=result_data,
+        duration_ms=timer.duration_ms,
+    )
 
     return success(data=result_data)
 

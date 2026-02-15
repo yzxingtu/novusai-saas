@@ -447,9 +447,10 @@ class SkillResolver:
         result: SkillResolveResult,
     ) -> None:
         """
-        CRUD Generator → 8 个 ToolDefinition
+        CRUD Generator → 13 个 ToolDefinition
 
         从 skill.input_schema 的 multi_tool 格式读取工具定义。
+        工具名与 CrudGeneratorExecutor._DISPATCH 一一对应。
         dev_only 检查：当 config.dev_only=True 且 APP_ENV != development 时跳过。
         """
         import os
