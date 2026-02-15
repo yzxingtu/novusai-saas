@@ -1,6 +1,6 @@
 {# ============================================================
    Jinja2 Template: 前端卡片布局列表页 index_card.vue.j2
-   生成路径: views/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s/index.vue
+   生成路径: views/{{ scope_dir }}/{{ parent_menu }}/{{ module | pluralize }}/index.vue
    LayoutVariant = card
 
    变量: 同 index.vue.j2
@@ -10,7 +10,7 @@
 /**
  * {{ scope_dir }}端{{ display_name }}管理 — 卡片布局
  */
-import type { {{ model_class }}Item } from '#/api/{{ scope_dir }}/{{ module }}s';
+import type { {{ model_class }}Item } from '#/api/{{ scope_dir }}/{{ module | pluralize }}';
 
 defineOptions({ name: '{{ scope_dir | capitalize }}{{ model_class }}CardList' });
 
@@ -41,7 +41,7 @@ import { useCrudPage } from '#/adapter/vxe-table';
 import {
   delete{{ model_class }}Api,
   get{{ model_class }}ListApi,
-} from '#/api/{{ scope_dir }}/{{ module }}s';
+} from '#/api/{{ scope_dir }}/{{ module | pluralize }}';
 import { $t } from '#/locales';
 {% for enum in enums %}
 {% for field in fields %}
@@ -51,7 +51,7 @@ import { get{{ enum.name }}Color, get{{ enum.name }}Text } from './data';
 {% endif %}
 {% endfor %}
 {% endfor %}
-import { columns } from './data';
+import { useColumns } from './data';
 import {{ model_class }}Form from './modules/form.vue';
 
 const { FormDrawer, onCreate, onEdit, onDelete } = useCrudPage<{{ model_class }}Item>({
@@ -60,7 +60,7 @@ const { FormDrawer, onCreate, onEdit, onDelete } = useCrudPage<{{ model_class }}
     delete: delete{{ model_class }}Api,
   },
   formComponent: {{ model_class }}Form,
-  columns,
+  columns: useColumns,
   onSuccess: fetchData,
 });
 

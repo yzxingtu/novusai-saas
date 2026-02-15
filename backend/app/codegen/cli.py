@@ -8,7 +8,6 @@ CRUD Generator — CLI 命令行工具
     python -m app.codegen.cli --help
     python -m app.codegen.cli generate -c config.json
     python -m app.codegen.cli preview -c config.json
-    python -m app.codegen.cli batch -c project.json
     python -m app.codegen.cli validate -c config.json
     python -m app.codegen.cli init -o my_module.json
     python -m app.codegen.cli rollback --record-id 42
@@ -142,7 +141,6 @@ def cli(ctx: click.Context, verbose: bool, output_dir: str | None, output_format
     Commands:
       generate       Generate code from a single-table config and write to disk
       preview        Preview generated files without writing
-      batch          Batch generate from a multi-table project config
       validate       Validate a config file
       init           Create a config file template interactively
       rollback       Rollback a previous generation by record ID
@@ -278,96 +276,6 @@ def preview(ctx: click.Context, config: str, content: bool) -> None:
             click.echo(f"  [{status}] {f['path']}  ({f.get('size', '?')} bytes)")
 
 
-# ============================================================
-# batch — Multi-table batch generation
-# ============================================================
-
-@cli.command()
-@click.option("--config", "-c", required=True, type=click.Path(exists=True), help="Path to BatchCrudProject JSON/YAML file.")
-@click.option("--dry-run", is_flag=True, default=False, help="Preview only, do not write files.")
-@click.option("--force", "-f", is_flag=True, default=False, help="Skip confirmation prompt.")
-@click.option("--entity", default=None, help="Only generate specified entities (comma-separated module names).")
-@click.option(
-    "--conflict", "conflict_action",
-    type=click.Choice(["skip", "overwrite", "merge"]),
-    default="skip",
-    help="Conflict resolution strategy (default: skip).",
-)
-@click.pass_context
-def batch(ctx: click.Context, config: str, dry_run: bool, force: bool, entity: str | None, conflict_action: str) -> None:
-    """Batch generate code from a multi-table BatchCrudProject config."""
-    from app.codegen.generator import CrudGenerator
-    from app.codegen.schemas import BatchCrudProject
-    from app.codegen.writer import ConflictAction, CrudWriter
-
-    verbose = ctx.obj["verbose"]
-    root = ctx.obj["output_dir"]
-
-    config_data = _load_config_file(config)
-    project = BatchCrudProject(**config_data)
-
-    # Filter entities if --entity is specified
-    if entity:
-        filter_set = {e.strip() for e in entity.split(",")}
-        original_count = len(project.entities)
-        project.entities = [e for e in project.entities if e.module in filter_set]
-        if verbose:
-            click.echo(f"  Filtered: {original_count} → {len(project.entities)} entities ({', '.join(filter_set)})")
-
-    if verbose:
-        click.echo(f"  Project: {len(project.entities)} entities")
-        for e in project.entities:
-            click.echo(f"    - {e.module}.{e.table_name}")
-
-    gen = CrudGenerator()
-    files = gen.generate_batch(project)
-
-    writer = CrudWriter(root)
-
-    if dry_run:
-        preview_result = writer.preview_batch(files, include_content=False)
-        click.echo(f"\n  Preview: {preview_result['total_files']} files across {len(preview_result.get('entities', []))} entities")
-        click.echo(f"  New: {preview_result['total_new']}, Conflicts: {preview_result['total_conflict']}\n")
-        for ent in preview_result.get("entities", []):
-            click.echo(f"  [{ent['entity_name']}]")
-            for f in ent.get("files", []):
-                op = f.get("operation", "create").upper()
-                click.echo(f"    [{op}] {f['path']}")
-        return
-
-    preview_result = writer.preview_batch(files, include_content=False)
-    click.echo(f"\n  Will generate {preview_result['total_files']} files for {len(preview_result.get('entities', []))} entities")
-    click.echo(f"  New: {preview_result['total_new']}, Conflicts: {preview_result['total_conflict']}\n")
-
-    if not force:
-        click.confirm("  Proceed with batch file generation?", abort=True)
-
-    action = ConflictAction(conflict_action)
-
-    import time as _time
-    start = _time.perf_counter()
-    result = writer.write(files, conflict_action=action)
-    duration_ms = int((_time.perf_counter() - start) * 1000)
-
-    click.echo(f"\n  Written: {len(result.written)}")
-    click.echo(f"  Skipped: {len(result.skipped)}")
-    click.echo(f"  Merged:  {len(result.merged)}")
-    if result.errors:
-        click.echo(f"  Errors:  {len(result.errors)}")
-        for err in result.errors:
-            click.secho(f"    ✗ {err}", fg="red")
-
-    # Track batch generation record (best-effort, use first entity's config)
-    if project.entities:
-        _track_record_sync(
-            config=project.entities[0],
-            files=files,
-            operation_type="generate",
-            write_result=result.to_dict(),
-            duration_ms=duration_ms,
-            verbose=verbose,
-        )
-
 
 # ============================================================
 # validate — Validate config
@@ -375,56 +283,26 @@ def batch(ctx: click.Context, config: str, dry_run: bool, force: bool, entity: s
 
 @cli.command()
 @click.option("--config", "-c", required=True, type=click.Path(exists=True), help="Path to config JSON/YAML file.")
-@click.option("--batch", "is_batch", is_flag=True, default=False, help="Validate as BatchCrudProject instead of CrudConfig.")
 @click.pass_context
-def validate(ctx: click.Context, config: str, is_batch: bool) -> None:
-    """Validate a CrudConfig or BatchCrudProject config file."""
+def validate(ctx: click.Context, config: str) -> None:
+    """Validate a CrudConfig config file."""
     fmt = ctx.obj["format"]
 
     config_data = _load_config_file(config)
 
     try:
-        if is_batch:
-            from app.codegen.schemas import BatchCrudProject
-            project = BatchCrudProject(**config_data)
+        from app.codegen.schemas import CrudConfig
+        crud_config = CrudConfig(**config_data)
 
-            from app.codegen.project_graph import build_project_graph
-            graph = build_project_graph(project)
-
-            if fmt == "json":
-                _print_json({
-                    "valid": graph.valid,
-                    "entity_count": graph.entity_count,
-                    "generation_order": graph.generation_order,
-                    "issues": [i.model_dump(mode="json") for i in graph.issues],
-                    "warnings": [w.model_dump(mode="json") for w in graph.warnings],
-                })
-            else:
-                status = click.style("VALID", fg="green") if graph.valid else click.style("INVALID", fg="red")
-                click.echo(f"\n  Status: {status}")
-                click.echo(f"  Entities: {graph.entity_count}")
-                click.echo(f"  Generation order: {', '.join(graph.generation_order)}")
-                if graph.issues:
-                    click.echo(f"\n  Issues ({len(graph.issues)}):")
-                    for issue in graph.issues:
-                        click.secho(f"    ✗ {issue}", fg="red")
-                if graph.warnings:
-                    click.echo(f"\n  Warnings ({len(graph.warnings)}):")
-                    for w in graph.warnings:
-                        click.secho(f"    ⚠ {w}", fg="yellow")
+        if fmt == "json":
+            _print_json({"valid": True, "module": crud_config.module, "table": crud_config.table_name, "fields": len(crud_config.fields)})
         else:
-            from app.codegen.schemas import CrudConfig
-            crud_config = CrudConfig(**config_data)
-
-            if fmt == "json":
-                _print_json({"valid": True, "module": crud_config.module, "table": crud_config.table_name, "fields": len(crud_config.fields)})
-            else:
-                click.secho(f"\n  ✓ Valid CrudConfig", fg="green")
-                click.echo(f"  Module: {crud_config.module}")
-                click.echo(f"  Table: {crud_config.table_name}")
-                click.echo(f"  Fields: {len(crud_config.fields)}")
-                click.echo(f"  Relations: {len(crud_config.relations)}")
-                click.echo(f"  Enums: {len(crud_config.enums)}")
+            click.secho(f"\n  ✓ Valid CrudConfig", fg="green")
+            click.echo(f"  Module: {crud_config.module}")
+            click.echo(f"  Table: {crud_config.table_name}")
+            click.echo(f"  Fields: {len(crud_config.fields)}")
+            click.echo(f"  Relations: {len(crud_config.relations)}")
+            click.echo(f"  Enums: {len(crud_config.enums)}")
 
     except Exception as exc:
         if fmt == "json":
@@ -440,64 +318,36 @@ def validate(ctx: click.Context, config: str, is_batch: bool) -> None:
 
 @cli.command()
 @click.option("--output", "-o", default=None, type=click.Path(), help="Output file path (default: stdout).")
-@click.option("--batch", "is_batch", is_flag=True, default=False, help="Generate BatchCrudProject template.")
 @click.option("--module", "-m", default=None, help="Module name.")
 @click.option("--table", "-t", default=None, help="Table name.")
 @click.pass_context
-def init(ctx: click.Context, output: str | None, is_batch: bool, module: str | None, table: str | None) -> None:
-    """Create a CrudConfig or BatchCrudProject template file."""
-    if is_batch:
-        template = {
-            "entities": [
-                {
-                    "module": module or "example",
-                    "table_name": table or "examples",
-                    "display_name": "示例",
-                    "display_name_en": "Example",
-                    "scope": "tenant",
-                    "parent_menu": "",
-                    "fields": [
-                        {"name": "name", "type": "string", "label_zh": "名称", "label_en": "Name", "required": True, "max_length": 100, "searchable": True},
-                        {"name": "status", "type": "string", "label_zh": "状态", "label_en": "Status", "required": True, "enum_ref": "ExampleStatus"},
-                    ],
-                    "enums": [
-                        {"name": "ExampleStatus", "values": [
-                            {"value": "draft", "label_zh": "草稿", "label_en": "Draft"},
-                            {"value": "active", "label_zh": "生效", "label_en": "Active"},
-                        ]},
-                    ],
-                    "relations": [],
-                }
-            ],
-            "cross_relations": [],
-            "shared_enums": [],
-        }
-    else:
-        template = {
-            "module": module or "example",
-            "table_name": table or "examples",
-            "display_name": "示例",
-            "display_name_en": "Example",
-            "scope": "tenant",
-            "parent_menu": "",
-            "description": "",
-            "has_status_toggle": False,
-            "fields": [
-                {"name": "name", "type": "string", "label_zh": "名称", "label_en": "Name", "required": True, "max_length": 100, "searchable": True, "search_op": "ilike", "in_list": True, "in_form": True},
-                {"name": "description", "type": "text", "label_zh": "描述", "label_en": "Description", "required": False, "in_list": False, "in_form": True},
-                {"name": "status", "type": "string", "label_zh": "状态", "label_en": "Status", "required": True, "enum_ref": "ExampleStatus", "searchable": True, "search_op": "eq", "in_list": True, "in_form": True},
-            ],
-            "enums": [
-                {"name": "ExampleStatus", "values": [
-                    {"value": "draft", "label_zh": "草稿", "label_en": "Draft", "color": "default"},
-                    {"value": "active", "label_zh": "生效", "label_en": "Active", "color": "success"},
-                    {"value": "archived", "label_zh": "归档", "label_en": "Archived", "color": "warning"},
-                ]},
-            ],
-            "relations": [],
-            "indexes": [],
-            "custom_slots": [],
-        }
+def init(ctx: click.Context, output: str | None, module: str | None, table: str | None) -> None:
+    """Create a CrudConfig template file."""
+    template = {
+        "module": module or "example",
+        "table_name": table or "examples",
+        "display_name": "示例",
+        "display_name_en": "Example",
+        "scope": "tenant",
+        "parent_menu": "",
+        "description": "",
+        "has_status_toggle": False,
+        "fields": [
+            {"name": "name", "type": "string", "label_zh": "名称", "label_en": "Name", "required": True, "max_length": 100, "searchable": True, "search_op": "ilike", "in_list": True, "in_form": True},
+            {"name": "description", "type": "text", "label_zh": "描述", "label_en": "Description", "required": False, "in_list": False, "in_form": True},
+            {"name": "status", "type": "string", "label_zh": "状态", "label_en": "Status", "required": True, "enum_ref": "ExampleStatus", "searchable": True, "search_op": "eq", "in_list": True, "in_form": True},
+        ],
+        "enums": [
+            {"name": "ExampleStatus", "values": [
+                {"value": "draft", "label_zh": "草稿", "label_en": "Draft", "color": "default"},
+                {"value": "active", "label_zh": "生效", "label_en": "Active", "color": "success"},
+                {"value": "archived", "label_zh": "归档", "label_en": "Archived", "color": "warning"},
+            ]},
+        ],
+        "relations": [],
+        "indexes": [],
+        "custom_slots": [],
+    }
 
     result = json.dumps(template, ensure_ascii=False, indent=2)
 

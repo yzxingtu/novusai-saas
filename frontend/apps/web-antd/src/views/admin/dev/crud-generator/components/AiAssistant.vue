@@ -20,30 +20,32 @@ interface QuickAction {
   prompt: string;
 }
 
+const QA = 'admin.dev.crudGenerator.aiAssistant.quickAction';
+
 const stepQuickActions = computed<QuickAction[]>(() => {
   const step = props.currentStep ?? 0;
   const actions: Record<number, QuickAction[]> = {
     0: [
-      { icon: 'icon-[lucide--wand-2]', key: 'generateFromDesc', prompt: '根据我当前填写的模块名和表名，帮我生成完整的 CRUD 配置（包括字段、搜索、列表、表单配置）' },
-      { icon: 'icon-[lucide--database]', key: 'generateFromTable', prompt: '根据我当前配置的表名，推断表结构并生成字段定义' },
-      { icon: 'icon-[lucide--check-circle]', key: 'optimizeBasic', prompt: '检查并优化我当前的基本信息配置，包括命名规范、scope 选择等' },
+      { icon: 'icon-[lucide--wand-2]', key: 'generateFromDesc', prompt: $t(`${QA}.generateFromDescPrompt`) },
+      { icon: 'icon-[lucide--database]', key: 'generateFromTable', prompt: $t(`${QA}.generateFromTablePrompt`) },
+      { icon: 'icon-[lucide--check-circle]', key: 'optimizeBasic', prompt: $t(`${QA}.optimizeBasicPrompt`) },
     ],
     1: [
-      { icon: 'icon-[lucide--list-plus]', key: 'suggestFields', prompt: '根据当前模块和表名，推荐常见字段' },
-      { icon: 'icon-[lucide--file-code]', key: 'importDDL', prompt: '请帮我从 DDL 语句解析字段。我会在下一条消息粘贴 DDL' },
-      { icon: 'icon-[lucide--sparkles]', key: 'optimizeFields', prompt: '检查并优化当前字段配置：类型是否正确、命名是否规范、是否需要索引' },
+      { icon: 'icon-[lucide--list-plus]', key: 'suggestFields', prompt: $t(`${QA}.suggestFieldsPrompt`) },
+      { icon: 'icon-[lucide--file-code]', key: 'importDDL', prompt: $t(`${QA}.importDDLPrompt`) },
+      { icon: 'icon-[lucide--sparkles]', key: 'optimizeFields', prompt: $t(`${QA}.optimizeFieldsPrompt`) },
     ],
     2: [
-      { icon: 'icon-[lucide--table]', key: 'optimizeList', prompt: '为当前字段推荐最佳的列表配置：列宽度、渲染预设、对齐方式' },
-      { icon: 'icon-[lucide--search]', key: 'suggestSearch', prompt: '根据字段语义推荐搜索字段和操作符' },
+      { icon: 'icon-[lucide--table]', key: 'optimizeList', prompt: $t(`${QA}.optimizeListPrompt`) },
+      { icon: 'icon-[lucide--search]', key: 'suggestSearch', prompt: $t(`${QA}.suggestSearchPrompt`) },
     ],
     3: [
-      { icon: 'icon-[lucide--layout]', key: 'optimizeForm', prompt: '为当前字段推荐最佳的表单配置：组件类型、分组结构、校验规则' },
-      { icon: 'icon-[lucide--group]', key: 'suggestGroups', prompt: '根据字段语义自动推荐表单分组结构' },
+      { icon: 'icon-[lucide--layout]', key: 'optimizeForm', prompt: $t(`${QA}.optimizeFormPrompt`) },
+      { icon: 'icon-[lucide--group]', key: 'suggestGroups', prompt: $t(`${QA}.suggestGroupsPrompt`) },
     ],
     4: [
-      { icon: 'icon-[lucide--scan-search]', key: 'reviewCode', prompt: '审查当前生成的代码，检查规范性和潜在问题' },
-      { icon: 'icon-[lucide--languages]', key: 'translateLabels', prompt: '帮我翻译所有字段的中英文标签' },
+      { icon: 'icon-[lucide--scan-search]', key: 'reviewCode', prompt: $t(`${QA}.reviewCodePrompt`) },
+      { icon: 'icon-[lucide--languages]', key: 'translateLabels', prompt: $t(`${QA}.translateLabelsPrompt`) },
     ],
   };
   return actions[step] ?? [];

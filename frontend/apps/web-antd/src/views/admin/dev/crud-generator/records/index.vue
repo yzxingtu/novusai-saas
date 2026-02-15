@@ -31,6 +31,15 @@ import {
 
 import RecordDetailDrawer from './modules/record-detail-drawer.vue';
 
+import {
+  formatDuration,
+  formatTime,
+  getStatusColor,
+  getStatusLabel,
+  getTypeColor,
+  getTypeLabel,
+} from './utils';
+
 const T = 'admin.dev.crudGenerator.records';
 
 // ============================================================
@@ -70,39 +79,6 @@ const statusOptions = [
   { value: 'rolled_back', label: () => $t(`${T}.status.rolledBack`) },
 ];
 
-function getTypeColor(type: string): string {
-  const map: Record<string, string> = {
-    preview: 'blue',
-    generate: 'green',
-    rollback: 'orange',
-    delete: 'red',
-  };
-  return map[type] || 'default';
-}
-
-function getStatusColor(status: string): string {
-  const map: Record<string, string> = {
-    success: 'success',
-    partial_failure: 'warning',
-    failed: 'error',
-    rolled_back: 'default',
-  };
-  return map[status] || 'default';
-}
-
-function getTypeLabel(type: string): string {
-  return $t(`${T}.type.${type}`) || type;
-}
-
-function getStatusLabel(status: string): string {
-  const map: Record<string, string> = {
-    success: 'success',
-    partial_failure: 'partialFailure',
-    failed: 'failed',
-    rolled_back: 'rolledBack',
-  };
-  return $t(`${T}.status.${map[status] || status}`) || status;
-}
 
 // ============================================================
 // 表格列
@@ -197,7 +173,7 @@ async function fetchRecords() {
 async function fetchStatistics() {
   try {
     const res = await getCrudRecordStatisticsApi();
-    statistics.value = (res as Record<string, unknown>).data as CrudRecordStatistics;
+    statistics.value = (res as unknown as { data: CrudRecordStatistics }).data;
   } catch {
     // ignore
   }
@@ -241,16 +217,6 @@ async function handleDelete(record: CrudRecordInfo) {
   }
 }
 
-function formatDuration(ms: number | null): string {
-  if (ms === null || ms === undefined) return '-';
-  if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
-}
-
-function formatTime(time: string | null): string {
-  if (!time) return '-';
-  return new Date(time).toLocaleString();
-}
 
 // ============================================================
 // 初始化
@@ -413,14 +379,14 @@ onMounted(() => {
                 <Button
                   type="link"
                   size="small"
-                  @click="handleViewDetail(record)"
+                  @click="handleViewDetail(record as CrudRecordInfo)"
                 >
                   <IconifyIcon icon="lucide:eye" />
                 </Button>
               </Tooltip>
               <Popconfirm
                 :title="$t(`${T}.action.deleteConfirm`)"
-                @confirm="handleDelete(record)"
+                @confirm="handleDelete(record as CrudRecordInfo)"
               >
                 <Tooltip :title="$t(`${T}.action.delete`)">
                   <Button type="link" size="small" danger>

@@ -1,6 +1,6 @@
 {# ============================================================
    Jinja2 Template: 前端列表页 index.vue (标准布局)
-   生成路径: views/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s/index.vue
+   生成路径: views/{{ scope_dir }}/{{ parent_menu }}/{{ module | pluralize }}/index.vue
 
    变量:
      - config: CrudConfig
@@ -21,7 +21,7 @@
 /**
  * {{ scope_dir }}端{{ display_name }}管理列表页面
  */
-import type { {{ model_class }}Item } from '#/api/{{ scope_dir }}/{{ module }}s';
+import type { {{ model_class }}Item } from '#/api/{{ scope_dir }}/{{ module | pluralize }}';
 
 defineOptions({ name: '{{ scope_dir | capitalize }}{{ model_class }}List' });
 
@@ -42,7 +42,7 @@ import {
 {% if has_status_toggle %}
   toggle{{ model_class }}StatusApi,
 {% endif %}
-} from '#/api/{{ scope_dir }}/{{ module }}s';
+} from '#/api/{{ scope_dir }}/{{ module | pluralize }}';
 import { $t } from '#/locales';
 
 import {
@@ -63,7 +63,7 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<{{ model_class }}Item>({
   api: {
     list: get{{ model_class }}ListApi,
     delete: delete{{ model_class }}Api,
-    resource: '/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s',
+    resource: '/{{ scope_dir }}/{{ parent_menu }}/{{ module | pluralize }}',
   },
   columns: useColumns,
   searchSchema: useGridFormSchema(),

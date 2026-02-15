@@ -26,8 +26,11 @@
       "displayNameEnPlaceholder": "如：Order",
       "scope": "生成范围",
       "scopeAdmin": "平台端",
+      "scopeAdminDesc": "平台全局管理，仅管理员可见",
       "scopeTenant": "租户端",
+      "scopeTenantDesc": "租户独立数据，每个租户隔离",
       "scopeBoth": "双端",
+      "scopeBothDesc": "同时生成租户端和管理端",
       "parentMenu": "父菜单",
       "parentMenuPlaceholder": "菜单标识 (如 system)",
       "description": "模块描述",
@@ -81,6 +84,22 @@
       "detail": "详细配置",
       "empty": "暂无字段，点击上方按钮添加",
       "dragHint": "拖拽排序",
+      "viewTable": "表格模式",
+      "viewCard": "卡片模式",
+      "delete": "删除",
+      "fieldType": {
+        "string": "文本",
+        "text": "长文本",
+        "integer": "整数",
+        "float": "浮点数",
+        "decimal": "小数",
+        "boolean": "布尔",
+        "datetime": "日期时间",
+        "date": "日期",
+        "json": "JSON",
+        "enum": "枚举",
+        "file": "文件"
+      },
       "detailDrawer": {
         "title": "字段详细配置",
         "basicSection": "基础属性",
@@ -103,8 +122,17 @@
         "formGroup": "表单分组",
         "formPlaceholder": "占位文本",
         "formColSpan": "列跨度",
-        "formHelp": "帮助文本"
+        "formHelp": "帮助文本",
+        "enumRefPlaceholder": "枚举名称"
       }
+    },
+    "searchOp": {
+      "ilike": "模糊搜索",
+      "eq": "精确匹配",
+      "in": "多值选择",
+      "gte": "大于等于",
+      "lte": "小于等于",
+      "between": "范围"
     },
     "preview": {
       "title": "代码预览",
@@ -122,6 +150,7 @@
       "lines": "{count} 行",
       "copyCode": "复制代码",
       "copied": "已复制",
+      "retry": "重试",
       "generateFirst": "请先完成配置再生成",
       "postGeneration": "生成后步骤",
       "postStep1": "执行数据库迁移",
@@ -166,7 +195,8 @@
       "alignRight": "居右",
       "fixedNone": "不固定",
       "fixedLeft": "左固定",
-      "fixedRight": "右固定"
+      "fixedRight": "右固定",
+      "widthAuto": "自动"
     },
     "listPreview": {
       "title": "列表预览",
@@ -235,7 +265,9 @@
       "requiredMark": "必填",
       "group": "分组",
       "placeholder": "请输入{label}",
-      "selectPlaceholder": "请选择{label}"
+      "selectPlaceholder": "请选择{label}",
+      "jsonPlaceholder": "{ }",
+      "richTextPlaceholder": "在此输入富文本内容"
     },
     "slotEditor": {
       "title": "自定义渲染",
@@ -252,7 +284,23 @@
       "cancel": "取消",
       "previewTitle": "预览",
       "noPreview": "暂无预览",
-      "codePlaceholder": "<span :style=\"{ color: record.color }\">{{ value }}</span>"
+      "codePlaceholder": "<span :style=\"{ color: record.color }\">{{ value }}</span>",
+      "aiUnavailable": "AI 生成功能暂不可用，请先配置 CRUD Agent",
+      "presetDesc": {
+        "tag": "以彩色标签展示枚举值，不同值对应不同颜色",
+        "badge": "以圆点+文字徽章展示状态，适合状态类字段",
+        "switch": "以开关控件展示布尔值，仅展示不可交互",
+        "money": "以等宽字体显示金额，自动添加千分位和小数",
+        "percent": "以百分比格式显示数值，保留一位小数",
+        "progress": "以进度条展示数值（0-100），适合完成率",
+        "relativeTime": "以相对时间显示（如「3分钟前」），悬浮显示完整时间",
+        "datetime": "以小号等宽字体显示日期时间，精确到秒",
+        "date": "以小号等宽字体显示日期，仅年月日",
+        "avatar": "以圆形头像展示图片，无图时显示首字母",
+        "image": "以缩略图展示图片，圆角裁剪",
+        "link": "以可点击链接展示 URL，新窗口打开",
+        "copy": "显示文本并提供一键复制按钮"
+      }
     },
     "enumEditor": {
       "title": "枚举管理",
@@ -274,7 +322,14 @@
       "action": "操作",
       "addTransition": "添加转换",
       "stateMachine": "状态机",
-      "noTransitions": "无状态转换规则"
+      "noTransitions": "无状态转换规则",
+      "defaultActive": "启用",
+      "defaultActiveEn": "Active",
+      "defaultInactive": "禁用",
+      "defaultInactiveEn": "Inactive",
+      "defaultTransition": "转换",
+      "defaultTransitionEn": "Transition",
+      "actionPlaceholder": "操作名"
     },
     "aiAssistant": {
       "title": "AI 助手",
@@ -303,6 +358,20 @@
         "suggestGroups": "推荐分组",
         "reviewCode": "审查代码",
         "translateLabels": "翻译标签"
+      },
+      "quickAction": {
+        "generateFromDescPrompt": "根据我当前填写的模块名和表名，帮我生成完整的 CRUD 配置（包括字段、搜索、列表、表单配置）",
+        "generateFromTablePrompt": "根据我当前配置的表名，推断表结构并生成字段定义",
+        "optimizeBasicPrompt": "检查并优化我当前的基本信息配置，包括命名规范、scope 选择等",
+        "suggestFieldsPrompt": "根据当前模块和表名，推荐常见字段",
+        "importDDLPrompt": "请帮我从 DDL 语句解析字段。我会在下一条消息粘贴 DDL",
+        "optimizeFieldsPrompt": "检查并优化当前字段配置：类型是否正确、命名是否规范、是否需要索引",
+        "optimizeListPrompt": "为当前字段推荐最佳的列表配置：列宽度、渲染预设、对齐方式",
+        "suggestSearchPrompt": "根据字段语义推荐搜索字段和操作符",
+        "optimizeFormPrompt": "为当前字段推荐最佳的表单配置：组件类型、分组结构、校验规则",
+        "suggestGroupsPrompt": "根据字段语义自动推荐表单分组结构",
+        "reviewCodePrompt": "审查当前生成的代码，检查规范性和潜在问题",
+        "translateLabelsPrompt": "帮我翻译所有字段的中英文标签"
       }
     },
     "command": {
@@ -426,80 +495,6 @@
       "sourceNotFound": "源实体不存在",
       "success": "实体复制成功"
     },
-    "erDiagram": {
-      "title": "ER 图",
-      "autoLayout": "自动布局",
-      "fitView": "适配视图",
-      "zoomIn": "放大",
-      "zoomOut": "缩小",
-      "fields": "字段",
-      "relations": "关系",
-      "generationOrder": "生成顺序",
-      "belongsTo": "属于",
-      "hasMany": "拥有多个",
-      "selfRefTree": "自引用树",
-      "editRelation": "编辑关系",
-      "relationType": "关系类型",
-      "foreignKey": "外键",
-      "nullable": "可空",
-      "cascadeDelete": "级联删除",
-      "sourceEntity": "源实体",
-      "targetEntity": "目标实体",
-      "noEntities": "暂无实体",
-      "issues": "问题",
-      "warnings": "警告",
-      "clickNodeHint": "点击实体跳转编辑",
-      "clickEdgeHint": "点击关系编辑"
-    },
-    "batchGeneration": {
-      "title": "批量生成",
-      "preview": "预览",
-      "confirm": "确认生成",
-      "generating": "生成中...",
-      "entityNav": "实体导航",
-      "sharedFiles": "共享文件",
-      "fileTree": "文件列表",
-      "totalFiles": "共 {count} 个文件",
-      "totalConflicts": "{count} 个冲突",
-      "noConflicts": "无冲突",
-      "noFiles": "暂无文件",
-      "conflictTitle": "冲突处理",
-      "conflictFile": "冲突文件",
-      "conflictStrategy": "策略",
-      "conflictApplyAll": "批量应用",
-      "strategySkip": "跳过",
-      "strategyOverwrite": "覆盖",
-      "strategyMerge": "合并",
-      "strategyPatch": "补丁",
-      "kindBackend": "后端",
-      "kindFrontend": "前端",
-      "kindI18n": "国际化",
-      "kindMigration": "迁移",
-      "kindTest": "测试",
-      "kindShared": "共享",
-      "actionCreate": "新建",
-      "actionOverwrite": "覆盖",
-      "actionMerge": "合并",
-      "actionSkip": "跳过",
-      "actionPatch": "补丁",
-      "summary": {
-        "title": "生成摘要",
-        "entity": "实体",
-        "written": "已写入",
-        "skipped": "已跳过",
-        "merged": "已合并",
-        "errors": "错误",
-        "totalWritten": "总写入 {count} 个文件",
-        "totalSkipped": "总跳过 {count} 个文件",
-        "totalErrors": "总错误 {count} 个",
-        "duration": "耗时 {ms} ms",
-        "success": "生成完成",
-        "partial": "部分完成",
-        "failed": "生成失败"
-      },
-      "fallbackHint": "后端未返回实体级文件映射，显示全局预览",
-      "confirmHint": "请确认以下文件将被写入磁盘"
-    },
     "fieldImport": {
       "title": "字段批量导入",
       "source": "导入来源",
@@ -529,74 +524,6 @@
       "status_exists": "已存在",
       "status_system": "系统列"
     },
-    "batchEditor": {
-      "title": "多实体编辑器",
-      "entityList": "实体列表",
-      "searchEntity": "搜索实体...",
-      "addEntity": "添加实体",
-      "removeEntity": "删除实体",
-      "confirmRemove": "确认删除实体「{name}」？相关的跨表关联也会被移除。",
-      "batchDelete": {
-        "select": "批量选择",
-        "cancel": "取消选择",
-        "selectAll": "全选",
-        "remove": "删除 {count} 个",
-        "title": "批量删除实体",
-        "content": "确认删除选中的 {count} 个实体？相关的跨表关联也会被移除。",
-        "confirm": "确认删除",
-        "success": "已删除 {count} 个实体"
-      },
-      "noEntities": "暂无实体，请添加",
-      "entityCount": "{count} 个实体",
-      "tabs": {
-        "basic": "基础信息",
-        "fields": "字段",
-        "relations": "关联",
-        "enums": "枚举",
-        "indexes": "索引"
-      },
-      "crossRelations": "跨表关联",
-      "addCrossRelation": "添加关联",
-      "sourceEntity": "源实体",
-      "targetEntity": "目标实体",
-      "relationType": "关联类型",
-      "foreignKey": "外键",
-      "nullable": "可为空",
-      "noCrossRelations": "暂无跨表关联",
-      "generationOrder": "生成顺序",
-      "autoSort": "自动排序",
-      "sharedEnums": "共享枚举",
-      "touchedPaths": {
-        "title": "已锁定路径",
-        "locked": "已锁定",
-        "unlock": "解锁",
-        "unlockAll": "全部解锁",
-        "noLocked": "无锁定路径",
-        "hint": "已锁定的路径不会被 AI 覆盖"
-      },
-      "validation": {
-        "errors": "校验错误",
-        "warnings": "校验警告",
-        "noIssues": "校验通过",
-        "jumpTo": "跳转",
-        "module_required": "模块名不能为空",
-        "table_required": "表名不能为空",
-        "no_fields": "请至少定义一个字段",
-        "no_list_fields": "没有字段设置为在列表中显示",
-        "search_no_operator": "搜索字段缺少操作符",
-        "no_form_fields": "没有字段设置为在表单中显示",
-        "group_field_missing": "分组引用的字段不存在"
-      },
-      "newEntity": {
-        "title": "新建实体",
-        "module": "模块名",
-        "modulePlaceholder": "如 product",
-        "displayName": "中文名",
-        "displayNamePlaceholder": "如 产品",
-        "cancel": "取消",
-        "confirm": "创建"
-      }
-    },
     "apiPlayground": {
       "listAll": "列出所有",
       "create": "创建",
@@ -604,7 +531,10 @@
       "update": "更新",
       "delete": "删除",
       "recycleBinList": "回收站列表",
-      "restore": "恢复"
+      "restore": "恢复",
+      "send": "发送",
+      "requestBody": "请求体",
+      "response": "响应"
     },
     "translate": {
       "createTitle": "新建{name}",
@@ -734,6 +664,15 @@
         "operation": "操作",
         "size": "大小"
       }
+    },
+    "validation": {
+      "module_required": "请填写模块名",
+      "table_required": "请填写数据库表名",
+      "no_fields": "请至少添加一个字段",
+      "no_list_fields": "没有字段设置为列表显示",
+      "search_no_operator": "搜索字段缺少操作符",
+      "no_form_fields": "没有字段设置为表单显示",
+      "group_field_missing": "分组引用了不存在的字段"
     },
     "layout": {
       "title": "页面布局",

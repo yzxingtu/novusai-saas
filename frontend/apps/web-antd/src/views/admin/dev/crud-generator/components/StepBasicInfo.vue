@@ -4,6 +4,7 @@ import { watch } from 'vue';
 import type { RadioChangeEvent } from 'ant-design-vue/es/radio/interface';
 
 import {
+  AutoComplete,
   Card,
   Checkbox,
   Col,
@@ -57,6 +58,12 @@ watch(
     }
   },
 );
+
+/** Common parent menu options for AutoComplete */
+const parentMenuOptions = [
+  'system', 'content', 'finance', 'order', 'product',
+  'user', 'marketing', 'report', 'settings', 'ai',
+].map((v) => ({ value: v }));
 
 function onScopeChange(val: ScopeType) {
   updateField('scope', val);
@@ -124,15 +131,21 @@ function onLayoutChange(val: LayoutVariant) {
                 button-style="solid"
                 @change="(e: RadioChangeEvent) => onScopeChange(e.target.value as ScopeType)"
               >
-                <Radio.Button value="tenant">
-                  {{ $t(`${T}.basicInfo.scopeTenant`) }}
-                </Radio.Button>
-                <Radio.Button value="admin">
-                  {{ $t(`${T}.basicInfo.scopeAdmin`) }}
-                </Radio.Button>
-                <Radio.Button value="both">
-                  {{ $t(`${T}.basicInfo.scopeBoth`) }}
-                </Radio.Button>
+                <Tooltip :title="$t(`${T}.basicInfo.scopeTenantDesc`)">
+                  <Radio.Button value="tenant">
+                    {{ $t(`${T}.basicInfo.scopeTenant`) }}
+                  </Radio.Button>
+                </Tooltip>
+                <Tooltip :title="$t(`${T}.basicInfo.scopeAdminDesc`)">
+                  <Radio.Button value="admin">
+                    {{ $t(`${T}.basicInfo.scopeAdmin`) }}
+                  </Radio.Button>
+                </Tooltip>
+                <Tooltip :title="$t(`${T}.basicInfo.scopeBothDesc`)">
+                  <Radio.Button value="both">
+                    {{ $t(`${T}.basicInfo.scopeBoth`) }}
+                  </Radio.Button>
+                </Tooltip>
               </Radio.Group>
             </Form.Item>
           </Col>
@@ -170,10 +183,11 @@ function onLayoutChange(val: LayoutVariant) {
           <!-- parent_menu -->
           <Col :span="8">
             <Form.Item :label="$t(`${T}.basicInfo.parentMenu`)">
-              <Input
+              <AutoComplete
                 :value="config.parent_menu"
+                :options="parentMenuOptions"
                 :placeholder="$t(`${T}.basicInfo.parentMenuPlaceholder`)"
-                @update:value="(v: string) => updateField('parent_menu', v)"
+                @change="(v: unknown) => updateField('parent_menu', String(v ?? ''))"
               />
             </Form.Item>
           </Col>
@@ -264,6 +278,7 @@ function onLayoutChange(val: LayoutVariant) {
 
       <RelationEditor
         :relations="config.relations"
+        @update:relations="(rels) => emit('update:config', { ...config, relations: rels })"
         @snapshot="emit('snapshot')"
       />
     </Card>

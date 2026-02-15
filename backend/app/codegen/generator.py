@@ -10,6 +10,7 @@ CRUD 代码生成器 — Generator 核心
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from typing import Any
@@ -20,9 +21,7 @@ from app.core.logging import LogManager
 
 logger = LogManager.get_logger("app")
 
-from app.codegen.batch_deps import resolve_generation_order
 from app.codegen.schemas import (
-    BatchCrudProject,
     CrudConfig,
     LayoutVariant,
     RelationConfig,
@@ -79,6 +78,79 @@ def _kebab_filter(name: str) -> str:
 
 
 # ============================================================
+# 复数化
+# ============================================================
+
+_IRREGULAR_PLURALS: dict[str, str] = {
+    "person": "people",
+    "child": "children",
+    "man": "men",
+    "woman": "women",
+    "mouse": "mice",
+    "goose": "geese",
+    "tooth": "teeth",
+    "foot": "feet",
+    "ox": "oxen",
+    "leaf": "leaves",
+    "life": "lives",
+    "knife": "knives",
+    "wife": "wives",
+    "half": "halves",
+    "self": "selves",
+    "shelf": "shelves",
+}
+
+_UNCOUNTABLE: set[str] = {
+    "data", "info", "information", "media", "metadata",
+    "feedback", "software", "hardware", "equipment",
+    "sheep", "fish", "deer", "species", "series",
+    "news", "mathematics", "physics", "economics",
+}
+
+
+def _pluralize(word: str) -> str:
+    """英文名词复数化（支持不规则名词和常见规则）
+
+    处理 kebab-case 和 snake_case：只复数化最后一个单词。
+    """
+    if not word:
+        return word
+
+    # 分割复合词（kebab-case 或 snake_case）
+    for sep in ("-", "_"):
+        if sep in word:
+            parts = word.rsplit(sep, 1)
+            return parts[0] + sep + _pluralize(parts[1])
+
+    lower = word.lower()
+
+    # 不可数名词
+    if lower in _UNCOUNTABLE:
+        return word
+
+    # 不规则复数
+    if lower in _IRREGULAR_PLURALS:
+        return _IRREGULAR_PLURALS[lower]
+
+    # 规则变化
+    if lower.endswith(("s", "x", "z", "sh", "ch")):
+        return word + "es"
+    if lower.endswith("y") and len(lower) > 1 and lower[-2] not in "aeiou":
+        return word[:-1] + "ies"
+    if lower.endswith("f"):
+        return word[:-1] + "ves"
+    if lower.endswith("fe"):
+        return word[:-2] + "ves"
+
+    return word + "s"
+
+
+def _to_json(data: dict[str, Any]) -> str:
+    """将字典序列化为格式化 JSON 字符串（确保中文不被转义）"""
+    return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+
+
+# ============================================================
 # Generator
 # ============================================================
 
@@ -111,6 +183,7 @@ class CrudGenerator:
         env.filters["camel"] = _camel_filter
         env.filters["capitalize"] = _capitalize_filter
         env.filters["kebab"] = _kebab_filter
+        env.filters["pluralize"] = _pluralize
         return env
 
     # ---- 上下文构建 ----
@@ -156,15 +229,17 @@ class CrudGenerator:
         base = f"frontend/apps/web-antd/src"
         parent = config.parent_menu
 
+        module_plural = _pluralize(module_kebab)
+
         if filename == "api.ts":
-            return f"{base}/api/{scope}/{module_kebab}s.ts"
+            return f"{base}/api/{scope}/{module_plural}.ts"
         elif filename == "data.ts":
-            return f"{base}/views/{scope}/{parent}/{module_kebab}s/data.ts"
+            return f"{base}/views/{scope}/{parent}/{module_plural}/data.ts"
         elif filename.startswith("index"):
-            return f"{base}/views/{scope}/{parent}/{module_kebab}s/index.vue"
+            return f"{base}/views/{scope}/{parent}/{module_plural}/index.vue"
         elif filename == "form.vue":
-            return f"{base}/views/{scope}/{parent}/{module_kebab}s/modules/form.vue"
-        return f"{base}/views/{scope}/{parent}/{module_kebab}s/{filename}"
+            return f"{base}/views/{scope}/{parent}/{module_plural}/modules/form.vue"
+        return f"{base}/views/{scope}/{parent}/{module_plural}/{filename}"
 
     @staticmethod
     def _i18n_path(config: CrudConfig, scope: str, filename: str) -> str:
@@ -237,11 +312,12 @@ class CrudGenerator:
 
             # Controller（按 scope 生成）
             content = self._render("backend/controller.py.j2", ctx)
-            files[f"backend/app/api/{scope}/{module_snake}s.py"] = content
+            module_plural = _pluralize(module_snake)
+            files[f"backend/app/api/{scope}/{module_plural}.py"] = content
 
             # Test scaffold
             content = self._render("backend/test_api.py.j2", ctx)
-            files[f"backend/tests/api/test_{scope}_{module_snake}s.py"] = content
+            files[f"backend/tests/api/test_{scope}_{module_plural}.py"] = content
 
     # ---- 生成前端文件 ----
 
@@ -281,21 +357,182 @@ class CrudGenerator:
         files: dict[str, str],
     ) -> None:
         for scope in scopes:
-            ctx = self._build_context(config, scope)
-
             # 前端中文 i18n
-            content = self._render("i18n/source_zh.json.j2", ctx)
-            files[self._i18n_path(config, scope, "source_zh.json")] = content
+            data_zh = self._build_frontend_i18n_zh(config)
+            files[self._i18n_path(config, scope, "source_zh.json")] = _to_json(data_zh)
 
             # 前端英文 i18n
-            content = self._render("i18n/source_en.json.j2", ctx)
-            files[self._i18n_path(config, scope, "source_en.json")] = content
+            data_en = self._build_frontend_i18n_en(config)
+            files[self._i18n_path(config, scope, "source_en.json")] = _to_json(data_en)
 
-        # 后端 messages（只生成一份）
-        ctx = self._build_context(config, scopes[0])
-        content = self._render("i18n/backend_messages_zh.json.j2", ctx)
+        # 后端 messages（只生成一份，中文 + 英文）
         module_snake = config.module.replace("-", "_")
-        files[f"backend/app/locales/zh_CN/_{module_snake}.json"] = content
+        files[f"backend/app/locales/zh_CN/_{module_snake}.json"] = _to_json(
+            self._build_backend_messages_zh(config)
+        )
+        files[f"backend/app/locales/en_US/_{module_snake}.json"] = _to_json(
+            self._build_backend_messages_en(config)
+        )
+
+    @staticmethod
+    def _build_frontend_i18n_zh(config: CrudConfig) -> dict[str, Any]:
+        dn = config.display_name
+        data: dict[str, Any] = {
+            "title": f"{dn}管理",
+            "pageDesc": f"管理{dn}数据，支持新建、编辑、删除等操作。",
+            "create": f"新建{dn}",
+            "edit": f"编辑{dn}",
+            "detail": f"{dn}详情",
+            "search": f"搜索{dn}",
+            "selectToView": "请选择一条记录查看详情",
+            "confirmDelete": f"确认删除此{dn}？",
+        }
+
+        # field labels
+        field_map: dict[str, str] = {}
+        for f in config.fields:
+            field_map[f.name] = f.label_zh
+        if config.has_status_toggle:
+            field_map["isActive"] = "是否启用"
+        if config.drag_sort:
+            field_map["sortOrder"] = "排序"
+        data["field"] = field_map
+
+        # placeholders
+        ph: dict[str, str] = {}
+        for f in config.fields:
+            if f.searchable:
+                ph[f"search{_capitalize_filter(f.name)}"] = f"请输入{f.label_zh}"
+            elif f.in_form:
+                ft = f.type.value
+                if ft in ("string", "text"):
+                    ph[f"input{_capitalize_filter(f.name)}"] = f"请输入{f.label_zh}"
+                elif ft == "enum" or f.form_component.value == "Select":
+                    ph[f"select{_capitalize_filter(f.name)}"] = f"请选择{f.label_zh}"
+        data["placeholder"] = ph
+
+        # enums
+        if config.enums:
+            enum_map: dict[str, dict[str, str]] = {}
+            for enum in config.enums:
+                key = _snake_filter(enum.name)
+                enum_map[key] = {opt.value: opt.label_zh for opt in enum.values}
+            data["enum"] = enum_map
+
+        # messages
+        messages: dict[str, str] = {
+            "createSuccess": f"{dn}创建成功",
+            "updateSuccess": f"{dn}更新成功",
+            "deleteSuccess": f"{dn}已删除",
+        }
+        if config.has_status_toggle:
+            messages["toggleStatusSuccess"] = "状态切换成功"
+        data["messages"] = messages
+
+        return data
+
+    @staticmethod
+    def _build_frontend_i18n_en(config: CrudConfig) -> dict[str, Any]:
+        dn = config.display_name_en
+        data: dict[str, Any] = {
+            "title": f"{dn} Management",
+            "pageDesc": f"Manage {dn} data, including create, edit, and delete operations.",
+            "create": f"Create {dn}",
+            "edit": f"Edit {dn}",
+            "detail": f"{dn} Details",
+            "search": f"Search {dn}",
+            "selectToView": "Select a record to view details",
+            "confirmDelete": f"Are you sure you want to delete this {dn}?",
+        }
+
+        field_map: dict[str, str] = {}
+        for f in config.fields:
+            field_map[f.name] = f.label_en
+        if config.has_status_toggle:
+            field_map["isActive"] = "Active"
+        if config.drag_sort:
+            field_map["sortOrder"] = "Sort Order"
+        data["field"] = field_map
+
+        ph: dict[str, str] = {}
+        for f in config.fields:
+            if f.searchable:
+                ph[f"search{_capitalize_filter(f.name)}"] = f"Search {f.label_en}"
+            elif f.in_form:
+                ft = f.type.value
+                if ft in ("string", "text"):
+                    ph[f"input{_capitalize_filter(f.name)}"] = f"Enter {f.label_en}"
+                elif ft == "enum" or f.form_component.value == "Select":
+                    ph[f"select{_capitalize_filter(f.name)}"] = f"Select {f.label_en}"
+        data["placeholder"] = ph
+
+        if config.enums:
+            enum_map: dict[str, dict[str, str]] = {}
+            for enum in config.enums:
+                key = _snake_filter(enum.name)
+                enum_map[key] = {opt.value: opt.label_en for opt in enum.values}
+            data["enum"] = enum_map
+
+        messages: dict[str, str] = {
+            "createSuccess": f"{dn} created successfully",
+            "updateSuccess": f"{dn} updated successfully",
+            "deleteSuccess": f"{dn} deleted",
+        }
+        if config.has_status_toggle:
+            messages["toggleStatusSuccess"] = "Status toggled successfully"
+        data["messages"] = messages
+
+        return data
+
+    @staticmethod
+    def _build_backend_messages_zh(config: CrudConfig) -> dict[str, Any]:
+        dn = config.display_name
+        module_snake = config.module.replace("-", "_")
+        error: dict[str, str] = {
+            "not_found": f"{dn}不存在",
+            "name_exists": f"{dn}名称已存在",
+            "create_failed": f"{dn}创建失败",
+            "update_failed": f"{dn}更新失败",
+            "delete_failed": f"{dn}删除失败",
+        }
+        if config.has_status_toggle:
+            error["toggle_failed"] = "状态切换失败"
+
+        return {
+            module_snake: {
+                "not_found": f"{dn}不存在",
+                "created": f"{dn}创建成功",
+                "updated": f"{dn}更新成功",
+                "deleted": f"{dn}删除成功",
+                "error": error,
+                "field": {f.name: f.label_zh for f in config.fields},
+            }
+        }
+
+    @staticmethod
+    def _build_backend_messages_en(config: CrudConfig) -> dict[str, Any]:
+        dn = config.display_name_en
+        module_snake = config.module.replace("-", "_")
+        error: dict[str, str] = {
+            "not_found": f"{dn} not found",
+            "name_exists": f"{dn} name already exists",
+            "create_failed": f"Failed to create {dn}",
+            "update_failed": f"Failed to update {dn}",
+            "delete_failed": f"Failed to delete {dn}",
+        }
+        if config.has_status_toggle:
+            error["toggle_failed"] = "Failed to toggle status"
+
+        return {
+            module_snake: {
+                "not_found": f"{dn} not found",
+                "created": f"{dn} created successfully",
+                "updated": f"{dn} updated successfully",
+                "deleted": f"{dn} deleted successfully",
+                "error": error,
+                "field": {f.name: f.label_en for f in config.fields},
+            }
+        }
 
     # ---- DDL 预览 ----
 
@@ -420,143 +657,3 @@ class CrudGenerator:
 
         return files
 
-    # ================================================================
-    # 多表批量生成
-    # ================================================================
-
-    @staticmethod
-    def _inject_cross_relations(project: BatchCrudProject) -> None:
-        """将 cross_relations 注入到对应实体的 CrudConfig.relations"""
-        entity_map = {e.module: e for e in project.entities}
-
-        for rel in project.cross_relations:
-            source = entity_map.get(rel.source_entity)
-            target = entity_map.get(rel.target_entity)
-            if not source or not target:
-                logger.warning(
-                    "cross_relation references unknown entity: %s → %s",
-                    rel.source_entity,
-                    rel.target_entity,
-                )
-                continue
-
-            # 避免重复注入
-            existing_names = {r.name for r in source.relations}
-            if rel.target_entity in existing_names:
-                continue
-
-            target_model = _pascal_filter(target.module.replace("-", "_"))
-            source.relations.append(RelationConfig(
-                name=rel.target_entity.replace("-", "_"),
-                type=rel.relation_type,
-                target_model=target_model,
-                target_table=target.table_name,
-                foreign_key=rel.foreign_key,
-                nullable=rel.nullable,
-            ))
-
-    def _merge_i18n_files(
-        self,
-        all_files: dict[str, str],
-        entity_files: dict[str, str],
-    ) -> None:
-        """合并 i18n JSON 文件（同路径的 JSON 做深合并）"""
-        import json as _json
-
-        for path, content in entity_files.items():
-            if path not in all_files:
-                all_files[path] = content
-                continue
-
-            # 仅对 JSON 文件做合并
-            if not path.endswith(".json"):
-                all_files[path] = content
-                continue
-
-            try:
-                existing = _json.loads(all_files[path])
-                new = _json.loads(content)
-                if isinstance(existing, dict) and isinstance(new, dict):
-                    merged = self._deep_merge_overlay(existing, new)
-                    all_files[path] = _json.dumps(
-                        merged, ensure_ascii=False, indent=2
-                    )
-                else:
-                    all_files[path] = content
-            except (ValueError, TypeError):
-                all_files[path] = content
-
-    @staticmethod
-    def _deep_merge_overlay(base: dict, overlay: dict) -> dict:
-        """深度合并字典，overlay 的叶子值覆盖 base
-
-        与 writer._deep_merge (base 优先) 语义不同，此处 overlay 优先，
-        用于批量生成时逐实体累积 i18n 数据。
-        """
-        result = dict(base)
-        for key, value in overlay.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                result[key] = CrudGenerator._deep_merge_overlay(result[key], value)
-            else:
-                result[key] = value
-        return result
-
-    def generate_batch(self, project: BatchCrudProject) -> dict[str, str]:
-        """从 BatchCrudProject 批量生成全部文件
-
-        处理：
-        1. 注入跨表关联到各实体 relations
-        2. 按依赖顺序逐实体调用 generate()
-        3. 合并 i18n JSON（同路径深合并）
-        4. 生成联合 DDL 预览
-
-        Returns:
-            dict[str, str]: {相对路径: 文件内容}
-            附带元数据 __entity_file_map__（JSON）记录每个文件属于哪个实体
-        """
-        # 1. 注入跨表关联
-        self._inject_cross_relations(project)
-
-        # 2. 按依赖排序（使用拓扑排序引擎）
-        resolved_modules = resolve_generation_order(project)
-        entity_map = {e.module: e for e in project.entities}
-        ordered = [entity_map[m] for m in resolved_modules if m in entity_map]
-
-        # 3. 逐实体生成并合并
-        all_files: dict[str, str] = {}
-        entity_file_map: dict[str, str] = {}  # path → entity module
-        ddl_parts: list[str] = []
-
-        for entity in ordered:
-            entity_files = self.generate(entity)
-
-            # 提取并移除单表 DDL
-            entity_ddl = entity_files.pop("__ddl_preview__.sql", "")
-            if entity_ddl:
-                ddl_parts.append(
-                    f"-- ========== {entity.display_name} ({entity.table_name}) ==========\n"
-                    + entity_ddl
-                )
-
-            # 记录文件归属
-            for path in entity_files:
-                entity_file_map[path] = entity.module
-
-            # 合并（i18n 做深合并，其他直接覆盖）
-            self._merge_i18n_files(all_files, entity_files)
-
-        # 4. 联合 DDL 预览
-        if ddl_parts:
-            header = (
-                f"-- 联合 DDL 预览 ({len(ordered)} tables)\n"
-                f"-- 按依赖顺序排列\n\n"
-            )
-            all_files["__ddl_preview__.sql"] = header + "\n\n".join(ddl_parts)
-
-        # 5. 元数据（供 Writer 按实体分组预览）
-        import json as _json
-        all_files["__entity_file_map__.json"] = _json.dumps(
-            entity_file_map, ensure_ascii=False
-        )
-
-        return all_files

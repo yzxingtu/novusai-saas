@@ -544,27 +544,6 @@ export interface CrudConfig {
 }
 
 // ============================================================
-// 多表批量生成
-// ============================================================
-
-export interface EntityRelation {
-  source_entity: string;
-  target_entity: string;
-  relation_type: RelationType;
-  foreign_key?: string | null;
-  nullable: boolean;
-}
-
-export interface BatchCrudProject {
-  project_name: string;
-  description: string;
-  entities: CrudConfig[];
-  cross_relations: EntityRelation[];
-  shared_enums: EnumDefinition[];
-  generation_order: string[];
-}
-
-// ============================================================
 // Wizard 状态
 // ============================================================
 
@@ -585,36 +564,8 @@ export interface WizardState {
 }
 
 // ============================================================
-// 多实体编辑器
-// ============================================================
-
-/** touchedPaths: { [entityModule]: Set<path> } */
-export type TouchedPathsMap = Record<string, Set<string>>;
-
-/** 编辑器内部用的实体包装 */
-export interface BatchEditorEntity {
-  /** 实体 module (稳定 ID) */
-  module: string;
-  /** 实体配置 */
-  config: CrudConfig;
-  /** 该实体的 touchedPaths */
-  touchedPaths: Set<string>;
-}
-
-/** 校验 issue 定位 */
-export interface ValidationIssue {
-  entityModule: string;
-  path: string;
-  severity: 'error' | 'warning';
-  message: string;
-  code: string;
-}
-
-// ============================================================
 // 模板系统
 // ============================================================
-
-export type TemplateScope = 'entity' | 'project';
 
 export type TemplateModule =
   | 'fields'
@@ -637,20 +588,12 @@ export interface EntityTemplatePayload {
   custom_slots?: CustomSlotConfig[];
 }
 
-export interface ProjectTemplatePayload {
-  entities: CrudConfig[];
-  cross_relations?: EntityRelation[];
-  shared_enums?: EnumDefinition[];
-  generation_order?: string[];
-}
-
 export interface CrudTemplate {
   id: string;
   name: string;
   description: string;
-  scope: TemplateScope;
   version: string;
-  payload: EntityTemplatePayload | ProjectTemplatePayload;
+  payload: EntityTemplatePayload;
   created_at: string;
   updated_at: string;
 }
@@ -660,63 +603,4 @@ export interface TemplateApplyChange {
   action: 'add' | 'replace' | 'skip';
   itemCount: number;
   lockedCount: number;
-}
-
-/** 批量编辑器 tab 类型 */
-export type BatchEditorTab =
-  | 'basic'
-  | 'fields'
-  | 'relations'
-  | 'enums'
-  | 'indexes';
-
-// ============================================================
-// 批量生成预览/确认/摘要
-// ============================================================
-
-export type ConflictStrategy = 'skip' | 'overwrite' | 'merge' | 'patch';
-
-export type WritePlanAction = 'create' | 'overwrite' | 'merge' | 'skip' | 'patch';
-
-export interface WritePlanItem {
-  path: string;
-  action: WritePlanAction;
-  reason: string;
-  entity: string;
-  kind: 'backend' | 'frontend' | 'i18n' | 'migration' | 'test' | 'shared';
-  size: number;
-  isConflict: boolean;
-}
-
-export interface EntityPreviewGroup {
-  entity: string;
-  displayName: string;
-  files: WritePlanItem[];
-  conflictCount: number;
-  errorCount: number;
-}
-
-export interface BatchPreviewResult {
-  entityGroups: EntityPreviewGroup[];
-  sharedFiles: WritePlanItem[];
-  totalFiles: number;
-  totalConflicts: number;
-  issues: ValidationIssue[];
-}
-
-export interface EntityWriteSummary {
-  entity: string;
-  written: number;
-  skipped: number;
-  merged: number;
-  errors: number;
-}
-
-export interface BatchWriteSummary {
-  entities: EntityWriteSummary[];
-  sharedWritten: number;
-  totalWritten: number;
-  totalSkipped: number;
-  totalErrors: number;
-  duration_ms: number;
 }

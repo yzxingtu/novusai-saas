@@ -17,11 +17,15 @@ from __future__ import annotations
 
 import re
 from enum import Enum
-from typing import Any
+from typing import Union
 
 from pydantic import BaseModel, Field, field_validator
 
+# 标量值联合类型 — 替代 Any，用于默认值、条件值等
+ScalarValue = Union[str, int, float, bool]
+
 __all__ = [
+    "ScalarValue",
     "FieldType",
     "RelationType",
     "LayoutVariant",
@@ -32,6 +36,12 @@ __all__ = [
     "SearchComponent",
     "FormComponent",
     "HookType",
+    "AlignType",
+    "UploadType",
+    "SaveMode",
+    "SlotType",
+    "ConditionType",
+    "DetailPosition",
     "LogicNodeType",
     "EnumOption",
     "StateTransition",
@@ -66,8 +76,6 @@ __all__ = [
     "LogicNode",
     "LogicFlow",
     "CrudConfig",
-    "EntityRelation",
-    "BatchCrudProject",
 ]
 
 
@@ -207,6 +215,55 @@ class HookType(str, Enum):
     AFTER_LIST = "after_list"
 
 
+class AlignType(str, Enum):
+    """列对齐方式"""
+
+    LEFT = "left"
+    CENTER = "center"
+    RIGHT = "right"
+
+
+class UploadType(str, Enum):
+    """上传类型"""
+
+    FILE = "file"
+    IMAGE = "image"
+    AVATAR = "avatar"
+
+
+class SaveMode(str, Enum):
+    """行内编辑保存模式"""
+
+    CELL = "cell"
+    ROW = "row"
+    BATCH = "batch"
+
+
+class SlotType(str, Enum):
+    """自定义 Slot 类型"""
+
+    COLUMN = "column"
+    FORM = "form"
+
+
+class ConditionType(str, Enum):
+    """表单字段条件显示操作符"""
+
+    EQ = "eq"
+    NEQ = "neq"
+    IN = "in"
+    NOT_IN = "notIn"
+    TRUTHY = "truthy"
+    FALSY = "falsy"
+
+
+class DetailPosition(str, Enum):
+    """详情位置 (master_detail 布局)"""
+
+    RIGHT = "right"
+    BOTTOM = "bottom"
+
+
 class LogicNodeType(str, Enum):  # Phase 7 reserved
     """逻辑编排节点类型 (§32.6)"""
 
@@ -265,7 +322,7 @@ class ValidationRule(BaseModel):
         ...,
         description="规则类型: required|regex|min|max|minLength|maxLength|email|url|phone|custom",
     )
-    value: Any | None = Field(None, description="规则值 (如 regex 表达式、min 数值)")
+    value: ScalarValue | list[str] | None = Field(None, description="规则值 (如 regex 表达式、min 数值)")
     message_zh: str | None = Field(None, description="中文错误提示")
     message_en: str | None = Field(None, description="英文错误提示")
 
@@ -274,17 +331,17 @@ class FormDependency(BaseModel):
     """表单字段条件显示 (§20)"""
 
     field: str = Field(..., description="依赖的字段名")
-    condition: str = Field(
+    condition: ConditionType = Field(
         ..., description="条件: eq|neq|in|notIn|truthy|falsy"
     )
-    value: Any | None = Field(None, description="条件值 (condition=eq/neq)")
-    values: list[Any] | None = Field(None, description="条件值列表 (condition=in/notIn)")
+    value: ScalarValue | None = Field(None, description="条件值 (condition=eq/neq)")
+    values: list[ScalarValue] | None = Field(None, description="条件值列表 (condition=in/notIn)")
 
 
 class UploadFieldConfig(BaseModel):
     """文件上传字段配置 (§19)"""
 
-    upload_type: str = Field("file", description="上传类型: file|image|avatar")
+    upload_type: UploadType = Field(UploadType.FILE, description="上传类型: file|image|avatar")
     accept: str = Field("*", description="接受的文件类型 (如 .jpg,.png 或 image/*)")
     max_size_mb: int = Field(10, description="最大文件大小 (MB)")
     max_count: int = Field(1, description="最大文件数量 (>1 时为多文件)")
@@ -310,7 +367,7 @@ class FieldConfig(BaseModel):
     nullable: bool = Field(True, description="是否允许 NULL")
     unique: bool = Field(False, description="是否唯一约束")
     max_length: int | None = Field(None, description="最大长度 (type=string)")
-    default: Any | None = Field(None, description="默认值")
+    default: ScalarValue | None = Field(None, description="默认值")
     index: bool = Field(False, description="是否单独建索引")
 
     # ---- 枚举 ----
@@ -331,7 +388,7 @@ class FieldConfig(BaseModel):
     # ---- 列表 ----
     in_list: bool = Field(True, description="是否显示在列表中")
     list_width: int | None = Field(None, description="列宽度 (px)")
-    list_align: str = Field("left", description="列对齐: left|center|right")
+    list_align: AlignType = Field(AlignType.LEFT, description="列对齐: left|center|right")
     list_render: ListRenderPreset | None = Field(None, description="列渲染预设")
     list_slot: str | None = Field(None, description="自定义 slot 名 (与 list_render 互斥)")
     list_fixed: str | None = Field(None, description="列固定: left|right")
@@ -387,7 +444,7 @@ class SearchFieldConfig(BaseModel):
     placeholder_en: str | None = Field(None, description="英文占位符")
     api: str | None = Field(None, description="远程数据 API (ApiSelect 时)")
     options_enum: str | None = Field(None, description="枚举引用 (Select 时)")
-    default_value: Any | None = Field(None, description="默认值")
+    default_value: ScalarValue | None = Field(None, description="默认值")
     col_span: int = Field(6, description="栅格宽度 (24栅格)")
 
 
@@ -537,7 +594,7 @@ class CustomSlotConfig(BaseModel):
     """自定义列/字段渲染 Slot (§27)"""
 
     field: str = Field(..., description="关联字段名")
-    slot_type: str = Field("column", description="slot 类型: column|form")
+    slot_type: SlotType = Field(SlotType.COLUMN, description="slot 类型: column|form")
     template: str = Field("", description="Vue template 代码片段")
     description: str = Field("", description="功能描述 (供 AI 生成参考)")
     ai_generated: bool = Field(False, description="是否由 AI 生成")
@@ -557,7 +614,7 @@ class LayoutConfig(BaseModel):
     )
     card_cover_field: str | None = Field(None, description="卡片封面字段")
     card_columns: int = Field(3, description="卡片列数")
-    detail_position: str = Field("right", description="详情位置: right|bottom (master_detail 时)")
+    detail_position: DetailPosition = Field(DetailPosition.RIGHT, description="详情位置: right|bottom (master_detail 时)")
     detail_width: str = Field("40%", description="详情宽度")
     kanban_group_field: str | None = Field(None, description="看板分组字段 (kanban 时)")
     timeline_date_field: str | None = Field(None, description="时间线日期字段 (timeline 时)")
@@ -639,7 +696,7 @@ class InlineEditConfig(BaseModel):
     editable_fields: list[str] = Field(
         default_factory=list, description="可行内编辑的字段列表"
     )
-    save_mode: str = Field("cell", description="保存模式: cell|row|batch")
+    save_mode: SaveMode = Field(SaveMode.CELL, description="保存模式: cell|row|batch")
     debounce_ms: int = Field(300, description="保存防抖时间 (ms)")
 
 
@@ -680,7 +737,7 @@ class LogicNode(BaseModel):  # Phase 7 reserved
     id: str = Field(..., description="节点唯一 ID")
     type: LogicNodeType = Field(..., description="节点类型")
     label: str = Field("", description="节点标签")
-    config: dict[str, Any] = Field(default_factory=dict, description="节点配置")
+    config: dict[str, ScalarValue | list[str] | None] = Field(default_factory=dict, description="节点配置")
     next_nodes: list[str] = Field(default_factory=list, description="下一个节点 ID 列表")
     condition_branches: dict[str, str] | None = Field(
         None, description="条件分支 (condition 节点, value→next_node_id)"
@@ -822,43 +879,3 @@ class CrudConfig(BaseModel):
     )
 
 
-# ============================================================
-# 多表批量生成
-# ============================================================
-
-
-class EntityRelation(BaseModel):
-    """跨实体关联（BatchCrudProject 级别）
-
-    描述两个实体之间的关联关系，generate_batch() 会将其
-    注入到对应实体的 CrudConfig.relations 中。
-    """
-
-    source_entity: str = Field(..., description="源实体 module 名")
-    target_entity: str = Field(..., description="目标实体 module 名")
-    relation_type: RelationType = Field(..., description="关联类型")
-    foreign_key: str | None = Field(None, description="外键字段名 (默认: {target}_id)")
-    nullable: bool = Field(True, description="外键是否可为空")
-
-
-class BatchCrudProject(BaseModel):
-    """多表批量生成项目
-
-    编排层 — 将 N 个 CrudConfig 组合为一个项目，
-    支持跨表关联、共享枚举、依赖排序。
-    每个实体仍是完整的单表 CrudConfig，批量不侵入单表 schema。
-    """
-
-    project_name: str = Field(..., description="项目/领域名称 (如 '订单管理')")
-    description: str = Field("", description="业务描述")
-    entities: list[CrudConfig] = Field(..., description="实体配置列表", min_length=1)
-    cross_relations: list[EntityRelation] = Field(
-        default_factory=list, description="跨表关联 (注入到各实体 relations)"
-    )
-    shared_enums: list[EnumDefinition] = Field(
-        default_factory=list, description="共享枚举 (跨实体复用)"
-    )
-    generation_order: list[str] = Field(
-        default_factory=list,
-        description="推荐生成顺序 (module 名列表, 按依赖排序; 空则按 entities 顺序)",
-    )

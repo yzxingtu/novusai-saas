@@ -1152,7 +1152,6 @@
       "module_name": "Module Name",
       "table_name": "Table Name",
       "config_snapshot": "Config Snapshot",
-      "batch_project_snapshot": "Batch Project Snapshot",
       "file_manifest": "File Manifest",
       "file_count": "File Count",
       "status": "Status",

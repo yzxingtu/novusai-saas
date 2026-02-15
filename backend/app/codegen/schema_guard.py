@@ -1,7 +1,7 @@
 """
 AI Schema Guard — 严格校验 + 结构化回退
 
-对 AI 输出的 BatchCrudProject / BatchMergePatch 执行严格 schema 校验：
+对 AI 输出的 CrudConfig 执行严格 schema 校验：
 - extra=forbid: 未知字段直接报错，不静默丢弃
 - 缺失必填字段：结构化报错
 - 类型错误：结构化报错
@@ -151,64 +151,6 @@ def _generate_fix_suggestions(invalid_fields: list[InvalidField]) -> list[str]:
 # ============================================================
 
 
-def guard_batch_project(raw_data: dict[str, Any]) -> GuardResult:
-    """校验 BatchCrudProject 输入
-
-    使用 extra=forbid 的严格模式。
-
-    Args:
-        raw_data: AI 输出的原始 dict
-
-    Returns:
-        GuardResult — valid=True 时可安全构造 BatchCrudProject
-    """
-    from app.codegen.schemas import BatchCrudProject
-
-    invalid_fields, _ = _validate_strict(BatchCrudProject, raw_data)
-
-    if not invalid_fields:
-        return GuardResult(valid=True)
-
-    return GuardResult(
-        valid=False,
-        error_code="SCHEMA_GUARD_FAILED",
-        message=(
-            f"BatchCrudProject validation failed: "
-            f"{len(invalid_fields)} field error(s)"
-        ),
-        invalid_fields=invalid_fields,
-        fix_suggestions=_generate_fix_suggestions(invalid_fields),
-    )
-
-
-def guard_merge_patch(raw_data: dict[str, Any]) -> GuardResult:
-    """校验 BatchMergePatch 输入
-
-    Args:
-        raw_data: AI 输出的原始 dict
-
-    Returns:
-        GuardResult
-    """
-    from app.codegen.batch_merge import BatchMergePatch
-
-    invalid_fields, _ = _validate_strict(BatchMergePatch, raw_data)
-
-    if not invalid_fields:
-        return GuardResult(valid=True)
-
-    return GuardResult(
-        valid=False,
-        error_code="SCHEMA_GUARD_FAILED",
-        message=(
-            f"BatchMergePatch validation failed: "
-            f"{len(invalid_fields)} field error(s)"
-        ),
-        invalid_fields=invalid_fields,
-        fix_suggestions=_generate_fix_suggestions(invalid_fields),
-    )
-
-
 def guard_crud_config(raw_data: dict[str, Any]) -> GuardResult:
     """校验 CrudConfig 输入
 
@@ -280,7 +222,5 @@ __all__ = [
     "GuardErrorType",
     "GuardResult",
     "InvalidField",
-    "guard_batch_project",
     "guard_crud_config",
-    "guard_merge_patch",
 ]

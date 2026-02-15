@@ -52,8 +52,8 @@ function addEnum() {
     name,
     description: '',
     values: [
-      { value: 'active', label_zh: 'Active', label_en: 'Active', color: 'green' },
-      { value: 'inactive', label_zh: 'Inactive', label_en: 'Inactive', color: 'red' },
+      { value: 'active', label_zh: $t(`${T}.enumEditor.defaultActive`), label_en: $t(`${T}.enumEditor.defaultActiveEn`), color: 'green' },
+      { value: 'inactive', label_zh: $t(`${T}.enumEditor.defaultInactive`), label_en: $t(`${T}.enumEditor.defaultInactiveEn`), color: 'red' },
     ],
     transitions: null,
   };
@@ -127,8 +127,8 @@ function addTransition(enumIndex: number) {
     from_state: en.values[0]?.value || '',
     to_state: en.values.length > 1 ? en.values[1]!.value : '',
     action: 'transition',
-    label_zh: '转换',
-    label_en: 'Transition',
+    label_zh: $t(`${T}.enumEditor.defaultTransition`),
+    label_en: $t(`${T}.enumEditor.defaultTransitionEn`),
     confirm: false,
   };
   const transitions = [...(en.transitions || []), newTransition];
@@ -306,7 +306,7 @@ const activeKeys = computed(() =>
               />
               <Input
                 :value="trans.label_zh"
-                placeholder="操作名"
+                :placeholder="$t(`${T}.enumEditor.actionPlaceholder`)"
                 size="small"
                 style="width: 70px"
                 @change="(e: Event) => updateTransition(enumIdx, tIdx, 'label_zh', (e.target as HTMLInputElement).value)"

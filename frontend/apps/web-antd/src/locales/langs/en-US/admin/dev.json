@@ -26,8 +26,11 @@
       "displayNameEnPlaceholder": "e.g. Order",
       "scope": "Scope",
       "scopeAdmin": "Admin",
+      "scopeAdminDesc": "Platform-wide management, admin only",
       "scopeTenant": "Tenant",
+      "scopeTenantDesc": "Tenant-isolated data, per-tenant separation",
       "scopeBoth": "Both",
+      "scopeBothDesc": "Generate both tenant and admin sides",
       "parentMenu": "Parent Menu",
       "parentMenuPlaceholder": "Menu identifier (e.g. system)",
       "description": "Description",
@@ -79,8 +82,24 @@
       "sortable": "Sortable",
       "filterable": "Filterable",
       "detail": "Detail Config",
-      "empty": "No fields yet. Click the button above to add.",
-      "dragHint": "Drag to reorder",
+      "empty": "No fields yet, click button above to add",
+      "dragHint": "Drag to sort",
+      "viewTable": "Table View",
+      "viewCard": "Card View",
+      "delete": "Delete",
+      "fieldType": {
+        "string": "Text",
+        "text": "Long Text",
+        "integer": "Integer",
+        "float": "Float",
+        "decimal": "Decimal",
+        "boolean": "Boolean",
+        "datetime": "DateTime",
+        "date": "Date",
+        "json": "JSON",
+        "enum": "Enum",
+        "file": "File"
+      },
       "detailDrawer": {
         "title": "Field Detail Config",
         "basicSection": "Basic Properties",
@@ -103,8 +122,17 @@
         "formGroup": "Form Group",
         "formPlaceholder": "Placeholder",
         "formColSpan": "Column Span",
-        "formHelp": "Help Text"
+        "formHelp": "Help Text",
+        "enumRefPlaceholder": "Enum Name"
       }
+    },
+    "searchOp": {
+      "ilike": "Fuzzy Search",
+      "eq": "Exact Match",
+      "in": "Multiple Values",
+      "gte": "Greater or Equal",
+      "lte": "Less or Equal",
+      "between": "Range"
     },
     "preview": {
       "title": "Code Preview",
@@ -122,6 +150,7 @@
       "lines": "{count} lines",
       "copyCode": "Copy Code",
       "copied": "Copied",
+      "retry": "Retry",
       "generateFirst": "Complete configuration before generating",
       "postGeneration": "Post-Generation Steps",
       "postStep1": "Run database migration",
@@ -166,7 +195,8 @@
       "alignRight": "Right",
       "fixedNone": "None",
       "fixedLeft": "Left",
-      "fixedRight": "Right"
+      "fixedRight": "Right",
+      "widthAuto": "Auto"
     },
     "listPreview": {
       "title": "List Preview",
@@ -235,7 +265,9 @@
       "requiredMark": "Required",
       "group": "Group",
       "placeholder": "Enter {label}",
-      "selectPlaceholder": "Select {label}"
+      "selectPlaceholder": "Select {label}",
+      "jsonPlaceholder": "{ }",
+      "richTextPlaceholder": "Enter rich text content here"
     },
     "slotEditor": {
       "title": "Custom Render",
@@ -252,7 +284,23 @@
       "cancel": "Cancel",
       "previewTitle": "Preview",
       "noPreview": "No preview",
-      "codePlaceholder": "<span :style=\"{ color: record.color }\">{{ value }}</span>"
+      "codePlaceholder": "<span :style=\"{ color: record.color }\">{{ value }}</span>",
+      "aiUnavailable": "AI generation is not available. Please configure the CRUD Agent first.",
+      "presetDesc": {
+        "tag": "Display enum values as colored tags with different colors per value",
+        "badge": "Display status as dot + text badge, ideal for status fields",
+        "switch": "Display boolean values as a toggle switch (read-only)",
+        "money": "Display amounts in monospace font with thousand separators and decimals",
+        "percent": "Display numbers as percentages with one decimal place",
+        "progress": "Display numbers (0-100) as a progress bar, ideal for completion rates",
+        "relativeTime": "Display relative time (e.g. '3 min ago'), hover for full timestamp",
+        "datetime": "Display date and time in small monospace font, precise to seconds",
+        "date": "Display date only in small monospace font (year-month-day)",
+        "avatar": "Display image as circular avatar, show initial letter when no image",
+        "image": "Display image as rounded thumbnail",
+        "link": "Display URL as clickable link, opens in new tab",
+        "copy": "Display text with a one-click copy button"
+      }
     },
     "enumEditor": {
       "title": "Enum Management",
@@ -274,7 +322,14 @@
       "action": "Action",
       "addTransition": "Add Transition",
       "stateMachine": "State Machine",
-      "noTransitions": "No transition rules"
+      "noTransitions": "No transition rules",
+      "defaultActive": "Active",
+      "defaultActiveEn": "Active",
+      "defaultInactive": "Inactive",
+      "defaultInactiveEn": "Inactive",
+      "defaultTransition": "Transition",
+      "defaultTransitionEn": "Transition",
+      "actionPlaceholder": "Action name"
     },
     "aiAssistant": {
       "title": "AI Assistant",
@@ -303,6 +358,20 @@
         "suggestGroups": "Suggest Groups",
         "reviewCode": "Review Code",
         "translateLabels": "Translate Labels"
+      },
+      "quickAction": {
+        "generateFromDescPrompt": "Based on the current module name and table name, generate a complete CRUD config (including fields, search, list, and form config)",
+        "generateFromTablePrompt": "Based on the current table name, infer the table structure and generate field definitions",
+        "optimizeBasicPrompt": "Check and optimize the current basic info config, including naming conventions, scope selection, etc.",
+        "suggestFieldsPrompt": "Based on the current module and table name, suggest common fields",
+        "importDDLPrompt": "Please help me parse fields from a DDL statement. I will paste the DDL in the next message",
+        "optimizeFieldsPrompt": "Check and optimize current field config: are types correct, naming conventions followed, indexes needed",
+        "optimizeListPrompt": "Suggest the best list config for current fields: column width, render presets, alignment",
+        "suggestSearchPrompt": "Suggest search fields and operators based on field semantics",
+        "optimizeFormPrompt": "Suggest the best form config for current fields: component types, grouping structure, validation rules",
+        "suggestGroupsPrompt": "Automatically suggest form grouping structure based on field semantics",
+        "reviewCodePrompt": "Review the currently generated code, check for standards compliance and potential issues",
+        "translateLabelsPrompt": "Help me translate all field labels to Chinese and English"
       }
     },
     "command": {
@@ -426,80 +495,6 @@
       "sourceNotFound": "Source entity not found",
       "success": "Entity cloned successfully"
     },
-    "erDiagram": {
-      "title": "ER Diagram",
-      "autoLayout": "Auto Layout",
-      "fitView": "Fit View",
-      "zoomIn": "Zoom In",
-      "zoomOut": "Zoom Out",
-      "fields": "Fields",
-      "relations": "Relations",
-      "generationOrder": "Generation Order",
-      "belongsTo": "Belongs To",
-      "hasMany": "Has Many",
-      "selfRefTree": "Self-Ref Tree",
-      "editRelation": "Edit Relation",
-      "relationType": "Relation Type",
-      "foreignKey": "Foreign Key",
-      "nullable": "Nullable",
-      "cascadeDelete": "Cascade Delete",
-      "sourceEntity": "Source Entity",
-      "targetEntity": "Target Entity",
-      "noEntities": "No entities yet",
-      "issues": "Issues",
-      "warnings": "Warnings",
-      "clickNodeHint": "Click entity to edit",
-      "clickEdgeHint": "Click relation to edit"
-    },
-    "batchGeneration": {
-      "title": "Batch Generation",
-      "preview": "Preview",
-      "confirm": "Confirm Generate",
-      "generating": "Generating...",
-      "entityNav": "Entity Navigation",
-      "sharedFiles": "Shared Files",
-      "fileTree": "File List",
-      "totalFiles": "{count} files total",
-      "totalConflicts": "{count} conflicts",
-      "noConflicts": "No conflicts",
-      "noFiles": "No files yet",
-      "conflictTitle": "Conflict Resolution",
-      "conflictFile": "Conflict File",
-      "conflictStrategy": "Strategy",
-      "conflictApplyAll": "Apply to All",
-      "strategySkip": "Skip",
-      "strategyOverwrite": "Overwrite",
-      "strategyMerge": "Merge",
-      "strategyPatch": "Patch",
-      "kindBackend": "Backend",
-      "kindFrontend": "Frontend",
-      "kindI18n": "i18n",
-      "kindMigration": "Migration",
-      "kindTest": "Test",
-      "kindShared": "Shared",
-      "actionCreate": "Create",
-      "actionOverwrite": "Overwrite",
-      "actionMerge": "Merge",
-      "actionSkip": "Skip",
-      "actionPatch": "Patch",
-      "summary": {
-        "title": "Generation Summary",
-        "entity": "Entity",
-        "written": "Written",
-        "skipped": "Skipped",
-        "merged": "Merged",
-        "errors": "Errors",
-        "totalWritten": "{count} files written",
-        "totalSkipped": "{count} files skipped",
-        "totalErrors": "{count} errors",
-        "duration": "{ms} ms",
-        "success": "Generation Complete",
-        "partial": "Partially Complete",
-        "failed": "Generation Failed"
-      },
-      "fallbackHint": "Backend did not return entity-level file mapping, showing global preview",
-      "confirmHint": "The following files will be written to disk"
-    },
     "fieldImport": {
       "title": "Batch Field Import",
       "source": "Import Source",
@@ -529,74 +524,6 @@
       "status_exists": "Exists",
       "status_system": "System"
     },
-    "batchEditor": {
-      "title": "Multi-Entity Editor",
-      "entityList": "Entity List",
-      "searchEntity": "Search entity...",
-      "addEntity": "Add Entity",
-      "removeEntity": "Remove Entity",
-      "confirmRemove": "Remove entity \"{name}\"? Related cross-relations will also be removed.",
-      "batchDelete": {
-        "select": "Batch Select",
-        "cancel": "Cancel Selection",
-        "selectAll": "Select All",
-        "remove": "Delete {count}",
-        "title": "Batch Delete Entities",
-        "content": "Remove {count} selected entities? Related cross-relations will also be removed.",
-        "confirm": "Confirm Delete",
-        "success": "Deleted {count} entities"
-      },
-      "noEntities": "No entities yet, please add one",
-      "entityCount": "{count} entities",
-      "tabs": {
-        "basic": "Basic Info",
-        "fields": "Fields",
-        "relations": "Relations",
-        "enums": "Enums",
-        "indexes": "Indexes"
-      },
-      "crossRelations": "Cross Relations",
-      "addCrossRelation": "Add Relation",
-      "sourceEntity": "Source Entity",
-      "targetEntity": "Target Entity",
-      "relationType": "Relation Type",
-      "foreignKey": "Foreign Key",
-      "nullable": "Nullable",
-      "noCrossRelations": "No cross-relations yet",
-      "generationOrder": "Generation Order",
-      "autoSort": "Auto Sort",
-      "sharedEnums": "Shared Enums",
-      "touchedPaths": {
-        "title": "Locked Paths",
-        "locked": "Locked",
-        "unlock": "Unlock",
-        "unlockAll": "Unlock All",
-        "noLocked": "No locked paths",
-        "hint": "Locked paths will not be overwritten by AI"
-      },
-      "validation": {
-        "errors": "Validation Errors",
-        "warnings": "Validation Warnings",
-        "noIssues": "Validation Passed",
-        "module_required": "Module name is required",
-        "table_required": "Table name is required",
-        "no_fields": "Please define at least one field",
-        "no_list_fields": "No fields are set to show in list",
-        "search_no_operator": "Search field missing operator",
-        "no_form_fields": "No fields are set to show in form",
-        "group_field_missing": "Group references a non-existent field",
-        "jumpTo": "Jump to"
-      },
-      "newEntity": {
-        "title": "New Entity",
-        "module": "Module Name",
-        "modulePlaceholder": "e.g. product",
-        "displayName": "Display Name",
-        "displayNamePlaceholder": "e.g. Product",
-        "cancel": "Cancel",
-        "confirm": "Create"
-      }
-    },
     "apiPlayground": {
       "listAll": "List all",
       "create": "Create",
@@ -604,7 +531,10 @@
       "update": "Update",
       "delete": "Delete",
       "recycleBinList": "Recycle bin list",
-      "restore": "Restore"
+      "restore": "Restore",
+      "send": "Send",
+      "requestBody": "Request Body",
+      "response": "Response"
     },
     "translate": {
       "createTitle": "Create {name}",
@@ -734,6 +664,15 @@
         "operation": "Operation",
         "size": "Size"
       }
+    },
+    "validation": {
+      "module_required": "Module name is required",
+      "table_required": "Table name is required",
+      "no_fields": "Please add at least one field",
+      "no_list_fields": "No fields are set to display in list",
+      "search_no_operator": "Search field is missing an operator",
+      "no_form_fields": "No fields are set to display in form",
+      "group_field_missing": "Group references a non-existent field"
     },
     "layout": {
       "title": "Page Layout",

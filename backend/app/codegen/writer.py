@@ -17,14 +17,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from app.codegen.batch_errors import (
-    BatchError,
-    BatchValidationResult,
-    write_encoding_error,
-    write_merge_failed,
-    write_permission_denied,
-    write_unsafe_path,
-)
 
 
 # ============================================================
@@ -397,95 +389,6 @@ class CrudWriter:
             "total_conflict": len(conflicts),
         }
 
-    # ---- 批量预览模式 ----
-
-    def preview_batch(
-        self,
-        files: dict[str, str],
-        include_content: bool = False,
-    ) -> dict[str, Any]:
-        """批量预览：按实体分组返回文件预览
-
-        依赖 generate_batch() 输出的 __entity_file_map__.json 元数据。
-        如果没有元数据，退化为普通 preview() 并包装为单组。
-
-        Returns:
-            {
-                "entities": [
-                    {
-                        "entity_name": str,  # module 名
-                        "file_count": int,
-                        "files": [PreviewFileItem],
-                    }
-                ],
-                "shared_files": [PreviewFileItem],  # DDL 等共享文件
-                "total_files": int,
-                "total_new": int,
-                "total_conflict": int,
-                "ddl_preview": str,
-            }
-        """
-        # 提取元数据
-        entity_map_raw = files.get("__entity_file_map__.json")
-        if not entity_map_raw:
-            # 无元数据 → 退化为单表预览
-            single = self.preview(files, include_content=include_content)
-            return {
-                "entities": [
-                    {
-                        "entity_name": "_single",
-                        "file_count": len(single["files"]),
-                        "files": single["files"],
-                    }
-                ],
-                "shared_files": [],
-                "total_files": len(single["files"]),
-                "total_new": single["total_new"],
-                "total_conflict": single["total_conflict"],
-                "ddl_preview": single["ddl_preview"],
-            }
-
-        entity_file_map: dict[str, str] = json.loads(entity_map_raw)
-
-        # 先做普通预览获取文件详情
-        flat_preview = self.preview(files, include_content=include_content)
-        flat_files_by_path = {f["path"]: f for f in flat_preview["files"]}
-
-        # 按实体分组
-        entity_groups: dict[str, list[dict[str, Any]]] = {}
-        shared_files: list[dict[str, Any]] = []
-
-        for file_entry in flat_preview["files"]:
-            path = file_entry["path"]
-            entity_module = entity_file_map.get(path)
-            if entity_module:
-                entity_groups.setdefault(entity_module, []).append(file_entry)
-            else:
-                shared_files.append(file_entry)
-
-        # 构建实体列表（保持 entity_file_map 中出现的顺序）
-        seen_modules: list[str] = []
-        for module in entity_file_map.values():
-            if module not in seen_modules:
-                seen_modules.append(module)
-
-        entities_result = []
-        for module in seen_modules:
-            group_files = entity_groups.get(module, [])
-            entities_result.append({
-                "entity_name": module,
-                "file_count": len(group_files),
-                "files": group_files,
-            })
-
-        return {
-            "entities": entities_result,
-            "shared_files": shared_files,
-            "total_files": len(flat_preview["files"]),
-            "total_new": flat_preview["total_new"],
-            "total_conflict": flat_preview["total_conflict"],
-            "ddl_preview": flat_preview["ddl_preview"],
-        }
 
 
 # ============================================================

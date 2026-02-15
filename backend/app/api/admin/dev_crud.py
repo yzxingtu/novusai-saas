@@ -21,7 +21,6 @@ import asyncio
 import json
 import os
 import re
-from typing import Any
 
 from fastapi import APIRouter, Body, Path, Query
 from pydantic import BaseModel, Field, field_validator
@@ -30,10 +29,12 @@ from app.codegen.generator import CrudGenerator
 from app.codegen.record_tracker import GenerationTimer, track_generation
 from app.codegen.schemas import CrudConfig, ScopeType
 from app.codegen.writer import ConflictAction, CrudWriter
-from app.core.config import settings
-from app.core.response import success, error
+from app.exceptions import NotFoundException
+from app.core.i18n import _
+from app.core.response import success
 from app.core.deps import DbSession, SuperAdmin
 from app.enums.codegen import CodegenOperationType
+from app.rbac.decorators import auth_only
 
 router = APIRouter(prefix="/dev/crud", tags=["Dev - CRUD Generator"])
 
@@ -104,15 +105,82 @@ def _get_writer() -> CrudWriter:
     return CrudWriter(_PROJECT_ROOT)
 
 
-def _ensure_templates_dir() -> None:
-    os.makedirs(_TEMPLATES_STORAGE_DIR, exist_ok=True)
+class TemplateStore:
+    """配置模板文件存储"""
+
+    def __init__(self, base_dir: str = _TEMPLATES_STORAGE_DIR) -> None:
+        self._dir = base_dir
+        os.makedirs(self._dir, exist_ok=True)
+
+    def _path(self, name: str) -> str:
+        self._validate_name(name)
+        return os.path.join(self._dir, f"{name}.json")
+
+    @staticmethod
+    def _validate_name(name: str) -> None:
+        if not _SAFE_NAME_RE.match(name):
+            from app.exceptions import ValidationException
+            raise ValidationException(
+                "Template name must only contain letters, digits, hyphens, and underscores"
+            )
+
+    def list_all(self) -> list[dict[str, str | float]]:
+        items: list[dict[str, str | float]] = []
+        for filename in sorted(os.listdir(self._dir)):
+            if not filename.endswith(".json"):
+                continue
+            filepath = os.path.join(self._dir, filename)
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                items.append({
+                    "name": data.get("name", filename[:-5]),
+                    "description": data.get("description", ""),
+                    "module": data.get("config", {}).get("module", ""),
+                    "scope": data.get("config", {}).get("scope", ""),
+                    "updated_at": os.path.getmtime(filepath),
+                })
+            except (json.JSONDecodeError, OSError):
+                continue
+        return items
+
+    def get(self, name: str) -> dict[str, object]:
+        filepath = self._path(name)
+        if not os.path.exists(filepath):
+            raise NotFoundException(_("Template '%(name)s' not found", name=name))
+        with open(filepath, "r", encoding="utf-8") as f:
+            return json.load(f)  # type: ignore[no-any-return]
+
+    def save(self, name: str, data: dict[str, object]) -> str:
+        filepath = self._path(name)
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return filepath
+
+    def update(self, name: str, *, description: str | None, tags: list[str] | None, config: CrudConfig | None) -> None:
+        filepath = self._path(name)
+        if not os.path.exists(filepath):
+            raise NotFoundException(_("Template '%(name)s' not found", name=name))
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if description is not None:
+            data["description"] = description
+        if tags is not None:
+            data["tags"] = tags
+        if config is not None:
+            data["config"] = config.model_dump(mode="json")
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+    def delete(self, name: str) -> None:
+        filepath = self._path(name)
+        if not os.path.exists(filepath):
+            raise NotFoundException(_("Template '%(name)s' not found", name=name))
+        os.remove(filepath)
 
 
-def _validate_template_name(name: str) -> None:
-    """校验模板名称安全性，防止路径遍历"""
-    if not _SAFE_NAME_RE.match(name):
-        from app.core.exceptions import ValidationException
-        raise ValidationException("Template name must only contain letters, digits, hyphens, and underscores")
+def _get_template_store() -> TemplateStore:
+    return TemplateStore()
 
 
 def _scope_warnings(config: CrudConfig) -> list[str]:
@@ -137,11 +205,12 @@ def _scope_warnings(config: CrudConfig) -> list[str]:
 
 
 @router.post("/preview")
+@auth_only
 async def preview_generate(
     _admin: SuperAdmin,
     db: DbSession,
     req: PreviewRequest = Body(...),
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """预览生成代码（不写入磁盘）
 
     返回将要生成的文件列表、冲突信息、warnings 和 DDL 预览。
@@ -174,11 +243,12 @@ async def preview_generate(
 
 
 @router.post("/generate")
+@auth_only
 async def generate_code(
     _admin: SuperAdmin,
     db: DbSession,
     req: GenerateRequest = Body(...),
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """生成代码并写入磁盘
 
     当 confirmed=false 时，仅返回预览结果不写入磁盘。
@@ -230,10 +300,11 @@ async def generate_code(
 
 
 @router.post("/conflicts")
+@auth_only
 async def check_conflicts(
     _admin: SuperAdmin,
     config: CrudConfig = Body(...),
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """检查文件冲突"""
     gen = _get_generator()
     writer = _get_writer()
@@ -248,10 +319,11 @@ async def check_conflicts(
 
 
 @router.post("/ddl")
+@auth_only
 async def ddl_preview(
     _admin: SuperAdmin,
     config: CrudConfig = Body(...),
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """DDL SQL 预览"""
     ddl = CrudGenerator.generate_ddl_preview(config)
     return success(data={"sql": ddl})
@@ -263,133 +335,71 @@ async def ddl_preview(
 
 
 @router.get("/templates")
+@auth_only
 async def list_templates(
     _admin: SuperAdmin,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """列出所有配置模板"""
-
-    def _list() -> list[dict[str, Any]]:
-        _ensure_templates_dir()
-        templates: list[dict[str, Any]] = []
-        for filename in sorted(os.listdir(_TEMPLATES_STORAGE_DIR)):
-            if not filename.endswith(".json"):
-                continue
-            filepath = os.path.join(_TEMPLATES_STORAGE_DIR, filename)
-            try:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                templates.append({
-                    "name": data.get("name", filename[:-5]),
-                    "description": data.get("description", ""),
-                    "module": data.get("config", {}).get("module", ""),
-                    "scope": data.get("config", {}).get("scope", ""),
-                    "updated_at": os.path.getmtime(filepath),
-                })
-            except (json.JSONDecodeError, OSError):
-                continue
-        return templates
-
-    templates = await asyncio.to_thread(_list)
+    store = _get_template_store()
+    templates = await asyncio.to_thread(store.list_all)
     return success(data={"items": templates, "total": len(templates)})
 
 
 @router.get("/templates/{name}")
+@auth_only
 async def get_template(
     _admin: SuperAdmin,
     name: str = Path(..., min_length=1),
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """获取配置模板详情"""
-    _validate_template_name(name)
-
-    def _read() -> dict[str, Any] | None:
-        _ensure_templates_dir()
-        filepath = os.path.join(_TEMPLATES_STORAGE_DIR, f"{name}.json")
-        if not os.path.exists(filepath):
-            return None
-        with open(filepath, "r", encoding="utf-8") as f:
-            return json.load(f)
-
-    data = await asyncio.to_thread(_read)
-    if data is None:
-        return error(message="Template not found", code=4040, status_code=404)
+    store = _get_template_store()
+    data = await asyncio.to_thread(store.get, name)
     return success(data=data)
 
 
 @router.post("/templates")
+@auth_only
 async def save_template(
     _admin: SuperAdmin,
     req: TemplateSaveRequest = Body(...),
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """保存配置模板"""
-    data = {
+    store = _get_template_store()
+    data: dict[str, object] = {
         "name": req.name,
         "description": req.description,
         "tags": req.tags,
         "config": req.config.model_dump(mode="json"),
     }
-
-    def _write() -> str:
-        _ensure_templates_dir()
-        filepath = os.path.join(_TEMPLATES_STORAGE_DIR, f"{req.name}.json")
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        return filepath
-
-    filepath = await asyncio.to_thread(_write)
+    filepath = await asyncio.to_thread(store.save, req.name, data)
     return success(data={"name": req.name, "path": filepath})
 
 
 @router.put("/templates/{name}")
+@auth_only
 async def update_template(
     _admin: SuperAdmin,
     name: str = Path(..., min_length=1),
     req: TemplateUpdateRequest = Body(...),
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """更新配置模板"""
-    _validate_template_name(name)
-
-    def _update() -> bool:
-        _ensure_templates_dir()
-        filepath = os.path.join(_TEMPLATES_STORAGE_DIR, f"{name}.json")
-        if not os.path.exists(filepath):
-            return False
-        with open(filepath, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        if req.description is not None:
-            data["description"] = req.description
-        if req.tags is not None:
-            data["tags"] = req.tags
-        if req.config is not None:
-            data["config"] = req.config.model_dump(mode="json")
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        return True
-
-    found = await asyncio.to_thread(_update)
-    if not found:
-        return error(message="Template not found", code=4040, status_code=404)
+    store = _get_template_store()
+    await asyncio.to_thread(
+        store.update, name,
+        description=req.description, tags=req.tags, config=req.config,
+    )
     return success(data={"name": name, "updated": True})
 
 
 @router.delete("/templates/{name}")
+@auth_only
 async def delete_template(
     _admin: SuperAdmin,
     name: str = Path(..., min_length=1),
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """删除配置模板"""
-    _validate_template_name(name)
-
-    def _delete() -> bool:
-        _ensure_templates_dir()
-        filepath = os.path.join(_TEMPLATES_STORAGE_DIR, f"{name}.json")
-        if not os.path.exists(filepath):
-            return False
-        os.remove(filepath)
-        return True
-
-    found = await asyncio.to_thread(_delete)
-    if not found:
-        return error(message="Template not found", code=4040, status_code=404)
+    store = _get_template_store()
+    await asyncio.to_thread(store.delete, name)
     return success(data={"name": name, "deleted": True})
 
 
@@ -399,10 +409,11 @@ async def delete_template(
 
 
 @router.get("/project-graph")
+@auth_only
 async def project_graph(
     _admin: SuperAdmin,
     refresh: bool = Query(False, description="强制刷新缓存"),
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """项目知识图谱 — 返回所有 Model 元数据
 
     用于 AI 感知项目已有模块，避免生成重复表名。

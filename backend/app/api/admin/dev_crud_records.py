@@ -14,22 +14,54 @@ CRUD 代码生成记录 — Dev-only API 控制器
 
 from __future__ import annotations
 
-from typing import Any
+import os
 
 from fastapi import APIRouter, Body, Path
+from pydantic import BaseModel, Field
 
 from app.core.deps import DbSession, SuperAdmin, QueryParams
-from app.core.response import success, deleted, paginated
-from app.exceptions import NotFoundException
+from app.exceptions import NotFoundException, ValidationException
 from app.core.i18n import _
+from app.core.response import success, deleted, paginated
+from app.rbac.decorators import auth_only
+from app.models.system.crud_generation_record import CrudGenerationRecord
 from app.services.system.crud_generation_record_service import (
     CrudGenerationRecordService,
 )
 
 router = APIRouter(prefix="/dev/crud/records", tags=["Dev - CRUD Generation Records"])
 
+_PROJECT_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "..")
+)
 
-def _serialize_record(record: Any) -> dict[str, Any]:
+
+# ============================================================
+# 请求模型
+# ============================================================
+
+
+class DeleteFilesRequest(BaseModel):
+    mode: str = Field("record", description="删除模式: record | entity")
+    record_id: int | None = Field(None, description="记录 ID (mode=record 时必填)")
+    module_name: str | None = Field(None, description="模块名 (mode=entity 时必填)")
+    table_name: str | None = Field(None, description="表名 (mode=entity 时必填)")
+    config: dict[str, object] | None = Field(None, description="配置 (mode=entity 时可选)")
+    dry_run: bool = Field(True, description="仅预览不删除")
+
+
+class RollbackRequest(BaseModel):
+    record_id: int = Field(..., ge=1, description="记录 ID")
+    file_paths: list[str] | None = Field(None, description="部分回滚的文件路径列表")
+    force: bool = Field(False, description="跳过 hash 校验")
+
+
+# ============================================================
+# 序列化
+# ============================================================
+
+
+def _serialize_record(record: CrudGenerationRecord) -> dict[str, object]:
     """序列化生成记录为响应字典"""
     return {
         "id": record.id,
@@ -47,11 +79,10 @@ def _serialize_record(record: Any) -> dict[str, Any]:
     }
 
 
-def _serialize_record_detail(record: Any) -> dict[str, Any]:
+def _serialize_record_detail(record: CrudGenerationRecord) -> dict[str, object]:
     """序列化生成记录详情（含配置快照、文件清单等）"""
     data = _serialize_record(record)
     data["config_snapshot"] = record.config_snapshot
-    data["batch_project_snapshot"] = record.batch_project_snapshot
     data["file_manifest"] = record.file_manifest
     data["error_detail"] = record.error_detail
     data["metadata"] = record.metadata_
@@ -64,11 +95,12 @@ def _serialize_record_detail(record: Any) -> dict[str, Any]:
 
 
 @router.get("")
+@auth_only
 async def list_records(
     _admin: SuperAdmin,
     db: DbSession,
     query: QueryParams,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """分页查询生成记录
 
     支持 JSON:API 风格筛选:
@@ -92,10 +124,11 @@ async def list_records(
 
 
 @router.get("/statistics")
+@auth_only
 async def get_statistics(
     _admin: SuperAdmin,
     db: DbSession,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """获取生成记录统计信息"""
     service = CrudGenerationRecordService(db)
     stats = await service.get_statistics()
@@ -103,11 +136,12 @@ async def get_statistics(
 
 
 @router.get("/{record_id}")
+@auth_only
 async def get_record_detail(
     _admin: SuperAdmin,
     db: DbSession,
     record_id: int = Path(..., ge=1),
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """获取生成记录详情"""
     service = CrudGenerationRecordService(db)
     record = await service.get_record_detail(record_id)
@@ -117,11 +151,12 @@ async def get_record_detail(
 
 
 @router.get("/{record_id}/config")
+@auth_only
 async def get_record_config(
     _admin: SuperAdmin,
     db: DbSession,
     record_id: int = Path(..., ge=1),
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """获取记录的配置快照（用于恢复配置）"""
     service = CrudGenerationRecordService(db)
     config = await service.get_config_from_record(record_id)
@@ -131,11 +166,12 @@ async def get_record_config(
 
 
 @router.delete("/{record_id}")
+@auth_only
 async def delete_record(
     _admin: SuperAdmin,
     db: DbSession,
     record_id: int = Path(..., ge=1),
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """删除生成记录（软删除）"""
     service = CrudGenerationRecordService(db)
     result = await service.delete(record_id)
@@ -151,49 +187,34 @@ async def delete_record(
 
 
 @router.post("/delete-files")
+@auth_only
 async def delete_generated_files(
     _admin: SuperAdmin,
     db: DbSession,
-    body: dict[str, Any] = Body(...),
-) -> dict[str, Any]:
-    """批量删除生成的文件
-
-    Body:
-        mode: 'record' | 'entity'
-        record_id: int (mode=record 时必填)
-        module_name: str (mode=entity 时必填)
-        table_name: str (mode=entity 时必填)
-        dry_run: bool (默认 true)
-    """
-    import os
+    req: DeleteFilesRequest = Body(...),
+) -> dict[str, object]:
+    """批量删除生成的文件"""
     from app.codegen.backup import BackupEngine
 
-    mode = body.get("mode", "record")
-    dry_run = body.get("dry_run", True)
-    project_root = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..")
-    )
-
-    if mode == "record":
-        record_id = body.get("record_id")
-        if not record_id:
-            return success(data={"error": "record_id is required for mode=record"})
+    if req.mode == "record":
+        if not req.record_id:
+            raise ValidationException(_("record_id is required for mode=record"))
 
         service = CrudGenerationRecordService(db)
-        record = await service.get_record_detail(record_id)
+        record = await service.get_record_detail(req.record_id)
         if not record:
             raise NotFoundException(_("crud_generation_record.error.not_found"))
 
         manifest = record.file_manifest or []
-        engine = BackupEngine(project_root)
+        engine = BackupEngine(_PROJECT_ROOT)
 
-        if dry_run:
+        if req.dry_run:
             file_list = []
             for entry in manifest:
                 path = entry.get("path", "")
                 if not path:
                     continue
-                abs_path = os.path.join(project_root, path)
+                abs_path = os.path.join(_PROJECT_ROOT, path)
                 file_list.append({
                     "path": path,
                     "exists": os.path.exists(abs_path),
@@ -201,7 +222,7 @@ async def delete_generated_files(
                 })
             return success(data={
                 "mode": "record",
-                "record_id": record_id,
+                "record_id": req.record_id,
                 "dry_run": True,
                 "files": file_list,
                 "total": len(file_list),
@@ -210,53 +231,46 @@ async def delete_generated_files(
         result = engine.rollback_by_manifest(manifest)
         return success(data={
             "mode": "record",
-            "record_id": record_id,
+            "record_id": req.record_id,
             "dry_run": False,
             **result.to_dict(),
         })
 
-    elif mode == "entity":
-        module_name = body.get("module_name", "")
-        table_name = body.get("table_name", "")
-        if not module_name or not table_name:
-            return success(data={"error": "module_name and table_name required for mode=entity"})
+    if req.mode == "entity":
+        if not req.module_name or not req.table_name:
+            raise ValidationException(_("module_name and table_name required for mode=entity"))
 
         from app.codegen.generator import CrudGenerator
         from app.codegen.schemas import CrudConfig
 
-        # Re-generate to get file paths
-        config_data = body.get("config")
+        config_data = req.config
         if not config_data:
-            # Try to find from latest record
-            from sqlalchemy import text
-            row = await db.execute(text(
-                "SELECT config_snapshot FROM crud_generation_records "
-                "WHERE module_name = :module AND table_name = :table "
-                "AND is_deleted = false ORDER BY created_at DESC LIMIT 1"
-            ), {"module": module_name, "table": table_name})
-            r = row.fetchone()
-            if r and r[0]:
-                config_data = r[0]
-            else:
-                return success(data={"error": "No config found; provide 'config' in body or have a generation record"})
+            service = CrudGenerationRecordService(db)
+            config_data = await service.get_latest_config_by_entity(
+                req.module_name, req.table_name
+            )
+            if not config_data:
+                raise NotFoundException(
+                    _("No config found; provide 'config' in body or have a generation record")
+                )
 
         crud_config = CrudConfig(**config_data)
         gen = CrudGenerator()
         files = gen.generate(crud_config)
 
-        file_list = []
+        file_list: list[dict[str, object]] = []
         for path in files:
             if path.startswith("__") and path.endswith("__"):
                 continue
-            abs_path = os.path.join(project_root, path)
+            abs_path = os.path.join(_PROJECT_ROOT, path)
             exists = os.path.exists(abs_path)
             file_list.append({"path": path, "exists": exists})
 
-        if dry_run:
+        if req.dry_run:
             return success(data={
                 "mode": "entity",
-                "module_name": module_name,
-                "table_name": table_name,
+                "module_name": req.module_name,
+                "table_name": req.table_name,
                 "dry_run": True,
                 "files": file_list,
                 "total": len(file_list),
@@ -267,58 +281,41 @@ async def delete_generated_files(
         for f in file_list:
             if f["exists"]:
                 try:
-                    os.unlink(os.path.join(project_root, f["path"]))
+                    os.unlink(os.path.join(_PROJECT_ROOT, str(f["path"])))
                     deleted_count += 1
                 except OSError:
                     pass
 
         return success(data={
             "mode": "entity",
-            "module_name": module_name,
-            "table_name": table_name,
+            "module_name": req.module_name,
+            "table_name": req.table_name,
             "dry_run": False,
             "total_deleted": deleted_count,
             "total_files": len(file_list),
         })
 
-    return success(data={"error": f"Unknown mode: {mode}"})
+    raise ValidationException(_("Unknown mode: %(mode)s", mode=req.mode))
 
 
 @router.post("/rollback")
+@auth_only
 async def rollback_generation(
     _admin: SuperAdmin,
     db: DbSession,
-    body: dict[str, Any] = Body(...),
-) -> dict[str, Any]:
-    """回滚生成记录（从备份恢复文件）
-
-    Body:
-        record_id: int (必填)
-        file_paths: list[str] (可选, 部分回滚)
-        force: bool (默认 false, 跳过 hash 校验)
-    """
-    import os
+    req: RollbackRequest = Body(...),
+) -> dict[str, object]:
+    """回滚生成记录（从备份恢复文件）"""
     from app.codegen.backup import BackupEngine
 
-    record_id = body.get("record_id")
-    if not record_id:
-        return success(data={"error": "record_id is required"})
-
-    file_paths = body.get("file_paths")
-    force = body.get("force", False)
-
-    project_root = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..")
-    )
-
-    engine = BackupEngine(project_root)
+    engine = BackupEngine(_PROJECT_ROOT)
     result = engine.rollback_by_record(
-        record_id,
-        file_paths=set(file_paths) if file_paths else None,
-        force=force,
+        req.record_id,
+        file_paths=set(req.file_paths) if req.file_paths else None,
+        force=req.force,
     )
 
     return success(data={
-        "record_id": record_id,
+        "record_id": req.record_id,
         **result.to_dict(),
     })

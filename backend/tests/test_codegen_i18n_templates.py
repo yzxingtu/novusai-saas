@@ -50,14 +50,28 @@ def _capitalize(s: str) -> str:
 
 
 def _make_env(template_dir: str) -> Environment:
+    """Create Jinja2 env with all filters matching CrudGenerator._create_env()"""
+    from app.codegen.generator import (
+        _camel_filter,
+        _capitalize_filter,
+        _kebab_filter,
+        _pascal_filter,
+        _pluralize,
+        _snake_filter,
+    )
+
     env = Environment(
         loader=FileSystemLoader(template_dir),
         trim_blocks=True,
         lstrip_blocks=True,
         keep_trailing_newline=True,
     )
-    env.filters["snake"] = _snake
-    env.filters["capitalize"] = _capitalize
+    env.filters["snake"] = _snake_filter
+    env.filters["pascal"] = _pascal_filter
+    env.filters["camel"] = _camel_filter
+    env.filters["capitalize"] = _capitalize_filter
+    env.filters["kebab"] = _kebab_filter
+    env.filters["pluralize"] = _pluralize
     return env
 
 

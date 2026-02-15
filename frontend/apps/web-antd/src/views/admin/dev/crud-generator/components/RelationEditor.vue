@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+
 import {
   Button,
   Empty,
@@ -17,20 +19,40 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  snapshot: [];
+  (e: 'update:relations', relations: RelationConfig[]): void;
+  (e: 'snapshot'): void;
 }>();
 
 const T = 'admin.dev.crudGenerator.relation';
 
-const relationTypeOptions = [
+const RELATION_TYPE_KEYS = [
   { value: 'belongs_to', labelKey: 'belongsTo' },
   { value: 'has_many', labelKey: 'hasMany' },
   { value: 'many_to_many', labelKey: 'manyToMany' },
   { value: 'self_ref_tree', labelKey: 'selfRefTree' },
-];
+] as const;
+
+function getRelationTypeOptions() {
+  return RELATION_TYPE_KEYS.map((o) => ({
+    value: o.value,
+    label: $t(`${T}.${o.labelKey}`),
+  }));
+}
+
+function updateRelations(newList: RelationConfig[]) {
+  emit('update:relations', newList);
+  emit('snapshot');
+}
+
+function updateAt(index: number, patch: Partial<RelationConfig>) {
+  const list = props.relations.map((r, i) =>
+    i === index ? { ...r, ...patch } : r,
+  );
+  emit('update:relations', list);
+}
 
 function addRelation() {
-  props.relations.push({
+  const newRel: RelationConfig = {
     name: '',
     type: 'belongs_to',
     target_model: '',
@@ -42,40 +64,41 @@ function addRelation() {
     nullable: true,
     comment_zh: '',
     comment_en: '',
-  });
-  emit('snapshot');
+  };
+  updateRelations([...props.relations, newRel]);
 }
 
 function removeRelation(index: number) {
-  props.relations.splice(index, 1);
-  emit('snapshot');
+  updateRelations(props.relations.filter((_, i) => i !== index));
 }
 
 /** target_model → target_table 自动联动 */
 function onTargetModelChange(index: number, val: string) {
-  const rel = props.relations[index];
-  if (!rel) return;
-  rel.target_model = val;
+  const patch: Partial<RelationConfig> = { target_model: val };
   if (val) {
     const snake = val
       .replace(/([A-Z])/g, '_$1')
       .toLowerCase()
       .replace(/^_/, '');
-    rel.target_table = snake.endsWith('s') ? snake : `${snake}s`;
+    patch.target_table = snake.endsWith('s') ? snake : `${snake}s`;
   }
+  updateAt(index, patch);
+  emit('snapshot');
 }
 
 /** name 变化时，belongs_to 自动推断 foreign_key */
 function onNameChange(index: number, val: string) {
   const rel = props.relations[index];
   if (!rel) return;
-  rel.name = val;
+  const patch: Partial<RelationConfig> = { name: val };
   if (rel.type === 'belongs_to' && val) {
-    rel.foreign_key = `${val}_id`;
+    patch.foreign_key = `${val}_id`;
   }
+  updateAt(index, patch);
+  emit('snapshot');
 }
 
-const columns = [
+const columns = computed(() => [
   {
     title: $t(`${T}.name`),
     dataIndex: 'name',
@@ -118,7 +141,7 @@ const columns = [
     width: 50,
     align: 'center' as const,
   },
-];
+]);
 </script>
 
 <template>
@@ -153,13 +176,11 @@ const columns = [
 
         <template v-else-if="column.dataIndex === 'type'">
           <Select
-            v-model:value="relations[index]!.type"
-            :options="relationTypeOptions.map(o => ({
-              value: o.value,
-              label: $t(`${T}.${o.labelKey}`),
-            }))"
+            :options="getRelationTypeOptions()"
+            :value="relations[index]!.type"
             size="small"
             style="width: 100%"
+            @change="(v: unknown) => updateAt(index, { type: v as RelationConfig['type'] })"
           />
         </template>
 
@@ -174,33 +195,36 @@ const columns = [
 
         <template v-else-if="column.dataIndex === 'target_table'">
           <Input
-            v-model:value="relations[index]!.target_table"
             :placeholder="$t(`${T}.targetTablePlaceholder`)"
+            :value="relations[index]!.target_table"
             size="small"
+            @change="(e: Event) => updateAt(index, { target_table: (e.target as HTMLInputElement).value })"
           />
         </template>
 
         <template v-else-if="column.dataIndex === 'foreign_key'">
           <Input
-            :value="relations[index]!.foreign_key ?? undefined"
-            @update:value="(v: string) => { relations[index]!.foreign_key = v || null; }"
             :placeholder="$t(`${T}.foreignKeyPlaceholder`)"
+            :value="relations[index]!.foreign_key ?? ''"
             size="small"
+            @change="(e: Event) => updateAt(index, { foreign_key: (e.target as HTMLInputElement).value || null })"
           />
         </template>
 
         <template v-else-if="column.dataIndex === 'label_field'">
           <Input
-            v-model:value="relations[index]!.label_field"
             :placeholder="$t(`${T}.labelFieldPlaceholder`)"
+            :value="relations[index]!.label_field"
             size="small"
+            @change="(e: Event) => updateAt(index, { label_field: (e.target as HTMLInputElement).value })"
           />
         </template>
 
         <template v-else-if="column.dataIndex === 'nullable'">
           <Switch
-            v-model:checked="relations[index]!.nullable"
+            :checked="relations[index]!.nullable"
             size="small"
+            @change="(v: unknown) => updateAt(index, { nullable: !!v })"
           />
         </template>
 

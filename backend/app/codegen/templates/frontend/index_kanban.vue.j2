@@ -1,6 +1,6 @@
 {# ============================================================
    Jinja2 Template: 前端看板布局列表页 index_kanban.vue.j2
-   生成路径: views/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s/index.vue
+   生成路径: views/{{ scope_dir }}/{{ parent_menu }}/{{ module | pluralize }}/index.vue
    LayoutVariant = kanban
    要求: 至少一个 enum 字段作为看板列（使用第一个 enum 字段）
    ============================================================ #}
@@ -20,7 +20,7 @@
 /**
  * {{ scope_dir }}端{{ display_name }}管理 — 看板布局
  */
-import type { {{ model_class }}Item } from '#/api/{{ scope_dir }}/{{ module }}s';
+import type { {{ model_class }}Item } from '#/api/{{ scope_dir }}/{{ module | pluralize }}';
 
 defineOptions({ name: '{{ scope_dir | capitalize }}{{ model_class }}Kanban' });
 
@@ -31,7 +31,7 @@ import { Plus } from '@vben/icons';
 
 import { Button, Card, Tag, Badge, Spin } from 'ant-design-vue';
 
-import { get{{ model_class }}ListApi } from '#/api/{{ scope_dir }}/{{ module }}s';
+import { get{{ model_class }}ListApi } from '#/api/{{ scope_dir }}/{{ module | pluralize }}';
 import { $t } from '#/locales';
 {% if kb.enum %}
 
@@ -46,7 +46,7 @@ const allItems = ref<{{ model_class }}Item[]>([]);
 
 const columns = [
 {% for opt in kb.enum.values %}
-  { value: '{{ opt.value }}', label: '{{ opt.label_zh }}', color: '{{ opt.color or "default" }}' },
+  { value: '{{ opt.value }}', label: $t('{{ i18n_prefix }}.enum.{{ kb.enum.name | snake }}.{{ opt.value }}'), color: '{{ opt.color or "default" }}' },
 {% endfor %}
 ];
 

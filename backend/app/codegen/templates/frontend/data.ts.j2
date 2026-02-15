@@ -1,6 +1,6 @@
 {# ============================================================
    Jinja2 Template: 前端 data.ts (列定义 + 搜索 + 表单 Schema)
-   生成路径: views/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s/data.ts
+   生成路径: views/{{ scope_dir }}/{{ parent_menu }}/{{ module | pluralize }}/data.ts
 
    变量:
      - config: CrudConfig
@@ -19,7 +19,7 @@
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { {{ model_class }}Item } from '#/api/{{ scope_dir }}/{{ module }}s';
+import type { {{ model_class }}Item } from '#/api/{{ scope_dir }}/{{ module | pluralize }}';
 
 import {
 {% set ns = namespace(need_input=false, need_number=false, need_select=false, need_textarea=false, need_switch=false, need_date=false, need_search_input=false, need_status_select=false) %}

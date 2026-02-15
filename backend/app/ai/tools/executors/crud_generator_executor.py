@@ -1,16 +1,11 @@
 """
 CRUD Generator 工具执行器
 
-处理 13 个 CRUD Generator Tool 的执行逻辑：
+处理 8 个 CRUD Generator Tool 的执行逻辑：
 
 直接执行（无需 AI）：
   - crud_preview_code:           Generator + Writer.preview()
   - crud_generate_files:         Generator + Writer.write()，支持 requires_confirmation
-  - crud_batch_preview:          Generator.generate_batch() + Writer.preview_batch()
-  - crud_batch_generate_files:   Generator.generate_batch() + Writer.write()，requires_confirmation
-  - crud_batch_validate:         校验 BatchCrudProject（依赖/关联/字段）
-  - crud_batch_merge_patch:      增量补丁合并（touchedPaths 保护）
-
 AI 辅助（需要 AIGateway）：
   - crud_generate_config:        Prompt + gateway.chat() → CrudConfig JSON
   - crud_translate_i18n:         Prompt + gateway.chat() → 翻译后的 JSON
@@ -18,7 +13,6 @@ AI 辅助（需要 AIGateway）：
   - crud_generate_slot:          Prompt + gateway.chat() → Vue template
   - crud_recommend_style:        Prompt + gateway.chat() → 布局/样式配置
   - crud_analyze_intent:         Prompt + gateway.chat() → 多实体分析
-  - crud_batch_generate_config:  Prompt + gateway.chat() → BatchCrudProject JSON
 """
 
 from __future__ import annotations
@@ -43,7 +37,7 @@ _PROJECT_ROOT = os.path.abspath(
 )
 
 
-def _json_output(data: Any) -> str:
+def _json_output(data: object) -> str:
     """统一 JSON 序列化"""
     return json.dumps(data, ensure_ascii=False, default=str)
 
@@ -59,7 +53,7 @@ class CrudGeneratorExecutor(BaseToolExecutor):
     """
     CRUD Generator 专用执行器
 
-    分发 13 个 Tool 的调用到对应的处理方法。
+    分发 8 个 Tool 的调用到对应的处理方法。
     直接执行类 Tool 使用 Phase 1 的 Generator/Writer；
     AI 辅助类 Tool 通过 AIGateway 调用 LLM。
     """
@@ -73,11 +67,6 @@ class CrudGeneratorExecutor(BaseToolExecutor):
         "crud_generate_slot": "_generate_slot",
         "crud_recommend_style": "_recommend_style",
         "crud_analyze_intent": "_analyze_intent",
-        "crud_batch_generate_config": "_batch_generate_config",
-        "crud_batch_preview": "_batch_preview",
-        "crud_batch_generate_files": "_batch_generate_files",
-        "crud_batch_validate": "_batch_validate",
-        "crud_batch_merge_patch": "_batch_merge_patch",
     }
 
     def __init__(
@@ -421,201 +410,6 @@ class CrudGeneratorExecutor(BaseToolExecutor):
 
         return await self._call_ai(INTENT_ANALYZE_PROMPT, user_msg, context)
 
-    # ========================================
-    # Tool 9: crud_batch_generate_config
-    # ========================================
-
-    async def _batch_generate_config(
-        self,
-        arguments: dict[str, Any],
-        context: ExecutionContext | None = None,
-    ) -> str:
-        """多表批量配置生成（AI 辅助）"""
-        from app.codegen.ai_prompts import BATCH_CONFIG_GEN_PROMPT
-
-        description = arguments.get("description", "")
-        entities = arguments.get("entities")
-        scope = arguments.get("scope", "tenant")
-        parent_menu = arguments.get("parent_menu", "")
-
-        user_msg = f"请根据以下需求为多个实体批量生成 BatchCrudProject JSON：\n\n{description}"
-        if entities:
-            user_msg += f"\n\n已识别的实体列表：\n{json.dumps(entities, ensure_ascii=False, indent=2)}"
-        if scope:
-            user_msg += f"\n\n生成范围：{scope}"
-        if parent_menu:
-            user_msg += f"\n父级菜单：{parent_menu}"
-
-        return await self._call_ai(BATCH_CONFIG_GEN_PROMPT, user_msg, context)
-
-    # ========================================
-    # Tool 10: crud_batch_preview
-    # ========================================
-
-    async def _batch_preview(
-        self,
-        arguments: dict[str, Any],
-        context: ExecutionContext | None = None,
-    ) -> str:
-        """批量预览多表文件（直接执行）"""
-        from app.codegen.generator import CrudGenerator
-        from app.codegen.schemas import BatchCrudProject
-        from app.codegen.writer import CrudWriter
-
-        project_raw = _parse_config(arguments.get("project", {}))
-        include_content = arguments.get("include_content", False)
-
-        project = BatchCrudProject(**project_raw)
-        gen = CrudGenerator()
-        files = gen.generate_batch(project)
-
-        writer = CrudWriter(_PROJECT_ROOT)
-        preview = writer.preview_batch(files, include_content=include_content)
-
-        return _json_output(preview)
-
-    # ========================================
-    # Tool 11: crud_batch_generate_files
-    # ========================================
-
-    async def _batch_generate_files(
-        self,
-        arguments: dict[str, Any],
-        context: ExecutionContext | None = None,
-    ) -> str:
-        """批量写入多表文件（支持 requires_confirmation 流程）"""
-        from app.codegen.generator import CrudGenerator
-        from app.codegen.schemas import BatchCrudProject
-        from app.codegen.writer import ConflictAction, CrudWriter
-
-        project_raw = _parse_config(arguments.get("project", {}))
-        confirmed = arguments.get("confirmed", False)
-        conflict_action_str = arguments.get("conflict_action", "skip")
-
-        project = BatchCrudProject(**project_raw)
-        gen = CrudGenerator()
-        files = gen.generate_batch(project)
-        writer = CrudWriter(_PROJECT_ROOT)
-
-        if not confirmed:
-            # 未确认 → 返回批量预览 + requires_confirmation
-            preview = writer.preview_batch(files, include_content=False)
-            preview["requires_confirmation"] = True
-            entity_names = [e["entity_name"] for e in preview.get("entities", [])]
-            preview["message"] = (
-                f"Will generate {preview['total_files']} files "
-                f"for {len(entity_names)} entities ({', '.join(entity_names)}). "
-                f"{preview['total_new']} new, {preview['total_conflict']} conflicts. "
-                "Please confirm to proceed."
-            )
-            return _json_output(preview)
-
-        # 已确认 → 执行写入
-        conflict_action = ConflictAction(conflict_action_str)
-        result = writer.write(files, conflict_action=conflict_action)
-
-        return _json_output({
-            "success": True,
-            "written": result.written,
-            "skipped": result.skipped,
-            "merged": result.merged,
-            "errors": result.errors,
-            "total_written": len(result.written),
-            "total_skipped": len(result.skipped),
-            "total_merged": len(result.merged),
-            "total_errors": len(result.errors),
-        })
-
-
-    # ========================================
-    # Tool 12: crud_batch_validate
-    # ========================================
-
-    async def _batch_validate(
-        self,
-        arguments: dict[str, Any],
-        context: ExecutionContext | None = None,
-    ) -> str:
-        """校验 BatchCrudProject（直接执行）"""
-        from app.codegen.project_graph import build_project_graph
-        from app.codegen.schema_guard import guard_batch_project
-        from app.codegen.schemas import BatchCrudProject
-
-        project_raw = _parse_config(arguments.get("project", {}))
-
-        # Schema Guard: 严格校验输入
-        guard = guard_batch_project(project_raw)
-        if not guard.valid:
-            return _json_output(guard.to_tool_output())
-
-        project = BatchCrudProject(**project_raw)
-
-        # 构建 ProjectGraph（含依赖排序 + 校验 + shared_enums 检查）
-        graph = build_project_graph(project)
-
-        # 构建 normalized_project（含最终 generation_order）
-        normalized = project_raw.copy()
-        if graph.valid:
-            normalized["generation_order"] = graph.generation_order
-
-        output = {
-            "success": graph.valid,
-            "normalized_project": normalized,
-            "generation_order": graph.generation_order,
-            "issues": [i.model_dump(mode="json") for i in graph.issues],
-            "warnings": [w.model_dump(mode="json") for w in graph.warnings],
-            "entity_count": graph.entity_count,
-            "graph": graph.to_dict(),
-        }
-
-        return _json_output(output)
-
-    # ========================================
-    # Tool 13: crud_batch_merge_patch
-    # ========================================
-
-    async def _batch_merge_patch(
-        self,
-        arguments: dict[str, Any],
-        context: ExecutionContext | None = None,
-    ) -> str:
-        """增量补丁合并（直接执行）"""
-        from app.codegen.batch_merge import BatchMergePatch, merge_batch_project
-        from app.codegen.schema_guard import guard_batch_project, guard_merge_patch
-        from app.codegen.schemas import BatchCrudProject
-
-        base_raw = _parse_config(arguments.get("base_project", {}))
-        patch_raw = _parse_config(arguments.get("patch", {}))
-        touched_paths_raw = arguments.get("touched_paths", [])
-
-        # Schema Guard: 校验 base_project
-        guard_base = guard_batch_project(base_raw)
-        if not guard_base.valid:
-            return _json_output(guard_base.to_tool_output())
-
-        # Schema Guard: 校验 patch
-        guard_p = guard_merge_patch(patch_raw)
-        if not guard_p.valid:
-            return _json_output(guard_p.to_tool_output())
-
-        base_project = BatchCrudProject(**base_raw)
-        patch = BatchMergePatch(**patch_raw)
-
-        # touched_paths: list[str] → dict[str, set[str]]
-        # 简化处理：将所有路径放入 "__project__" key
-        tp: dict[str, set[str]] | None = None
-        if touched_paths_raw:
-            tp = {"__project__": set(touched_paths_raw)}
-
-        result = merge_batch_project(base_project, patch, touched_paths=tp)
-
-        output = {
-            "success": True,
-            "merged_project": result.project.model_dump(mode="json"),
-            "merge_summary": result.summary.model_dump(mode="json"),
-        }
-
-        return _json_output(output)
 
 
 __all__ = ["CrudGeneratorExecutor"]

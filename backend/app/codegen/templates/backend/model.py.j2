@@ -64,11 +64,16 @@ from sqlalchemy import (
 {% endif %}
 )
 from sqlalchemy.orm import Mapped, mapped_column{% if relations %}, relationship{% endif %}
+{% if ns.has_decimal %}
+
+from decimal import Decimal
+{% endif %}
 {% if ns.has_datetime or ns.has_date %}
 
 from datetime import {% if ns.has_datetime %}datetime{% endif %}{% if ns.has_datetime and ns.has_date %}, {% endif %}{% if ns.has_date %}date{% endif %}
 
 {% endif %}
+
 {% if scope == 'tenant' %}
 from app.core.base_model import TenantModel
 {% else %}
@@ -201,7 +206,7 @@ class {{ model_class }}(BaseModel):
         comment="{{ field.label_zh }}",
     )
 {% elif field.type.value == 'decimal' %}
-    {{ field.name }}: Mapped[{{ 'float' if field.required else 'float | None' }}] = mapped_column(
+    {{ field.name }}: Mapped[{{ 'Decimal' if field.required else 'Decimal | None' }}] = mapped_column(
         Numeric(precision=10, scale=2),
         nullable={{ 'False' if field.required else 'True' }},
 {% if field.default is not none %}
@@ -292,7 +297,7 @@ class {{ model_class }}(BaseModel):
         nullable=False,
         default=True,
         index=True,
-        comment="是否启用",
+        comment="Active status",
     )
 {% endif %}
 {% if config.drag_sort %}
@@ -301,7 +306,7 @@ class {{ model_class }}(BaseModel):
         Integer,
         nullable=False,
         default=0,
-        comment="排序序号",
+        comment="Sort order",
     )
 {% endif %}
 
@@ -337,19 +342,19 @@ class {{ model_class }}(BaseModel):
         ForeignKey("{{ table_name }}.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
-        comment="父级ID",
+        comment="Parent ID",
     )
     path: Mapped[str | None] = mapped_column(
         String(500),
         nullable=True,
         default=None,
-        comment="层级路径",
+        comment="Hierarchy path",
     )
     level: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=0,
-        comment="层级深度",
+        comment="Hierarchy level",
     )
 
     children: Mapped[list["{{ model_class }}"]] = relationship(

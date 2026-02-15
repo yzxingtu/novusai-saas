@@ -76,7 +76,7 @@ export function useAiTranslate(
     targetLocales: string[] = ['en-US'],
   ) {
     if (!sendMessage) {
-      translationError.value = 'AI assistant not available';
+      translationError.value = $t('admin.dev.crudGenerator.aiAssistant.agentNotFound');
       return;
     }
 

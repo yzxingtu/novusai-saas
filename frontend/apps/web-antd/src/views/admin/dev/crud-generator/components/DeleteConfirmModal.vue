@@ -139,7 +139,7 @@ defineExpose({ open });
                 class="flex items-center gap-2 py-0.5 font-mono text-xs"
               >
                 <Tag v-if="f.exists" color="red" class="!m-0 !text-[10px]">
-                  DELETE
+                  {{ $t('common.delete') }}
                 </Tag>
                 <span class="text-muted-foreground truncate">
                   {{ f.path }}

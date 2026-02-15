@@ -43,6 +43,22 @@ class CrudGenerationRecordService(
             return None
         return record.config_snapshot
 
+    async def get_latest_config_by_entity(
+        self, module_name: str, table_name: str
+    ) -> dict[str, Any] | None:
+        """获取指定模块/表的最新配置快照"""
+        stmt = (
+            select(CrudGenerationRecord.config_snapshot)
+            .where(CrudGenerationRecord.module_name == module_name)
+            .where(CrudGenerationRecord.table_name == table_name)
+            .where(CrudGenerationRecord.is_deleted.is_(False))
+            .order_by(CrudGenerationRecord.created_at.desc())
+            .limit(1)
+        )
+        result = await self.db.execute(stmt)
+        row = result.scalar()
+        return row if row else None
+
     async def get_statistics(self) -> dict[str, Any]:
         """获取生成记录统计信息"""
         db = self.db

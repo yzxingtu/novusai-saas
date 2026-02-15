@@ -107,7 +107,7 @@ def compute_project_hash(project_dict: dict[str, Any]) -> str:
     """计算项目配置指纹（用于审计关联）
 
     Args:
-        project_dict: BatchCrudProject JSON
+        project_dict: CrudConfig JSON
 
     Returns:
         短 hash（前 12 位）

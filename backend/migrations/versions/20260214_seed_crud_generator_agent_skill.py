@@ -3,7 +3,7 @@
 Create system-level CRUD Generator SkillPackage, Skill, and Agent.
   - SkillPackage: CRUD Generator 技能包 (is_system=true)
   - Skill: crud_generator (type=builtin, is_system=true, builtin_type=crud_generator)
-    input_schema: multi_tool 格式，11 个 Tool（8 单表 + 3 批量）
+    input_schema: multi_tool 格式，8 个 Tool
   - Agent: crud_generator_assistant (is_system=true, bound to crud_generator skill)
 
 Revision ID: f2a3b4c5d6e7
@@ -27,7 +27,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 # ---------------------------------------------------------------------------
-# Skill config + input_schema (multi_tool format, 11 tools)
+# Skill config + input_schema (multi_tool format, 8 tools)
 # ---------------------------------------------------------------------------
 
 _SKILL_CONFIG = {
@@ -119,7 +119,7 @@ def upgrade() -> None:
             " created_at, updated_at, is_deleted) "
             "VALUES "
             "(NULL, :package_id, 'crud_generator', "
-            " 'CRUD 代码生成 AI 辅助工具集 — 11 个 Tool：单表配置/预览/写入、翻译、字段推荐、Slot、样式、意图分析、多表批量配置/预览/写入', "
+            " 'CRUD 代码生成 AI 辅助工具集 — 8 个 Tool：配置生成、预览、写入、翻译、字段推荐、Slot、样式、意图分析', "
             " 'builtin', 'admin', CAST(:config AS jsonb), CAST(:input_schema AS jsonb), "
             " true, true, 120, 0, NOW(), NOW(), false) "
             "RETURNING id"

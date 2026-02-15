@@ -99,7 +99,6 @@ const i18nKeys = computed(() => {
 // i18n data per locale
 // ============================================================
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const i18nData = reactive<Record<string, Record<string, string>>>({});
 
 function getZhValue(key: string): string {
@@ -121,15 +120,15 @@ function getZhValue(key: string): string {
     return val?.label_zh || parts[2] || '';
   }
 
-  if (parts[0] === 'search') return '搜索';
+  if (parts[0] === 'search') return $t(`${T}.translate.searchPlaceholder`);
   if (parts[0] === 'message') {
-    const msgs: Record<string, string> = {
-      createSuccess: '创建成功',
-      updateSuccess: '更新成功',
-      deleteSuccess: '删除成功',
-      deleteConfirm: '确认删除？',
+    const msgMap: Record<string, string> = {
+      createSuccess: $t(`${T}.translate.createSuccess`),
+      updateSuccess: $t(`${T}.translate.updateSuccess`),
+      deleteSuccess: $t(`${T}.translate.deleteSuccess`),
+      deleteConfirm: $t(`${T}.translate.deleteConfirm`),
     };
-    return msgs[parts[1] || ''] || '';
+    return msgMap[parts[1] || ''] || '';
   }
 
   return key;
@@ -156,13 +155,13 @@ function getEnValue(key: string): string {
 
   if (parts[0] === 'search') return 'Search';
   if (parts[0] === 'message') {
-    const msgs: Record<string, string> = {
+    const enMsgMap: Record<string, string> = {
       createSuccess: 'Created successfully',
       updateSuccess: 'Updated successfully',
       deleteSuccess: 'Deleted successfully',
       deleteConfirm: 'Are you sure to delete?',
     };
-    return msgs[parts[1] || ''] || '';
+    return enMsgMap[parts[1] || ''] || '';
   }
 
   return key;
@@ -227,7 +226,7 @@ watch(
     </div>
 
     <!-- Empty state -->
-    <Empty v-if="i18nKeys.length === 0" description="No i18n keys" class="py-8" />
+    <Empty v-if="i18nKeys.length === 0" :description="$t(`${T}.preview.noFile`)" class="py-8" />
 
     <!-- Side-by-side table -->
     <Card v-else size="small">
@@ -236,7 +235,7 @@ watch(
           <thead>
             <tr class="border-b">
               <th class="text-muted-foreground px-2 py-1.5 text-left font-medium" style="min-width: 180px">
-                Key
+                {{ $t(`${T}.preview.code`) }}
               </th>
               <th
                 v-for="locale in activeLocales"

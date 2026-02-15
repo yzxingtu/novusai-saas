@@ -1,6 +1,6 @@
 {# ============================================================
    Jinja2 Template: 前端左右分栏布局 index_split.vue.j2
-   生成路径: views/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s/index.vue
+   生成路径: views/{{ scope_dir }}/{{ parent_menu }}/{{ module | pluralize }}/index.vue
    LayoutVariant = split
    左侧列表 + 右侧详情预览
    ============================================================ #}
@@ -9,7 +9,7 @@
 /**
  * {{ scope_dir }}端{{ display_name }}管理 — 左右分栏布局
  */
-import type { {{ model_class }}Item } from '#/api/{{ scope_dir }}/{{ module }}s';
+import type { {{ model_class }}Item } from '#/api/{{ scope_dir }}/{{ module | pluralize }}';
 
 defineOptions({ name: '{{ scope_dir | capitalize }}{{ model_class }}Split' });
 
@@ -24,7 +24,7 @@ import {
   delete{{ model_class }}Api,
   get{{ model_class }}DetailApi,
   get{{ model_class }}ListApi,
-} from '#/api/{{ scope_dir }}/{{ module }}s';
+} from '#/api/{{ scope_dir }}/{{ module | pluralize }}';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
@@ -49,7 +49,7 @@ const { Grid, FormDrawer } = useCrudPage<{{ model_class }}Item>({
   api: {
     list: get{{ model_class }}ListApi,
     delete: delete{{ model_class }}Api,
-    resource: '/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s',
+    resource: '/{{ scope_dir }}/{{ parent_menu }}/{{ module | pluralize }}',
   },
   columns: useColumns,
   searchSchema: useGridFormSchema(),

@@ -18,7 +18,7 @@
 """
 {{ display_name }}管理 API 测试模块
 
-测试 /{{ scope_dir }}/{{ parent_menu }}/{{ module }}s/* 接口
+测试 /{{ scope_dir }}/{{ parent_menu }}/{{ module | pluralize }}/* 接口
 """
 import sys
 import os
@@ -40,9 +40,9 @@ from tests.api.base import (
 class Test{{ scope_dir | capitalize }}{{ model_class }}(BaseAPITest):
     """{{ display_name }}管理测试"""
 
-    module_name = "{{ display_name }}管理 (/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s)"
+    module_name = "{{ display_name }}管理 (/{{ scope_dir }}/{{ parent_menu }}/{{ module | pluralize }})"
 
-    PREFIX = "/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s"
+    PREFIX = "/{{ scope_dir }}/{{ parent_menu }}/{{ module | pluralize }}"
 
     def setup(self) -> None:
         """测试前登录"""

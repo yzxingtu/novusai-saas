@@ -34,14 +34,7 @@ from app.services.ai.skill_service import SkillService
     resource="skill",
     name="menu.tenant.skill",
     scope=PermissionScope.TENANT,
-    menu=MenuConfig(
-        icon="lucide:sparkles",
-        path="/ai/skills",
-        component="ai/skills/index",
-        parent="ai_workspace",
-        sort_order=12,
-        hidden=True,
-    ),
+    menu=None,
 )
 class TenantSkillController(TenantController):
     """

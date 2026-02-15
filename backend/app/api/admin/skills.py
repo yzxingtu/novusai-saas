@@ -57,14 +57,7 @@ def _build_admin_skill_item(skill) -> dict:
     resource="ai_skill",
     name="menu.admin.ai_skill",
     scope=PermissionScope.ADMIN,
-    menu=MenuConfig(
-        icon="lucide:sparkles",
-        path="/ai/skills",
-        component="ai/skills/index",
-        parent="ai_app",
-        sort_order=65,
-        hidden=True,
-    ),
+    menu=None,
 )
 class AdminSkillController(GlobalController):
     """

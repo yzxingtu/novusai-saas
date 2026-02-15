@@ -1,0 +1,33 @@
+{# ============================================================
+   Jinja2 Template: Backend English messages JSON
+   Generated path: append to app/locales/en_US/messages.json
+
+   Variables:
+     - config: CrudConfig
+     - module_snake: snake_case
+     - display_name_en: str
+     - fields: list[FieldConfig]
+   ============================================================ #}
+{
+  "{{ module_snake }}": {
+    "not_found": "{{ display_name_en }} not found",
+    "created": "{{ display_name_en }} created successfully",
+    "updated": "{{ display_name_en }} updated successfully",
+    "deleted": "{{ display_name_en }} deleted successfully",
+    "error": {
+      "not_found": "{{ display_name_en }} not found",
+      "name_exists": "{{ display_name_en }} name already exists",
+      "create_failed": "Failed to create {{ display_name_en }}",
+      "update_failed": "Failed to update {{ display_name_en }}",
+      "delete_failed": "Failed to delete {{ display_name_en }}"
+{% if config.has_status_toggle %}
+      ,"toggle_failed": "Failed to toggle status"
+{% endif %}
+    },
+    "field": {
+{% for field in fields %}
+      "{{ field.name }}": "{{ field.label_en }}"{{ ',' if not loop.last }}
+{% endfor %}
+    }
+  }
+}

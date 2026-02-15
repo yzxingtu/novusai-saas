@@ -1,6 +1,6 @@
 {# ============================================================
    Jinja2 Template: 前端 API 文件
-   生成路径: api/{{ scope_dir }}/{{ module }}s.ts
+   生成路径: api/{{ scope_dir }}/{{ module | pluralize }}.ts
 
    变量:
      - config: CrudConfig
@@ -17,7 +17,7 @@
    ============================================================ #}
 /**
  * {{ scope_dir }}端{{ display_name }}管理 API
- * 对接后端 /{{ scope_dir }}/{{ parent_menu }}/{{ module }}s/* 接口
+ * 对接后端 /{{ scope_dir }}/{{ parent_menu }}/{{ module | pluralize }}/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
@@ -139,7 +139,7 @@ interface PageResponse<T> {
 // API 接口
 // ============================================================
 
-const PREFIX = '/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s';
+const PREFIX = '/{{ scope_dir }}/{{ parent_menu }}/{{ module | pluralize }}';
 
 /** 获取{{ display_name }}列表 */
 export async function get{{ model_class }}ListApi(

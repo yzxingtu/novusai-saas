@@ -285,152 +285,6 @@ class AIErrorOutput(TypedDict):
 # 工具名 → 输出类型映射（文档用）
 # ============================================================
 
-# ============================================================
-# 9. crud_batch_generate_config
-# ============================================================
-# AI 返回 BatchCrudProject JSON。
-# 前端：JSON.parse → 填充 Wizard 实体列表面板
-
-class BatchGenerateConfigOutput(TypedDict):
-    """同 GenerateConfigOutput，但返回的是 BatchCrudProject 结构
-
-    前端解析伪代码::
-
-        const project = JSON.parse(toolOutput)
-        wizardStore.setBatchProject(project)
-        entityList.value = project.entities
-    """
-    project_name: str
-    description: str
-    entities: list[dict[str, Any]]         # CrudConfig[]
-    cross_relations: list[dict[str, Any]]  # EntityRelation[]
-    generation_order: list[str]
-
-
-# ============================================================
-# 10. crud_batch_preview
-# ============================================================
-
-class BatchEntityPreview(TypedDict):
-    """单个实体的批量预览组"""
-    entity_name: str
-    file_count: int
-    files: list[PreviewFileItem]
-
-
-class BatchPreviewOutput(TypedDict):
-    """crud_batch_preview 输出
-
-    前端解析伪代码::
-
-        const data = JSON.parse(toolOutput)
-        entityGroups.value = data.entities
-        sharedFiles.value = data.shared_files
-        stats.value = { total: data.total_files, new: data.total_new, conflict: data.total_conflict }
-    """
-    entities: list[BatchEntityPreview]
-    shared_files: list[PreviewFileItem]
-    total_files: int
-    total_new: int
-    total_conflict: int
-    ddl_preview: str
-
-
-# ============================================================
-# 11. crud_batch_generate_files (两种输出)
-# ============================================================
-
-class BatchGenerateFilesPreview(TypedDict):
-    """crud_batch_generate_files 未确认时的输出
-
-    前端解析伪代码::
-
-        const data = JSON.parse(toolOutput)
-        if (data.requires_confirmation) {
-          showBatchConfirmationCard(data)
-        }
-    """
-    requires_confirmation: bool  # 固定 True
-    entities: list[BatchEntityPreview]
-    shared_files: list[PreviewFileItem]
-    total_files: int
-    total_new: int
-    total_conflict: int
-    ddl_preview: str
-    message: str
-
-
-# BatchGenerateFilesResult 与单表的 GenerateFilesResult 结构相同，复用即可。
-
-
-# ============================================================
-# 12. crud_batch_validate
-# ============================================================
-
-class BatchValidationIssue(TypedDict):
-    """单个校验问题"""
-    code: str            # BatchErrorCode 枚举值
-    category: str        # "validation" | "dependency" | "write" | "generation"
-    message: str         # 人类可读的错误信息
-    severity: str        # "error" | "warning" | "info"
-    details: dict[str, Any]  # 详情（entity/path/field 等）
-    hint: str            # 修复建议
-
-
-class BatchValidationOutput(TypedDict):
-    """crud_batch_validate 输出
-
-    前端解析伪代码::
-
-        const data = JSON.parse(toolOutput)
-        if (!data.valid) {
-          showErrors(data.errors)
-        }
-        if (data.warnings.length) {
-          showWarnings(data.warnings)
-        }
-    """
-    valid: bool
-    errors: list[BatchValidationIssue]
-    warnings: list[BatchValidationIssue]
-    error_count: int
-    warning_count: int
-    resolved_order: list[str]  # 拓扑排序结果
-
-
-# ============================================================
-# 13. crud_batch_merge_patch
-# ============================================================
-
-class MergePathChange(TypedDict, total=False):
-    """单个路径的变更记录"""
-    path: str            # 变更路径
-    action: str          # "added" | "updated" | "skipped"
-    detail: str          # 变更细节
-    skip_reason: str     # "touched_path" | "identical" | "delete_forbidden" | null
-
-
-class MergeEntitySummary(TypedDict):
-    """单个实体的合并摘要"""
-    module: str
-    action: str          # "added" | "updated" | "skipped"
-    changes: list[MergePathChange]
-
-
-class MergePatchOutput(TypedDict):
-    """crud_batch_merge_patch 输出
-
-    前端解析伪代码::
-
-        const data = JSON.parse(toolOutput)
-        wizardStore.setBatchProject(data.project)
-        mergeSummary.value = data.summary
-        highlightChanges(data.summary)
-    """
-    project: dict[str, Any]  # 合并后的 BatchCrudProject
-    summary: dict[str, Any]  # MergeSummary
-
-
 TOOL_OUTPUT_MAP: dict[str, str] = {
     "crud_generate_config": "GenerateConfigOutput (CrudConfig JSON)",
     "crud_preview_code": "PreviewCodeOutput",
@@ -440,11 +294,6 @@ TOOL_OUTPUT_MAP: dict[str, str] = {
     "crud_generate_slot": "GenerateSlotOutput",
     "crud_recommend_style": "RecommendStyleOutput",
     "crud_analyze_intent": "AnalyzeIntentOutput",
-    "crud_batch_generate_config": "BatchGenerateConfigOutput (BatchCrudProject JSON)",
-    "crud_batch_preview": "BatchPreviewOutput",
-    "crud_batch_generate_files": "BatchGenerateFilesPreview (未确认) | GenerateFilesResult (已确认)",
-    "crud_batch_validate": "BatchValidationOutput",
-    "crud_batch_merge_patch": "MergePatchOutput (BatchCrudProject + MergeSummary)",
 }
 
 
@@ -463,14 +312,5 @@ __all__ = [
     "AnalyzedEntity",
     "AnalyzeIntentOutput",
     "AIErrorOutput",
-    "BatchGenerateConfigOutput",
-    "BatchEntityPreview",
-    "BatchPreviewOutput",
-    "BatchGenerateFilesPreview",
-    "BatchValidationIssue",
-    "BatchValidationOutput",
-    "MergePathChange",
-    "MergeEntitySummary",
-    "MergePatchOutput",
     "TOOL_OUTPUT_MAP",
 ]

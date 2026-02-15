@@ -216,14 +216,9 @@ export function useCrudAiAssistant(options: UseCrudAiAssistantOptions) {
         break;
       }
 
-      // Preview/generate/batch tools → informational or confirmation flow
+      // Preview/generate tools → informational or confirmation flow
       case 'crud_preview_code':
-      case 'crud_generate_files':
-      case 'crud_batch_preview':
-      case 'crud_batch_generate_files':
-      case 'crud_batch_validate':
-      case 'crud_batch_merge_patch':
-      case 'crud_batch_generate_config': {
+      case 'crud_generate_files': {
         // These are informational or require confirmation — displayed in chat
         break;
       }

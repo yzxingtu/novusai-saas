@@ -86,7 +86,7 @@ function doParse() {
 }
 
 // ---- Step 2: Preview & Apply ----
-const previewColumns = [
+const previewColumns = computed(() => [
   { title: '', dataIndex: 'selected', width: 40 },
   { title: $t(`${T}.fieldName`), dataIndex: 'name', width: 120 },
   { title: $t(`${T}.fieldType`), dataIndex: 'type', width: 90 },
@@ -95,7 +95,7 @@ const previewColumns = [
   { title: $t(`${T}.required`), dataIndex: 'required', width: 70 },
   { title: $t(`${T}.nullable`), dataIndex: 'nullable', width: 70 },
   { title: $t(`${T}.status`), dataIndex: 'status', width: 90 },
-];
+]);
 
 const existingFieldNames = computed(() =>
   new Set(props.entity.fields.map((f) => f.name)),
@@ -287,7 +287,7 @@ function onCancel() {
           </template>
 
           <template v-else-if="column.dataIndex === 'type'">
-            <Tag size="small">{{ (record as ParsedField).type }}</Tag>
+            <Tag size="small">{{ $t(`admin.dev.crudGenerator.field.fieldType.${(record as ParsedField).type}`) }}</Tag>
           </template>
 
           <template v-else-if="column.dataIndex === 'required'">

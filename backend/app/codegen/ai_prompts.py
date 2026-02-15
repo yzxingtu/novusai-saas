@@ -13,7 +13,6 @@ Prompts:
   6. INTENT_ANALYZE_PROMPT        — 业务意图分析 & 多实体拆解
   7. CODE_PREVIEW_PROMPT          — 代码预览摘要
   8. CRUD_AGENT_SYSTEM_PROMPT     — Agent 系统提示词
-  9. BATCH_CONFIG_GEN_PROMPT      — 多表批量配置生成
 """
 
 from __future__ import annotations
@@ -394,69 +393,11 @@ CRUD_AGENT_SYSTEM_PROMPT = """\
 7. **crud_recommend_style** — 推荐布局和样式
 8. **crud_analyze_intent** — 分析业务需求，拆解为多个领域实体
 
-### 多表批量工具
-
-9. **crud_batch_generate_config** — 为多个实体批量生成 BatchCrudProject 配置（含跨表关联）
-10. **crud_batch_preview** — 批量预览多表文件（按实体分组）
-11. **crud_batch_generate_files** — 批量写入多表代码（需用户确认）
-12. **crud_batch_validate** — 校验 BatchCrudProject 配置（依赖/命名/关系）
-13. **crud_batch_merge_patch** — 增量合并 patch 到已有配置
-
-## 多表批量工作流 v2（分阶段迭代）
-
-对于多实体场景，使用分阶段工作流，像工程师迭代一样逐步完善：
-
-### Phase 1: 规划（Plan）
-1. 用户描述需求 → 调用 `crud_analyze_intent` 识别实体与关系
-2. 向用户展示识别结果：实体列表、关系图、生成顺序
-3. **缺少关键信息时**：生成最小追问问题集（≤5个），按优先级排序
-4. 等待用户确认或补充信息
-
-### Phase 2: 最小配置（Minimal Config）
-5. 调用 `crud_batch_generate_config` 生成初始配置
-6. 调用 `crud_batch_validate` 校验配置
-7. 如有错误 → 自动修复或追问用户
-
-### Phase 3: 迭代完善（Refine）
-8. 用户提出修改 → 调用 `crud_batch_merge_patch` 增量合并
-9. 重新 validate → 确认无误
-
-### Phase 4: 预览确认（Preview & Confirm）
-10. 调用 `crud_batch_preview` 预览全部文件
-11. 用户确认 → 调用 `crud_batch_generate_files` 写入（需用户确认）
-
-### 单表标准流程
+## 单表标准工作流程
 
 1. 用户描述需求 → `crud_generate_config` 生成配置
 2. `crud_preview_code` 预览代码
 3. `crud_generate_files` 写入文件（需用户确认）
-
-## Join Entity 规则（多对多关系）
-
-**禁止**直接使用 `many_to_many` relation_type。必须通过显式 Join Entity 实现：
-
-正确方式：
-- 创建 join entity（如 `user_role`）
-- join entity 对两端各有一个 `belongs_to` 关系
-- 两端实体各有一个 `has_many` 到 join entity
-
-示例：用户-角色多对多
-```
-entities: [user, role, user_role]
-cross_relations: [
-  user_role → user (belongs_to, foreign_key: user_id),
-  user_role → role (belongs_to, foreign_key: role_id)
-]
-generation_order: [user, role, user_role]
-```
-
-## 共享文件策略
-
-**重要**：AI 不直接输出路由/API 聚合文件的文本内容。
-
-- 路由注册、API 导出等共享文件由后端 merge/patch 引擎自动生成
-- AI 只需输出结构化的实体配置（entities + cross_relations）
-- 共享枚举放入 `shared_enums`，不要在多个实体中重复定义
 
 ## 交互规则
 
@@ -464,7 +405,7 @@ generation_order: [user, role, user_role]
 2. **缺少信息时追问**，不要猜测或填充默认值
 3. **配置生成后展示关键信息**给用户确认（字段列表、关联、枚举）
 4. **写入文件前必须预览**，让用户看到文件列表
-5. **crud_batch_generate_files 会要求用户确认**，不要自行确认
+5. **crud_generate_files 会要求用户确认**，不要自行确认
 6. 回复使用中文，技术术语可用英文
 7. **输出严格 JSON**，字段必须在 schema 白名单内，禁止额外字段
 
@@ -489,117 +430,6 @@ max_length, searchable, search_op, in_list, in_form, enum_ref, default
 # 导出
 # ============================================================
 
-# ============================================================
-# Prompt 9: 多表批量配置生成
-# ============================================================
-
-BATCH_CONFIG_GEN_PROMPT = f"""\
-你是一个专业的 CRUD 代码生成器架构师。你的任务是根据业务需求为多个实体批量生成 BatchCrudProject 配置。
-
-{_TECH_STACK_CONTEXT}
-
-{_NAMING_CONVENTIONS}
-
-## 输出格式
-
-输出严格的 JSON，符合 BatchCrudProject 结构。**仅使用白名单内的字段，禁止额外字段**：
-
-```json
-{{
-  "project_name": "项目名称",
-  "description": "业务描述",
-  "entities": [
-    {{
-      "module": "entity-name",
-      "table_name": "entity_names",
-      "display_name": "中文名",
-      "display_name_en": "English Name",
-      "scope": "tenant",
-      "parent_menu": "category",
-      "has_status_toggle": false,
-      "fields": [...],
-      "relations": [...],
-      "enums": [...],
-      "indexes": [...]
-    }}
-  ],
-  "cross_relations": [
-    {{
-      "source_entity": "child-entity",
-      "target_entity": "parent-entity",
-      "relation_type": "belongs_to",
-      "foreign_key": "parent_entity_id",
-      "nullable": false
-    }}
-  ],
-  "shared_enums": [...],
-  "generation_order": ["parent-first", "child-second"]
-}}
-```
-
-## 字段白名单
-
-Entity 顶层: module, table_name, display_name, display_name_en, scope, parent_menu,
-has_status_toggle, fields, relations, enums, indexes
-
-Field: name, type, label, label_zh, label_en, required, nullable, unique, max_length,
-searchable, search_op, in_list, in_form, enum_ref, default
-
-**禁止使用白名单以外的字段名。**
-
-## 跨表关联规则
-
-1. 识别实体间的 belongs_to / has_many 关系
-2. 外键命名：`{{target_entity}}_id`（snake_case）
-3. 父实体必须在 generation_order 中先于子实体
-4. 外键可为空（nullable）默认为 false（强制关联）
-
-## Join Entity 规则（多对多）
-
-**禁止**直接使用 `many_to_many` relation_type，它会导致校验失败。
-
-多对多必须通过显式 Join Entity 实现：
-1. 创建 join entity（命名：`{{entity_a}}_{{entity_b}}`，如 `user_role`）
-2. join entity 对两端各有一个 `belongs_to` cross_relation
-3. 两端实体通过 join entity 间接关联
-4. join entity 排在两端实体之后的 generation_order 中
-
-示例：
-```
-entities: [user, role, user_role]
-cross_relations: [
-  {{source_entity: "user_role", target_entity: "user", relation_type: "belongs_to", foreign_key: "user_id"}},
-  {{source_entity: "user_role", target_entity: "role", relation_type: "belongs_to", foreign_key: "role_id"}}
-]
-generation_order: ["user", "role", "user_role"]
-```
-
-## 共享枚举识别
-
-如果多个实体使用相同的枚举（如 Status、Priority），放入 `shared_enums` 而非各实体内部。
-避免在多个实体中重复定义相同枚举。
-
-## 共享文件策略
-
-**重要**：不要输出路由/API 聚合文件的内容。
-
-- 路由注册、API 导出、i18n 聚合等共享文件由后端 merge/patch 引擎自动生成
-- 只需输出实体配置（entities + cross_relations），后端自动处理共享文件
-
-## 依赖排序规则
-
-1. 无依赖的实体排前
-2. 被引用的父实体在引用它的子实体之前
-3. 取决于外键方向，不是业务语义
-
-## 重要注意
-
-- 每个 entity 必须是完整的 CrudConfig，不能省略必填字段
-- 所有 entity 的 scope 和 parent_menu 保持一致（除非用户明确指定）
-- field 的 name 用 snake_case，type 必须是: string/text/integer/float/decimal/boolean/datetime/date/json/enum/file
-- 必须返回纯 JSON，不要包裹在 markdown 代码块中
-- 信息不足时，返回带 `needs_clarification` 标记的追问，而非猜测填充
-"""
 
 
 __all__ = [
@@ -611,5 +441,4 @@ __all__ = [
     "INTENT_ANALYZE_PROMPT",
     "CODE_PREVIEW_PROMPT",
     "CRUD_AGENT_SYSTEM_PROMPT",
-    "BATCH_CONFIG_GEN_PROMPT",
 ]

@@ -10,7 +10,6 @@ import { $t } from '#/locales';
 import type { CommandItem } from './components/CommandPalette.vue';
 
 import AiAssistant from './components/AiAssistant.vue';
-import BatchEntityEditor from './components/BatchEntityEditor.vue';
 import CommandPalette from './components/CommandPalette.vue';
 import StepBasicInfo from './components/StepBasicInfo.vue';
 import StepCodePreview from './components/StepCodePreview.vue';
@@ -18,7 +17,6 @@ import StepFieldDefine from './components/StepFieldDefine.vue';
 import StepFormConfig from './components/StepFormConfig.vue';
 import StepListConfig from './components/StepListConfig.vue';
 import { createDefaultField } from './composables/field-inference';
-import { useBatchEditor } from './composables/use-batch-editor';
 import { useCrudAiAssistant } from './composables/use-crud-ai-assistant';
 import { useTouchedPaths } from './composables/use-config-merge';
 import { useCrudConfig } from './composables/use-crud-config';
@@ -48,14 +46,6 @@ const {
   resetConfig,
   loadConfig,
 } = crudConfig;
-
-// ============================================================
-// Batch (multi-entity) mode
-// ============================================================
-
-type GeneratorMode = 'single' | 'batch';
-const generatorMode = ref<GeneratorMode>('single');
-const batchEditor = useBatchEditor();
 
 // ============================================================
 // Mock data for List/Form preview
@@ -276,27 +266,8 @@ function handleStepClick(step: number) {
       </div>
 
       <div class="ml-4 flex shrink-0 items-center gap-2">
-        <!-- Generator Mode: Single / Batch -->
+        <!-- Edit Mode Toggle (wizard/code) -->
         <Radio.Group
-          v-model:value="generatorMode"
-          button-style="solid"
-          size="small"
-        >
-          <Radio.Button value="single">
-            <span class="icon-[lucide--file-text] mr-1 size-3.5" />
-            {{ $t('admin.dev.crudGenerator.mode.wizard') }}
-          </Radio.Button>
-          <Radio.Button value="batch">
-            <span class="icon-[lucide--layers] mr-1 size-3.5" />
-            {{ $t('admin.dev.crudGenerator.batchEditor.title') }}
-          </Radio.Button>
-        </Radio.Group>
-
-        <div class="bg-border mx-1 h-5 w-px" />
-
-        <!-- Edit Mode Toggle (wizard/code) — only in single mode -->
-        <Radio.Group
-          v-if="generatorMode === 'single'"
           :value="editMode"
           button-style="solid"
           size="small"
@@ -366,62 +337,55 @@ function handleStepClick(step: number) {
       </div>
     </div>
 
-    <!-- ============ Batch Mode: Multi-Entity Editor ============ -->
-    <div v-if="generatorMode === 'batch'" class="min-h-[500px]">
-      <BatchEntityEditor :editor="batchEditor" />
+    <!-- ============ Wizard / Code Content ============ -->
+    <!-- Wizard Mode: Step Content -->
+    <div v-if="editMode === 'wizard'" class="wizard-content relative min-h-[400px] overflow-hidden">
+      <Transition :name="'slide-left'" mode="out-in">
+        <div :key="currentStep" class="w-full">
+          <!-- Step 0: 基本信息 -->
+          <div v-if="currentStep === 0">
+            <StepBasicInfo :config="config" @update:config="loadConfig" @snapshot="snapshot" />
+          </div>
+
+          <!-- Step 1: 字段定义 -->
+          <div v-else-if="currentStep === 1">
+            <StepFieldDefine :config="config" @update:config="loadConfig" @snapshot="snapshot" />
+          </div>
+
+          <!-- Step 2: 列表配置 -->
+          <div v-else-if="currentStep === 2">
+            <StepListConfig
+              :config="config"
+              :mock-data="mockData"
+              @update:config="loadConfig"
+            />
+          </div>
+
+          <!-- Step 3: 表单配置 -->
+          <div v-else-if="currentStep === 3">
+            <StepFormConfig
+              :config="config"
+              :mock-data="mockData"
+              @update:config="loadConfig"
+            />
+          </div>
+
+          <!-- Step 4: 代码预览 -->
+          <div v-else-if="currentStep === 4">
+            <StepCodePreview :config="config" />
+          </div>
+        </div>
+      </Transition>
     </div>
 
-    <!-- ============ Single Mode ============ -->
-    <template v-else>
-      <!-- Wizard Mode: Step Content -->
-      <div v-if="editMode === 'wizard'" class="wizard-content relative min-h-[400px] overflow-hidden">
-        <Transition :name="'slide-left'" mode="out-in">
-          <div :key="currentStep" class="w-full">
-            <!-- Step 0: 基本信息 -->
-            <div v-if="currentStep === 0">
-              <StepBasicInfo :config="config" @update:config="loadConfig" @snapshot="snapshot" />
-            </div>
-
-            <!-- Step 1: 字段定义 -->
-            <div v-else-if="currentStep === 1">
-              <StepFieldDefine :config="config" @update:config="loadConfig" @snapshot="snapshot" />
-            </div>
-
-            <!-- Step 2: 列表配置 -->
-            <div v-else-if="currentStep === 2">
-              <StepListConfig
-                :config="config"
-                :mock-data="mockData"
-                @update:config="loadConfig"
-              />
-            </div>
-
-            <!-- Step 3: 表单配置 -->
-            <div v-else-if="currentStep === 3">
-              <StepFormConfig
-                :config="config"
-                :mock-data="mockData"
-                @update:config="loadConfig"
-              />
-            </div>
-
-            <!-- Step 4: 代码预览 -->
-            <div v-else-if="currentStep === 4">
-              <StepCodePreview :config="config" />
-            </div>
-          </div>
-        </Transition>
-      </div>
-
-      <!-- Code Mode: JSON Editor -->
-      <div v-else class="code-mode min-h-[400px]">
-        <textarea
-          v-model="codeContent"
-          class="bg-accent/50 h-[600px] w-full resize-y rounded-lg border p-4 font-mono text-sm leading-relaxed focus:border-primary focus:outline-none"
-          spellcheck="false"
-        />
-      </div>
-    </template>
+    <!-- Code Mode: JSON Editor -->
+    <div v-else class="code-mode min-h-[400px]">
+      <textarea
+        v-model="codeContent"
+        class="bg-accent/50 h-[600px] w-full resize-y rounded-lg border p-4 font-mono text-sm leading-relaxed focus:border-primary focus:outline-none"
+        spellcheck="false"
+      />
+    </div>
 
     <!-- Command Palette -->
     <CommandPalette

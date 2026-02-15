@@ -1,7 +1,7 @@
 """
 AI 缺失信息自动追问 — 最小问题集 + 追问协议
 
-M58-T31: 当 batch validate 发现缺少关键信息时，
+M58-T31: 当 validate 发现缺少关键信息时，
 生成结构化追问问题集，引导用户补全后再继续生成。
 
 问题分类：
@@ -104,7 +104,7 @@ def detect_missing_info(project_dict: dict[str, Any]) -> ClarifyResult:
     6. 字段类型歧义
 
     Args:
-        project_dict: BatchCrudProject JSON
+        project_dict: CrudConfig JSON
 
     Returns:
         ClarifyResult

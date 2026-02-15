@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { reactive, watch } from 'vue';
 
 import {
   Checkbox,
@@ -23,6 +23,7 @@ import {
   getAlignOptions,
   getFixedOptions,
   getRenderPresetOptions,
+  getSearchOperatorOptions,
 } from '../constants';
 import { createDefaultField } from '../composables/field-inference';
 
@@ -32,53 +33,47 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  close: [];
-  snapshot: [];
+  (e: 'close'): void;
+  (e: 'snapshot'): void;
+  (e: 'update:field', field: FieldConfig): void;
 }>();
 
 const T = 'admin.dev.crudGenerator.field.detailDrawer';
+const TL = 'admin.dev.crudGenerator.listConfig';
 
-/** Non-null field ref for template binding (guarded by v-if) */
-const f = computed(() => props.field ?? createDefaultField());
+/** Local editable copy — synced from prop on open */
+const f = reactive<FieldConfig>(createDefaultField());
 
-const searchOpOptions = [
-  { label: 'ILIKE', value: 'ilike' },
-  { label: '=', value: 'eq' },
-  { label: 'IN', value: 'in' },
-  { label: '>=', value: 'gte' },
-  { label: '<=', value: 'lte' },
-  { label: 'BETWEEN', value: 'between' },
-];
-
-const listRenderOptions = getRenderPresetOptions();
-
-const formComponentOptions = FORM_COMPONENT_OPTIONS;
-
-const listAlignOptions = getAlignOptions();
-
-const listFixedOptions = getFixedOptions();
+watch(
+  () => props.field,
+  (newField) => {
+    if (newField) {
+      Object.assign(f, { ...newField });
+    }
+  },
+  { immediate: true },
+);
 
 function setNum(key: 'form_col_span' | 'list_width' | 'max_length', v: unknown) {
-  if (!props.field) return;
-  props.field[key] = typeof v === 'number' ? v : null;
+  f[key] = typeof v === 'number' ? v : null;
 }
 
 function setStr(key: 'enum_ref' | 'form_group' | 'form_help' | 'form_placeholder' | 'list_fixed', v: unknown) {
-  if (!props.field) return;
-  props.field[key] = typeof v === 'string' && v ? v : null;
+  f[key] = typeof v === 'string' && v ? v : null;
 }
 
 function setListRender(v: unknown) {
-  if (!props.field) return;
-  props.field.list_render = (typeof v === 'string' && v ? v : null) as ListRenderPreset | null;
+  f.list_render = (typeof v === 'string' && v ? v : null) as ListRenderPreset | null;
 }
 
 function setFormComponent(v: unknown) {
-  if (!props.field) return;
-  props.field.form_component = (typeof v === 'string' && v ? v : 'Input') as FormComponent;
+  f.form_component = (typeof v === 'string' && v ? v : 'Input') as FormComponent;
 }
 
 function onClose() {
+  if (props.field) {
+    emit('update:field', { ...f });
+  }
   emit('snapshot');
   emit('close');
 }
@@ -127,7 +122,7 @@ function onClose() {
             <Form.Item :label="$t(`${T}.enumRef`)">
               <Input
                 :value="f.enum_ref ?? ''"
-                placeholder="EnumName"
+                :placeholder="$t(`${T}.enumRefPlaceholder`)"
                 @change="(e: Event) => setStr('enum_ref', (e.target as HTMLInputElement).value)"
               />
             </Form.Item>
@@ -144,7 +139,7 @@ function onClose() {
             <Form.Item :label="$t(`${T}.searchOp`)">
               <Select
                 v-model:value="f.search_op"
-                :options="searchOpOptions"
+                :options="getSearchOperatorOptions()"
                 style="width: 100%"
               />
             </Form.Item>
@@ -161,7 +156,7 @@ function onClose() {
             <Form.Item :label="$t(`${T}.listWidth`)">
               <InputNumber
                 :min="40"
-                :placeholder="'auto'"
+                :placeholder="$t(`${TL}.widthAuto`)"
                 :value="f.list_width ?? undefined"
                 style="width: 100%"
                 @change="(v: unknown) => setNum('list_width', v)"
@@ -172,7 +167,7 @@ function onClose() {
             <Form.Item :label="$t(`${T}.listAlign`)">
               <Radio.Group
                 v-model:value="f.list_align"
-                :options="listAlignOptions"
+                :options="getAlignOptions()"
                 option-type="button"
                 size="small"
               />
@@ -190,19 +185,26 @@ function onClose() {
             <Form.Item :label="$t(`${T}.listRender`)">
               <Select
                 :allow-clear="true"
-                :options="listRenderOptions"
+                :options="getRenderPresetOptions()"
                 :value="f.list_render ?? undefined"
                 placeholder="-"
                 style="width: 100%"
                 @change="setListRender"
-              />
+              >
+                <template #option="{ icon, label }">
+                  <div class="flex items-center gap-1.5">
+                    <span v-if="icon" :class="[icon, 'size-3.5 opacity-60']" />
+                    <span>{{ label }}</span>
+                  </div>
+                </template>
+              </Select>
             </Form.Item>
           </Col>
           <Col :span="12">
             <Form.Item :label="$t(`${T}.listFixed`)">
               <Select
                 :allow-clear="true"
-                :options="listFixedOptions"
+                :options="getFixedOptions()"
                 :value="f.list_fixed ?? undefined"
                 placeholder="-"
                 style="width: 100%"
@@ -221,11 +223,18 @@ function onClose() {
           <Col :span="12">
             <Form.Item :label="$t(`${T}.formComponent`)">
               <Select
-                :options="formComponentOptions"
+                :options="FORM_COMPONENT_OPTIONS"
                 :value="f.form_component"
                 style="width: 100%"
                 @change="setFormComponent"
-              />
+              >
+                <template #option="{ icon, label }">
+                  <div class="flex items-center gap-1.5">
+                    <span v-if="icon" :class="[icon, 'size-3.5 opacity-60']" />
+                    <span>{{ label }}</span>
+                  </div>
+                </template>
+              </Select>
             </Form.Item>
           </Col>
           <Col :span="12">
@@ -233,7 +242,7 @@ function onClose() {
               <InputNumber
                 :max="24"
                 :min="1"
-                :placeholder="'auto'"
+                :placeholder="$t(`${TL}.widthAuto`)"
                 :value="f.form_col_span ?? undefined"
                 style="width: 100%"
                 @change="(v: unknown) => setNum('form_col_span', v)"

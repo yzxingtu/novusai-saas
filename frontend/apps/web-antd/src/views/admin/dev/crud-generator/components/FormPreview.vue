@@ -64,7 +64,7 @@ const formFields = computed(() =>
   props.config.fields.filter((f) => f.in_form),
 );
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- form data binds to diverse Ant Design components
 const formData = reactive<Record<string, any>>({});
 
 // Initialize form data from row (edit mode) or defaults
@@ -309,7 +309,7 @@ const isDrawer = computed(() => props.config.form_config.form_type === 'drawer')
               >
                 <div class="flex flex-col items-center">
                   <span class="icon-[lucide--upload] size-5 opacity-40" />
-                  <span class="text-xs opacity-40">Upload</span>
+                  <span class="text-xs opacity-40">{{ $t('common.upload') }}</span>
                 </div>
               </Upload>
 
@@ -339,7 +339,7 @@ const isDrawer = computed(() => props.config.form_config.form_type === 'drawer')
                 v-model:value="formData[field.name]"
                 :auto-size="{ minRows: 4, maxRows: 10 }"
                 class="font-mono"
-                placeholder="{ }"
+                :placeholder="$t(`${T}.formPreview.jsonPlaceholder`)"
               />
 
               <!-- RichText fallback -->
@@ -347,7 +347,7 @@ const isDrawer = computed(() => props.config.form_config.form_type === 'drawer')
                 v-else-if="field.form_component === 'RichText'"
                 v-model:value="formData[field.name]"
                 :auto-size="{ minRows: 5, maxRows: 12 }"
-                placeholder="Rich text editor placeholder"
+                :placeholder="$t(`${T}.formPreview.richTextPlaceholder`)"
               />
 
               <!-- Cascader fallback -->

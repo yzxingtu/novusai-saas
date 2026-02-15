@@ -102,7 +102,7 @@ async function sendRequest() {
     }, null, 2);
   } else if (ep.method === 'DELETE') {
     responseStatus.value = 200;
-    responseBody.value = JSON.stringify({ message: 'Deleted successfully' }, null, 2);
+    responseBody.value = JSON.stringify({ message: $t(`${T}.translate.deleteSuccess`) }, null, 2);
   }
 
   isLoading.value = false;
@@ -121,7 +121,7 @@ async function sendRequest() {
           size="small"
         />
         <Button :loading="isLoading" size="small" type="primary" @click="sendRequest">
-          Send
+          {{ $t(`${T}.apiPlayground.send`) }}
         </Button>
       </div>
 
@@ -134,7 +134,7 @@ async function sendRequest() {
 
       <!-- Request body -->
       <div v-if="currentEndpoint?.method === 'POST' || currentEndpoint?.method === 'PUT'">
-        <p class="text-muted-foreground mb-1 text-xs">Request Body</p>
+        <p class="text-muted-foreground mb-1 text-xs">{{ $t(`${T}.apiPlayground.requestBody`) }}</p>
         <Input.TextArea
           v-model:value="requestBody"
           :auto-size="{ minRows: 4, maxRows: 10 }"
@@ -145,7 +145,7 @@ async function sendRequest() {
       <!-- Response -->
       <div v-if="responseStatus !== null">
         <div class="mb-1 flex items-center gap-2">
-          <span class="text-xs font-medium">Response</span>
+          <span class="text-xs font-medium">{{ $t(`${T}.apiPlayground.response`) }}</span>
           <Tag :color="responseStatus < 300 ? 'green' : 'red'">
             {{ responseStatus }}
           </Tag>

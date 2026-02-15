@@ -186,12 +186,12 @@ function formatRelativeTime(val: unknown): string {
   const now = Date.now();
   const diff = now - date.getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return '刚刚';
-  if (mins < 60) return `${mins} 分钟前`;
+  if (mins < 1) return $t(`${T}.history.justNow`);
+  if (mins < 60) return $t(`${T}.history.minutesAgo`, { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} 小时前`;
+  if (hours < 24) return $t(`${T}.history.hoursAgo`, { n: hours });
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days} 天前`;
+  if (days < 30) return $t(`${T}.history.daysAgo`, { n: days });
   return String(val).slice(0, 10);
 }
 

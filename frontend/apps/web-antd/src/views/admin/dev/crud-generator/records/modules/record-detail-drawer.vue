@@ -21,6 +21,16 @@ import type { CrudRecordDetail, FileManifestItem } from '#/api/admin/crud-record
 
 import { getCrudRecordDetailApi } from '#/api/admin/crud-records';
 
+import {
+  formatDuration,
+  formatFileSize,
+  formatTime,
+  getStatusColor,
+  getStatusLabel,
+  getTypeColor,
+  getTypeLabel,
+} from '../utils';
+
 const T = 'admin.dev.crudGenerator.records';
 
 // ============================================================
@@ -61,40 +71,6 @@ defineExpose({ open, close });
 // 计算属性
 // ============================================================
 
-function getTypeColor(type: string): string {
-  const map: Record<string, string> = {
-    preview: 'blue',
-    generate: 'green',
-    rollback: 'orange',
-    delete: 'red',
-  };
-  return map[type] || 'default';
-}
-
-function getStatusColor(status: string): string {
-  const map: Record<string, string> = {
-    success: 'success',
-    partial_failure: 'warning',
-    failed: 'error',
-    rolled_back: 'default',
-  };
-  return map[status] || 'default';
-}
-
-function getTypeLabel(type: string): string {
-  return $t(`${T}.type.${type}`) || type;
-}
-
-function getStatusLabel(status: string): string {
-  const map: Record<string, string> = {
-    success: 'success',
-    partial_failure: 'partialFailure',
-    failed: 'failed',
-    rolled_back: 'rolledBack',
-  };
-  return $t(`${T}.status.${map[status] || status}`) || status;
-}
-
 function getOperationColor(op: string): string {
   const map: Record<string, string> = {
     written: 'green',
@@ -108,23 +84,6 @@ function getOperationColor(op: string): string {
 
 function getOperationLabel(op: string): string {
   return $t(`${T}.fileOp.${op}`) || op;
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDuration(ms: number | null): string {
-  if (ms === null || ms === undefined) return '-';
-  if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
-}
-
-function formatTime(time: string | null): string {
-  if (!time) return '-';
-  return new Date(time).toLocaleString();
 }
 
 const fileManifestColumns = computed(() => [
@@ -228,7 +187,7 @@ function copyConfig() {
                   </Tag>
                 </template>
                 <template v-else-if="column.dataIndex === 'size'">
-                  {{ formatSize((row as FileManifestItem).size) }}
+                  {{ formatFileSize((row as FileManifestItem).size) }}
                 </template>
               </template>
             </Table>

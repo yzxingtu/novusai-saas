@@ -7,6 +7,8 @@
 
 import type { FieldConfig, FieldType, FormComponent, ListRenderPreset } from '../types';
 
+import { $t } from '#/locales';
+
 interface InferenceResult {
   type: FieldType;
   required?: boolean;
@@ -292,17 +294,63 @@ export function createDefaultField(name = ''): FieldConfig {
   return base;
 }
 
-/** 字段类型选项 */
-export const FIELD_TYPE_OPTIONS: { label: string; value: FieldType }[] = [
-  { label: 'String', value: 'string' },
-  { label: 'Text', value: 'text' },
-  { label: 'Integer', value: 'integer' },
-  { label: 'Float', value: 'float' },
-  { label: 'Decimal', value: 'decimal' },
-  { label: 'Boolean', value: 'boolean' },
-  { label: 'DateTime', value: 'datetime' },
-  { label: 'Date', value: 'date' },
-  { label: 'JSON', value: 'json' },
-  { label: 'Enum', value: 'enum' },
-  { label: 'File', value: 'file' },
-];
+/**
+ * 根据字段类型返回推荐的默认属性
+ */
+export function getDefaultsByType(type: FieldType): Partial<FieldConfig> {
+  switch (type) {
+    case 'string': {
+      return { max_length: 255, form_component: 'Input', search_op: 'ilike' };
+    }
+    case 'text': {
+      return { max_length: null, form_component: 'Textarea', search_op: 'ilike', list_render: 'ellipsis' };
+    }
+    case 'integer': {
+      return { form_component: 'InputNumber', search_op: 'eq' };
+    }
+    case 'float':
+    case 'decimal': {
+      return { form_component: 'InputNumber', search_op: 'eq', list_render: 'money' };
+    }
+    case 'boolean': {
+      return { form_component: 'Switch', list_render: 'switch', search_op: 'eq', nullable: false };
+    }
+    case 'datetime': {
+      return { form_component: 'DatePicker', list_render: 'datetime', search_op: 'between', sortable: true };
+    }
+    case 'date': {
+      return { form_component: 'DatePicker', list_render: 'date', search_op: 'between', sortable: true };
+    }
+    case 'json': {
+      return { form_component: 'JsonEditor', search_op: 'ilike', in_list: false };
+    }
+    case 'enum': {
+      return { form_component: 'Select', list_render: 'tag', search_op: 'eq' };
+    }
+    case 'file': {
+      return { form_component: 'Upload', search_op: 'ilike', in_list: false };
+    }
+    default: {
+      return {};
+    }
+  }
+}
+
+const _FT = 'admin.dev.crudGenerator.field.fieldType';
+
+/** 字段类型选项（函数形式，保证 $t 响应性） */
+export function getFieldTypeOptions(): { label: string; value: FieldType }[] {
+  return [
+    { label: $t(`${_FT}.string`), value: 'string' },
+    { label: $t(`${_FT}.text`), value: 'text' },
+    { label: $t(`${_FT}.integer`), value: 'integer' },
+    { label: $t(`${_FT}.float`), value: 'float' },
+    { label: $t(`${_FT}.decimal`), value: 'decimal' },
+    { label: $t(`${_FT}.boolean`), value: 'boolean' },
+    { label: $t(`${_FT}.datetime`), value: 'datetime' },
+    { label: $t(`${_FT}.date`), value: 'date' },
+    { label: $t(`${_FT}.json`), value: 'json' },
+    { label: $t(`${_FT}.enum`), value: 'enum' },
+    { label: $t(`${_FT}.file`), value: 'file' },
+  ];
+}

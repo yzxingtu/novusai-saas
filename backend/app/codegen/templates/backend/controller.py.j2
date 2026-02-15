@@ -104,8 +104,8 @@ def _serialize(item) -> dict:
     scope=PermissionScope.TENANT,
     menu=MenuConfig(
         icon="{{ menu_icon }}",
-        path="/{{ parent_menu }}/{{ module }}s",
-        component="tenant/{{ parent_menu }}/{{ module }}s/index",
+        path="/{{ parent_menu }}/{{ module | pluralize }}",
+        component="tenant/{{ parent_menu }}/{{ module | pluralize }}/index",
         parent="{{ parent_menu }}",
         sort_order={{ menu_sort }},
     ),
@@ -113,7 +113,7 @@ def _serialize(item) -> dict:
 class Tenant{{ model_class }}Controller(TenantController):
     """租户{{ display_name }}管理控制器"""
 
-    prefix = "/{{ parent_menu }}/{{ module }}s"
+    prefix = "/{{ parent_menu }}/{{ module | pluralize }}"
     tags = [_("menu.tags.tenant_{{ module_snake }}_mgmt")]
 
     def _register_routes(self) -> None:
@@ -129,7 +129,7 @@ class Tenant{{ model_class }}Controller(TenantController):
         )
 {% endif %}
 
-        @router.get("", summary="获取{{ display_name }}列表")
+        @router.get("", summary="List {{ display_name_en }}")
         @action_read("action.{{ resource_code }}.list")
         async def list_items(
             request: Request,
@@ -146,7 +146,7 @@ class Tenant{{ model_class }}Controller(TenantController):
                 page_size=query.size,
             )
 
-        @router.get("/{id}", summary="获取{{ display_name }}详情")
+        @router.get("/{id}", summary="Get {{ display_name_en }} Detail")
         @action_read("action.{{ resource_code }}.detail")
         async def get_item(
             id: int,
@@ -159,7 +159,7 @@ class Tenant{{ model_class }}Controller(TenantController):
                 raise NotFoundException(message=_("{{ module_snake }}.error.not_found"))
             return success(data=_serialize(item))
 
-        @router.post("", summary="创建{{ display_name }}")
+        @router.post("", summary="Create {{ display_name_en }}")
         @action_create("action.{{ resource_code }}.create")
         async def create_item(
             request: Request,
@@ -171,7 +171,7 @@ class Tenant{{ model_class }}Controller(TenantController):
             item = await service.create(body.model_dump(exclude_unset=True))
             return created(data=_serialize(item))
 
-        @router.put("/{id}", summary="更新{{ display_name }}")
+        @router.put("/{id}", summary="Update {{ display_name_en }}")
         @action_update("action.{{ resource_code }}.update")
         async def update_item(
             id: int,
@@ -185,7 +185,7 @@ class Tenant{{ model_class }}Controller(TenantController):
                 raise NotFoundException(message=_("{{ module_snake }}.error.not_found"))
             return success(data=_serialize(item))
 
-        @router.delete("/{id}", summary="删除{{ display_name }}")
+        @router.delete("/{id}", summary="Delete {{ display_name_en }}")
         @action_delete("action.{{ resource_code }}.delete")
         async def delete_item(
             id: int,
@@ -197,7 +197,7 @@ class Tenant{{ model_class }}Controller(TenantController):
             return deleted()
 {% if has_status_toggle %}
 
-        @router.put("/{id}/toggle-status", summary="切换{{ display_name }}状态")
+        @router.put("/{id}/toggle-status", summary="Toggle {{ display_name_en }} Status")
         @action_update("action.{{ resource_code }}.toggle_status")
         async def toggle_status(
             id: int,
@@ -213,7 +213,7 @@ class Tenant{{ model_class }}Controller(TenantController):
 {% endif %}
 {% if selectable %}
 
-        @router.get("/select", summary="获取{{ display_name }}下拉选项")
+        @router.get("/select", summary="Get {{ display_name_en }} Select Options")
         @action_read("action.{{ resource_code }}.select")
         async def get_select_options(
             db: DbSession,
@@ -231,8 +231,8 @@ class Tenant{{ model_class }}Controller(TenantController):
     scope=PermissionScope.ADMIN,
     menu=MenuConfig(
         icon="{{ menu_icon }}",
-        path="/{{ parent_menu }}/{{ module }}s",
-        component="admin/{{ parent_menu }}/{{ module }}s/index",
+        path="/{{ parent_menu }}/{{ module | pluralize }}",
+        component="admin/{{ parent_menu }}/{{ module | pluralize }}/index",
         parent="{{ parent_menu }}",
         sort_order={{ menu_sort }},
     ),
@@ -240,7 +240,7 @@ class Tenant{{ model_class }}Controller(TenantController):
 class Admin{{ model_class }}Controller(GlobalController):
     """平台{{ display_name }}管理控制器"""
 
-    prefix = "/{{ parent_menu }}/{{ module }}s"
+    prefix = "/{{ parent_menu }}/{{ module | pluralize }}"
     tags = [_("menu.tags.admin_{{ module_snake }}_mgmt")]
 
     def _register_routes(self) -> None:
@@ -256,7 +256,7 @@ class Admin{{ model_class }}Controller(GlobalController):
         )
 {% endif %}
 
-        @router.get("", summary="全局{{ display_name }}列表")
+        @router.get("", summary="List All {{ display_name_en }}")
         @action_read("action.admin_{{ resource_code }}.list")
         async def list_items(
             request: Request,
@@ -273,7 +273,7 @@ class Admin{{ model_class }}Controller(GlobalController):
                 page_size=query.size,
             )
 
-        @router.get("/{id}", summary="获取{{ display_name }}详情")
+        @router.get("/{id}", summary="Get {{ display_name_en }} Detail")
         @action_read("action.admin_{{ resource_code }}.detail")
         async def get_item(
             id: int,
@@ -286,7 +286,7 @@ class Admin{{ model_class }}Controller(GlobalController):
                 raise NotFoundException(message=_("{{ module_snake }}.error.not_found"))
             return success(data=_serialize(item))
 
-        @router.post("", summary="创建{{ display_name }}")
+        @router.post("", summary="Create {{ display_name_en }}")
         @action_create("action.admin_{{ resource_code }}.create")
         async def create_item(
             request: Request,
@@ -298,7 +298,7 @@ class Admin{{ model_class }}Controller(GlobalController):
             item = await service.create(body.model_dump(exclude_unset=True))
             return created(data=_serialize(item))
 
-        @router.put("/{id}", summary="更新{{ display_name }}")
+        @router.put("/{id}", summary="Update {{ display_name_en }}")
         @action_update("action.admin_{{ resource_code }}.update")
         async def update_item(
             id: int,
@@ -312,7 +312,7 @@ class Admin{{ model_class }}Controller(GlobalController):
                 raise NotFoundException(message=_("{{ module_snake }}.error.not_found"))
             return success(data=_serialize(item))
 
-        @router.delete("/{id}", summary="删除{{ display_name }}")
+        @router.delete("/{id}", summary="Delete {{ display_name_en }}")
         @action_delete("action.admin_{{ resource_code }}.delete")
         async def delete_item(
             id: int,
@@ -324,7 +324,7 @@ class Admin{{ model_class }}Controller(GlobalController):
             return deleted()
 {% if has_status_toggle %}
 
-        @router.put("/{id}/toggle-status", summary="切换{{ display_name }}状态")
+        @router.put("/{id}/toggle-status", summary="Toggle {{ display_name_en }} Status")
         @action_update("action.admin_{{ resource_code }}.toggle_status")
         async def toggle_status(
             id: int,

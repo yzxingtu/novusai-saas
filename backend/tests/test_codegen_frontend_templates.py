@@ -1,7 +1,7 @@
 """
 CRUD Generator Jinja2 前端模板渲染测试
 
-验证 4 个前端模板的渲染输出是否符合预期
+验证 7 个前端模板的渲染输出是否符合预期
 """
 
 import os
@@ -49,13 +49,33 @@ def _snake(name: str) -> str:
     return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
 
-env = Environment(
-    loader=FileSystemLoader(os.path.abspath(TEMPLATE_DIR)),
-    trim_blocks=True,
-    lstrip_blocks=True,
-    keep_trailing_newline=True,
-)
-env.filters["snake"] = _snake
+def _setup_env(template_dir: str) -> Environment:
+    """Create Jinja2 env with all filters matching CrudGenerator._create_env()"""
+    from app.codegen.generator import (
+        _camel_filter,
+        _capitalize_filter,
+        _kebab_filter,
+        _pascal_filter,
+        _pluralize,
+        _snake_filter,
+    )
+
+    env = Environment(
+        loader=FileSystemLoader(os.path.abspath(template_dir)),
+        trim_blocks=True,
+        lstrip_blocks=True,
+        keep_trailing_newline=True,
+    )
+    env.filters["snake"] = _snake_filter
+    env.filters["pascal"] = _pascal_filter
+    env.filters["camel"] = _camel_filter
+    env.filters["capitalize"] = _capitalize_filter
+    env.filters["kebab"] = _kebab_filter
+    env.filters["pluralize"] = _pluralize
+    return env
+
+
+env = _setup_env(TEMPLATE_DIR)
 
 
 # ---- 测试配置 ----

@@ -34,7 +34,6 @@ export interface CrudRecordInfo {
 /** 生成记录详情 */
 export interface CrudRecordDetail extends CrudRecordInfo {
   config_snapshot: Record<string, unknown> | null;
-  batch_project_snapshot: Record<string, unknown> | null;
   file_manifest: FileManifestItem[] | null;
   error_detail: string | null;
   metadata: Record<string, unknown> | null;

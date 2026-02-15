@@ -1154,7 +1154,6 @@
       "module_name": "模块名称",
       "table_name": "表名",
       "config_snapshot": "配置快照",
-      "batch_project_snapshot": "批量项目快照",
       "file_manifest": "文件清单",
       "file_count": "文件数量",
       "status": "状态",

@@ -1,6 +1,6 @@
 {# ============================================================
    Jinja2 Template: 前端表单组件 form.vue
-   生成路径: views/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s/modules/form.vue
+   生成路径: views/{{ scope_dir }}/{{ parent_menu }}/{{ module | pluralize }}/modules/form.vue
 
    变量:
      - config: CrudConfig
@@ -18,7 +18,7 @@ defineOptions({ name: '{{ scope_dir | capitalize }}{{ model_class }}Form' });
 /**
  * {{ scope_dir }}端{{ display_name }}新建/编辑表单抽屉
  */
-import type { {{ model_class }}Item } from '#/api/{{ scope_dir }}/{{ module }}s';
+import type { {{ model_class }}Item } from '#/api/{{ scope_dir }}/{{ module | pluralize }}';
 
 import { computed } from 'vue';
 
@@ -38,7 +38,7 @@ const [Form, formApi] = useVbenForm({
 const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<{{ model_class }}Item>({
   formApi,
   schema: useFormSchema,
-  apiPath: '/{{ scope_dir }}/{{ parent_menu }}/{{ module }}s',
+  apiPath: '/{{ scope_dir }}/{{ parent_menu }}/{{ module | pluralize }}',
   fields: [
 {% for field in fields %}
 {% if field.in_form %}

@@ -20,14 +20,14 @@ import {
 
 import { $t } from '#/locales';
 
-import type { CrudConfig, FieldConfig, ListRenderPreset, SearchFieldConfig } from '../types';
+import type { CrudConfig, FieldConfig, SearchFieldConfig } from '../types';
 
 import {
   getAlignOptions,
   getFixedOptions,
   getRenderPresetOptions,
+  getSearchOperatorOptions,
   SEARCH_COMPONENT_OPTIONS,
-  SEARCH_OPERATOR_OPTIONS,
 } from '../constants';
 
 import type { MockDataRow } from '../composables/use-mock-data';
@@ -81,14 +81,12 @@ function toggleOperation(op: string) {
 // Render preset options
 // ============================================================
 
-const RENDER_PRESETS: { label: string; value: ListRenderPreset | '' }[] = [
-  { label: $t(`${T}.listConfig.renderPresetNone`), value: '' },
-  ...getRenderPresetOptions(),
-];
-
-const ALIGN_OPTIONS = getAlignOptions();
-
-const FIXED_OPTIONS = getFixedOptions();
+function getRenderPresetsWithNone() {
+  return [
+    { label: $t(`${T}.listConfig.renderPresetNone`), value: '' },
+    ...getRenderPresetOptions(),
+  ];
+}
 
 // ============================================================
 // Column config table columns
@@ -108,8 +106,6 @@ const columnConfigCols = computed(() => [
 // ============================================================
 // Search config helpers
 // ============================================================
-
-const SEARCH_OPERATORS = SEARCH_OPERATOR_OPTIONS;
 
 const SEARCH_COMPONENTS = SEARCH_COMPONENT_OPTIONS;
 
@@ -204,7 +200,7 @@ function updateSearchField(index: number, key: keyof SearchFieldConfig, value: u
                 :min="40"
                 :max="500"
                 :step="10"
-                placeholder="auto"
+                :placeholder="$t(`${T}.listConfig.widthAuto`)"
                 size="small"
                 style="width: 70px"
                 @change="(val: unknown) => updateField((record as FieldConfig).name, 'list_width', val)"
@@ -214,7 +210,7 @@ function updateSearchField(index: number, key: keyof SearchFieldConfig, value: u
             <template v-else-if="column.dataIndex === 'list_align'">
               <Select
                 :value="(record as FieldConfig).list_align || 'left'"
-                :options="ALIGN_OPTIONS"
+                :options="getAlignOptions()"
                 size="small"
                 style="width: 80px"
                 @change="(val: unknown) => updateField((record as FieldConfig).name, 'list_align', val)"
@@ -224,17 +220,24 @@ function updateSearchField(index: number, key: keyof SearchFieldConfig, value: u
             <template v-else-if="column.dataIndex === 'list_render'">
               <Select
                 :value="(record as FieldConfig).list_render || ''"
-                :options="RENDER_PRESETS"
+                :options="getRenderPresetsWithNone()"
                 size="small"
-                style="width: 120px"
+                style="width: 140px"
                 @change="(val: unknown) => updateField((record as FieldConfig).name, 'list_render', val || null)"
-              />
+              >
+                <template #option="{ icon, label }">
+                  <div class="flex items-center gap-1.5">
+                    <span v-if="icon" :class="[icon, 'size-3.5 opacity-60']" />
+                    <span>{{ label }}</span>
+                  </div>
+                </template>
+              </Select>
             </template>
 
             <template v-else-if="column.dataIndex === 'list_fixed'">
               <Select
                 :value="(record as FieldConfig).list_fixed || ''"
-                :options="FIXED_OPTIONS"
+                :options="getFixedOptions()"
                 size="small"
                 style="width: 90px"
                 @change="(val: unknown) => updateField((record as FieldConfig).name, 'list_fixed', val || null)"
@@ -352,7 +355,7 @@ function updateSearchField(index: number, key: keyof SearchFieldConfig, value: u
             <span class="w-24 truncate text-sm">{{ sf.field }}</span>
             <Select
               :value="sf.operator"
-              :options="SEARCH_OPERATORS"
+              :options="getSearchOperatorOptions()"
               size="small"
               style="width: 90px"
               @change="(val: unknown) => updateSearchField(idx, 'operator', val)"

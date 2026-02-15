@@ -1,16 +1,16 @@
 """fix_crud_generator_skill_tools
 
 Update crud_generator skill config and input_schema to align with
-CrudGeneratorExecutor._DISPATCH (13 tools).
+CrudGeneratorExecutor._DISPATCH (8 tools).
 
 Problem:
   - config has 8 old tool names (suggest_fields, suggest_enums, etc.)
     that don't match Executor._DISPATCH keys (crud_suggest_fields, etc.)
-  - input_schema is NULL (should contain multi_tool format with 13 tools)
+  - input_schema is NULL (should contain multi_tool format with 8 tools)
 
 Fix:
   - config → {"builtin_type": "crud_generator", "dev_only": true}
-  - input_schema → build_skill_input_schema() (13 tools, multi_tool format)
+  - input_schema → build_skill_input_schema() (8 tools, multi_tool format)
 
 Revision ID: aa0215010000
 Revises: dd0215006000

@@ -92,7 +92,6 @@ async def track_generation(
     error_detail: str | None = None,
     duration_ms: int | None = None,
     parent_record_id: int | None = None,
-    batch_project_snapshot: dict[str, Any] | None = None,
     extra_metadata: dict[str, Any] | None = None,
 ) -> int | None:
     """追踪一次生成操作并持久化记录
@@ -110,7 +109,6 @@ async def track_generation(
         error_detail: 错误详情
         duration_ms: 执行耗时(ms)
         parent_record_id: 关联父记录 ID
-        batch_project_snapshot: 批量项目快照
         extra_metadata: 扩展元数据
 
     Returns:
@@ -135,7 +133,6 @@ async def track_generation(
             "module_name": config.module if hasattr(config, "module") else None,
             "table_name": config.table_name if hasattr(config, "table_name") else None,
             "config_snapshot": config.model_dump(mode="json"),
-            "batch_project_snapshot": batch_project_snapshot,
             "file_manifest": manifest,
             "file_count": len(manifest),
             "status": status,

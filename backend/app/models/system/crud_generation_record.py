@@ -91,12 +91,6 @@ class CrudGenerationRecord(BaseModel):
         comment="生成时的 CrudConfig JSON 快照（完整配置冻结）",
     )
 
-    batch_project_snapshot: Mapped[dict | None] = mapped_column(
-        JSON,
-        nullable=True,
-        comment="批量生成时的 BatchCrudProject 快照",
-    )
-
     # ==================== 文件清单 ====================
 
     file_manifest: Mapped[list | None] = mapped_column(

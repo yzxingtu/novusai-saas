@@ -71,18 +71,22 @@ function updateFormConfig(key: string, value: unknown) {
 
 const FORM_COMPONENTS = FORM_COMPONENT_OPTIONS;
 
-const FORM_TYPE_OPTIONS = [
-  { label: $t(`${T}.formConfig.formTypeDrawer`), value: 'drawer' },
-  { label: $t(`${T}.formConfig.formTypeModal`), value: 'modal' },
-];
+function getFormTypeOptions() {
+  return [
+    { label: $t(`${T}.formConfig.formTypeDrawer`), value: 'drawer' },
+    { label: $t(`${T}.formConfig.formTypeModal`), value: 'modal' },
+  ];
+}
 
-const CONDITION_TYPE_OPTIONS = [
-  { label: $t(`${T}.formConfig.conditionEq`), value: 'eq' },
-  { label: $t(`${T}.formConfig.conditionNeq`), value: 'neq' },
-  { label: $t(`${T}.formConfig.conditionIn`), value: 'in' },
-  { label: $t(`${T}.formConfig.conditionTruthy`), value: 'truthy' },
-  { label: $t(`${T}.formConfig.conditionNotEmpty`), value: 'not_empty' },
-];
+function getConditionTypeOptions() {
+  return [
+    { label: $t(`${T}.formConfig.conditionEq`), value: 'eq' },
+    { label: $t(`${T}.formConfig.conditionNeq`), value: 'neq' },
+    { label: $t(`${T}.formConfig.conditionIn`), value: 'in' },
+    { label: $t(`${T}.formConfig.conditionTruthy`), value: 'truthy' },
+    { label: $t(`${T}.formConfig.conditionNotEmpty`), value: 'not_empty' },
+  ];
+}
 
 // ============================================================
 // Field config table columns
@@ -106,7 +110,7 @@ const groups = computed(() => props.config.form_config.groups ?? []);
 function addGroup() {
   const newGroup: FormGroup = {
     title_zh: `${$t(`${T}.formConfig.groupTitle`)} ${groups.value.length + 1}`,
-    title_en: `Group ${groups.value.length + 1}`,
+    title_en: `${$t(`${T}.formConfig.groupTitleEn`)} ${groups.value.length + 1}`,
     fields: [],
     collapsible: false,
     default_collapsed: false,
@@ -208,9 +212,16 @@ const singleRow = computed(() => props.mockData[0] ?? { id: 1 });
                 :value="(record as FieldConfig).form_component"
                 :options="FORM_COMPONENTS"
                 size="small"
-                style="width: 130px"
+                style="width: 150px"
                 @change="(val: unknown) => updateField((record as FieldConfig).name, 'form_component', val)"
-              />
+              >
+                <template #option="{ icon, label }">
+                  <div class="flex items-center gap-1.5">
+                    <span v-if="icon" :class="[icon, 'size-3.5 opacity-60']" />
+                    <span>{{ label }}</span>
+                  </div>
+                </template>
+              </Select>
             </template>
 
             <template v-else-if="column.dataIndex === 'required'">
@@ -243,7 +254,7 @@ const singleRow = computed(() => props.mockData[0] ?? { id: 1 });
             <span class="text-sm whitespace-nowrap">{{ $t(`${T}.formConfig.formType`) }}</span>
             <Select
               :value="config.form_config.form_type"
-              :options="FORM_TYPE_OPTIONS"
+              :options="getFormTypeOptions()"
               size="small"
               style="width: 100px"
               @change="(val: unknown) => updateFormConfig('form_type', val)"
@@ -368,7 +379,7 @@ const singleRow = computed(() => props.mockData[0] ?? { id: 1 });
               <template v-if="field.form_depends_on">
                 <Select
                   :value="field.form_depends_on.condition"
-                  :options="CONDITION_TYPE_OPTIONS"
+                  :options="getConditionTypeOptions()"
                   size="small"
                   style="width: 90px"
                   @change="(val: unknown) => updateConditionProp(field.name, 'condition', val)"

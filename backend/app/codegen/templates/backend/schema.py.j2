@@ -125,10 +125,10 @@ class {{ model_class }}Create(BaseCreateSchema):
 {% endif %}
 {% endfor %}
 {% if config.has_status_toggle %}
-    is_active: bool = Field(True, description="是否启用")
+    is_active: bool = Field(True, description="Active status")
 {% endif %}
 {% if config.drag_sort %}
-    sort_order: int = Field(0, description="排序序号")
+    sort_order: int = Field(0, description="Sort order")
 {% endif %}
 
 
@@ -170,10 +170,10 @@ class {{ model_class }}Update(BaseUpdateSchema):
 {% endif %}
 {% endfor %}
 {% if config.has_status_toggle %}
-    is_active: bool | None = Field(None, description="是否启用")
+    is_active: bool | None = Field(None, description="Active status")
 {% endif %}
 {% if config.drag_sort %}
-    sort_order: int | None = Field(None, description="排序序号")
+    sort_order: int | None = Field(None, description="Sort order")
 {% endif %}
 
 
@@ -209,10 +209,10 @@ class {{ model_class }}Response(BaseResponseSchema):
 {% endif %}
 {% endfor %}
 {% if config.has_status_toggle %}
-    is_active: bool = Field(True, description="是否启用")
+    is_active: bool = Field(True, description="Active status")
 {% endif %}
 {% if config.drag_sort %}
-    sort_order: int = Field(0, description="排序序号")
+    sort_order: int = Field(0, description="Sort order")
 {% endif %}
 
 
