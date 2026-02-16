@@ -26,11 +26,11 @@ class CrudGeneratorPlugin(ApiPlugin, SkillPlugin):
 
     @property
     def name(self) -> str:
-        return "crud_generator"
+        return "crud-generator"
 
     @property
     def display_name(self) -> str:
-        return "CRUD Code Generator"
+        return "CRUD 代码生成器"
 
     @property
     def version(self) -> str:
@@ -38,10 +38,7 @@ class CrudGeneratorPlugin(ApiPlugin, SkillPlugin):
 
     @property
     def description(self) -> str:
-        return (
-            "Visual CRUD code generator with CLI, AI assistant, "
-            "and Alembic migration support."
-        )
+        return "可视化 CRUD 代码生成器，支持 CLI、AI 助手和 Alembic 迁移。"
 
     @property
     def icon(self) -> str:

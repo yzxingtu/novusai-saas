@@ -34,10 +34,10 @@ class TenantPluginRepository(BaseRepository[TenantPlugin]):
         self, tenant_id: int
     ) -> list[TenantPlugin]:
         """获取租户已启用的插件列表"""
-        return await self.get_multi_by(tenant_id=tenant_id, is_active=True)
+        return await self.get_list(limit=1000, tenant_id=tenant_id, is_active=True)
 
     async def get_plugin_tenants(
         self, plugin_id: int
     ) -> list[TenantPlugin]:
         """获取启用了某插件的所有租户记录"""
-        return await self.get_multi_by(plugin_id=plugin_id, is_active=True)
+        return await self.get_list(limit=1000, plugin_id=plugin_id, is_active=True)

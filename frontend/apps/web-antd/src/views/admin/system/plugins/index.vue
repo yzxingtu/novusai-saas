@@ -191,7 +191,7 @@ function onEnable(row: PluginInfo) {
     onOk: () => withProcessing(row.id, async () => {
       await enablePluginApi(row.id);
       message.success($t('admin.plugin.messages.enableSuccess'));
-      await loadPlugins();
+      window.location.reload();
     }),
   });
 }
@@ -202,7 +202,7 @@ function onDisable(row: PluginInfo) {
     onOk: () => withProcessing(row.id, async () => {
       await disablePluginApi(row.id);
       message.success($t('admin.plugin.messages.disableSuccess'));
-      await loadPlugins();
+      window.location.reload();
     }),
   });
 }
@@ -214,7 +214,7 @@ function onUninstall(row: PluginInfo) {
     onOk: () => withProcessing(row.id, async () => {
       await uninstallPluginApi(row.id);
       message.success($t('admin.plugin.messages.uninstallSuccess'));
-      await loadPlugins();
+      window.location.reload();
     }),
   });
 }

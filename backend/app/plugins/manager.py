@@ -407,9 +407,14 @@ class PluginManager:
         from app.plugins.dependencies import check_reverse_dependencies_or_raise
         await check_reverse_dependencies_or_raise(db, plugin.name, action="uninstall")
 
+        # 保存插件信息（后续 rollback 可能导致 plugin 对象失效）
+        plugin_name = plugin.name
+        plugin_version = plugin.version
+        plugin_entry_point = plugin.entry_point
+
         # 加载实例并调用 on_uninstall
         try:
-            instance = self.get_or_load_instance(plugin.name, plugin.entry_point)
+            instance = self.get_or_load_instance(plugin_name, plugin_entry_point)
             ctx = self._build_context(instance, db=db)
 
             # 注销扩展点（防止已启用插件直接卸载时注册泄漏）
@@ -422,54 +427,64 @@ class PluginManager:
                         db, instance, soft_delete=True,
                     )
                 except Exception as deprov_exc:
+                    await db.rollback()
                     logger.error(
                         "Skill plugin soft-delete failed: %s — %s",
-                        plugin.name, str(deprov_exc), exc_info=True,
+                        plugin_name, str(deprov_exc), exc_info=True,
                     )
 
-            await instance.on_uninstall(ctx)
+            try:
+                await instance.on_uninstall(ctx)
+            except Exception as hook_exc:
+                await db.rollback()
+                logger.error(
+                    "Plugin on_uninstall hook error (proceeding): %s — %s",
+                    plugin_name, str(hook_exc), exc_info=True,
+                )
         except Exception as exc:
+            await db.rollback()
             logger.error(
-                "Plugin on_uninstall error (proceeding): %s — %s",
-                plugin.name, str(exc), exc_info=True,
+                "Plugin uninstall prep error (proceeding): %s — %s",
+                plugin_name, str(exc), exc_info=True,
             )
 
         # 回滚插件数据库迁移（失败不阻塞卸载）
         try:
             from app.plugins.migration_runner import rollback_migrations
-            rolled_back = await rollback_migrations(db, plugin.name)
+            rolled_back = await rollback_migrations(db, plugin_name)
             if rolled_back:
                 logger.info(
                     "Plugin DB migrations rolled back: %s — %s",
-                    plugin.name, rolled_back,
+                    plugin_name, rolled_back,
                 )
         except Exception as mig_exc:
+            await db.rollback()
             logger.warning(
                 "Plugin migration rollback error (proceeding): %s — %s",
-                plugin.name, str(mig_exc), exc_info=True,
+                plugin_name, str(mig_exc), exc_info=True,
             )
 
         # 清理租户关联
         tp_repo = TenantPluginRepository(db)
-        tenant_records = await tp_repo.get_multi_by(plugin_id=plugin_id)
+        tenant_records = await tp_repo.get_list(limit=10000, plugin_id=plugin_id)
         for tp in tenant_records:
             await tp_repo.permanent_delete(tp.id)
 
         # 删除插件记录
         await repo.permanent_delete(plugin_id)
-        self._instances.pop(plugin.name, None)
+        self._instances.pop(plugin_name, None)
 
         # 清理插件文件目录（仅限 .nap 上传安装的插件）
-        self._cleanup_plugin_directory(plugin.name, plugin.entry_point)
+        self._cleanup_plugin_directory(plugin_name, plugin_entry_point)
 
         from app.plugins.security import log_plugin_action
         log_plugin_action(
             action="uninstall",
-            plugin_name=plugin.name,
-            details={"version": plugin.version, "plugin_id": plugin_id},
+            plugin_name=plugin_name,
+            details={"version": plugin_version, "plugin_id": plugin_id},
         )
 
-        logger.info("Plugin uninstalled: %s", plugin.name)
+        logger.info("Plugin uninstalled: %s", plugin_name)
 
     # ========================================
     # 启用 / 禁用（平台级）
@@ -504,7 +519,7 @@ class PluginManager:
                 "Plugin on_enable failed: %s — %s", plugin.name, str(exc),
                 exc_info=True,
             )
-            await repo.update_by_id(
+            await repo.update(
                 plugin_id, {"status": PluginStatusEnum.ERROR.value}
             )
             raise BusinessException(
@@ -519,7 +534,7 @@ class PluginManager:
                 "Plugin extension registration failed: %s — %s",
                 plugin.name, str(exc), exc_info=True,
             )
-            await repo.update_by_id(
+            await repo.update(
                 plugin_id, {"status": PluginStatusEnum.ERROR.value}
             )
             raise BusinessException(
@@ -536,7 +551,7 @@ class PluginManager:
                     plugin.name, str(exc), exc_info=True,
                 )
 
-        updated = await repo.update_by_id(
+        updated = await repo.update(
             plugin_id, {"status": PluginStatusEnum.ENABLED.value}
         )
         from app.plugins.security import log_plugin_action
@@ -598,7 +613,7 @@ class PluginManager:
                     plugin.name, str(exc), exc_info=True,
                 )
 
-        updated = await repo.update_by_id(
+        updated = await repo.update(
             plugin_id, {"status": PluginStatusEnum.DISABLED.value}
         )
         from app.plugins.security import log_plugin_action
@@ -663,7 +678,7 @@ class PluginManager:
         existing = await tp_repo.get_by_tenant_and_plugin(tenant_id, plugin_id)
 
         if existing:
-            result = await tp_repo.update_by_id(
+            result = await tp_repo.update(
                 existing.id, {"is_active": True, "config": merged_config}
             )
         else:
@@ -717,7 +732,7 @@ class PluginManager:
         plugin = await plugin_repo.get_by_id(plugin_id)
         plugin_name = plugin.name if plugin else f"plugin_id:{plugin_id}"
 
-        result = await tp_repo.update_by_id(existing.id, {"is_active": False})
+        result = await tp_repo.update(existing.id, {"is_active": False})
         from app.plugins.security import log_plugin_action
         log_plugin_action(
             action="disable",
@@ -818,7 +833,7 @@ class PluginManager:
             )
 
         try:
-            updated = await repo.update_by_id(plugin_id, {
+            updated = await repo.update(plugin_id, {
                 "version": new_version,
                 "display_name": instance.display_name,
                 "description": instance.description,
@@ -932,7 +947,7 @@ class PluginManager:
             from app.plugins.security import encrypt_sensitive_config
             merged = encrypt_sensitive_config(merged, plugin.config_schema)
 
-        result = await tp_repo.update_by_id(existing.id, {"config": merged})
+        result = await tp_repo.update(existing.id, {"config": merged})
         from app.plugins.security import log_plugin_action
         log_plugin_action(
             action="configure",
@@ -977,7 +992,7 @@ class PluginManager:
         if existing_pkg:
             # 已存在 → 恢复激活
             if existing_pkg.is_deleted or not existing_pkg.is_active:
-                await pkg_repo.update_by_id(existing_pkg.id, {
+                await pkg_repo.update(existing_pkg.id, {
                     "is_active": True,
                     "is_deleted": False,
                     "deleted_at": None,
@@ -998,7 +1013,7 @@ class PluginManager:
             existing_skills = list(result.scalars().all())
             for s in existing_skills:
                 if s.is_deleted or not s.is_active:
-                    await skill_repo.update_by_id(s.id, {
+                    await skill_repo.update(s.id, {
                         "is_active": True,
                         "is_deleted": False,
                         "deleted_at": None,
@@ -1083,16 +1098,16 @@ class PluginManager:
         skills = list(result.scalars().all())
 
         if soft_delete:
-            from datetime import datetime, timezone
-            now = datetime.now(timezone.utc)
+            from datetime import datetime
+            now = datetime.utcnow()
             for s in skills:
-                await skill_repo.update_by_id(s.id, {
+                await skill_repo.update(s.id, {
                     "is_active": False,
                     "is_deleted": True,
                     "deleted_at": now,
                     "delete_level": "admin",
                 })
-            await pkg_repo.update_by_id(existing_pkg.id, {
+            await pkg_repo.update(existing_pkg.id, {
                 "is_active": False,
                 "is_deleted": True,
                 "deleted_at": now,
@@ -1104,8 +1119,8 @@ class PluginManager:
             )
         else:
             for s in skills:
-                await skill_repo.update_by_id(s.id, {"is_active": False})
-            await pkg_repo.update_by_id(existing_pkg.id, {"is_active": False})
+                await skill_repo.update(s.id, {"is_active": False})
+            await pkg_repo.update(existing_pkg.id, {"is_active": False})
             logger.info(
                 "Skill plugin deactivated: plugin=%s package_id=%d",
                 plugin_name, existing_pkg.id,

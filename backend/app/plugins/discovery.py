@@ -165,6 +165,11 @@ async def auto_install_local_plugins(db: AsyncSession) -> dict[str, Any]:
         # 检查是否已安装
         existing = await repo.get_by_name(name)
         if existing:
+            # 开发模式：同步磁盘 manifest 到 DB（确保路由/菜单等配置最新）
+            if existing.manifest != manifest:
+                await repo.update(existing.id, {"manifest": manifest})
+                await db.commit()
+                logger.info("Synced manifest for plugin: %s", name)
             skipped += 1
             continue
 

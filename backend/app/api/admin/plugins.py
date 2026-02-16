@@ -98,8 +98,9 @@ class AdminPluginController(GlobalController):
         ):
             """返回所有已启用且声明了 frontend 的插件前端配置（路由+菜单+i18n）"""
             service = self.get_service(db)
+            from app.schemas.common.query import QuerySpec
             items, _ = await service.query_list(
-                type("Q", (), {"page": 1, "size": 200, "filters": {}, "sort": None, "fields": None})(),
+                QuerySpec(page=1, size=100),
             )
             configs = []
             for plugin in items:
@@ -151,14 +152,7 @@ class AdminPluginController(GlobalController):
                 entry_point=body.entry_point,
                 is_system=body.is_system,
             )
-            return created(
-                data=self._mask_plugin_response(
-                    PluginResponse.model_validate(
-                        plugin, from_attributes=True
-                    ).model_dump(),
-                    plugin,
-                )
-            )
+            return created(data=_mask_plugin_response(plugin))
 
         @router.delete("/{plugin_id}", summary="卸载插件")
         @action_delete("action.plugin.uninstall")
@@ -203,14 +197,7 @@ class AdminPluginController(GlobalController):
                     )
 
             plugin = await service.update(plugin_id, data)
-            return success(
-                data=self._mask_plugin_response(
-                    PluginResponse.model_validate(
-                        plugin, from_attributes=True
-                    ).model_dump(),
-                    plugin,
-                )
-            )
+            return success(data=_mask_plugin_response(plugin))
 
         @router.post("/{plugin_id}/enable", summary="启用插件（平台级）")
         @action_update("action.plugin.enable")
@@ -224,14 +211,7 @@ class AdminPluginController(GlobalController):
 
             manager = get_plugin_manager()
             plugin = await manager.enable_platform(db, plugin_id)
-            return success(
-                data=self._mask_plugin_response(
-                    PluginResponse.model_validate(
-                        plugin, from_attributes=True
-                    ).model_dump(),
-                    plugin,
-                )
-            )
+            return success(data=_mask_plugin_response(plugin))
 
         @router.post("/{plugin_id}/disable", summary="禁用插件（平台级）")
         @action_update("action.plugin.disable")
@@ -245,14 +225,7 @@ class AdminPluginController(GlobalController):
 
             manager = get_plugin_manager()
             plugin = await manager.disable_platform(db, plugin_id)
-            return success(
-                data=self._mask_plugin_response(
-                    PluginResponse.model_validate(
-                        plugin, from_attributes=True
-                    ).model_dump(),
-                    plugin,
-                )
-            )
+            return success(data=_mask_plugin_response(plugin))
 
         @router.post("/{plugin_id}/upgrade", summary="升级插件")
         @action_update("action.plugin.upgrade")
@@ -266,14 +239,7 @@ class AdminPluginController(GlobalController):
 
             manager = get_plugin_manager()
             plugin = await manager.upgrade(db, plugin_id)
-            return success(
-                data=self._mask_plugin_response(
-                    PluginResponse.model_validate(
-                        plugin, from_attributes=True
-                    ).model_dump(),
-                    plugin,
-                )
-            )
+            return success(data=_mask_plugin_response(plugin))
 
         @router.get("/{plugin_id}/health", summary="插件健康检查")
         @action_read("action.plugin.health")
@@ -366,9 +332,10 @@ class AdminPluginController(GlobalController):
 
                 plugin_name = manifest.get("name", "")
                 raw_entry_point = manifest.get("entry_point", "")
+                module_name = plugin_name.replace("-", "_")
 
                 plugins_base = FilePath(__file__).resolve().parent.parent.parent / "plugins"
-                permanent_dir = plugins_base / plugin_name
+                permanent_dir = plugins_base / module_name
 
                 if permanent_dir.exists():
                     if not overwrite:
@@ -399,7 +366,7 @@ class AdminPluginController(GlobalController):
                     shutil.copytree(plugin_dir, permanent_dir)
                     backup_dir = None
 
-            entry_point = f"app.plugins.{plugin_name}.{raw_entry_point}"
+            entry_point = f"app.plugins.{module_name}.{raw_entry_point}"
             manager = get_plugin_manager()
 
             # 安装 Python 依赖（requirements.txt）
@@ -444,14 +411,7 @@ class AdminPluginController(GlobalController):
                     shutil.rmtree(permanent_dir, ignore_errors=True)
                     raise
 
-            return created(
-                data=self._mask_plugin_response(
-                    PluginResponse.model_validate(
-                        plugin, from_attributes=True
-                    ).model_dump(),
-                    plugin,
-                )
-            )
+            return created(data=_mask_plugin_response(plugin))
 
         @router.get("/{plugin_id}/export", summary="导出插件为 .nap")
         @action_read("action.plugin.export")
@@ -512,6 +472,9 @@ def _load_plugin_locales(plugin_name: str) -> dict[str, dict]:
 
     plugins_base = FilePath(__file__).resolve().parent.parent.parent / "plugins"
     locales_dir = plugins_base / plugin_name / "locales"
+    if not locales_dir.is_dir():
+        # 尝试下划线目录名（Python 包命名）
+        locales_dir = plugins_base / plugin_name.replace("-", "_") / "locales"
     if not locales_dir.is_dir():
         # 尝试 builtin 目录
         locales_dir = plugins_base / "builtin" / plugin_name / "locales"

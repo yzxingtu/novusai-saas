@@ -1,4 +1,6 @@
 {
+  "admin": {
+    "dev": {
   "title": "Dev Tools",
   "crudGenerator": {
     "title": "CRUD Code Generator",
@@ -771,6 +773,8 @@
     "aiFill": {
       "applied": "AI filled: {fields}",
       "invalidFormat": "Invalid config format from AI, missing required fields"
+    }
+  }
     }
   }
 }

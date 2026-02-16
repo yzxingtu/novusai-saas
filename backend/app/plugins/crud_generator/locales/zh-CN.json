@@ -1,4 +1,6 @@
 {
+  "admin": {
+    "dev": {
   "title": "开发工具",
   "crudGenerator": {
     "title": "CRUD 代码生成器",
@@ -771,6 +773,8 @@
     "aiFill": {
       "applied": "AI 已填充: {fields}",
       "invalidFormat": "AI 返回的配置格式无效，缺少必要字段"
+    }
+  }
     }
   }
 }
