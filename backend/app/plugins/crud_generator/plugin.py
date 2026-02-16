@@ -26,7 +26,7 @@ class CrudGeneratorPlugin(ApiPlugin, SkillPlugin):
 
     @property
     def name(self) -> str:
-        return "novusai-crud-generator"
+        return "crud_generator"
 
     @property
     def display_name(self) -> str:

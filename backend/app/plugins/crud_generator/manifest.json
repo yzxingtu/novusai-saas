@@ -1,5 +1,5 @@
 {
-  "name": "novusai-crud-generator",
+  "name": "crud_generator",
   "display_name": "CRUD Code Generator",
   "version": "1.0.0",
   "description": "Visual CRUD code generator with CLI, AI assistant, and Alembic migration support. Generate complete backend + frontend CRUD code from data model definitions.",
@@ -8,7 +8,8 @@
   "min_platform_version": "1.0.0",
   "tags": ["dev-tools", "code-generator", "crud"],
   "permissions": ["api_route"],
-  "dependencies": [],
+  "entry_point": "plugin:CrudGeneratorPlugin",
+  "dependencies": {},
   "frontend": {
     "routes": [
       {

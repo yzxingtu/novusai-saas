@@ -343,14 +343,12 @@ class AdminPluginController(GlobalController):
             if not file.filename:
                 raise ValidationException(
                     message=_("plugin.file_required"),
-                    code=4001,
                 )
 
             ext = FilePath(file.filename).suffix.lower()
             if ext not in ALLOWED_PACKAGE_EXTENSIONS:
                 raise ValidationException(
                     message=_("plugin.file_must_be_zip_or_nap"),
-                    code=4001,
                 )
 
             with tempfile.TemporaryDirectory() as tmp_dir:
@@ -364,7 +362,6 @@ class AdminPluginController(GlobalController):
                 except PackageError as e:
                     raise ValidationException(
                         message=str(e),
-                        code=4001,
                     )
 
                 plugin_name = manifest.get("name", "")
