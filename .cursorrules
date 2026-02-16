@@ -181,9 +181,18 @@ alembic upgrade head
 
 - 禁止在 Controller/Service 层直接实例化 `AIGateway` 发起 LLM 调用
 - 禁止新增绕过 Agent→Skill 链路的 AI 端点
-- Agent engine 内部的 LLM 调用（conversation.py/base.py）属于 Agent 实现层，不受此限制
-- 新增 AI 能力必须注册为 Skill（含 type、executor、i18n），通过 Agent 绑定后使用
+- 禁止使用已废弃的 `ToolRegistry`（`app.ai.tools.registry`）注册工具，必须通过 Skill 体系
+- Agent engine 内部的 LLM 调用（conversation.py/base.py/dispatcher.py）属于 Agent 实现层，不受此限制
+- RAG 管道内部的 LLM 调用属于 Agent 技能内部实现，不受此限制
+- `SystemAgentService`（`app/ai/system_agent.py`）— Controller 层唯一合法的 AI 调用入口
 - `AIGateway.test_model` 仅限模型连通性测试，不用于业务功能
+
+### Agent 定义规范
+
+- Agent 必须通过 `AgentSkillBinding` 绑定 SkillPackage，禁止使用已废弃的 `tool_bindings` JSON 字段
+- 执行模式：`conversation`（多轮对话）/ `task`（单次）/ `batch`（批量）/ `api`（外部集成）
+- 授权模式（ToolConsentModeEnum）：`auto`（自动执行）/ `ask`（需用户确认）/ `reject`（禁止调用）
+- 写操作类工具建议设为 `ask` 模式
 
 ### 技能（Skill）体系
 
@@ -195,7 +204,7 @@ alembic upgrade head
 
 ### 技能类型
 
-当前支持的技能类型（`SkillTypeEnum`）：
+当前支持的技能类型（`SkillTypeEnum`）— 仅 4 种：
 
 | 类型 | 说明 |
 |------|------|
@@ -204,24 +213,26 @@ alembic upgrade head
 | `data_intelligence` | 数据智能（Text-to-SQL + CRUD） |
 | `builtin` | 内置函数 |
 
-- **Toolkit 类型**：通过 `toolkit_content` 存储 Python 源码，`toolkit_meta` 存储解析结果，支持 Valves 配置
+- **Toolkit 类型**：通过 `toolkit_content` 存储 Python 源码，`toolkit_meta` 存储解析结果，支持 Valves 配置，非系统 Toolkit 有安全扫描
 - 未知类型走插件解析路径（PluginExecutor）
-- 新增技能类型必须同时：创建 Executor、注册到 resolver、添加枚举值、添加 i18n
+- 新增技能类型必须同时：创建 Executor、注册到 SkillResolver、添加枚举值、添加 i18n
+- `SkillResolver` 是唯一合法的 Skill→ToolDefinition 转换器，禁止使用 `ToolRegistry`
 
 ### 系统 Agent 与系统 Skill
 
-- 系统级 Agent/Skill 标记 `is_system=True`，不可删除/禁用
+- 系统级 Agent/Skill/SkillPackage 标记 `is_system=True`，不可删除/禁用
 - 系统 Agent 通过 seed migration 创建，scope=admin, tenant_id=NULL
-- 前端管理页面中系统记录有特殊标识且操作受限
+- 前端管理页面中系统记录显示紫色「系统」标签，操作受限
+- Controller 层通过 `SystemAgentService` 调用 AI 能力，架构：`Controller → SystemAgentService → AIGateway`
 
 ### 新增 AI 功能标准流程
 
 ```
 1. 定义 Skill 类型（如已有类型可复用则跳过）
-2. 实现 Executor（继承 BaseToolExecutor）
-3. 在 resolver.py 注册类型→Executor 映射
+2. 实现 Executor（继承 BaseToolExecutor，实现 execute + validate）
+3. 在 SkillResolver._resolve_one 注册类型→转换方法映射
 4. 创建 Skill 记录（可通过 migration 或 API）
-5. 将 Skill 绑定到 Agent
+5. 将 Skill 绑定到 Agent（通过 AgentSkillBinding）
 6. 通过 Agent 对话或 Agent.run() 触发 Skill
 ```
 

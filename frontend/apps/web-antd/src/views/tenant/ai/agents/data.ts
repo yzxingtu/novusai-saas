@@ -13,7 +13,7 @@ import {
   textareaField,
 } from '#/adapter/form';
 import { getTenantAIModelsApi } from '#/api/tenant/ai';
-import { getSkillPackageSelectApi } from '#/api/tenant/skill-packages';
+import { getAvailablePackagesApi } from '#/api/tenant/skill-packages';
 import { $t } from '#/locales';
 
 // ============ 状态辅助 ============
@@ -154,9 +154,12 @@ export async function getModelSelectOptions() {
  */
 export async function getPackageSelectOptions() {
   try {
-    const data = await getSkillPackageSelectApi();
+    const data = await getAvailablePackagesApi();
     return data.map((p) => ({
-      label: p.label,
+      label:
+        p.scope === 'admin'
+          ? `${p.label} (${$t('tenant.ai.agent.sharedPackageTag')})`
+          : p.label,
       value: p.value,
     }));
   } catch {
@@ -198,6 +201,12 @@ export function useColumns<T = AgentListItem>(
       title: $t('tenant.ai.agent.modelName'),
       width: 180,
       slots: { default: 'model_cell' },
+    },
+    {
+      field: 'skill_packages',
+      title: $t('tenant.ai.agent.skillCount'),
+      width: 180,
+      slots: { default: 'skill_count_cell' },
     },
     {
       field: 'visibility',
@@ -366,6 +375,7 @@ export function useFormSchema(): VbenFormSchema[] {
         allowClear: true,
         api: getPackageSelectOptions,
         class: 'w-full',
+        labelInValue: true,
         mode: 'multiple',
         placeholder: $t('tenant.ai.agent.placeholder.selectSkillPackages'),
         showSearch: true,

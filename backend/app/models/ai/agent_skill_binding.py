@@ -6,11 +6,12 @@
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, ForeignKey, Index, Integer, JSON, UniqueConstraint
+from sqlalchemy import Boolean, Column, ForeignKey, Index, Integer, JSON, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
 from app.core.i18n import _
+from app.enums.agent import ToolConsentModeEnum
 
 
 class AgentSkillBinding(TenantModel):
@@ -70,6 +71,12 @@ class AgentSkillBinding(TenantModel):
         nullable=False,
         default=0,
         comment=_("agent_skill_binding.field.sort_order"),
+    )
+    consent_mode: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=ToolConsentModeEnum.AUTO.value,
+        comment=_("agent_skill_binding.field.consent_mode"),
     )
 
     # ==================== 约束与索引 ====================

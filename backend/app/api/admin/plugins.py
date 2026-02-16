@@ -8,7 +8,7 @@ import shutil
 import tempfile
 from pathlib import Path as FilePath
 
-from fastapi import Path, Request, UploadFile
+from fastapi import Path, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
@@ -88,6 +88,40 @@ class AdminPluginController(GlobalController):
                 page=query.page,
                 page_size=query.size,
             )
+
+        @router.get("/frontend-config", summary="获取已启用插件的前端配置")
+        @action_read("action.plugin.list")
+        async def get_plugin_frontend_config(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+        ):
+            """返回所有已启用且声明了 frontend 的插件前端配置（路由+菜单+i18n）"""
+            service = self.get_service(db)
+            items, _ = await service.query_list(
+                type("Q", (), {"page": 1, "size": 200, "filters": {}, "sort": None, "fields": None})(),
+            )
+            configs = []
+            for plugin in items:
+                if plugin.status != "enabled":
+                    continue
+                manifest = plugin.manifest or {}
+                frontend = manifest.get("frontend")
+                if not frontend:
+                    continue
+                # 读取插件 locales 目录下的 i18n 资源
+                locales = frontend.get("locales", {})
+                if not locales:
+                    locales = _load_plugin_locales(plugin.name)
+                configs.append({
+                    "plugin_name": plugin.name,
+                    "plugin_version": plugin.version,
+                    "endpoint": frontend.get("endpoint", "admin"),
+                    "menus": frontend.get("menus", []),
+                    "routes": frontend.get("routes", []),
+                    "locales": locales,
+                })
+            return success(data=configs)
 
         @router.get("/{plugin_id}", summary="获取插件详情")
         @action_read("action.plugin.detail")
@@ -295,6 +329,7 @@ class AdminPluginController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             file: UploadFile = ...,
+            overwrite: bool = Query(False, description="Overwrite existing plugin (upgrade)"),
         ):
             from app.plugins.packaging import (
                 ALLOWED_PACKAGE_EXTENSIONS,
@@ -303,6 +338,7 @@ class AdminPluginController(GlobalController):
             )
             from app.plugins.manager import get_plugin_manager
             from app.exceptions import ValidationException, BusinessException
+            from app.repositories.system.plugin_repository import PluginRepository
 
             if not file.filename:
                 raise ValidationException(
@@ -334,31 +370,82 @@ class AdminPluginController(GlobalController):
                 plugin_name = manifest.get("name", "")
                 raw_entry_point = manifest.get("entry_point", "")
 
-                # 将插件代码拷贝到永久目录 app/plugins/{name}/
                 plugins_base = FilePath(__file__).resolve().parent.parent.parent / "plugins"
                 permanent_dir = plugins_base / plugin_name
+
                 if permanent_dir.exists():
-                    raise BusinessException(
-                        _("plugin.already_exists")
-                    )
+                    if not overwrite:
+                        # 返回冲突信息，前端可选择覆盖
+                        repo = PluginRepository(db)
+                        existing = await repo.get_by_name(plugin_name)
+                        return success(data={
+                            "conflict": True,
+                            "plugin_name": plugin_name,
+                            "existing_version": existing.version if existing else None,
+                            "new_version": manifest.get("version", ""),
+                            "message": _("plugin.upload_conflict"),
+                        })
 
-                shutil.copytree(plugin_dir, permanent_dir)
+                    # 覆盖模式：备份旧目录 → 拷贝新文件
+                    backup_dir = permanent_dir.with_suffix(".bak")
+                    if backup_dir.exists():
+                        shutil.rmtree(backup_dir, ignore_errors=True)
+                    shutil.move(str(permanent_dir), str(backup_dir))
+                    try:
+                        shutil.copytree(plugin_dir, permanent_dir)
+                    except Exception:
+                        # 拷贝失败则回滚
+                        shutil.rmtree(permanent_dir, ignore_errors=True)
+                        shutil.move(str(backup_dir), str(permanent_dir))
+                        raise
+                else:
+                    shutil.copytree(plugin_dir, permanent_dir)
+                    backup_dir = None
 
-            # 将 manifest entry_point（如 plugin.MyPlugin）转换为完整模块路径
-            # plugin.MyPlugin -> app.plugins.{name}.plugin.MyPlugin
             entry_point = f"app.plugins.{plugin_name}.{raw_entry_point}"
-
             manager = get_plugin_manager()
+
+            # 安装 Python 依赖（requirements.txt）
             try:
-                plugin = await manager.install(
-                    db,
-                    entry_point=entry_point,
-                    is_system=False,
-                )
+                manager.install_plugin_requirements(plugin_name)
             except Exception:
-                # 安装失败时清理已拷贝的目录
                 shutil.rmtree(permanent_dir, ignore_errors=True)
+                if backup_dir and backup_dir.exists():
+                    shutil.move(str(backup_dir), str(permanent_dir))
                 raise
+
+            if overwrite and backup_dir:
+                # 升级已有插件
+                try:
+                    repo = PluginRepository(db)
+                    existing = await repo.get_by_name(plugin_name)
+                    if existing:
+                        plugin = await manager.upgrade(
+                            db,
+                            plugin_id=existing.id,
+                            new_entry_point=entry_point,
+                        )
+                    else:
+                        plugin = await manager.install(
+                            db, entry_point=entry_point, is_system=False,
+                        )
+                    # 升级成功，删除备份
+                    shutil.rmtree(backup_dir, ignore_errors=True)
+                except Exception:
+                    # 升级失败：回滚文件
+                    shutil.rmtree(permanent_dir, ignore_errors=True)
+                    if backup_dir and backup_dir.exists():
+                        shutil.move(str(backup_dir), str(permanent_dir))
+                    raise
+            else:
+                # 全新安装
+                try:
+                    plugin = await manager.install(
+                        db, entry_point=entry_point, is_system=False,
+                    )
+                except Exception:
+                    shutil.rmtree(permanent_dir, ignore_errors=True)
+                    raise
 
             return created(
                 data=self._mask_plugin_response(
@@ -416,6 +503,33 @@ class AdminPluginController(GlobalController):
                 media_type="application/zip",
                 background=BackgroundTask(shutil.rmtree, tmp_dir, True),
             )
+
+
+def _load_plugin_locales(plugin_name: str) -> dict[str, dict]:
+    """
+    从插件目录读取 locales/{lang}.json 文件
+
+    返回格式: {"zh-CN": {...}, "en-US": {...}}
+    """
+    import json
+
+    plugins_base = FilePath(__file__).resolve().parent.parent.parent / "plugins"
+    locales_dir = plugins_base / plugin_name / "locales"
+    if not locales_dir.is_dir():
+        # 尝试 builtin 目录
+        locales_dir = plugins_base / "builtin" / plugin_name / "locales"
+        if not locales_dir.is_dir():
+            return {}
+
+    result: dict[str, dict] = {}
+    for locale_file in locales_dir.glob("*.json"):
+        lang = locale_file.stem  # e.g. "zh-CN", "en-US"
+        try:
+            with open(locale_file, encoding="utf-8") as f:
+                result[lang] = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return result
 
 
 router = AdminPluginController.get_router()

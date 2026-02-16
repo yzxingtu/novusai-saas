@@ -289,8 +289,59 @@ def check_platform_version_or_raise(
         )
 
 
+async def check_dependencies_detailed(
+    db: AsyncSession,
+    dependencies: dict[str, str] | None,
+) -> list[dict[str, Any]]:
+    """
+    返回结构化的依赖检查结果（供前端展示）
+
+    Args:
+        db: 数据库会话
+        dependencies: 依赖声明
+
+    Returns:
+        [{"name": "...", "required": ">=1.0.0", "status": "ok|missing|version_mismatch",
+          "installed_version": "1.0.0"|null}, ...]
+    """
+    if not dependencies:
+        return []
+
+    from app.repositories.system.plugin_repository import PluginRepository
+
+    repo = PluginRepository(db)
+    results: list[dict[str, Any]] = []
+
+    for dep_name, version_constraint in dependencies.items():
+        dep_plugin = await repo.get_by_name(dep_name)
+        if not dep_plugin:
+            results.append({
+                "name": dep_name,
+                "required": version_constraint,
+                "status": "missing",
+                "installed_version": None,
+            })
+        elif not _check_version_constraint(dep_plugin.version, version_constraint):
+            results.append({
+                "name": dep_name,
+                "required": version_constraint,
+                "status": "version_mismatch",
+                "installed_version": dep_plugin.version,
+            })
+        else:
+            results.append({
+                "name": dep_name,
+                "required": version_constraint,
+                "status": "ok",
+                "installed_version": dep_plugin.version,
+            })
+
+    return results
+
+
 __all__ = [
     "check_dependencies",
+    "check_dependencies_detailed",
     "check_dependencies_or_raise",
     "check_reverse_dependencies",
     "check_reverse_dependencies_or_raise",

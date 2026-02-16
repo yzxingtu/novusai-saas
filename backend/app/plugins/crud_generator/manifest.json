@@ -1,0 +1,55 @@
+{
+  "name": "novusai-crud-generator",
+  "display_name": "CRUD Code Generator",
+  "version": "1.0.0",
+  "description": "Visual CRUD code generator with CLI, AI assistant, and Alembic migration support. Generate complete backend + frontend CRUD code from data model definitions.",
+  "author": "NovusAI",
+  "type": "api",
+  "min_platform_version": "1.0.0",
+  "tags": ["dev-tools", "code-generator", "crud"],
+  "permissions": ["api_route"],
+  "dependencies": [],
+  "frontend": {
+    "routes": [
+      {
+        "name": "AdminDevCrudGenerator",
+        "path": "/admin/dev/crud-generator",
+        "component": "views/index.vue",
+        "meta": {
+          "icon": "lucide:wand-2",
+          "title": "admin.dev.crudGenerator.title",
+          "authority": ["super"]
+        }
+      },
+      {
+        "name": "AdminDevCrudRecords",
+        "path": "/admin/dev/crud-records",
+        "component": "views/records/index.vue",
+        "meta": {
+          "icon": "lucide:history",
+          "title": "admin.dev.crudGenerator.records.title",
+          "authority": ["super"]
+        }
+      }
+    ],
+    "menus": [
+      {
+        "parent": "admin-dev",
+        "name": "AdminDevCrudGenerator",
+        "path": "/admin/dev/crud-generator",
+        "icon": "lucide:wand-2",
+        "title": "admin.dev.crudGenerator.title",
+        "order": 10
+      },
+      {
+        "parent": "admin-dev",
+        "name": "AdminDevCrudRecords",
+        "path": "/admin/dev/crud-records",
+        "icon": "lucide:history",
+        "title": "admin.dev.crudGenerator.records.title",
+        "order": 11
+      }
+    ],
+    "locales": {}
+  }
+}

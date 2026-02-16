@@ -21,7 +21,7 @@ from app.models.system import (
     PeriodicTask,
     Plugin,
     TenantPlugin,
-    CrudGenerationRecord,
+    SystemAgentAssignment,
 )
 
 # 租户级模型
@@ -119,6 +119,6 @@ __all__ = [
     "SkillPackage",
     "Skill",
     "AgentSkillBinding",
-    # 代码生成记录
-    "CrudGenerationRecord",
+    # 系统智能体绑定
+    "SystemAgentAssignment",
 ]

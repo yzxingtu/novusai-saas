@@ -151,6 +151,34 @@ class SkillPackageRepository(TenantRepository[SkillPackage]):
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_available_for_binding(self) -> list[SkillPackage]:
+        """
+        获取租户可绑定的所有技能包（用于智能体技能绑定下拉）。
+
+        包括：
+          - 同租户的 tenant 包
+          - admin 共享包（tenant_id IS NULL, scope='admin'）
+        """
+        stmt = (
+            select(SkillPackage)
+            .where(
+                and_(
+                    SkillPackage.is_active.is_(True),
+                    SkillPackage.is_deleted.is_(False),
+                    or_(
+                        SkillPackage.tenant_id == self.tenant_id,
+                        and_(
+                            SkillPackage.tenant_id.is_(None),
+                            SkillPackage.scope == ResourceScopeEnum.ADMIN.value,
+                        ),
+                    ),
+                )
+            )
+            .order_by(SkillPackage.scope, SkillPackage.sort_order, SkillPackage.name)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
 
 class AdminSkillPackageRepository(BaseRepository[SkillPackage]):
     """

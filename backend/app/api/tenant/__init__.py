@@ -32,6 +32,7 @@ from app.api.tenant.ai_table_policies import router as ai_table_policies_router,
 from app.api.tenant.plugins import router as plugins_router, TenantPluginController
 from app.api.tenant.skill_packages import router as skill_packages_router, TenantSkillPackageController
 from app.api.tenant.skills import router as skills_router, TenantSkillController
+from app.api.tenant.agent_assignments import router as agent_assignments_router, TenantAgentAssignmentController
 
 # 创建租户管理后台路由器
 tenant_router = APIRouter()
@@ -69,6 +70,8 @@ tenant_router.include_router(plugins_router)
 # 技能包 & 技能管理
 tenant_router.include_router(skill_packages_router)
 tenant_router.include_router(skills_router)
+# 系统智能体绑定
+tenant_router.include_router(agent_assignments_router)
 
 
 __all__ = [
@@ -105,4 +108,6 @@ __all__ = [
     # 技能包 & 技能管理
     "TenantSkillPackageController",
     "TenantSkillController",
+    # 系统智能体绑定
+    "TenantAgentAssignmentController",
 ]

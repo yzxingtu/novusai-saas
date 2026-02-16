@@ -21,7 +21,8 @@ from app.rbac.decorators import (
     action_delete,
 )
 from app.rbac.services.permission_service import PermissionService
-from app.schemas.ai.agent_chat import AgentChatRequest
+from app.enums.agent import ConfirmActionEnum
+from app.schemas.ai.agent_chat import AgentChatRequest, AgentConfirmRequest
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.agent_service import AdminAgentService
 from app.services.ai.conversation_service import ConversationService
@@ -144,6 +145,46 @@ class AdminAgentChatController(GlobalController):
                 consented_actions=data.consented_actions,
                 attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
             )
+
+        # ========================================
+        # Action confirmation
+        # ========================================
+
+        @router.post("/confirm", summary="Confirm/cancel AI action")
+        @action_create("action.admin_agent_chat.confirm")
+        async def confirm_action(
+            request: Request,
+            db: DbSession,
+            data: AgentConfirmRequest,
+            admin: ActiveAdmin,
+        ):
+            """
+            Handle AI action confirmation or cancellation.
+
+            - action="confirm": validate confirm_id and execute
+            - action="cancel": remove confirm_id, cancel operation
+
+            Permission: admin_agent_chat:confirm
+            """
+            # confirm endpoint is agent-agnostic; use sentinel tenant_id=0
+            service = AgentChatService(db, 0)
+
+            if data.action == ConfirmActionEnum.CANCEL.value:
+                result = await service.cancel_action(data.confirm_id)
+                msg_key = (
+                    _("agent_confirm.cancelled")
+                    if result["status"] == "cancelled"
+                    else _("agent_confirm.cancel_failed")
+                )
+                return success(data=result, message=msg_key)
+
+            # confirm
+            result = await service.confirm_action(
+                confirm_id=data.confirm_id,
+                tenant_id=0,
+                user_id=admin.id,
+            )
+            return success(data=result)
 
         # ========================================
         # Conversation management

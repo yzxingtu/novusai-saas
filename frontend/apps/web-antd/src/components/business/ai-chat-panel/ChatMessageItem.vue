@@ -29,6 +29,8 @@ const emit = defineEmits<{
   copy: [content: string];
   confirm: [index: number];
   reject: [index: number];
+  'consent-confirm': [index: number];
+  'consent-reject': [index: number];
   'open-url': [url: string];
 }>();
 
@@ -228,6 +230,53 @@ function agentInitial(agent: { name: string }) {
           <div v-else :class="compact ? 'text-[11px]' : 'text-xs'" class="text-muted-foreground">
             <IconifyIcon icon="lucide:check-circle" class="mr-1 inline text-success" :class="compact ? 'size-3' : 'size-3.5'" />
             {{ $t('common.globalAiChat.confirmationResolved') }}
+          </div>
+        </div>
+
+        <!-- Tool consent card -->
+        <div
+          v-if="msg.pendingConsent && !msg.streaming"
+          class="rounded-lg border border-warning/40 bg-warning/5"
+          :class="compact ? 'mt-1.5 px-3 py-2' : 'mt-2 px-4 py-3'"
+        >
+          <div
+            class="flex items-center font-medium text-foreground"
+            :class="compact ? 'mb-1.5 gap-1.5 text-xs' : 'mb-2 gap-2 text-sm'"
+          >
+            <IconifyIcon icon="lucide:shield-alert" class="size-4 text-warning" />
+            <span>{{ $t('common.globalAiChat.consentTitle') }}</span>
+          </div>
+          <div
+            class="text-muted-foreground"
+            :class="compact ? 'mb-1.5 text-xs' : 'mb-2 text-sm'"
+          >
+            <span v-if="msg.pendingConsent.skillName" class="font-medium text-foreground/70">{{ msg.pendingConsent.skillName }} ›</span>
+            <code class="ml-1 font-mono">{{ msg.pendingConsent.toolName }}</code>
+          </div>
+          <div
+            v-if="msg.pendingConsent.arguments && Object.keys(msg.pendingConsent.arguments).length"
+            class="overflow-y-auto rounded-md bg-accent/50 font-mono text-muted-foreground"
+            :class="compact ? 'mb-2 max-h-32 px-2 py-1.5 text-[10px]' : 'mb-3 max-h-40 px-3 py-2 text-xs'"
+          >
+            <pre class="whitespace-pre-wrap">{{ JSON.stringify(msg.pendingConsent.arguments, null, 2) }}</pre>
+          </div>
+          <div v-if="!msg.pendingConsent.resolved" class="flex items-center gap-2">
+            <Button type="primary" size="small" @click="emit('consent-confirm', props.index)">
+              <template #icon>
+                <IconifyIcon icon="lucide:check" :class="compact ? 'size-3' : 'size-3.5'" />
+              </template>
+              {{ $t('common.globalAiChat.consentAllow') }}
+            </Button>
+            <Button size="small" danger @click="emit('consent-reject', props.index)">
+              <template #icon>
+                <IconifyIcon icon="lucide:x" :class="compact ? 'size-3' : 'size-3.5'" />
+              </template>
+              {{ $t('common.globalAiChat.consentDeny') }}
+            </Button>
+          </div>
+          <div v-else :class="compact ? 'text-[11px]' : 'text-xs'" class="text-muted-foreground">
+            <IconifyIcon icon="lucide:check-circle" class="mr-1 inline text-success" :class="compact ? 'size-3' : 'size-3.5'" />
+            {{ $t('common.globalAiChat.consentResolved') }}
           </div>
         </div>
 

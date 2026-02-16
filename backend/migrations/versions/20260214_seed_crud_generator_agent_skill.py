@@ -42,15 +42,23 @@ def _get_input_schema() -> dict:
     """Lazy build input_schema from skill_definitions (avoids import at module level)."""
     global _SKILL_INPUT_SCHEMA
     if _SKILL_INPUT_SCHEMA is None:
-        from app.codegen.skill_definitions import build_skill_input_schema
-        _SKILL_INPUT_SCHEMA = build_skill_input_schema()
+        try:
+            from app.codegen.skill_definitions import build_skill_input_schema
+            _SKILL_INPUT_SCHEMA = build_skill_input_schema()
+        except ImportError:
+            # Module removed — old CRUD Generator executor deleted
+            _SKILL_INPUT_SCHEMA = {"multi_tool": True, "tools": {}}
     return _SKILL_INPUT_SCHEMA
 
 
 def _get_system_prompt() -> str:
     """Lazy import CRUD_AGENT_SYSTEM_PROMPT."""
-    from app.codegen.ai_prompts import CRUD_AGENT_SYSTEM_PROMPT
-    return CRUD_AGENT_SYSTEM_PROMPT
+    try:
+        from app.codegen.ai_prompts import CRUD_AGENT_SYSTEM_PROMPT
+        return CRUD_AGENT_SYSTEM_PROMPT
+    except ImportError:
+        # Module removed — old CRUD Generator executor deleted
+        return "You are a CRUD code generation assistant."
 
 
 def _find_chat_model(conn) -> int | None:

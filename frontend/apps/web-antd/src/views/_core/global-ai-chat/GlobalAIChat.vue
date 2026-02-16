@@ -34,9 +34,10 @@ const uploadUrl = computed(() => `${apiPrefix.value}/attachments/upload`);
 
 watch(
   () => chatStore.open,
-  (isOpen) => {
+  async (isOpen) => {
     if (isOpen && chatPanelRef.value) {
-      chatPanelRef.value.loadAgents();
+      const agentId = chatStore.consumePendingAgentId();
+      await chatPanelRef.value.loadAgents(agentId);
       chatPanelRef.value.loadConversations();
     }
   },
@@ -92,6 +93,7 @@ watch(
       :api-prefix="apiPrefix"
       :upload-url="uploadUrl"
       :show-attachments="true"
+      :on-tool-call="(name: string, output: string) => chatStore.dispatchToolCall(name, output)"
     />
   </Drawer>
 </template>

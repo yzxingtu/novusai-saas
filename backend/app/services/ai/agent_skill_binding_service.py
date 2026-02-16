@@ -11,6 +11,7 @@ from app.models.ai.agent_skill_binding import AgentSkillBinding
 from app.repositories.ai.agent_skill_binding_repository import AgentSkillBindingRepository
 from app.repositories.ai.skill_package_repository import SkillPackageRepository
 from app.repositories.ai.agent_repository import AgentRepository
+from app.enums.common import ResourceScopeEnum
 
 logger = LogManager.get_logger("ai")
 
@@ -49,6 +50,7 @@ class AgentSkillBindingService:
                 "enabled": binding.enabled,
                 "config_override": binding.config_override,
                 "sort_order": binding.sort_order,
+                "consent_mode": binding.consent_mode,
             }
             if binding.package:
                 item["package"] = {
@@ -62,12 +64,55 @@ class AgentSkillBindingService:
             result.append(item)
         return result
 
+    @staticmethod
+    def _validate_scope(
+        agent_scope: str,
+        pkg_scope: str,
+        agent_tenant_id: int | None,
+        pkg_tenant_id: int | None,
+    ) -> None:
+        """
+        校验 Agent scope 与 SkillPackage scope 的兼容性。
+
+        Rules:
+          - tenant agent → 同租户 tenant 包 + admin 共享包
+          - admin agent  → admin 包
+          - global agent → admin 包 + 任意 tenant 包
+        """
+        a = agent_scope
+        p = pkg_scope
+
+        if a == ResourceScopeEnum.TENANT.value:
+            if p == ResourceScopeEnum.TENANT.value:
+                if agent_tenant_id != pkg_tenant_id:
+                    raise BusinessException(
+                        message=_("agent_skill_binding.error.scope_mismatch")
+                    )
+            elif p != ResourceScopeEnum.ADMIN.value:
+                raise BusinessException(
+                    message=_("agent_skill_binding.error.scope_mismatch")
+                )
+        elif a == ResourceScopeEnum.ADMIN.value:
+            if p != ResourceScopeEnum.ADMIN.value:
+                raise BusinessException(
+                    message=_("agent_skill_binding.error.scope_mismatch")
+                )
+        elif a == ResourceScopeEnum.GLOBAL.value:
+            if p not in (
+                ResourceScopeEnum.ADMIN.value,
+                ResourceScopeEnum.TENANT.value,
+            ):
+                raise BusinessException(
+                    message=_("agent_skill_binding.error.scope_mismatch")
+                )
+
     async def bind_package(
         self,
         agent_id: int,
         package_id: int,
         config_override: dict[str, Any] | None = None,
         sort_order: int = 0,
+        consent_mode: str = "auto",
     ) -> AgentSkillBinding:
         """
         绑定技能包到智能体
@@ -77,6 +122,7 @@ class AgentSkillBindingService:
             package_id: 技能包 ID
             config_override: 配置覆盖
             sort_order: 排序
+            consent_mode: 工具执行授权模式 (auto/ask/reject)
 
         Returns:
             AgentSkillBinding 实例
@@ -89,6 +135,10 @@ class AgentSkillBindingService:
         if not package:
             raise NotFoundException(message=_("agent_skill_binding.error.package_not_found"))
 
+        self._validate_scope(
+            agent.scope, package.scope, agent.tenant_id, package.tenant_id,
+        )
+
         existing = await self.binding_repo.get_binding(agent_id, package_id)
         if existing:
             raise BusinessException(message=_("agent_skill_binding.error.already_bound"))
@@ -100,6 +150,7 @@ class AgentSkillBindingService:
             "enabled": True,
             "config_override": config_override,
             "sort_order": sort_order,
+            "consent_mode": consent_mode,
         })
 
         logger.info(
@@ -147,13 +198,16 @@ class AgentSkillBindingService:
         if not agent:
             raise NotFoundException(message=_("agent_skill_binding.error.agent_not_found"))
 
-        # 校验所有 package_id 存在（在事务操作前完成校验）
+        # 校验所有 package_id 存在且 scope 兼容（在事务操作前完成校验）
         for pid in package_ids:
             package = await self.package_repo.get_by_id(pid)
             if not package:
                 raise NotFoundException(
                     message=_("agent_skill_binding.error.package_not_found")
                 )
+            self._validate_scope(
+                agent.scope, package.scope, agent.tenant_id, package.tenant_id,
+            )
 
         # 使用 savepoint 保护 delete + create 的原子性
         # 如果批量插入中途失败，回滚到 savepoint，保留原有绑定

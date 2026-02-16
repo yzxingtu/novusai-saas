@@ -79,5 +79,5 @@ export interface BatchPreviewOutput {
   total_files: number;
   total_new: number;
   total_conflict: number;
-  ddl_preview: string;
+  ddl_preview?: string;
 }

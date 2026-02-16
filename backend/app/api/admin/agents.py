@@ -22,19 +22,36 @@ from app.rbac.decorators import (
     action_delete,
 )
 from app.schemas.ai.agent import AdminAgentCreate, AdminAgentUpdate
+from app.schemas.ai.agent_skill_binding import (
+    AgentSkillBindRequest,
+    AgentSkillBatchBindRequest,
+    AgentSkillBindingUpdate,
+)
 from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.services.ai.agent_service import AgentService, AdminAgentService
+from app.services.ai.agent_skill_binding_service import AgentSkillBindingService
 
 logger = LogManager.get_logger("ai")
 
 
 def _build_admin_agent_item(agent) -> dict:
-    """从 ORM 对象构建管理端列表项字典"""
+    """从 ORM 对象构建管理端列表项字典，提取 model_name + skill_packages"""
     model_name = None
     try:
         model_obj = getattr(agent, "model", None)
         if model_obj is not None:
             model_name = model_obj.name
+    except (AttributeError, Exception):
+        pass
+
+    skill_packages: list[dict] = []
+    try:
+        bindings = getattr(agent, "skill_bindings", None)
+        if bindings is not None:
+            for b in bindings:
+                pkg = getattr(b, "package", None)
+                if pkg is not None:
+                    skill_packages.append({"id": pkg.id, "name": pkg.name})
     except (AttributeError, Exception):
         pass
 
@@ -50,7 +67,10 @@ def _build_admin_agent_item(agent) -> dict:
         "is_system": agent.is_system,
         "model_id": agent.model_id,
         "model_name": model_name,
+        "skill_packages": skill_packages,
         "published_version": agent.published_version,
+        "welcome_message": agent.welcome_message,
+        "suggested_questions": agent.suggested_questions,
         "created_at": agent.created_at,
         "updated_at": agent.updated_at,
     }
@@ -248,6 +268,137 @@ class AdminAgentController(GlobalController):
                 message=_("common.success"),
             )
 
+        # ========================================
+        # 技能绑定
+        # ========================================
+
+        async def _get_agent_for_binding(db, agent_id: int):
+            """获取智能体（用于绑定操作，需要 tenant_id）"""
+            service = AdminAgentService(db)
+            agent = await service.get_by_id(agent_id)
+            if not agent:
+                raise NotFoundException(message=_("agent.error.not_found"))
+            return agent
+
+        @router.get("/{agent_id}/skills", summary="获取智能体技能包绑定列表")
+        @action_read("action.ai_agent.skills")
+        async def get_agent_skills(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            获取智能体绑定的所有技能包（含 SkillPackage 详情）
+
+            权限: ai_agent:skills
+            """
+            agent = await _get_agent_for_binding(db, agent_id)
+            binding_service = AgentSkillBindingService(db, agent.tenant_id)
+            result = await binding_service.get_agent_packages(agent_id)
+            return success(data=result)
+
+        @router.post("/{agent_id}/skills", summary="绑定技能包到智能体")
+        @action_update("action.ai_agent.bind_skill")
+        async def bind_skill(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            data: AgentSkillBindRequest,
+            admin: ActiveAdmin,
+        ):
+            """
+            绑定单个技能包到智能体
+
+            权限: ai_agent:bind_skill
+            """
+            agent = await _get_agent_for_binding(db, agent_id)
+            binding_service = AgentSkillBindingService(db, agent.tenant_id)
+            binding = await binding_service.bind_package(
+                agent_id=agent_id,
+                package_id=data.package_id,
+                config_override=data.config_override,
+                sort_order=data.sort_order,
+                consent_mode=data.consent_mode,
+            )
+            await db.commit()
+            return created(data=binding.to_dict())
+
+        @router.put("/{agent_id}/skills/batch", summary="批量绑定技能包（替换模式）")
+        @action_update("action.ai_agent.batch_bind_skills")
+        async def batch_bind_skills(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            data: AgentSkillBatchBindRequest,
+            admin: ActiveAdmin,
+        ):
+            """
+            批量绑定技能包（替换模式：先清空再批量插入）
+
+            权限: ai_agent:batch_bind_skills
+            """
+            agent = await _get_agent_for_binding(db, agent_id)
+            binding_service = AgentSkillBindingService(db, agent.tenant_id)
+            bindings = await binding_service.batch_bind(
+                agent_id=agent_id,
+                package_ids=data.package_ids,
+            )
+            await db.commit()
+            return success(data=[b.to_dict() for b in bindings])
+
+        @router.put("/{agent_id}/skills/{binding_id}", summary="更新技能绑定配置")
+        @action_update("action.ai_agent.update_skill_binding")
+        async def update_skill_binding(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            binding_id: int,
+            data: AgentSkillBindingUpdate,
+            admin: ActiveAdmin,
+        ):
+            """
+            更新技能绑定（enabled / config_override / sort_order / consent_mode）
+
+            权限: ai_agent:update_skill_binding
+            """
+            agent = await _get_agent_for_binding(db, agent_id)
+            binding_service = AgentSkillBindingService(db, agent.tenant_id)
+
+            binding = await binding_service.get_by_id(binding_id)
+            if not binding or binding.agent_id != agent_id:
+                raise NotFoundException(
+                    message=_("agent_skill_binding.error.binding_not_found")
+                )
+
+            updated = await binding_service.update_binding(
+                binding_id=binding_id,
+                data=data.model_dump(exclude_unset=True),
+            )
+            await db.commit()
+            return success(data=updated.to_dict())
+
+        @router.delete("/{agent_id}/skills/{package_id}", summary="解绑技能包")
+        @action_update("action.ai_agent.unbind_skill")
+        async def unbind_skill(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            package_id: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            解绑指定技能包
+
+            权限: ai_agent:unbind_skill
+            """
+            agent = await _get_agent_for_binding(db, agent_id)
+            binding_service = AgentSkillBindingService(db, agent.tenant_id)
+            await binding_service.unbind_package(
+                agent_id=agent_id, package_id=package_id
+            )
+            await db.commit()
+            return deleted()
 
 
 # 导出路由器

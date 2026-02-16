@@ -21,8 +21,10 @@ export interface AgentListItem {
   execution_mode: string;
   is_system: boolean;
   model_name: string | null;
+  skill_packages: { id: number; name: string }[];
   published_version: number | null;
   visibility: string;
+  welcome_message: string | null;
   created_at: string;
   updated_at: string;
 }

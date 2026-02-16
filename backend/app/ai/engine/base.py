@@ -406,11 +406,15 @@ class BaseEngine(ABC):
             # 提取已绑定的 active SkillPackage IDs
             package_ids: list[int] = []
             config_overrides: dict[int, dict[str, Any]] = {}
+            consent_by_package: dict[int, str] = {}
             for binding in bindings:
                 if binding.package and binding.package.is_active and not binding.package.is_deleted:
                     package_ids.append(binding.package.id)
                     if binding.config_override:
                         config_overrides[binding.package.id] = binding.config_override
+                    consent_by_package[binding.package.id] = getattr(
+                        binding, "consent_mode", "auto"
+                    )
 
             if not package_ids:
                 return None
@@ -456,6 +460,18 @@ class BaseEngine(ABC):
 
             resolver = SkillResolver(db=self.db)
             resolve_result = await resolver.resolve(skills, skill_config_overrides)
+
+            # 构建 tool_name → consent_mode 映射
+            consent_by_skill: dict[int, str] = {}
+            for skill in skills:
+                consent_by_skill[skill.id] = consent_by_package.get(
+                    skill.package_id, "auto"
+                )
+            for tool in resolve_result.tools:
+                if tool.source_skill_id and tool.source_skill_id in consent_by_skill:
+                    resolve_result.tool_consent_modes[tool.name] = consent_by_skill[
+                        tool.source_skill_id
+                    ]
 
             logger.info(
                 "Resolved skills for agent=%s: packages=%s, tools=%s, kb_ids=%s",

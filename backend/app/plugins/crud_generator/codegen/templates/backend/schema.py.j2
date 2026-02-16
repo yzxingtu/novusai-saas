@@ -1,0 +1,222 @@
+{# ============================================================
+   Jinja2 Template: Pydantic Schema (Create / Update / Response)
+   生成路径: app/schemas/{{ scope_dir }}/{{ module }}.py
+
+   变量:
+     - config: CrudConfig
+     - model_class: PascalCase 模型类名
+     - module: kebab-case 模块名
+     - scope: admin | tenant
+     - scope_dir: admin | tenant
+     - fields: list[FieldConfig]
+     - relations: list[RelationConfig]
+     - enums: list[EnumDefinition]
+     - display_name: str
+     - description: str
+   ============================================================ #}
+"""
+{{ display_name }}相关 Schema
+
+定义{{ display_name }}的请求和响应数据结构
+"""
+{% set ns = namespace(has_datetime=false, has_date=false) %}
+{% for field in fields %}
+{% if field.type.value == 'datetime' %}{% set ns.has_datetime = true %}{% endif %}
+{% if field.type.value == 'date' %}{% set ns.has_date = true %}{% endif %}
+{% endfor %}
+{% if ns.has_datetime or ns.has_date %}
+from datetime import {% if ns.has_datetime %}datetime{% endif %}{% if ns.has_datetime and ns.has_date %}, {% endif %}{% if ns.has_date %}date{% endif %}
+
+{% endif %}
+
+from pydantic import Field
+
+from app.core.base_schema import (
+    BaseCreateSchema,
+    BaseUpdateSchema,
+{% if scope == 'tenant' %}
+    TenantResponseSchema,
+{% else %}
+    BaseResponseSchema,
+{% endif %}
+)
+
+
+class {{ model_class }}Create(BaseCreateSchema):
+    """创建{{ display_name }}请求"""
+{% for field in fields %}
+{% if field.in_form %}
+
+{% if field.type.value == 'string' %}
+    {{ field.name }}: {{ 'str' if field.required else 'str | None' }} = Field(
+        {{ '...' if field.required else 'None' }},
+{% if field.max_length %}
+        max_length={{ field.max_length }},
+{% endif %}
+        description="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'text' %}
+    {{ field.name }}: {{ 'str' if field.required else 'str | None' }} = Field(
+        {{ '...' if field.required else 'None' }},
+        description="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'integer' %}
+    {{ field.name }}: {{ 'int' if field.required else 'int | None' }} = Field(
+        {{ '...' if field.required else 'None' }},
+        description="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'float' %}
+    {{ field.name }}: {{ 'float' if field.required else 'float | None' }} = Field(
+        {{ '...' if field.required else 'None' }},
+        description="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'decimal' %}
+    {{ field.name }}: {{ 'float' if field.required else 'float | None' }} = Field(
+        {{ '...' if field.required else 'None' }},
+        description="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'boolean' %}
+    {{ field.name }}: bool = Field(
+        {{ field.default if field.default is not none else 'False' }},
+        description="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'datetime' %}
+    {{ field.name }}: {{ 'datetime' if field.required else 'datetime | None' }} = Field(
+        {{ '...' if field.required else 'None' }},
+        description="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'date' %}
+    {{ field.name }}: {{ 'date' if field.required else 'date | None' }} = Field(
+        {{ '...' if field.required else 'None' }},
+        description="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'json' %}
+    {{ field.name }}: {{ 'dict | list' if field.required else 'dict | list | None' }} = Field(
+        {{ '...' if field.required else 'None' }},
+        description="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'enum' %}
+    {{ field.name }}: {{ 'str' if field.required else 'str | None' }} = Field(
+        {{ '...' if field.required else 'None' }},
+        description="{{ field.label_zh }}",
+    )
+{% elif field.type.value == 'file' %}
+{% if field.upload and field.upload.max_count > 1 %}
+    {{ field.name }}: list | None = Field(
+        None,
+        description="{{ field.label_zh }}",
+    )
+{% else %}
+    {{ field.name }}: str | None = Field(
+        None,
+        description="{{ field.label_zh }}",
+    )
+{% endif %}
+{% endif %}
+{% endif %}
+{% endfor %}
+{% for rel in relations %}
+{% if rel.type.value == 'belongs_to' %}
+    {{ rel.foreign_key or (rel.name + '_id') }}: {{ 'int' if not rel.nullable else 'int | None' }} = Field(
+        {{ '...' if not rel.nullable else 'None' }},
+        description="{{ rel.comment_zh or rel.name }}",
+    )
+{% endif %}
+{% endfor %}
+{% if config.has_status_toggle %}
+    is_active: bool = Field(True, description="Active status")
+{% endif %}
+{% if config.drag_sort %}
+    sort_order: int = Field(0, description="Sort order")
+{% endif %}
+
+
+class {{ model_class }}Update(BaseUpdateSchema):
+    """更新{{ display_name }}请求"""
+{% for field in fields %}
+{% if field.in_form %}
+
+{% if field.type.value == 'string' %}
+    {{ field.name }}: str | None = Field(None,{% if field.max_length %} max_length={{ field.max_length }},{% endif %} description="{{ field.label_zh }}")
+{% elif field.type.value == 'text' %}
+    {{ field.name }}: str | None = Field(None, description="{{ field.label_zh }}")
+{% elif field.type.value == 'integer' %}
+    {{ field.name }}: int | None = Field(None, description="{{ field.label_zh }}")
+{% elif field.type.value == 'float' or field.type.value == 'decimal' %}
+    {{ field.name }}: float | None = Field(None, description="{{ field.label_zh }}")
+{% elif field.type.value == 'boolean' %}
+    {{ field.name }}: bool | None = Field(None, description="{{ field.label_zh }}")
+{% elif field.type.value == 'datetime' %}
+    {{ field.name }}: datetime | None = Field(None, description="{{ field.label_zh }}")
+{% elif field.type.value == 'date' %}
+    {{ field.name }}: date | None = Field(None, description="{{ field.label_zh }}")
+{% elif field.type.value == 'json' %}
+    {{ field.name }}: dict | list | None = Field(None, description="{{ field.label_zh }}")
+{% elif field.type.value == 'enum' %}
+    {{ field.name }}: str | None = Field(None, description="{{ field.label_zh }}")
+{% elif field.type.value == 'file' %}
+{% if field.upload and field.upload.max_count > 1 %}
+    {{ field.name }}: list | None = Field(None, description="{{ field.label_zh }}")
+{% else %}
+    {{ field.name }}: str | None = Field(None, description="{{ field.label_zh }}")
+{% endif %}
+{% endif %}
+{% endif %}
+{% endfor %}
+{% for rel in relations %}
+{% if rel.type.value == 'belongs_to' %}
+    {{ rel.foreign_key or (rel.name + '_id') }}: int | None = Field(None, description="{{ rel.comment_zh or rel.name }}")
+{% endif %}
+{% endfor %}
+{% if config.has_status_toggle %}
+    is_active: bool | None = Field(None, description="Active status")
+{% endif %}
+{% if config.drag_sort %}
+    sort_order: int | None = Field(None, description="Sort order")
+{% endif %}
+
+
+{% if scope == 'tenant' %}
+class {{ model_class }}Response(TenantResponseSchema):
+{% else %}
+class {{ model_class }}Response(BaseResponseSchema):
+{% endif %}
+    """{{ display_name }}响应"""
+{% for field in fields %}
+
+{% if field.type.value in ('string', 'text', 'enum') %}
+    {{ field.name }}: {{ 'str' if field.required else 'str | None' }} = Field({{ '...' if field.required else 'None' }}, description="{{ field.label_zh }}")
+{% elif field.type.value == 'integer' %}
+    {{ field.name }}: {{ 'int' if field.required else 'int | None' }} = Field({{ '...' if field.required else 'None' }}, description="{{ field.label_zh }}")
+{% elif field.type.value in ('float', 'decimal') %}
+    {{ field.name }}: {{ 'float' if field.required else 'float | None' }} = Field({{ '...' if field.required else 'None' }}, description="{{ field.label_zh }}")
+{% elif field.type.value == 'boolean' %}
+    {{ field.name }}: bool = Field({{ field.default if field.default is not none else 'False' }}, description="{{ field.label_zh }}")
+{% elif field.type.value == 'datetime' %}
+    {{ field.name }}: {{ 'datetime' if field.required else 'datetime | None' }} = Field({{ '...' if field.required else 'None' }}, description="{{ field.label_zh }}")
+{% elif field.type.value == 'date' %}
+    {{ field.name }}: {{ 'date' if field.required else 'date | None' }} = Field({{ '...' if field.required else 'None' }}, description="{{ field.label_zh }}")
+{% elif field.type.value == 'json' %}
+    {{ field.name }}: dict | list | None = Field(None, description="{{ field.label_zh }}")
+{% elif field.type.value == 'file' %}
+    {{ field.name }}: str | list[str] | None = Field(None, description="{{ field.label_zh }}")
+{% endif %}
+{% endfor %}
+{% for rel in relations %}
+{% if rel.type.value == 'belongs_to' %}
+    {{ rel.foreign_key or (rel.name + '_id') }}: {{ 'int' if not rel.nullable else 'int | None' }} = Field({{ '...' if not rel.nullable else 'None' }}, description="{{ rel.comment_zh or rel.name }}")
+{% endif %}
+{% endfor %}
+{% if config.has_status_toggle %}
+    is_active: bool = Field(True, description="Active status")
+{% endif %}
+{% if config.drag_sort %}
+    sort_order: int = Field(0, description="Sort order")
+{% endif %}
+
+
+__all__ = [
+    "{{ model_class }}Create",
+    "{{ model_class }}Update",
+    "{{ model_class }}Response",
+]

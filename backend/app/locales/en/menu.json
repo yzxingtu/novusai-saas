@@ -42,7 +42,8 @@
       "ai_skill_package": "Skill Packages",
       "plugin": "Plugin Management",
       "dev_tools": "Dev Tools",
-      "crud_generator": "CRUD Generator"
+      "crud_generator": "CRUD Generator",
+      "agent_assignment": "Agent Assignment"
     },
     "tags": {
       "admin_agent_mgmt": "Agent Management (Platform)",
@@ -68,7 +69,8 @@
       "tenant_ai_quota": "AI Quota Management",
       "tenant_ai_usage": "AI Usage Statistics",
       "tenant_knowledge_base": "Knowledge Bases",
-      "tenant_ai_table_policy": "Data Access Policies"
+      "tenant_ai_table_policy": "Data Access Policies",
+      "admin_agent_assignment_mgmt": "Agent Assignment Management"
     },
     "tenant": {
       "dashboard": "Dashboard",

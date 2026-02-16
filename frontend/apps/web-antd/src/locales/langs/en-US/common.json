@@ -141,7 +141,11 @@
     "rejectBtn": "Cancel",
     "confirmExecute": "Confirm execution",
     "rejectExecute": "Cancel, do not execute",
-    "confirmationResolved": "Resolved"
+    "confirmationResolved": "Resolved",
+    "consentTitle": "Tool Consent Required",
+    "consentAllow": "Allow",
+    "consentDeny": "Deny",
+    "consentResolved": "Resolved"
   },
   "recycleBin": {
     "title": "Recycle Bin",

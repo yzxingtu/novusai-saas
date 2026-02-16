@@ -7,7 +7,7 @@ Skill 解析器
 - knowledge_base → 0 个 ToolDefinition（通过 RAG 注入 system_prompt）
 - data_intelligence → 1~4 个 ToolDefinition（data_query + CRUD）
 - toolkit → N 个 ToolDefinition（Tools 类的每个公开方法一个）
-- builtin → 1 个 ToolDefinition（或 N 个，如 crud_generator）
+- builtin → 1 个 ToolDefinition（或 N 个，通过 config.tools 列表）
 
 未知类型走插件解析路径。
 """
@@ -42,6 +42,7 @@ class SkillResolveResult:
     tools: list[ToolDefinition] = field(default_factory=list)
     knowledge_base_ids: list[int] = field(default_factory=list)
     rag_config: dict[str, Any] = field(default_factory=dict)
+    tool_consent_modes: dict[str, str] = field(default_factory=dict)
 
 
 class SkillResolver:
@@ -388,16 +389,10 @@ class SkillResolver:
         """
         Builtin Skill → ToolDefinition
 
-        支持三种模式：
-        1. crud_generator 模式：builtin_type="crud_generator" → N 个 ToolDefinition
-        2. 多工具模式：config.tools 列表 → N 个 ToolDefinition
-        3. 单工具模式（默认）：skill 本身即为一个工具
+        支持两种模式：
+        1. 多工具模式：config.tools 列表 → N 个 ToolDefinition
+        2. 单工具模式（默认）：skill 本身即为一个工具
         """
-        builtin_type = config.get("builtin_type", "")
-        if builtin_type == "crud_generator":
-            self._resolve_crud_generator(skill, config, result)
-            return
-
         tools_config = config.get("tools")
         tool_type_override = config.get("tool_type", ToolTypeEnum.BUILTIN.value)
 
@@ -435,66 +430,6 @@ class SkillResolver:
                 source_skill_name=skill.name,
                 source_skill_type=skill.type,
             ))
-
-    # ========================================
-    # CRUD Generator (builtin 子类型)
-    # ========================================
-
-    def _resolve_crud_generator(
-        self,
-        skill: Skill,
-        config: dict[str, Any],
-        result: SkillResolveResult,
-    ) -> None:
-        """
-        CRUD Generator → 13 个 ToolDefinition
-
-        从 skill.input_schema 的 multi_tool 格式读取工具定义。
-        工具名与 CrudGeneratorExecutor._DISPATCH 一一对应。
-        dev_only 检查：当 config.dev_only=True 且 APP_ENV != development 时跳过。
-        """
-        import os
-
-        if config.get("dev_only") and os.getenv("APP_ENV") != "development":
-            logger.info(
-                "Skipping crud_generator skill %d (dev_only, APP_ENV=%s)",
-                skill.id, os.getenv("APP_ENV"),
-            )
-            return
-
-        input_schema = skill.input_schema or {}
-        tools_schema = input_schema.get("tools", {})
-
-        if not tools_schema:
-            logger.warning(
-                "crud_generator skill %d has no tools in input_schema",
-                skill.id,
-            )
-            return
-
-        count = 0
-        for tool_name, tool_spec in tools_schema.items():
-            params = self._build_params_from_schema(
-                tool_spec.get("parameters")
-            )
-            result.tools.append(ToolDefinition(
-                name=tool_name,
-                description=tool_spec.get("description", ""),
-                tool_type=ToolTypeEnum.CRUD_GENERATOR.value,
-                parameters=params,
-                config=config,
-                enabled=True,
-                timeout=skill.timeout,
-                source_skill_id=skill.id,
-                source_skill_name=skill.name,
-                source_skill_type=skill.type,
-            ))
-            count += 1
-
-        logger.info(
-            "crud_generator skill '%s' resolved %d tools",
-            skill.name, count,
-        )
 
     # ========================================
     # 插件 Skill

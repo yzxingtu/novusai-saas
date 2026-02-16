@@ -40,8 +40,12 @@ _NEW_CONFIG = {
 
 def _get_input_schema() -> dict:
     """Build input_schema from skill_definitions (lazy import)."""
-    from app.codegen.skill_definitions import build_skill_input_schema
-    return build_skill_input_schema()
+    try:
+        from app.codegen.skill_definitions import build_skill_input_schema
+        return build_skill_input_schema()
+    except ImportError:
+        # Module removed — old CRUD Generator executor deleted
+        return {"multi_tool": True, "tools": {}}
 
 
 def upgrade() -> None:

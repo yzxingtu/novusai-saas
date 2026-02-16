@@ -313,7 +313,7 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<T>({
 4. **Service** — 继承 `TenantService`/`BaseService`，可重写钩子
 5. **Controller** — 继承 `TenantController`/`GlobalController`，声明 `@permission_resource` + `@action_*`
 6. **注册路由** — 引入 `router`
-7. **生成迁移** — `alembic revision --autogenerate -m "xxx"` + 注册到 `models/__init__.py` 和 `migrations/env.py`（启动时自动 upgrade）
+7. **生成迁移** — CRUD Generator 自动生成 Alembic 迁移脚本到 `migrations/versions/crud/`；手动模块用 `alembic revision --autogenerate -m "xxx"` + 注册到 `models/__init__.py` 和 `migrations/env.py`（启动时自动 upgrade）
 
 ### 菜单权限系统（新模块必读）
 
@@ -367,6 +367,51 @@ alembic revision --autogenerate -m "add_xxx_table"
 - 迁移文件命名模板：`{year}{month}{day}_{rev}_{slug}.py`
 - `env.py` 中 `target_metadata = Base.metadata`，所有 Model 必须继承 `Base`
 - 同步引擎 `DATABASE_URL_SYNC`（`postgresql://`）用于 Alembic，异步引擎 `DATABASE_URL`（`postgresql+asyncpg://`）用于应用
+
+### CRUD 生成器迁移规则（重要）
+
+**禁止任何途径直接 CREATE TABLE**。所有建表操作必须通过 Alembic 迁移脚本。
+
+| 入口 | 正确做法 | 禁止做法 |
+|------|----------|----------|
+| 可视化向导 | 生成 Alembic migration `.py` 文件 | 生成 DDL / 直接建表 |
+| CLI `generate` | 输出 migration 文件到 `migrations/versions/` | 执行 CREATE TABLE |
+| AI 智能体 | Skill 输出 migration 脚本 | 输出 DDL 预览 |
+
+**原因**：
+1. 直接建表会断裂 Alembic 迁移链，后续新增字段无法通过迁移管理
+2. 后端热重载自动执行 `alembic upgrade head`，迁移链外的表不受管理
+3. 生产部署依赖迁移链的完整性进行增量升级
+
+**已实现**（里程碑 M119/#389 — 已完成）：
+- `migration.py.j2` 模板 → `generator.generate_migration()` 生成建表迁移脚本
+- `migration_alter.py.j2` 模板 → `generator.generate_incremental_migration()` 生成增量迁移脚本（add_column / alter_column / drop_column）
+- 迁移脚本输出到 `backend/migrations/versions/crud/` 子目录
+- `alembic.ini` + `env.py` 已配置 multi-directory version_locations
+- Writer 白名单已包含 `backend/migrations/versions/crud/`
+- CLI `generate --down-revision` 生成建表迁移；CLI `migrate --old-config --new-config` 生成增量迁移
+- AI Toolkit 已添加 `generate_migration` 和 `generate_incremental_migration` 工具
+- 前端预览 DDL tab 已替换为 Migration tab
+
+### CRUD 生成器插件化规则（重要）
+
+**CRUD Generator（可视化向导 + CLI）不是系统核心功能，必须作为可选插件提供。**
+
+系统核心不应包含 CRUD Generator 代码。该功能通过插件体系（`ApiPlugin` + `SkillPlugin`）动态加载：
+
+| 组件 | 当前位置（待迁移） | 目标位置 |
+|------|---------------------|----------|
+| 后端引擎 | `app/codegen/` (11 .py + 14 .j2) | `app/plugins/crud-generator/codegen/` |
+| 后端 API | `app/api/admin/dev_crud*.py` | 插件 `get_router()` 动态路由 |
+| CLI | `python -m app.codegen.cli` | 插件 CLI 命令 |
+| AI 技能 | 迁移种子数据绑定 | `SkillPlugin` 生命周期自动装配 |
+| 前端页面 | `views/admin/dev/crud-generator/` (35+ 文件) | 插件前端包 + 动态路由注册 |
+| i18n | 核心 `admin/dev.json` | 插件自有 locale |
+
+**当前状态**（待重构 — 里程碑 M120/#390）：
+- 后端 + 前端代码深度耦合在核心中
+- 前端插件页面注册机制尚不存在（需先设计）
+- 系统智能体通过迁移种子数据绑定（需改为 SkillPlugin 生命周期）
 
 ### 数据库会话获取方式
 

@@ -41,7 +41,7 @@ from app.ai.exceptions import (
 from app.ai.events import EventBus, get_event_bus, HookRegistry, get_hook_registry
 
 # 导出工具执行沙箱
-from app.ai.tools import ToolSandbox, ToolRegistry, get_tool_registry
+from app.ai.tools import ToolSandbox
 
 # 导出智能体配额与并发控制
 from app.ai.agent_quota import (
@@ -88,8 +88,6 @@ __all__ = [
     "get_hook_registry",
     # 工具沙箱
     "ToolSandbox",
-    "ToolRegistry",
-    "get_tool_registry",
     # 智能体配额与并发
     "AgentQuotaConfig",
     "AgentQuotaManager",

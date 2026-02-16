@@ -9,7 +9,7 @@ defineOptions({ name: 'TenantAgentList' });
 import { ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
-import { Plus } from '@vben/icons';
+import { IconifyIcon, Plus } from '@vben/icons';
 
 import { Card, Input, message, Modal, Tag, Tooltip } from 'ant-design-vue';
 
@@ -57,7 +57,7 @@ const [VersionHistoryDrawer, versionHistoryApi] = useVbenDrawer({
 });
 
 function onEdit(row: AgentListItem) {
-  agentFormRef.value?.openEdit(row);
+  agentFormRef.value?.openEdit(row as unknown as import('#/api/tenant/agents').AgentInfo);
 }
 
 // 发布弹窗状态
@@ -120,9 +120,7 @@ function onVersions(row: AgentListItem) {
     .open();
 }
 
-let gridReload: () => void;
-
-const { Grid } = useCrudPage<AgentListItem>({
+const { Grid, onRefresh: gridReload } = useCrudPage<AgentListItem>({
   api: {
     list: getAgentListApi,
     delete: deleteAgentApi,
@@ -141,9 +139,6 @@ const { Grid } = useCrudPage<AgentListItem>({
     publish: onPublish,
     edit: onEdit,
     versions: onVersions,
-  },
-  onMounted(grid) {
-    gridReload = () => grid.commitProxy('query');
   },
 });
 
@@ -222,6 +217,9 @@ function onVersionSuccess() {
             <Tag v-if="row.is_system" color="purple" class="ml-1" style="font-size: 10px; line-height: 16px; padding: 0 4px;">
               {{ $t('tenant.ai.agent.system') }}
             </Tag>
+            <Tooltip v-if="row.welcome_message" :title="$t('tenant.ai.agent.hasWelcomeMessage')">
+              <IconifyIcon icon="lucide:message-circle-heart" class="ml-1 size-3.5 text-primary/60" />
+            </Tooltip>
           </div>
           <div
             v-if="row.description"
@@ -250,6 +248,24 @@ function onVersionSuccess() {
           <Tag :color="getExecutionModeColor(row.execution_mode)">
             {{ getExecutionModeText(row.execution_mode) }}
           </Tag>
+        </template>
+
+        <!-- 技能包列 -->
+        <template #skill_count_cell="{ row }">
+          <template v-if="row.skill_packages && row.skill_packages.length > 0">
+            <Tag
+              v-for="pkg in row.skill_packages.slice(0, 3)"
+              :key="pkg.id"
+              color="cyan"
+              class="mr-1"
+            >
+              {{ pkg.name }}
+            </Tag>
+            <Tooltip v-if="row.skill_packages.length > 3" :title="row.skill_packages.slice(3).map((p: { name: string }) => p.name).join(', ')">
+              <Tag color="cyan">+{{ row.skill_packages.length - 3 }}</Tag>
+            </Tooltip>
+          </template>
+          <span v-else class="text-muted-foreground">-</span>
         </template>
 
         <!-- 模型列 -->

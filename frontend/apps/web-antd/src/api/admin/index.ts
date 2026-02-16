@@ -7,6 +7,7 @@ export * from './operation-log';
 export * from './organization';
 export * from './periodic-task';
 export * from './permission';
+export * from './plugins';
 export * from './plan';
 export * from './role';
 export * from './system-log';

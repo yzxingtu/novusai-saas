@@ -7,7 +7,7 @@ defineOptions({ name: 'TenantAgentForm' });
 import type { AgentInfo } from '#/api/tenant/agents';
 
 interface AgentDetailWithBindings extends AgentInfo {
-  _package_ids?: number[];
+  _package_options?: { label: string; value: number }[];
 }
 
 import { computed, ref } from 'vue';
@@ -83,7 +83,10 @@ const { Drawer, isEdit, recordId, openNew: _openNew, openEdit: _openEdit } = use
   defaults: getFormDefaults,
   apiPath: '/tenant/ai/agents',
   transform: (values) => {
-    pendingPackageIds.value = (values.package_ids as number[]) || [];
+    const rawPkgIds = values.package_ids as Array<number | { label: string; value: number }>;
+    pendingPackageIds.value = (rawPkgIds || []).map((p) =>
+      typeof p === 'object' && p !== null ? p.value : p,
+    );
     return {
       name: values.name,
       avatar: values.avatar || null,
@@ -129,7 +132,7 @@ const { Drawer, isEdit, recordId, openNew: _openNew, openEdit: _openEdit } = use
       input_variables_str: toJsonArrayString(data.input_variables as unknown[] | null),
       context_max_history_messages: cc.max_history_messages ?? 20,
       context_max_history_tokens: cc.max_history_tokens ?? 0,
-      package_ids: (data as AgentDetailWithBindings)._package_ids || [],
+      package_ids: (data as AgentDetailWithBindings)._package_options || [],
       quota_conversations_per_day: qc.conversations_per_day ?? 0,
       quota_tokens_per_day: qc.daily_token_limit ?? 0,
       quota_tokens_per_month: qc.monthly_token_limit ?? 0,
@@ -153,9 +156,12 @@ const { Drawer, isEdit, recordId, openNew: _openNew, openEdit: _openEdit } = use
     const agent = await getAgentDetailApi(id as number);
     try {
       const bindings = await getAgentSkillsApi(id as number);
-      (agent as AgentDetailWithBindings)._package_ids = bindings.map((b) => b.package_id);
+      (agent as AgentDetailWithBindings)._package_options = bindings.map((b) => ({
+        label: b.package?.name || `#${b.package_id}`,
+        value: b.package_id,
+      }));
     } catch {
-      (agent as AgentDetailWithBindings)._package_ids = [];
+      (agent as AgentDetailWithBindings)._package_options = [];
     }
     return agent;
   },

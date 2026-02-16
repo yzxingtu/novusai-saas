@@ -31,8 +31,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def _get_system_prompt() -> str:
     """Lazy import CRUD_AGENT_SYSTEM_PROMPT."""
-    from app.codegen.ai_prompts import CRUD_AGENT_SYSTEM_PROMPT
-    return CRUD_AGENT_SYSTEM_PROMPT
+    try:
+        from app.codegen.ai_prompts import CRUD_AGENT_SYSTEM_PROMPT
+        return CRUD_AGENT_SYSTEM_PROMPT
+    except ImportError:
+        # Module removed — old CRUD Generator executor deleted
+        return "You are a CRUD code generation assistant."
 
 
 def upgrade() -> None:

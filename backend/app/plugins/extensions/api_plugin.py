@@ -89,5 +89,19 @@ class ApiPlugin(BasePlugin):
         """
         return [f"Plugin: {self.display_name}"]
 
+    def get_auth_level(self) -> str:
+        """
+        返回路由认证级别
+
+        控制插件路由的认证要求：
+        - ``"public"``: 无需认证
+        - ``"auth_only"``: 需要已登录的平台管理员（默认）
+        - ``"admin_only"``: 需要超级管理员
+
+        Returns:
+            认证级别字符串
+        """
+        return "auth_only"
+
 
 __all__ = ["ApiPlugin"]

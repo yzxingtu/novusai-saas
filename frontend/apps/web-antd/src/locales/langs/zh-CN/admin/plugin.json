@@ -81,7 +81,10 @@
     "confirmUpgrade": "确定要升级此插件吗？将重新加载插件代码。",
     "upgradeSuccess": "插件升级成功",
     "systemPluginTip": "系统内置插件，不可卸载或禁用",
-    "uploading": "正在上传安装中…"
+    "uploading": "正在上传安装中…",
+    "uploadConflict": "插件已存在",
+    "uploadConflictDesc": "插件 {name} 已安装（当前版本 {oldVersion}），上传版本为 {newVersion}。是否覆盖升级？",
+    "overwrite": "覆盖升级"
   },
   "providesSkill": "提供技能"
 }

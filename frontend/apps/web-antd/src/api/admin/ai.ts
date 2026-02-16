@@ -692,7 +692,10 @@ export interface AIAgentInfo {
   is_system: boolean;
   model_id: number;
   model_name: null | string;
+  skill_packages: { id: number; name: string }[];
   published_version: null | number;
+  welcome_message: null | string;
+  suggested_questions: string[] | null;
   system_prompt: null | string;
   temperature: number;
   max_tokens: number;
@@ -799,6 +802,98 @@ export async function deleteAIAgentApi(
   options?: ApiRequestOptions,
 ): Promise<void> {
   await requestClient.delete(`${AGENT_PREFIX}/${id}`, options);
+}
+
+// ============================================================
+// API 接口 - 智能体技能绑定（平台）
+// ============================================================
+
+/** 技能绑定信息 */
+export interface AIAgentSkillBindingInfo {
+  id: number;
+  agent_id: number;
+  package_id: number;
+  enabled: boolean;
+  config_override: Record<string, unknown> | null;
+  sort_order: number;
+  consent_mode: string;
+  package_name: string | null;
+  package_description: string | null;
+  package_scope: string | null;
+}
+
+/** 绑定技能包请求 */
+export interface AIAgentSkillBindRequest {
+  package_id: number;
+  config_override?: Record<string, unknown> | null;
+  sort_order?: number;
+  consent_mode?: string;
+}
+
+/** 批量绑定请求 */
+export interface AIAgentSkillBatchBindRequest {
+  package_ids: number[];
+}
+
+/** 更新绑定请求 */
+export interface AIAgentSkillBindingUpdateRequest {
+  enabled?: boolean | null;
+  config_override?: Record<string, unknown> | null;
+  sort_order?: number | null;
+  consent_mode?: string | null;
+}
+
+/** 获取智能体技能绑定列表 */
+export async function getAIAgentSkillsApi(
+  agentId: number,
+): Promise<AIAgentSkillBindingInfo[]> {
+  return requestClient.get<AIAgentSkillBindingInfo[]>(
+    `${AGENT_PREFIX}/${agentId}/skills`,
+  );
+}
+
+/** 绑定技能包到智能体 */
+export async function bindAIAgentSkillApi(
+  agentId: number,
+  data: AIAgentSkillBindRequest,
+): Promise<AIAgentSkillBindingInfo> {
+  return requestClient.post<AIAgentSkillBindingInfo>(
+    `${AGENT_PREFIX}/${agentId}/skills`,
+    data,
+  );
+}
+
+/** 批量绑定技能包（替换模式） */
+export async function batchBindAIAgentSkillsApi(
+  agentId: number,
+  data: AIAgentSkillBatchBindRequest,
+): Promise<AIAgentSkillBindingInfo[]> {
+  return requestClient.put<AIAgentSkillBindingInfo[]>(
+    `${AGENT_PREFIX}/${agentId}/skills/batch`,
+    data,
+  );
+}
+
+/** 更新技能绑定配置 */
+export async function updateAIAgentSkillBindingApi(
+  agentId: number,
+  bindingId: number,
+  data: AIAgentSkillBindingUpdateRequest,
+): Promise<AIAgentSkillBindingInfo> {
+  return requestClient.put<AIAgentSkillBindingInfo>(
+    `${AGENT_PREFIX}/${agentId}/skills/${bindingId}`,
+    data,
+  );
+}
+
+/** 解绑技能包 */
+export async function unbindAIAgentSkillApi(
+  agentId: number,
+  packageId: number,
+): Promise<void> {
+  await requestClient.delete(
+    `${AGENT_PREFIX}/${agentId}/skills/${packageId}`,
+  );
 }
 
 /** 测试 AI 模型连通性 */

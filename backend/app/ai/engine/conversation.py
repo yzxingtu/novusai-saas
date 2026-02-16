@@ -305,6 +305,11 @@ class ConversationEngine(BaseEngine):
         if tools:
             self._inject_tool_awareness(messages, tools)
 
+        # 提取每个工具的 consent_mode（auto/ask/reject）
+        _tool_consent_modes: dict[str, str] = (
+            skill_result.tool_consent_modes if skill_result else {}
+        )
+
         async def _sse_generator() -> AsyncIterator[str]:
             """SSE 事件生成器（工具调用事件实时推送）"""
             total_tokens = 0
@@ -361,10 +366,13 @@ class ConversationEngine(BaseEngine):
                             **_conf_skill,
                         }
                         if _result.success and _result.output:
-                            _s = _result.output[:500]
-                            if len(_result.output) > 500:
-                                _s += "..."
-                            _te["output"] = _s
+                            if '"__crud_form_fill__"' in _result.output:
+                                _te["output"] = _result.output
+                            else:
+                                _s = _result.output[:500]
+                                if len(_result.output) > 500:
+                                    _s += "..."
+                                _te["output"] = _s
                         elif not _result.success and _result.error:
                             _te["error"] = _result.error[:300]
                         yield SSEChunkEncoder.encode(_te)
@@ -435,8 +443,54 @@ class ConversationEngine(BaseEngine):
                                 except json.JSONDecodeError:
                                     arguments = {}
 
-                                # 推送 tool_start 事件（工具开始执行）
                                 _skill_info = _get_skill_info(func_name, tools)
+
+                                # ---- consent_mode 前置检查 ----
+                                _consent = _tool_consent_modes.get(func_name, "auto")
+
+                                if _consent == "reject":
+                                    # 工具被 consent 策略禁止执行
+                                    _reject_msg = _("tool.error.consent_rejected")
+                                    messages.append(ChatMessage(
+                                        role="tool",
+                                        content=_reject_msg,
+                                        tool_call_id=tc_id,
+                                    ))
+                                    yield SSEChunkEncoder.encode({
+                                        "event": "tool_call",
+                                        "name": func_name,
+                                        "success": False,
+                                        "duration_ms": 0,
+                                        "error": _reject_msg,
+                                        **_skill_info,
+                                    })
+                                    continue
+
+                                if _consent == "ask":
+                                    # 需要用户授权 — 发送 SSE 事件，写入 requires_confirmation 结果
+                                    _consent_payload = json.dumps({
+                                        "requires_confirmation": True,
+                                        "consent_required": True,
+                                        "action": "tool_consent",
+                                        "tool_name": func_name,
+                                        "arguments": arguments,
+                                    }, ensure_ascii=False)
+                                    messages.append(ChatMessage(
+                                        role="tool",
+                                        content=_consent_payload,
+                                        tool_call_id=tc_id,
+                                    ))
+                                    yield SSEChunkEncoder.encode({
+                                        "event": "tool_consent_request",
+                                        "name": func_name,
+                                        "arguments": arguments,
+                                        **_skill_info,
+                                    })
+                                    has_confirmation = True
+                                    continue
+
+                                # ---- auto: 正常执行 ----
+                                # 推送 tool_start 事件（工具开始执行）
                                 yield SSEChunkEncoder.encode({
                                     "event": "tool_start",
                                     "name": func_name,
@@ -464,11 +518,15 @@ class ConversationEngine(BaseEngine):
                                     **_skill_info,
                                 }
                                 if result.success and result.output:
-                                    # 截取输出摘要（避免过长）
-                                    summary = result.output[:500]
-                                    if len(result.output) > 500:
-                                        summary += "..."
-                                    tool_event["output"] = summary
+                                    # 包含 __crud_form_fill__ 标记的输出需完整传输给前端
+                                    if '"__crud_form_fill__"' in result.output:
+                                        tool_event["output"] = result.output
+                                    else:
+                                        # 截取输出摘要（避免过长）
+                                        summary = result.output[:500]
+                                        if len(result.output) > 500:
+                                            summary += "..."
+                                        tool_event["output"] = summary
                                 elif not result.success and result.error:
                                     tool_event["error"] = result.error[:300]
                                 yield SSEChunkEncoder.encode(tool_event)

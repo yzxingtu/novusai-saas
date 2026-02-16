@@ -82,6 +82,22 @@ export function getSkillPackageSelectApi(params?: Record<string, unknown>) {
   );
 }
 
+/** 可绑定技能包选项（含 admin 共享包） */
+export interface AvailablePackageOption {
+  label: string;
+  value: number;
+  scope: string;
+  description: string | null;
+  is_system: boolean;
+}
+
+/** 获取可绑定的技能包列表（自有 + admin 共享） */
+export function getAvailablePackagesApi() {
+  return requestClient.get<AvailablePackageOption[]>(
+    `${BASE_URL}/available`,
+  );
+}
+
 /** 上传技能 ZIP 包 */
 export function uploadSkillPackageApi(file: File) {
   const formData = new FormData();

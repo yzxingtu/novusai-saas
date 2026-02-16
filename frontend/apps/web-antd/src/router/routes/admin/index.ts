@@ -250,38 +250,7 @@ const mainRoutes: RouteRecordRaw = {
         },
       ],
     },
-    // Fallback 静态注册：开发工具（后端菜单动态路由优先生效）
-    {
-      name: 'AdminDevTools',
-      path: 'dev',
-      meta: {
-        hideInMenu: true,
-        icon: 'lucide:code-2',
-        title: $t('admin.dev.title'),
-      },
-      children: [
-        {
-          name: 'AdminDevCrudGenerator',
-          path: 'crud-generator',
-          component: () =>
-            import('#/views/admin/dev/crud-generator/index.vue'),
-          meta: {
-            icon: 'lucide:wand-2',
-            title: $t('admin.dev.crudGenerator.title'),
-          },
-        },
-        {
-          name: 'AdminDevCrudRecords',
-          path: 'crud-records',
-          component: () =>
-            import('#/views/admin/dev/crud-generator/records/index.vue'),
-          meta: {
-            icon: 'lucide:history',
-            title: $t('admin.dev.crudGenerator.records.title'),
-          },
-        },
-      ],
-    },
+    // CRUD Generator routes removed — now provided by plugin
   ],
 };
 

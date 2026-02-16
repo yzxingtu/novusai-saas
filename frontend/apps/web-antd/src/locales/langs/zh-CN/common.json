@@ -140,7 +140,11 @@
     "rejectBtn": "取消",
     "confirmExecute": "确认执行",
     "rejectExecute": "取消操作，不执行",
-    "confirmationResolved": "已处理"
+    "confirmationResolved": "已处理",
+    "consentTitle": "工具授权确认",
+    "consentAllow": "允许执行",
+    "consentDeny": "拒绝",
+    "consentResolved": "已处理"
   },
   "recycleBin": {
     "title": "回收站",

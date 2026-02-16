@@ -169,6 +169,72 @@ alembic upgrade head
 - Token 按 URL 前缀自动选择：`/admin/*` → admin Token，`/tenant/*` → tenant Token
 - 错误码对照：前端 4010 → 跳登录，4011 → token 过期刷新，4030 → 权限不足提示
 
+## AI 架构规则（强制）
+
+### 核心原则：Agent→Skill 全链路
+
+**所有 AI 功能必须通过 Agent 调度 Skill 完成，禁止直接调用 AIGateway。**
+
+```
+外部请求 → Agent.run() → Skill.execute() → AIGateway → LLM Provider
+```
+
+- 禁止在 Controller/Service 层直接实例化 `AIGateway` 发起 LLM 调用
+- 禁止新增绕过 Agent→Skill 链路的 AI 端点
+- 禁止使用已废弃的 `ToolRegistry`（`app.ai.tools.registry`）注册工具
+- Agent engine 内部的 LLM 调用（conversation.py/base.py/dispatcher.py）属于 Agent 实现层，不受此限制
+- RAG 管道内部的 LLM 调用属于 Agent 技能内部实现，不受此限制
+- `SystemAgentService`（`app/ai/system_agent.py`）— Controller 层唯一合法的 AI 调用入口
+- `AIGateway.test_model` 仅限模型连通性测试，不用于业务功能
+
+### Agent 定义规范
+
+- Agent 必须通过 `AgentSkillBinding` 绑定 SkillPackage，禁止使用已废弃的 `tool_bindings` JSON 字段
+- 执行模式：`conversation`（多轮对话）/ `task`（单次）/ `batch`（批量）/ `api`（外部集成）
+- 授权模式（ToolConsentModeEnum）：`auto`（自动执行）/ `ask`（需用户确认）/ `reject`（禁止调用）
+- 写操作类工具建议设为 `ask` 模式
+
+### 技能（Skill）体系
+
+- **技能包（SkillPackage）是一级管理单元**，技能（Skill）必须归属于某个技能包
+- **前端统一入口**：`/admin/ai/skill-packages`（管理端）和 `/tenant/ai/skill-packages`（租户端）为唯一技能管理入口
+- **禁止独立技能路由**：不允许存在独立的 `/admin/ai/skills` 或 `/tenant/ai/skills` 页面
+- 技能包详情页内嵌技能 CRUD，技能表单自动继承当前包的 `package_id`
+
+### 技能类型
+
+| 类型 | 说明 |
+|------|------|
+| `toolkit` | Python 工具包（Tools 类，每个方法映射为一个 LLM 工具） |
+| `knowledge_base` | 知识库检索（RAG，注入 system_prompt） |
+| `data_intelligence` | 数据智能（Text-to-SQL + CRUD） |
+| `builtin` | 内置函数 |
+
+- **Toolkit 类型**：通过 `toolkit_content` 存储 Python 源码，`toolkit_meta` 存储解析结果，支持 Valves 配置，非系统 Toolkit 有安全扫描
+- 未知类型走插件解析路径（PluginExecutor）
+- 新增技能类型必须同时：创建 Executor、注册到 SkillResolver、添加枚举值、添加 i18n
+- `SkillResolver` 是唯一合法的 Skill→ToolDefinition 转换器，禁止使用 `ToolRegistry`
+
+### 系统 Agent 与系统 Skill
+
+- 系统级 Agent/Skill/SkillPackage 标记 `is_system=True`，不可删除/禁用
+- 系统 Agent 通过 seed migration 创建，scope=admin, tenant_id=NULL
+- 前端管理页面中系统记录显示紫色「系统」标签，操作受限
+- Controller 层通过 `SystemAgentService` 调用 AI 能力，架构：`Controller → SystemAgentService → AIGateway`
+
+### 新增 AI 功能标准流程
+
+```
+1. 定义 Skill 类型（如已有类型可复用则跳过）
+2. 实现 Executor（继承 BaseToolExecutor）
+3. 在 SkillResolver 注册类型→转换方法映射
+4. 创建 Skill 记录（可通过 migration 或 API）
+5. 将 Skill 绑定到 Agent（通过 AgentSkillBinding）
+6. 通过 Agent 对话或 Agent.run() 触发 Skill
+```
+
+详细规则 → `.verdent/rules/ai-architecture.md`
+
 ## DevGenius 治理规则
 
 本项目使用 DevGenius（MCP 集成名称：`devgenius-quanzhan`）进行项目管理，以下规则每次对话均生效：

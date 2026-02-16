@@ -34,7 +34,6 @@ class ToolTypeEnum(LabeledStrEnum):
     DATA_UPDATE = ("data_update", "enum.agent.tool_type.data_update")
     DATA_DELETE = ("data_delete", "enum.agent.tool_type.data_delete")
     PLUGIN = ("plugin", "enum.agent.tool_type.plugin")
-    CRUD_GENERATOR = ("crud_generator", "enum.agent.tool_type.crud_generator")
 
 
 class ConversationStatusEnum(LabeledStrEnum):
@@ -129,6 +128,14 @@ class SkillTypeEnum(LabeledStrEnum):
 
 
 
+class ToolConsentModeEnum(LabeledStrEnum):
+    """工具执行授权模式枚举"""
+
+    AUTO = ("auto", "enum.tool_consent.auto")
+    ASK = ("ask", "enum.tool_consent.ask")
+    REJECT = ("reject", "enum.tool_consent.reject")
+
+
 class BatchRunStatusEnum(LabeledStrEnum):
     """批处理运行状态枚举"""
 
@@ -215,6 +222,7 @@ __all__ = [
     "ActionStatusEnum",
     "ActionResultTypeEnum",
     "ConfirmActionEnum",
+    "ToolConsentModeEnum",
     "BatchRunStatusEnum",
     "get_all_skill_types",
     "get_skill_type_options",

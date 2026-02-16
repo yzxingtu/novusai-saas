@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import functools
 import importlib
 import threading
 from datetime import datetime, timezone
@@ -37,6 +39,19 @@ from app.plugins.extensions.skill_plugin import SkillPlugin
 from app.plugins.extensions.tool_plugin import ToolPlugin
 
 logger = LogManager.get_logger("app")
+
+
+def _write_locked(func):  # type: ignore[type-arg]
+    """异步写操作互斥锁装饰器
+
+    确保 install/uninstall/enable/disable/upgrade 等写操作互斥执行，
+    防止并发修改 _instances 等共享字典。
+    """
+    @functools.wraps(func)
+    async def wrapper(self: PluginManager, *args: Any, **kwargs: Any) -> Any:
+        async with self._write_lock:
+            return await func(self, *args, **kwargs)
+    return wrapper
 
 
 def _resolve_plugin_type(plugin_instance: BasePlugin) -> str:
@@ -90,6 +105,8 @@ class PluginManager:
         self._plugin_routers: dict[str, str] = {}
         # FastAPI app reference for dynamic route mounting
         self._app: FastAPI | None = None
+        # 异步写操作互斥锁（install/uninstall/enable/disable/upgrade）
+        self._write_lock: asyncio.Lock = asyncio.Lock()
 
     @classmethod
     def get_instance(cls) -> PluginManager:
@@ -231,6 +248,7 @@ class PluginManager:
     # 安装
     # ========================================
 
+    @_write_locked
     async def install(
         self,
         db: AsyncSession,
@@ -330,6 +348,24 @@ class PluginManager:
                 _("plugin.install_hook_failed")
             ) from exc
 
+        # 执行插件数据库迁移
+        try:
+            from app.plugins.migration_runner import run_migrations
+            applied = await run_migrations(db, instance.name)
+            if applied:
+                logger.info(
+                    "Plugin DB migrations applied during install: %s — %s",
+                    instance.name, applied,
+                )
+        except Exception as exc:
+            logger.error(
+                "Plugin migration failed during install: %s — %s",
+                instance.name, str(exc), exc_info=True,
+            )
+            await repo.permanent_delete(plugin.id)
+            self._instances.pop(instance.name, None)
+            raise
+
         from app.plugins.security import log_plugin_action
         log_plugin_action(
             action="install",
@@ -344,6 +380,7 @@ class PluginManager:
     # 卸载
     # ========================================
 
+    @_write_locked
     async def uninstall(self, db: AsyncSession, plugin_id: int) -> None:
         """
         卸载插件
@@ -397,6 +434,21 @@ class PluginManager:
                 plugin.name, str(exc), exc_info=True,
             )
 
+        # 回滚插件数据库迁移（失败不阻塞卸载）
+        try:
+            from app.plugins.migration_runner import rollback_migrations
+            rolled_back = await rollback_migrations(db, plugin.name)
+            if rolled_back:
+                logger.info(
+                    "Plugin DB migrations rolled back: %s — %s",
+                    plugin.name, rolled_back,
+                )
+        except Exception as mig_exc:
+            logger.warning(
+                "Plugin migration rollback error (proceeding): %s — %s",
+                plugin.name, str(mig_exc), exc_info=True,
+            )
+
         # 清理租户关联
         tp_repo = TenantPluginRepository(db)
         tenant_records = await tp_repo.get_multi_by(plugin_id=plugin_id)
@@ -406,6 +458,9 @@ class PluginManager:
         # 删除插件记录
         await repo.permanent_delete(plugin_id)
         self._instances.pop(plugin.name, None)
+
+        # 清理插件文件目录（仅限 .nap 上传安装的插件）
+        self._cleanup_plugin_directory(plugin.name, plugin.entry_point)
 
         from app.plugins.security import log_plugin_action
         log_plugin_action(
@@ -420,6 +475,7 @@ class PluginManager:
     # 启用 / 禁用（平台级）
     # ========================================
 
+    @_write_locked
     async def enable_platform(self, db: AsyncSession, plugin_id: int) -> Plugin:
         """
         平台级启用插件
@@ -493,6 +549,7 @@ class PluginManager:
         logger.info("Plugin enabled (platform): %s", plugin.name)
         return updated
 
+    @_write_locked
     async def disable_platform(self, db: AsyncSession, plugin_id: int) -> Plugin:
         """
         平台级禁用插件
@@ -678,6 +735,7 @@ class PluginManager:
     # 升级
     # ========================================
 
+    @_write_locked
     async def upgrade(
         self,
         db: AsyncSession,
@@ -1100,6 +1158,11 @@ class PluginManager:
 
         if isinstance(instance, SkillPlugin):
             skill_type = instance.get_skill_type()
+            existing_owner = self._plugin_skills.get(skill_type)
+            if existing_owner and existing_owner != instance.name:
+                raise ConflictException(
+                    _("plugin.skill_type_conflict"),
+                )
             self._plugin_skills[skill_type] = instance.name
             self._skill_instances[skill_type] = instance
             logger.info(
@@ -1152,8 +1215,32 @@ class PluginManager:
     # ApiPlugin 路由管理
     # ========================================
 
+    _AUTH_LEVEL_DEPS: dict[str, list] | None = None
+
+    @classmethod
+    def _get_auth_deps(cls, auth_level: str) -> list:
+        """根据认证级别返回 FastAPI 依赖列表"""
+        if cls._AUTH_LEVEL_DEPS is None:
+            from fastapi import Depends
+            from app.core.deps import (
+                get_current_active_admin,
+                get_current_super_admin,
+            )
+            cls._AUTH_LEVEL_DEPS = {
+                "public": [],
+                "auth_only": [Depends(get_current_active_admin)],
+                "admin_only": [Depends(get_current_super_admin)],
+            }
+        return cls._AUTH_LEVEL_DEPS.get(auth_level, cls._AUTH_LEVEL_DEPS["auth_only"])
+
     def _mount_plugin_routes(self, instance: ApiPlugin) -> None:
-        """将 ApiPlugin 的路由挂载到 FastAPI 应用"""
+        """将 ApiPlugin 的路由挂载到 FastAPI 应用
+
+        根据插件的 ``get_auth_level()`` 返回值自动注入认证依赖：
+        - ``public``: 无认证
+        - ``auth_only``: 需要活跃管理员（默认）
+        - ``admin_only``: 需要超级管理员
+        """
         plugin_name = instance.name
         if plugin_name in self._plugin_routers:
             logger.warning("Plugin routes already mounted: %s", plugin_name)
@@ -1163,11 +1250,18 @@ class PluginManager:
             router = instance.get_router()
             route_prefix = instance.get_route_prefix()
             tags = instance.get_route_tags()
+            auth_level = instance.get_auth_level()
             full_prefix = f"/plugins/{plugin_name}{route_prefix}"
 
-            self._app.include_router(router, prefix=full_prefix, tags=tags)
+            deps = self._get_auth_deps(auth_level)
+            self._app.include_router(
+                router, prefix=full_prefix, tags=tags, dependencies=deps,
+            )
             self._plugin_routers[plugin_name] = full_prefix
-            logger.info("API plugin routes mounted: %s -> %s", plugin_name, full_prefix)
+            logger.info(
+                "API plugin routes mounted: %s -> %s (auth=%s)",
+                plugin_name, full_prefix, auth_level,
+            )
         except Exception as exc:
             logger.error(
                 "Failed to mount plugin routes: %s: %s",
@@ -1175,7 +1269,13 @@ class PluginManager:
             )
 
     def _unmount_plugin_routes(self, instance: ApiPlugin) -> None:
-        """从 FastAPI 应用中移除 ApiPlugin 的路由"""
+        """从 FastAPI 应用中移除 ApiPlugin 的路由
+
+        同时处理 APIRoute 和 Mount 类型的路由对象，
+        并清除 OpenAPI schema 缓存以确保 /docs 同步更新。
+        """
+        from starlette.routing import Mount
+
         plugin_name = instance.name
         full_prefix = self._plugin_routers.pop(plugin_name, None)
         if not full_prefix:
@@ -1183,14 +1283,24 @@ class PluginManager:
 
         try:
             original_count = len(self._app.routes)
+
+            def _is_plugin_route(route: object) -> bool:
+                path = getattr(route, "path", "")
+                if isinstance(path, str) and path.startswith(full_prefix):
+                    return True
+                if isinstance(route, Mount) and isinstance(route.path, str):
+                    return route.path.startswith(full_prefix)
+                return False
+
             self._app.routes[:] = [
                 route for route in self._app.routes
-                if not (
-                    hasattr(route, "path")
-                    and str(getattr(route, "path", "")).startswith(full_prefix)
-                )
+                if not _is_plugin_route(route)
             ]
             removed = original_count - len(self._app.routes)
+
+            # 清除 OpenAPI schema 缓存，确保 /docs 不再显示已卸载的路由
+            self._app.openapi_schema = None
+
             if removed == 0:
                 logger.warning(
                     "API plugin unmount: no routes matched prefix %s for %s",
@@ -1198,7 +1308,7 @@ class PluginManager:
                 )
             else:
                 logger.info(
-                    "API plugin routes unmounted: %s (%d routes removed)",
+                    "API plugin routes unmounted: %s (%d routes removed, OpenAPI cache cleared)",
                     plugin_name, removed,
                 )
         except Exception as exc:
@@ -1215,6 +1325,139 @@ class PluginManager:
             plugin_name -> route_prefix 的映射
         """
         return dict(self._plugin_routers)
+
+    # ========================================
+    # 插件文件目录清理
+    # ========================================
+
+    _PLUGINS_BASE_PREFIX = "app.plugins."
+
+    def _cleanup_plugin_directory(
+        self, plugin_name: str, entry_point: str,
+    ) -> None:
+        """卸载后清理插件文件目录
+
+        仅处理通过 .nap 上传安装的插件（entry_point 以 ``app.plugins.`` 开头）。
+        外部 entry_point 安装的插件不删除文件。删除失败不阻塞卸载流程。
+
+        Args:
+            plugin_name: 插件名称
+            entry_point: 插件入口点路径
+        """
+        if not entry_point.startswith(self._PLUGINS_BASE_PREFIX):
+            logger.debug(
+                "Skipping directory cleanup for external plugin: %s (entry_point=%s)",
+                plugin_name, entry_point,
+            )
+            return
+
+        import shutil
+        from pathlib import Path
+
+        plugins_base = Path(__file__).resolve().parent.parent / "plugins"
+        plugin_dir = plugins_base / plugin_name
+
+        if not plugin_dir.exists():
+            logger.debug(
+                "Plugin directory does not exist, nothing to clean: %s",
+                plugin_dir,
+            )
+            return
+
+        try:
+            shutil.rmtree(plugin_dir)
+            from app.plugins.security import log_plugin_action
+            log_plugin_action(
+                action="cleanup_directory",
+                plugin_name=plugin_name,
+                details={"directory": str(plugin_dir), "status": "deleted"},
+            )
+            logger.info(
+                "Plugin directory cleaned up: %s", plugin_dir,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to delete plugin directory %s: %s — "
+                "manual cleanup may be required",
+                plugin_dir, exc, exc_info=True,
+            )
+
+    # ========================================
+    # Python 依赖安装
+    # ========================================
+
+    @staticmethod
+    def install_plugin_requirements(plugin_name: str) -> list[str]:
+        """安装插件 Python 依赖
+
+        检测 ``app/plugins/{name}/requirements.txt``，若存在则执行
+        ``pip install -r requirements.txt``。
+
+        Args:
+            plugin_name: 插件名称
+
+        Returns:
+            安装的依赖列表（来自 requirements.txt 的行）
+
+        Raises:
+            BusinessException: pip install 失败
+        """
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        plugins_base = Path(__file__).resolve().parent.parent / "plugins"
+        req_file = plugins_base / plugin_name / "requirements.txt"
+
+        if not req_file.exists():
+            return []
+
+        deps = [
+            line.strip()
+            for line in req_file.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        if not deps:
+            return []
+
+        logger.info(
+            "Installing plugin dependencies: %s (%d packages)",
+            plugin_name, len(deps),
+        )
+
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-r", str(req_file)],
+                capture_output=True,
+                text=True,
+                timeout=300,
+                check=False,
+            )
+            if result.returncode != 0:
+                logger.error(
+                    "pip install failed for plugin %s:\nstdout: %s\nstderr: %s",
+                    plugin_name, result.stdout, result.stderr,
+                )
+                raise BusinessException(
+                    _("plugin.dependency_install_failed")
+                )
+        except subprocess.TimeoutExpired:
+            raise BusinessException(
+                _("plugin.dependency_install_timeout")
+            )
+
+        from app.plugins.security import log_plugin_action
+        log_plugin_action(
+            action="install_dependencies",
+            plugin_name=plugin_name,
+            details={"dependencies": deps},
+        )
+
+        logger.info(
+            "Plugin dependencies installed: %s — %s",
+            plugin_name, deps,
+        )
+        return deps
 
     # ========================================
     # SkillPlugin 查询

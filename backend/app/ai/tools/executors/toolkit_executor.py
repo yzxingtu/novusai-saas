@@ -101,7 +101,6 @@ class ToolkitExecutor(BaseToolExecutor):
         start = time.perf_counter()
         method_name = definition.config.get("_toolkit_method", definition.name)
         toolkit_content = definition.config.get("_toolkit_content", "")
-        is_async = definition.config.get("_toolkit_is_async", True)
         valves_config = definition.config.get("_valves_config", {})
         trusted = definition.config.get("_toolkit_trusted", False)
 
@@ -158,8 +157,8 @@ class ToolkitExecutor(BaseToolExecutor):
                     error=f"Method '{method_name}' not found in Tools class",
                 )
 
-            # 5. 调用方法
-            if is_async or asyncio.iscoroutinefunction(method):
+            # 5. 调用方法（以运行时检测为准，忽略 config 中的 is_async 标记）
+            if asyncio.iscoroutinefunction(method):
                 result_value = await method(**arguments)
             else:
                 # sync 方法在线程池中执行，避免阻塞事件循环

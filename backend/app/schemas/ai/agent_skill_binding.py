@@ -16,6 +16,7 @@ class AgentSkillBindRequest(BaseCreateSchema):
     package_id: int = Field(..., description=_("agent_skill_binding.field.package_id"))
     config_override: dict[str, Any] | None = Field(None, description=_("agent_skill_binding.field.config_override"))
     sort_order: int = Field(0, ge=0, description=_("agent_skill_binding.field.sort_order"))
+    consent_mode: str = Field("auto", description=_("agent_skill_binding.field.consent_mode"))
 
 
 class AgentSkillBatchBindRequest(BaseCreateSchema):
@@ -30,6 +31,7 @@ class AgentSkillBindingUpdate(BaseUpdateSchema):
     enabled: bool | None = Field(None, description=_("agent_skill_binding.field.enabled"))
     config_override: dict[str, Any] | None = Field(None, description=_("agent_skill_binding.field.config_override"))
     sort_order: int | None = Field(None, ge=0, description=_("agent_skill_binding.field.sort_order"))
+    consent_mode: str | None = Field(None, description=_("agent_skill_binding.field.consent_mode"))
 
 
 __all__ = [

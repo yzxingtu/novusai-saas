@@ -81,7 +81,10 @@
     "confirmUpgrade": "Are you sure you want to upgrade this plugin? Plugin code will be reloaded.",
     "upgradeSuccess": "Plugin upgraded successfully",
     "systemPluginTip": "System built-in plugin, cannot be uninstalled or disabled",
-    "uploading": "Uploading and installing…"
+    "uploading": "Uploading and installing…",
+    "uploadConflict": "Plugin Already Exists",
+    "uploadConflictDesc": "Plugin {name} is already installed (current version {oldVersion}). Upload version is {newVersion}. Overwrite and upgrade?",
+    "overwrite": "Overwrite & Upgrade"
   },
   "providesSkill": "Provides Skill"
 }

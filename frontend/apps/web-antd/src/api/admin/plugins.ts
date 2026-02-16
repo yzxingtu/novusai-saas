@@ -2,6 +2,7 @@
  * 平台管理端插件管理 API
  * 对接后端 /admin/plugins/* 接口
  */
+import type { BackendMenuItemRaw } from '../shared/menu-transformer';
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
@@ -137,15 +138,50 @@ export async function updatePluginApi(
   return requestClient.put<PluginInfo>(`${PREFIX}/${id}`, data, options);
 }
 
+/** 插件前端配置项 */
+export interface PluginFrontendConfig {
+  plugin_name: string;
+  plugin_version: string;
+  endpoint: 'admin' | 'tenant';
+  menus: BackendMenuItemRaw[];
+  routes: Record<string, unknown>[];
+  locales: Record<string, Record<string, unknown>>;
+}
+
+/** 获取已启用插件的前端配置（路由+菜单） */
+export async function getPluginFrontendConfigApi(
+  options?: ApiRequestOptions,
+): Promise<PluginFrontendConfig[]> {
+  return requestClient.get<PluginFrontendConfig[]>(
+    `${PREFIX}/frontend-config`,
+    options,
+  );
+}
+
+/** 上传冲突响应 */
+export interface UploadConflictResponse {
+  conflict: boolean;
+  plugin_name: string;
+  existing_version: string | null;
+  new_version: string;
+  message: string;
+}
+
 /** 上传插件包安装（.zip / .nap） */
 export async function uploadPluginApi(
   file: File,
+  overwrite?: boolean,
   options?: ApiRequestOptions,
-): Promise<PluginInfo> {
+): Promise<PluginInfo | UploadConflictResponse> {
   const formData = new FormData();
   formData.append('file', file);
-  return requestClient.post<PluginInfo>(`${PREFIX}/upload`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    ...options,
-  });
+  const params = overwrite ? '?overwrite=true' : '';
+  return requestClient.post<PluginInfo | UploadConflictResponse>(
+    `${PREFIX}/upload${params}`,
+    formData,
+    {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      ...options,
+    },
+  );
 }

@@ -191,33 +191,9 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:admin.periodic_task (定时任务)
 
     # ========================================
-    # 开发工具（目录）
+    # 开发工具（目录） — 已移至插件 (novusai-crud-generator)
+    # 插件菜单通过 GET /admin/plugins/frontend-config 动态加载
     # ========================================
-    PermissionMeta(
-        code="menu:admin.dev_tools",
-        name="menu.admin.dev_tools",  # i18n key
-        type=PermissionType.MENU,
-        scope=PermissionScope.ADMIN,
-        resource="menu",
-        action="admin.dev_tools",
-        icon="lucide:code-2",
-        path="/dev",
-        sort_order=90,
-    ),
-    # ---- CRUD Generator（叶子菜单） ----
-    PermissionMeta(
-        code="menu:admin.crud_generator",
-        name="menu.admin.crud_generator",  # i18n key
-        type=PermissionType.MENU,
-        scope=PermissionScope.ADMIN,
-        resource="menu",
-        action="admin.crud_generator",
-        icon="lucide:wand-2",
-        path="/dev/crud-generator",
-        component="admin/dev/crud-generator/index",
-        parent_code="menu:admin.dev_tools",
-        sort_order=10,
-    ),
 ]
 
 

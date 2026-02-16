@@ -1,0 +1,20 @@
+{
+  "name": "audit-hook",
+  "display_name": "Audit Hook",
+  "version": "1.0.0",
+  "description": "Example HookPlugin that subscribes to system events and logs audit information",
+  "author": "NovusAI",
+  "plugin_type": "hook",
+  "entry_point": "plugin.AuditHookPlugin",
+  "icon": "lucide:scroll-text",
+  "homepage": "",
+  "config_schema": null,
+  "default_config": {},
+  "required_permissions": [
+    "event:subscribe"
+  ],
+  "dependencies": {},
+  "conflicts": [],
+  "provides": ["hook"],
+  "platform_version": null
+}

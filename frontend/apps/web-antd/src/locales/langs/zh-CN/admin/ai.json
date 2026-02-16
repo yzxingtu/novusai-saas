@@ -323,6 +323,9 @@
     "systemPrompt": "系统提示词",
     "temperature": "温度",
     "maxTokens": "最大 Tokens",
+    "welcomeMessage": "欢迎语",
+    "suggestedQuestions": "推荐问题",
+    "skillPackageBindings": "技能包绑定",
     "create": "创建智能体",
     "noDescription": "暂无描述",
     "viewDetail": "查看详情",
@@ -348,7 +351,15 @@
       "allModes": "全部模式",
       "allTenants": "全部租户",
       "tenantId": "请输入租户 ID",
-      "allTypes": "全部类型"
+      "allTypes": "全部类型",
+      "selectSkillPackages": "选择要绑定的技能包",
+      "inputWelcomeMessage": "用户首次打开对话时的欢迎语",
+      "inputSuggestedQuestions": "每行一个推荐问题"
+    },
+    "help": {
+      "skillPackageBindings": "选择此智能体可调用的技能包",
+      "welcomeMessage": "用户首次打开对话时自动显示的欢迎语，留空则不显示",
+      "suggestedQuestions": "用户初次进入对话时显示的推荐问题，每行一个，帮助用户快速开始"
     },
     "type_options": {
       "system": "系统智能体",
@@ -786,6 +797,36 @@
       "inputPermissionCode": "请输入权限码",
       "selectBlockedColumns": "选择要屏蔽的列",
       "selectReadonlyColumns": "选择只读列"
+    }
+  },
+  "agentAssignment": {
+    "title": "AI 功能分配",
+    "selectAgent": "选择智能体",
+    "saveSuccess": "绑定已更新",
+    "noAgent": "未分配",
+    "columns": {
+      "featureName": "功能名称",
+      "featureCode": "功能代码",
+      "agent": "绑定智能体",
+      "status": "状态"
+    },
+    "features": {
+      "crud_generator": {
+        "name": "CRUD 代码生成器",
+        "description": "开发工具 — AI 辅助生成 CRUD 模块的字段、枚举、关联配置"
+      },
+      "data_analysis": {
+        "name": "数据分析",
+        "description": "AI 驱动的数据查询与可视化分析"
+      },
+      "general_chat": {
+        "name": "通用 AI 对话",
+        "description": "平台内置的通用 AI 对话助手"
+      },
+      "translation": {
+        "name": "AI 翻译",
+        "description": "多语言文本翻译（如 i18n 字段自动翻译）"
+      }
     }
   }
 }

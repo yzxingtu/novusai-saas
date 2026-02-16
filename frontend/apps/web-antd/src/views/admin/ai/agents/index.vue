@@ -476,6 +476,29 @@ const stats = computed(() => {
               </div>
             </Tag>
 
+            <!-- Skill Packages -->
+            <Tag
+              v-for="pkg in (agent.skill_packages || []).slice(0, 3)"
+              :key="pkg.id"
+              color="cyan"
+              class="!mr-0 !text-[11px]"
+              style="padding: 0 6px; line-height: 20px"
+            >
+              {{ pkg.name }}
+            </Tag>
+            <Tooltip
+              v-if="agent.skill_packages && agent.skill_packages.length > 3"
+              :title="agent.skill_packages.slice(3).map((p: { name: string }) => p.name).join(', ')"
+            >
+              <Tag
+                color="cyan"
+                class="!mr-0 !text-[11px]"
+                style="padding: 0 6px; line-height: 20px"
+              >
+                +{{ agent.skill_packages.length - 3 }}
+              </Tag>
+            </Tooltip>
+
             <!-- Version -->
             <span
               v-if="agent.published_version"

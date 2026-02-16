@@ -5,7 +5,6 @@
 """
 
 from app.ai.tools.types import ToolParameter, ToolDefinition, ToolResult
-from app.ai.tools.registry import ToolRegistry, get_tool_registry
 from app.ai.tools.sandbox import ToolSandbox, SandboxConfig
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.executors.builtin_executor import BuiltinToolExecutor
@@ -16,9 +15,6 @@ __all__ = [
     "ToolParameter",
     "ToolDefinition",
     "ToolResult",
-    # 注册表
-    "ToolRegistry",
-    "get_tool_registry",
     # 沙箱
     "ToolSandbox",
     "SandboxConfig",

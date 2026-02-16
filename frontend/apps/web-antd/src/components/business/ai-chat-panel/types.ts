@@ -10,6 +10,8 @@ export interface AgentItem {
   avatar: string | null;
   status: string;
   model_name?: string | null;
+  welcome_message?: string | null;
+  suggested_questions?: string[] | null;
 }
 
 export interface ConversationItem {
@@ -56,6 +58,15 @@ export interface PendingConfirmation {
   resolved?: boolean;
 }
 
+export interface PendingConsent {
+  toolName: string;
+  arguments?: Record<string, unknown>;
+  skillName?: string;
+  skillType?: string;
+  /** Whether the user has responded (allowed or rejected) */
+  resolved?: boolean;
+}
+
 export interface ChatMessage {
   role: 'assistant' | 'user';
   content: string;
@@ -69,6 +80,8 @@ export interface ChatMessage {
   thinkingContent?: string;
   /** Pending CRUD confirmation request from tool */
   pendingConfirmation?: PendingConfirmation;
+  /** Pending tool consent request (consent_mode=ask) */
+  pendingConsent?: PendingConsent;
   /** Tool optimizer result (shown when tools were pre-filtered) */
   optimizingTools?: { total: number; selected: number };
 }
@@ -88,8 +101,12 @@ export interface AIChatPanelProps {
   fetchKBApi?: (...args: unknown[]) => Promise<unknown[]>;
   /** i18n namespace prefix for labels */
   i18nPrefix?: string;
+  /** Initial agent ID to auto-select on load */
+  initialAgentId?: number;
   /** Custom welcome message (overrides default) */
   welcomeMessage?: string;
   /** Suggested question buttons shown in empty state */
   suggestedQuestions?: string[];
+  /** Callback when a tool call completes successfully */
+  onToolCall?: (toolName: string, output: string) => void;
 }

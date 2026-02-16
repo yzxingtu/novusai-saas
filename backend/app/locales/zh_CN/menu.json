@@ -42,7 +42,8 @@
       "ai_skill_package": "技能包管理",
       "plugin": "插件管理",
       "dev_tools": "开发工具",
-      "crud_generator": "CRUD 生成器"
+      "crud_generator": "CRUD 生成器",
+      "agent_assignment": "功能分配"
     },
     "tags": {
       "admin_agent_mgmt": "智能体管理（平台）",
@@ -68,7 +69,8 @@
       "tenant_ai_quota": "AI 配额管理",
       "tenant_ai_usage": "AI 用量统计",
       "tenant_knowledge_base": "知识库",
-      "tenant_ai_table_policy": "数据访问策略"
+      "tenant_ai_table_policy": "数据访问策略",
+      "admin_agent_assignment_mgmt": "功能分配管理"
     },
     "tenant": {
       "dashboard": "仪表板",

@@ -37,12 +37,23 @@ from app.services.ai.agent_skill_binding_service import AgentSkillBindingService
 
 
 def _build_agent_list_item(agent) -> dict:
-    """从 ORM 对象构建列表项字典，提取 model_name"""
+    """从 ORM 对象构建列表项字典，提取 model_name + skill_count"""
     model_name = None
     try:
         model_obj = getattr(agent, "model", None)
         if model_obj is not None:
             model_name = model_obj.name
+    except (AttributeError, Exception):
+        pass
+
+    skill_packages: list[dict] = []
+    try:
+        bindings = getattr(agent, "skill_bindings", None)
+        if bindings is not None:
+            for b in bindings:
+                pkg = getattr(b, "package", None)
+                if pkg is not None:
+                    skill_packages.append({"id": pkg.id, "name": pkg.name})
     except (AttributeError, Exception):
         pass
 
@@ -54,9 +65,13 @@ def _build_agent_list_item(agent) -> dict:
         "description": agent.description,
         "status": agent.status,
         "execution_mode": agent.execution_mode,
+        "is_system": agent.is_system,
         "model_name": model_name,
+        "skill_packages": skill_packages,
         "published_version": agent.published_version,
         "visibility": agent.visibility,
+        "welcome_message": agent.welcome_message,
+        "suggested_questions": agent.suggested_questions,
         "created_at": agent.created_at,
         "updated_at": agent.updated_at,
     }
@@ -471,6 +486,7 @@ class TenantAgentController(TenantController):
                 package_id=data.package_id,
                 config_override=data.config_override,
                 sort_order=data.sort_order,
+                consent_mode=data.consent_mode,
             )
             await db.commit()
             return created(data=binding.to_dict())

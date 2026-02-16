@@ -59,8 +59,6 @@ from app.models import (
     # 插件系统
     Plugin,
     TenantPlugin,
-    # 代码生成记录
-    CrudGenerationRecord,
 )
 
 # Alembic 配置对象
@@ -68,6 +66,15 @@ config = context.config
 
 # 设置数据库 URL
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL_SYNC)
+
+# 确保 version_locations 包含 CRUD 子目录
+_migrations_dir = Path(__file__).parent / "versions"
+_crud_dir = _migrations_dir / "crud"
+_crud_dir.mkdir(exist_ok=True)
+config.set_main_option(
+    "version_locations",
+    f"{_migrations_dir} {_crud_dir}",
+)
 
 # 配置日志
 if config.config_file_name is not None:

@@ -26,6 +26,10 @@ export interface UseAIChatOptions {
   apiPrefix: Ref<string> | string;
   /** Upload endpoint */
   uploadUrl: Ref<string> | string;
+  /** Initial agent ID to auto-select after loading agents */
+  initialAgentId?: Ref<number | undefined> | number;
+  /** Callback when a tool call completes successfully */
+  onToolCall?: (toolName: string, output: string) => void;
 }
 
 export function useAIChat(options: UseAIChatOptions) {
@@ -39,7 +43,11 @@ export function useAIChat(options: UseAIChatOptions) {
     agents.value.find((a) => a.id === selectedAgentId.value) ?? null,
   );
 
-  async function loadAgents() {
+  /**
+   * Load agents list and auto-select one.
+   * @param overrideAgentId - If provided, takes priority over options.initialAgentId
+   */
+  async function loadAgents(overrideAgentId?: number) {
     agentsLoading.value = true;
     try {
       const prefix = unref(options.apiPrefix) as string;
@@ -52,7 +60,12 @@ export function useAIChat(options: UseAIChatOptions) {
       });
       agents.value = res.items;
       if (res.items.length > 0 && !selectedAgentId.value) {
-        selectedAgentId.value = res.items[0]!.id;
+        const initId = overrideAgentId ?? unref(options.initialAgentId);
+        if (initId && res.items.some((a) => a.id === initId)) {
+          selectedAgentId.value = initId;
+        } else {
+          selectedAgentId.value = res.items[0]!.id;
+        }
       }
     } catch {
       // handled by interceptor
@@ -514,6 +527,10 @@ export function useAIChat(options: UseAIChatOptions) {
                       skillType: event.skill_type || undefined,
                     });
                   }
+                  // Dispatch successful tool calls to external handler
+                  if (event.success && options.onToolCall) {
+                    options.onToolCall(event.name, event.output ?? '');
+                  }
                   scrollToBottom();
                 } else if (
                   event.event === 'authorization_required' &&
@@ -526,6 +543,14 @@ export function useAIChat(options: UseAIChatOptions) {
                     table: event.table || '',
                     preview: event.preview,
                   };
+                } else if (event.event === 'tool_consent_request') {
+                  msg.pendingConsent = {
+                    toolName: event.name || '',
+                    arguments: event.arguments,
+                    skillName: event.skill_name || undefined,
+                    skillType: event.skill_type || undefined,
+                  };
+                  scrollToBottom();
                 } else if (event.event === 'rag_sources' && event.sources) {
                   msg.ragSources = event.sources;
                 } else if (event.event === 'message' && event.delta) {
@@ -588,6 +613,22 @@ export function useAIChat(options: UseAIChatOptions) {
     const msg = chatMessages.value[msgIndex];
     if (!msg?.pendingConfirmation || msg.pendingConfirmation.resolved) return;
     msg.pendingConfirmation.resolved = true;
+    inputMessage.value = $t('common.globalAiChat.rejectExecute');
+    sendMessage();
+  }
+
+  function confirmConsent(msgIndex: number) {
+    const msg = chatMessages.value[msgIndex];
+    if (!msg?.pendingConsent || msg.pendingConsent.resolved) return;
+    msg.pendingConsent.resolved = true;
+    inputMessage.value = $t('common.globalAiChat.confirmExecute');
+    sendMessage();
+  }
+
+  function rejectConsent(msgIndex: number) {
+    const msg = chatMessages.value[msgIndex];
+    if (!msg?.pendingConsent || msg.pendingConsent.resolved) return;
+    msg.pendingConsent.resolved = true;
     inputMessage.value = $t('common.globalAiChat.rejectExecute');
     sendMessage();
   }
@@ -655,6 +696,8 @@ export function useAIChat(options: UseAIChatOptions) {
     handleInputKeyDown,
     confirmAction,
     rejectAction,
+    confirmConsent,
+    rejectConsent,
     cleanup,
     openUrl,
 

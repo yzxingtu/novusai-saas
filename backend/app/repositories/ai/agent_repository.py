@@ -5,6 +5,7 @@
 from typing import List
 
 from sqlalchemy import select, and_, or_, func
+from sqlalchemy.orm import selectinload
 
 from app.models.ai.agent import Agent
 from app.core.base_repository import TenantRepository, BaseRepository
@@ -85,6 +86,7 @@ class AgentRepository(TenantRepository[Agent]):
         sortable_fields = self.get_sortable_fields()
         query = self._apply_sort(query, spec.sort, sortable_fields)
         query = query.offset(spec.offset).limit(spec.limit)
+        query = query.options(selectinload(Agent.skill_bindings))
 
         result = await self.db.execute(query)
         items = list(result.scalars().all())
@@ -183,6 +185,41 @@ class AdminAgentRepository(BaseRepository[Agent]):
     """
 
     model = Agent
+
+    async def query_list(
+        self,
+        spec: QuerySpec,
+        scope: str | None = None,
+        forced_filters: list[FilterRule] | None = None,
+        include_deleted: bool = False,
+    ) -> tuple[list[Agent], int]:
+        """重写以 eager load skill_bindings"""
+        allowed_fields = self.get_allowed_fields(scope)
+        all_fields = self.get_allowed_fields(None)
+
+        query = select(self.model)
+
+        if not include_deleted:
+            query = query.where(self.model.is_deleted.is_(False))
+
+        if forced_filters:
+            query = self._apply_filters(query, forced_filters, all_fields)
+
+        if spec.filters:
+            query = self._apply_filters(query, spec.filters, allowed_fields)
+
+        count_query = select(func.count()).select_from(query.subquery())
+        count_result = await self.db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        sortable_fields = self.get_sortable_fields()
+        query = self._apply_sort(query, spec.sort, sortable_fields)
+        query = query.offset(spec.offset).limit(spec.limit)
+        query = query.options(selectinload(Agent.skill_bindings))
+
+        result = await self.db.execute(query)
+        items = list(result.scalars().all())
+        return items, total
 
 
 __all__ = ["AgentRepository", "AdminAgentRepository"]

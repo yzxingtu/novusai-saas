@@ -30,10 +30,8 @@ from app.ai.tools.executors.crud_executor import (
     DeleteRecordExecutor,
     UpdateRecordExecutor,
 )
-from app.ai.tools.executors.crud_generator_executor import CrudGeneratorExecutor
 from app.ai.tools.executors.plugin_executor import PluginSkillExecutor
 from app.ai.tools.executors.toolkit_executor import ToolkitExecutor
-from app.ai.tools.registry import ToolRegistry, get_tool_registry
 from app.ai.tools.types import ExecutionContext, ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -89,7 +87,6 @@ class ToolSandbox:
         tenant_id: int,
         agent_id: int,
         config: SandboxConfig | None = None,
-        registry: ToolRegistry | None = None,
         user_id: int | None = None,
         user_role: str = "tenant_admin",
         permissions: set[str] | None = None,
@@ -102,7 +99,6 @@ class ToolSandbox:
             tenant_id: 租户 ID
             agent_id: 智能体 ID
             config: 沙箱配置
-            registry: 工具注册表（默认使用全局单例）
             user_id: 当前操作用户 ID（可选，传递给 ExecutionContext）
             user_role: 用户角色（platform_admin / tenant_admin / tenant_user）
             permissions: 用户 RBAC 权限码集合
@@ -117,7 +113,6 @@ class ToolSandbox:
         self.permissions = permissions or set()
         self.consented_actions: set[str] = set()
         self.config = config or SandboxConfig()
-        self.registry = registry or get_tool_registry(tenant_id)
         self._gateway = gateway
         self._db = db
         self._agent = agent
@@ -145,10 +140,6 @@ class ToolSandbox:
         self._executors[ToolTypeEnum.DATA_CREATE.value] = CreateRecordExecutor()
         self._executors[ToolTypeEnum.DATA_UPDATE.value] = UpdateRecordExecutor()
         self._executors[ToolTypeEnum.DATA_DELETE.value] = DeleteRecordExecutor()
-        # CRUD Generator 执行器
-        self._executors[ToolTypeEnum.CRUD_GENERATOR.value] = CrudGeneratorExecutor(
-            gateway=self._gateway,
-        )
         # 插件 Skill 执行器
         self._executors[ToolTypeEnum.PLUGIN.value] = PluginSkillExecutor()
 
@@ -374,14 +365,14 @@ class ToolSandbox:
         """
         查找工具定义
 
-        优先从传入的 definitions 列表查找，然后从注册表查找
+        从 SkillResolver 传入的 definitions 列表中查找
         """
         if definitions:
             for d in definitions:
                 if d.name == name:
                     return d
 
-        return self.registry.get(name)
+        return None
 
 
 __all__ = [

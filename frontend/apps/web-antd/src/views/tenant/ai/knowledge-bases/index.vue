@@ -48,9 +48,7 @@ function onEdit(row: KnowledgeBaseItem) {
   kbFormRef.value?.openEdit(row);
 }
 
-let gridReload: () => void;
-
-const { Grid } = useCrudPage<KnowledgeBaseItem>({
+const { Grid, onRefresh: gridReload } = useCrudPage<KnowledgeBaseItem>({
   api: {
     list: getKnowledgeBaseListApi,
     delete: deleteKnowledgeBaseApi,
@@ -66,9 +64,6 @@ const { Grid } = useCrudPage<KnowledgeBaseItem>({
   customActions: {
     detail: onDetail,
     edit: onEdit,
-  },
-  onMounted(grid) {
-    gridReload = () => grid.commitProxy('query');
   },
 });
 

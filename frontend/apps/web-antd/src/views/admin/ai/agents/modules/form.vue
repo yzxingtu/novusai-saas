@@ -11,7 +11,11 @@ import type { AIAgentInfo } from '#/api/admin/ai';
 import { computed, ref } from 'vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { getAIAgentDetailApi } from '#/api/admin/ai';
+import {
+  batchBindAIAgentSkillsApi,
+  getAIAgentDetailApi,
+  getAIAgentSkillsApi,
+} from '#/api/admin/ai';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
@@ -22,18 +26,30 @@ import { getFormDefaults, useFormSchema } from '../data';
 const emits = defineEmits<{ success: [] }>();
 
 const isSystemAgent = ref(false);
+const pendingPackageIds = ref<number[]>([]);
 
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(),
   showDefaultActions: false,
 });
 
-const { Drawer, isEdit, rowData, openNew, openEdit } = useCrudDrawer<AIAgentInfo>({
+const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<AIAgentInfo>({
   formApi,
   apiPath: '/admin/ai/agents',
   schema: (edit) => useFormSchema(edit, isSystemAgent.value),
   defaults: getFormDefaults,
   transform: (values, edit) => {
+    const rawPkgIds = values.package_ids as Array<number | { label: string; value: number }>;
+    pendingPackageIds.value = (rawPkgIds || []).map((p) =>
+      typeof p === 'object' && p !== null ? p.value : p,
+    );
+    // suggested_questions: newline-separated text → JSON array
+    const sqText = (values.suggested_questions as string) || '';
+    const sqArray = sqText
+      .split('\n')
+      .map((s: string) => s.trim())
+      .filter((s: string) => s.length > 0);
+
     const result: Record<string, unknown> = {
       avatar: values.avatar || null,
       description: values.description || null,
@@ -41,6 +57,8 @@ const { Drawer, isEdit, rowData, openNew, openEdit } = useCrudDrawer<AIAgentInfo
       system_prompt: values.system_prompt || null,
       temperature: values.temperature,
       max_tokens: values.max_tokens,
+      welcome_message: values.welcome_message || null,
+      suggested_questions: sqArray.length > 0 ? sqArray : null,
     };
     if (!edit || !isSystemAgent.value) {
       result.name = values.name;
@@ -51,6 +69,7 @@ const { Drawer, isEdit, rowData, openNew, openEdit } = useCrudDrawer<AIAgentInfo
     return result;
   },
   toFormValues: (data) => {
+    const ext = data as AIAgentInfo & { _package_options?: { label: string; value: number }[] };
     return {
       name: data.name,
       avatar: data.avatar || '',
@@ -62,6 +81,11 @@ const { Drawer, isEdit, rowData, openNew, openEdit } = useCrudDrawer<AIAgentInfo
       system_prompt: data.system_prompt,
       temperature: data.temperature,
       max_tokens: data.max_tokens,
+      welcome_message: data.welcome_message || '',
+      suggested_questions: Array.isArray(data.suggested_questions)
+        ? data.suggested_questions.join('\n')
+        : '',
+      package_ids: ext._package_options || [],
     };
   },
   afterOpen: () => {
@@ -71,10 +95,33 @@ const { Drawer, isEdit, rowData, openNew, openEdit } = useCrudDrawer<AIAgentInfo
     // Re-apply schema: initial schema() call ran before isSystemAgent was detected
     formApi.setState({ schema: useFormSchema(isEdit.value, sys) });
   },
-  onSuccess: () => {
+  onSuccess: async () => {
+    const agentId = recordId.value as number | undefined;
+    if (agentId && pendingPackageIds.value.length >= 0) {
+      try {
+        await batchBindAIAgentSkillsApi(agentId, {
+          package_ids: pendingPackageIds.value,
+        });
+      } catch {
+        // package binding errors are non-fatal
+      }
+    }
     emits('success');
   },
-  detailApi: (id) => getAIAgentDetailApi(id as number),
+  detailApi: async (id) => {
+    const agent = await getAIAgentDetailApi(id as number);
+    try {
+      const bindings = await getAIAgentSkillsApi(id as number);
+      const ext = agent as AIAgentInfo & { _package_options?: { label: string; value: number }[] };
+      ext._package_options = bindings.map((b) => ({
+        label: b.package_name || `#${b.package_id}`,
+        value: b.package_id,
+      }));
+    } catch {
+      (agent as AIAgentInfo & { _package_options?: { label: string; value: number }[] })._package_options = [];
+    }
+    return agent;
+  },
 });
 
 defineExpose({ openNew, openEdit });

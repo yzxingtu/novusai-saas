@@ -37,6 +37,7 @@ import {
   uninstallPluginApi,
   upgradePluginApi,
   uploadPluginApi,
+  type UploadConflictResponse,
 } from '#/api/admin/plugins';
 import { $t } from '#/locales';
 
@@ -255,7 +256,33 @@ async function handleCustomUpload(options: UploadRequestOption) {
   const file = options.file as File;
   uploading.value = true;
   try {
-    await uploadPluginApi(file);
+    const res = await uploadPluginApi(file);
+    if ('conflict' in res && (res as UploadConflictResponse).conflict) {
+      const conflictRes = res as UploadConflictResponse;
+      Modal.confirm({
+        title: $t('admin.plugin.messages.uploadConflict'),
+        content: $t('admin.plugin.messages.uploadConflictDesc', {
+          name: conflictRes.plugin_name,
+          oldVersion: conflictRes.existing_version ?? '-',
+          newVersion: conflictRes.new_version,
+        }),
+        okText: $t('admin.plugin.messages.overwrite'),
+        cancelText: $t('common.cancel'),
+        onOk: async () => {
+          uploading.value = true;
+          try {
+            await uploadPluginApi(file, true);
+            message.success($t('admin.plugin.messages.upgradeSuccess'));
+            uploadModalVisible.value = false;
+            await loadPlugins();
+          } finally {
+            uploading.value = false;
+          }
+        },
+      });
+      options.onSuccess?.({});
+      return;
+    }
     message.success($t('admin.plugin.messages.installSuccess'));
     uploadModalVisible.value = false;
     await loadPlugins();

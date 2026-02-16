@@ -99,7 +99,7 @@ const formatTokens = (tokens: number | undefined) => {
 /** 计算日趋势中某值占最大值的百分比 */
 const maxDailyTokens = computed(() => {
   if (!summary.value?.daily_stats) return 1;
-  return Math.max(...summary.value.daily_stats.map((d: Record<string, number>) => d.total_tokens || 0), 1);
+  return Math.max(...summary.value.daily_stats.map((d) => d.total_tokens || 0), 1);
 });
 
 function barWidth(value: number, max: number): string {

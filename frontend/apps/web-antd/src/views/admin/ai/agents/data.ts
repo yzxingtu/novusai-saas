@@ -6,6 +6,7 @@ import type { AIModelInfo } from '#/api/admin/ai';
 
 import { inputField, numberField, select, textareaField } from '#/adapter/form';
 import { getAIModelListApi } from '#/api/admin/ai';
+import { getSkillPackageSelectApi } from '#/api/admin/skill-packages';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 
@@ -78,7 +79,25 @@ export function getFormDefaults() {
     system_prompt: '',
     temperature: 0.7,
     max_tokens: 4096,
+    welcome_message: '',
+    suggested_questions: '',
+    package_ids: [],
   };
+}
+
+/**
+ * 获取技能包下拉选项（admin 端所有技能包）
+ */
+export async function getPackageSelectOptions() {
+  try {
+    const data = await getSkillPackageSelectApi();
+    return data.map((p) => ({
+      label: p.label,
+      value: p.value,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -200,5 +219,35 @@ export function useFormSchema(_isEdit = false, isSystem = false): VbenFormSchema
       min: 1,
       max: 128000,
     }),
+    {
+      ...textareaField('welcome_message', $t('admin.ai.agent.welcomeMessage'), {
+        rows: 3,
+        placeholder: $t('admin.ai.agent.placeholder.inputWelcomeMessage'),
+      }),
+      help: $t('admin.ai.agent.help.welcomeMessage'),
+    },
+    {
+      ...textareaField('suggested_questions', $t('admin.ai.agent.suggestedQuestions'), {
+        rows: 3,
+        placeholder: $t('admin.ai.agent.placeholder.inputSuggestedQuestions'),
+      }),
+      help: $t('admin.ai.agent.help.suggestedQuestions'),
+    },
+    {
+      component: 'ApiSelect',
+      componentProps: {
+        allowClear: true,
+        api: getPackageSelectOptions,
+        class: 'w-full',
+        labelInValue: true,
+        mode: 'multiple',
+        placeholder: $t('admin.ai.agent.placeholder.selectSkillPackages'),
+        showSearch: true,
+        optionFilterProp: 'label',
+      },
+      fieldName: 'package_ids',
+      label: $t('admin.ai.agent.skillPackageBindings'),
+      help: $t('admin.ai.agent.help.skillPackageBindings'),
+    },
   ];
 }

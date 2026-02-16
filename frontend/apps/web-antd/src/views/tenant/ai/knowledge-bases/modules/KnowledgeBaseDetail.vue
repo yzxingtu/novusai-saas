@@ -359,7 +359,7 @@ watch(activeTab, (tab) => {
                   v-if="record.status === 'error'"
                   type="link"
                   size="small"
-                  @click="handleRetryDoc(record)"
+                  @click="handleRetryDoc(record as KnowledgeDocumentItem)"
                 >
                   {{ $t('tenant.knowledgeBase.document.retry') }}
                 </Button>
@@ -367,7 +367,7 @@ watch(activeTab, (tab) => {
                   type="link"
                   danger
                   size="small"
-                  @click="handleDeleteDoc(record)"
+                  @click="handleDeleteDoc(record as KnowledgeDocumentItem)"
                 >
                   {{ $t('tenant.knowledgeBase.document.delete') }}
                 </Button>

@@ -323,6 +323,9 @@
     "systemPrompt": "System Prompt",
     "temperature": "Temperature",
     "maxTokens": "Max Tokens",
+    "welcomeMessage": "Welcome Message",
+    "suggestedQuestions": "Suggested Questions",
+    "skillPackageBindings": "Skill Package Bindings",
     "create": "Create Agent",
     "noDescription": "No description",
     "viewDetail": "View Detail",
@@ -348,7 +351,15 @@
       "allModes": "All Modes",
       "allTenants": "All Tenants",
       "tenantId": "Enter tenant ID",
-      "allTypes": "All Types"
+      "allTypes": "All Types",
+      "selectSkillPackages": "Select skill packages to bind",
+      "inputWelcomeMessage": "Welcome message shown when user opens conversation",
+      "inputSuggestedQuestions": "One suggested question per line"
+    },
+    "help": {
+      "skillPackageBindings": "Select skill packages this agent can invoke",
+      "welcomeMessage": "Automatically shown when user first opens a conversation. Leave empty to hide",
+      "suggestedQuestions": "Shown when user first enters a conversation, one per line, to help them get started"
     },
     "type_options": {
       "system": "System Agent",
@@ -786,6 +797,36 @@
       "inputPermissionCode": "Enter permission code",
       "selectBlockedColumns": "Select columns to block",
       "selectReadonlyColumns": "Select readonly columns"
+    }
+  },
+  "agentAssignment": {
+    "title": "AI Feature Assignment",
+    "selectAgent": "Select agent",
+    "saveSuccess": "Binding updated",
+    "noAgent": "Not assigned",
+    "columns": {
+      "featureName": "Feature",
+      "featureCode": "Code",
+      "agent": "Bound Agent",
+      "status": "Status"
+    },
+    "features": {
+      "crud_generator": {
+        "name": "CRUD Code Generator",
+        "description": "Dev Tool \u2014 AI-assisted CRUD module field, enum, and relation configuration"
+      },
+      "data_analysis": {
+        "name": "Data Analysis",
+        "description": "AI-driven data querying and visual analytics"
+      },
+      "general_chat": {
+        "name": "General AI Chat",
+        "description": "Built-in general-purpose AI chat assistant"
+      },
+      "translation": {
+        "name": "AI Translation",
+        "description": "Multi-language text translation (e.g. i18n field auto-translation)"
+      }
     }
   }
 }

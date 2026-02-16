@@ -12,7 +12,7 @@ import type { AIChatPanelProps } from './types';
 
 defineOptions({ name: 'AIChatPanel' });
 
-import { onMounted, onUnmounted, ref, toRef, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -49,6 +49,8 @@ const emit = defineEmits<{
 const chat = useAIChat({
   apiPrefix: toRef(props, 'apiPrefix'),
   uploadUrl: toRef(props, 'uploadUrl'),
+  initialAgentId: toRef(props, 'initialAgentId'),
+  onToolCall: props.onToolCall,
 });
 
 const {
@@ -88,12 +90,32 @@ const {
   removePendingAttachment,
   confirmAction,
   rejectAction,
+  confirmConsent,
+  rejectConsent,
 } = chat;
 
 // Template ref bindings (used via ref="..." in template)
 void messagesContainer;
 void fileInput;
 void handleMessagesScroll;
+
+/**
+ * Effective welcome message: props override > agent's welcome_message > default
+ */
+const effectiveWelcomeMessage = computed(() => {
+  if (props.welcomeMessage) return props.welcomeMessage;
+  return selectedAgent.value?.welcome_message || '';
+});
+
+/**
+ * Effective suggested questions: props override > agent's suggested_questions
+ */
+const effectiveSuggestedQuestions = computed<string[]>(() => {
+  if (props.suggestedQuestions.length > 0) return props.suggestedQuestions;
+  const raw = selectedAgent.value?.suggested_questions;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((q): q is string => typeof q === 'string' && q.trim() !== '');
+});
 
 /** Click a suggested question: fill + send */
 function askSuggested(question: string) {
@@ -221,7 +243,13 @@ onUnmounted(() => {
               <div class="min-w-0 flex-1">
                 <div class="truncate font-medium">{{ agent.name }}</div>
                 <div
-                  v-if="agent.model_name"
+                  v-if="agent.description"
+                  class="truncate text-xs text-muted-foreground"
+                >
+                  {{ agent.description }}
+                </div>
+                <div
+                  v-else-if="agent.model_name"
                   class="truncate text-xs text-muted-foreground"
                 >
                   {{ agent.model_name }}
@@ -333,26 +361,34 @@ onUnmounted(() => {
           >
             <div class="max-w-md text-center">
               <div
-                class="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10"
+                class="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-lg font-semibold text-primary"
               >
+                <img
+                  v-if="selectedAgent && agentAvatar(selectedAgent)"
+                  :src="agentAvatar(selectedAgent)!"
+                  :alt="selectedAgent.name"
+                  class="size-full rounded-2xl object-cover"
+                />
+                <span v-else-if="selectedAgent">{{ agentInitial(selectedAgent) }}</span>
                 <IconifyIcon
+                  v-else
                   icon="lucide:bot"
                   class="size-7 text-primary"
                 />
               </div>
               <div class="text-base font-medium text-foreground">
-                {{ props.welcomeMessage || $t('common.globalAiChat.welcomeTitle') }}
+                {{ effectiveWelcomeMessage || $t('common.globalAiChat.welcomeTitle') }}
               </div>
-              <div v-if="!props.welcomeMessage" class="mt-1 text-sm text-muted-foreground">
+              <div v-if="!effectiveWelcomeMessage" class="mt-1 text-sm text-muted-foreground">
                 {{ $t('common.globalAiChat.welcomeDesc') }}
               </div>
               <!-- Suggested questions -->
               <div
-                v-if="props.suggestedQuestions.length > 0"
+                v-if="effectiveSuggestedQuestions.length > 0"
                 class="mt-5 flex flex-wrap justify-center gap-2"
               >
                 <Button
-                  v-for="(q, qi) in props.suggestedQuestions"
+                  v-for="(q, qi) in effectiveSuggestedQuestions"
                   :key="qi"
                   size="small"
                   class="max-w-[220px] truncate"
@@ -375,6 +411,8 @@ onUnmounted(() => {
               @copy="onCopyMessage"
               @confirm="confirmAction"
               @reject="rejectAction"
+              @consent-confirm="confirmConsent"
+              @consent-reject="rejectConsent"
               @open-url="openUrl"
             />
           </div>
@@ -599,7 +637,7 @@ onUnmounted(() => {
             v-if="chatMessages.length === 0 && !sending"
             class="flex h-full items-center justify-center"
           >
-            <div class="text-center">
+            <div class="max-w-xs text-center">
               <div
                 v-if="selectedAgent"
                 class="mx-auto mb-2 flex size-10 items-center justify-center rounded-xl bg-primary/10 text-sm font-medium text-primary"
@@ -617,8 +655,29 @@ onUnmounted(() => {
                 icon="lucide:bot"
                 class="mx-auto mb-2 size-10 text-primary/30"
               />
-              <div class="text-sm text-muted-foreground">
-                {{ $t('common.globalAiChat.welcomeDesc') }}
+              <div class="text-sm font-medium text-foreground">
+                {{ effectiveWelcomeMessage || $t('common.globalAiChat.welcomeDesc') }}
+              </div>
+              <div
+                v-if="selectedAgent?.description && !effectiveWelcomeMessage"
+                class="mt-1 text-xs text-muted-foreground"
+              >
+                {{ selectedAgent.description }}
+              </div>
+              <!-- Suggested questions (drawer) -->
+              <div
+                v-if="effectiveSuggestedQuestions.length > 0"
+                class="mt-3 flex flex-wrap justify-center gap-1.5"
+              >
+                <Button
+                  v-for="(q, qi) in effectiveSuggestedQuestions"
+                  :key="qi"
+                  size="small"
+                  class="max-w-[180px] truncate !text-xs"
+                  @click="askSuggested(q)"
+                >
+                  {{ q }}
+                </Button>
               </div>
             </div>
           </div>
@@ -634,6 +693,8 @@ onUnmounted(() => {
               @copy="onCopyMessage"
               @confirm="confirmAction"
               @reject="rejectAction"
+              @consent-confirm="confirmConsent"
+              @consent-reject="rejectConsent"
               @open-url="openUrl"
             />
           </div>

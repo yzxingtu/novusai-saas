@@ -172,6 +172,9 @@
     "toolBindings": "Tool Bindings (JSON)",
     "skillBindings": "Skill Bindings",
     "skillPackageBindings": "Skill Package Bindings",
+    "skillCount": "Skills",
+    "hasWelcomeMessage": "Welcome message configured",
+    "sharedPackageTag": "Shared",
     "createdAt": "Created At",
     "create": "Create Agent",
     "wizard": {
@@ -817,6 +820,24 @@
       "createSuccess": "Skill created successfully",
       "updateSuccess": "Skill updated successfully",
       "deleteSuccess": "Skill deleted"
+    }
+  },
+  "agentAssignment": {
+    "title": "Feature Binding Management",
+    "selectAgent": "Select agent",
+    "saveSuccess": "Binding updated",
+    "restoreSuccess": "Restored to global default",
+    "restoreConfirm": "Restore to global default binding?",
+    "restoreDefault": "Restore Default",
+    "overridden": "Overridden",
+    "inherited": "Inherited",
+    "columns": {
+      "featureName": "Feature Name",
+      "featureCode": "Feature Code",
+      "globalDefault": "Global Default",
+      "currentAgent": "Current Binding",
+      "status": "Status",
+      "actions": "Actions"
     }
   }
 }

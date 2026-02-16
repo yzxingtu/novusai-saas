@@ -369,13 +369,15 @@
       "package_id": "Skill Package ID",
       "enabled": "Enabled",
       "config_override": "Config Override",
-      "sort_order": "Sort Order"
+      "sort_order": "Sort Order",
+      "consent_mode": "Tool Consent Mode"
     },
     "error": {
       "already_bound": "This skill package is already bound to this agent",
       "package_not_found": "Skill package not found",
       "binding_not_found": "This skill package is not bound to this agent",
-      "agent_not_found": "Agent not found"
+      "agent_not_found": "Agent not found",
+      "scope_mismatch": "Agent and skill package scopes are incompatible"
     }
   },
   "platform_tool": {
@@ -1054,6 +1056,11 @@
       "global": "Global",
       "admin": "Admin Only"
     },
+    "tool_consent": {
+      "auto": "Auto Execute",
+      "ask": "Ask Every Time",
+      "reject": "Reject Execution"
+    },
     "delete_level": {
       "tenant": "Tenant Recycle Bin",
       "admin": "Admin Recycle Bin"
@@ -1141,6 +1148,18 @@
         "partial_failure": "Partial Failure",
         "failed": "Failed",
         "rolled_back": "Rolled Back"
+      },
+      "error": {
+        "invalid_template_name": "Name must only contain letters, digits, hyphens, and underscores",
+        "template_not_found": "Template not found",
+        "record_id_required": "record_id is required for mode=record",
+        "entity_fields_required": "module_name and table_name are required for mode=entity",
+        "no_config_found": "No config found; provide 'config' in request body or ensure a generation record exists",
+        "unknown_mode": "Unsupported delete mode"
+      },
+      "warning": {
+        "scope_both": "scope=both will generate files for both admin and tenant. Ensure controller/service layers are compatible with both scopes.",
+        "scope_both_status_toggle": "has_status_toggle with scope=both: toggle endpoint will be generated for both admin and tenant controllers."
       }
     }
   },
@@ -1689,7 +1708,8 @@
       "script_execution_failed": "Script execution failed: {error}",
       "code_missing_template": "Code template not configured",
       "code_execution_timeout": "Code execution timed out after {timeout}s",
-      "code_prohibited_pattern": "Prohibited pattern in code: {pattern}"
+      "code_prohibited_pattern": "Prohibited pattern in code: {pattern}",
+      "consent_rejected": "Tool execution blocked by consent policy"
     }
   },
   "data_intelligence": {
@@ -1842,6 +1862,11 @@
     "dependency_version_mismatch": "installed version {version} does not match",
     "config_validation_failed": "Plugin config validation failed",
     "upgrade_hook_failed": "Plugin upgrade hook execution failed",
+    "upload_conflict": "A plugin with the same name already exists. Overwrite and upgrade?",
+    "dependency_install_failed": "Failed to install plugin Python dependencies",
+    "dependency_install_timeout": "Plugin Python dependency installation timed out",
+    "migration_failed": "Plugin database migration execution failed",
+    "skill_type_conflict": "Skill type is already registered by another plugin",
     "install_success": "Plugin installed successfully",
     "uninstall_success": "Plugin uninstalled successfully",
     "enable_success": "Plugin enabled successfully",
@@ -1871,6 +1896,22 @@
       "plugin_id": "Plugin ID",
       "is_active": "Active",
       "config": "Custom Config"
+    }
+  },
+  "system_agent_assignment": {
+    "field": {
+      "feature_code": "Feature Code",
+      "feature_name": "Feature Name",
+      "description": "Description",
+      "tenant_id": "Tenant ID",
+      "agent_id": "Bound Agent",
+      "config": "Config",
+      "is_active": "Active"
+    },
+    "error": {
+      "not_found": "Feature binding not found",
+      "feature_code_exists": "Feature code already exists",
+      "override_not_found": "Tenant override binding not found"
     }
   }
 }

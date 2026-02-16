@@ -38,6 +38,7 @@ from app.api.admin.ai_table_policies import router as ai_table_policies_router, 
 from app.api.admin.plugins import router as plugins_router, AdminPluginController
 from app.api.admin.skill_packages import router as ai_skill_packages_router, AdminSkillPackageController
 from app.api.admin.skills import router as ai_skills_router, AdminSkillController
+from app.api.admin.agent_assignments import router as agent_assignments_router, AdminAgentAssignmentController
 
 # 创建平台管理后台路由器
 admin_router = APIRouter()
@@ -81,6 +82,8 @@ admin_router.include_router(plugins_router)
 # 技能包 & 技能管理
 admin_router.include_router(ai_skill_packages_router)
 admin_router.include_router(ai_skills_router)
+# 系统智能体绑定
+admin_router.include_router(agent_assignments_router)
 
 
 __all__ = [
@@ -123,4 +126,6 @@ __all__ = [
     # 技能包 & 技能管理
     "AdminSkillPackageController",
     "AdminSkillController",
+    # 系统智能体绑定
+    "AdminAgentAssignmentController",
 ]

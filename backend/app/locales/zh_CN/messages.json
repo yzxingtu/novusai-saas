@@ -369,13 +369,15 @@
       "package_id": "技能包ID",
       "enabled": "启用状态",
       "config_override": "配置覆盖",
-      "sort_order": "排序"
+      "sort_order": "排序",
+      "consent_mode": "工具授权模式"
     },
     "error": {
       "already_bound": "该技能包已绑定到此智能体",
       "package_not_found": "技能包不存在",
       "binding_not_found": "该技能包未绑定到此智能体",
-      "agent_not_found": "智能体不存在"
+      "agent_not_found": "智能体不存在",
+      "scope_mismatch": "智能体与技能包的作用域不兼容，无法绑定"
     }
   },
   "platform_tool": {
@@ -1056,6 +1058,11 @@
       "global": "全局共享",
       "admin": "仅管理端"
     },
+    "tool_consent": {
+      "auto": "自动执行",
+      "ask": "每次询问",
+      "reject": "禁止执行"
+    },
     "delete_level": {
       "tenant": "租户回收站",
       "admin": "管理端回收站"
@@ -1143,6 +1150,18 @@
         "partial_failure": "部分失败",
         "failed": "失败",
         "rolled_back": "已回滚"
+      },
+      "error": {
+        "invalid_template_name": "名称只能包含字母、数字、连字符和下划线",
+        "template_not_found": "模板不存在",
+        "record_id_required": "mode=record 时 record_id 为必填项",
+        "entity_fields_required": "mode=entity 时 module_name 和 table_name 为必填项",
+        "no_config_found": "未找到配置，请在请求体中提供 config 或确保有生成记录",
+        "unknown_mode": "不支持的删除模式"
+      },
+      "warning": {
+        "scope_both": "scope=both 将同时生成 admin 和 tenant 文件，请确保 controller/service 层兼容两种 scope",
+        "scope_both_status_toggle": "has_status_toggle 与 scope=both 同时使用：状态切换端点将同时生成在 admin 和 tenant 控制器中"
       }
     }
   },
@@ -1692,7 +1711,8 @@
       "script_execution_failed": "脚本执行失败: {error}",
       "code_missing_template": "代码模板未配置",
       "code_execution_timeout": "代码执行超时（{timeout}秒）",
-      "code_prohibited_pattern": "代码中包含禁止的模式: {pattern}"
+      "code_prohibited_pattern": "代码中包含禁止的模式: {pattern}",
+      "consent_rejected": "该工具已被授权策略禁止执行"
     }
   },
   "data_intelligence": {
@@ -1845,6 +1865,11 @@
     "dependency_version_mismatch": "已安装版本 {version} 不匹配",
     "config_validation_failed": "插件配置校验失败",
     "upgrade_hook_failed": "插件升级钩子执行失败",
+    "upload_conflict": "同名插件已存在，是否覆盖升级？",
+    "dependency_install_failed": "插件 Python 依赖安装失败",
+    "dependency_install_timeout": "插件 Python 依赖安装超时",
+    "migration_failed": "插件数据库迁移执行失败",
+    "skill_type_conflict": "技能类型已被其他插件注册",
     "install_success": "插件安装成功",
     "uninstall_success": "插件卸载成功",
     "enable_success": "插件启用成功",
@@ -1874,6 +1899,22 @@
       "plugin_id": "插件 ID",
       "is_active": "启用状态",
       "config": "自定义配置"
+    }
+  },
+  "system_agent_assignment": {
+    "field": {
+      "feature_code": "功能代码",
+      "feature_name": "功能名称",
+      "description": "描述",
+      "tenant_id": "租户 ID",
+      "agent_id": "绑定智能体",
+      "config": "配置",
+      "is_active": "启用状态"
+    },
+    "error": {
+      "not_found": "功能绑定不存在",
+      "feature_code_exists": "功能代码已存在",
+      "override_not_found": "租户覆盖绑定不存在"
     }
   }
 }

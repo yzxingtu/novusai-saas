@@ -368,6 +368,45 @@ alembic revision --autogenerate -m "add_xxx_table"
 - `env.py` 中 `target_metadata = Base.metadata`，所有 Model 必须继承 `Base`
 - 同步引擎 `DATABASE_URL_SYNC`（`postgresql://`）用于 Alembic，异步引擎 `DATABASE_URL`（`postgresql+asyncpg://`）用于应用
 
+### CRUD 生成器迁移规则（重要）
+
+**禁止任何途径直接 CREATE TABLE**。所有建表操作必须通过 Alembic 迁移脚本。
+
+| 入口 | 正确做法 | 禁止做法 |
+|------|----------|----------|
+| 可视化向导 | 生成 Alembic migration `.py` 文件 | 生成 DDL / 直接建表 |
+| CLI `generate` | 输出 migration 文件到 `migrations/versions/` | 执行 CREATE TABLE |
+| AI 智能体 | Skill 输出 migration 脚本 | 输出 DDL 预览 |
+
+**原因**：
+1. 直接建表会断裂 Alembic 迁移链，后续新增字段无法通过迁移管理
+2. 后端热重载自动执行 `alembic upgrade head`，迁移链外的表不受管理
+3. 生产部署依赖迁移链的完整性进行增量升级
+
+**当前状态**（待重构 — 里程碑 M119/#389）：
+- `generator.py` 仅生成 `__ddl_preview__.sql` 虚拟文件（不写磁盘），无 migration 模板
+- 需新增 `migration.py.j2` 模板，Generator 输出迁移脚本，Writer 写入 `migrations/versions/`
+
+### CRUD 生成器插件化规则（重要）
+
+**CRUD Generator（可视化向导 + CLI）不是系统核心功能，必须作为可选插件提供。**
+
+系统核心不应包含 CRUD Generator 代码。该功能通过插件体系（`ApiPlugin` + `SkillPlugin`）动态加载：
+
+| 组件 | 当前位置（待迁移） | 目标位置 |
+|------|---------------------|----------|
+| 后端引擎 | `app/codegen/` (11 .py + 14 .j2) | `app/plugins/crud-generator/codegen/` |
+| 后端 API | `app/api/admin/dev_crud*.py` | 插件 `get_router()` 动态路由 |
+| CLI | `python -m app.codegen.cli` | 插件 CLI 命令 |
+| AI 技能 | 迁移种子数据绑定 | `SkillPlugin` 生命周期自动装配 |
+| 前端页面 | `views/admin/dev/crud-generator/` (35+ 文件) | 插件前端包 + 动态路由注册 |
+| i18n | 核心 `admin/dev.json` | 插件自有 locale |
+
+**当前状态**（待重构 — 里程碑 M120/#390）：
+- 后端 + 前端代码深度耦合在核心中
+- 前端插件页面注册机制尚不存在（需先设计）
+- 系统智能体通过迁移种子数据绑定（需改为 SkillPlugin 生命周期）
+
 ### 数据库会话获取方式
 
 | 场景 | 方法 | 类型 |

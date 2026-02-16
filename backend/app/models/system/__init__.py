@@ -14,8 +14,9 @@ from app.models.system.operation_log import OperationLog
 from app.models.system.task_log import TaskLog
 from app.models.system.periodic_task import PeriodicTask
 from app.models.system.plugin import Plugin
+from app.models.system.plugin_migration import PluginMigration
 from app.models.system.tenant_plugin import TenantPlugin
-from app.models.system.crud_generation_record import CrudGenerationRecord
+from app.models.system.agent_assignment import SystemAgentAssignment
 
 __all__ = [
     "Admin",
@@ -26,6 +27,7 @@ __all__ = [
     "TaskLog",
     "PeriodicTask",
     "Plugin",
+    "PluginMigration",
     "TenantPlugin",
-    "CrudGenerationRecord",
+    "SystemAgentAssignment",
 ]

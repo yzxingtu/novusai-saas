@@ -93,6 +93,37 @@ class TenantSkillPackageController(TenantController):
             )
             return success(data=response)
 
+        @router.get("/available", summary="可绑定的技能包列表")
+        @action_read("action.skill_package.list")
+        async def available_packages(
+            request: Request,
+            db: DbSession,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            获取租户可绑定的所有技能包（用于智能体技能绑定下拉）。
+
+            包括当前租户自有包 + admin 共享包，返回 label/value 格式。
+            """
+            from app.repositories.ai.skill_package_repository import (
+                SkillPackageRepository,
+            )
+
+            repo = SkillPackageRepository(db, tenant_admin.tenant_id)
+            packages = await repo.get_available_for_binding()
+
+            result = [
+                {
+                    "label": pkg.name,
+                    "value": pkg.id,
+                    "scope": pkg.scope,
+                    "description": pkg.description,
+                    "is_system": pkg.is_system,
+                }
+                for pkg in packages
+            ]
+            return success(data=result)
+
         @router.get("", summary="获取技能包列表")
         @action_read("action.skill_package.list")
         async def list_packages(
