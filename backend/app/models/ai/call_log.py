@@ -4,7 +4,6 @@ AI 调用日志模型
 记录所有 AI 调用请求和响应，用于计量计费和监控
 """
 
-from datetime import datetime
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Numeric, Text, JSON, Index
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import TYPE_CHECKING

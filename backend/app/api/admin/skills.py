@@ -58,6 +58,7 @@ def _build_admin_skill_item(skill) -> dict:
     name="menu.admin.ai_skill",
     scope=PermissionScope.ADMIN,
     menu=None,
+    parent_resource="ai_skill_package",
 )
 class AdminSkillController(GlobalController):
     """

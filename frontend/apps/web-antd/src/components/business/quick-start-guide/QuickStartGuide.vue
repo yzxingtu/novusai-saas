@@ -1,8 +1,9 @@
 <script lang="ts" setup>
 /**
- * AI 网关快速入门引导组件
+ * 快速入门引导组件（共享）
  *
- * 首次访问时显示，可关闭并通过按钮重新打开
+ * 首次访问时显示，可关闭并通过按钮重新打开。
+ * 通过 props 注入步骤数据、localStorage key 和 i18n 前缀，适配 admin/tenant 两端。
  */
 import { ref, onMounted } from 'vue';
 
@@ -12,47 +13,31 @@ import { Button, Card } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
-const STORAGE_KEY = 'admin-ai-guide-dismissed';
+export interface GuideStep {
+  key: string;
+  icon: string;
+  color: string;
+  bg: string;
+  link: string;
+}
+
+const props = defineProps<{
+  /** localStorage 持久化 key */
+  storageKey: string;
+  /** 引导步骤列表 */
+  steps: GuideStep[];
+  /** i18n 前缀，如 'admin.ai' 或 'tenant.ai' */
+  i18nPrefix: string;
+}>();
 
 const visible = ref(false);
 const dismissed = ref(false);
-
-const steps = [
-  {
-    key: 'step1',
-    icon: 'lucide:plug',
-    color: 'text-primary',
-    bg: 'bg-primary/10',
-    link: '/admin/ai/providers',
-  },
-  {
-    key: 'step2',
-    icon: 'lucide:brain',
-    color: 'text-purple-600',
-    bg: 'bg-purple-500/10',
-    link: '/admin/ai/models',
-  },
-  {
-    key: 'step3',
-    icon: 'lucide:key',
-    color: 'text-amber-600',
-    bg: 'bg-amber-500/10',
-    link: '/admin/ai/api-keys',
-  },
-  {
-    key: 'step4',
-    icon: 'lucide:activity',
-    color: 'text-success',
-    bg: 'bg-success/10',
-    link: '/admin/ai/health',
-  },
-];
 
 function dismiss() {
   visible.value = false;
   dismissed.value = true;
   try {
-    localStorage.setItem(STORAGE_KEY, '1');
+    localStorage.setItem(props.storageKey, '1');
   } catch {
     // storage unavailable
   }
@@ -62,7 +47,7 @@ function showGuide() {
   visible.value = true;
   dismissed.value = false;
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(props.storageKey);
   } catch {
     // storage unavailable
   }
@@ -70,7 +55,7 @@ function showGuide() {
 
 onMounted(() => {
   try {
-    dismissed.value = localStorage.getItem(STORAGE_KEY) === '1';
+    dismissed.value = localStorage.getItem(props.storageKey) === '1';
   } catch {
     dismissed.value = false;
   }
@@ -90,12 +75,12 @@ defineExpose({ showGuide });
     <div class="mb-3 flex items-center justify-between">
       <div>
         <div class="text-base font-semibold text-foreground">
-          {{ $t('admin.ai.guide.title') }}
+          {{ $t(`${i18nPrefix}.guide.title`) }}
         </div>
         <div class="mt-0.5 flex items-center gap-2 text-sm text-muted-foreground">
-          <span>{{ $t('admin.ai.guide.subtitle') }}</span>
+          <span>{{ $t(`${i18nPrefix}.guide.subtitle`) }}</span>
           <span class="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
-            {{ $t('admin.ai.guide.totalTime') }}
+            {{ $t(`${i18nPrefix}.guide.totalTime`) }}
           </span>
         </div>
       </div>
@@ -121,14 +106,14 @@ defineExpose({ showGuide });
           <div class="flex items-center gap-1.5">
             <IconifyIcon :icon="step.icon" class="size-3.5" :class="step.color" />
             <span class="text-sm font-medium text-foreground">
-              {{ $t(`admin.ai.guide.${step.key}.title`) }}
+              {{ $t(`${i18nPrefix}.guide.${step.key}.title`) }}
             </span>
             <span class="rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
-              {{ $t(`admin.ai.guide.${step.key}.time`) }}
+              {{ $t(`${i18nPrefix}.guide.${step.key}.time`) }}
             </span>
           </div>
           <div class="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-            {{ $t(`admin.ai.guide.${step.key}.detail`) }}
+            {{ $t(`${i18nPrefix}.guide.${step.key}.detail`) }}
           </div>
         </div>
         <IconifyIcon
@@ -140,7 +125,7 @@ defineExpose({ showGuide });
 
     <div class="mt-3 text-right">
       <Button size="small" type="link" @click="dismiss">
-        {{ $t('admin.ai.guide.dismiss') }}
+        {{ $t(`${i18nPrefix}.guide.dismiss`) }}
       </Button>
     </div>
   </Card>
@@ -149,7 +134,7 @@ defineExpose({ showGuide });
   <div v-else-if="dismissed" class="flex justify-end">
     <Button size="small" type="link" @click="showGuide">
       <IconifyIcon icon="lucide:compass" class="mr-1 size-3.5" />
-      {{ $t('admin.ai.guide.showGuide') }}
+      {{ $t(`${i18nPrefix}.guide.showGuide`) }}
     </Button>
   </div>
 </template>

@@ -4,7 +4,7 @@
 提供 JWT Token 生成/验证、密码哈希等安全相关功能
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Any
 
 import bcrypt
@@ -12,6 +12,7 @@ from jose import JWTError, jwt
 from cryptography.fernet import Fernet
 
 from app.core.config import settings
+from app.core.base_model import utc_now
 
 # Token 类型常量
 TOKEN_TYPE_ACCESS = "access"
@@ -46,9 +47,9 @@ def create_access_token(
         编码后的 JWT Token
     """
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = utc_now() + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
+        expire = utc_now() + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
     
@@ -56,7 +57,7 @@ def create_access_token(
         "sub": str(subject),
         "scope": scope,
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": utc_now(),
         "type": TOKEN_TYPE_ACCESS,
     }
     
@@ -83,9 +84,9 @@ def create_refresh_token(
         编码后的 JWT Token
     """
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = utc_now() + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
+        expire = utc_now() + timedelta(
             days=settings.REFRESH_TOKEN_EXPIRE_DAYS
         )
     
@@ -93,7 +94,7 @@ def create_refresh_token(
         "sub": str(subject),
         "scope": scope,
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": utc_now(),
         "type": TOKEN_TYPE_REFRESH,
     }
     
@@ -276,7 +277,7 @@ def create_impersonate_token(
     Returns:
         编码后的 JWT Token
     """
-    expire = datetime.now(timezone.utc) + timedelta(seconds=expires_seconds)
+    expire = utc_now() + timedelta(seconds=expires_seconds)
     
     to_encode = {
         "sub": str(admin_id),  # 发起者 ID
@@ -284,7 +285,7 @@ def create_impersonate_token(
         "target_scope": target_scope,
         "target_tenant_id": target_tenant_id,
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": utc_now(),
     }
     
     if target_role_id is not None:

@@ -13,7 +13,7 @@ import { Badge, Card, message, Modal, Switch, Tag, Tooltip } from 'ant-design-vu
 
 import { useAutoTableDragSort, useCrudPage } from '#/adapter/vxe-table';
 
-import QuickStartGuide from '../_components/QuickStartGuide.vue';
+import QuickStartGuide from '#/components/business/quick-start-guide/QuickStartGuide.vue';
 import {
   getAIProviderListApi,
   reorderAIProvidersApi,
@@ -81,7 +81,16 @@ useAutoTableDragSort(() => gridApi.grid, {
 
 <template>
   <Page auto-content-height :description="$t('admin.ai.provider.pageDesc')" content-class="flex flex-col gap-4">
-    <QuickStartGuide />
+    <QuickStartGuide
+      storage-key="admin-ai-guide-dismissed"
+      i18n-prefix="admin.ai"
+      :steps="[
+        { key: 'step1', icon: 'lucide:plug', color: 'text-primary', bg: 'bg-primary/10', link: '/admin/ai/providers' },
+        { key: 'step2', icon: 'lucide:brain', color: 'text-purple-600', bg: 'bg-purple-500/10', link: '/admin/ai/models' },
+        { key: 'step3', icon: 'lucide:key', color: 'text-amber-600', bg: 'bg-amber-500/10', link: '/admin/ai/api-keys' },
+        { key: 'step4', icon: 'lucide:activity', color: 'text-success', bg: 'bg-success/10', link: '/admin/ai/monitor/health' },
+      ]"
+    />
     <FormDrawer @success="onFormSuccess" />
 
     <!-- Data table -->

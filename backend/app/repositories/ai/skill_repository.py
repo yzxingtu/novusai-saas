@@ -75,9 +75,26 @@ class SkillRepository(TenantRepository[Skill]):
         else:
             query = query.where(self.model.tenant_id == self.tenant_id)
 
-        return await self._apply_spec_and_execute(
-            query, spec, allowed_fields, all_fields, forced_filters
-        )
+        if forced_filters:
+            query = self._apply_filters(query, forced_filters, all_fields)
+
+        if spec.filters:
+            query = self._apply_filters(query, spec.filters, allowed_fields)
+
+        from sqlalchemy import func
+        count_query = select(func.count()).select_from(query.subquery())
+        count_result = await self.db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        sortable_fields = self.get_sortable_fields()
+        query = self._apply_sort(query, spec.sort, sortable_fields)
+
+        query = query.offset(spec.offset).limit(spec.limit)
+
+        result = await self.db.execute(query)
+        items = list(result.scalars().all())
+
+        return items, total
 
     async def get_by_name(
         self,

@@ -128,6 +128,139 @@ export async function deleteAdminKnowledgeBaseApi(
   await requestClient.delete(`${PREFIX}/${id}`, options);
 }
 
+// ============================================================
+// 文档子资源 API
+// ============================================================
+
+/** 知识库文档 */
+export interface AdminKnowledgeDocumentItem {
+  id: number;
+  knowledge_base_id: number;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  file_hash: string | null;
+  status: string;
+  error_message: string | null;
+  error_stage: string | null;
+  chunk_count: number;
+  token_count: number;
+  char_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 检索结果项 */
+export interface AdminSearchResultItem {
+  chunk_id: number;
+  content: string;
+  score: number;
+  metadata: Record<string, unknown> | null;
+  document_name: string;
+  document_id: number;
+  highlight: string | null;
+}
+
+/** 文档处理进度 */
+export interface AdminDocumentProgress {
+  stage: string;
+  progress: number;
+  total_chunks: number;
+  processed_chunks: number;
+}
+
+/** 获取文档列表 */
+export async function getAdminDocumentListApi(
+  kbId: number,
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<PageResponse<AdminKnowledgeDocumentItem>> {
+  return requestClient.get<PageResponse<AdminKnowledgeDocumentItem>>(
+    `${PREFIX}/${kbId}/documents`,
+    { params, ...options },
+  );
+}
+
+/** 上传文档 */
+export async function uploadAdminDocumentApi(
+  kbId: number,
+  file: File,
+  options?: ApiRequestOptions,
+): Promise<AdminKnowledgeDocumentItem> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return requestClient.post<AdminKnowledgeDocumentItem>(
+    `${PREFIX}/${kbId}/documents/upload`,
+    formData,
+    {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      ...options,
+    },
+  );
+}
+
+/** 删除文档 */
+export async function deleteAdminDocumentApi(
+  kbId: number,
+  docId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.delete(
+    `${PREFIX}/${kbId}/documents/${docId}`,
+    options,
+  );
+}
+
+/** 重试文档 */
+export async function retryAdminDocumentApi(
+  kbId: number,
+  docId: number,
+  options?: ApiRequestOptions,
+): Promise<AdminKnowledgeDocumentItem> {
+  return requestClient.post<AdminKnowledgeDocumentItem>(
+    `${PREFIX}/${kbId}/documents/${docId}/retry`,
+    {},
+    options,
+  );
+}
+
+/** 获取文档处理进度 */
+export async function getAdminDocumentProgressApi(
+  kbId: number,
+  docId: number,
+  options?: ApiRequestOptions,
+): Promise<AdminDocumentProgress> {
+  return requestClient.get<AdminDocumentProgress>(
+    `${PREFIX}/${kbId}/documents/${docId}/progress`,
+    options,
+  );
+}
+
+/** 重新向量化 */
+export async function reindexAdminKnowledgeBaseApi(
+  kbId: number,
+  options?: ApiRequestOptions,
+): Promise<{ document_count: number }> {
+  return requestClient.post<{ document_count: number }>(
+    `${PREFIX}/${kbId}/reindex`,
+    {},
+    options,
+  );
+}
+
+/** 检索测试 */
+export async function searchAdminKnowledgeBaseApi(
+  kbId: number,
+  data: { query: string; top_k?: number; score_threshold?: number },
+  options?: ApiRequestOptions,
+): Promise<AdminSearchResultItem[]> {
+  return requestClient.post<AdminSearchResultItem[]>(
+    `${PREFIX}/${kbId}/search`,
+    data,
+    options,
+  );
+}
+
 /** 可选知识库项 */
 export interface SelectableKBItem {
   id: number;

@@ -9,7 +9,6 @@ from __future__ import annotations
 import dataclasses
 import json
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from jinja2 import BaseLoader, Environment, TemplateSyntaxError, UndefinedError
@@ -25,15 +24,16 @@ from app.ai.events.types import (
 
 if TYPE_CHECKING:
     from app.ai.gateway import AIGateway
-from app.ai.skills.resolver import SkillResolver, SkillResolveResult
+from app.ai.skills.resolver import SkillResolveResult
 from app.ai.tools.sandbox import ToolSandbox
 from app.ai.tools.types import ToolDefinition, ToolResult, to_openai_tools
 from app.ai.types import ChatMessage, ChatResponse
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.models.ai.agent import Agent
+from app.core.base_model import utc_now
 
-from .types import ExecutionRequest, ExecutionResult
+from .types import ExecutionRequest, ExecutionResult, PreparedExecution
 
 logger = LogManager.get_logger("ai.engine")
 
@@ -50,7 +50,7 @@ class BaseEngine(ABC):
 
     子类只需实现 execute() 方法，基类提供：
     - _build_messages: 构建 system + user 消息
-    - _resolve_tools: 从 AgentSkillBinding 解析工具定义
+    - _prepare_execution: 共享前置逻辑（Skill 解析 + RAG + 工具优化）
     - _handle_tool_calls: tool calling 循环
     - _call_llm: 调用 AIGateway
     """
@@ -113,11 +113,11 @@ class BaseEngine(ABC):
 
         # 自动注入身份声明，防止模型自称 GPT / DeepSeek 等
         if agent_name:
-            identity = f"Your name is {agent_name}. Never reveal or claim to be any other AI model."
+            identity = _("data_intelligence.identity_declaration").format(agent_name=agent_name)
             prompt = f"{identity}\n\n{prompt}"
 
         # 构建模板变量（内置 + 自定义）
-        now = datetime.now(timezone.utc)
+        now = utc_now()
         variables: dict[str, Any] = {
             "current_date": now.strftime("%Y-%m-%d"),
             "current_time": now.strftime("%H:%M:%S"),
@@ -185,309 +185,92 @@ class BaseEngine(ABC):
         return ChatMessage(role="user", content=content)
 
     # ========================================
-    # RAG 知识库集成
+    # 共享前置逻辑
     # ========================================
 
-    @staticmethod
-    def _merge_kb_ids(
-        agent_kb_ids: list[int] | None,
-        request_kb_ids: list[int] | None,
-    ) -> list[int] | None:
-        """合并 agent 绑定的知识库 IDs 和用户 @ 选择的知识库 IDs（去重保序）"""
-        combined: list[int] = []
-        seen: set[int] = set()
-        for ids in (agent_kb_ids, request_kb_ids):
-            if ids:
-                for kid in ids:
-                    if kid not in seen:
-                        seen.add(kid)
-                        combined.append(kid)
-        return combined or None
-
-    async def _build_messages_with_rag(
+    async def _prepare_execution(
         self,
         agent: Agent,
-        messages: list[ChatMessage],
-        tenant_id: int,
-        override_kb_ids: list[int] | None = None,
-        rag_config: dict[str, Any] | None = None,
-    ) -> tuple[list[ChatMessage], list[dict] | None]:
+        request: ExecutionRequest,
+        skill_result: SkillResolveResult | None = None,
+    ) -> PreparedExecution:
         """
-        将 RAG 上下文注入 system_prompt
+        构建执行上下文（execute / stream_execute 共享前置逻辑）
 
-        如果智能体绑定了知识库，检索相关分块并注入到 system 消息末尾。
-        未绑定知识库时直接返回原始消息。
+        包含：
+        1. 使用预解析的 Skill 结果（或回退到内部解析）
+        2. 构建消息列表（system + 历史）
+        3. RAG 知识库注入
+        4. 工具优化
+        5. 工具感知提示注入
 
         Args:
-            agent: 智能体
-            messages: 已构建的消息列表（第一条为 system）
-            tenant_id: 租户 ID
-            override_kb_ids: 覆盖用的知识库 ID 列表（已合并 agent + 用户 @ 选择）
-            rag_config: RAG 配置（来自 Skill 解析）
+            agent: 智能体模型实例
+            request: 执行请求
+            skill_result: 预解析的 Skill 结果（Dispatcher 层传入）
 
         Returns:
-            (messages, rag_sources): 注入后的消息列表 + 引用来源列表（无 RAG 时为 None）
+            PreparedExecution 上下文
         """
-        kb_ids = override_kb_ids
-        if not kb_ids:
-            return messages, None
+        # 1. 使用预解析的 Skill 结果，或回退到内部解析（兼容旧调用路径）
+        if skill_result is None:
+            from app.ai.skills.resolver import resolve_for_agent
+            skill_result = await resolve_for_agent(
+                self.db, agent, tenant_id=request.tenant_id,
+            )
 
-        rag_config = rag_config or {}
+        # 2. 构建消息列表
+        messages: list[ChatMessage] = []
+        system_msg = self._build_system_message(agent, request.input_variables)
+        messages.append(system_msg)
 
-        try:
-            from app.ai.rag.context_builder import RAGContextBuilder
-            from app.ai.rag.retriever import HybridRetriever
-            from app.ai.utils.token_estimator import estimate_tokens
-            from app.repositories.ai.knowledge_base_repository import AdminKnowledgeBaseRepository
+        if request.messages:
+            messages.extend(request.messages)
 
-            # 获取第一个知识库（用于 Embedding 模型配置）
-            # 使用 AdminKnowledgeBaseRepository 以支持 scope=global/admin 的知识库
-            kb_repo = AdminKnowledgeBaseRepository(self.db)
-            primary_kb = await kb_repo.get_by_id(kb_ids[0])
-            if not primary_kb:
-                return messages, None
+        # 3. RAG 知识库注入
+        from app.ai.rag_injector import inject_rag_context, merge_kb_ids
+        rag_sources = None
+        skill_kb_ids = skill_result.knowledge_base_ids if skill_result else None
+        skill_rag_config = skill_result.rag_config if skill_result else None
+        merged_kb_ids = merge_kb_ids(skill_kb_ids, request.knowledge_base_ids)
+        if merged_kb_ids:
+            messages, rag_sources = await inject_rag_context(
+                self.db, agent, messages, request.tenant_id,
+                kb_ids=merged_kb_ids,
+                rag_config=skill_rag_config,
+            )
 
-            # 提取用户最新问题
+        # 4. 获取工具列表 + 优化
+        tools = skill_result.tools if skill_result else []
+        optimize_event: dict[str, Any] | None = None
+        if tools:
             user_query = ""
-            for msg in reversed(messages):
-                if msg.role == "user":
-                    user_query = msg.content
+            for _m in reversed(messages):
+                if _m.role == "user":
+                    user_query = _m.content or ""
                     break
+            from app.ai.tools.optimizer import optimize_tools
+            opt = optimize_tools(tools, user_query)
+            tools = opt.tools
+            if not opt.skipped:
+                optimize_event = {"total": opt.total, "selected": opt.selected}
 
-            if not user_query:
-                return messages, None
+        # 5. 注入工具感知提示
+        if tools:
+            self._inject_tool_awareness(messages, tools)
 
-            # 检索
-            retriever = HybridRetriever(self.db, tenant_id)
-            chunks = await retriever.search(
-                knowledge_base=primary_kb,
-                query=user_query,
-                top_k=rag_config.get("top_k", primary_kb.top_k),
-                score_threshold=rag_config.get("score_threshold", primary_kb.score_threshold),
-                search_mode=rag_config.get("search_mode"),
-                kb_ids=kb_ids,
-                rewrite_strategy=rag_config.get("rewrite_strategy", "none"),
-                reranker_enabled=rag_config.get("reranker_enabled", False),
-            )
+        # 6. 提取 consent_modes
+        tool_consent_modes = (
+            skill_result.tool_consent_modes if skill_result else {}
+        )
 
-            if not chunks:
-                return messages, None
-
-            # 计算 Token 预算
-            builder = RAGContextBuilder(
-                context_token_ratio=rag_config.get("context_token_ratio", 0.6),
-            )
-
-            # 估算 system prompt 的 token 数
-            system_tokens = estimate_tokens(messages[0].content) if messages else 0
-            max_context = getattr(agent, "max_context_tokens", 0) or 8000
-
-            rag_budget, _ = builder.calculate_rag_budget(
-                max_context_tokens=max_context,
-                system_prompt_tokens=system_tokens,
-                max_tokens=agent.max_tokens,
-            )
-
-            # 构建 RAG 上下文
-            rag_context = builder.build_rag_context(chunks, rag_budget)
-
-            if not rag_context.rag_text:
-                return messages, None
-
-            # 注入到 system 消息末尾
-            if messages and messages[0].role == "system":
-                messages[0] = ChatMessage(
-                    role="system",
-                    content=messages[0].content + "\n" + rag_context.rag_text,
-                )
-
-            # 构建引用来源
-            sources = [s.to_dict() for s in rag_context.sources]
-
-            logger.info(
-                "RAG injected: agent=%d, chunks=%d, tokens=%d",
-                agent.id, rag_context.chunk_count, rag_context.token_count,
-            )
-
-            return messages, sources
-
-        except Exception as exc:
-            logger.warning(
-                "RAG injection failed for agent %d: %s",
-                agent.id, str(exc),
-            )
-            return messages, None
-
-    # ========================================
-    # 工具解析
-    # ========================================
-
-    async def _resolve_tools(
-        self,
-        agent: Agent,
-        tenant_id: int | None = None,
-    ) -> list[ToolDefinition]:
-        """
-        解析智能体绑定的工具
-
-        从 AgentSkillBinding 加载 SkillPackage 并解析其下所有 Skill 为 ToolDefinition 列表。
-
-        Args:
-            agent: 智能体
-            tenant_id: 租户 ID
-        """
-        skill_result = await self._resolve_skills(agent, tenant_id)
-        if skill_result is not None:
-            return skill_result.tools
-
-        return []
-
-    async def _resolve_skills(
-        self,
-        agent: Agent,
-        tenant_id: int | None = None,
-    ) -> SkillResolveResult | None:
-        """
-        从 AgentSkillBinding 加载 SkillPackage，展开包内所有 active Skill 并解析为 ToolDefinition
-
-        如果 Agent 没有绑定记录，返回 None（触发旧路径回退）。
-        admin 级 Agent（tenant_id=NULL）同样支持技能解析。
-
-        Args:
-            agent: 智能体
-            tenant_id: 租户 ID（admin 级 Agent 可为 None）
-
-        Returns:
-            SkillResolveResult 或 None（无绑定时回退旧路径）
-        """
-        try:
-            from sqlalchemy import select, and_
-            from app.models.ai.skill import Skill
-            from app.models.ai.agent_skill_binding import AgentSkillBinding
-
-            # admin 级 Agent（tenant_id=NULL）的绑定记录 tenant_id 也是 NULL，
-            # TenantRepository 会用 tenant_id==0 过滤导致查不到。
-            # 因此直接按 agent_id 查询，不依赖 TenantRepository 的租户隔离。
-            agent_tenant_id = tenant_id or getattr(agent, "tenant_id", None)
-            if agent_tenant_id:
-                # 租户级 Agent：带 tenant_id 过滤
-                binding_stmt = (
-                    select(AgentSkillBinding)
-                    .where(
-                        and_(
-                            AgentSkillBinding.agent_id == agent.id,
-                            AgentSkillBinding.tenant_id == agent_tenant_id,
-                            AgentSkillBinding.enabled.is_(True),
-                            AgentSkillBinding.is_deleted.is_(False),
-                        )
-                    )
-                    .order_by(AgentSkillBinding.sort_order)
-                )
-            else:
-                # admin/global 级 Agent：tenant_id IS NULL
-                binding_stmt = (
-                    select(AgentSkillBinding)
-                    .where(
-                        and_(
-                            AgentSkillBinding.agent_id == agent.id,
-                            AgentSkillBinding.tenant_id.is_(None),
-                            AgentSkillBinding.enabled.is_(True),
-                            AgentSkillBinding.is_deleted.is_(False),
-                        )
-                    )
-                    .order_by(AgentSkillBinding.sort_order)
-                )
-            binding_result = await self.db.execute(binding_stmt)
-            bindings = list(binding_result.scalars().all())
-
-            if not bindings:
-                return None
-
-            # 提取已绑定的 active SkillPackage IDs
-            package_ids: list[int] = []
-            config_overrides: dict[int, dict[str, Any]] = {}
-            consent_by_package: dict[int, str] = {}
-            for binding in bindings:
-                if binding.package and binding.package.is_active and not binding.package.is_deleted:
-                    package_ids.append(binding.package.id)
-                    if binding.config_override:
-                        config_overrides[binding.package.id] = binding.config_override
-                    consent_by_package[binding.package.id] = getattr(
-                        binding, "consent_mode", "auto"
-                    )
-
-            if not package_ids:
-                return None
-
-            # 加载所有绑定包下的 active Skill
-            stmt = (
-                select(Skill)
-                .where(
-                    and_(
-                        Skill.package_id.in_(package_ids),
-                        Skill.is_active.is_(True),
-                        Skill.is_deleted.is_(False),
-                    )
-                )
-                .order_by(Skill.sort_order)
-            )
-            result = await self.db.execute(stmt)
-            skills = list(result.scalars().all())
-
-            if not skills:
-                return None
-
-            # 将 package 级的 config_override + valves_config 映射到包内每个 skill
-            # valves_config 来自 SkillPackage 模型（用户在管理端填写的环境变量配置）
-            skill_config_overrides: dict[int, dict[str, Any]] = {}
-            pkg_valves: dict[int, dict[str, Any]] = {}
-            for binding in bindings:
-                if binding.package and binding.package.valves_config:
-                    pkg_valves[binding.package.id] = binding.package.valves_config
-
-            for skill in skills:
-                merged: dict[str, Any] = {}
-                # 注入 package valves_config → skill config 的 "valves" 键
-                pkg_vc = pkg_valves.get(skill.package_id)
-                if pkg_vc:
-                    merged["valves"] = pkg_vc
-                # 合并 binding config_override
-                pkg_override = config_overrides.get(skill.package_id)
-                if pkg_override:
-                    merged.update(pkg_override)
-                if merged:
-                    skill_config_overrides[skill.id] = merged
-
-            resolver = SkillResolver(db=self.db)
-            resolve_result = await resolver.resolve(skills, skill_config_overrides)
-
-            # 构建 tool_name → consent_mode 映射
-            consent_by_skill: dict[int, str] = {}
-            for skill in skills:
-                consent_by_skill[skill.id] = consent_by_package.get(
-                    skill.package_id, "auto"
-                )
-            for tool in resolve_result.tools:
-                if tool.source_skill_id and tool.source_skill_id in consent_by_skill:
-                    resolve_result.tool_consent_modes[tool.name] = consent_by_skill[
-                        tool.source_skill_id
-                    ]
-
-            logger.info(
-                "Resolved skills for agent=%s: packages=%s, tools=%s, kb_ids=%s",
-                agent.name if agent else "?",
-                package_ids,
-                [t.name for t in resolve_result.tools],
-                resolve_result.knowledge_base_ids,
-            )
-            return resolve_result
-
-        except Exception as exc:
-            logger.warning(
-                "Skill resolution failed for agent %d, falling back: %s",
-                agent.id, str(exc),
-            )
-            return None
+        return PreparedExecution(
+            messages=messages,
+            tools=tools,
+            rag_sources=rag_sources,
+            tool_consent_modes=tool_consent_modes,
+            optimize_event=optimize_event,
+        )
 
     # ========================================
     # LLM 调用
@@ -576,6 +359,13 @@ class BaseEngine(ABC):
             (final_response, all_tool_results, total_tokens)
             当 skip_final_call=True 时 final_response 为 None
         """
+        from .tool_processor import ToolCallProcessor
+
+        processor = ToolCallProcessor(
+            sandbox=self.sandbox,
+            tools=tools,
+        )
+
         all_tool_results: list[ToolResult] = []
         total_tokens = response.total_tokens or 0
         current_response = response
@@ -586,47 +376,22 @@ class BaseEngine(ABC):
                 break
 
             # 追加 assistant 消息（含 tool_calls）
-            assistant_msg = ChatMessage(
-                role="assistant",
+            messages.append(processor.build_assistant_tool_call_message(
                 content=current_response.message.content or "",
                 tool_calls=tool_calls,
-            )
-            messages.append(assistant_msg)
+            ))
 
-            # 执行每个工具调用
+            # 执行每个工具调用（使用 ToolCallProcessor 共享逻辑）
             for tc in tool_calls:
-                tc_id = tc.get("id", "")
-                func = tc.get("function", {})
-                func_name = func.get("name", "")
-                raw_args = func.get("arguments", "{}")
-
-                # 解析参数
-                try:
-                    arguments = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
-                except json.JSONDecodeError:
-                    arguments = {}
-
-                # 通过沙箱执行
-                result = await self.sandbox.execute(
-                    tool_call_id=tc_id,
-                    name=func_name,
-                    arguments=arguments,
-                    definitions=tools,
-                    conversation_id=request.conversation_id or 0,
+                single = await processor.process_single(
+                    tc, conversation_id=request.conversation_id or 0,
                 )
-                all_tool_results.append(result)
-
-                # 追加 tool 消息
-                messages.append(ChatMessage(
-                    role="tool",
-                    content=result.output if result.success else _("tool.error.prefix", error=result.error),
-                    tool_call_id=tc_id,
-                ))
+                if single.tool_result:
+                    all_tool_results.append(single.tool_result)
+                if single.tool_message:
+                    messages.append(single.tool_message)
 
             if skip_final_call:
-                # 检查是否还有后续轮次需要非流式调用
-                # 先尝试非流式调用，看 LLM 是否返回更多 tool_calls
-                # 如果是最后一轮，跳过让调用方流式处理
                 if _round < MAX_TOOL_CALL_ROUNDS - 1:
                     peek_response = await self._call_llm(
                         agent=agent,
@@ -639,7 +404,6 @@ class BaseEngine(ABC):
                     if peek_response.tool_calls:
                         current_response = peek_response
                         continue
-                # 不再有 tool_calls，返回 None 让调用方流式处理最终回复
                 return None, all_tool_results, total_tokens
 
             # 再次调用 LLM

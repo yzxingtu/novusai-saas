@@ -20,61 +20,21 @@ from app.rbac.decorators import (
     action_update,
     action_delete,
 )
-from app.ai.agent_quota import AgentConcurrencyLimiter, AgentQuotaConfig, AgentQuotaManager
+from app.ai.agent_quota import AgentQuotaConfig, AgentQuotaManager
 from app.ai.agent_stats import AgentStatsManager
 from app.core.recycle_bin import register_tenant_recycle_bin_routes
 from app.schemas.ai.agent import AgentCreate, AgentUpdate
 from app.schemas.ai.agent_access import AgentAccessUpdate
-from app.schemas.ai.agent_version import AgentPublishRequest, AgentRollbackRequest
-from app.schemas.ai.batch_run import BatchRunCreate, BatchRunResponse, BatchRunProgress
-from app.schemas.ai.agent_skill_binding import (
-    AgentSkillBindRequest,
-    AgentSkillBatchBindRequest,
-    AgentSkillBindingUpdate,
-)
 from app.services.ai.agent_service import AgentService
-from app.services.ai.agent_skill_binding_service import AgentSkillBindingService
 
 
 def _build_agent_list_item(agent) -> dict:
     """从 ORM 对象构建列表项字典，提取 model_name + skill_count"""
-    model_name = None
-    try:
-        model_obj = getattr(agent, "model", None)
-        if model_obj is not None:
-            model_name = model_obj.name
-    except (AttributeError, Exception):
-        pass
+    from app.api.shared._agent_helpers import build_agent_base_item
 
-    skill_packages: list[dict] = []
-    try:
-        bindings = getattr(agent, "skill_bindings", None)
-        if bindings is not None:
-            for b in bindings:
-                pkg = getattr(b, "package", None)
-                if pkg is not None:
-                    skill_packages.append({"id": pkg.id, "name": pkg.name})
-    except (AttributeError, Exception):
-        pass
-
-    return {
-        "id": agent.id,
-        "tenant_id": agent.tenant_id,
-        "name": agent.name,
-        "avatar": agent.avatar,
-        "description": agent.description,
-        "status": agent.status,
-        "execution_mode": agent.execution_mode,
-        "is_system": agent.is_system,
-        "model_name": model_name,
-        "skill_packages": skill_packages,
-        "published_version": agent.published_version,
-        "visibility": agent.visibility,
-        "welcome_message": agent.welcome_message,
-        "suggested_questions": agent.suggested_questions,
-        "created_at": agent.created_at,
-        "updated_at": agent.updated_at,
-    }
+    item = build_agent_base_item(agent)
+    item["visibility"] = agent.visibility
+    return item
 
 
 @permission_resource(
@@ -250,55 +210,6 @@ class TenantAgentController(TenantController):
 
             return success(data=usage)
 
-        @router.post("/{agent_id}/publish", summary="发布智能体")
-        @action_update("action.agent.publish")
-        async def publish_agent(
-            request: Request,
-            db: DbSession,
-            agent_id: int,
-            data: AgentPublishRequest,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            发布智能体
-
-            将当前配置冻结为新版本快照，状态设为 published。
-            权限: agent:publish
-            """
-            service = AgentService(db, tenant_admin.tenant_id)
-            agent = await service.publish_agent(
-                agent_id,
-                change_log=data.change_log,
-                created_by=tenant_admin.id,
-            )
-            await db.commit()
-
-            return success(data=agent.to_dict(), message=_("agent.published"))
-
-        @router.post("/{agent_id}/rollback", summary="回滚智能体")
-        @action_update("action.agent.rollback")
-        async def rollback_agent(
-            request: Request,
-            db: DbSession,
-            agent_id: int,
-            data: AgentRollbackRequest,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            回滚智能体到指定版本
-
-            将指定版本的配置回写到主记录，状态重置为 draft。
-            权限: agent:rollback
-            """
-            service = AgentService(db, tenant_admin.tenant_id)
-            agent = await service.rollback_agent(agent_id, data.version)
-            await db.commit()
-
-            return success(
-                data=agent.to_dict(),
-                message=_("agent.version.rolled_back"),
-            )
-
         # ========================================
         # 用量统计
         # ========================================
@@ -376,308 +287,14 @@ class TenantAgentController(TenantController):
 
             return success(data=config, message=_("agent.access.updated"))
 
-        # ========================================
-        # 版本管理
-        # ========================================
+        # 包含子路由模块
+        from app.api.tenant._agent_version import router as version_router
+        from app.api.tenant._agent_skills import router as skills_router
+        from app.api.tenant._agent_batch import router as batch_router
 
-        @router.get("/{agent_id}/versions", summary="获取智能体版本历史")
-        @action_read("action.agent.versions")
-        async def list_versions(
-            request: Request,
-            db: DbSession,
-            agent_id: int,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            获取智能体版本历史列表（降序）
-
-            权限: agent:versions
-            """
-            service = AgentService(db, tenant_admin.tenant_id)
-            versions = await service.get_versions(agent_id)
-
-            return success(data=versions)
-
-        # 注意：diff 路由必须在 {version} 之前注册，避免 "diff" 被匹配为版本号
-        @router.get("/{agent_id}/versions/diff", summary="对比两个版本")
-        @action_read("action.agent.version_diff")
-        async def diff_versions(
-            request: Request,
-            db: DbSession,
-            agent_id: int,
-            v1: int,
-            v2: int,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            对比两个版本的字段差异
-
-            Query params: v1, v2
-            权限: agent:version_diff
-            """
-            service = AgentService(db, tenant_admin.tenant_id)
-            diff = await service.diff_versions(agent_id, v1, v2)
-
-            return success(data=diff)
-
-        @router.get("/{agent_id}/versions/{version}", summary="获取智能体版本详情")
-        @action_read("action.agent.version_detail")
-        async def get_version_detail(
-            request: Request,
-            db: DbSession,
-            agent_id: int,
-            version: int,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            获取智能体指定版本的完整配置快照
-
-            权限: agent:version_detail
-            """
-            service = AgentService(db, tenant_admin.tenant_id)
-            detail = await service.get_version_detail(agent_id, version)
-
-            return success(data=detail)
-
-        # ========================================
-        # 技能绑定
-        # ========================================
-
-        @router.get("/{agent_id}/skills", summary="获取智能体技能包绑定列表")
-        @action_read("action.agent.skills")
-        async def get_agent_skills(
-            request: Request,
-            db: DbSession,
-            agent_id: int,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            获取智能体绑定的所有技能包（含 SkillPackage 详情）
-            """
-            agent_svc = AgentService(db, tenant_admin.tenant_id)
-            agent = await agent_svc.get_by_id(agent_id)
-            if not agent:
-                raise NotFoundException(message=_("agent.error.not_found"))
-
-            binding_service = AgentSkillBindingService(db, tenant_admin.tenant_id)
-            result = await binding_service.get_agent_packages(agent_id)
-            return success(data=result)
-
-        @router.post("/{agent_id}/skills", summary="绑定技能包到智能体")
-        @action_update("action.agent.bind_skill")
-        async def bind_skill(
-            request: Request,
-            db: DbSession,
-            agent_id: int,
-            data: AgentSkillBindRequest,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            绑定单个技能包到智能体
-            """
-            agent_svc = AgentService(db, tenant_admin.tenant_id)
-            agent = await agent_svc.get_by_id(agent_id)
-            if not agent:
-                raise NotFoundException(message=_("agent.error.not_found"))
-
-            binding_service = AgentSkillBindingService(db, tenant_admin.tenant_id)
-            binding = await binding_service.bind_package(
-                agent_id=agent_id,
-                package_id=data.package_id,
-                config_override=data.config_override,
-                sort_order=data.sort_order,
-                consent_mode=data.consent_mode,
-            )
-            await db.commit()
-            return created(data=binding.to_dict())
-
-        @router.put("/{agent_id}/skills/batch", summary="批量绑定技能包（替换模式）")
-        @action_update("action.agent.batch_bind_skills")
-        async def batch_bind_skills(
-            request: Request,
-            db: DbSession,
-            agent_id: int,
-            data: AgentSkillBatchBindRequest,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            批量绑定技能包（替换模式：先清空再批量插入）
-            """
-            agent_svc = AgentService(db, tenant_admin.tenant_id)
-            agent = await agent_svc.get_by_id(agent_id)
-            if not agent:
-                raise NotFoundException(message=_("agent.error.not_found"))
-
-            binding_service = AgentSkillBindingService(db, tenant_admin.tenant_id)
-            bindings = await binding_service.batch_bind(
-                agent_id=agent_id,
-                package_ids=data.package_ids,
-            )
-            await db.commit()
-            return success(data=[b.to_dict() for b in bindings])
-
-        @router.put("/{agent_id}/skills/{binding_id}", summary="更新技能绑定配置")
-        @action_update("action.agent.update_skill_binding")
-        async def update_skill_binding(
-            request: Request,
-            db: DbSession,
-            agent_id: int,
-            binding_id: int,
-            data: AgentSkillBindingUpdate,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            更新技能绑定（enabled / config_override / sort_order）
-            """
-            agent_svc = AgentService(db, tenant_admin.tenant_id)
-            agent = await agent_svc.get_by_id(agent_id)
-            if not agent:
-                raise NotFoundException(message=_("agent.error.not_found"))
-
-            binding_service = AgentSkillBindingService(db, tenant_admin.tenant_id)
-
-            # 校验 binding_id 归属 agent_id
-            binding = await binding_service.get_by_id(binding_id)
-            if not binding or binding.agent_id != agent_id:
-                raise NotFoundException(message=_("agent_skill_binding.error.binding_not_found"))
-
-            updated = await binding_service.update_binding(
-                binding_id=binding_id,
-                data=data.model_dump(exclude_unset=True),
-            )
-            await db.commit()
-            return success(data=updated.to_dict())
-
-        @router.delete("/{agent_id}/skills/{package_id}", summary="解绑技能包")
-        @action_update("action.agent.unbind_skill")
-        async def unbind_skill(
-            request: Request,
-            db: DbSession,
-            agent_id: int,
-            package_id: int,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            解绑指定技能包
-            """
-            agent_svc = AgentService(db, tenant_admin.tenant_id)
-            agent = await agent_svc.get_by_id(agent_id)
-            if not agent:
-                raise NotFoundException(message=_("agent.error.not_found"))
-
-            binding_service = AgentSkillBindingService(db, tenant_admin.tenant_id)
-            await binding_service.unbind_package(agent_id=agent_id, package_id=package_id)
-            await db.commit()
-            return deleted()
-
-        # ========================================
-        # 批处理
-        # ========================================
-
-        @router.post("/{agent_id}/batch", summary="提交批处理任务", status_code=202)
-        @action_create("action.agent.batch_submit")
-        async def submit_batch(
-            request: Request,
-            db: DbSession,
-            agent_id: int,
-            data: BatchRunCreate,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            提交智能体批处理任务
-
-            立即返回 batch_run_id，实际执行由 Celery Worker 异步完成。
-            通过 GET /{agent_id}/batch/{run_id} 查询进度。
-
-            权限: agent:batch_submit
-            """
-            from app.ai.engine.dispatcher import ExecutionDispatcher
-            from app.ai.engine.types import BatchItem, ExecutionRequest
-            from app.enums.agent import AgentExecutionModeEnum
-
-            # 构建 BatchItem 列表
-            items = [
-                BatchItem(
-                    item_id=str(idx),
-                    input_variables=item_data,
-                )
-                for idx, item_data in enumerate(data.items)
-            ]
-
-            exec_request = ExecutionRequest(
-                agent_id=agent_id,
-                tenant_id=tenant_admin.tenant_id,
-                user_id=tenant_admin.id,
-                execution_mode=AgentExecutionModeEnum.BATCH.value,
-            )
-
-            dispatcher = ExecutionDispatcher(db)
-            result = await dispatcher.dispatch_batch(
-                request=exec_request,
-                items=items,
-                max_workers=data.max_workers,
-                created_by=tenant_admin.id,
-            )
-
-            return success(data={
-                "batch_run_id": result.batch_run_id,
-                "total": result.total,
-                "status": "pending",
-            })
-
-        @router.get("/{agent_id}/batch/{run_id}", summary="查询批处理进度")
-        @action_read("action.agent.batch_progress")
-        async def get_batch_progress(
-            request: Request,
-            db: DbSession,
-            agent_id: int,
-            run_id: int,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            查询批处理进度和结果
-
-            权限: agent:batch_progress
-            """
-            from app.services.ai.batch_run_service import BatchRunService
-
-            batch_svc = BatchRunService(db, tenant_admin.tenant_id)
-            batch_run = await batch_svc.get_agent_batch_run(agent_id, run_id)
-            if not batch_run:
-                raise NotFoundException(
-                    message=_("agent.error.batch_run_not_found"),
-                )
-
-            return success(data=BatchRunResponse.model_validate(
-                batch_run, from_attributes=True,
-            ).model_dump())
-
-        @router.post(
-            "/{agent_id}/batch/{run_id}/cancel",
-            summary="取消批处理任务",
-        )
-        @action_update("action.agent.batch_cancel")
-        async def cancel_batch(
-            request: Request,
-            db: DbSession,
-            agent_id: int,
-            run_id: int,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            取消批处理任务
-
-            将 BatchRun 状态设为 cancelled，worker 会在下一项开始前检测并停止。
-            权限: agent:batch_cancel
-            """
-            from app.services.ai.batch_run_service import BatchRunService
-
-            batch_svc = BatchRunService(db, tenant_admin.tenant_id)
-            await batch_svc.cancel_batch_run(agent_id, run_id)
-            await db.commit()
-
-            return success(message=_("agent.batch.cancelled"))
-
+        router.include_router(version_router)
+        router.include_router(skills_router)
+        router.include_router(batch_router)
 
 
 # 导出路由器

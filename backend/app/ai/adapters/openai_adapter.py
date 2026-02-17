@@ -80,7 +80,7 @@ class OpenAIAdapter(BaseAdapter):
             request_params.update(kwargs)
             
             # 调用 API
-            logger.info(_("ai.log.chat_request"), model=model, messages_count=len(messages))
+            logger.info("Chat request: model=%s messages=%d", model, len(messages))
             response: ChatCompletion = await self.client.chat.completions.create(**request_params)
             
             # 转换响应
@@ -89,7 +89,7 @@ class OpenAIAdapter(BaseAdapter):
         except AIGatewayError:
             raise
         except Exception as e:
-            logger.error(_("ai.log.chat_error"), error=str(e), model=model)
+            logger.error("Chat error: model=%s error=%s", model, str(e))
             raise convert_openai_error(e, provider_code="openai", model_code=model)
     
     async def stream_chat(
@@ -129,7 +129,7 @@ class OpenAIAdapter(BaseAdapter):
             request_params.update(kwargs)
             
             # 调用流式 API
-            logger.info(_("ai.log.stream_chat_request"), model=model)
+            logger.info("Stream chat request: model=%s", model)
             stream = await self.client.chat.completions.create(**request_params)
             
             # 转换流式响应
@@ -139,7 +139,7 @@ class OpenAIAdapter(BaseAdapter):
         except AIGatewayError:
             raise
         except Exception as e:
-            logger.error(_("ai.log.stream_chat_error"), error=str(e), model=model)
+            logger.error("Stream chat error: model=%s error=%s", model, str(e))
             raise convert_openai_error(e, provider_code="openai", model_code=model)
     
     async def embedding(
@@ -153,7 +153,7 @@ class OpenAIAdapter(BaseAdapter):
         """
         try:
             # 调用 API
-            logger.info(_("ai.log.embedding_request"), model=model, texts_count=len(texts))
+            logger.info("Embedding request: model=%s texts=%d", model, len(texts))
             response: CreateEmbeddingResponse = await self.client.embeddings.create(
                 input=texts,
                 model=model,
@@ -171,7 +171,7 @@ class OpenAIAdapter(BaseAdapter):
         except AIGatewayError:
             raise
         except Exception as e:
-            logger.error(_("ai.log.embedding_error"), error=str(e), model=model)
+            logger.error("Embedding error: model=%s error=%s", model, str(e))
             raise convert_openai_error(e, provider_code="openai", model_code=model)
     
     async def list_models(self) -> list[dict]:
@@ -193,7 +193,7 @@ class OpenAIAdapter(BaseAdapter):
                 for model in response.data
             ]
         except Exception as e:
-            logger.error(_("ai.log.list_models_error"), error=str(e))
+            logger.error("List models error: %s", str(e))
             raise convert_openai_error(e, provider_code="openai", model_code="")
     
     def _convert_messages(self, messages: list[ChatMessage]) -> list[dict]:

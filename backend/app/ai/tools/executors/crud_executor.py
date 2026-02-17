@@ -20,7 +20,7 @@ import json
 import re
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import insert, select, text, update
+from sqlalchemy import text, update
 
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
@@ -35,12 +35,28 @@ logger = LogManager.get_logger("ai.tool.crud")
 
 # 表名白名单正则：仅允许小写字母、数字、下划线（防 SQL 注入）
 _SAFE_TABLE_NAME_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
+# 列名白名单正则：与表名规则一致（防 SQL 注入）
+_SAFE_COLUMN_NAME_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
 
 
 def _validate_table_name(table_name: str) -> str | None:
     """校验表名是否安全，返回错误消息或 None"""
     if not _SAFE_TABLE_NAME_RE.match(table_name):
         return _("data_intelligence.crud.invalid_table_name").format(table=table_name)
+    return None
+
+
+def _validate_column_names(data: dict[str, Any]) -> str | None:
+    """校验所有列名是否安全，返回错误消息或 None
+
+    防止 LLM 传入恶意列名导致 SQL 注入。
+    列名仅允许小写字母、数字和下划线，且必须以字母或下划线开头。
+    """
+    invalid = [k for k in data.keys() if not _SAFE_COLUMN_NAME_RE.match(k)]
+    if invalid:
+        return _("data_intelligence.crud.invalid_column_names").format(
+            columns=", ".join(sorted(invalid)),
+        )
     return None
 
 
@@ -64,27 +80,17 @@ async def _load_policy(
     """
     if not context.db:
         return None
-    from sqlalchemy import select as sa_select
-    stmt = sa_select(AITablePolicy).where(
-        AITablePolicy.table_name == table_name,
-        AITablePolicy.is_active == True,  # noqa: E712
-        AITablePolicy.is_deleted == False,  # noqa: E712
-    )
-    result = await context.db.execute(stmt)
-    policy = result.scalar_one_or_none()
+    from app.repositories.ai.table_policy_repository import AITablePolicyRepository
+    policy_repo = AITablePolicyRepository(context.db)
+    policy = await policy_repo.get_active_by_table_name(table_name)
     if not policy:
         return None
 
     # 加载租户覆盖并合并（收紧规则）
     if context.tenant_id:
-        from app.models.ai.table_policy import AITablePolicyOverride
-        ov_stmt = sa_select(AITablePolicyOverride).where(
-            AITablePolicyOverride.policy_id == policy.id,
-            AITablePolicyOverride.tenant_id == context.tenant_id,
-            AITablePolicyOverride.is_deleted == False,  # noqa: E712
-        )
-        ov_result = await context.db.execute(ov_stmt)
-        ov = ov_result.scalar_one_or_none()
+        from app.repositories.ai.table_policy_override_repository import AITablePolicyOverrideRepository
+        override_repo = AITablePolicyOverrideRepository(context.db)
+        ov = await override_repo.get_by_policy_and_tenant(policy.id, context.tenant_id)
         if ov:
             # 覆盖只能收紧：True -> False 可以，False -> True 不行
             if ov.allow_read is not None and not ov.allow_read:
@@ -322,8 +328,7 @@ class CreateRecordExecutor(BaseToolExecutor):
                 tool_call_id,
                 _("data_intelligence.crud.operation_denied").format(
                     operation="create", table=table_name,
-                ) + " Do NOT retry this operation on this or other tables. "
-                "Tell the user this table does not allow create operations.",
+                ) + _("data_intelligence.crud.no_retry_hint").format(operation="create"),
             )
 
         # RBAC: 检查用户是否有 create 权限
@@ -333,6 +338,11 @@ class CreateRecordExecutor(BaseToolExecutor):
 
         # 剥离系统管理列（tenant_id/is_deleted 等，由系统注入）
         _strip_system_columns(data)
+
+        # 列名安全校验（防 SQL 注入）
+        col_err = _validate_column_names(data)
+        if col_err:
+            return ToolResult.error_result(tool_call_id, col_err)
 
         # 校验写入数据
         blocked = _get_blocked_columns(policy)
@@ -456,8 +466,7 @@ class UpdateRecordExecutor(BaseToolExecutor):
                 tool_call_id,
                 _("data_intelligence.crud.operation_denied").format(
                     operation="update", table=table_name,
-                ) + " Do NOT retry this operation on this or other tables. "
-                "Tell the user this table does not allow update operations.",
+                ) + _("data_intelligence.crud.no_retry_hint").format(operation="update"),
             )
 
         # RBAC: 检查用户是否有 update 权限
@@ -467,6 +476,11 @@ class UpdateRecordExecutor(BaseToolExecutor):
 
         # 剥离系统管理列
         _strip_system_columns(data)
+
+        # 列名安全校验（防 SQL 注入）
+        col_err = _validate_column_names(data)
+        if col_err:
+            return ToolResult.error_result(tool_call_id, col_err)
 
         # 校验写入数据
         blocked = _get_blocked_columns(policy)
@@ -620,8 +634,7 @@ class DeleteRecordExecutor(BaseToolExecutor):
                 tool_call_id,
                 _("data_intelligence.crud.operation_denied").format(
                     operation="delete", table=table_name,
-                ) + " Do NOT retry this operation on this or other tables. "
-                "Tell the user this table does not allow delete operations.",
+                ) + _("data_intelligence.crud.no_retry_hint").format(operation="delete"),
             )
 
         # RBAC: 检查用户是否有 delete 权限
@@ -669,7 +682,7 @@ class DeleteRecordExecutor(BaseToolExecutor):
                 "id": record_id,
                 "record": safe_data,
                 "requires_confirmation": True,
-                "warning": "This will soft-delete the record (set is_deleted=true).",
+                "warning": _("data_intelligence.crud.soft_delete_warning"),
             }
             return ToolResult(
                 tool_call_id=tool_call_id,

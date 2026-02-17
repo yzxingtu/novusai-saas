@@ -4,7 +4,7 @@ AI 调用日志 Repository
 提供调用日志查询、统计和分析功能
 """
 
-from datetime import date, datetime
+from datetime import date
 from sqlalchemy import select, func, and_, or_, case
 
 from app.core.base_repository import BaseRepository

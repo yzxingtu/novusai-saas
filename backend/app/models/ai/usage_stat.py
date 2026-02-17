@@ -4,7 +4,7 @@ AI 使用量统计模型
 按租户/用户/模型维度聚合 Token 使用量和费用统计
 """
 
-from datetime import datetime, date
+from datetime import date
 from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Numeric, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import TYPE_CHECKING

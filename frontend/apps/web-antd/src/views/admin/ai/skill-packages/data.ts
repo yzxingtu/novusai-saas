@@ -7,16 +7,9 @@ import type { AdminSkillPackageInfo } from '#/api/admin/skill-packages';
 
 import { searchInput, select } from '#/adapter/form';
 import { $t } from '#/locales';
+import { getScopeColor } from '#/utils/ai-helpers';
 
-/** 作用域颜色映射 */
-export function getScopeColor(scope: string): string {
-  const map: Record<string, string> = {
-    admin: 'blue',
-    tenant: 'green',
-    global: 'purple',
-  };
-  return map[scope] || 'default';
-}
+export { getScopeColor };
 
 /** 作用域文本映射 */
 export function getScopeText(scope: string): string {

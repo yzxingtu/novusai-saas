@@ -19,6 +19,7 @@
   },
   "actionMessage": {
     "deleteConfirm": "确定删除 {0} 吗？",
+    "deleteConfirmContent": "删除后数据将移入回收站，可在回收站中恢复。",
     "deleting": "正在删除 {0} ...",
     "deleteSuccess": "{0} 删除成功",
     "createSuccess": "创建成功",

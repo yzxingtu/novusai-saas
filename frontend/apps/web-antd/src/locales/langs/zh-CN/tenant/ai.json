@@ -259,6 +259,11 @@
       }
     },
     "knowledgeBase": {
+      "messages": {
+        "createSuccess": "知识库创建成功",
+        "updateSuccess": "知识库更新成功",
+        "deleteSuccess": "知识库已删除"
+      },
       "title": "知识库 (RAG)",
       "selectLabel": "关联知识库",
       "selectPlaceholder": "请选择要关联的知识库",
@@ -385,6 +390,7 @@
   },
   "conversation": {
     "title": "对话标题",
+    "conversationTitle": "对话标题",
     "pageDesc": "管理智能体对话记录。支持查看详情、归档和批量操作。",
     "pageTitle": "对话管理",
     "agentName": "智能体",

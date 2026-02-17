@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import hashlib
 import re
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -23,6 +22,7 @@ if TYPE_CHECKING:
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.exceptions import BusinessException
+from app.core.base_model import utc_now
 
 logger = LogManager.get_logger("plugin")
 
@@ -139,7 +139,7 @@ async def run_migrations(
                 filename=mf.name,
                 checksum=_sha256(sql_content),
                 description=mf.stem.split("_", 1)[1] if "_" in mf.stem else None,
-                applied_at=datetime.now(timezone.utc),
+                applied_at=utc_now(),
             )
             db.add(record)
             await db.flush()

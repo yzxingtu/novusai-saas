@@ -57,7 +57,7 @@ class FailoverService:
             return health.get("is_available", True)
 
         except (RedisError, json.JSONDecodeError) as e:
-            logger.error(_("ai.log.failover_health_check_failed"), error=str(e))
+            logger.error("Failover health check failed: %s", str(e))
             # 查询失败时不阻断请求
             return True
 
@@ -156,7 +156,7 @@ class FailoverService:
             return sorted(results, key=lambda x: x.get("provider_id", 0))
 
         except (RedisError, json.JSONDecodeError) as e:
-            logger.error(_("ai.log.failover_get_all_health_failed"), error=str(e))
+            logger.error("Failover get all health failed: %s", str(e))
             return []
 
     @staticmethod

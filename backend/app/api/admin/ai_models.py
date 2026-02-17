@@ -180,6 +180,7 @@ class AdminAIModelController(GlobalController):
             service = AIModelService(db)
             model = await service.create_model(data)
             await db.commit()
+            await db.refresh(model, ['provider', 'fallback_model'])
 
             return success(
                 data=AIModelResponse.model_validate(model, from_attributes=True),
@@ -203,6 +204,7 @@ class AdminAIModelController(GlobalController):
             service = AIModelService(db)
             model = await service.update_model(model_id, data)
             await db.commit()
+            await db.refresh(model, ['provider', 'fallback_model'])
 
             return success(
                 data=AIModelResponse.model_validate(model, from_attributes=True),

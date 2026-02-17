@@ -11,6 +11,7 @@ from app.core.base_controller import GlobalController
 from app.core.deps import DbSession, ActiveAdmin, QueryParams
 from app.core.i18n import _
 from app.core.response import success, deleted, paginated
+from app.enums.common import UserRoleEnum
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
@@ -102,7 +103,7 @@ class AdminAgentChatController(GlobalController):
                 variables=data.variables,
                 user_id=admin.id,
                 knowledge_base_ids=data.knowledge_base_ids,
-                user_role="platform_admin",
+                user_role=UserRoleEnum.PLATFORM_ADMIN.value,
                 permissions=user_perms,
                 consented_actions=data.consented_actions,
                 attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
@@ -140,7 +141,7 @@ class AdminAgentChatController(GlobalController):
                 variables=data.variables,
                 user_id=admin.id,
                 knowledge_base_ids=data.knowledge_base_ids,
-                user_role="platform_admin",
+                user_role=UserRoleEnum.PLATFORM_ADMIN.value,
                 permissions=user_perms,
                 consented_actions=data.consented_actions,
                 attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,

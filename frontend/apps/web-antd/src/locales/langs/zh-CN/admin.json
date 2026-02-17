@@ -192,6 +192,8 @@
     "createdAt": "创建时间",
     "unlimited": "无限制",
     "toggleStatus": "切换状态",
-    "edit": "编辑"
+    "edit": "编辑",
+    "operationSuccess": "操作成功",
+    "operationFailed": "操作失败"
   }
 }

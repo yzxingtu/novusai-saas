@@ -42,7 +42,7 @@ def _build_assignment_item(assignment) -> dict:
         if agent_obj is not None:
             agent_name = agent_obj.name
             agent_avatar = agent_obj.avatar
-    except (AttributeError, Exception):
+    except AttributeError:
         pass
 
     return {
@@ -124,7 +124,7 @@ class AdminAgentAssignmentController(GlobalController):
                 agent_obj = getattr(assignment, "agent", None)
                 if agent_obj is not None:
                     agent_name = agent_obj.name
-            except (AttributeError, Exception):
+            except AttributeError:
                 pass
             return success(data={
                 "feature_code": assignment.feature_code,

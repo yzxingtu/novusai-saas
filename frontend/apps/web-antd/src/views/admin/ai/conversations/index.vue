@@ -10,15 +10,15 @@ import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
-import { Card, Tag } from 'ant-design-vue';
+import { Card, Descriptions, Tag } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
-import { getAIConversationListApi } from '#/api/admin/ai';
+import { getAIConversationDetailApi, getAIConversationListApi } from '#/api/admin/ai';
+import ConversationDetail from '#/components/business/conversation-detail/ConversationDetail.vue';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
 import { formatCost, formatTokens, getStatusText, useColumns, useGridFormSchema } from './data';
-import ConversationDetail from './modules/ConversationDetail.vue';
 
 const detailOpen = ref(false);
 const detailId = ref<null | number>(null);
@@ -48,7 +48,21 @@ const { Grid } = useCrudPage<AIConversationInfo>({
     <ConversationDetail
       v-model:open="detailOpen"
       :conversation-id="detailId"
-    />
+      i18n-prefix="admin.ai.conversation"
+      :get-detail-api="getAIConversationDetailApi"
+      :format-tokens="formatTokens"
+      :format-cost="formatCost"
+      :get-status-text="getStatusText"
+    >
+      <template #extra-descriptions="{ detail }">
+        <Descriptions.Item :label="$t('admin.ai.conversation.tenantId')" :span="1">
+          {{ detail.tenant_id }}
+        </Descriptions.Item>
+        <Descriptions.Item :label="$t('admin.ai.conversation.userId')" :span="1">
+          {{ detail.user_id ?? '-' }}
+        </Descriptions.Item>
+      </template>
+    </ConversationDetail>
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>

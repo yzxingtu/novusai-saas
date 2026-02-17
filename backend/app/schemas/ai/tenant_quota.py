@@ -63,7 +63,7 @@ class TenantQuotaResponse(TenantQuotaBase):
             model_obj = getattr(obj, "model", None)
             if model_obj is not None:
                 model_name = model_obj.name
-        except (AttributeError, Exception):
+        except AttributeError:
             pass
 
         return cls(

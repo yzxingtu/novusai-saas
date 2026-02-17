@@ -126,7 +126,7 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
     accessStore.setAccessCodes([]);
     accessStore.setIsAccessChecked(false);
 
-    userStore.setUserInfo(null as unknown as UserInfo);
+    userStore.setUserInfo(null);
     adminInfo.value = null;
 
     await router.replace({

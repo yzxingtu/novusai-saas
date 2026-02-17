@@ -5,7 +5,6 @@
 """
 
 import json
-import logging
 from typing import Any
 
 from sqlalchemy import select, and_
@@ -20,7 +19,9 @@ from app.models.system.config import (
     SystemConfigValue,
 )
 
-logger = logging.getLogger(__name__)
+from app.core.logging import LogManager
+
+logger = LogManager.get_logger("app")
 
 # 平台级配置使用 tenant_id = 0
 PLATFORM_TENANT_ID = 0

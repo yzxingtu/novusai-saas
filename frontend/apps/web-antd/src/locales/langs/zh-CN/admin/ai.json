@@ -51,7 +51,8 @@
     "messages": {
       "toggleSuccess": "供应商状态已更新",
       "confirmEnable": "确认启用此供应商？",
-      "confirmDisable": "确认禁用此供应商？禁用后该供应商下的所有 AI 调用将失败"
+      "confirmDisable": "确认禁用此供应商？禁用后该供应商下的所有 AI 调用将失败",
+      "deleteSuccess": "供应商删除成功"
     }
   },
   "model": {
@@ -126,7 +127,8 @@
     "messages": {
       "toggleSuccess": "模型状态已更新",
       "confirmEnable": "确认启用此模型？",
-      "confirmDisable": "确认禁用此模型？禁用后该模型将不可被调用"
+      "confirmDisable": "确认禁用此模型？禁用后该模型将不可被调用",
+      "deleteSuccess": "模型删除成功"
     }
   },
   "apiKey": {
@@ -179,7 +181,8 @@
       "confirmDisable": "确认禁用此 API Key？禁用后使用该 Key 的 AI 调用将失败",
       "copy": "复制 Key",
       "copied": "已复制到剪贴板",
-      "copyFailed": "复制失败"
+      "copyFailed": "复制失败",
+      "deleteSuccess": "API Key 删除成功"
     }
   },
   "callLog": {

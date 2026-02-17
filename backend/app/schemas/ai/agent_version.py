@@ -4,7 +4,6 @@
 定义版本发布、回滚、列表、对比等请求和响应数据结构
 """
 
-from datetime import datetime
 
 from pydantic import Field
 
@@ -50,6 +49,8 @@ class AgentVersionResponse(TenantResponseSchema):
     input_variables: list | None = Field(None, description=_("agent.version.field.input_variables"))
     welcome_message: str | None = Field(None, description=_("agent.version.field.welcome_message"))
     suggested_questions: list | None = Field(None, description=_("agent.version.field.suggested_questions"))
+    context_config: dict | None = Field(None, description=_("agent.version.field.context_config"))
+    output_schema: list | None = Field(None, description=_("agent.version.field.output_schema"))
     quota_config: dict | None = Field(None, description=_("agent.version.field.quota_config"))
     change_log: str | None = Field(None, description=_("agent.version.field.change_log"))
     created_by: int | None = Field(None, description=_("agent.version.field.created_by"))

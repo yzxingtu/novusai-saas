@@ -111,9 +111,20 @@ export function uploadSkillPackageApi(file: File) {
   );
 }
 
+/** Valves 属性定义 */
+interface ValvesProperty {
+  type: string;
+  description?: string;
+  default?: unknown;
+}
+
 /** Valves 配置响应 */
 export interface SkillPackageValvesInfo {
-  valves_schema: Record<string, unknown> | null;
+  valves_schema: {
+    type: string;
+    properties: Record<string, ValvesProperty>;
+    required?: string[];
+  } | null;
   valves_config: Record<string, unknown> | null;
 }
 

@@ -96,8 +96,7 @@ class AIResponseCache:
                 except (json.JSONDecodeError, ValueError):
                     # 缓存数据损坏，删除并记录警告，不计入 hit 统计
                     logger.warning(
-                        _("ai.log.cache_corrupt"),
-                        cache_key=cache_key[:40],
+                        "Cache corrupt: key=%s", cache_key[:40],
                     )
                     await redis.delete(cache_key)
                     await AIResponseCache._record_hit(redis, hit=False)
@@ -105,7 +104,7 @@ class AIResponseCache:
 
                 # 统计命中
                 await AIResponseCache._record_hit(redis, hit=True)
-                logger.info(_("ai.log.cache_hit"), cache_key=cache_key[:40])
+                logger.info("Cache hit: key=%s", cache_key[:40])
                 return data
 
             # 统计未命中
@@ -113,7 +112,7 @@ class AIResponseCache:
             return None
 
         except (RedisError, json.JSONDecodeError) as e:
-            logger.error(_("ai.log.cache_get_failed"), error=str(e))
+            logger.error("Cache get failed: %s", str(e))
             return None
 
     @staticmethod
@@ -140,10 +139,10 @@ class AIResponseCache:
                 json.dumps(response_data, ensure_ascii=False, default=str),
             )
 
-            logger.info(_("ai.log.cache_set"), cache_key=cache_key[:40], ttl=ttl)
+            logger.info("Cache set: key=%s ttl=%d", cache_key[:40], ttl)
 
         except (RedisError, TypeError) as e:
-            logger.error(_("ai.log.cache_set_failed"), error=str(e))
+            logger.error("Cache set failed: %s", str(e))
 
     @staticmethod
     async def delete(cache_key: str) -> None:
@@ -156,10 +155,10 @@ class AIResponseCache:
         try:
             redis = await get_redis()
             await redis.delete(cache_key)
-            logger.info(_("ai.log.cache_deleted"), cache_key=cache_key[:40])
+            logger.info("Cache deleted: key=%s", cache_key[:40])
 
         except RedisError as e:
-            logger.error(_("ai.log.cache_delete_failed"), error=str(e))
+            logger.error("Cache delete failed: %s", str(e))
 
     @staticmethod
     async def clear_pattern(pattern: str) -> None:
@@ -177,10 +176,10 @@ class AIResponseCache:
 
             if keys:
                 await redis.delete(*keys)
-                logger.info(_("ai.log.cache_cleared"), pattern=pattern, count=len(keys))
+                logger.info("Cache cleared: pattern=%s count=%d", pattern, len(keys))
 
         except RedisError as e:
-            logger.error(_("ai.log.cache_clear_failed"), error=str(e))
+            logger.error("Cache clear failed: %s", str(e))
 
     @staticmethod
     async def clear_all() -> None:
@@ -229,7 +228,7 @@ class AIResponseCache:
                 "hit_rate": round(hit_rate, 4),
             }
         except RedisError as e:
-            logger.error(_("ai.log.cache_get_hit_rate_failed"), error=str(e))
+            logger.error("Cache get hit rate failed: %s", str(e))
             return {"hits": 0, "misses": 0, "total": 0, "hit_rate": 0.0}
 
     @staticmethod
@@ -239,7 +238,7 @@ class AIResponseCache:
             redis = await get_redis()
             await redis.delete(AIResponseCache.STATS_KEY)
         except RedisError as e:
-            logger.error(_("ai.log.cache_reset_stats_failed"), error=str(e))
+            logger.error("Cache reset stats failed: %s", str(e))
 
 
 __all__ = ["AIResponseCache"]

@@ -15,7 +15,7 @@ from app.core.logging import LogManager
 logger = LogManager.get_logger("ai.event_bus")
 
 # 事件处理器类型：接收 BaseEvent 子类，返回 None
-EventHandler = Callable[[Any], Coroutine[Any, Any, None]]
+EventHandler = Callable[[BaseEvent], Coroutine[Any, Any, None]]
 
 
 class _Subscription:

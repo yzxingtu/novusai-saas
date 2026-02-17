@@ -637,6 +637,37 @@ def _gen_tool_method(L: list[str], handler: dict[str, Any]) -> None:
 
 
 # ─────────────────────────────────────────────────────────────
+# Credential sanitisation
+# ─────────────────────────────────────────────────────────────
+
+_CREDENTIAL_PATTERN = re.compile(
+    r"""(?ix)
+    ^\s*                               # leading whitespace
+    (?:                                 # variable name
+        [A-Z_]*(?:SECRET|PASSWORD|PASSWD|TOKEN|API_KEY|APP_KEY|PRIVATE_KEY|ACCESS_KEY)
+        [A-Z_]*
+    )
+    \s*=\s*
+    ['\"]                              # opening quote
+    [^'\"]+                            # value (non-empty)
+    ['\"]                              # closing quote
+    """,
+)
+
+
+def _sanitize_source(source: str) -> str:
+    """Redact credential-like assignments from source code."""
+    lines: list[str] = []
+    for line in source.splitlines():
+        if _CREDENTIAL_PATTERN.match(line):
+            var_name = line.split("=", 1)[0].strip()
+            lines.append(f'{var_name} = "***REDACTED***"')
+        else:
+            lines.append(line)
+    return "\n".join(lines)
+
+
+# ─────────────────────────────────────────────────────────────
 # Fallback: combine all source files with template
 # ─────────────────────────────────────────────────────────────
 
@@ -695,7 +726,8 @@ def _fallback_combine(
         L.append(f"# Original source: {fname}.py")
         L.append(f"# {'=' * 60}")
         L.append("")
-        for line in src.splitlines():
+        sanitized = _sanitize_source(src)
+        for line in sanitized.splitlines():
             L.append(f"# {line}" if line.strip() else "#")
         L.append("")
 

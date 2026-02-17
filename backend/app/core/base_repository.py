@@ -8,10 +8,11 @@ from typing import Any, Generic, TypeVar, Type
 
 from sqlalchemy import select, func, update, delete, and_, or_, desc, asc
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, InstrumentedAttribute
+from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql import Select
 
-from app.core.base_model import BaseModel
+from app.core.base_model import BaseModel, utc_now
+from app.enums.common import DeleteLevelEnum
 from app.schemas.common.query import FilterOp, FilterRule, QuerySpec
 from app.schemas.common.select import SelectOption
 
@@ -1251,7 +1252,7 @@ class BaseRepository(Generic[ModelType]):
         if instance is None or not instance.is_deleted:
             return None
         # 仅 tenant 级别才可升级，已在 admin 级别则无需重复操作
-        if getattr(instance, "delete_level", None) == "admin":
+        if getattr(instance, "delete_level", None) == DeleteLevelEnum.ADMIN.value:
             return instance
 
         instance.escalate_delete()
@@ -1290,8 +1291,6 @@ class BaseRepository(Generic[ModelType]):
         if not ids:
             return 0
 
-        from datetime import datetime
-
         stmt = (
             update(self.model)
             .where(
@@ -1302,7 +1301,7 @@ class BaseRepository(Generic[ModelType]):
                 is_deleted=False,
                 deleted_at=None,
                 delete_level=None,
-                updated_at=datetime.utcnow(),
+                updated_at=utc_now(),
             )
         )
         result = await self.db.execute(stmt)
@@ -1338,9 +1337,9 @@ class BaseRepository(Generic[ModelType]):
         Returns:
             清理的记录数量
         """
-        from datetime import datetime, timedelta
+        from datetime import timedelta
 
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = utc_now() - timedelta(days=days)
         stmt = delete(self.model).where(
             self.model.is_deleted.is_(True),
             self.model.deleted_at.is_not(None),
@@ -1514,8 +1513,6 @@ class TenantRepository(BaseRepository[ModelType]):
         if not ids:
             return 0
 
-        from datetime import datetime
-
         stmt = (
             update(self.model)
             .where(
@@ -1527,7 +1524,7 @@ class TenantRepository(BaseRepository[ModelType]):
                 is_deleted=False,
                 deleted_at=None,
                 delete_level=None,
-                updated_at=datetime.utcnow(),
+                updated_at=utc_now(),
             )
         )
         result = await self.db.execute(stmt)

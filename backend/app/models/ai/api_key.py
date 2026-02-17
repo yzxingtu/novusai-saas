@@ -4,12 +4,12 @@ AI 供应商 API Key 模型
 存储 AI 供应商的 API Key，支持平台级和租户级 Key
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
 
-from app.core.base_model import BaseModel
+from app.core.base_model import BaseModel, utc_now
 from app.core.i18n import _
 from app.core.security import encrypt_data, decrypt_data
 
@@ -144,7 +144,7 @@ class ProviderApiKey(BaseModel):
     def increment_usage(self) -> None:
         """增加使用次数"""
         self.usage_count += 1
-        self.last_used_at = datetime.now(timezone.utc)
+        self.last_used_at = utc_now()
     
     def is_expired(self) -> bool:
         """
@@ -155,7 +155,7 @@ class ProviderApiKey(BaseModel):
         """
         if self.expires_at is None:
             return False
-        return datetime.now(timezone.utc) > self.expires_at
+        return utc_now() > self.expires_at
     
     def is_usage_limit_reached(self) -> bool:
         """

@@ -26,6 +26,8 @@ from app.core.i18n import _
 from app.models.ai.agent import Agent
 from app.repositories.ai.agent_repository import AgentRepository
 
+from app.ai.skills.resolver import resolve_for_agent
+
 from .base import BaseEngine
 from .batch import BatchEngine
 from .conversation import ConversationEngine
@@ -84,6 +86,7 @@ class ExecutionDispatcher:
         start = time.perf_counter()
         agent: Agent | None = None
         lock_token: str = ""
+        estimated: int = 0
         quota_config = AgentQuotaConfig()
 
         try:
@@ -156,9 +159,14 @@ class ExecutionDispatcher:
             # 4.5 发布 ExecutionStarted 事件
             await BaseEngine._publish_execution_started(request, agent)
 
-            # 5. 创建 Engine 并执行
+            # 5. 解析 Skill（在 Dispatcher 层完成，不在 Engine 内部查 DB）
+            skill_result = await resolve_for_agent(
+                self.db, agent, tenant_id=request.tenant_id,
+            )
+
+            # 6. 创建 Engine 并执行
             engine = self._create_engine(agent, request)
-            result = await engine.execute(agent, request)
+            result = await engine.execute(agent, request, skill_result=skill_result)
 
             # 6. AFTER_EXECUTE 钩子
             await hook_registry.trigger(
@@ -211,6 +219,22 @@ class ExecutionDispatcher:
                 str(exc),
                 exc_info=True,
             )
+
+            # 回滚预扣配额（执行失败时释放已预扣的 estimated_tokens）
+            if not request.skip_quota and estimated > 0:
+                try:
+                    await AgentQuotaManager.adjust_usage(
+                        tenant_id=request.tenant_id,
+                        agent_id=request.agent_id,
+                        estimated_tokens=estimated,
+                        actual_tokens=0,
+                        config=quota_config,
+                    )
+                except Exception as rollback_exc:
+                    logger.warning(
+                        "Quota rollback failed: agent=%s error=%s",
+                        request.agent_id, rollback_exc,
+                    )
 
             if agent:
                 await BaseEngine._publish_execution_failed(

@@ -165,7 +165,7 @@ class AgentStatsManager:
                 break
 
         from app.core.i18n import _
-        logger.info(_("agent.log.daily_stats_reset"), count=count)
+        logger.info("Daily stats reset: count=%d", count)
         return count
 
 

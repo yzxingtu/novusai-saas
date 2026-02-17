@@ -5,7 +5,6 @@
 """
 
 import secrets
-from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -20,6 +19,7 @@ from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_domain import TenantDomain
 from app.repositories.system.tenant_domain_repository import TenantDomainRepository
 from app.repositories.tenant.tenant_domain_tenant_repository import TenantDomainTenantRepository
+from app.core.base_model import utc_now
 
 
 _CONFIG_KEY_DOMAIN_SUFFIX = "tenant_domain_suffix"
@@ -127,7 +127,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             "tenant_id": tenant_id,
             "domain": domain,
             "is_verified": True,
-            "verified_at": datetime.now(timezone.utc),
+            "verified_at": utc_now(),
             "is_primary": True,
             "ssl_status": "active",
             "remark": _("tenant_domain.default_domain_remark"),
@@ -315,7 +315,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         
         result = await self.update(domain_id, {
             "is_verified": True,
-            "verified_at": datetime.now(timezone.utc),
+            "verified_at": utc_now(),
             "ssl_status": "provisioning",
         })
         if not result:

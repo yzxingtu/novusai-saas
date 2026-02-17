@@ -14,10 +14,12 @@ import { Button, Card, Select, Switch, Table, Tag, message } from 'ant-design-vu
 
 import type { AgentAssignmentItem } from '#/api/shared/agent-assignments';
 
+import {
+  getAgentAssignmentListApi,
+  getPublishedAgentsApi,
+  updateAgentAssignmentApi,
+} from '#/api/shared/agent-assignments';
 import { $t } from '#/locales';
-import { requestClient } from '#/utils/request';
-
-import { getAgentAssignmentListApi } from '#/api/shared/agent-assignments';
 
 interface AgentOption {
   label: string;
@@ -43,11 +45,7 @@ async function loadAssignments() {
 
 async function loadAgentOptions() {
   try {
-    const res = await requestClient.get<{
-      items: Array<{ id: number; name: string; status: string }>;
-    }>('/admin/ai/agents', {
-      params: { 'filter[status][eq]': 'published', 'page[size]': 100 },
-    });
+    const res = await getPublishedAgentsApi('/admin');
     agentOptions.value = res.items.map((a) => ({ label: a.name, value: a.id }));
   } catch {
     // handled by interceptor
@@ -57,9 +55,7 @@ async function loadAgentOptions() {
 async function updateAssignment(featureCode: string, agentId: number | null) {
   saving.value = featureCode;
   try {
-    await requestClient.put(`/admin/ai/agent-assignments/${featureCode}`, {
-      agent_id: agentId,
-    });
+    await updateAgentAssignmentApi('/admin', featureCode, { agent_id: agentId });
     message.success($t('admin.ai.agentAssignment.saveSuccess'));
     await loadAssignments();
   } catch {
@@ -72,9 +68,7 @@ async function updateAssignment(featureCode: string, agentId: number | null) {
 async function toggleActive(featureCode: string, isActive: boolean) {
   saving.value = featureCode;
   try {
-    await requestClient.put(`/admin/ai/agent-assignments/${featureCode}`, {
-      is_active: isActive,
-    });
+    await updateAgentAssignmentApi('/admin', featureCode, { is_active: isActive });
     await loadAssignments();
   } catch {
     // handled by interceptor

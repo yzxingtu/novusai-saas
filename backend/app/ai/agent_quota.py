@@ -7,7 +7,7 @@
 
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
@@ -16,6 +16,7 @@ from app.ai.events.types import QuotaExceeded as QuotaExceededEvent, QuotaWarnin
 from app.core.logging import LogManager
 from app.core.redis import get_redis
 from app.core.i18n import _
+from app.exceptions.base import BusinessException
 
 logger = LogManager.get_logger("ai.agent_quota")
 
@@ -24,21 +25,29 @@ logger = LogManager.get_logger("ai.agent_quota")
 # 异常
 # ============================================
 
-class AgentQuotaExceeded(Exception):
+class AgentQuotaExceeded(BusinessException):
     """智能体配额超出异常"""
 
+    code = 4293
+    status_code = 429
+    default_message = "ai.error.quota_exceeded_default"
+
     def __init__(self, message: str, quota_type: str = "", current: int = 0, limit: int = 0):
-        super().__init__(message)
+        super().__init__(message=message)
         self.quota_type = quota_type
         self.current = current
         self.limit = limit
 
 
-class AgentConcurrencyExceeded(Exception):
+class AgentConcurrencyExceeded(BusinessException):
     """智能体并发超出异常"""
 
+    code = 4294
+    status_code = 429
+    default_message = "ai.agent.concurrency_exceeded"
+
     def __init__(self, message: str, retry_after: int = 5):
-        super().__init__(message)
+        super().__init__(message=message)
         self.retry_after = retry_after
 
 

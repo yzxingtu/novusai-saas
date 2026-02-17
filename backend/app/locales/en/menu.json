@@ -103,7 +103,9 @@
       "agent_conversation": "Conversation Management",
       "skill_package": "Skill Packages",
       "skill": "Skill Management",
-      "plugin": "Plugin Management"
+      "plugin": "Plugin Management",
+      "agent_assignment": "Agent Assignments",
+      "knowledge_base": "Knowledge Base"
     }
   }
 }

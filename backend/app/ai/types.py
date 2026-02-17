@@ -5,7 +5,7 @@ AI 统一数据类型
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Literal
 from decimal import Decimal
 
 

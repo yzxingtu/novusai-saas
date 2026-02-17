@@ -11,6 +11,7 @@ from app.core.database import sync_session_factory
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.tasks.base import register_task, BaseTask
+from app.core.base_model import utc_now
 
 logger = LogManager.get_logger("task")
 
@@ -62,14 +63,14 @@ def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
     Args:
         retention_days: 保留天数，默认 30
     """
-    from datetime import datetime, timedelta
+    from datetime import timedelta
     from sqlalchemy import delete as sa_delete, select
 
     start = time.monotonic()
     total_cleaned = 0
     results = {}
 
-    cutoff = datetime.utcnow() - timedelta(days=retention_days)
+    cutoff = utc_now() - timedelta(days=retention_days)
 
     for model_path in RECYCLABLE_MODELS:
         session = None

@@ -35,6 +35,7 @@ from fastapi import APIRouter, Body, Request
 from app.core.deps import DbSession, ActiveTenantAdmin, ActiveAdmin, QueryParams
 from app.core.i18n import _
 from app.core.response import success, deleted, paginated
+from app.enums.common import DeleteLevelEnum
 from app.exceptions import NotFoundException, ValidationException
 from app.rbac.decorators import action_delete
 
@@ -71,7 +72,7 @@ def register_tenant_recycle_bin_routes(
         tenant_admin: ActiveTenantAdmin,
     ):
         svc = service_class(db, tenant_admin.tenant_id)
-        count = await svc.count_deleted(delete_level="tenant")
+        count = await svc.count_deleted(delete_level=DeleteLevelEnum.TENANT.value)
         return success(data={"count": count})
 
     @router.get("/recycle-bin", summary="回收站列表")
@@ -85,7 +86,7 @@ def register_tenant_recycle_bin_routes(
         svc = service_class(db, tenant_admin.tenant_id)
         items, total = await svc.query_deleted_list(
             spec=query,
-            delete_level="tenant",
+            delete_level=DeleteLevelEnum.TENANT.value,
         )
         result = [_serialize_with_delete_meta(item, _serialize) for item in items]
         return paginated(
@@ -191,7 +192,7 @@ def register_admin_recycle_bin_routes(
         admin: ActiveAdmin,
     ):
         svc = service_class(db)
-        count = await svc.count_deleted(delete_level="admin")
+        count = await svc.count_deleted(delete_level=DeleteLevelEnum.ADMIN.value)
         return success(data={"count": count})
 
     @router.get("/recycle-bin", summary="回收站列表")
@@ -205,7 +206,7 @@ def register_admin_recycle_bin_routes(
         svc = service_class(db)
         items, total = await svc.query_deleted_list(
             spec=query,
-            delete_level="admin",
+            delete_level=DeleteLevelEnum.ADMIN.value,
         )
         result = [_serialize_with_delete_meta(item, _serialize) for item in items]
         return paginated(

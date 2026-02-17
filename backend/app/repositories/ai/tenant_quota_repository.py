@@ -86,4 +86,32 @@ class TenantQuotaRepository(TenantRepository[TenantQuota]):
         return list(result.scalars().all())
 
 
-__all__ = ["TenantQuotaRepository"]
+    async def get_active_quota(
+        self,
+        tenant_id: int,
+        model_id: int,
+    ) -> TenantQuota | None:
+        """
+        获取租户对指定模型的激活配额配置（按创建时间倒序取最新）
+
+        Args:
+            tenant_id: 租户 ID
+            model_id: 模型 ID
+
+        Returns:
+            TenantQuota 实例或 None
+        """
+        stmt = select(TenantQuota).where(
+            and_(
+                TenantQuota.tenant_id == tenant_id,
+                TenantQuota.model_id == model_id,
+                TenantQuota.is_active.is_(True),
+                TenantQuota.is_deleted.is_(False),
+            )
+        ).order_by(TenantQuota.created_at.desc())
+
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+
+__all__ = ["TenantQuotaRepository", "AdminTenantQuotaRepository"]

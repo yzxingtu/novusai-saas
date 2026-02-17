@@ -19,6 +19,25 @@ class AITablePolicyRepository(BaseRepository[AITablePolicy]):
 
     model = AITablePolicy
 
+    async def get_active_by_table_name(self, table_name: str) -> AITablePolicy | None:
+        """按表名获取激活的策略"""
+        stmt = select(AITablePolicy).where(
+            AITablePolicy.table_name == table_name,
+            AITablePolicy.is_active == True,  # noqa: E712
+            AITablePolicy.is_deleted == False,  # noqa: E712
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_all_active(self) -> list[AITablePolicy]:
+        """获取所有激活的全局策略"""
+        stmt = select(AITablePolicy).where(
+            AITablePolicy.is_active == True,  # noqa: E712
+            AITablePolicy.is_deleted == False,  # noqa: E712
+        ).order_by(AITablePolicy.sort_order)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
     async def get_table_columns(self, table_name: str) -> list[dict]:
         """
         获取指定表的列信息（用于 blocked_columns / readonly_columns 选择器）

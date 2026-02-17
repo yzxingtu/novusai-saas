@@ -7,7 +7,6 @@ AI 调用日志服务
 import json
 import hashlib
 from typing import Optional, Any
-from datetime import datetime, timezone
 
 from app.core.base_service import BaseService
 from app.core.logging import LogManager
@@ -15,6 +14,7 @@ from app.core.i18n import _
 from app.models.ai import AICallLog
 from app.enums.ai import RequestTypeEnum, CallStatusEnum
 from app.repositories.ai import AICallLogRepository
+from app.core.base_model import utc_now
 
 
 logger = LogManager.get_logger("ai.call_log")
@@ -194,7 +194,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             request_metadata={
                 "request": sanitized_request,
                 "response": truncated_response,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": utc_now().isoformat(),
             },
         )
 

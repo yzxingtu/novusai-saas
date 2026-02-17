@@ -44,7 +44,7 @@ def _build_conversation_list_item(conv) -> dict:
         agent_obj = getattr(conv, "agent", None)
         if agent_obj is not None:
             agent_name = agent_obj.name
-    except (AttributeError, Exception):
+    except AttributeError:
         pass
 
     return {

@@ -1,1 +1,9 @@
-{"title":"Dev Tools"}
+{
+  "title": "Dev Tools",
+  "crudGenerator": {
+    "title": "CRUD Code Generator",
+    "records": {
+      "title": "Generation Records"
+    }
+  }
+}

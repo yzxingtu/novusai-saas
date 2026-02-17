@@ -36,6 +36,8 @@ import {
   deleteSkillPackageApi,
   getSkillPackageListApi,
   getSkillPackageSkillsApi,
+  getSkillPackageValvesApi,
+  updateSkillPackageValvesApi,
   uploadSkillPackageApi,
 } from '#/api/tenant/skill-packages';
 import { deleteSkillApi, testSkillApi } from '#/api/tenant/skills';
@@ -43,7 +45,7 @@ import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
 import PackageForm from './modules/form.vue';
-import ValvesConfigPanel from './modules/valves-config-panel.vue';
+import ValvesConfigPanel from '#/components/business/valves-config-panel/ValvesConfigPanel.vue';
 import SkillForm from '../skills/modules/SkillForm.vue';
 import { getSkillTypeColor, getSkillTypeText } from '../skills/data';
 
@@ -714,6 +716,9 @@ onMounted(() => {
       ref="valvesConfigPanelRef"
       :package-id="selectedPackageId"
       :package-name="selectedPackage?.name"
+      i18n-prefix="tenant.ai.skillPackage"
+      :get-valves-api="getSkillPackageValvesApi"
+      :update-valves-api="updateSkillPackageValvesApi"
       @success="loadPackages"
     />
   </Page>

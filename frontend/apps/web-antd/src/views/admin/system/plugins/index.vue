@@ -10,6 +10,7 @@ defineOptions({ name: 'AdminPluginList' });
 import { computed, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
+import { useAccessStore } from '@vben/stores';
 import { IconifyIcon } from '@vben/icons';
 
 import {
@@ -48,6 +49,8 @@ import {
   getStatusText,
 } from './data';
 import PluginConfigDrawer from './PluginConfigDrawer.vue';
+
+const accessStore = useAccessStore();
 
 const configDrawerRef = ref<InstanceType<typeof PluginConfigDrawer>>();
 const plugins = ref<PluginInfo[]>([]);
@@ -191,7 +194,8 @@ function onEnable(row: PluginInfo) {
     onOk: () => withProcessing(row.id, async () => {
       await enablePluginApi(row.id);
       message.success($t('admin.plugin.messages.enableSuccess'));
-      window.location.reload();
+      accessStore.setIsAccessChecked(false);
+      await loadPlugins();
     }),
   });
 }
@@ -202,7 +206,8 @@ function onDisable(row: PluginInfo) {
     onOk: () => withProcessing(row.id, async () => {
       await disablePluginApi(row.id);
       message.success($t('admin.plugin.messages.disableSuccess'));
-      window.location.reload();
+      accessStore.setIsAccessChecked(false);
+      await loadPlugins();
     }),
   });
 }
@@ -214,7 +219,8 @@ function onUninstall(row: PluginInfo) {
     onOk: () => withProcessing(row.id, async () => {
       await uninstallPluginApi(row.id);
       message.success($t('admin.plugin.messages.uninstallSuccess'));
-      window.location.reload();
+      accessStore.setIsAccessChecked(false);
+      await loadPlugins();
     }),
   });
 }

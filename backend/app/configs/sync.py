@@ -6,8 +6,6 @@
 """
 
 import json
-import logging
-from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,8 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.configs.meta import ConfigGroupMeta, ConfigMeta
 from app.configs.registry import ConfigRegistry, config_registry
 from app.models.system.config import SystemConfig, SystemConfigGroup
+from app.core.base_model import utc_now
 
-logger = logging.getLogger(__name__)
+from app.core.logging import LogManager
+
+logger = LogManager.get_logger("app")
 
 
 class ConfigSyncService:
@@ -226,7 +227,7 @@ class ConfigSyncService:
         db_group.icon = meta.icon or None
         db_group.sort_order = meta.sort_order
         db_group.is_active = meta.is_active
-        db_group.updated_at = datetime.utcnow()
+        db_group.updated_at = utc_now()
     
     def _create_config_from_meta(
         self,
@@ -269,7 +270,7 @@ class ConfigSyncService:
         db_config.is_visible = meta.is_visible
         db_config.is_encrypted = meta.is_encrypted
         db_config.sort_order = meta.sort_order
-        db_config.updated_at = datetime.utcnow()
+        db_config.updated_at = utc_now()
         # 注意：不更新 values 表中用户已设置的值
     
     def _serialize_value(self, value) -> str | None:

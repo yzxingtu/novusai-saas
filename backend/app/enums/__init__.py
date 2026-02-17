@@ -15,6 +15,7 @@ from app.enums.common import (
     PriorityEnum,
     ResourceScopeEnum,
     DeleteLevelEnum,
+    UserRoleEnum,
 )
 from app.enums.rbac import (
     PermissionType,
@@ -38,6 +39,7 @@ from app.enums.agent import (
     AccessTypeEnum,
     BatchRunStatusEnum,
 )
+from app.enums.ai import ToolParameterTypeEnum
 from app.enums.plugin import PluginTypeEnum, PluginStatusEnum
 from app.enums.knowledge_base import (
     KBStatusEnum,
@@ -63,6 +65,7 @@ __all__ = [
     "PriorityEnum",
     "ResourceScopeEnum",
     "DeleteLevelEnum",
+    "UserRoleEnum",
     # RBAC
     "PermissionType",
     "PermissionScope",
@@ -97,6 +100,8 @@ __all__ = [
     "AgentVisibilityEnum",
     "AccessTypeEnum",
     "BatchRunStatusEnum",
+    # AI
+    "ToolParameterTypeEnum",
     # 插件
     "PluginTypeEnum",
     "PluginStatusEnum",

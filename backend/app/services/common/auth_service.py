@@ -4,7 +4,6 @@
 提供平台管理员、租户管理员、租户用户的认证逻辑
 """
 
-from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select, or_
@@ -28,6 +27,7 @@ from app.core.security import (
 )
 from app.exceptions import AuthenticationException, BusinessException, NotFoundException
 from app.models import Admin, TenantAdmin, TenantUser, Tenant
+from app.core.base_model import utc_now
 
 
 class AuthService:
@@ -189,7 +189,7 @@ class AuthService:
         await self._reset_admin_login_failures(admin.id)
 
         # 更新登录信息
-        admin.last_login_at = datetime.now(timezone.utc)
+        admin.last_login_at = utc_now()
         admin.last_login_ip = client_ip
 
         # 生成 Token（应用会话配置）
@@ -224,7 +224,7 @@ class AuthService:
             client_ip: 客户端IP
             user_type: 用户类型 (admin/tenant_admin/tenant_user)
         """
-        from datetime import datetime, timezone, timedelta
+        from datetime import timedelta
 
         # 获取登录失败配置
         max_attempts = await self._config_service.get_platform_config(
@@ -234,7 +234,7 @@ class AuthService:
             "login_lockout_minutes", default=30
         )
 
-        now = datetime.now(timezone.utc)
+        now = utc_now()
 
         if user_type == "admin":
             # 处理平台管理员
@@ -292,7 +292,7 @@ class AuthService:
         Returns:
             是否被锁定
         """
-        from datetime import datetime, timezone
+
 
         if user_type == "admin":
             result = await self.db.execute(
@@ -315,7 +315,7 @@ class AuthService:
             return False
 
         # 检查锁定是否已过期
-        now = datetime.now(timezone.utc)
+        now = utc_now()
         return locked_until > now
 
     async def _reset_login_failures(self, user_id: int, user_type: str = "admin") -> None:
@@ -547,7 +547,7 @@ class AuthService:
         await self._reset_login_failures(tenant_admin.id, "tenant_admin")
 
         # 更新登录信息
-        tenant_admin.last_login_at = datetime.now(timezone.utc)
+        tenant_admin.last_login_at = utc_now()
         tenant_admin.last_login_ip = client_ip
 
         # 生成 Token（应用会话配置）
@@ -805,7 +805,7 @@ class AuthService:
         await self._reset_login_failures(user.id, "tenant_user")
 
         # 更新登录信息
-        user.last_login_at = datetime.now(timezone.utc)
+        user.last_login_at = utc_now()
         user.last_login_ip = client_ip
 
         # 生成 Token（应用会话配置）

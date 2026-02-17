@@ -4,7 +4,6 @@
 记录系统中所有 API 调用的审计日志
 """
 
-from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column

@@ -7,12 +7,23 @@
 """
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, inspect
+
+from app.enums.common import DeleteLevelEnum
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import DeclarativeBase
+
+
+def utc_now() -> datetime:
+    """Return current UTC time as a naive datetime.
+
+    Replacement for deprecated ``datetime.utcnow()`` that is compatible
+    with ``TIMESTAMP WITHOUT TIME ZONE`` columns used throughout the project.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class Base(DeclarativeBase):
@@ -36,14 +47,14 @@ class BaseModel(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     created_at = Column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: utc_now(),
         nullable=False,
         comment="创建时间"
     )
     updated_at = Column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=lambda: utc_now(),
+        onupdate=lambda: utc_now(),
         nullable=False,
         comment="更新时间"
     )
@@ -108,22 +119,22 @@ class BaseModel(Base):
             level: 删除层级 ('tenant' 或 'admin')
         """
         self.is_deleted = True
-        self.deleted_at = datetime.utcnow()
+        self.deleted_at = utc_now()
         self.delete_level = level
-        self.updated_at = datetime.utcnow()
+        self.updated_at = utc_now()
     
     def restore(self) -> None:
         """恢复软删除"""
         self.is_deleted = False
         self.deleted_at = None
         self.delete_level = None
-        self.updated_at = datetime.utcnow()
+        self.updated_at = utc_now()
     
     def escalate_delete(self) -> None:
         """升级删除层级（tenant → admin），重置删除时间"""
-        self.delete_level = "admin"
-        self.deleted_at = datetime.utcnow()
-        self.updated_at = datetime.utcnow()
+        self.delete_level = DeleteLevelEnum.ADMIN.value
+        self.deleted_at = utc_now()
+        self.updated_at = utc_now()
     
     def update_from_dict(self, data: dict[str, Any]) -> None:
         """
@@ -135,7 +146,7 @@ class BaseModel(Base):
         for key, value in data.items():
             if hasattr(self, key) and key not in ("id", "created_at"):
                 setattr(self, key, value)
-        self.updated_at = datetime.utcnow()
+        self.updated_at = utc_now()
     
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}(id={self.id})>"
@@ -162,4 +173,4 @@ class TenantModel(BaseModel):
 
 
 # 导出
-__all__ = ["Base", "BaseModel", "TenantModel"]
+__all__ = ["Base", "BaseModel", "TenantModel", "utc_now"]

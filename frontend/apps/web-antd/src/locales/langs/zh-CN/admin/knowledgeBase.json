@@ -37,5 +37,41 @@
   },
   "detail": "知识库详情",
   "forceDelete": "强制删除",
-  "forceDeleteConfirm": "确认强制删除该知识库？此操作不可撤销。"
+  "forceDeleteConfirm": "确认强制删除该知识库？此操作不可撤销。",
+  "document": {
+    "title": "文档管理",
+    "upload": "上传文档",
+    "uploadHint": "支持 PDF、DOCX、TXT、MD、CSV 格式",
+    "delete": "删除文档",
+    "retry": "重试",
+    "field": {
+      "fileName": "文件名",
+      "fileType": "类型",
+      "fileSize": "大小",
+      "chunkCount": "分块数",
+      "status": "状态",
+      "createdAt": "创建时间"
+    },
+    "status": {
+      "pending": "等待中",
+      "parsing": "解析中",
+      "chunking": "分块中",
+      "embedding": "向量化中",
+      "completed": "已完成",
+      "error": "失败"
+    }
+  },
+  "searchTest": {
+    "title": "检索测试",
+    "placeholder": "输入查询文本进行检索测试...",
+    "search": "搜索",
+    "noResults": "暂无检索结果",
+    "score": "相似度",
+    "source": "来源"
+  },
+  "reindex": {
+    "title": "重新向量化",
+    "confirm": "将删除现有分块并重新处理所有文档，确认继续？",
+    "started": "已开始重新向量化"
+  }
 }

@@ -33,6 +33,7 @@ from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.enums.common import UserRoleEnum
 
 if TYPE_CHECKING:
     from app.ai.gateway import AIGateway
@@ -105,10 +106,10 @@ class TextToSQLExecutor(BaseToolExecutor):
             )
 
         tenant_id = context.tenant_id if context else 0
-        user_role = context.user_role if context else "tenant_admin"
+        user_role = context.user_role if context else UserRoleEnum.TENANT_ADMIN.value
 
         # platform_admin 可使用 tenant_id=0 查询平台级表
-        if tenant_id is None or (not tenant_id and user_role != "platform_admin"):
+        if tenant_id is None or (not tenant_id and user_role != UserRoleEnum.PLATFORM_ADMIN.value):
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,

@@ -4,13 +4,16 @@
 
 from typing import List
 
-from sqlalchemy import select, and_, or_, func
+
+from sqlalchemy import select, and_, or_, func, update
 from sqlalchemy.orm import selectinload
 
 from app.models.ai.agent import Agent
+from app.models.ai.agent_conversation import AgentConversation
 from app.core.base_repository import TenantRepository, BaseRepository
-from app.enums.common import ResourceScopeEnum
+from app.enums.common import DeleteLevelEnum, ResourceScopeEnum
 from app.schemas.common.query import QuerySpec, FilterRule
+from app.core.base_model import utc_now
 
 
 class AgentRepository(TenantRepository[Agent]):
@@ -91,6 +94,44 @@ class AgentRepository(TenantRepository[Agent]):
         result = await self.db.execute(query)
         items = list(result.scalars().all())
         return items, total
+
+    async def cascade_soft_delete_conversations(
+        self, agent_id: int, delete_level: str,
+    ) -> None:
+        """级联软删除智能体的对话记录"""
+        now = utc_now()
+        await self.db.execute(
+            update(AgentConversation)
+            .where(
+                AgentConversation.agent_id == agent_id,
+                AgentConversation.is_deleted.is_(False),
+            )
+            .values(is_deleted=True, deleted_at=now, delete_level=delete_level, updated_at=now)
+        )
+
+    async def cascade_escalate_conversations(self, agent_id: int) -> None:
+        """级联升级对话记录的删除层级"""
+        now = utc_now()
+        await self.db.execute(
+            update(AgentConversation)
+            .where(
+                AgentConversation.agent_id == agent_id,
+                AgentConversation.is_deleted.is_(True),
+            )
+            .values(delete_level=DeleteLevelEnum.ADMIN.value, deleted_at=now, updated_at=now)
+        )
+
+    async def cascade_restore_conversations(self, agent_id: int) -> None:
+        """级联恢复对话记录"""
+        now = utc_now()
+        await self.db.execute(
+            update(AgentConversation)
+            .where(
+                AgentConversation.agent_id == agent_id,
+                AgentConversation.is_deleted.is_(True),
+            )
+            .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
+        )
 
     async def get_by_status(
         self,
@@ -185,6 +226,44 @@ class AdminAgentRepository(BaseRepository[Agent]):
     """
 
     model = Agent
+
+    async def cascade_soft_delete_conversations(
+        self, agent_id: int, delete_level: str,
+    ) -> None:
+        """级联软删除智能体的对话记录"""
+        now = utc_now()
+        await self.db.execute(
+            update(AgentConversation)
+            .where(
+                AgentConversation.agent_id == agent_id,
+                AgentConversation.is_deleted.is_(False),
+            )
+            .values(is_deleted=True, deleted_at=now, delete_level=delete_level, updated_at=now)
+        )
+
+    async def exists_by_name(
+        self,
+        name: str,
+        tenant_id: int | None,
+        scope: str,
+        exclude_id: int | None = None,
+    ) -> Agent | None:
+        """检查同 scope+tenant_id 下名称是否重复"""
+        conditions = [
+            Agent.name == name,
+            Agent.scope == scope,
+            Agent.is_deleted.is_(False),
+        ]
+        if tenant_id is not None:
+            conditions.append(Agent.tenant_id == tenant_id)
+        else:
+            conditions.append(Agent.tenant_id.is_(None))
+        if exclude_id is not None:
+            conditions.append(Agent.id != exclude_id)
+
+        stmt = select(Agent).where(and_(*conditions))
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def query_list(
         self,

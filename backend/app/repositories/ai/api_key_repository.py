@@ -4,12 +4,12 @@ AI API Key Repository
 处理 AI API Key 数据访问
 """
 
-from datetime import datetime, timezone
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_repository import BaseRepository
 from app.models.ai import ProviderApiKey
+from app.core.base_model import utc_now
 
 
 class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
@@ -232,7 +232,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         key = await self.get_by_id(key_id)
         if key:
             key.usage_count += increment
-            key.last_used_at = datetime.now(timezone.utc)
+            key.last_used_at = utc_now()
             await self.db.commit()
 
 

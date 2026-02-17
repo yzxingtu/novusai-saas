@@ -5,14 +5,15 @@
 采用单例模式，确保全局唯一
 """
 
-import logging
 from threading import Lock
 from typing import Any
 
 from app.configs.meta import ConfigGroupMeta, ConfigMeta
 from app.enums.config import ConfigScope
 
-logger = logging.getLogger(__name__)
+from app.core.logging import LogManager
+
+logger = LogManager.get_logger("app")
 
 
 class ConfigRegistry:

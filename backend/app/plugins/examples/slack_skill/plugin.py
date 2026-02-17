@@ -23,6 +23,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.ai.tools.types import ToolDefinition
+from app.core.i18n import _
 from app.plugins.context import PluginContext
 from app.plugins.extensions.skill_plugin import SkillPlugin
 
@@ -92,7 +93,7 @@ class NovusaiSlackSkillPlugin(SkillPlugin):
 
     def get_skill_display_name(self) -> str:
         """Display name shown in the Skill type selector."""
-        return "Slack 通知"
+        return _("plugin.slack_skill.display_name")
 
     def get_skill_icon(self) -> str:
         """Icon for this Skill type in the UI."""

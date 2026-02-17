@@ -35,6 +35,7 @@ from app.services.ai.skill_service import SkillService
     name="menu.tenant.skill",
     scope=PermissionScope.TENANT,
     menu=None,
+    parent_resource="skill_package",
 )
 class TenantSkillController(TenantController):
     """
@@ -121,7 +122,7 @@ class TenantSkillController(TenantController):
             获取单个技能的调用统计
             """
             service = SkillService(db, tenant_admin.tenant_id)
-            skill = await service.get(skill_id)
+            skill = await service.get_by_id(skill_id)
             if not skill:
                 raise NotFoundException(message=_("skill.error.not_found"))
 
@@ -141,7 +142,7 @@ class TenantSkillController(TenantController):
             测试技能配置是否正确（按类型执行不同的验证逻辑）
             """
             service = SkillService(db, tenant_admin.tenant_id)
-            skill = await service.get(skill_id)
+            skill = await service.get_by_id(skill_id)
             if not skill:
                 raise NotFoundException(message=_("skill.error.not_found"))
 
@@ -161,7 +162,7 @@ class TenantSkillController(TenantController):
             获取技能详情
             """
             service = SkillService(db, tenant_admin.tenant_id)
-            skill = await service.get(skill_id)
+            skill = await service.get_by_id(skill_id)
             if not skill:
                 raise NotFoundException(message=_("skill.error.not_found"))
 
@@ -198,7 +199,7 @@ class TenantSkillController(TenantController):
             """
             service = SkillService(db, tenant_admin.tenant_id)
 
-            skill = await service.get(skill_id)
+            skill = await service.get_by_id(skill_id)
             if not skill:
                 raise NotFoundException(message=_("skill.error.not_found"))
 
@@ -221,7 +222,7 @@ class TenantSkillController(TenantController):
             """
             service = SkillService(db, tenant_admin.tenant_id)
 
-            skill = await service.get(skill_id)
+            skill = await service.get_by_id(skill_id)
             if not skill:
                 raise NotFoundException(message=_("skill.error.not_found"))
 

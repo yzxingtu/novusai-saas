@@ -12,6 +12,13 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.enums.common import UserRoleEnum
+
+# JSON 兼容的标量值类型（用于工具参数默认值等场景）
+JsonScalar = str | int | float | bool | None
+# JSON 兼容的值类型（含嵌套）
+JsonValue = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+
 
 @dataclass
 class ToolParameter:
@@ -33,7 +40,7 @@ class ToolParameter:
     type: str = "string"
     description: str = ""
     required: bool = False
-    default: Any = None
+    default: JsonScalar = None
     enum: list[str] | None = None
 
     def to_json_schema(self) -> dict[str, Any]:
@@ -75,6 +82,7 @@ class ToolDefinition:
     source_skill_id: int | None = None
     source_skill_name: str | None = None
     source_skill_type: str | None = None
+    source_package_name: str | None = None
 
     @property
     def input_schema(self) -> dict[str, Any]:
@@ -194,7 +202,7 @@ class ExecutionContext:
     tenant_id: int
     agent_id: int
     user_id: int | None = None
-    user_role: str = "tenant_admin"
+    user_role: str = UserRoleEnum.TENANT_ADMIN.value
     permissions: set[str] = field(default_factory=set)
     db: AsyncSession | None = None
     consented_actions: set[str] = field(default_factory=set)  # "read:agents", "create:agents"
@@ -202,7 +210,7 @@ class ExecutionContext:
 
     @property
     def is_platform_admin(self) -> bool:
-        return self.user_role == "platform_admin"
+        return self.user_role == UserRoleEnum.PLATFORM_ADMIN.value
 
     @property
     def is_superadmin(self) -> bool:

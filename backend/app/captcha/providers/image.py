@@ -4,7 +4,7 @@ import uuid
 import string
 import random
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 try:
     from captcha.image import ImageCaptcha
@@ -12,6 +12,7 @@ except Exception:
     ImageCaptcha = None  # type: ignore
 from app.captcha.provider import ICaptchaProvider, CaptchaChallenge, CaptchaVerificationResult
 from app.core.logging import CaptchaLoggerMixin
+from app.core.base_model import utc_now
 
 
 class ImageCaptchaProvider(ICaptchaProvider, CaptchaLoggerMixin):
@@ -27,7 +28,7 @@ class ImageCaptchaProvider(ICaptchaProvider, CaptchaLoggerMixin):
         self._lengths = {"easy": 4, "medium": 5, "hard": 6}
 
     def _now(self) -> datetime:
-        return datetime.now(timezone.utc)
+        return utc_now()
 
     def _gen_text(self, difficulty: str) -> str:
         charset = self._charsets.get(difficulty, self._charsets["medium"])
@@ -79,7 +80,7 @@ class ImageCaptchaProvider(ICaptchaProvider, CaptchaLoggerMixin):
         if item.get("used"):
             self.logger.warning(f"[VERIFY] USED challenge_id={challenge_id}")
             return CaptchaVerificationResult(ok=False, reason="used", score=None)
-        now = datetime.now(timezone.utc)
+        now = utc_now()
         if now > item["expires_at"]:
             self.logger.warning(
                 f"[VERIFY] EXPIRED challenge_id={challenge_id} "

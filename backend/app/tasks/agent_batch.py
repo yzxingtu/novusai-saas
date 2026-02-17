@@ -5,10 +5,10 @@
 """
 
 import asyncio
-from datetime import datetime, timezone
 
 from app.core.logging import LogManager
 from app.tasks.base import register_task, BaseTask
+from app.core.base_model import utc_now
 
 logger = LogManager.get_logger("task")
 
@@ -66,13 +66,13 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                 agent = await agent_repo.get_by_id(batch_run.agent_id)
                 if not agent:
                     batch_run.status = BatchRunStatusEnum.FAILED.value
-                    batch_run.completed_at = datetime.now(timezone.utc)
+                    batch_run.completed_at = utc_now()
                     await db.commit()
                     return {"error": "Agent not found"}
 
                 # 3. 标记为运行中
                 batch_run.status = BatchRunStatusEnum.RUNNING.value
-                batch_run.started_at = datetime.now(timezone.utc)
+                batch_run.started_at = utc_now()
                 await db.commit()
 
                 # 4. 创建引擎
@@ -169,7 +169,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                 batch_run.failed_items = failed
                 batch_run.results = all_results
                 batch_run.errors = all_errors if all_errors else None
-                batch_run.completed_at = datetime.now(timezone.utc)
+                batch_run.completed_at = utc_now()
                 await db.commit()
 
                 logger.info(
@@ -194,7 +194,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                 # 更新为失败
                 try:
                     batch_run.status = BatchRunStatusEnum.FAILED.value
-                    batch_run.completed_at = datetime.now(timezone.utc)
+                    batch_run.completed_at = utc_now()
                     await db.commit()
                 except Exception:
                     pass

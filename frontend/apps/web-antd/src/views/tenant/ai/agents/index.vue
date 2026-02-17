@@ -15,7 +15,7 @@ import { Card, Input, message, Modal, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 
-import QuickStartGuide from '../_components/QuickStartGuide.vue';
+import QuickStartGuide from '#/components/business/quick-start-guide/QuickStartGuide.vue';
 import {
   deleteAgentApi,
   getAgentListApi,
@@ -57,7 +57,7 @@ const [VersionHistoryDrawer, versionHistoryApi] = useVbenDrawer({
 });
 
 function onEdit(row: AgentListItem) {
-  agentFormRef.value?.openEdit(row as unknown as import('#/api/tenant/agents').AgentInfo);
+  agentFormRef.value?.openEdit(row);
 }
 
 // 发布弹窗状态
@@ -153,7 +153,16 @@ function onVersionSuccess() {
 
 <template>
   <Page auto-content-height :description="$t('tenant.ai.agent.pageDesc')" content-class="flex flex-col gap-4">
-    <QuickStartGuide />
+    <QuickStartGuide
+      storage-key="tenant-ai-guide-dismissed"
+      i18n-prefix="tenant.ai"
+      :steps="[
+        { key: 'step1', icon: 'lucide:bot', color: 'text-primary', bg: 'bg-primary/10', link: '/tenant/ai/agents' },
+        { key: 'step2', icon: 'lucide:sparkles', color: 'text-purple-600', bg: 'bg-purple-500/10', link: '/tenant/ai/skills' },
+        { key: 'step3', icon: 'lucide:rocket', color: 'text-amber-600', bg: 'bg-amber-500/10', link: '/tenant/ai/agents' },
+        { key: 'step4', icon: 'lucide:message-circle', color: 'text-success', bg: 'bg-success/10', link: '/tenant/ai/chat' },
+      ]"
+    />
     <!-- 表单抽屉 -->
     <AgentForm ref="agentFormRef" @success="onFormSuccess" />
     <!-- 访问权限抽屉 -->

@@ -8,6 +8,11 @@ import json
 from datetime import date, timedelta
 from typing import Any
 
+from app.ai.engine.output_parser import parse_output
+from app.ai.engine.types import ExecutionResult
+from app.ai.tools.types import ToolResult
+from app.ai.types import ChatMessage
+from app.ai.utils.token_estimator import estimate_tokens
 from app.repositories.ai.agent_conversation_repository import AgentConversationRepository
 from app.repositories.ai.conversation_message_repository import ConversationMessageRepository
 from app.models.ai.agent_conversation import AgentConversation
@@ -84,7 +89,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             agent_obj = getattr(conversation, "agent", None)
             if agent_obj is not None:
                 result["agent_name"] = agent_obj.name
-        except (AttributeError, Exception):
+        except AttributeError:
             pass
 
         return result
@@ -331,6 +336,315 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                 lines.append("")
 
         return "\n".join(lines)
+
+
+    # ========================================
+    # 对话执行辅助（从 AgentChatService 提取）
+    # ========================================
+
+    # 历史消息最大加载条数（兜底默认值）
+    MAX_HISTORY_MESSAGES = 50
+    # 历史消息最大 Token 数（兜底默认值，0=不限制）
+    MAX_HISTORY_TOKENS = 0
+    # 对话标题最大长度
+    MAX_TITLE_LENGTH = 100
+
+    async def get_or_create_for_chat(
+        self,
+        agent_id: int,
+        conversation_id: int | None,
+        user_id: int | None,
+        first_message: str,
+    ) -> AgentConversation:
+        """
+        获取或创建对话（用于对话执行）
+
+        Args:
+            agent_id: 智能体 ID
+            conversation_id: 已有对话 ID（续接时传入）
+            user_id: 用户 ID
+            first_message: 首条消息（用于生成标题）
+
+        Returns:
+            AgentConversation 实例
+
+        Raises:
+            NotFoundException: 对话不存在
+            BusinessException: 对话已归档
+        """
+        if conversation_id:
+            # 续接已有对话
+            conversation = await self.repo.get_by_id(conversation_id)
+            if not conversation:
+                raise NotFoundException(message=_("agent_chat.error.conversation_not_found"))
+
+            if conversation.status == ConversationStatusEnum.ARCHIVED.value:
+                raise BusinessException(
+                    message=_("agent_chat.error.conversation_archived"),
+                )
+
+            return conversation
+
+        # 创建新对话
+        title = first_message[:self.MAX_TITLE_LENGTH].strip()
+        conversation = await self.repo.create({
+            "tenant_id": self.tenant_id,
+            "agent_id": agent_id,
+            "user_id": user_id,
+            "title": title,
+            "status": ConversationStatusEnum.ACTIVE.value,
+            "token_count": 0,
+            "cost": 0,
+        })
+
+        logger.info(
+            "Conversation created: id=%d agent=%d tenant=%d",
+            conversation.id,
+            agent_id,
+            self.tenant_id,
+        )
+
+        return conversation
+
+    async def load_chat_history(
+        self,
+        conversation_id: int,
+        max_messages: int = 0,
+        max_tokens: int = 0,
+    ) -> list[ChatMessage]:
+        """
+        从 ConversationMessage 加载历史消息并转换为 ChatMessage
+
+        支持两级截断：
+        1. max_messages: 最多保留最近 N 条消息
+        2. max_tokens: 历史消息总 token 不超过 N（从最旧开始移除）
+
+        Args:
+            conversation_id: 对话 ID
+            max_messages: 最大消息条数（0 = 使用默认值）
+            max_tokens: 最大 token 数（0 = 不限制）
+
+        Returns:
+            ChatMessage 列表（不含 system 消息，由引擎构建）
+        """
+        effective_limit = max_messages if max_messages > 0 else self.MAX_HISTORY_MESSAGES
+        db_messages = await self.message_repo.get_last_n_messages(
+            conversation_id=conversation_id,
+            n=effective_limit,
+        )
+
+        chat_messages: list[ChatMessage] = []
+        for msg in db_messages:
+            # 跳过 system 消息（由引擎重新构建）
+            if msg.role == MessageRoleEnum.SYSTEM.value:
+                continue
+
+            # 从 metadata 恢复附件（用于多模态历史消息）
+            msg_attachments = None
+            if msg.metadata_ and isinstance(msg.metadata_, dict):
+                msg_attachments = msg.metadata_.get("attachments")
+
+            chat_messages.append(
+                ChatMessage(
+                    role=msg.role,
+                    content=msg.content or "",
+                    tool_calls=msg.tool_calls,
+                    tool_call_id=msg.tool_call_id,
+                    attachments=msg_attachments,
+                ),
+            )
+
+        # Token 截断：从最旧消息开始移除，直到总 token 不超过 max_tokens
+        if max_tokens > 0 and chat_messages:
+            total = sum(estimate_tokens(m.content or "") for m in chat_messages)
+            while total > max_tokens and len(chat_messages) > 1:
+                removed = chat_messages.pop(0)
+                total -= estimate_tokens(removed.content or "")
+
+        # 清理孤立的 tool 消息（前面没有 tool_calls 的 assistant 消息）
+        chat_messages = self.sanitize_tool_messages(chat_messages)
+
+        return chat_messages
+
+    @staticmethod
+    def sanitize_tool_messages(
+        messages: list[ChatMessage],
+    ) -> list[ChatMessage]:
+        """清理孤立的 tool/tool_calls 消息，防止 LLM API 400 错误
+
+        规则：
+        - role=tool 的消息前面必须有一条带 tool_calls 的 assistant 消息
+        - 如果截断导致 assistant(tool_calls) 丢失，相关的 tool 消息也要移除
+        - 如果 tool 消息被移除，对应的 assistant(tool_calls) 也要移除
+        """
+        if not messages:
+            return messages
+
+        # 收集所有 assistant 消息中声明的 tool_call id
+        declared_tc_ids: set[str] = set()
+        for msg in messages:
+            if msg.role == "assistant" and msg.tool_calls:
+                for tc in msg.tool_calls:
+                    tc_id = tc.get("id", "")
+                    if tc_id:
+                        declared_tc_ids.add(tc_id)
+
+        # 第一遍：移除 tool_call_id 不在声明集合中的 tool 消息
+        cleaned: list[ChatMessage] = []
+        for msg in messages:
+            if msg.role == "tool":
+                if msg.tool_call_id and msg.tool_call_id in declared_tc_ids:
+                    cleaned.append(msg)
+                # else: 孤立的 tool 消息，跳过
+            else:
+                cleaned.append(msg)
+
+        # 第二遍：收集实际保留的 tool 回复的 id
+        answered_tc_ids: set[str] = set()
+        for msg in cleaned:
+            if msg.role == "tool" and msg.tool_call_id:
+                answered_tc_ids.add(msg.tool_call_id)
+
+        # 第三遍：移除 tool_calls 中所有 id 都没有对应 tool 回复的 assistant 消息
+        result: list[ChatMessage] = []
+        for msg in cleaned:
+            if msg.role == "assistant" and msg.tool_calls:
+                tc_ids_in_msg = {tc.get("id", "") for tc in msg.tool_calls}
+                if tc_ids_in_msg & answered_tc_ids:
+                    result.append(msg)
+                # else: assistant 的 tool_calls 全部没有 tool 回复，跳过
+            else:
+                result.append(msg)
+
+        return result
+
+    async def persist_chat_messages(
+        self,
+        conversation: AgentConversation,
+        result: ExecutionResult,
+        history_count: int,
+    ) -> list[dict[str, Any]]:
+        """
+        将执行过程中产生的新消息持久化为 ConversationMessage
+
+        ExecutionResult.messages 结构:
+        [system, ...history..., new_user, (assistant+tool_calls, tool, ...,)* final_assistant]
+
+        持久化 new_user 及之后的所有消息（跳过 system 和 history）。
+
+        Args:
+            conversation: 对话实例
+            result: 执行结果
+            history_count: 历史消息数量（用于计算新消息起始位置）
+
+        Returns:
+            收集到的 tool_calls（用于响应）
+        """
+        # 动态计算前缀 system 消息数（而非硬编码 1）
+        system_count = 0
+        for msg_dict in result.messages:
+            if msg_dict.get("role") == "system":
+                system_count += 1
+            else:
+                break
+        new_start = system_count + history_count
+        new_messages = result.messages[new_start:]
+
+        if not new_messages:
+            return []
+
+        # 构建 tool_call_id → ToolResult 的查找表
+        tool_result_map: dict[str, ToolResult] = {}
+        if result.tool_results:
+            for tr in result.tool_results:
+                if tr.tool_call_id:
+                    tool_result_map[tr.tool_call_id] = tr
+
+        # 获取下一个 sequence
+        next_seq = await self.message_repo.get_next_sequence(conversation.id)
+        tool_calls_collected: list[dict[str, Any]] = []
+
+        for i, msg_dict in enumerate(new_messages):
+            role = msg_dict.get("role", "")
+            content = msg_dict.get("content", "")
+            tool_calls = msg_dict.get("tool_calls")
+            tool_call_id = msg_dict.get("tool_call_id")
+            attachments = msg_dict.get("attachments")
+
+            # 收集 tool_calls 用于响应
+            if tool_calls:
+                tool_calls_collected.extend(tool_calls)
+
+            # 估算 token 数
+            token_estimate = estimate_tokens(content) if content else 0
+
+            # 附件存入 metadata
+            metadata = None
+            if attachments:
+                metadata = {"attachments": attachments}
+
+            # tool 角色消息：存储工具执行状态
+            if role == "tool" and tool_call_id and tool_call_id in tool_result_map:
+                tr = tool_result_map[tool_call_id]
+                metadata = metadata or {}
+                metadata["tool_success"] = tr.success
+                if not tr.success and tr.error:
+                    metadata["tool_error"] = tr.error
+
+            await self.message_repo.create({
+                "tenant_id": self.tenant_id,
+                "conversation_id": conversation.id,
+                "role": role,
+                "content": content,
+                "sequence": next_seq + i,
+                "token_count": token_estimate,
+                "tool_calls": tool_calls,
+                "tool_call_id": tool_call_id,
+                "metadata_": metadata,
+            })
+
+        # 递增 message_count 冗余计数
+        new_message_count = (conversation.message_count or 0) + len(new_messages)
+        await self.repo.update(
+            conversation.id,
+            {"message_count": new_message_count},
+        )
+
+        return tool_calls_collected
+
+    async def update_stats(
+        self,
+        conversation: AgentConversation,
+        result: ExecutionResult,
+    ) -> None:
+        """
+        更新对话统计信息，并尝试提取输出变量
+
+        Args:
+            conversation: 对话实例
+            result: 执行结果
+        """
+        new_token_count = (conversation.token_count or 0) + result.total_tokens
+        new_total_tokens = (conversation.total_tokens or 0) + result.total_tokens
+
+        update_data: dict[str, Any] = {
+            "token_count": new_token_count,
+            "total_tokens": new_total_tokens,
+        }
+
+        # 尝试提取输出变量
+        agent = conversation.agent
+        if agent and agent.output_schema and result.output:
+            extracted = parse_output(result.output, agent.output_schema)
+            if extracted:
+                metadata = dict(conversation.metadata_ or {})
+                metadata["output_variables"] = extracted
+                update_data["metadata_"] = metadata
+
+        await self.repo.update(
+            conversation.id,
+            update_data,
+        )
 
 
 __all__ = ["ConversationService"]

@@ -1,10 +1,11 @@
 from __future__ import annotations
 import uuid
 from typing import Any
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from app.core.logging import CaptchaLoggerMixin
 from app.captcha.registry import registry
 from app.captcha.provider import CaptchaChallenge, CaptchaVerificationResult, ICaptchaProvider
+from app.core.base_model import utc_now
 
 
 class CaptchaService(CaptchaLoggerMixin):
@@ -22,7 +23,7 @@ class CaptchaService(CaptchaLoggerMixin):
         }
 
     def _now(self) -> datetime:
-        return datetime.now(timezone.utc)
+        return utc_now()
 
     def _key(self, ctx: dict[str, Any]) -> str:
         ip = ctx.get("ip") or ""

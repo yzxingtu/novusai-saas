@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Any
 
 from jose import JWTError, jwt
@@ -16,6 +16,7 @@ from app.exceptions import BusinessException, NotFoundException, StorageNotFound
 from app.models.tenant.attachment import Attachment
 from app.repositories.tenant.attachment_repository import AttachmentRepository
 from app.storage import StorageConfig, StorageVisibility, storage_manager
+from app.core.base_model import utc_now
 
 
 class AttachmentDownloadService:
@@ -104,7 +105,7 @@ class AttachmentDownloadService:
         preview: bool,
     ) -> str:
         """生成本地私有文件访问 Token"""
-        expire_at = datetime.now(timezone.utc) + timedelta(seconds=expires)
+        expire_at = utc_now() + timedelta(seconds=expires)
         payload = {
             "type": "attachment_download",
             "attachment_id": attachment.id,

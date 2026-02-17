@@ -5,8 +5,9 @@
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
+from app.core.base_model import utc_now
 
 
 # ============================================
@@ -22,7 +23,7 @@ class BaseEvent:
     """
 
     tenant_id: int
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: utc_now())
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -103,7 +104,7 @@ class ToolCallCompleted(BaseEvent):
     conversation_id: int = 0
     tool_name: str = ""
     tool_call_id: str = ""
-    result: Any = None
+    result: str = ""
     duration_ms: int = 0
 
 

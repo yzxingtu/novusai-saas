@@ -197,6 +197,9 @@
       "resourceUsage": "资源使用"
     }
   },
+  "auth": {
+    "title": "租户管理系统"
+  },
   "common": {
     "operation": "操作",
     "enable": "启用",
@@ -208,6 +211,8 @@
     "contactInfo": "联系方式",
     "permissionSettings": "权限设置",
     "accountStatus": "账号状态",
-    "admin": "管理员"
+    "admin": "管理员",
+    "operationSuccess": "操作成功",
+    "operationFailed": "操作失败"
   }
 }

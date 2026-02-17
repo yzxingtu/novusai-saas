@@ -14,7 +14,7 @@ import json
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any  # retained for Jinja2 template context (arbitrary values)
 
 from jinja2 import Environment, FileSystemLoader, TemplateError
@@ -23,6 +23,7 @@ from app.core.logging import LogManager
 
 logger = LogManager.get_logger("app")
 
+from app.core.base_model import utc_now
 from app.plugins.crud_generator.codegen.schemas import (
     CrudConfig,
     FieldConfig,
@@ -638,7 +639,7 @@ class CrudGenerator:
     @staticmethod
     def _generate_revision_id(module_snake: str) -> str:
         """生成 Alembic revision ID: 日期前缀 + 短随机后缀"""
-        date_prefix = datetime.now(timezone.utc).strftime("%Y%m%d")
+        date_prefix = utc_now().strftime("%Y%m%d")
         short_hash = uuid.uuid4().hex[:12]
         return f"{date_prefix}_{short_hash}"
 
@@ -679,7 +680,7 @@ class CrudGenerator:
         module_snake = config.module.replace("-", "_")
         scope = config.scope.value
         revision_id = self._generate_revision_id(module_snake)
-        create_date = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        create_date = utc_now().strftime("%Y-%m-%d %H:%M:%S")
 
         ctx = self._build_context(config, scope if scope != "both" else "tenant")
         ctx.update({
@@ -713,7 +714,7 @@ class CrudGenerator:
         """
         module_snake = new_config.module.replace("-", "_")
         revision_id = self._generate_revision_id(module_snake)
-        create_date = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        create_date = utc_now().strftime("%Y-%m-%d %H:%M:%S")
 
         old_fields = {f.name: f for f in old_config.fields}
         new_fields = {f.name: f for f in new_config.fields}

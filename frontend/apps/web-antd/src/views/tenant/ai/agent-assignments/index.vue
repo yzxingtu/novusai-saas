@@ -14,10 +14,13 @@ import { Button, Card, Popconfirm, Select, Table, Tag, message } from 'ant-desig
 
 import type { AgentAssignmentItem } from '#/api/shared/agent-assignments';
 
+import {
+  deleteAgentAssignmentApi,
+  getAgentAssignmentListApi,
+  getPublishedAgentsApi,
+  updateAgentAssignmentApi,
+} from '#/api/shared/agent-assignments';
 import { $t } from '#/locales';
-import { requestClient } from '#/utils/request';
-
-import { getAgentAssignmentListApi } from '#/api/shared/agent-assignments';
 
 const T = 'tenant.ai.agentAssignment';
 
@@ -45,11 +48,7 @@ async function loadAssignments() {
 
 async function loadAgentOptions() {
   try {
-    const res = await requestClient.get<{
-      items: Array<{ id: number; name: string; status: string }>;
-    }>('/tenant/ai/agents', {
-      params: { 'filter[status][eq]': 'published', 'page[size]': 100 },
-    });
+    const res = await getPublishedAgentsApi('/tenant');
     agentOptions.value = res.items.map((a) => ({ label: a.name, value: a.id }));
   } catch {
     // handled by interceptor
@@ -59,9 +58,7 @@ async function loadAgentOptions() {
 async function setOverride(featureCode: string, agentId: number | null) {
   saving.value = featureCode;
   try {
-    await requestClient.put(`/tenant/ai/agent-assignments/${featureCode}`, {
-      agent_id: agentId,
-    });
+    await updateAgentAssignmentApi('/tenant', featureCode, { agent_id: agentId });
     message.success($t(`${T}.saveSuccess`));
     await loadAssignments();
   } catch {
@@ -74,7 +71,7 @@ async function setOverride(featureCode: string, agentId: number | null) {
 async function restoreDefault(featureCode: string) {
   saving.value = featureCode;
   try {
-    await requestClient.delete(`/tenant/ai/agent-assignments/${featureCode}`);
+    await deleteAgentAssignmentApi('/tenant', featureCode);
     message.success($t(`${T}.restoreSuccess`));
     await loadAssignments();
   } catch {

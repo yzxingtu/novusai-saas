@@ -18,14 +18,15 @@ import {
   archiveConversationApi,
   deleteConversationApi,
   exportConversationApi,
+  getConversationDetailApi,
   getConversationListApi,
 } from '#/api/tenant/conversations';
+import ConversationDetail from '#/components/business/conversation-detail/ConversationDetail.vue';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
 import { formatCost, formatTokenCount, getStatusText, useColumns, useGridFormSchema } from './data';
 import BatchArchiveModal from './modules/BatchArchiveModal.vue';
-import ConversationDetail from './modules/ConversationDetail.vue';
 
 const detailOpen = ref(false);
 const detailId = ref<null | number>(null);
@@ -104,6 +105,11 @@ function onBatchArchiveSuccess() {
     <ConversationDetail
       v-model:open="detailOpen"
       :conversation-id="detailId"
+      i18n-prefix="tenant.ai.conversation"
+      :get-detail-api="getConversationDetailApi"
+      :format-tokens="formatTokenCount"
+      :format-cost="formatCost"
+      :get-status-text="getStatusText"
     />
 
     <!-- 批量归档弹窗 -->

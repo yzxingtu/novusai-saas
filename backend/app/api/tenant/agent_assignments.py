@@ -48,7 +48,7 @@ def _build_resolve_result(assignment, feature_code: str) -> dict:
         agent_obj = getattr(assignment, "agent", None)
         if agent_obj is not None:
             agent_name = agent_obj.name
-    except (AttributeError, Exception):
+    except AttributeError:
         pass
     return {
         "feature_code": assignment.feature_code,
@@ -69,7 +69,7 @@ def _build_assignment_item(assignment, global_default=None) -> dict:
         if agent_obj is not None:
             agent_name = agent_obj.name
             agent_avatar = agent_obj.avatar
-    except (AttributeError, Exception):
+    except AttributeError:
         pass
 
     is_override = assignment.tenant_id is not None
@@ -83,7 +83,7 @@ def _build_assignment_item(assignment, global_default=None) -> dict:
             gd_agent_obj = getattr(global_default, "agent", None)
             if gd_agent_obj is not None:
                 gd_agent_name = gd_agent_obj.name
-        except (AttributeError, Exception):
+        except AttributeError:
             pass
     elif not is_override:
         # Non-override item IS the global default
@@ -112,7 +112,7 @@ def _build_assignment_item(assignment, global_default=None) -> dict:
         icon="lucide:plug",
         path="/ai/agent-assignments",
         component="ai/agent-assignments/index",
-        parent="ai_app",
+        parent="ai_workspace",
         sort_order=15,
     ),
 )

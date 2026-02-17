@@ -223,7 +223,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
     accessStore.setAccessRoutes([]);
     accessStore.setAccessCodes([]);
     accessStore.setIsAccessChecked(false);
-    userStore.setUserInfo(null as unknown as UserInfo);
+    userStore.setUserInfo(null);
 
     await router.replace({
       path: loginPath,

@@ -7,7 +7,6 @@ Celery Worker 是同步进程，使用同步 DB Session 直接写入。
 
 import json
 import hashlib
-from datetime import datetime, timezone
 from typing import Optional
 
 from celery import shared_task
@@ -17,6 +16,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from app.core.config import settings
 from app.core.logging import LogManager
 from app.core.i18n import _
+from app.core.base_model import utc_now
 
 
 logger = LogManager.get_logger("tasks.ai")
@@ -186,7 +186,7 @@ def log_ai_call_task(
             request_metadata={
                 "request": sanitized_request,
                 "response": truncated_response,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": utc_now().isoformat(),
             },
         )
 

@@ -155,7 +155,7 @@ function agentInitial(agent: { name: string }) {
               :class="compact ? 'px-2 py-1.5 text-[11px]' : 'px-3 py-2 text-xs'"
             >
               <div v-if="tc.arguments && Object.keys(tc.arguments).length" class="mb-1">
-                <span class="font-medium text-muted-foreground">Args:</span>
+                <span class="font-medium text-muted-foreground">{{ $t('common.globalAiChat.args') }}</span>
                 <code class="ml-1 text-muted-foreground" :class="compact ? 'text-[10px]' : 'text-[11px]'">
                   {{ JSON.stringify(tc.arguments) }}
                 </code>
@@ -309,7 +309,7 @@ function agentInitial(agent: { name: string }) {
           class="flex items-center text-muted-foreground"
           :class="compact ? 'mt-0.5 gap-2 text-[11px]' : 'mt-1 gap-3 text-xs'"
         >
-          <span v-if="msg.tokenUsage">{{ msg.tokenUsage }} tokens</span>
+          <span v-if="msg.tokenUsage">{{ msg.tokenUsage }} {{ $t('common.globalAiChat.tokens') }}</span>
           <span v-if="!compact && msg.durationMs">{{ (msg.durationMs / 1000).toFixed(1) }}s</span>
           <Tooltip v-if="!compact" :title="$t('common.globalAiChat.copy')">
             <IconifyIcon

@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from app.ai.data_intelligence.schema_provider import SchemaProvider, TableSchema
+from app.enums.common import UserRoleEnum
 from app.ai.data_intelligence.sql_safety import SQLSafetyValidator
 from app.ai.types import ChatMessage
 from app.core.i18n import _
@@ -91,6 +92,9 @@ _SYSTEM_PROMPT_TEMPLATE = """You are a PostgreSQL query generator for a multi-te
 7. Use table aliases for readability.
 8. Add ORDER BY and reasonable LIMIT when appropriate.
 9. For time ranges, use standard PostgreSQL date functions.
+10. Most tables have an `is_deleted` column for soft-delete. ALWAYS add `is_deleted = false` in the WHERE clause to exclude deleted records, unless the user explicitly asks for deleted data.
+11. PostgreSQL requires ALL non-aggregated columns in SELECT to appear in GROUP BY. Never select columns like `created_at`, `name`, etc. without including them in GROUP BY when using aggregate functions.
+12. Keep SQL simple and direct. Prefer a single query without unnecessary subqueries or CTEs.
 
 ## AVAILABLE TABLES
 {schema_ddl}
@@ -144,7 +148,7 @@ class TextToSQLGenerator:
         agent: Agent,
         conversation_history: list[ConversationRound] | None = None,
         permissions: set[str] | None = None,
-        user_role: str = "tenant_admin",
+        user_role: str = UserRoleEnum.TENANT_ADMIN.value,
     ) -> GeneratedSQL:
         """
         将自然语言问题转为 SQL

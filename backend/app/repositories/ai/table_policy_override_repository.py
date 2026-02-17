@@ -24,6 +24,18 @@ class AITablePolicyOverrideRepository(TenantRepository[AITablePolicyOverride]):
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_policy_and_tenant(
+        self, policy_id: int, tenant_id: int,
+    ) -> AITablePolicyOverride | None:
+        """按 policy_id + tenant_id 查找覆盖（不依赖 self.tenant_id）"""
+        stmt = select(AITablePolicyOverride).where(
+            AITablePolicyOverride.policy_id == policy_id,
+            AITablePolicyOverride.tenant_id == tenant_id,
+            AITablePolicyOverride.is_deleted == False,  # noqa: E712
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_all_for_tenant(self) -> list[AITablePolicyOverride]:
         """获取当前租户的所有覆盖"""
         stmt = self._base_query()

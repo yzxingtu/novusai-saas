@@ -43,14 +43,14 @@ def _build_quota_response(quota) -> dict:
         tenant = getattr(quota, 'tenant', None)
         if tenant is not None:
             tenant_name = tenant.name
-    except (AttributeError, Exception):
+    except AttributeError:
         pass
 
     try:
         model = getattr(quota, 'model', None)
         if model is not None:
             model_name = model.name
-    except (AttributeError, Exception):
+    except AttributeError:
         pass
 
     return {
@@ -172,6 +172,7 @@ class AdminAIQuotaController(GlobalController):
                 data.model_dump(exclude={"tenant_id"})
             )
             await db.commit()
+            await db.refresh(quota, ['model', 'tenant'])
 
             return success(
                 data=TenantQuotaResponse.model_validate(
@@ -207,6 +208,7 @@ class AdminAIQuotaController(GlobalController):
                 quota_id, data.model_dump(exclude_unset=True)
             )
             await db.commit()
+            await db.refresh(updated, ['model', 'tenant'])
 
             return success(
                 data=TenantQuotaResponse.model_validate(

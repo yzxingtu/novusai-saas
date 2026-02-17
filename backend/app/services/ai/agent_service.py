@@ -2,16 +2,17 @@
 智能体 Service
 """
 
-from datetime import datetime
-from typing import Any
+from __future__ import annotations
 
-from sqlalchemy import update
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from app.schemas.common.query import QuerySpec
 
 from app.repositories.ai.agent_repository import AgentRepository, AdminAgentRepository
 from app.repositories.ai.agent_version_repository import AgentVersionRepository
 from app.repositories.ai.agent_access_repository import AgentAccessRepository
 from app.models.ai.agent import Agent
-from app.models.ai.agent_conversation import AgentConversation
 from app.models.ai.agent_version import AgentVersion
 from app.core.base_service import TenantService, GlobalService
 from app.core.i18n import _
@@ -95,16 +96,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
             raise BusinessException(message=_("agent.error.system_protected"))
 
         # 级联软删除智能体的对话记录
-        level = self._default_delete_level
-        now = datetime.utcnow()
-        await self.repo.db.execute(
-            update(AgentConversation)
-            .where(
-                AgentConversation.agent_id == id,
-                AgentConversation.is_deleted.is_(False),
-            )
-            .values(is_deleted=True, deleted_at=now, delete_level=level, updated_at=now)
-        )
+        await self.repo.cascade_soft_delete_conversations(id, self._default_delete_level)
 
     async def escalate_delete(self, id: int) -> Agent | None:
         """升级删除层级，级联升级对话记录"""
@@ -112,28 +104,12 @@ class AgentService(TenantService[Agent, AgentRepository]):
         if instance is None:
             return None
 
-        now = datetime.utcnow()
-        await self.repo.db.execute(
-            update(AgentConversation)
-            .where(
-                AgentConversation.agent_id == id,
-                AgentConversation.is_deleted.is_(True),
-            )
-            .values(delete_level="admin", deleted_at=now, updated_at=now)
-        )
+        await self.repo.cascade_escalate_conversations(id)
         return instance
 
     async def _after_restore(self, instance: Agent) -> None:
         """恢复后：级联恢复对话记录"""
-        now = datetime.utcnow()
-        await self.repo.db.execute(
-            update(AgentConversation)
-            .where(
-                AgentConversation.agent_id == instance.id,
-                AgentConversation.is_deleted.is_(True),
-            )
-            .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
-        )
+        await self.repo.cascade_restore_conversations(instance.id)
 
     async def get_agent_detail(self, agent_id: int) -> dict[str, Any]:
         """
@@ -159,7 +135,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
             if model_obj is not None:
                 result["model_name"] = model_obj.name
                 result["model_code"] = model_obj.code
-        except (AttributeError, Exception):
+        except AttributeError:
             pass
 
         return result
@@ -530,7 +506,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
         name = data.get("name")
         if name:
-            existing = await self._check_name_unique(name, tenant_id=data.get("tenant_id"), scope=scope)
+            existing = await self.repo.exists_by_name(name, tenant_id=data.get("tenant_id"), scope=scope)
             if existing:
                 raise BusinessException(message=_("agent.error.name_exists"))
 
@@ -564,37 +540,11 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
         name = data.get("name")
         if name:
-            existing = await self._check_name_unique(name, tenant_id=tenant_id, scope=scope, exclude_id=id)
+            existing = await self.repo.exists_by_name(name, tenant_id=tenant_id, scope=scope, exclude_id=id)
             if existing:
                 raise BusinessException(message=_("agent.error.name_exists"))
 
-    async def _check_name_unique(
-        self,
-        name: str,
-        tenant_id: int | None,
-        scope: str,
-        exclude_id: int | None = None,
-    ) -> Agent | None:
-        """检查同 scope+tenant_id 下名称是否重复"""
-        from sqlalchemy import select, and_
-
-        conditions = [
-            Agent.name == name,
-            Agent.scope == scope,
-            Agent.is_deleted.is_(False),
-        ]
-        if tenant_id is not None:
-            conditions.append(Agent.tenant_id == tenant_id)
-        else:
-            conditions.append(Agent.tenant_id.is_(None))
-        if exclude_id is not None:
-            conditions.append(Agent.id != exclude_id)
-
-        stmt = select(Agent).where(and_(*conditions))
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
-
-    async def query_list(self, query: Any) -> tuple[list[Agent], int]:
+    async def query_list(self, query: QuerySpec) -> tuple[list[Agent], int]:
         """
         全租户智能体列表查询
 
@@ -616,16 +566,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
             raise BusinessException(message=_("agent.error.system_protected"))
 
         # 级联软删除智能体的对话记录
-        level = self._default_delete_level
-        now = datetime.utcnow()
-        await self.repo.db.execute(
-            update(AgentConversation)
-            .where(
-                AgentConversation.agent_id == id,
-                AgentConversation.is_deleted.is_(False),
-            )
-            .values(is_deleted=True, deleted_at=now, delete_level=level, updated_at=now)
-        )
+        await self.repo.cascade_soft_delete_conversations(id, self._default_delete_level)
 
     async def update_status(self, agent_id: int, status: str) -> Agent:
         """

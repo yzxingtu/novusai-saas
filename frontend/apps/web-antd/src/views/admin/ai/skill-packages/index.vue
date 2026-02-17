@@ -40,9 +40,11 @@ import {
   getSkillPackageRecycleBinApi,
   getSkillPackageRecycleBinCountApi,
   getSkillPackageSkillsApi,
+  getSkillPackageValvesApi,
   permanentDeleteSkillPackageApi,
   restoreSkillPackageApi,
   toggleSkillPackageStatusApi,
+  updateSkillPackageValvesApi,
   uploadSkillPackageApi,
 } from '#/api/admin/skill-packages';
 import {
@@ -55,7 +57,7 @@ import { formatDate, formatRelativeTime } from '#/utils/common';
 
 import { getScopeColor, getScopeText } from './data';
 import PackageForm from './modules/form.vue';
-import ValvesConfigPanel from './modules/valves-config-panel.vue';
+import ValvesConfigPanel from '#/components/business/valves-config-panel/ValvesConfigPanel.vue';
 import SkillForm from '../skills/modules/form.vue';
 import { getSkillTypeColor, getSkillTypeText } from '../skills/data';
 
@@ -891,6 +893,9 @@ onMounted(() => {
       ref="valvesConfigPanelRef"
       :package-id="selectedPackageId"
       :package-name="selectedPackage?.name"
+      i18n-prefix="admin.ai.skillPackage"
+      :get-valves-api="getSkillPackageValvesApi"
+      :update-valves-api="updateSkillPackageValvesApi"
       @success="loadPackages"
     />
   </Page>

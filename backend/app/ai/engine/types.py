@@ -7,9 +7,10 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.ai.tools.types import ToolResult
+from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
 from app.enums.agent import AgentExecutionModeEnum
+from app.enums.common import UserRoleEnum
 
 
 @dataclass
@@ -45,7 +46,7 @@ class ExecutionRequest:
     consented_actions: list[str] | None = None
 
     # 用户角色（platform_admin / tenant_admin / tenant_user）
-    user_role: str = "tenant_admin"
+    user_role: str = UserRoleEnum.TENANT_ADMIN.value
     # 用户 RBAC 权限码集合
     permissions: set[str] | None = None
 
@@ -79,6 +80,28 @@ class ExecutionResult:
     duration_ms: int = 0
     conversation_id: int | None = None
     error: str = ""
+
+
+@dataclass
+class PreparedExecution:
+    """
+    预处理执行上下文
+
+    由 _prepare_execution() 构建，供 execute() 和 stream_execute() 共享。
+
+    Attributes:
+        messages: 构建好的消息列表（含 system + 历史 + RAG 注入）
+        tools: 优化后的工具定义列表
+        rag_sources: RAG 引用来源（无 RAG 时为 None）
+        tool_consent_modes: 工具名 → consent_mode 映射
+        optimize_event: 工具优化事件数据（SSE 推送用，无优化时为 None）
+    """
+
+    messages: list[ChatMessage] = field(default_factory=list)
+    tools: list[ToolDefinition] = field(default_factory=list)
+    rag_sources: list[dict[str, Any]] | None = None
+    tool_consent_modes: dict[str, str] = field(default_factory=dict)
+    optimize_event: dict[str, Any] | None = None
 
 
 @dataclass
@@ -123,6 +146,7 @@ class BatchResult:
 __all__ = [
     "ExecutionRequest",
     "ExecutionResult",
+    "PreparedExecution",
     "BatchItem",
     "BatchResult",
 ]

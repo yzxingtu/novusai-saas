@@ -7,7 +7,6 @@ AI 供应商健康检查定时任务
 
 import json
 import time
-from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker, Session
@@ -16,6 +15,7 @@ from app.core.config import settings
 from app.core.logging import LogManager
 from app.core.i18n import _
 from app.tasks.base import register_task, BaseTask
+from app.core.base_model import utc_now
 
 logger = LogManager.get_logger("tasks.ai")
 
@@ -171,7 +171,7 @@ def _check_provider_health(provider, db: Session, redis_client):
         "error_message": error_message,
         "consecutive_failures": consecutive_failures,
         "is_available": consecutive_failures < CONSECUTIVE_FAILURES_THRESHOLD,
-        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "checked_at": utc_now().isoformat(),
     }
 
     redis_client.setex(
@@ -185,7 +185,7 @@ def _check_provider_health(provider, db: Session, redis_client):
         "is_healthy": is_healthy,
         "response_time_ms": response_time_ms,
         "error_message": error_message,
-        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "checked_at": utc_now().isoformat(),
     }, ensure_ascii=False)
 
     redis_client.zadd(history_key, {history_entry: time.time()})

@@ -15,6 +15,8 @@ import hashlib
 import importlib
 import importlib.util
 import inspect
+import json
+import os
 import sys
 import tempfile
 import time
@@ -30,6 +32,12 @@ if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
 
 logger = LogManager.get_logger("ai.tool.toolkit")
+
+# 沙箱模式：subprocess（子进程隔离）或 inprocess（进程内，开发环境用）
+_SANDBOX_MODE = os.environ.get("TOOLKIT_SANDBOX_MODE", "subprocess")
+
+# 沙箱运行器脚本路径
+_SANDBOX_RUNNER_PATH = str(Path(__file__).parent / "_sandbox_runner.py")
 
 # 已加载模块的缓存：toolkit_content sha256 → module
 _MODULE_CACHE: dict[str, types.ModuleType] = {}
@@ -80,15 +88,21 @@ class ToolkitExecutor(BaseToolExecutor):
     - _toolkit_method: 要调用的方法名
     - _toolkit_is_async: 方法是否为 async
     - _valves_config: Valves 配置值 dict
+
+    支持两种执行模式（通过 TOOLKIT_SANDBOX_MODE 环境变量控制）:
+    - subprocess: 在子进程中执行（默认，安全隔离）
+    - inprocess: 在主进程中执行（开发环境用）
     """
 
     def __init__(
         self,
         timeout: int = 30,
         max_output_size: int = 10000,
+        sandbox_mode: str | None = None,
     ) -> None:
         self._timeout = timeout
         self._max_output_size = max_output_size
+        self._sandbox_mode = sandbox_mode or _SANDBOX_MODE
 
     async def execute(
         self,
@@ -129,52 +143,14 @@ class ToolkitExecutor(BaseToolExecutor):
                         error=f"Toolkit blocked: {detail}",
                     )
 
-            # 1. 加载模块（带缓存）
-            module = _load_toolkit_module(toolkit_content)
-
-            # 2. 实例化 Tools 类
-            tools_cls = getattr(module, "Tools", None)
-            if tools_cls is None:
-                return ToolResult(
-                    tool_call_id=tool_call_id,
-                    name=definition.name,
-                    success=False,
-                    error="Toolkit module has no 'Tools' class",
+            # 根据沙箱模式选择执行方式
+            if self._sandbox_mode == "subprocess":
+                output = await self._execute_in_subprocess(
+                    toolkit_content, method_name, arguments, valves_config,
                 )
-
-            tools_instance = tools_cls()
-
-            # 3. 注入 Valves 配置
-            valves_error = _inject_valves(tools_instance, module, valves_config)
-
-            # 4. 查找目标方法
-            method = getattr(tools_instance, method_name, None)
-            if method is None or not callable(method):
-                return ToolResult(
-                    tool_call_id=tool_call_id,
-                    name=definition.name,
-                    success=False,
-                    error=f"Method '{method_name}' not found in Tools class",
-                )
-
-            # 5. 调用方法（以运行时检测为准，忽略 config 中的 is_async 标记）
-            if asyncio.iscoroutinefunction(method):
-                result_value = await method(**arguments)
             else:
-                # sync 方法在线程池中执行，避免阻塞事件循环
-                loop = asyncio.get_running_loop()
-                result_value = await loop.run_in_executor(
-                    None, lambda: method(**arguments)
-                )
-
-            # 6. 转为字符串
-            output = _to_string(result_value)
-
-            # 如果 Valves 注入失败，在输出前附加警告
-            if valves_error:
-                output = (
-                    f"[WARNING] Valves config injection failed: {valves_error}. "
-                    f"Tool ran with default values.\n\n{output}"
+                output = await self._execute_inprocess(
+                    toolkit_content, method_name, arguments, valves_config,
                 )
 
             # 截断
@@ -187,6 +163,20 @@ class ToolkitExecutor(BaseToolExecutor):
                 name=definition.name,
                 success=True,
                 output=output,
+                duration_ms=duration_ms,
+            )
+
+        except asyncio.TimeoutError:
+            duration_ms = int((time.perf_counter() - start) * 1000)
+            logger.warning(
+                "Toolkit execution timeout: %s.%s (%ds)",
+                definition.name, method_name, self._timeout,
+            )
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=definition.name,
+                success=False,
+                error=f"Execution timed out after {self._timeout}s",
                 duration_ms=duration_ms,
             )
 
@@ -223,6 +213,131 @@ class ToolkitExecutor(BaseToolExecutor):
                 error=str(exc),
                 duration_ms=duration_ms,
             )
+
+    async def _execute_in_subprocess(
+        self,
+        toolkit_content: str,
+        method_name: str,
+        arguments: dict[str, Any],
+        valves_config: dict[str, Any],
+    ) -> str:
+        """
+        在子进程中执行 Toolkit 代码（安全隔离）
+
+        通过 _sandbox_runner.py 辅助脚本在独立进程中运行，
+        主进程不受用户代码影响。
+
+        Raises:
+            asyncio.TimeoutError: 执行超时
+            RuntimeError: 子进程执行失败
+        """
+        # 写入临时文件
+        content_hash = hashlib.sha256(toolkit_content.encode("utf-8")).hexdigest()[:16]
+        tmp_dir = Path(tempfile.gettempdir()) / "novusai_toolkits"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        source_path = tmp_dir / f"_toolkit_{content_hash}.py"
+        source_path.write_text(toolkit_content, encoding="utf-8")
+
+        # 构建 stdin 参数
+        stdin_data = json.dumps({
+            "source_path": str(source_path),
+            "method": method_name,
+            "args": arguments,
+            "valves_config": valves_config,
+        }, ensure_ascii=False)
+
+        # 启动子进程
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, _SANDBOX_RUNNER_PATH,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(input=stdin_data.encode("utf-8")),
+                timeout=self._timeout,
+            )
+        except asyncio.TimeoutError:
+            # 超时：强制终止子进程
+            try:
+                proc.kill()
+                await proc.wait()
+            except ProcessLookupError:
+                pass
+            raise
+
+        # 解析结果
+        if proc.returncode != 0:
+            err_msg = stderr.decode("utf-8", errors="replace").strip()
+            raise RuntimeError(
+                f"Sandbox process exited with code {proc.returncode}: {err_msg}"
+            )
+
+        try:
+            result = json.loads(stdout.decode("utf-8"))
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                f"Invalid sandbox output: {exc}"
+            ) from exc
+
+        if not result.get("success"):
+            raise RuntimeError(result.get("error", "Unknown sandbox error"))
+
+        return result.get("output", "")
+
+    async def _execute_inprocess(
+        self,
+        toolkit_content: str,
+        method_name: str,
+        arguments: dict[str, Any],
+        valves_config: dict[str, Any],
+    ) -> str:
+        """
+        在主进程中执行 Toolkit 代码（开发环境用）
+
+        保留原有的 importlib 加载逻辑，不做进程隔离。
+        """
+        # 1. 加载模块（带缓存）
+        module = _load_toolkit_module(toolkit_content)
+
+        # 2. 实例化 Tools 类
+        tools_cls = getattr(module, "Tools", None)
+        if tools_cls is None:
+            raise RuntimeError("Toolkit module has no 'Tools' class")
+
+        tools_instance = tools_cls()
+
+        # 3. 注入 Valves 配置
+        valves_error = _inject_valves(tools_instance, module, valves_config)
+
+        # 4. 查找目标方法
+        method = getattr(tools_instance, method_name, None)
+        if method is None or not callable(method):
+            raise RuntimeError(f"Method '{method_name}' not found in Tools class")
+
+        # 5. 调用方法（以运行时检测为准，忽略 config 中的 is_async 标记）
+        if asyncio.iscoroutinefunction(method):
+            result_value = await method(**arguments)
+        else:
+            # sync 方法在线程池中执行，避免阻塞事件循环
+            loop = asyncio.get_running_loop()
+            result_value = await loop.run_in_executor(
+                None, lambda: method(**arguments)
+            )
+
+        # 6. 转为字符串
+        output = _to_string(result_value)
+
+        # 如果 Valves 注入失败，在输出前附加警告
+        if valves_error:
+            output = (
+                f"[WARNING] Valves config injection failed: {valves_error}. "
+                f"Tool ran with default values.\n\n{output}"
+            )
+
+        return output
 
     async def validate(
         self,

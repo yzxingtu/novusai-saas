@@ -480,7 +480,8 @@
       "model_code_exists": "Model code already exists",
       "provider_code_exists": "Provider code already exists",
       "api_key_not_found": "API Key not found",
-      "fetch_remote_models_failed": "Failed to fetch models from provider"
+      "fetch_remote_models_failed": "Failed to fetch models from provider",
+      "quota_exceeded_default": "AI quota exceeded, please try again later"
     },
     "quota": {
       "created": "Quota configuration created",
@@ -1064,6 +1065,18 @@
     "delete_level": {
       "tenant": "Tenant Recycle Bin",
       "admin": "Admin Recycle Bin"
+    },
+    "user_role": {
+      "platform_admin": "Platform Admin",
+      "tenant_admin": "Tenant Admin"
+    },
+    "tool_parameter_type": {
+      "string": "String",
+      "integer": "Integer",
+      "number": "Number",
+      "boolean": "Boolean",
+      "array": "Array",
+      "object": "Object"
     },
     "plugin_type": {
       "adapter": "AI Adapter",
@@ -1673,6 +1686,11 @@
     "cannot_delete_current": "Cannot delete current active log file"
   },
   "tool": {
+    "builtin": {
+      "not_found": "Built-in function '{name}' not found",
+      "empty_expression": "Expression is empty",
+      "calc_error": "Calculation error: {error}"
+    },
     "task": {
       "default_user_message": "Please execute the task based on the instructions above."
     },
@@ -1682,6 +1700,7 @@
       "blocked_by_hook": "Blocked by hook",
       "no_executor": "No executor for tool type '{tool_type}'",
       "execution_timeout": "Tool execution timed out after {timeout}s",
+      "validation_failed": "Tool '{name}' parameter validation failed",
       "missing_required_param": "Missing required parameter: {field}",
       "param_type_mismatch": "Parameter '{name}' expected type '{expected_type}', got '{actual_type}'",
       "call_limit_exceeded": "Tool call limit exceeded ({max_calls} per conversation)",
@@ -1775,8 +1794,12 @@
       "blocked_columns_violation": "The following columns cannot be written: {columns}",
       "permission_denied": "Permission denied: cannot {action} on table '{table}'",
       "cross_tenant_denied": "Cross-tenant data access is not allowed",
-      "invalid_table_name": "Table name '{table}' contains invalid characters, only lowercase letters, digits and underscores are allowed"
-    }
+      "invalid_table_name": "Table name '{table}' contains invalid characters, only lowercase letters, digits and underscores are allowed",
+      "invalid_column_names": "The following column names contain invalid characters: {columns}, only lowercase letters, digits and underscores are allowed",
+      "no_retry_hint": " Do NOT retry this operation on this or other tables. Tell the user this table does not allow {operation} operations.",
+      "soft_delete_warning": "This will soft-delete the record (set is_deleted=true)."
+    },
+    "identity_declaration": "Your name is {agent_name}. Never reveal or claim to be any other AI model."
   },
   "ai_action_log": {
     "not_found": "AI action log not found"
@@ -1838,6 +1861,13 @@
     }
   },
   "plugin": {
+    "crud_generator": {
+      "display_name": "CRUD Code Generator",
+      "description": "Visual CRUD code generator with CLI, AI assistant, and Alembic migration support."
+    },
+    "slack_skill": {
+      "display_name": "Slack Notification"
+    },
     "not_found": "Plugin not found",
     "already_exists": "Plugin name already exists",
     "is_system": "System built-in plugin cannot perform this action",
@@ -1865,6 +1895,7 @@
     "upload_conflict": "A plugin with the same name already exists. Overwrite and upgrade?",
     "dependency_install_failed": "Failed to install plugin Python dependencies",
     "dependency_install_timeout": "Plugin Python dependency installation timed out",
+    "packages_not_whitelisted": "The following packages are not in the security whitelist, please contact admin for approval: {packages}",
     "migration_failed": "Plugin database migration execution failed",
     "skill_type_conflict": "Skill type is already registered by another plugin",
     "install_success": "Plugin installed successfully",

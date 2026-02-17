@@ -4,7 +4,7 @@ defineOptions({ name: 'TenantAgentForm' });
  * 租户端智能体新建/编辑表单抽屉
  * 支持向导模式（新建）和经典模式（编辑）
  */
-import type { AgentInfo } from '#/api/tenant/agents';
+import type { AgentInfo, AgentListItem } from '#/api/tenant/agents';
 
 interface AgentDetailWithBindings extends AgentInfo {
   _package_options?: { label: string; value: number }[];
@@ -175,7 +175,7 @@ function openNew() {
   setTimeout(() => formApi.setValues({ _wizard_step: 0 }), 50);
 }
 
-function openEdit(record: AgentInfo) {
+function openEdit(record: AgentListItem) {
   wizardMode.value = false;
   formApi.setState({ schema: useFormSchema() });
   _openEdit(record);

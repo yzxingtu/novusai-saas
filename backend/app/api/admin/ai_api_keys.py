@@ -59,7 +59,7 @@ def _build_api_key_response(key) -> dict:
             tenant = getattr(key, 'tenant', None)
             if tenant is not None:
                 tenant_name = tenant.name
-        except (AttributeError, Exception):
+        except AttributeError:
             pass
     
     # 尝试访问 provider 关系
@@ -67,7 +67,7 @@ def _build_api_key_response(key) -> dict:
         provider = getattr(key, 'provider', None)
         if provider is not None:
             provider_name = provider.name
-    except (AttributeError, Exception):
+    except AttributeError:
         pass
     
     return {
@@ -213,6 +213,7 @@ class AdminAIApiKeyController(GlobalController):
             service = ProviderApiKeyService(db)
             key = await service.create_key(data)
             await db.commit()
+            await db.refresh(key, ['provider'])
 
             return success(
                 data=ProviderApiKeyResponse(**_build_api_key_response(key)),
@@ -236,6 +237,7 @@ class AdminAIApiKeyController(GlobalController):
             service = ProviderApiKeyService(db)
             key = await service.update_key(key_id, data)
             await db.commit()
+            await db.refresh(key, ['provider'])
 
             return success(
                 data=ProviderApiKeyResponse(**_build_api_key_response(key)),

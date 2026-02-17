@@ -1,9 +1,11 @@
 <script lang="ts" setup>
 /**
- * Valves 配置面板（租户端）
+ * Valves 配置面板（共享组件）
  *
  * 根据 valves_schema（JSON Schema）动态渲染环境变量配置表单，
  * 支持加载已保存的 valves_config 并提交更新。
+ *
+ * 通过 props 注入 API 函数和 i18n 前缀，适配 admin/tenant 两端。
  */
 import { ref, computed } from 'vue';
 
@@ -24,10 +26,6 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
-import {
-  getSkillPackageValvesApi,
-  updateSkillPackageValvesApi,
-} from '#/api/tenant/skill-packages';
 import { $t } from '#/locales';
 
 interface ValvesProperty {
@@ -42,9 +40,23 @@ interface ValvesSchema {
   required?: string[];
 }
 
+interface ValvesInfo {
+  valves_schema: ValvesSchema | null;
+  valves_config: Record<string, unknown> | null;
+}
+
 const props = defineProps<{
   packageId: number | null;
   packageName?: string;
+  /** i18n 前缀，如 'admin.ai.skillPackage' 或 'tenant.ai.skillPackage' */
+  i18nPrefix: string;
+  /** 获取 Valves 配置的 API 函数 */
+  getValvesApi: (packageId: number) => Promise<ValvesInfo>;
+  /** 更新 Valves 配置的 API 函数 */
+  updateValvesApi: (
+    packageId: number,
+    data: { valves_config: Record<string, unknown> },
+  ) => Promise<unknown>;
 }>();
 
 const emit = defineEmits<{
@@ -67,6 +79,7 @@ const sortedFields = computed(() => {
       isRequired: required.has(key),
     }))
     .sort((a, b) => {
+      // required first, then alphabetical
       if (a.isRequired !== b.isRequired) return a.isRequired ? -1 : 1;
       return a.key.localeCompare(b.key);
     });
@@ -77,10 +90,11 @@ async function open() {
   visible.value = true;
   loading.value = true;
   try {
-    const res = await getSkillPackageValvesApi(props.packageId);
-    schema.value = (res.valves_schema as unknown as ValvesSchema) || null;
+    const res = await props.getValvesApi(props.packageId);
+    schema.value = res.valves_schema || null;
     const saved = (res.valves_config || {}) as Record<string, unknown>;
 
+    // Initialize form: merge defaults + saved values
     const initial: Record<string, unknown> = {};
     if (schema.value?.properties) {
       for (const [key, prop] of Object.entries(schema.value.properties)) {
@@ -105,10 +119,10 @@ async function onSave() {
   if (!props.packageId) return;
   saving.value = true;
   try {
-    await updateSkillPackageValvesApi(props.packageId, {
+    await props.updateValvesApi(props.packageId, {
       valves_config: formValues.value,
     });
-    message.success($t('tenant.ai.skillPackage.valves.saveSuccess'));
+    message.success($t(`${props.i18nPrefix}.valves.saveSuccess`));
     emit('success');
     visible.value = false;
   } catch {
@@ -144,7 +158,7 @@ defineExpose({ open });
 <template>
   <Drawer
     v-model:open="visible"
-    :title="$t('tenant.ai.skillPackage.valves.title')"
+    :title="$t(`${i18nPrefix}.valves.title`)"
     width="520"
     :destroy-on-close="false"
     :footer-style="{ textAlign: 'right' }"
@@ -158,7 +172,7 @@ defineExpose({ open });
     <Spin :spinning="loading">
       <template v-if="schema && sortedFields.length > 0">
         <Alert
-          :message="$t('tenant.ai.skillPackage.valves.description')"
+          :message="$t(`${i18nPrefix}.valves.description`)"
           type="info"
           show-icon
           class="mb-4"
@@ -180,11 +194,11 @@ defineExpose({ open });
                   color="red"
                   style="font-size: 10px; line-height: 14px; padding: 0 3px; margin: 0;"
                 >
-                  {{ $t('tenant.ai.skillPackage.valves.required') }}
+                  {{ $t(`${i18nPrefix}.valves.required`) }}
                 </Tag>
                 <Tooltip v-if="isSecret(field.key)">
                   <template #title>
-                    {{ $t('tenant.ai.skillPackage.valves.sensitiveHint') }}
+                    {{ $t(`${i18nPrefix}.valves.sensitiveHint`) }}
                   </template>
                   <IconifyIcon icon="lucide:shield" class="size-3 text-warning" />
                 </Tooltip>
@@ -197,12 +211,14 @@ defineExpose({ open });
               </span>
             </template>
 
+            <!-- Boolean → Switch -->
             <Switch
               v-if="getInputType(field.type) === 'switch'"
               :checked="!!formValues[field.key]"
               @update:checked="(val: unknown) => (formValues[field.key] = !!val)"
             />
 
+            <!-- Number → InputNumber -->
             <InputNumber
               v-else-if="getInputType(field.type) === 'number'"
               v-model:value="(formValues[field.key] as number)"
@@ -210,6 +226,7 @@ defineExpose({ open });
               :placeholder="field.default !== undefined ? String(field.default) : ''"
             />
 
+            <!-- String → Input / Password -->
             <Input.Password
               v-else-if="isSecret(field.key)"
               v-model:value="(formValues[field.key] as string)"
@@ -226,7 +243,7 @@ defineExpose({ open });
 
       <div v-else-if="!loading" class="flex flex-col items-center justify-center py-12 text-muted-foreground">
         <IconifyIcon icon="lucide:settings-2" class="mb-2 size-10 opacity-40" />
-        <span>{{ $t('tenant.ai.skillPackage.valves.noSchema') }}</span>
+        <span>{{ $t(`${i18nPrefix}.valves.noSchema`) }}</span>
       </div>
     </Spin>
 

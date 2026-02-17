@@ -51,7 +51,8 @@
     "messages": {
       "toggleSuccess": "Provider status updated",
       "confirmEnable": "Are you sure to enable this provider?",
-      "confirmDisable": "Are you sure to disable this provider? All AI calls using this provider will fail."
+      "confirmDisable": "Are you sure to disable this provider? All AI calls using this provider will fail.",
+      "deleteSuccess": "Provider deleted successfully"
     }
   },
   "model": {
@@ -126,7 +127,8 @@
     "messages": {
       "toggleSuccess": "Model status updated",
       "confirmEnable": "Are you sure to enable this model?",
-      "confirmDisable": "Are you sure to disable this model? It will no longer be available for calls."
+      "confirmDisable": "Are you sure to disable this model? It will no longer be available for calls.",
+      "deleteSuccess": "Model deleted successfully"
     }
   },
   "apiKey": {
@@ -179,7 +181,8 @@
       "confirmDisable": "Are you sure to disable this API Key? AI calls using this key will fail.",
       "copy": "Copy Key",
       "copied": "Copied to clipboard",
-      "copyFailed": "Copy failed"
+      "copyFailed": "Copy failed",
+      "deleteSuccess": "API Key deleted successfully"
     }
   },
   "callLog": {

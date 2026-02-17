@@ -4,9 +4,6 @@
 提供跨租户技能包列表、详情、CRUD，支持 admin + tenant scope 技能包管理
 """
 
-import shutil
-import tempfile
-from pathlib import Path as FilePath
 from typing import Any
 
 from fastapi import Query, Request, UploadFile
@@ -17,7 +14,7 @@ from app.core.logging import LogManager
 from app.core.response import success, created, deleted, paginated
 from app.enums.common import ResourceScopeEnum
 from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException, BusinessException, ValidationException
+from app.exceptions import NotFoundException, BusinessException
 from app.rbac.decorators import (
     permission_resource,
     MenuConfig,
@@ -288,133 +285,22 @@ class AdminSkillPackageController(GlobalController):
             - scope=admin, tenant_id=NULL
             - is_system=True 时不可删除
             """
-            from app.ai.skills.packaging import (
-                ALLOWED_SKILL_EXTENSIONS,
-                MAX_ZIP_FILE_SIZE,
-                SkillPackageError,
-                extract_skill_package,
-                get_skill_storage_dir,
-                read_env_example,
-                validate_zip_safety,
+            from app.api.shared._skill_package_upload import process_skill_package_upload
+            from app.services.ai.skill_service import AdminSkillService
+
+            service = AdminSkillPackageService(db)
+            skill_svc = AdminSkillService(db)
+
+            pkg, skill_name, skill_version = await process_skill_package_upload(
+                db=db,
+                file=file,
+                package_service=service,
+                skill_service=skill_svc,
+                scope=ResourceScopeEnum.ADMIN.value,
+                tenant_id=None,
+                is_system=is_system,
+                source_plugin=True,
             )
-            from app.ai.skills.env_parser import parse_env_example
-
-            if not file.filename:
-                raise ValidationException(
-                    message=_("skill_package.error.file_required"),
-                    code=4001,
-                )
-
-            ext = FilePath(file.filename).suffix.lower()
-            if ext not in ALLOWED_SKILL_EXTENSIONS:
-                raise ValidationException(
-                    message=_("skill_package.error.file_must_be_zip"),
-                    code=4001,
-                )
-
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                zip_path = FilePath(tmp_dir) / file.filename
-                content = await file.read()
-
-                # 上传大小检查（在写磁盘前拦截）
-                if len(content) > MAX_ZIP_FILE_SIZE:
-                    size_mb = len(content) / (1024 * 1024)
-                    limit_mb = MAX_ZIP_FILE_SIZE / (1024 * 1024)
-                    raise ValidationException(
-                        message=f"ZIP file too large: {size_mb:.1f}MB (limit: {limit_mb:.0f}MB)",
-                        code=4001,
-                    )
-
-                zip_path.write_bytes(content)
-
-                try:
-                    extract_dir = FilePath(tmp_dir) / "extracted"
-                    metadata = extract_skill_package(zip_path, extract_dir)
-                except SkillPackageError as e:
-                    raise ValidationException(message=str(e), code=4001)
-
-                skill_name = metadata.get("name", "")
-                skill_version = metadata.get("version", "")
-                skill_desc = metadata.get("description", "")
-                raw_icon = metadata.get("icon", "")
-                skill_icon = raw_icon if isinstance(raw_icon, str) and ":" in raw_icon else ""
-
-                # 环境变量需求
-                env_requires: list[str] = []
-                meta_block = metadata.get("metadata", {})
-                if isinstance(meta_block, dict):
-                    clawdbot = meta_block.get("clawdbot", {})
-                    if isinstance(clawdbot, dict):
-                        requires = clawdbot.get("requires", {})
-                        if isinstance(requires, dict):
-                            env_requires = requires.get("env", [])
-
-                # 解析 .env.example → valves_schema
-                valves_schema = None
-                env_example_content = read_env_example(extract_dir)
-                if env_example_content:
-                    valves_schema = parse_env_example(
-                        env_example_content,
-                        required_vars=env_requires,
-                    ) or None
-
-                # 名称唯一性检查 + 创建 SkillPackage（通过 Service，_before_create 处理校验）
-                service = AdminSkillPackageService(db)
-                pkg = await service.create({
-                    "name": skill_name,
-                    "description": skill_desc,
-                    "avatar": skill_icon,
-                    "scope": ResourceScopeEnum.ADMIN.value,
-                    "is_system": is_system,
-                    "is_active": True,
-                    "tenant_id": None,
-                    "valves_schema": valves_schema,
-                })
-                await db.flush()
-
-                # 从解压目录中提取 toolkit_content
-                # 通用转换：自动检测 class Tools / FastAPI 路由 / 回退模板
-                from app.ai.skills.server_converter import (
-                    convert_server_to_toolkit,
-                )
-
-                server_dir = extract_dir / "server"
-                toolkit_content = ""
-                if server_dir.exists():
-                    toolkit_content = convert_server_to_toolkit(
-                        server_dir, metadata,
-                        env_schema=valves_schema,
-                    )
-
-                # 标记来源
-                await service.update(pkg.id, {"source_plugin": skill_name})
-
-                # 创建 Skill (toolkit type)
-                from app.services.ai.skill_service import AdminSkillService
-                skill_svc = AdminSkillService(db)
-                skill = await skill_svc.create({
-                    "package_id": pkg.id,
-                    "name": skill_name,
-                    "description": skill_desc,
-                    "avatar": skill_icon,
-                    "type": "toolkit",
-                    "is_system": is_system,
-                    "is_active": True,
-                    "toolkit_content": toolkit_content,
-                    "config": {
-                        "version": str(skill_version),
-                        "env_requires": env_requires,
-                    },
-                })
-                await db.flush()
-
-                # 拷贝到永久存储目录
-                storage_dir = get_skill_storage_dir(pkg.id)
-                if storage_dir.exists():
-                    shutil.rmtree(storage_dir)
-                shutil.copytree(extract_dir, storage_dir)
-
-            await db.commit()
 
             logger.info(
                 "Skill package uploaded (admin): name=%s version=%s package_id=%d",
@@ -459,46 +345,13 @@ class AdminSkillPackageController(GlobalController):
             """
             更新技能包的 valves_config（用户填写的环境变量配置值）
             """
+            from app.api.shared._toolkit_helpers import validate_and_update_valves
+
             service = AdminSkillPackageService(db)
-            pkg = await service.get_by_id(package_id)
-            if not pkg:
-                raise NotFoundException(message=_("skill_package.error.not_found"))
-
-            if not pkg.valves_schema:
-                raise BusinessException(
-                    message=_("skill_package.error.no_valves_schema"),
-                )
-
-            valves_config = data.get("valves_config", {})
-            if not isinstance(valves_config, dict):
-                raise ValidationException(
-                    message=_("skill_package.error.invalid_valves_config"),
-                    code=4001,
-                )
-
-            # 校验 required 字段是否存在
-            schema = pkg.valves_schema or {}
-            required_fields = schema.get("required", [])
-            if required_fields:
-                missing = [
-                    f for f in required_fields
-                    if f not in valves_config or valves_config[f] in (None, "")
-                ]
-                if missing:
-                    raise ValidationException(
-                        message=_("skill_package.error.valves_missing_required").format(
-                            fields=", ".join(missing),
-                        ),
-                        code=4001,
-                    )
-
-            updated = await service.update(package_id, {"valves_config": valves_config})
-            await db.commit()
-
-            return success(data={
-                "valves_schema": updated.valves_schema,
-                "valves_config": updated.valves_config,
-            })
+            result = await validate_and_update_valves(
+                db=db, service=service, package_id=package_id, data=data,
+            )
+            return success(data=result)
 
         @router.get("/{package_id}/skills", summary="获取技能包内的技能列表")
         @action_read("action.ai_skill_package.detail")

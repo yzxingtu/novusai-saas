@@ -5,6 +5,7 @@
 """
 
 import time
+from typing import Any
 
 from app.ai.types import ChatMessage
 from app.core.i18n import _
@@ -31,7 +32,12 @@ class TaskEngine(BaseEngine):
     4. 返回结果，不维护对话上下文
     """
 
-    async def execute(self, agent: Agent, request: ExecutionRequest) -> ExecutionResult:
+    async def execute(
+        self,
+        agent: Agent,
+        request: ExecutionRequest,
+        skill_result: Any | None = None,
+    ) -> ExecutionResult:
         """执行任务模式"""
         start = time.perf_counter()
 
@@ -52,8 +58,13 @@ class TaskEngine(BaseEngine):
             else:
                 messages.append(self._user_message(_(_DEFAULT_TASK_USER_MSG_KEY)))
 
-            # 2. 解析工具（按租户隔离）
-            tools = await self._resolve_tools(agent, tenant_id=request.tenant_id)
+            # 2. 解析工具（使用预解析结果或回退到 resolve_for_agent）
+            if skill_result is None:
+                from app.ai.skills.resolver import resolve_for_agent
+                skill_result = await resolve_for_agent(
+                    self.db, agent, tenant_id=request.tenant_id,
+                )
+            tools = skill_result.tools if skill_result else []
 
             # 3. 调用 LLM
             response = await self._call_llm(

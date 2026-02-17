@@ -136,7 +136,7 @@ class AgentVersion(TenantModel):
         default=None,
         comment=_("agent.version.field.context_config"),
     )
-    output_schema: Mapped[dict | None] = mapped_column(
+    output_schema: Mapped[list | None] = mapped_column(
         JSON,
         nullable=True,
         default=None,

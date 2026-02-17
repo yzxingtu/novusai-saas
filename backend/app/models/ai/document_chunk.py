@@ -97,10 +97,10 @@ class DocumentChunk(TenantModel):
 
     # ==================== 向量 ====================
 
-    # pgvector 向量字段，维度从知识库配置获取
-    # 使用通用维度 1536，实际维度由知识库 embedding_dimensions 决定
+    # pgvector 向量字段，不固定维度以支持不同 embedding 模型
+    # 实际维度由知识库 embedding_dimensions 决定
     embedding = mapped_column(
-        Vector(1536),
+        Vector(),
         nullable=True,
         comment=_("knowledge_base.chunk_model.embedding"),
     )

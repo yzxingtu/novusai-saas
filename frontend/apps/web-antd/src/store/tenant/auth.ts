@@ -126,7 +126,7 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
     accessStore.setAccessCodes([]);
     accessStore.setIsAccessChecked(false);
 
-    userStore.setUserInfo(null as unknown as UserInfo);
+    userStore.setUserInfo(null);
     tenantAdminInfo.value = null;
 
     await router.replace({

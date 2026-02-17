@@ -350,7 +350,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
    * @param record 要编辑的记录
    * @param extraData 额外传递给 Drawer 的数据
    */
-  function openEdit(record: T, extraData?: Record<string, any>) {
+  function openEdit(record: Partial<T>, extraData?: Record<string, any>) {
     const p = unref(apiPath) as (() => string) | string | undefined;
     const path = typeof p === 'function' ? p() : p;
     drawerApi

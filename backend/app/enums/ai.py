@@ -60,6 +60,17 @@ class UserTypeEnum(LabeledStrEnum):
     TENANT_ADMIN = ("tenant_admin", "enum.ai_user.type.tenant_admin")
 
 
+class ToolParameterTypeEnum(LabeledStrEnum):
+    """工具参数类型枚举"""
+
+    STRING = ("string", "enum.tool_parameter_type.string")
+    INTEGER = ("integer", "enum.tool_parameter_type.integer")
+    NUMBER = ("number", "enum.tool_parameter_type.number")
+    BOOLEAN = ("boolean", "enum.tool_parameter_type.boolean")
+    ARRAY = ("array", "enum.tool_parameter_type.array")
+    OBJECT = ("object", "enum.tool_parameter_type.object")
+
+
 __all__ = [
     "ProviderTypeEnum",
     "ModelTypeEnum",
@@ -68,4 +79,5 @@ __all__ = [
     "QuotaTypeEnum",
     "QuotaPeriodEnum",
     "UserTypeEnum",
+    "ToolParameterTypeEnum",
 ]

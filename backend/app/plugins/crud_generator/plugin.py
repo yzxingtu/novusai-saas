@@ -12,6 +12,7 @@ import inspect
 import re
 from typing import Any, TYPE_CHECKING
 
+from app.core.i18n import _
 from app.plugins.extensions.api_plugin import ApiPlugin
 from app.plugins.extensions.skill_plugin import SkillPlugin
 
@@ -30,7 +31,7 @@ class CrudGeneratorPlugin(ApiPlugin, SkillPlugin):
 
     @property
     def display_name(self) -> str:
-        return "CRUD 代码生成器"
+        return _("plugin.crud_generator.display_name")
 
     @property
     def version(self) -> str:
@@ -38,7 +39,7 @@ class CrudGeneratorPlugin(ApiPlugin, SkillPlugin):
 
     @property
     def description(self) -> str:
-        return "可视化 CRUD 代码生成器，支持 CLI、AI 助手和 Alembic 迁移。"
+        return _("plugin.crud_generator.description")
 
     @property
     def icon(self) -> str:

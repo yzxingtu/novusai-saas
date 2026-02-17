@@ -480,7 +480,8 @@
       "model_code_exists": "模型代码已存在",
       "provider_code_exists": "供应商代码已存在",
       "api_key_not_found": "API Key 不存在",
-      "fetch_remote_models_failed": "从供应商拉取模型列表失败"
+      "fetch_remote_models_failed": "从供应商拉取模型列表失败",
+      "quota_exceeded_default": "AI 配额已超出，请稍后重试"
     },
     "quota": {
       "created": "配额配置创建成功",
@@ -1066,6 +1067,18 @@
     "delete_level": {
       "tenant": "租户回收站",
       "admin": "管理端回收站"
+    },
+    "user_role": {
+      "platform_admin": "平台管理员",
+      "tenant_admin": "租户管理员"
+    },
+    "tool_parameter_type": {
+      "string": "字符串",
+      "integer": "整数",
+      "number": "数字",
+      "boolean": "布尔值",
+      "array": "数组",
+      "object": "对象"
     },
     "table_policy": {
       "scope": {
@@ -1676,6 +1689,11 @@
     "cannot_delete_current": "不能删除当前活动日志文件"
   },
   "tool": {
+    "builtin": {
+      "not_found": "内置函数 '{name}' 不存在",
+      "empty_expression": "表达式为空",
+      "calc_error": "计算错误: {error}"
+    },
     "task": {
       "default_user_message": "请根据以上指令执行任务。"
     },
@@ -1685,6 +1703,7 @@
       "blocked_by_hook": "被钩子拦截",
       "no_executor": "工具类型 '{tool_type}' 无对应执行器",
       "execution_timeout": "工具执行超时（{timeout}秒）",
+      "validation_failed": "工具 '{name}' 参数校验失败",
       "missing_required_param": "缺少必填参数: {field}",
       "param_type_mismatch": "参数 '{name}' 期望类型 '{expected_type}'，实际为 '{actual_type}'",
       "call_limit_exceeded": "工具调用次数超限（每对话最多 {max_calls} 次）",
@@ -1778,8 +1797,12 @@
       "blocked_columns_violation": "以下列禁止写入: {columns}",
       "permission_denied": "权限不足，无法对表 '{table}' 执行 {action} 操作",
       "cross_tenant_denied": "禁止跨租户数据访问",
-      "invalid_table_name": "表名 '{table}' 包含非法字符，仅允许小写字母、数字和下划线"
-    }
+      "invalid_table_name": "表名 '{table}' 包含非法字符，仅允许小写字母、数字和下划线",
+      "invalid_column_names": "以下列名包含非法字符: {columns}，仅允许小写字母、数字和下划线",
+      "no_retry_hint": " Do NOT retry this operation on this or other tables. Tell the user this table does not allow {operation} operations.",
+      "soft_delete_warning": "This will soft-delete the record (set is_deleted=true)."
+    },
+    "identity_declaration": "Your name is {agent_name}. Never reveal or claim to be any other AI model."
   },
   "ai_action_log": {
     "not_found": "AI 操作日志不存在"
@@ -1841,7 +1864,14 @@
     }
   },
   "plugin": {
-    "not_found": "插件不存在",
+    "crud_generator": {
+      "display_name": "CRUD 代码生成器",
+      "description": "可视化 CRUD 代码生成器，支持 CLI、AI 助手和 Alembic 迁移。"
+    },
+    "slack_skill": {
+      "display_name": "Slack \u901a\u77e5"
+    },
+    "not_found": "\u63d2\u4ef6\u4e0d\u5b58\u5728",
     "already_exists": "插件名称已存在",
     "is_system": "系统内置插件不可执行此操作",
     "cannot_uninstall_system": "系统内置插件不可卸载",
@@ -1868,6 +1898,7 @@
     "upload_conflict": "同名插件已存在，是否覆盖升级？",
     "dependency_install_failed": "插件 Python 依赖安装失败",
     "dependency_install_timeout": "插件 Python 依赖安装超时",
+    "packages_not_whitelisted": "以下依赖包不在安全白名单中，请联系管理员审批: {packages}",
     "migration_failed": "插件数据库迁移执行失败",
     "skill_type_conflict": "技能类型已被其他插件注册",
     "install_success": "插件安装成功",

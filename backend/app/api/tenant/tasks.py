@@ -4,7 +4,7 @@
 提供租户端任务日志查询接口（只读，自动按 tenant_id 过滤）
 """
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import Query, Request
 
@@ -24,6 +24,7 @@ from app.schemas.system import (
     TaskLogDetailResponse,
 )
 from app.services.tenant.task_log_service import TenantTaskLogService
+from app.core.base_model import utc_now
 
 
 @permission_resource(
@@ -76,7 +77,7 @@ class TenantTaskLogController(TenantController):
             days: int = Query(7, ge=1, le=30, description="统计天数"),
         ):
             service = TenantTaskLogService(db, current_admin.tenant_id)
-            end_date = datetime.utcnow()
+            end_date = utc_now()
             start_date = end_date - timedelta(days=days)
             stats = await service.get_dashboard_stats(start_date, end_date)
             return success(data=stats, message=_("common.success"))

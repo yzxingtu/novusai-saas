@@ -4,13 +4,14 @@
 系统内置的周期性维护任务
 """
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from app.core.database import sync_session_factory
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.redis import RedisManager
 from app.tasks.base import register_task, BaseTask
+from app.core.base_model import utc_now
 
 logger = LogManager.get_logger("task")
 
@@ -63,7 +64,7 @@ def system_health_check(self: BaseTask) -> dict:
     import asyncio
 
     results: dict = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": utc_now().isoformat(),
         "db": "unknown",
         "redis": "unknown",
     }
@@ -172,7 +173,7 @@ def clean_expired_task_logs(self: BaseTask) -> dict:
         from app.models.system.task_log import TaskLog
 
         session = sync_session_factory()
-        cutoff = datetime.utcnow() - timedelta(days=30)
+        cutoff = utc_now() - timedelta(days=30)
         result = (
             session.query(TaskLog)
             .filter(TaskLog.created_at < cutoff)

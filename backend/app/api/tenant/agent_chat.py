@@ -11,6 +11,7 @@ from app.core.base_controller import TenantController
 from app.core.deps import DbSession, ActiveTenantAdmin, QueryParams
 from app.core.i18n import _
 from app.core.response import success, deleted, paginated
+from app.enums.common import UserRoleEnum
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
@@ -105,7 +106,7 @@ class TenantAgentChatController(TenantController):
                 variables=data.variables,
                 user_id=tenant_admin.id,
                 knowledge_base_ids=data.knowledge_base_ids,
-                user_role="tenant_admin",
+                user_role=UserRoleEnum.TENANT_ADMIN.value,
                 permissions=user_perms,
                 consented_actions=data.consented_actions,
                 attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
@@ -146,7 +147,7 @@ class TenantAgentChatController(TenantController):
                 variables=data.variables,
                 user_id=tenant_admin.id,
                 knowledge_base_ids=data.knowledge_base_ids,
-                user_role="tenant_admin",
+                user_role=UserRoleEnum.TENANT_ADMIN.value,
                 permissions=user_perms,
                 consented_actions=data.consented_actions,
                 attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,

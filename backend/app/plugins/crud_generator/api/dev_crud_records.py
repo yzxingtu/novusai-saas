@@ -245,6 +245,8 @@ async def delete_generated_files(
         from app.plugins.crud_generator.codegen.generator import CrudGenerator
         from app.plugins.crud_generator.codegen.schemas import CrudConfig
 
+        engine = BackupEngine(_PROJECT_ROOT)
+
         config_data = req.config
         if not config_data:
             service = CrudGenerationRecordService(db)

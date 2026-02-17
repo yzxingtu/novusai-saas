@@ -37,5 +37,41 @@
   },
   "detail": "Knowledge Base Detail",
   "forceDelete": "Force Delete",
-  "forceDeleteConfirm": "Force delete this knowledge base? This action cannot be undone."
+  "forceDeleteConfirm": "Force delete this knowledge base? This action cannot be undone.",
+  "document": {
+    "title": "Documents",
+    "upload": "Upload Document",
+    "uploadHint": "Supports PDF, DOCX, TXT, MD, CSV formats",
+    "delete": "Delete Document",
+    "retry": "Retry",
+    "field": {
+      "fileName": "File Name",
+      "fileType": "Type",
+      "fileSize": "Size",
+      "chunkCount": "Chunks",
+      "status": "Status",
+      "createdAt": "Created At"
+    },
+    "status": {
+      "pending": "Pending",
+      "parsing": "Parsing",
+      "chunking": "Chunking",
+      "embedding": "Embedding",
+      "completed": "Completed",
+      "error": "Failed"
+    }
+  },
+  "searchTest": {
+    "title": "Search Test",
+    "placeholder": "Enter query text for retrieval test...",
+    "search": "Search",
+    "noResults": "No results found",
+    "score": "Score",
+    "source": "Source"
+  },
+  "reindex": {
+    "title": "Re-vectorize",
+    "confirm": "This will delete existing chunks and re-process all documents. Continue?",
+    "started": "Re-vectorization started"
+  }
 }

@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy import select, text
+
+from app.enums.common import UserRoleEnum
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.constants import SCHEMA_CACHE_TTL, schema_cache_key
@@ -175,7 +177,7 @@ class SchemaProvider:
         tenant_id: int,
         question: str | None = None,
         permissions: set[str] | None = None,
-        user_role: str = "tenant_admin",
+        user_role: str = UserRoleEnum.TENANT_ADMIN.value,
     ) -> list[TableSchema]:
         """
         获取租户可查询的表结构
@@ -213,7 +215,7 @@ class SchemaProvider:
         self,
         db: AsyncSession,
         permissions: set[str] | None = None,
-        user_role: str = "tenant_admin",
+        user_role: str = UserRoleEnum.TENANT_ADMIN.value,
         tenant_id: int = 0,
     ) -> set[str]:
         """获取当前用户允许查询的表名集合（RBAC 过滤后）"""
@@ -410,7 +412,7 @@ class SchemaProvider:
         user_role: str,
     ) -> set[str]:
         """根据 RBAC 权限过滤策略，返回允许的表名集合"""
-        is_platform = user_role == "platform_admin"
+        is_platform = user_role == UserRoleEnum.PLATFORM_ADMIN.value
 
         # 平台管理员可访问所有活跃表（CRUD 开关已在上游检查）
         if is_platform:
@@ -444,7 +446,7 @@ class SchemaProvider:
         - permission_code='*' 表示任何登录用户可访问
         - permission_code='platform_only' 仅平台管理员
         """
-        is_platform = user_role == "platform_admin"
+        is_platform = user_role == UserRoleEnum.PLATFORM_ADMIN.value
 
         # 平台管理员可访问所有活跃表（allow_read 已在 _load_schema_from_policies 检查）
         if is_platform:

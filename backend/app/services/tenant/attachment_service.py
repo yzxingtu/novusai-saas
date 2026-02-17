@@ -10,7 +10,6 @@ import hashlib
 import json
 import tempfile
 import uuid
-from datetime import datetime
 from pathlib import Path
 from typing import Any, BinaryIO, Callable
 
@@ -31,6 +30,7 @@ from app.repositories.tenant.attachment_repository import AttachmentRepository
 from app.services.common.file_validator import FileValidator, validate_result_or_raise
 from app.services.tenant.quota_service import QuotaService
 from app.storage import StorageConfig, StorageVisibility, storage_manager
+from app.core.base_model import utc_now
 
 ProgressCallback = Callable[[dict[str, Any]], Any]
 
@@ -163,7 +163,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
             "business_id": business_id,
             "metadata": metadata or {},
             "uploaded_chunks": [],
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": utc_now().isoformat(),
         }
         await self._save_session(session)
         return self._build_session_response(session, uploaded_bytes=0)
@@ -512,7 +512,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         构建存储路径
         """
         suffix = Path(filename).suffix if filename else ""
-        date_path = datetime.utcnow().strftime("%Y/%m/%d")
+        date_path = utc_now().strftime("%Y/%m/%d")
         return f"{self.tenant_id}/{date_path}/{uuid.uuid4().hex}{suffix}"
 
     def _get_upload_root(self) -> Path:

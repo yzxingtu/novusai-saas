@@ -1,7 +1,10 @@
 <script lang="ts" setup>
-defineOptions({ name: 'AdminConversationDetail' });
 /**
- * 平台端对话详情抽屉 — 展示对话基本信息 + 消息列表
+ * 对话详情抽屉（共享组件）
+ *
+ * 展示对话基本信息 + 消息时间线。
+ * 通过 props 注入 API 函数和 i18n 前缀，适配 admin/tenant 两端。
+ * 通过 #extra-descriptions slot 允许各端添加自定义描述字段。
  */
 import { computed, ref, watch } from 'vue';
 
@@ -9,13 +12,10 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Descriptions, Drawer, Empty, Spin, Tag, Timeline } from 'ant-design-vue';
 
-import { getAIConversationDetailApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
-import { formatCost, formatTokens, getStatusText } from '../data';
-
-interface ConversationMessage {
+export interface ConversationMessageItem {
   id: number;
   role: string;
   content: string | null;
@@ -25,31 +25,40 @@ interface ConversationMessage {
   created_at: string;
 }
 
-interface ConversationDetail {
+export interface ConversationDetailData {
   id: number;
-  tenant_id: number;
-  agent_id: number;
-  user_id: number | null;
   title: string | null;
   status: string;
   token_count: number;
   cost: number;
   agent_name: string | null;
   message_count: number;
-  message_list: ConversationMessage[];
+  message_list: ConversationMessageItem[];
   created_at: string;
   updated_at: string;
+  [key: string]: unknown;
 }
 
 const props = defineProps<{
   conversationId: null | number;
   open: boolean;
+  /** i18n 前缀，如 'admin.ai.conversation' 或 'tenant.ai.conversation' */
+  i18nPrefix: string;
+  /** 获取对话详情的 API 函数 */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getDetailApi: (...args: any[]) => Promise<any>;
+  /** 格式化 token 数量的函数 */
+  formatTokens: (count: number | null | undefined) => string;
+  /** 格式化费用的函数 */
+  formatCost: (cost: number | null | undefined) => string;
+  /** 获取状态文本的函数 */
+  getStatusText: (status: string) => string;
 }>();
 
 const emits = defineEmits<{ 'update:open': [value: boolean] }>();
 
 const loading = ref(false);
-const detail = ref<ConversationDetail | null>(null);
+const detail = ref<ConversationDetailData | null>(null);
 
 watch(
   () => props.conversationId,
@@ -57,7 +66,7 @@ watch(
     if (id) {
       loading.value = true;
       try {
-        detail.value = (await getAIConversationDetailApi(id)) as unknown as ConversationDetail;
+        detail.value = await props.getDetailApi(id) as ConversationDetailData;
       } catch {
         detail.value = null;
       } finally {
@@ -71,7 +80,7 @@ function onClose() {
   emits('update:open', false);
 }
 
-const messages = computed<ConversationMessage[]>(() => {
+const messages = computed<ConversationMessageItem[]>(() => {
   if (!detail.value?.message_list) return [];
   return [...detail.value.message_list].sort((a, b) => a.sequence - b.sequence);
 });
@@ -95,12 +104,14 @@ function getRoleIcon(role: string): string {
     default: return 'lucide:message-circle';
   }
 }
+
+defineExpose({ detail });
 </script>
 
 <template>
   <Drawer
     :open="open"
-    :title="$t('admin.ai.conversation.viewDetail')"
+    :title="$t(`${i18nPrefix}.viewDetail`)"
     width="700"
     @close="onClose"
   >
@@ -108,13 +119,13 @@ function getRoleIcon(role: string): string {
       <template v-if="detail">
         <!-- 基本信息 -->
         <Descriptions bordered :column="2" size="small">
-          <Descriptions.Item :label="$t('admin.ai.conversation.conversationTitle')" :span="2">
+          <Descriptions.Item :label="$t(`${i18nPrefix}.conversationTitle`)" :span="2">
             {{ detail.title || '-' }}
           </Descriptions.Item>
-          <Descriptions.Item :label="$t('admin.ai.conversation.agentName')" :span="1">
+          <Descriptions.Item :label="$t(`${i18nPrefix}.agentName`)" :span="1">
             {{ detail.agent_name || '-' }}
           </Descriptions.Item>
-          <Descriptions.Item :label="$t('admin.ai.conversation.status')" :span="1">
+          <Descriptions.Item :label="$t(`${i18nPrefix}.status`)" :span="1">
             <Tag
               :color="
                 detail.status === 'active'
@@ -127,19 +138,17 @@ function getRoleIcon(role: string): string {
               {{ getStatusText(detail.status) }}
             </Tag>
           </Descriptions.Item>
-          <Descriptions.Item :label="$t('admin.ai.conversation.tenantId')" :span="1">
-            {{ detail.tenant_id }}
-          </Descriptions.Item>
-          <Descriptions.Item :label="$t('admin.ai.conversation.userId')" :span="1">
-            {{ detail.user_id ?? '-' }}
-          </Descriptions.Item>
-          <Descriptions.Item :label="$t('admin.ai.conversation.tokenCount')" :span="1">
+
+          <!-- 允许各端插入自定义描述字段 -->
+          <slot name="extra-descriptions" :detail="detail" />
+
+          <Descriptions.Item :label="$t(`${i18nPrefix}.tokenCount`)" :span="1">
             {{ formatTokens(detail.token_count) }}
           </Descriptions.Item>
-          <Descriptions.Item :label="$t('admin.ai.conversation.cost')" :span="1">
+          <Descriptions.Item :label="$t(`${i18nPrefix}.cost`)" :span="1">
             {{ formatCost(detail.cost) }}
           </Descriptions.Item>
-          <Descriptions.Item :label="$t('admin.ai.conversation.createdAt')" :span="2">
+          <Descriptions.Item :label="$t(`${i18nPrefix}.createdAt`)" :span="2">
             {{ formatDate(detail.created_at) }}
           </Descriptions.Item>
         </Descriptions>
@@ -148,7 +157,7 @@ function getRoleIcon(role: string): string {
         <div class="mt-6">
           <h4 class="mb-3 font-medium text-foreground">
             <IconifyIcon icon="lucide:messages-square" class="mr-1 inline size-4" />
-            {{ $t('admin.ai.conversation.messageList') }}
+            {{ $t(`${i18nPrefix}.messageList`) }}
           </h4>
 
           <Empty v-if="messages.length === 0" />

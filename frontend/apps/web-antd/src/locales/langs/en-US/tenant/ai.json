@@ -259,6 +259,11 @@
       }
     },
     "knowledgeBase": {
+      "messages": {
+        "createSuccess": "Knowledge base created",
+        "updateSuccess": "Knowledge base updated",
+        "deleteSuccess": "Knowledge base deleted"
+      },
       "title": "Knowledge Base (RAG)",
       "selectLabel": "Knowledge Bases",
       "selectPlaceholder": "Select knowledge bases",
@@ -385,6 +390,7 @@
   },
   "conversation": {
     "title": "Title",
+    "conversationTitle": "Conversation Title",
     "pageDesc": "Manage agent conversation records. View details, archive, and perform batch operations.",
     "pageTitle": "Conversations",
     "agentName": "Agent",

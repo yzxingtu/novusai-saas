@@ -2,18 +2,13 @@
 技能包 Service
 """
 
-from datetime import datetime
 from typing import Any
-
-from sqlalchemy import select, update
 
 from app.core.base_service import TenantService, GlobalService
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.common import ResourceScopeEnum
 from app.exceptions import BusinessException, NotFoundException
-from app.models.ai.agent_skill_binding import AgentSkillBinding
-from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage
 from app.repositories.ai.skill_package_repository import (
     SkillPackageRepository,
@@ -86,24 +81,10 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
             raise BusinessException(message=_("skill_package.error.system_protected"))
 
         # 级联软删除技能包下的技能
-        level = self._default_delete_level
-        now = datetime.utcnow()
-        await self.repo.db.execute(
-            update(Skill)
-            .where(
-                Skill.package_id == id,
-                Skill.is_deleted.is_(False),
-            )
-            .values(is_deleted=True, deleted_at=now, delete_level=level, updated_at=now)
-        )
+        await self.repo.cascade_soft_delete_skills(id, self._default_delete_level)
 
         # 级联物理删除关联的 AgentSkillBinding（绑定关系无需回收站）
-        from sqlalchemy import delete as sa_delete
-        await self.repo.db.execute(
-            sa_delete(AgentSkillBinding).where(
-                AgentSkillBinding.package_id == id,
-            )
-        )
+        await self.repo.delete_skill_bindings(id)
         logger.info("Cascade deleted AgentSkillBindings for package %d", id)
 
     async def escalate_delete(self, id: int) -> SkillPackage | None:
@@ -112,28 +93,12 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         if instance is None:
             return None
 
-        now = datetime.utcnow()
-        await self.repo.db.execute(
-            update(Skill)
-            .where(
-                Skill.package_id == id,
-                Skill.is_deleted.is_(True),
-            )
-            .values(delete_level="admin", deleted_at=now, updated_at=now)
-        )
+        await self.repo.cascade_escalate_skills(id)
         return instance
 
     async def _after_restore(self, instance: SkillPackage) -> None:
         """恢复后：级联恢复技能包下的技能"""
-        now = datetime.utcnow()
-        await self.repo.db.execute(
-            update(Skill)
-            .where(
-                Skill.package_id == instance.id,
-                Skill.is_deleted.is_(True),
-            )
-            .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
-        )
+        await self.repo.cascade_restore_skills(instance.id)
 
     async def _before_permanent_delete(self, id: int) -> None:
         """永久删除前：清理磁盘存储文件 + 残留绑定"""
@@ -142,12 +107,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         cleanup_skill_storage(id)
 
         # 清理可能残留的绑定记录
-        from sqlalchemy import delete as sa_delete
-        await self.repo.db.execute(
-            sa_delete(AgentSkillBinding).where(
-                AgentSkillBinding.package_id == id,
-            )
-        )
+        await self.repo.delete_skill_bindings(id)
 
     async def get_with_skill_count(self, package_id: int) -> dict | None:
         """获取技能包详情及其技能数量"""
@@ -228,24 +188,10 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         if pkg.is_system:
             raise BusinessException(message=_("skill_package.error.system_protected"))
 
-        level = self._default_delete_level
-        now = datetime.utcnow()
-        await self.repo.db.execute(
-            update(Skill)
-            .where(
-                Skill.package_id == id,
-                Skill.is_deleted.is_(False),
-            )
-            .values(is_deleted=True, deleted_at=now, delete_level=level, updated_at=now)
-        )
+        await self.repo.cascade_soft_delete_skills(id, self._default_delete_level)
 
         # 级联物理删除关联的 AgentSkillBinding
-        from sqlalchemy import delete as sa_delete
-        await self.repo.db.execute(
-            sa_delete(AgentSkillBinding).where(
-                AgentSkillBinding.package_id == id,
-            )
-        )
+        await self.repo.delete_skill_bindings(id)
         logger.info("Cascade deleted AgentSkillBindings for package %d", id)
 
     async def escalate_delete(self, id: int) -> SkillPackage | None:
@@ -254,28 +200,12 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         if instance is None:
             return None
 
-        now = datetime.utcnow()
-        await self.repo.db.execute(
-            update(Skill)
-            .where(
-                Skill.package_id == id,
-                Skill.is_deleted.is_(True),
-            )
-            .values(delete_level="admin", deleted_at=now, updated_at=now)
-        )
+        await self.repo.cascade_escalate_skills(id)
         return instance
 
     async def _after_restore(self, instance: SkillPackage) -> None:
         """恢复后：级联恢复技能包下的技能"""
-        now = datetime.utcnow()
-        await self.repo.db.execute(
-            update(Skill)
-            .where(
-                Skill.package_id == instance.id,
-                Skill.is_deleted.is_(True),
-            )
-            .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
-        )
+        await self.repo.cascade_restore_skills(instance.id)
 
     async def _before_permanent_delete(self, id: int) -> None:
         """永久删除前：清理磁盘存储文件 + 残留绑定"""
@@ -283,12 +213,7 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         from app.ai.skills.packaging import cleanup_skill_storage
         cleanup_skill_storage(id)
 
-        from sqlalchemy import delete as sa_delete
-        await self.repo.db.execute(
-            sa_delete(AgentSkillBinding).where(
-                AgentSkillBinding.package_id == id,
-            )
-        )
+        await self.repo.delete_skill_bindings(id)
 
     async def get_with_skill_count(self, package_id: int) -> dict | None:
         """获取技能包详情及其技能数量"""

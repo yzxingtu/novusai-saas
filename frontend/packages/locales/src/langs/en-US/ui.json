@@ -19,6 +19,7 @@
   },
   "actionMessage": {
     "deleteConfirm": "Are you sure to delete {0}?",
+    "deleteConfirmContent": "The data will be moved to the recycle bin and can be restored from there.",
     "deleting": "Deleting {0} ...",
     "deleteSuccess": "{0} deleted successfully",
     "createSuccess": "Created successfully",

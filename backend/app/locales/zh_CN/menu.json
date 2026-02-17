@@ -103,7 +103,9 @@
       "agent_conversation": "对话管理",
       "skill_package": "技能包管理",
       "skill": "技能管理",
-      "plugin": "插件管理"
+      "plugin": "插件管理",
+      "agent_assignment": "功能分配",
+      "knowledge_base": "知识库"
     }
   }
 }

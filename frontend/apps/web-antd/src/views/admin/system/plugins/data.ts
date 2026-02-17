@@ -2,6 +2,16 @@
  * 平台插件管理 - 辅助函数
  */
 import { $t } from '#/locales';
+import {
+  getPluginTypeColor,
+  getPluginTypeText as _getPluginTypeText,
+  getStatusColor,
+  getStatusText as _getStatusText,
+} from '#/utils/plugin-helpers';
+
+export { getPluginTypeColor, getStatusColor };
+
+const I18N_PREFIX = 'admin.plugin';
 
 /**
  * 插件类型选项
@@ -33,46 +43,12 @@ export function getStatusOptions() {
  * 获取插件类型文本
  */
 export function getPluginTypeText(type: string | undefined): string {
-  if (!type) return '-';
-  const key = `admin.plugin.type_options.${type}`;
-  const text = $t(key);
-  return text === key ? type : text;
-}
-
-/**
- * 获取插件类型颜色
- */
-export function getPluginTypeColor(type: string | undefined): string {
-  switch (type) {
-    case 'adapter': return 'blue';
-    case 'tool': return 'green';
-    case 'hook': return 'orange';
-    case 'api': return 'purple';
-    case 'skill': return 'magenta';
-    case 'composite': return 'cyan';
-    default: return 'default';
-  }
-}
-
-/**
- * 获取插件状态颜色
- */
-export function getStatusColor(status: string | undefined): string {
-  switch (status) {
-    case 'enabled': return 'success';
-    case 'installed':
-    case 'disabled': return 'default';
-    case 'error': return 'error';
-    default: return 'default';
-  }
+  return _getPluginTypeText(type, I18N_PREFIX);
 }
 
 /**
  * 获取插件状态文本
  */
 export function getStatusText(status: string | undefined): string {
-  if (!status) return '-';
-  const key = `admin.plugin.status_options.${status}`;
-  const text = $t(key);
-  return text === key ? status : text;
+  return _getStatusText(status, I18N_PREFIX);
 }

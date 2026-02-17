@@ -4,7 +4,7 @@
 提供异步任务的查询、重试、取消等管理接口（平台管理员专用）
 """
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import Path, Query, Request
 
@@ -27,6 +27,7 @@ from app.schemas.system import (
     ActiveTaskResponse,
 )
 from app.services.system import TaskLogService, TaskManagerService
+from app.core.base_model import utc_now
 
 
 @permission_resource(
@@ -81,7 +82,7 @@ class AdminTaskController(GlobalController):
             days: int = Query(7, ge=1, le=30, description="统计天数"),
         ):
             service = self.get_service(db)
-            end_date = datetime.utcnow()
+            end_date = utc_now()
             start_date = end_date - timedelta(days=days)
             stats = await service.get_dashboard_stats(start_date, end_date)
             result = [

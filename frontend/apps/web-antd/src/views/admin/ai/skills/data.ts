@@ -29,18 +29,7 @@ export function getSkillTypeText(type: string | undefined): string {
   return text === key ? type : text;
 }
 
-/**
- * 获取技能类型颜色
- */
-export function getSkillTypeColor(type: string | undefined): string {
-  switch (type) {
-    case 'toolkit': return 'volcano';
-    case 'knowledge_base': return 'green';
-    case 'data_intelligence': return 'blue';
-    case 'builtin': return 'default';
-    default: return 'default';
-  }
-}
+export { getSkillTypeColor } from '#/utils/ai-helpers';
 
 /**
  * 表格列定义

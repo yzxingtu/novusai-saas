@@ -54,7 +54,7 @@ async function loadPolicies() {
   loading.value = true;
   try {
     const res = await getTenantTablePoliciesApi();
-    policies.value = (res as unknown as { data: EffectiveTablePolicy[] }).data || [];
+    policies.value = res || [];
   } catch {
     message.error($t('common.requestFailed'));
   } finally {

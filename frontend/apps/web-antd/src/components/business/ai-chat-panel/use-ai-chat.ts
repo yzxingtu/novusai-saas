@@ -17,9 +17,16 @@ import type {
 
 import { nextTick, ref, computed, unref } from 'vue';
 
+import {
+  deleteChatConversationApi,
+  getChatAgentsApi,
+  getChatConversationMessagesApi,
+  getChatConversationsApi,
+  sendChatStreamApi,
+  uploadChatFileApi,
+} from '#/api/shared/ai-chat';
 import { $t } from '#/locales';
 import { addConsent, getConsentedActions } from '#/utils/ai-consent';
-import { requestClient } from '#/utils/request';
 
 export interface UseAIChatOptions {
   /** API prefix: '/admin' or '/tenant' */
@@ -51,13 +58,7 @@ export function useAIChat(options: UseAIChatOptions) {
     agentsLoading.value = true;
     try {
       const prefix = unref(options.apiPrefix) as string;
-      const url = `${prefix}/ai/agents`;
-      const res = await requestClient.get<{
-        items: AgentItem[];
-        total: number;
-      }>(url, {
-        params: { 'filter[status][eq]': 'published', 'page[size]': 100 },
-      });
+      const res = await getChatAgentsApi<AgentItem>(prefix);
       agents.value = res.items;
       if (res.items.length > 0 && !selectedAgentId.value) {
         const initId = overrideAgentId ?? unref(options.initialAgentId);
@@ -87,20 +88,12 @@ export function useAIChat(options: UseAIChatOptions) {
   const conversationsLoading = ref(false);
   const activeConversationId = ref<number | null>(null);
 
-  function chatBaseUrl() {
-    return `${unref(options.apiPrefix)}/ai/agent-chat`;
-  }
-
   async function loadConversations() {
     if (!selectedAgentId.value) return;
     conversationsLoading.value = true;
     try {
-      const res = await requestClient.get<{
-        items: ConversationItem[];
-        total: number;
-      }>(`${chatBaseUrl()}/${selectedAgentId.value}/conversations`, {
-        params: { 'page[size]': 50, sort: '-created_at' },
-      });
+      const prefix = unref(options.apiPrefix) as string;
+      const res = await getChatConversationsApi<ConversationItem>(prefix, selectedAgentId.value);
       conversations.value = res.items;
     } catch {
       // handled by interceptor
@@ -116,9 +109,8 @@ export function useAIChat(options: UseAIChatOptions) {
 
   async function deleteConversation(convId: number) {
     try {
-      await requestClient.delete(
-        `${chatBaseUrl()}/${selectedAgentId.value}/conversations/${convId}`,
-      );
+      const prefix = unref(options.apiPrefix) as string;
+      await deleteChatConversationApi(prefix, selectedAgentId.value!, convId);
       if (activeConversationId.value === convId) {
         activeConversationId.value = null;
         chatMessages.value = [];
@@ -132,19 +124,8 @@ export function useAIChat(options: UseAIChatOptions) {
   async function loadConversationMessages(convId: number) {
     activeConversationId.value = convId;
     try {
-      const res = await requestClient.get<{
-        message_list: Array<{
-          role: string;
-          content: string | null;
-          tool_calls?: Array<{
-            id?: string;
-            function?: { name?: string; arguments?: string };
-          }> | null;
-          tool_call_id?: string | null;
-          tool_name?: string | null;
-          metadata?: { attachments?: ChatAttachment[] } | null;
-        }>;
-      }>(`${chatBaseUrl()}/${selectedAgentId.value}/conversations/${convId}`);
+      const prefix = unref(options.apiPrefix) as string;
+      const res = await getChatConversationMessagesApi(prefix, selectedAgentId.value!, convId);
 
       chatMessages.value = mergeMessagesForDisplay(res.message_list ?? []);
       scrollToBottom(true);
@@ -344,10 +325,7 @@ export function useAIChat(options: UseAIChatOptions) {
   async function uploadFile(file: File): Promise<ChatAttachment | null> {
     try {
       uploading.value = true;
-      const data = await requestClient.upload<{
-        url: string;
-        attachment: { id: number; filename: string; mime_type: string };
-      }>(unref(options.uploadUrl) as string, { file, tenant_id: '0' });
+      const data = await uploadChatFileApi(unref(options.uploadUrl) as string, file);
       const isImage = file.type.startsWith('image/');
       return {
         type: isImage ? 'image' : 'file',
@@ -464,8 +442,10 @@ export function useAIChat(options: UseAIChatOptions) {
       : undefined;
 
     try {
-      await requestClient.postSSE(
-        `${chatBaseUrl()}/${selectedAgentId.value}/chat/stream`,
+      const prefix = unref(options.apiPrefix) as string;
+      await sendChatStreamApi(
+        prefix,
+        selectedAgentId.value!,
         {
           message: userMsg || ' ',
           conversation_id: activeConversationId.value,

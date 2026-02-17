@@ -10,15 +10,19 @@ import os
 import time
 from app.core.redis import get_redis
 from app.core.logging import LogManager
+from app.exceptions.base import BusinessException
 from app.core.i18n import _
 
 
 logger = LogManager.get_logger("ai.rate_limiter")
 
 
-class RateLimitExceeded(Exception):
+class RateLimitExceeded(BusinessException):
     """速率限制超出异常"""
-    pass
+
+    code = 4292
+    status_code = 429
+    default_message = "ai.rate_limited"
 
 
 class RateLimiter:

@@ -4,12 +4,12 @@
 记录每个插件已执行的数据库迁移，支持按序执行和回滚。
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import Index, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.base_model import BaseModel
+from app.core.base_model import BaseModel, utc_now
 
 
 class PluginMigration(BaseModel):
@@ -48,6 +48,6 @@ class PluginMigration(BaseModel):
         comment="迁移描述（从文件名或注释中提取）",
     )
     applied_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: utc_now(),
         comment="迁移执行时间",
     )

@@ -143,7 +143,7 @@ class SSEStreamingResponse:
 
         except Exception as e:
             # 流式响应发生错误 — 不记录使用量（token 计数可能不完整）
-            logger.error(_("ai.log.sse_stream_error"), error=str(e))
+            logger.error("SSE stream error: %s", str(e))
             error_chunk = {
                 "error": True,
                 "message": str(e),
@@ -161,7 +161,7 @@ class SSEStreamingResponse:
                         self.total_tokens,
                     )
                 except Exception as e:
-                    logger.error(_("ai.log.sse_callback_error"), error=str(e))
+                    logger.error("SSE callback error: %s", str(e))
     
     def response(self) -> StreamingResponse:
         """

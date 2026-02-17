@@ -22,13 +22,7 @@ class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITableP
     async def get_global_policies(self) -> list[AITablePolicy]:
         """获取所有活跃的全局策略"""
         repo = AITablePolicyRepository(self.db)
-        from sqlalchemy import select
-        stmt = select(AITablePolicy).where(
-            AITablePolicy.is_active == True,  # noqa: E712
-            AITablePolicy.is_deleted == False,  # noqa: E712
-        ).order_by(AITablePolicy.sort_order)
-        result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return await repo.get_all_active()
 
     async def get_effective_policies(self) -> list[dict[str, Any]]:
         """获取当前租户的有效策略列表（全局 + 覆盖合并）"""

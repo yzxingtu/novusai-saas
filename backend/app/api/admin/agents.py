@@ -36,44 +36,12 @@ logger = LogManager.get_logger("ai")
 
 def _build_admin_agent_item(agent) -> dict:
     """从 ORM 对象构建管理端列表项字典，提取 model_name + skill_packages"""
-    model_name = None
-    try:
-        model_obj = getattr(agent, "model", None)
-        if model_obj is not None:
-            model_name = model_obj.name
-    except (AttributeError, Exception):
-        pass
+    from app.api.shared._agent_helpers import build_agent_base_item
 
-    skill_packages: list[dict] = []
-    try:
-        bindings = getattr(agent, "skill_bindings", None)
-        if bindings is not None:
-            for b in bindings:
-                pkg = getattr(b, "package", None)
-                if pkg is not None:
-                    skill_packages.append({"id": pkg.id, "name": pkg.name})
-    except (AttributeError, Exception):
-        pass
-
-    return {
-        "id": agent.id,
-        "tenant_id": agent.tenant_id,
-        "name": agent.name,
-        "description": agent.description,
-        "avatar": agent.avatar,
-        "scope": agent.scope,
-        "status": agent.status,
-        "execution_mode": agent.execution_mode,
-        "is_system": agent.is_system,
-        "model_id": agent.model_id,
-        "model_name": model_name,
-        "skill_packages": skill_packages,
-        "published_version": agent.published_version,
-        "welcome_message": agent.welcome_message,
-        "suggested_questions": agent.suggested_questions,
-        "created_at": agent.created_at,
-        "updated_at": agent.updated_at,
-    }
+    item = build_agent_base_item(agent)
+    item["scope"] = agent.scope
+    item["model_id"] = agent.model_id
+    return item
 
 
 @permission_resource(
@@ -262,6 +230,7 @@ class AdminAgentController(GlobalController):
             service = AdminAgentService(db)
             updated = await service.update_status(agent_id, status)
             await db.commit()
+            await db.refresh(updated)
 
             return success(
                 data=_build_admin_agent_item(updated),
@@ -365,16 +334,15 @@ class AdminAgentController(GlobalController):
             agent = await _get_agent_for_binding(db, agent_id)
             binding_service = AgentSkillBindingService(db, agent.tenant_id)
 
-            binding = await binding_service.get_by_id(binding_id)
-            if not binding or binding.agent_id != agent_id:
-                raise NotFoundException(
-                    message=_("agent_skill_binding.error.binding_not_found")
-                )
-
+            # update_binding internally checks existence
             updated = await binding_service.update_binding(
                 binding_id=binding_id,
                 data=data.model_dump(exclude_unset=True),
             )
+            if updated.agent_id != agent_id:
+                raise NotFoundException(
+                    message=_("agent_skill_binding.error.binding_not_found")
+                )
             await db.commit()
             return success(data=updated.to_dict())
 

@@ -2,13 +2,16 @@
 技能包 Repository
 """
 
-from sqlalchemy import func, or_, select, and_
 
+from sqlalchemy import delete as sa_delete, func, or_, select, and_, update
+
+from app.models.ai.agent_skill_binding import AgentSkillBinding
 from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage
 from app.core.base_repository import TenantRepository, BaseRepository
-from app.enums.common import ResourceScopeEnum
+from app.enums.common import DeleteLevelEnum, ResourceScopeEnum
 from app.schemas.common.query import QuerySpec, FilterRule
+from app.core.base_model import utc_now
 
 
 class SkillPackageRepository(TenantRepository[SkillPackage]):
@@ -60,9 +63,25 @@ class SkillPackageRepository(TenantRepository[SkillPackage]):
             )
         )
 
-        return await self._apply_spec_and_execute(
-            query, spec, allowed_fields, all_fields, forced_filters
-        )
+        if forced_filters:
+            query = self._apply_filters(query, forced_filters, all_fields)
+
+        if spec.filters:
+            query = self._apply_filters(query, spec.filters, allowed_fields)
+
+        count_query = select(func.count()).select_from(query.subquery())
+        count_result = await self.db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        sortable_fields = self.get_sortable_fields()
+        query = self._apply_sort(query, spec.sort, sortable_fields)
+
+        query = query.offset(spec.offset).limit(spec.limit)
+
+        result = await self.db.execute(query)
+        items = list(result.scalars().all())
+
+        return items, total
 
     async def get_by_name(
         self,
@@ -133,6 +152,52 @@ class SkillPackageRepository(TenantRepository[SkillPackage]):
         result = await self.db.execute(stmt)
         return {row.package_id: row.cnt for row in result.all()}
 
+    async def cascade_soft_delete_skills(
+        self, package_id: int, delete_level: str,
+    ) -> None:
+        """级联软删除技能包下的技能"""
+        now = utc_now()
+        await self.db.execute(
+            update(Skill)
+            .where(
+                Skill.package_id == package_id,
+                Skill.is_deleted.is_(False),
+            )
+            .values(is_deleted=True, deleted_at=now, delete_level=delete_level, updated_at=now)
+        )
+
+    async def cascade_escalate_skills(self, package_id: int) -> None:
+        """级联升级技能的删除层级"""
+        now = utc_now()
+        await self.db.execute(
+            update(Skill)
+            .where(
+                Skill.package_id == package_id,
+                Skill.is_deleted.is_(True),
+            )
+            .values(delete_level=DeleteLevelEnum.ADMIN.value, deleted_at=now, updated_at=now)
+        )
+
+    async def cascade_restore_skills(self, package_id: int) -> None:
+        """级联恢复技能"""
+        now = utc_now()
+        await self.db.execute(
+            update(Skill)
+            .where(
+                Skill.package_id == package_id,
+                Skill.is_deleted.is_(True),
+            )
+            .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
+        )
+
+    async def delete_skill_bindings(self, package_id: int) -> None:
+        """物理删除技能包的 AgentSkillBinding 记录"""
+        await self.db.execute(
+            sa_delete(AgentSkillBinding).where(
+                AgentSkillBinding.package_id == package_id,
+            )
+        )
+
     async def get_active_packages(self) -> list[SkillPackage]:
         """
         获取当前租户所有已激活的技能包
@@ -188,6 +253,52 @@ class AdminSkillPackageRepository(BaseRepository[SkillPackage]):
     """
 
     model = SkillPackage
+
+    async def cascade_soft_delete_skills(
+        self, package_id: int, delete_level: str,
+    ) -> None:
+        """级联软删除技能包下的技能"""
+        now = utc_now()
+        await self.db.execute(
+            update(Skill)
+            .where(
+                Skill.package_id == package_id,
+                Skill.is_deleted.is_(False),
+            )
+            .values(is_deleted=True, deleted_at=now, delete_level=delete_level, updated_at=now)
+        )
+
+    async def cascade_escalate_skills(self, package_id: int) -> None:
+        """级联升级技能的删除层级"""
+        now = utc_now()
+        await self.db.execute(
+            update(Skill)
+            .where(
+                Skill.package_id == package_id,
+                Skill.is_deleted.is_(True),
+            )
+            .values(delete_level=DeleteLevelEnum.ADMIN.value, deleted_at=now, updated_at=now)
+        )
+
+    async def cascade_restore_skills(self, package_id: int) -> None:
+        """级联恢复技能"""
+        now = utc_now()
+        await self.db.execute(
+            update(Skill)
+            .where(
+                Skill.package_id == package_id,
+                Skill.is_deleted.is_(True),
+            )
+            .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
+        )
+
+    async def delete_skill_bindings(self, package_id: int) -> None:
+        """物理删除技能包的 AgentSkillBinding 记录"""
+        await self.db.execute(
+            sa_delete(AgentSkillBinding).where(
+                AgentSkillBinding.package_id == package_id,
+            )
+        )
 
     async def get_with_skill_count(
         self,

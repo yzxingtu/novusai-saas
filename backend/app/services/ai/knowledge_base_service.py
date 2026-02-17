@@ -6,9 +6,10 @@
 
 from typing import Any
 
-from datetime import datetime
 
 from sqlalchemy import and_, select, update
+
+from app.enums.common import DeleteLevelEnum
 
 from app.repositories.ai.knowledge_base_repository import (
     KnowledgeBaseRepository,
@@ -23,6 +24,7 @@ from app.core.base_service import TenantService, GlobalService
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.exceptions import BusinessException, NotFoundException
+from app.core.base_model import utc_now
 
 logger = LogManager.get_logger("ai.knowledge_base_service")
 
@@ -70,7 +72,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         await super()._before_delete(id)
 
         level = self._default_delete_level
-        now = datetime.utcnow()
+        now = utc_now()
         # 级联软删除文档分块
         doc_ids_query = select(KnowledgeDocument.id).where(
             KnowledgeDocument.knowledge_base_id == id,
@@ -100,7 +102,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         if instance is None:
             return None
 
-        now = datetime.utcnow()
+        now = utc_now()
         doc_ids_query = select(KnowledgeDocument.id).where(
             KnowledgeDocument.knowledge_base_id == id,
             KnowledgeDocument.is_deleted.is_(True),
@@ -111,7 +113,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 DocumentChunk.document_id.in_(doc_ids_query),
                 DocumentChunk.is_deleted.is_(True),
             )
-            .values(delete_level="admin", deleted_at=now, updated_at=now)
+            .values(delete_level=DeleteLevelEnum.ADMIN.value, deleted_at=now, updated_at=now)
         )
         await self.repo.db.execute(
             update(KnowledgeDocument)
@@ -119,13 +121,13 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 KnowledgeDocument.knowledge_base_id == id,
                 KnowledgeDocument.is_deleted.is_(True),
             )
-            .values(delete_level="admin", deleted_at=now, updated_at=now)
+            .values(delete_level=DeleteLevelEnum.ADMIN.value, deleted_at=now, updated_at=now)
         )
         return instance
 
     async def _after_restore(self, instance: KnowledgeBase) -> None:
         """恢复后：级联恢复文档和分块"""
-        now = datetime.utcnow()
+        now = utc_now()
         # 级联恢复文档
         await self.repo.db.execute(
             update(KnowledgeDocument)
@@ -169,7 +171,7 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
             model_obj = getattr(kb, "embedding_model", None)
             if model_obj is not None:
                 result["embedding_model_name"] = model_obj.name
-        except (AttributeError, Exception):
+        except AttributeError:
             pass
 
         return result
@@ -377,7 +379,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
         await super()._before_delete(id)
 
         level = self._default_delete_level
-        now = datetime.utcnow()
+        now = utc_now()
         doc_ids_query = select(KnowledgeDocument.id).where(
             KnowledgeDocument.knowledge_base_id == id,
             KnowledgeDocument.is_deleted.is_(False),
@@ -405,7 +407,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
         if instance is None:
             return None
 
-        now = datetime.utcnow()
+        now = utc_now()
         doc_ids_query = select(KnowledgeDocument.id).where(
             KnowledgeDocument.knowledge_base_id == id,
             KnowledgeDocument.is_deleted.is_(True),
@@ -416,7 +418,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
                 DocumentChunk.document_id.in_(doc_ids_query),
                 DocumentChunk.is_deleted.is_(True),
             )
-            .values(delete_level="admin", deleted_at=now, updated_at=now)
+            .values(delete_level=DeleteLevelEnum.ADMIN.value, deleted_at=now, updated_at=now)
         )
         await self.repo.db.execute(
             update(KnowledgeDocument)
@@ -424,13 +426,13 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
                 KnowledgeDocument.knowledge_base_id == id,
                 KnowledgeDocument.is_deleted.is_(True),
             )
-            .values(delete_level="admin", deleted_at=now, updated_at=now)
+            .values(delete_level=DeleteLevelEnum.ADMIN.value, deleted_at=now, updated_at=now)
         )
         return instance
 
     async def _after_restore(self, instance: KnowledgeBase) -> None:
         """恢复后：级联恢复文档和分块"""
-        now = datetime.utcnow()
+        now = utc_now()
         await self.repo.db.execute(
             update(KnowledgeDocument)
             .where(

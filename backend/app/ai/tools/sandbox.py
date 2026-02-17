@@ -36,6 +36,7 @@ from app.ai.tools.types import ExecutionContext, ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import ToolTypeEnum
+from app.enums.common import UserRoleEnum
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -88,7 +89,7 @@ class ToolSandbox:
         agent_id: int,
         config: SandboxConfig | None = None,
         user_id: int | None = None,
-        user_role: str = "tenant_admin",
+        user_role: str = UserRoleEnum.TENANT_ADMIN.value,
         permissions: set[str] | None = None,
         gateway: AIGateway | None = None,
         db: AsyncSession | None = None,
@@ -255,6 +256,28 @@ class ToolSandbox:
             consented_actions=self.consented_actions,
             skill_id=definition.source_skill_id,
         )
+
+        # 5.5 执行器级参数校验
+        try:
+            valid = await executor.validate(definition, arguments)
+            if not valid:
+                return ToolResult(
+                    tool_call_id=tool_call_id,
+                    name=name,
+                    success=False,
+                    error=_("tool.error.validation_failed", name=name),
+                )
+        except Exception as val_exc:
+            logger.warning(
+                "Executor validate() error for %s: %s",
+                name, str(val_exc),
+            )
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=name,
+                success=False,
+                error=str(val_exc),
+            )
 
         # 6. 超时控制下执行（优先使用工具独立超时，否则回退到全局配置）
         tool_timeout = definition.timeout or self.config.timeout_seconds

@@ -81,6 +81,13 @@ class DeleteLevelEnum(LabeledStrEnum):
     ADMIN = ("admin", "enum.delete_level.admin")
 
 
+class UserRoleEnum(LabeledStrEnum):
+    """用户角色枚举"""
+
+    PLATFORM_ADMIN = ("platform_admin", "enum.user_role.platform_admin")
+    TENANT_ADMIN = ("tenant_admin", "enum.user_role.tenant_admin")
+
+
 __all__ = [
     "StatusEnum",
     "BoolEnum",
@@ -91,4 +98,5 @@ __all__ = [
     "PriorityEnum",
     "ResourceScopeEnum",
     "DeleteLevelEnum",
+    "UserRoleEnum",
 ]

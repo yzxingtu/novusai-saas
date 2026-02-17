@@ -4,23 +4,27 @@ AI 调用配额管理服务
 管理租户的 Token 配额、月度预算和使用量追踪
 """
 
-from datetime import date, datetime
+from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
 
 from app.core.redis import get_redis
 from app.core.logging import LogManager
 from app.core.i18n import _
+from app.exceptions.base import BusinessException
 from app.models.ai.tenant_quota import TenantQuota
 from app.enums.ai import QuotaTypeEnum, QuotaPeriodEnum
+from app.repositories.ai.tenant_quota_repository import TenantQuotaRepository
 
 
 logger = LogManager.get_logger("ai.quota")
 
 
-class QuotaExceeded(Exception):
+class QuotaExceeded(BusinessException):
     """配额超出异常"""
-    pass
+
+    code = 4291
+    status_code = 429
+    default_message = "ai.error.quota_exceeded_default"
 
 
 class UsageTracker:
@@ -395,17 +399,8 @@ class QuotaManager:
         Returns:
             TenantQuota 实例
         """
-        stmt = select(TenantQuota).where(
-            and_(
-                TenantQuota.tenant_id == tenant_id,
-                TenantQuota.model_id == model_id,
-                TenantQuota.is_active.is_(True),
-                TenantQuota.is_deleted.is_(False),
-            )
-        ).order_by(TenantQuota.created_at.desc())
-        
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        repo = TenantQuotaRepository(self.db, tenant_id)
+        return await repo.get_active_quota(tenant_id, model_id)
     
     async def _get_usage(
         self,

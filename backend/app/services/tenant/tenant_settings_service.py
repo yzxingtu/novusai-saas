@@ -5,7 +5,6 @@
 """
 
 import secrets
-from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select, func
@@ -18,6 +17,7 @@ from app.enums import ErrorCode
 from app.exceptions import BusinessException, NotFoundException
 from app.models import Tenant, TenantDomain
 from app.repositories.system.tenant_repository import TenantRepository
+from app.core.base_model import utc_now
 
 
 class TenantSettingsService(TenantService[Tenant, TenantRepository]):
@@ -329,14 +329,14 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         #     for rdata in answers:
         #         if str(rdata.target).rstrip('.') == expected:
         #             domain.is_verified = True
-        #             domain.verified_at = datetime.now(timezone.utc)
+        #             domain.verified_at = utc_now()
         #             break
         # except Exception:
         #     pass
         
         # 简化实现：假设验证通过
         domain.is_verified = True
-        domain.verified_at = datetime.now(timezone.utc)
+        domain.verified_at = utc_now()
         domain.ssl_status = "active"  # 实际应该触发 SSL 证书申请
         
         await self.db.flush()

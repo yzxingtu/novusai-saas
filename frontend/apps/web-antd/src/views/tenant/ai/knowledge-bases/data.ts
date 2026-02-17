@@ -210,6 +210,7 @@ export function useFormSchema(): VbenFormSchema[] {
       ...numberField('chunk_size', $t('tenant.knowledgeBase.field.chunkSize'), {
         min: 128,
         max: 4096,
+        defaultValue: 512,
       }),
       help: $t('tenant.knowledgeBase.help.chunkSize'),
     },
@@ -217,6 +218,7 @@ export function useFormSchema(): VbenFormSchema[] {
       ...numberField('chunk_overlap', $t('tenant.knowledgeBase.field.chunkOverlap'), {
         min: 0,
         max: 200,
+        defaultValue: 50,
       }),
       help: $t('tenant.knowledgeBase.help.chunkOverlap'),
     },
@@ -236,6 +238,7 @@ export function useFormSchema(): VbenFormSchema[] {
       ...numberField('top_k', $t('tenant.knowledgeBase.field.topK'), {
         min: 1,
         max: 20,
+        defaultValue: 5,
       }),
       help: $t('tenant.knowledgeBase.help.topK'),
     },
@@ -243,6 +246,8 @@ export function useFormSchema(): VbenFormSchema[] {
       ...numberField('score_threshold', $t('tenant.knowledgeBase.field.scoreThreshold'), {
         min: 0,
         max: 1,
+        defaultValue: 0.5,
+        precision: 2,
       }),
       help: $t('tenant.knowledgeBase.help.scoreThreshold'),
     },

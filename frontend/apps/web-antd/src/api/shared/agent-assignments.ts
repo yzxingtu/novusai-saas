@@ -61,3 +61,57 @@ export async function getAgentAssignmentListApi(
     `${apiPrefix}/ai/agent-assignments`,
   );
 }
+
+/** 已发布智能体选项 */
+export interface PublishedAgentOption {
+  id: number;
+  name: string;
+  status: string;
+}
+
+/**
+ * 获取已发布智能体列表（用于 Select 下拉）
+ *
+ * @param apiPrefix - '/admin' 或 '/tenant'
+ */
+export async function getPublishedAgentsApi(
+  apiPrefix: string,
+): Promise<{ items: PublishedAgentOption[] }> {
+  return requestClient.get<{ items: PublishedAgentOption[] }>(
+    `${apiPrefix}/ai/agents`,
+    { params: { 'filter[status][eq]': 'published', 'page[size]': 100 } },
+  );
+}
+
+/**
+ * 更新智能体绑定
+ *
+ * @param apiPrefix - '/admin' 或 '/tenant'
+ * @param featureCode - 功能代码
+ * @param data - 更新数据（agent_id 和/或 is_active）
+ */
+export async function updateAgentAssignmentApi(
+  apiPrefix: string,
+  featureCode: string,
+  data: { agent_id?: number | null; is_active?: boolean },
+): Promise<unknown> {
+  return requestClient.put(
+    `${apiPrefix}/ai/agent-assignments/${featureCode}`,
+    data,
+  );
+}
+
+/**
+ * 删除租户覆盖（恢复全局默认）
+ *
+ * @param apiPrefix - '/admin' 或 '/tenant'
+ * @param featureCode - 功能代码
+ */
+export async function deleteAgentAssignmentApi(
+  apiPrefix: string,
+  featureCode: string,
+): Promise<unknown> {
+  return requestClient.delete(
+    `${apiPrefix}/ai/agent-assignments/${featureCode}`,
+  );
+}

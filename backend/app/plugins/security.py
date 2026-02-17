@@ -326,10 +326,109 @@ def log_plugin_action(
     )
 
 
+# ========================================
+# pip install 包白名单
+# ========================================
+
+# 允许自动安装的 Python 包（小写规范化）
+# 超出白名单的包需管理员手动审批后添加
+ALLOWED_PACKAGES: frozenset[str] = frozenset({
+    # HTTP / 网络
+    "requests", "httpx", "aiohttp", "urllib3", "certifi",
+    # 数据解析
+    "beautifulsoup4", "bs4", "lxml", "html5lib",
+    "pyyaml", "toml", "tomli", "tomli-w",
+    # 数据处理
+    "pandas", "numpy", "openpyxl", "xlsxwriter",
+    "tabulate", "python-dateutil", "pytz",
+    # 文本处理
+    "markdown", "markupsafe", "jinja2",
+    "chardet", "charset-normalizer",
+    # 类型 / 校验
+    "pydantic", "pydantic-settings",
+    "typing-extensions",
+    # 加密 / 编码
+    "cryptography", "pyjwt", "python-jose",
+    "hashlib", "base64",
+    # 图片处理
+    "pillow",
+    # 工具库
+    "tenacity", "cachetools", "python-dotenv",
+    "click", "rich", "tqdm",
+    # AI / ML（常用客户端）
+    "openai", "anthropic", "tiktoken",
+    "langchain-core", "langchain-community",
+    # 存储客户端
+    "boto3", "botocore", "minio",
+    "redis", "aioredis",
+    # 邮件
+    "python-multipart",
+    # JSON
+    "orjson", "ujson", "simplejson",
+})
+
+# 包名正则：仅允许合法的 PyPI 包名字符
+_PACKAGE_NAME_RE = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$")
+
+
+def _parse_package_name(requirement_line: str) -> str:
+    """从 requirements.txt 行中提取包名
+
+    Examples:
+        "requests>=2.28.0" → "requests"
+        "pydantic[email]~=2.0" → "pydantic"
+        "beautifulsoup4==4.12" → "beautifulsoup4"
+    """
+    # 移除 extras (如 [email])
+    line = requirement_line.strip()
+    bracket_idx = line.find("[")
+    if bracket_idx > 0:
+        line = line[:bracket_idx] + line[line.find("]") + 1:]
+
+    # 移除版本约束
+    for sep in (">=", "<=", "~=", "==", "!=", ">", "<", ";"):
+        idx = line.find(sep)
+        if idx > 0:
+            line = line[:idx]
+
+    return line.strip().lower()
+
+
+def validate_requirements(deps: list[str]) -> tuple[list[str], list[str]]:
+    """校验依赖包是否在白名单中
+
+    Args:
+        deps: requirements.txt 中的依赖行列表
+
+    Returns:
+        (allowed, rejected): 允许安装的依赖行列表, 被拒绝的包名列表
+    """
+    allowed: list[str] = []
+    rejected: list[str] = []
+
+    for dep in deps:
+        pkg_name = _parse_package_name(dep)
+        if not pkg_name:
+            continue
+
+        if not _PACKAGE_NAME_RE.match(pkg_name):
+            rejected.append(pkg_name)
+            continue
+
+        if pkg_name in ALLOWED_PACKAGES:
+            allowed.append(dep)
+        else:
+            rejected.append(pkg_name)
+
+    return allowed, rejected
+
+
 __all__ = [
     "VALID_PERMISSIONS",
+    "ALLOWED_PACKAGES",
     "validate_manifest",
     "validate_manifest_or_raise",
+    "validate_requirements",
     "build_permission_aware_context_kwargs",
     "encrypt_sensitive_config",
     "decrypt_sensitive_config",

@@ -197,6 +197,9 @@
       "resourceUsage": "Resource Usage"
     }
   },
+  "auth": {
+    "title": "Tenant Management"
+  },
   "common": {
     "operation": "Operation",
     "enable": "Enable",
@@ -208,6 +211,8 @@
     "contactInfo": "Contact Info",
     "permissionSettings": "Permission Settings",
     "accountStatus": "Account Status",
-    "admin": "Admin"
+    "admin": "Admin",
+    "operationSuccess": "Operation successful",
+    "operationFailed": "Operation failed"
   }
 }

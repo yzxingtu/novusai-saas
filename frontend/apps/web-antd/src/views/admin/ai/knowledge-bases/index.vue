@@ -8,7 +8,7 @@ defineOptions({ name: 'AdminKnowledgeBaseList' });
 
 import { onMounted, ref } from 'vue';
 
-import { Page } from '@vben/common-ui';
+import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon, Plus } from '@vben/icons';
 
 import { Card, Statistic, Tag } from 'ant-design-vue';
@@ -25,6 +25,7 @@ import { formatDate } from '#/utils/common';
 import { formatFileSize } from '#/utils/file';
 
 import { getFormDefaults, getScopeColor, getScopeOptions, useColumns, useGridFormSchema } from './data';
+import Detail from './modules/detail.vue';
 import Form from './modules/form.vue';
 
 // ========== 统计卡片 ==========
@@ -41,6 +42,15 @@ async function loadStats() {
 onMounted(loadStats);
 
 // ========== 表格 ==========
+const [DetailDrawer, detailDrawerApi] = useVbenDrawer({
+  connectedComponent: Detail,
+});
+
+function onDetailClick(row: AdminKnowledgeBaseItem) {
+  detailDrawerApi.setData({ id: row.id, name: row.name });
+  detailDrawerApi.open();
+}
+
 const { Grid, FormDrawer, onCreate, onRefresh } = useCrudPage<AdminKnowledgeBaseItem>({
   api: {
     list: getAdminKnowledgeBaseListApi,
@@ -54,6 +64,9 @@ const { Grid, FormDrawer, onCreate, onRefresh } = useCrudPage<AdminKnowledgeBase
   i18nPrefix: 'admin.knowledgeBase',
   nameField: 'name',
   defaultSort: '-created_at',
+  customActions: {
+    detail: onDetailClick,
+  },
 });
 
 function getScopeText(scope: string) {
@@ -65,6 +78,7 @@ function getScopeText(scope: string) {
 <template>
   <Page auto-content-height :description="$t('admin.knowledgeBase.pageDesc')" content-class="flex flex-col gap-4">
     <FormDrawer @success="onRefresh" />
+    <DetailDrawer @success="() => { onRefresh(); loadStats(); }" />
 
     <!-- 统计卡片 -->
     <div v-if="stats" class="grid grid-cols-4 gap-4">

@@ -6,7 +6,6 @@ AI 表策略自动发现与同步服务
 """
 
 import re
-from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -14,7 +13,7 @@ from sqlalchemy import inspect as sa_inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapper
 
-from app.core.base_model import Base, BaseModel, TenantModel
+from app.core.base_model import Base, BaseModel, TenantModel, utc_now
 from app.core.logging import get_logger
 from app.models.ai.table_policy import AITablePolicy
 
@@ -298,7 +297,7 @@ def _build_default_policy(table_name: str, table) -> dict[str, Any]:
     blocked_columns = _detect_blocked_columns(table)
     readonly_columns = _detect_readonly_columns(table)
 
-    now = datetime.utcnow()
+    now = utc_now()
 
     return {
         "table_name": table_name,

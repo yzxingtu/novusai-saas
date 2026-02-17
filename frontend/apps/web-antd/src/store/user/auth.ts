@@ -126,7 +126,7 @@ export const useUserAuthStore = defineStore('user-auth', () => {
     accessStore.setAccessCodes([]);
     accessStore.setIsAccessChecked(false);
 
-    userStore.setUserInfo(null as unknown as UserInfo);
+    userStore.setUserInfo(null);
     userInfo.value = null;
 
     await router.replace({

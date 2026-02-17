@@ -192,6 +192,8 @@
     "createdAt": "Created At",
     "unlimited": "Unlimited",
     "toggleStatus": "Toggle Status",
-    "edit": "Edit"
+    "edit": "Edit",
+    "operationSuccess": "Operation successful",
+    "operationFailed": "Operation failed"
   }
 }

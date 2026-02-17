@@ -144,7 +144,9 @@
     "consentTitle": "工具授权确认",
     "consentAllow": "允许执行",
     "consentDeny": "拒绝",
-    "consentResolved": "已处理"
+    "consentResolved": "已处理",
+    "args": "参数：",
+    "tokens": "tokens"
   },
   "recycleBin": {
     "title": "回收站",

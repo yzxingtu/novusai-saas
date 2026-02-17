@@ -10,12 +10,12 @@ Webhook API Plugin — ApiPlugin 示例
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 from app.core.logging import LogManager
 from app.plugins.context import PluginContext
 from app.plugins.extensions.api_plugin import ApiPlugin
+from app.core.base_model import utc_now
 
 logger = LogManager.get_logger("app")
 
@@ -88,7 +88,7 @@ class WebhookApiPlugin(ApiPlugin):
 
             # 记录 webhook
             record = {
-                "received_at": datetime.now(timezone.utc).isoformat(),
+                "received_at": utc_now().isoformat(),
                 "payload": payload,
                 "source": payload.get("source", "unknown"),
             }

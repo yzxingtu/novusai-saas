@@ -139,7 +139,7 @@ export function useColumns<T = AdminKnowledgeBaseItem>(
           onClick: onActionClick,
         },
         name: 'CellOperation',
-        options: ['edit', 'delete'],
+        options: ['detail', 'edit', 'delete'],
       },
       field: 'operation',
       fixed: 'right',

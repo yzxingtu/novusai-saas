@@ -18,6 +18,7 @@ from dataclasses import dataclass
 
 from app.ai.data_intelligence.schema_provider import TableSchema
 from app.core.i18n import _
+from app.enums.common import UserRoleEnum
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.data_intelligence")
@@ -135,7 +136,7 @@ class TenantIsolationInjector:
         sql: str,
         tenant_id: int,
         schema: list[TableSchema],
-        user_role: str = "tenant_admin",
+        user_role: str = UserRoleEnum.TENANT_ADMIN.value,
         user_id: int | None = None,
     ) -> str:
         """
@@ -154,6 +155,10 @@ class TenantIsolationInjector:
         Raises:
             TenantIsolationError: 表缺少 tenant_column
         """
+        # platform_admin 可查看所有数据，不注入 tenant_id 隔离
+        if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
+            return sql
+
         # 构建 schema 字典
         schema_map: dict[str, TableSchema] = {
             t.table_name.lower(): t for t in schema

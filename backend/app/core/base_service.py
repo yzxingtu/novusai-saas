@@ -14,6 +14,7 @@ from typing import Any, Generic, TypeVar, Type
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_model import BaseModel
+from app.enums.common import DeleteLevelEnum
 from app.core.base_repository import BaseRepository, TenantRepository
 from app.core.base_schema import PageParams, PageResponse
 from app.schemas.common.query import QuerySpec, FilterRule
@@ -182,7 +183,7 @@ class BaseService(Generic[ModelType, RepoType]):
         return instance
     
     # 软删除默认层级，子类覆盖
-    _default_delete_level: str = "admin"
+    _default_delete_level: str = DeleteLevelEnum.ADMIN.value
 
     async def delete(self, id: int, soft: bool = True) -> bool:
         """
@@ -569,7 +570,7 @@ class TenantService(BaseService[ModelType, RepoType]):
     自动注入租户隔离逻辑
     """
     
-    _default_delete_level: str = "tenant"
+    _default_delete_level: str = DeleteLevelEnum.TENANT.value
 
     def __init__(self, db: AsyncSession, tenant_id: int):
         """

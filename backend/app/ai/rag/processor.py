@@ -8,10 +8,10 @@ Celery 异步文档处理任务
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
 
 from app.core.logging import LogManager
 from app.tasks.base import register_task, TenantTask
+from app.core.base_model import utc_now
 
 logger = LogManager.get_logger("ai.rag.processor")
 
@@ -89,8 +89,29 @@ async def _load_and_parse_document(db, doc, tenant_id) -> list:
         raise ValueError("Attachment not found")
 
     config_service = ConfigService(db)
-    storage_config = await config_service.resolve_storage_config(
-        tenant_id=tenant_id,
+    # Resolve platform storage config (same logic as AttachmentService)
+    driver_name = await config_service.get_platform_config(
+        "platform_storage_driver", default="local"
+    )
+    if str(driver_name) == "local":
+        from app.storage import LOCAL_STORAGE_ROOT
+        root_path = str(LOCAL_STORAGE_ROOT)
+    else:
+        root_path = await config_service.get_platform_config(
+            "platform_storage_root_path", default=""
+        )
+    base_url = await config_service.get_platform_config(
+        "platform_storage_base_url", default=None
+    )
+    options = await config_service.get_platform_config(
+        "platform_storage_options", default={}
+    )
+    from app.storage.base import StorageConfig
+    storage_config = StorageConfig(
+        driver=str(driver_name),
+        root_path=str(root_path),
+        base_url=base_url,
+        options=options or {},
     )
     driver = storage_manager.get_driver(storage_config)
     file_content = await driver.get(attachment.path)
@@ -185,7 +206,7 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
                 doc.error_message = None
                 doc.error_stage = None
                 if not doc.processing_started_at:
-                    doc.processing_started_at = datetime.now(timezone.utc)
+                    doc.processing_started_at = utc_now()
                 await db.commit()
 
                 pages = None
@@ -349,7 +370,7 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
                 doc.chunk_count = total_chunks
                 doc.token_count = total_token_count
                 doc.char_count = total_char_count
-                doc.processing_completed_at = datetime.now(timezone.utc)
+                doc.processing_completed_at = utc_now()
                 doc.error_message = None
                 doc.error_stage = None
                 await db.commit()

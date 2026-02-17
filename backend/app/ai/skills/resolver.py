@@ -530,4 +530,148 @@ class SkillResolver:
         return params
 
 
-__all__ = ["SkillResolver", "SkillResolveResult"]
+async def resolve_for_agent(
+    db: AsyncSession,
+    agent: Any,
+    tenant_id: int | None = None,
+) -> SkillResolveResult | None:
+    """
+    从 AgentSkillBinding 加载并解析 Agent 绑定的所有 Skill
+
+    独立于 Engine 的 Skill 解析入口，供 Dispatcher / Service 层调用。
+    Engine 不再直接访问 AgentSkillBinding 或 Skill 模型。
+
+    Args:
+        db: 数据库会话
+        agent: Agent 模型实例
+        tenant_id: 租户 ID（admin 级 Agent 可为 None）
+
+    Returns:
+        SkillResolveResult 或 None（无绑定时）
+    """
+    try:
+        from sqlalchemy import select, and_
+        from app.models.ai.skill import Skill as SkillModel
+        from app.models.ai.agent_skill_binding import AgentSkillBinding
+
+        agent_tenant_id = tenant_id or getattr(agent, "tenant_id", None)
+        if agent_tenant_id:
+            binding_stmt = (
+                select(AgentSkillBinding)
+                .where(
+                    and_(
+                        AgentSkillBinding.agent_id == agent.id,
+                        AgentSkillBinding.tenant_id == agent_tenant_id,
+                        AgentSkillBinding.enabled.is_(True),
+                        AgentSkillBinding.is_deleted.is_(False),
+                    )
+                )
+                .order_by(AgentSkillBinding.sort_order)
+            )
+        else:
+            binding_stmt = (
+                select(AgentSkillBinding)
+                .where(
+                    and_(
+                        AgentSkillBinding.agent_id == agent.id,
+                        AgentSkillBinding.tenant_id.is_(None),
+                        AgentSkillBinding.enabled.is_(True),
+                        AgentSkillBinding.is_deleted.is_(False),
+                    )
+                )
+                .order_by(AgentSkillBinding.sort_order)
+            )
+        binding_result = await db.execute(binding_stmt)
+        bindings = list(binding_result.scalars().all())
+
+        if not bindings:
+            return None
+
+        package_ids: list[int] = []
+        config_overrides: dict[int, dict[str, Any]] = {}
+        consent_by_package: dict[int, str] = {}
+        for binding in bindings:
+            if binding.package and binding.package.is_active and not binding.package.is_deleted:
+                package_ids.append(binding.package.id)
+                if binding.config_override:
+                    config_overrides[binding.package.id] = binding.config_override
+                consent_by_package[binding.package.id] = getattr(
+                    binding, "consent_mode", "auto"
+                )
+
+        if not package_ids:
+            return None
+
+        stmt = (
+            select(SkillModel)
+            .where(
+                and_(
+                    SkillModel.package_id.in_(package_ids),
+                    SkillModel.is_active.is_(True),
+                    SkillModel.is_deleted.is_(False),
+                )
+            )
+            .order_by(SkillModel.sort_order)
+        )
+        result = await db.execute(stmt)
+        skills = list(result.scalars().all())
+
+        if not skills:
+            return None
+
+        skill_config_overrides: dict[int, dict[str, Any]] = {}
+        pkg_valves: dict[int, dict[str, Any]] = {}
+        for binding in bindings:
+            if binding.package and binding.package.valves_config:
+                pkg_valves[binding.package.id] = binding.package.valves_config
+
+        for skill in skills:
+            merged: dict[str, Any] = {}
+            pkg_vc = pkg_valves.get(skill.package_id)
+            if pkg_vc:
+                merged["valves"] = pkg_vc
+            pkg_override = config_overrides.get(skill.package_id)
+            if pkg_override:
+                merged.update(pkg_override)
+            if merged:
+                skill_config_overrides[skill.id] = merged
+
+        resolver = SkillResolver(db=db)
+        resolve_result = await resolver.resolve(skills, skill_config_overrides)
+
+        consent_by_skill: dict[int, str] = {}
+        package_name_by_skill: dict[int, str] = {}
+        for skill in skills:
+            consent_by_skill[skill.id] = consent_by_package.get(
+                skill.package_id, "auto"
+            )
+            for binding in bindings:
+                if binding.package and binding.package.id == skill.package_id:
+                    package_name_by_skill[skill.id] = binding.package.name
+                    break
+        for tool in resolve_result.tools:
+            if tool.source_skill_id and tool.source_skill_id in consent_by_skill:
+                resolve_result.tool_consent_modes[tool.name] = consent_by_skill[
+                    tool.source_skill_id
+                ]
+            if tool.source_skill_id and tool.source_skill_id in package_name_by_skill:
+                tool.source_package_name = package_name_by_skill[tool.source_skill_id]
+
+        logger.info(
+            "Resolved skills for agent=%s: packages=%s, tools=%s, kb_ids=%s",
+            agent.name if agent else "?",
+            package_ids,
+            [t.name for t in resolve_result.tools],
+            resolve_result.knowledge_base_ids,
+        )
+        return resolve_result
+
+    except Exception as exc:
+        logger.warning(
+            "Skill resolution failed for agent %d, falling back: %s",
+            agent.id, str(exc),
+        )
+        return None
+
+
+__all__ = ["SkillResolver", "SkillResolveResult", "resolve_for_agent"]

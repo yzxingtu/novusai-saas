@@ -12,6 +12,7 @@ from app.core.base_service import GlobalService
 from app.enums.task import TaskStatusEnum
 from app.models.system.task_log import TaskLog
 from app.repositories.system.task_log_repository import TaskLogRepository
+from app.core.base_model import utc_now
 
 
 class TaskLogService(GlobalService[TaskLog, TaskLogRepository]):
@@ -38,7 +39,7 @@ class TaskLogService(GlobalService[TaskLog, TaskLogRepository]):
             "status": TaskStatusEnum.RUNNING.value,
             "args": args,
             "kwargs": kwargs,
-            "started_at": datetime.utcnow(),
+            "started_at": utc_now(),
             "tenant_id": tenant_id,
         })
 
@@ -51,7 +52,7 @@ class TaskLogService(GlobalService[TaskLog, TaskLogRepository]):
         log = await self.repo.get_by_task_id(task_id)
         if log is None:
             return None
-        now = datetime.utcnow()
+        now = utc_now()
         update_data = {
             "status": TaskStatusEnum.SUCCESS.value,
             "result": result,
@@ -75,7 +76,7 @@ class TaskLogService(GlobalService[TaskLog, TaskLogRepository]):
         log = await self.repo.get_by_task_id(task_id)
         if log is None:
             return None
-        now = datetime.utcnow()
+        now = utc_now()
         update_data: dict = {
             "status": TaskStatusEnum.FAILED.value,
             "error_message": error_message,

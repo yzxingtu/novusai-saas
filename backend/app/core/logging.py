@@ -192,16 +192,13 @@ class LogManager:
         sa_logger.setLevel(sa_level)
         sa_logger.propagate = False  # 不向根日志器传播
         
-        # 清除已有处理器，添加 db 文件处理器（仅写入文件，不输出到控制台）
+        # 清除已有处理器，复用 db 分类日志器的文件处理器（避免重复打开同一文件）
+        # Windows 上两个 RotatingFileHandler 指向同一文件会导致轮转时 PermissionError
         sa_logger.handlers.clear()
-        if cls._log_dir:
-            handler = cls._create_timed_handler(
-                LogCategoryEnum.DB.value,
-                sa_level,
-                backup_count=30,
-            )
-            sa_logger.addHandler(handler)
-            # 注意：不再添加控制台处理器，避免刷屏
+        for h in db_logger.handlers:
+            if isinstance(h, RotatingFileHandler):
+                sa_logger.addHandler(h)
+                break
     
     @classmethod
     def _create_console_handler(cls, level: int) -> logging.StreamHandler:

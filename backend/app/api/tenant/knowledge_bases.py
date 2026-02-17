@@ -12,6 +12,7 @@ from fastapi import Request, UploadFile, File, Form
 from app.core.base_controller import TenantController
 from app.core.deps import DbSession, ActiveTenantAdmin, QueryParams
 from app.core.i18n import _
+from app.schemas.common.query import FilterRule, FilterOp
 from app.core.response import success, created, deleted, paginated
 from app.enums.knowledge_base import DocumentStatusEnum, DocumentTypeEnum
 from app.enums.rbac import PermissionScope
@@ -289,9 +290,9 @@ class TenantKnowledgeBaseController(TenantController):
             doc_service = KnowledgeDocumentService(db, tenant_admin.tenant_id)
 
             # 添加知识库 ID 过滤
-            if not query.filters:
-                query.filters = {}
-            query.filters["knowledge_base_id"] = kb_id
+            query.filters.append(FilterRule(
+                field="knowledge_base_id", op=FilterOp.eq, value=str(kb_id)
+            ))
 
             items, total = await doc_service.query_list(spec=query)
             result = [doc.to_dict() for doc in items]
