@@ -1506,6 +1506,20 @@
         "allow_custom_cert": {
           "name": "允许自定义证书",
           "desc": "是否允许租户上传自定义 SSL 证书"
+        },
+        "dns_provider": {
+          "name": "DNS 提供商",
+          "desc": "用于 ACME DNS-01 验证的 DNS 提供商类型",
+          "manual": "手动模式（需人工设置 DNS 记录）",
+          "cloudflare": "Cloudflare"
+        },
+        "dns_cloudflare_api_token": {
+          "name": "Cloudflare API Token",
+          "desc": "Cloudflare API Token（需要 Zone.DNS 编辑权限）"
+        },
+        "dns_cloudflare_zone_id": {
+          "name": "Cloudflare Zone ID",
+          "desc": "Cloudflare 域名区域 ID"
         }
       }
     },

@@ -85,10 +85,14 @@ class TenantDomainController(TenantController):
             service = self.get_service(db, current_admin.tenant_id)
             items, total = await service.query_list(spec, scope="tenant")
 
+            # 计算 CNAME 目标（一次查询，复用）
+            cname_target = await service.get_cname_target(current_admin.tenant_id)
+
             # 为每个域名添加验证信息
             domain_responses = []
             for item in items:
                 resp = TenantDomainResponse.model_validate(item, from_attributes=True)
+                resp.cname_target = cname_target
                 # 未验证的域名添加验证 DNS 信息
                 if not item.is_verified and item.verification_token:
                     verification_record = await service.get_verification_record(item)
@@ -132,8 +136,9 @@ class TenantDomainController(TenantController):
                     detail=_("tenant_domain.not_found"),
                 )
 
-            # 添加验证 DNS 信息
+            # 添加验证 DNS 信息 + CNAME 目标
             resp = TenantDomainResponse.model_validate(domain, from_attributes=True)
+            resp.cname_target = await service.get_cname_target(current_admin.tenant_id)
             if not domain.is_verified and domain.verification_token:
                 verification_record = await service.get_verification_record(domain)
                 resp.verification_info = TenantDomainVerificationInfo(
@@ -176,8 +181,9 @@ class TenantDomainController(TenantController):
 
             await db.commit()
 
-            # 添加验证 DNS 信息
+            # 添加验证 DNS 信息 + CNAME 目标
             resp = TenantDomainResponse.model_validate(domain, from_attributes=True)
+            resp.cname_target = await service.get_cname_target(current_admin.tenant_id)
             if not domain.is_verified and domain.verification_token:
                 verification_record = await service.get_verification_record(domain)
                 resp.verification_info = TenantDomainVerificationInfo(

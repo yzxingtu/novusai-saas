@@ -26,7 +26,7 @@ def upgrade() -> None:
                 max_retries, retry_delay, timeout,
                 notify_on_failure, created_at, updated_at, is_deleted
             ) VALUES (
-                'SSL 证书续期检查',
+                'SSL Certificate Renewal Check',
                 'app.tasks.ssl_tasks.task_check_ssl_renewals',
                 'cron',
                 '0 3 * * *',

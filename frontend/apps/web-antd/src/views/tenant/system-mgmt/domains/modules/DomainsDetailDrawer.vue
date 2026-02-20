@@ -137,6 +137,15 @@ function getSslTagConfig(status: string) {
     case 'expired': {
       return { color: 'error', text: $t('tenant.system.domain.ssl.expired') };
     }
+    case 'failed': {
+      return { color: 'error', text: $t('tenant.system.domain.ssl.failed') };
+    }
+    case 'provisioning': {
+      return {
+        color: 'processing',
+        text: $t('tenant.system.domain.ssl.provisioning'),
+      };
+    }
     case 'pending': {
       return {
         color: 'processing',

@@ -450,6 +450,22 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         """
         return secrets.token_hex(16)
     
+    async def get_cname_target(self, tenant_id: int) -> str:
+        """
+        获取租户的 CNAME 解析目标
+
+        Args:
+            tenant_id: 租户 ID
+
+        Returns:
+            CNAME 目标（如 tenant_code.novusai.com）
+        """
+        tenant = await self._get_tenant_with_plan(tenant_id)
+        if not tenant:
+            return ""
+        suffix = await self._get_domain_suffix()
+        return f"{tenant.code}{suffix}"
+
     async def get_verification_record(self, domain_obj: TenantDomain) -> dict:
         """
         获取 DNS 验证记录信息
@@ -489,9 +505,7 @@ class TenantDomainTenantService(TenantDomainService, TenantService[TenantDomain,
     repository_class = TenantDomainTenantRepository
 
     def __init__(self, db, tenant_id: int):
-        self.db = db
-        self.tenant_id = tenant_id
-        self.repo = self.repository_class(db, tenant_id)
+        TenantService.__init__(self, db, tenant_id)
 
 
 __all__ = ["TenantDomainService", "TenantDomainTenantService"]

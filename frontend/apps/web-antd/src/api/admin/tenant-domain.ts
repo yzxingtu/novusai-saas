@@ -2,12 +2,20 @@
  * 平台端租户域名管理 API
  * 对接后端 /admin/tenants/{tenant_id}/domains/* 接口
  */
-import type { DomainType, SslStatus, VerificationStatus } from '#/types/domain';
+import type {
+  DomainType,
+  SslCertificateInfo,
+  SslCertificateInfoRaw,
+  SslStatus,
+  VerificationInfo,
+  VerificationStatus,
+} from '#/types/domain';
 import type { ApiRequestOptions } from '#/utils/request';
 
+import { transformSslCertInfo } from '#/types/domain';
 import { requestClient } from '#/utils/request';
 
-export type { DomainType, SslStatus, VerificationStatus } from '#/types/domain';
+export type { DomainType, SslCertificateInfo, SslStatus, VerificationStatus } from '#/types/domain';
 
 // ============================================================
 // 类型定义
@@ -25,7 +33,7 @@ export interface TenantDomainInfoRaw {
   cname_target?: string;
   txt_record?: string;
   verification_token?: null | string;
-  verification_info?: null | Record<string, any>;
+  verification_info?: null | VerificationInfo;
   verified_at?: null | string;
   ssl_expires_at?: string;
   remark?: string;
@@ -45,7 +53,7 @@ export interface TenantDomainInfo {
   cnameTarget?: string;
   txtRecord?: string;
   verificationToken?: null | string;
-  verificationInfo?: null | Record<string, any>;
+  verificationInfo?: null | VerificationInfo;
   verifiedAt?: string;
   sslExpiresAt?: string;
   remark?: string;
@@ -247,72 +255,8 @@ export async function setPrimaryDomainApi(
 }
 
 // ============================================================
-// SSL 证书管理 API
+// SSL 证书管理 API (types imported from '#/types/domain')
 // ============================================================
-
-/** SSL 证书详情响应 */
-export interface SslCertificateInfo {
-  id: number;
-  domainId: number;
-  tenantId: number;
-  certType: 'custom' | 'platform';
-  status: 'active' | 'expired' | 'failed' | 'pending' | 'revoked';
-  issuer: null | string;
-  serialNumber: null | string;
-  issuedAt: null | string;
-  expiresAt: null | string;
-  autoRenew: boolean;
-  hasCertificate: boolean;
-  hasPrivateKey: boolean;
-  hasChain: boolean;
-  lastRenewalAttempt: null | string;
-  renewalError: null | string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** SSL 证书详情原始响应 */
-interface SslCertificateInfoRaw {
-  id: number;
-  domain_id: number;
-  tenant_id: number;
-  cert_type: 'custom' | 'platform';
-  status: 'active' | 'expired' | 'failed' | 'pending' | 'revoked';
-  issuer: null | string;
-  serial_number: null | string;
-  issued_at: null | string;
-  expires_at: null | string;
-  auto_renew: boolean;
-  has_certificate: boolean;
-  has_private_key: boolean;
-  has_chain: boolean;
-  last_renewal_attempt: null | string;
-  renewal_error: null | string;
-  created_at: string;
-  updated_at: string;
-}
-
-function transformSslCertInfo(raw: SslCertificateInfoRaw): SslCertificateInfo {
-  return {
-    id: raw.id,
-    domainId: raw.domain_id,
-    tenantId: raw.tenant_id,
-    certType: raw.cert_type,
-    status: raw.status,
-    issuer: raw.issuer,
-    serialNumber: raw.serial_number,
-    issuedAt: raw.issued_at,
-    expiresAt: raw.expires_at,
-    autoRenew: raw.auto_renew,
-    hasCertificate: raw.has_certificate,
-    hasPrivateKey: raw.has_private_key,
-    hasChain: raw.has_chain,
-    lastRenewalAttempt: raw.last_renewal_attempt,
-    renewalError: raw.renewal_error,
-    createdAt: raw.created_at,
-    updatedAt: raw.updated_at,
-  };
-}
 
 /**
  * 获取域名 SSL 证书详情

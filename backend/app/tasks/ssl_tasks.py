@@ -102,7 +102,10 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
                 acme_stg_url = await config_svc.get_platform_config("acme_staging_url", default=None)
                 dir_url = acme_stg_url if acme_use_staging else acme_dir_url
 
-                # 3. 调用 ACME 客户端签发
+                # 3. 构建 DNS 提供商 + ACME 客户端签发
+                from app.services.system.dns_provider import get_dns_provider
+                dns_provider = await get_dns_provider(db)
+
                 acme = AcmeClient(
                     directory_url=dir_url or None,
                     account_email=acme_email or None,
@@ -110,9 +113,10 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
                 )
                 cert_pem, key_pem, chain_pem = await acme.provision_certificate(
                     domain.domain,
+                    dns_setter=dns_provider.set_txt_record,
                 )
 
-                # 3. 存储证书
+                # 4. 存储证书
                 ssl_service = SslCertificateService(db)
                 cert = await ssl_service.store_platform_cert(
                     domain_id=domain_id,
@@ -335,7 +339,10 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
                 acme_stg_url = await config_svc.get_platform_config("acme_staging_url", default=None)
                 dir_url = acme_stg_url if acme_use_staging else acme_dir_url
 
-                # 4. 调用 ACME 重新签发
+                # 4. 构建 DNS 提供商 + ACME 重新签发
+                from app.services.system.dns_provider import get_dns_provider
+                dns_provider = await get_dns_provider(db)
+
                 acme = AcmeClient(
                     directory_url=dir_url or None,
                     account_email=acme_email or None,
@@ -343,9 +350,10 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
                 )
                 cert_pem, key_pem, chain_pem = await acme.provision_certificate(
                     domain.domain,
+                    dns_setter=dns_provider.set_txt_record,
                 )
 
-                # 4. 存储新证书（会自动停用旧证书）
+                # 5. 存储新证书（会自动停用旧证书）
                 new_cert = await ssl_service.store_platform_cert(
                     domain_id=cert.domain_id,
                     tenant_id=cert.tenant_id,

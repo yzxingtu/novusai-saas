@@ -191,6 +191,7 @@ function getSslStatusConfig(status?: string) {
   switch (status) {
     case 'active': return { color: 'success', text: $t('admin.tenant.domain.ssl.status.active') };
     case 'expired': return { color: 'error', text: $t('admin.tenant.domain.ssl.status.expired') };
+    case 'provisioning': return { color: 'processing', text: $t('admin.tenant.domain.ssl.status.provisioning') };
     case 'pending': return { color: 'processing', text: $t('admin.tenant.domain.ssl.status.pending') };
     case 'failed': return { color: 'error', text: $t('admin.tenant.domain.ssl.status.failed') };
     case 'revoked': return { color: 'warning', text: $t('admin.tenant.domain.ssl.status.revoked') };

@@ -173,7 +173,10 @@
       "status": {
         "active": "有效",
         "expired": "已过期",
+        "provisioning": "签发中",
         "pending": "申请中",
+        "failed": "签发失败",
+        "revoked": "已吊销",
         "none": "未配置"
       },
       "info": {

@@ -20,3 +20,81 @@ export type SslStatus =
 
 /** SSL 类型 */
 export type SslType = 'custom' | 'platform';
+
+/** SSL 证书状态（证书记录级别） */
+export type SslCertStatus = 'active' | 'expired' | 'failed' | 'pending' | 'revoked';
+
+/** DNS 验证信息（后端返回 dns_name/dns_type/dns_value，前端统一为 host/type/value） */
+export interface VerificationInfo {
+  dns_name?: string;
+  dns_type?: string;
+  dns_value?: string;
+  host?: string;
+  type?: string;
+  value?: string;
+}
+
+/** SSL 证书详情（前端 camelCase 格式） */
+export interface SslCertificateInfo {
+  id: number;
+  domainId: number;
+  tenantId: number;
+  certType: SslType;
+  status: SslCertStatus;
+  issuer: null | string;
+  serialNumber: null | string;
+  issuedAt: null | string;
+  expiresAt: null | string;
+  autoRenew: boolean;
+  hasCertificate: boolean;
+  hasPrivateKey: boolean;
+  hasChain: boolean;
+  lastRenewalAttempt: null | string;
+  renewalError: null | string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** SSL 证书详情（后端 snake_case 原始格式） */
+export interface SslCertificateInfoRaw {
+  id: number;
+  domain_id: number;
+  tenant_id: number;
+  cert_type: SslType;
+  status: SslCertStatus;
+  issuer: null | string;
+  serial_number: null | string;
+  issued_at: null | string;
+  expires_at: null | string;
+  auto_renew: boolean;
+  has_certificate: boolean;
+  has_private_key: boolean;
+  has_chain: boolean;
+  last_renewal_attempt: null | string;
+  renewal_error: null | string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** SSL 证书 snake→camelCase 转换 */
+export function transformSslCertInfo(raw: SslCertificateInfoRaw): SslCertificateInfo {
+  return {
+    id: raw.id,
+    domainId: raw.domain_id,
+    tenantId: raw.tenant_id,
+    certType: raw.cert_type,
+    status: raw.status,
+    issuer: raw.issuer,
+    serialNumber: raw.serial_number,
+    issuedAt: raw.issued_at,
+    expiresAt: raw.expires_at,
+    autoRenew: raw.auto_renew,
+    hasCertificate: raw.has_certificate,
+    hasPrivateKey: raw.has_private_key,
+    hasChain: raw.has_chain,
+    lastRenewalAttempt: raw.last_renewal_attempt,
+    renewalError: raw.renewal_error,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}

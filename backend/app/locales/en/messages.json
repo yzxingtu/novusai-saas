@@ -1504,6 +1504,20 @@
         "allow_custom_cert": {
           "name": "Allow Custom Certificates",
           "desc": "Whether to allow tenants to upload custom SSL certificates"
+        },
+        "dns_provider": {
+          "name": "DNS Provider",
+          "desc": "DNS provider for ACME DNS-01 challenge validation",
+          "manual": "Manual (requires manual DNS record setup)",
+          "cloudflare": "Cloudflare"
+        },
+        "dns_cloudflare_api_token": {
+          "name": "Cloudflare API Token",
+          "desc": "Cloudflare API Token (requires Zone.DNS edit permission)"
+        },
+        "dns_cloudflare_zone_id": {
+          "name": "Cloudflare Zone ID",
+          "desc": "Cloudflare domain zone ID"
         }
       }
     },

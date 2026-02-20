@@ -109,13 +109,13 @@ class DomainSslCertificate(BaseModel):
     )
 
     issued_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
+        DateTime,
         nullable=True,
         comment="签发时间",
     )
 
     expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
+        DateTime,
         nullable=True,
         comment="到期时间",
     )
@@ -129,7 +129,7 @@ class DomainSslCertificate(BaseModel):
     )
 
     last_renewal_attempt: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
+        DateTime,
         nullable=True,
         comment="最近一次续期尝试时间",
     )

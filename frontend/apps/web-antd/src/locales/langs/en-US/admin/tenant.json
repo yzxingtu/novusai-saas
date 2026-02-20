@@ -152,7 +152,10 @@
       "status": {
         "active": "Active",
         "expired": "Expired",
+        "provisioning": "Provisioning",
         "pending": "Pending",
+        "failed": "Failed",
+        "revoked": "Revoked",
         "none": "Not Configured"
       },
       "info": {

@@ -17,20 +17,21 @@ class TenantDomainTenantRepository(TenantRepository[TenantDomain]):
     async def get_by_domain(self, domain: str) -> TenantDomain | None:
         return await self.get_one_by(domain=domain)
     
-    async def get_primary_domain(self, tenant_id: int) -> TenantDomain | None:
+    async def get_primary_domain(self, tenant_id: int | None = None) -> TenantDomain | None:
+        """tenant_id is ignored — uses self.tenant_id from TenantRepository"""
         query = select(self.model).where(
-            self.model.tenant_id == tenant_id,
+            self.model.tenant_id == self.tenant_id,
             self.model.is_primary.is_(True),
             self.model.is_deleted.is_(False),
         )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
     
-    async def get_tenant_domains(self, tenant_id: int) -> list[TenantDomain]:
+    async def get_tenant_domains(self, tenant_id: int | None = None) -> list[TenantDomain]:
         query = (
             select(self.model)
             .where(
-                self.model.tenant_id == tenant_id,
+                self.model.tenant_id == self.tenant_id,
                 self.model.is_deleted.is_(False),
             )
             .order_by(
@@ -56,20 +57,23 @@ class TenantDomainTenantRepository(TenantRepository[TenantDomain]):
         result = await self.db.execute(query)
         return result.scalar_one_or_none() is not None
     
-    async def count_tenant_domains(self, tenant_id: int) -> int:
-        return await self.count(tenant_id=tenant_id)
+    async def count_tenant_domains(self, tenant_id: int | None = None) -> int:
+        """tenant_id is ignored — uses self.tenant_id from TenantRepository"""
+        return await self.count(tenant_id=self.tenant_id)
     
-    async def has_primary_domain(self, tenant_id: int) -> bool:
-        primary = await self.get_primary_domain(tenant_id)
+    async def has_primary_domain(self, tenant_id: int | None = None) -> bool:
+        """tenant_id is ignored — uses self.tenant_id from TenantRepository"""
+        primary = await self.get_primary_domain()
         return primary is not None
     
-    async def clear_primary_flag(self, tenant_id: int) -> None:
+    async def clear_primary_flag(self, tenant_id: int | None = None) -> None:
+        """tenant_id is ignored — uses self.tenant_id from TenantRepository"""
         from sqlalchemy import update
         
         stmt = (
             update(self.model)
             .where(
-                self.model.tenant_id == tenant_id,
+                self.model.tenant_id == self.tenant_id,
                 self.model.is_primary.is_(True),
                 self.model.is_deleted.is_(False),
             )

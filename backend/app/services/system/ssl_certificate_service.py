@@ -5,7 +5,7 @@ SSL 证书服务
 包括证书查询、上传、删除、自动续期开关、证书解析与验证
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -285,15 +285,21 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
                 issuer_parts.append(attr.value)
         issuer = ", ".join(issuer_parts) if issuer_parts else str(cert.issuer)
 
+        # Return naive UTC datetimes (TIMESTAMP WITHOUT TIME ZONE)
+        issued_at = (
+            cert.not_valid_before_utc if hasattr(cert, "not_valid_before_utc")
+            else cert.not_valid_before
+        )
+        expires_at = (
+            cert.not_valid_after_utc if hasattr(cert, "not_valid_after_utc")
+            else cert.not_valid_after
+        )
+
         return {
             "issuer": issuer,
             "serial_number": format(cert.serial_number, "x"),
-            "issued_at": cert.not_valid_before_utc.replace(tzinfo=timezone.utc)
-                if hasattr(cert, "not_valid_before_utc")
-                else cert.not_valid_before.replace(tzinfo=timezone.utc),
-            "expires_at": cert.not_valid_after_utc.replace(tzinfo=timezone.utc)
-                if hasattr(cert, "not_valid_after_utc")
-                else cert.not_valid_after.replace(tzinfo=timezone.utc),
+            "issued_at": issued_at.replace(tzinfo=None),
+            "expires_at": expires_at.replace(tzinfo=None),
         }
 
     @staticmethod

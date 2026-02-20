@@ -99,6 +99,49 @@ SSL_ALLOW_CUSTOM_CERT = ConfigMeta(
 
 
 # ==========================================
+# DNS 提供商配置（用于 ACME DNS-01 验证）
+# ==========================================
+
+# DNS 提供商类型
+DNS_PROVIDER = ConfigMeta(
+    key="dns_provider",
+    name_key="config.platform.ssl.dns_provider.name",
+    description_key="config.platform.ssl.dns_provider.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.STRING,
+    default_value="manual",
+    options=[
+        ConfigOption(value="manual", label_key="config.platform.ssl.dns_provider.manual"),
+        ConfigOption(value="cloudflare", label_key="config.platform.ssl.dns_provider.cloudflare"),
+    ],
+    sort_order=80,
+)
+
+# Cloudflare API Token
+DNS_CLOUDFLARE_API_TOKEN = ConfigMeta(
+    key="dns_cloudflare_api_token",
+    name_key="config.platform.ssl.dns_cloudflare_api_token.name",
+    description_key="config.platform.ssl.dns_cloudflare_api_token.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.PASSWORD,
+    default_value="",
+    is_encrypted=True,
+    sort_order=90,
+)
+
+# Cloudflare Zone ID
+DNS_CLOUDFLARE_ZONE_ID = ConfigMeta(
+    key="dns_cloudflare_zone_id",
+    name_key="config.platform.ssl.dns_cloudflare_zone_id.name",
+    description_key="config.platform.ssl.dns_cloudflare_zone_id.desc",
+    scope=ConfigScope.PLATFORM,
+    value_type=ConfigValueType.STRING,
+    default_value="",
+    sort_order=100,
+)
+
+
+# ==========================================
 # 注册配置项到分组
 # ==========================================
 
@@ -110,4 +153,7 @@ PLATFORM_SSL_GROUP.configs = [
     SSL_PRIVATE_KEY_ENCRYPTION_KEY,
     SSL_AUTO_RENEW_DAYS,
     SSL_ALLOW_CUSTOM_CERT,
+    DNS_PROVIDER,
+    DNS_CLOUDFLARE_API_TOKEN,
+    DNS_CLOUDFLARE_ZONE_ID,
 ]

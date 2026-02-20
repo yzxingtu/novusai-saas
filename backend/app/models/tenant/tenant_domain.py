@@ -77,7 +77,7 @@ class TenantDomain(BaseModel):
     
     # 验证时间
     verified_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
+        DateTime,
         nullable=True,
         comment="验证时间",
     )
@@ -98,7 +98,7 @@ class TenantDomain(BaseModel):
     
     # SSL 证书到期时间
     ssl_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
+        DateTime,
         nullable=True,
         comment="SSL 证书到期时间",
     )
@@ -123,7 +123,7 @@ class TenantDomain(BaseModel):
     tenant = relationship(
         "Tenant",
         back_populates="domains",
-        lazy="selectin",
+        lazy="noload",
     )
     
     # 关联的 SSL 证书
