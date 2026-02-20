@@ -2020,5 +2020,16 @@
       "feature_code_exists": "Feature code already exists",
       "override_not_found": "Tenant override binding not found"
     }
+  },
+  "email": {
+    "test": {
+      "subject": "NovusAI SaaS Test Email",
+      "body": "This is a test email to verify your SMTP configuration. If you received this email, your email service is configured correctly.",
+      "footer": "This email was automatically sent by NovusAI SaaS platform for testing purposes only."
+    },
+    "error": {
+      "config_missing": "Email configuration missing: {fields}",
+      "no_recipients": "No recipients specified"
+    }
   }
 }

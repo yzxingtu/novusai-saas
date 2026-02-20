@@ -13,6 +13,13 @@ from app.services.common.file_validator import (
     FileValidationResult,
     validate_result_or_raise,
 )
+from app.services.common.email_service import (
+    EmailService,
+    EmailMessage,
+    EmailAttachment,
+    EmailResult,
+    send_email_sync,
+)
 
 
 __all__ = [
@@ -24,4 +31,9 @@ __all__ = [
     "FileValidator",
     "FileValidationResult",
     "validate_result_or_raise",
+    "EmailService",
+    "EmailMessage",
+    "EmailAttachment",
+    "EmailResult",
+    "send_email_sync",
 ]

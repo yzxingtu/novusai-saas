@@ -17,6 +17,7 @@ from app.models.system.plugin import Plugin
 from app.models.system.plugin_migration import PluginMigration
 from app.models.system.tenant_plugin import TenantPlugin
 from app.models.system.agent_assignment import SystemAgentAssignment
+from app.models.system.email_log import EmailLog
 
 __all__ = [
     "Admin",

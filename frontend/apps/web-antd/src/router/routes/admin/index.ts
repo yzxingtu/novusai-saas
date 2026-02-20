@@ -96,6 +96,17 @@ const mainRoutes: RouteRecordRaw = {
         title: $t('admin.system.periodicTask.title'),
       },
     },
+    // Fallback 静态注册：邮件日志（后端菜单动态路由优先生效）
+    {
+      name: 'AdminSystemEmailLogs',
+      path: 'system/email-logs',
+      component: () => import('#/views/admin/system/email-logs/index.vue'),
+      meta: {
+        hideInMenu: true,
+        icon: 'lucide:mail',
+        title: $t('admin.system.emailLog.title'),
+      },
+    },
     // Fallback 静态注册：AI 网关管理（后端菜单动态路由优先生效）
     {
       name: 'AdminAIGateway',

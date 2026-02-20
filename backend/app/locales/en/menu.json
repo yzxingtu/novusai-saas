@@ -43,7 +43,8 @@
       "plugin": "Plugin Management",
       "dev_tools": "Dev Tools",
       "crud_generator": "CRUD Generator",
-      "agent_assignment": "Agent Assignment"
+      "agent_assignment": "Agent Assignment",
+      "email_log": "Email Logs"
     },
     "tags": {
       "admin_agent_mgmt": "Agent Management (Platform)",

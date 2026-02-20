@@ -448,5 +448,50 @@
       "inputTimeout": "10-86400 秒",
       "inputNotifyEmails": "多个邮箱用逗号分隔"
     }
+  },
+  "emailLog": {
+    "title": "邮件日志",
+    "toAddress": "收件人",
+    "subject": "主题",
+    "statusLabel": "状态",
+    "triggeredBy": "触发来源",
+    "errorMessage": "错误信息",
+    "createdAt": "发送时间",
+    "status": {
+      "sent": "已发送",
+      "failed": "失败",
+      "pending": "待发送"
+    },
+    "trigger": {
+      "manual": "手动发送",
+      "task_failure": "任务失败",
+      "password_reset": "密码重置",
+      "test": "测试",
+      "welcome": "欢迎邮件",
+      "ssl_expiry": "SSL到期"
+    },
+    "placeholder": {
+      "searchTo": "搜索收件人",
+      "searchSubject": "搜索主题",
+      "allStatus": "全部状态",
+      "allTrigger": "全部来源"
+    },
+    "send": {
+      "title": "发送邮件",
+      "submit": "发送",
+      "success": "邮件发送成功",
+      "requiredFields": "收件人和主题不能为空",
+      "toPlaceholder": "输入收件人邮箱",
+      "toHint": "多个收件人用逗号分隔",
+      "subjectPlaceholder": "输入邮件主题",
+      "htmlBody": "HTML 正文",
+      "htmlPlaceholder": "输入 HTML 格式邮件内容",
+      "textBody": "纯文本正文",
+      "textPlaceholder": "输入纯文本邮件内容（可选）"
+    },
+    "messages": {
+      "deleteSuccess": "删除成功",
+      "deleteConfirm": "确定要删除此邮件记录吗？"
+    }
   }
 }

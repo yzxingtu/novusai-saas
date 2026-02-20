@@ -2023,5 +2023,16 @@
       "feature_code_exists": "功能代码已存在",
       "override_not_found": "租户覆盖绑定不存在"
     }
+  },
+  "email": {
+    "test": {
+      "subject": "NovusAI SaaS 测试邮件",
+      "body": "这是一封测试邮件，用于验证您的 SMTP 配置是否正确。如果您收到此邮件，说明邮件服务配置正常。",
+      "footer": "此邮件由 NovusAI SaaS 平台自动发送，仅用于测试目的。"
+    },
+    "error": {
+      "config_missing": "邮件配置缺失: {fields}",
+      "no_recipients": "未指定收件人"
+    }
   }
 }

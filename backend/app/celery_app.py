@@ -72,6 +72,7 @@ celery_app.conf.include = [
     "app.tasks.ai_health_check",
     "app.tasks.agent_batch",
     "app.tasks.ssl_tasks",
+    "app.tasks.email",
     "app.tasks.ai",
     "app.ai.rag.processor",
 ]

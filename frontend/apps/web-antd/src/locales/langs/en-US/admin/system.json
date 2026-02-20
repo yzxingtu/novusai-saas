@@ -447,5 +447,50 @@
       "inputTimeout": "10-86400 seconds",
       "inputNotifyEmails": "Separate multiple emails with commas"
     }
+  },
+  "emailLog": {
+    "title": "Email Logs",
+    "toAddress": "To",
+    "subject": "Subject",
+    "statusLabel": "Status",
+    "triggeredBy": "Triggered By",
+    "errorMessage": "Error",
+    "createdAt": "Sent At",
+    "status": {
+      "sent": "Sent",
+      "failed": "Failed",
+      "pending": "Pending"
+    },
+    "trigger": {
+      "manual": "Manual",
+      "task_failure": "Task Failure",
+      "password_reset": "Password Reset",
+      "test": "Test",
+      "welcome": "Welcome",
+      "ssl_expiry": "SSL Expiry"
+    },
+    "placeholder": {
+      "searchTo": "Search recipient",
+      "searchSubject": "Search subject",
+      "allStatus": "All Status",
+      "allTrigger": "All Sources"
+    },
+    "send": {
+      "title": "Send Email",
+      "submit": "Send",
+      "success": "Email sent successfully",
+      "requiredFields": "Recipient and subject are required",
+      "toPlaceholder": "Enter recipient email",
+      "toHint": "Separate multiple recipients with commas",
+      "subjectPlaceholder": "Enter email subject",
+      "htmlBody": "HTML Body",
+      "htmlPlaceholder": "Enter HTML email content",
+      "textBody": "Plain Text Body",
+      "textPlaceholder": "Enter plain text content (optional)"
+    },
+    "messages": {
+      "deleteSuccess": "Deleted successfully",
+      "deleteConfirm": "Are you sure you want to delete this email record?"
+    }
   }
 }
