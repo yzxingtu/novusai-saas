@@ -14,6 +14,7 @@ from app.core.base_service import TenantService
 from app.core.config import settings
 from app.core.i18n import _
 from app.enums import ErrorCode
+from app.enums.domain import DomainSslStatus
 from app.exceptions import BusinessException, NotFoundException
 from app.models import Tenant, TenantDomain
 from app.repositories.system.tenant_repository import TenantRepository
@@ -183,7 +184,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         domain = result.scalar_one_or_none()
         
         if not domain:
-            raise NotFoundException(message=_("domain.not_found"))
+            raise NotFoundException(message=_("tenant_domain.not_found"))
         
         return domain
     
@@ -212,7 +213,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         # 检查是否允许自定义域名
         if not settings.ALLOW_CUSTOM_DOMAIN:
             raise BusinessException(
-                message=_("domain.custom_domain_disabled"),
+                message=_("tenant_domain.custom_domain_disabled"),
                 code=ErrorCode.DOMAIN_CUSTOM_DISABLED,
             )
         
@@ -220,7 +221,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         current_count = await self._count_domains()
         if current_count >= tenant.max_custom_domains:
             raise BusinessException(
-                message=_("domain.quota_exceeded"),
+                message=_("tenant_domain.quota_exceeded"),
                 code=ErrorCode.DOMAIN_QUOTA_EXCEEDED,
             )
         
@@ -233,13 +234,16 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         )
         if existing_result.scalar_one_or_none():
             raise BusinessException(
-                message=_("domain.already_exists"),
+                message=_("tenant_domain.already_exists"),
                 code=ErrorCode.DOMAIN_ALREADY_EXISTS,
             )
         
-        # 如果设为主域名，先取消其他主域名
+        # 如果设为主域名，新域名未验证不能设为主域名
         if is_primary:
-            await self._unset_primary_domain()
+            raise BusinessException(
+                message=_("tenant_domain.not_verified"),
+                code=ErrorCode.VALIDATION_ERROR,
+            )
         
         # 创建域名
         new_domain = TenantDomain(
@@ -247,7 +251,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
             domain=domain.lower(),
             is_primary=is_primary,
             is_verified=False,
-            ssl_status="pending",
+            ssl_status=DomainSslStatus.PENDING.value,
             verification_token=secrets.token_urlsafe(32),
             remark=remark,
         )
@@ -277,8 +281,13 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         """
         domain = await self.get_domain(domain_id)
         
-        # 如果设为主域名，先取消其他主域名
+        # 如果设为主域名，先检查验证状态
         if is_primary is True:
+            if not domain.is_verified:
+                raise BusinessException(
+                    message=_("tenant_domain.not_verified"),
+                    code=ErrorCode.VALIDATION_ERROR,
+                )
             await self._unset_primary_domain(exclude_id=domain_id)
             domain.is_primary = True
         elif is_primary is False:
@@ -301,8 +310,27 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
             
         Returns:
             是否删除成功
+            
+        Raises:
+            BusinessException: 不能删除主域名或默认域名
         """
         domain = await self.get_domain(domain_id)
+        
+        # 不能删除默认域名
+        suffix = settings.TENANT_DOMAIN_SUFFIX.lstrip(".")
+        if domain.domain.endswith(suffix):
+            raise BusinessException(
+                message=_("tenant_domain.cannot_delete_default"),
+                code=ErrorCode.FORBIDDEN,
+            )
+        
+        # 不能删除主域名
+        if domain.is_primary:
+            raise BusinessException(
+                message=_("tenant_domain.cannot_delete_primary"),
+                code=ErrorCode.FORBIDDEN,
+            )
+        
         domain.soft_delete()
         await self.db.flush()
         return True
@@ -317,27 +345,50 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         Returns:
             验证后的域名实例
         """
+        import asyncio
+        import dns.resolver
+        
         domain = await self.get_domain(domain_id)
         tenant = await self.get_tenant()
         
-        # TODO: 实际的 DNS 验证逻辑
-        # 这里简化处理，实际应该查询 DNS 记录验证 CNAME 指向
-        # import dns.resolver
-        # try:
-        #     answers = dns.resolver.resolve(domain.domain, 'CNAME')
-        #     expected = f"{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
-        #     for rdata in answers:
-        #         if str(rdata.target).rstrip('.') == expected:
-        #             domain.is_verified = True
-        #             domain.verified_at = utc_now()
-        #             break
-        # except Exception:
-        #     pass
+        if domain.is_verified:
+            raise BusinessException(
+                message=_("tenant_domain.already_verified"),
+                code=ErrorCode.VALIDATION_ERROR,
+            )
         
-        # 简化实现：假设验证通过
+        # 开发模式跳过 DNS 验证
+        if settings.DEBUG:
+            is_valid = True
+        else:
+            # 真实 DNS TXT 记录验证
+            verification_prefix = settings.DOMAIN_VERIFICATION_PREFIX
+            txt_record_name = f"{verification_prefix}.{domain.domain}"
+            expected_value = domain.verification_token
+            is_valid = False
+            
+            try:
+                answers = await asyncio.to_thread(
+                    dns.resolver.resolve, txt_record_name, "TXT"
+                )
+                for rdata in answers:
+                    txt_value = str(rdata).strip('"').strip()
+                    if txt_value == expected_value:
+                        is_valid = True
+                        break
+            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer,
+                    dns.resolver.NoNameservers, Exception):
+                pass
+        
+        if not is_valid:
+            raise BusinessException(
+                message=_("tenant_domain.verify_failed"),
+                code=ErrorCode.VALIDATION_ERROR,
+            )
+        
         domain.is_verified = True
         domain.verified_at = utc_now()
-        domain.ssl_status = "active"  # 实际应该触发 SSL 证书申请
+        domain.ssl_status = DomainSslStatus.PROVISIONING.value
         
         await self.db.flush()
         await self.db.refresh(domain)
@@ -351,6 +402,7 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
             .where(
                 TenantDomain.tenant_id == self.tenant_id,
                 TenantDomain.is_primary.is_(True),
+                TenantDomain.is_deleted.is_(False),
             )
             .values(is_primary=False)
         )

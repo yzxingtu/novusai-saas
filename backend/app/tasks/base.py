@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
 from app.core.config import settings
+from app.core.base_model import utc_now
 from app.core.database import sync_session_factory
 from app.core.logging import LogManager
 
@@ -26,21 +27,92 @@ def get_task_registry() -> dict[str, dict[str, Any]]:
     return _task_registry
 
 
+# 缓存 periodic_tasks 配置，避免每次任务执行都查 DB
+_periodic_task_config_cache: dict[str, dict[str, Any]] = {}
+
+
+def _load_periodic_task_config(task_path: str) -> dict[str, Any]:
+    """
+    从 periodic_tasks 表加载任务配置。
+    结果缓存在内存中，Worker 生命周期内只查一次 DB。
+    """
+    if task_path in _periodic_task_config_cache:
+        return _periodic_task_config_cache[task_path]
+
+    config: dict[str, Any] = {}
+    session = None
+    try:
+        from app.models.system.periodic_task import PeriodicTask
+
+        session = sync_session_factory()
+        task = (
+            session.query(PeriodicTask)
+            .filter(
+                PeriodicTask.task_path == task_path,
+                PeriodicTask.is_deleted.is_(False),
+            )
+            .first()
+        )
+        if task:
+            config = {
+                "max_retries": task.max_retries,
+                "retry_delay": task.retry_delay,
+                "timeout": task.timeout,
+                "notify_on_failure": task.notify_on_failure,
+                "notify_emails": task.notify_emails,
+                "task_name": task.name,
+            }
+    except Exception as e:
+        logger.warning(f"Failed to load periodic task config for {task_path}: {e}")
+    finally:
+        if session:
+            session.close()
+
+    _periodic_task_config_cache[task_path] = config
+    return config
+
+
 class BaseTask(Task):
     """
     Celery 任务基类
 
-    自动记录日志、处理重试和错误回调
+    自动记录日志、处理重试和错误回调。
+    动态从 periodic_tasks 表读取 max_retries / retry_delay / timeout 配置。
     """
 
     abstract = True
     max_retries = 3
     default_retry_delay = 60
     _start_time: float | None = None
+    _db_config: dict[str, int] | None = None
 
     def before_start(self, task_id: str, args: tuple, kwargs: dict) -> None:
         self._start_time = time.monotonic()
+        self._apply_db_config()
         logger.info(f"Task started: {self.name} [{task_id}]")
+        self._record_task_log_start(task_id, args, kwargs)
+
+    def _apply_db_config(self) -> None:
+        """
+        从 periodic_tasks 表动态加载配置并覆盖 Celery 参数。
+        DB 配置优先级高于 @register_task 硬编码值。
+        """
+        config = _load_periodic_task_config(self.name)
+        if not config:
+            return
+        self._db_config = config
+        if config.get("max_retries") is not None:
+            self.max_retries = config["max_retries"]
+        if config.get("timeout") is not None:
+            self.soft_time_limit = config["timeout"]
+
+    def get_retry_countdown(self) -> int:
+        """
+        获取重试间隔（秒）。优先使用 DB 配置，回退到 default_retry_delay。
+        """
+        if self._db_config and self._db_config.get("retry_delay"):
+            return self._db_config["retry_delay"]
+        return self.default_retry_delay
 
     def on_success(self, retval: Any, task_id: str, args: tuple, kwargs: dict) -> None:
         elapsed = self._get_elapsed()
@@ -48,6 +120,7 @@ class BaseTask(Task):
             f"Task succeeded: {self.name} [{task_id}] "
             f"elapsed={elapsed:.2f}s"
         )
+        self._record_task_log_success(task_id, retval, elapsed)
         self._update_periodic_task_timestamps()
 
     def on_failure(self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any) -> None:
@@ -56,13 +129,57 @@ class BaseTask(Task):
             f"Task failed: {self.name} [{task_id}] "
             f"elapsed={elapsed:.2f}s error={exc!r}"
         )
+        self._record_task_log_failure(task_id, exc, einfo, elapsed)
         self._update_periodic_task_timestamps()
+        self._notify_failure(task_id, exc)
 
     def on_retry(self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any) -> None:
         logger.warning(
             f"Task retrying: {self.name} [{task_id}] "
             f"retry={self.request.retries}/{self.max_retries} error={exc!r}"
         )
+        self._record_task_log_retry(task_id, exc)
+
+    def _notify_failure(self, task_id: str, exc: Exception) -> None:
+        """
+        任务失败通知钩子。
+
+        根据 periodic_tasks 表的 notify_on_failure 配置决定是否发送通知。
+        当前支持：日志记录
+        预留接口：WebSocket 实时推送、邮件通知
+        """
+        if not self._db_config or not self._db_config.get("notify_on_failure"):
+            return
+
+        task_name = self._db_config.get("task_name", self.name)
+        notify_emails = self._db_config.get("notify_emails", "")
+
+        # 1. 记录通知日志
+        logger.warning(
+            "Task failure notification: task=%s task_id=%s error=%s emails=%s",
+            task_name, task_id, str(exc)[:200], notify_emails or "(none)",
+        )
+
+        # 2. TODO: WebSocket 实时推送（待实现）
+        # 预留接口：向管理端推送任务失败事件
+        # from app.core.ws import ws_manager
+        # await ws_manager.broadcast_admin({
+        #     "type": "task_failure",
+        #     "task_name": task_name,
+        #     "task_id": task_id,
+        #     "error": str(exc)[:500],
+        # })
+
+        # 3. TODO: 邮件通知（待实现）
+        # 预留接口：向配置的邮箱发送失败通知
+        # if notify_emails:
+        #     from app.tasks.notifications import send_task_failure_email
+        #     send_task_failure_email.delay(
+        #         emails=notify_emails,
+        #         task_name=task_name,
+        #         task_id=task_id,
+        #         error=str(exc)[:1000],
+        #     )
 
     def _get_elapsed(self) -> float:
         if self._start_time is not None:
@@ -72,11 +189,143 @@ class BaseTask(Task):
     def get_db_session(self) -> Session:
         return sync_session_factory()
 
+    # ── Task Log Recording (sync) ──────────────────────────
+
+    def _record_task_log_start(
+        self, task_id: str, args: tuple, kwargs: dict,
+    ) -> None:
+        """Insert a TaskLog row when task starts."""
+        session = None
+        try:
+            from app.models.system.task_log import TaskLog
+
+            session = sync_session_factory()
+            queue = getattr(self, "queue", "default") or "default"
+            tenant_id = kwargs.get("tenant_id") if kwargs else None
+
+            # Serialize args/kwargs safely
+            safe_args = self._safe_json(list(args)) if args else None
+            safe_kwargs = self._safe_json(dict(kwargs)) if kwargs else None
+
+            log = TaskLog(
+                task_id=task_id,
+                task_name=self.name,
+                queue=queue,
+                status="running",
+                args=safe_args,
+                kwargs=safe_kwargs,
+                started_at=utc_now(),
+                tenant_id=tenant_id,
+            )
+            session.add(log)
+            session.commit()
+        except Exception as e:
+            logger.warning(f"Failed to record task log start: {e}")
+            if session:
+                session.rollback()
+        finally:
+            if session:
+                session.close()
+
+    def _record_task_log_success(
+        self, task_id: str, retval: Any, elapsed: float,
+    ) -> None:
+        """Update TaskLog to SUCCESS."""
+        session = None
+        try:
+            from app.models.system.task_log import TaskLog
+
+            session = sync_session_factory()
+            log = (
+                session.query(TaskLog)
+                .filter(TaskLog.task_id == task_id)
+                .first()
+            )
+            if log:
+                log.status = "success"
+                log.result = self._safe_json(retval)
+                log.finished_at = utc_now()
+                log.duration_ms = int(elapsed * 1000)
+                session.commit()
+        except Exception as e:
+            logger.warning(f"Failed to record task log success: {e}")
+            if session:
+                session.rollback()
+        finally:
+            if session:
+                session.close()
+
+    def _record_task_log_failure(
+        self, task_id: str, exc: Exception, einfo: Any, elapsed: float,
+    ) -> None:
+        """Update TaskLog to FAILED."""
+        session = None
+        try:
+            from app.models.system.task_log import TaskLog
+
+            session = sync_session_factory()
+            log = (
+                session.query(TaskLog)
+                .filter(TaskLog.task_id == task_id)
+                .first()
+            )
+            if log:
+                log.status = "failed"
+                log.error_message = str(exc)[:2000]
+                log.traceback = str(einfo)[:5000] if einfo else None
+                log.finished_at = utc_now()
+                log.duration_ms = int(elapsed * 1000)
+                session.commit()
+        except Exception as e:
+            logger.warning(f"Failed to record task log failure: {e}")
+            if session:
+                session.rollback()
+        finally:
+            if session:
+                session.close()
+
+    def _record_task_log_retry(self, task_id: str, exc: Exception) -> None:
+        """Update TaskLog to RETRYING."""
+        session = None
+        try:
+            from app.models.system.task_log import TaskLog
+
+            session = sync_session_factory()
+            log = (
+                session.query(TaskLog)
+                .filter(TaskLog.task_id == task_id)
+                .first()
+            )
+            if log:
+                log.status = "retrying"
+                log.retry_count = getattr(self.request, "retries", 0)
+                log.error_message = str(exc)[:2000]
+                session.commit()
+        except Exception as e:
+            logger.warning(f"Failed to record task log retry: {e}")
+            if session:
+                session.rollback()
+        finally:
+            if session:
+                session.close()
+
+    @staticmethod
+    def _safe_json(value: Any) -> Any:
+        """Convert value to JSON-serializable form."""
+        if value is None:
+            return None
+        if isinstance(value, (dict, list, str, int, float, bool)):
+            return value
+        try:
+            return str(value)
+        except Exception:
+            return None
+
     def _update_periodic_task_timestamps(self) -> None:
         """更新 periodic_tasks 表中的 last_run_at 和 next_run_at"""
         session = None
         try:
-            from datetime import datetime, timedelta
+            from datetime import timedelta
             from app.models.system.periodic_task import PeriodicTask
 
             session = sync_session_factory()
@@ -91,7 +340,7 @@ class BaseTask(Task):
             if not task:
                 return
 
-            now = datetime.now()
+            now = utc_now()
             task.last_run_at = now
 
             # 计算 next_run_at

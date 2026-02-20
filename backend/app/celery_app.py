@@ -65,14 +65,26 @@ celery_app.conf.task_routes = {
 # ========================================
 # 任务自动发现
 # ========================================
-celery_app.conf.task_modules = [
-    "app.tasks",
+celery_app.conf.include = [
     "app.tasks.scheduled",
     "app.tasks.recycle_bin",
+    "app.tasks.upload_cleanup",
     "app.tasks.ai_health_check",
     "app.tasks.agent_batch",
+    "app.tasks.ssl_tasks",
+    "app.tasks.ai",
     "app.ai.rag.processor",
 ]
+
+# 强制导入任务模块（确保 Windows --pool=solo 模式下也能注册）
+def _import_task_modules():
+    for module in celery_app.conf.include:
+        try:
+            __import__(module)
+        except ImportError as e:
+            pass  # 某些模块可能依赖未安装的包（如 acme）
+
+_import_task_modules()
 
 # ========================================
 # 结果配置
@@ -81,43 +93,20 @@ celery_app.conf.result_expires = 3600
 celery_app.conf.task_ignore_result = False
 
 # ========================================
-# 默认 Beat 调度（可被数据库配置覆盖）
+# Beat 调度（由数据库 periodic_tasks 表驱动）
 # ========================================
-celery_app.conf.beat_schedule = {
-    "system-health-check": {
-        "task": "app.tasks.scheduled.system_health_check",
-        "schedule": 300.0,
-        "options": {"queue": "scheduled"},
-    },
-    "clean-expired-captchas": {
-        "task": "app.tasks.scheduled.clean_expired_captchas",
-        "schedule": 3600.0,
-        "options": {"queue": "scheduled"},
-    },
-    "clean-expired-task-logs": {
-        "task": "app.tasks.scheduled.clean_expired_task_logs",
-        "schedule": 86400.0,
-        "options": {"queue": "scheduled"},
-    },
-    "ai-provider-health-check": {
-        "task": "app.tasks.ai_health_check.ai_provider_health_check",
-        "schedule": 300.0,
-        "options": {"queue": "scheduled"},
-    },
-    "reset-agent-daily-quotas": {
-        "task": "app.tasks.scheduled.reset_agent_daily_quotas",
-        "schedule": 86400.0,
-        "options": {"queue": "scheduled"},
-    },
-    "reset-agent-daily-stats": {
-        "task": "app.tasks.scheduled.reset_agent_daily_stats",
-        "schedule": 86400.0,
-        "options": {"queue": "scheduled"},
-    },
-    "cleanup-recycle-bin": {
-        "task": "app.tasks.recycle_bin.cleanup_recycle_bin",
-        "schedule": 86400.0,
-        "kwargs": {"retention_days": 30},
-        "options": {"queue": "scheduled"},
-    },
-}
+# 所有定时任务通过 periodic_tasks 表管理，
+# 不再硬编码任何调度条目。
+celery_app.conf.beat_schedule = {}
+
+
+# ========================================
+# Beat 启动时从数据库加载调度
+# ========================================
+from celery.signals import beat_init
+
+
+@beat_init.connect
+def _on_beat_init(sender, **kwargs):
+    from app.tasks.scheduler import setup_periodic_tasks
+    setup_periodic_tasks()

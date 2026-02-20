@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Any, Generic, TypeVar
 from typing import get_args, get_origin
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 from app.core.config import settings
 
 # 泛型类型变量
@@ -33,11 +33,33 @@ class BaseSchema(BaseModel):
         populate_by_name=True,      # 支持字段别名
         use_enum_values=True,       # 枚举返回值而非对象
         json_encoders={             # 自定义 JSON 编码
-            datetime: lambda v: v.strftime("%Y-%m-%d %H:%M:%S") if v else None,
+            datetime: lambda v: v.isoformat() if v else None,
         },
         str_strip_whitespace=True,  # 自动去除字符串首尾空白
     )
     
+    @model_serializer(mode='wrap')
+    def _serialize_model(self, handler: Any) -> dict:
+        """
+        全局序列化器：将所有 datetime 字段转为 ISO 8601 UTC 字符串。
+        
+        解决 Pydantic v2 中 model_dump() 不触发 json_encoders 的问题。
+        DB 存储 naive UTC → 输出 '2026-02-21T05:07:00+00:00'
+        浏览器 new Date() 自动转为本地时间。
+        """
+        from datetime import timezone as tz
+        
+        data = handler(self)
+        if not isinstance(data, dict):
+            return data
+        for key, value in data.items():
+            if isinstance(value, datetime):
+                if value.tzinfo is None:
+                    data[key] = value.replace(tzinfo=tz.utc).isoformat()
+                else:
+                    data[key] = value.isoformat()
+        return data
+
     @model_validator(mode='before')
     @classmethod
     def parse_datetime_fields(cls, data: Any) -> Any:
@@ -96,8 +118,9 @@ class BaseSchema(BaseModel):
             # 如果已经是 datetime 对象,添加时区信息
             if isinstance(field_value, datetime):
                 if field_value.tzinfo is None:
-                    # naive datetime -> 添加本地时区
-                    processed_data[field_name] = field_value.replace(tzinfo=settings.tz)
+                    # naive datetime from DB → 标记为 UTC（DB 存储的是 UTC）
+                    from datetime import timezone
+                    processed_data[field_name] = field_value.replace(tzinfo=timezone.utc)
                 else:
                     processed_data[field_name] = field_value
                 continue

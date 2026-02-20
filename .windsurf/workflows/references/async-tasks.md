@@ -30,6 +30,13 @@
 | `ai_gateway` | `app.tasks.ai.*` | AI 模型调用（可能较慢） |
 | `scheduled` | `app.tasks.scheduled.*` | 定时触发的任务 |
 
+### 禁止事项
+
+- **禁止使用 `@shared_task` 或 `@celery_app.task`**（`ai.py` 是历史遗留，待修复）
+- **禁止在 `@register_task` 中传 `bind=True` 或 `base=BaseTask`**（装饰器已自动设置）
+- **禁止在任务函数内直接写 `async def`**（Celery Worker 是同步进程）
+- **禁止使用异步 DB Session**（必须用 `self.get_db_session()` 同步 Session）
+
 ---
 
 ## 代码模板
@@ -76,6 +83,31 @@ def sync_tenant_data(self: TenantTask, tenant_id: int, data_type: str) -> dict:
         session.close()
 ```
 
+### 包装异步代码（当必须调用 async 函数时）
+
+```python
+@register_task(
+    queue="scheduled",
+    description="需要调用异步代码的任务",
+    max_retries=1,
+)
+def task_with_async(self: BaseTask) -> dict:
+    import asyncio
+
+    async def _async_work():
+        # 异步业务逻辑（如 Redis 操作、DNS 查询等）
+        from app.core.redis import get_redis_client
+        client = get_redis_client()
+        return await client.get("some_key")
+
+    loop = asyncio.new_event_loop()
+    try:
+        result = loop.run_until_complete(_async_work())
+        return {"result": result}
+    finally:
+        loop.close()
+```
+
 ### 调用任务
 
 ```python
@@ -91,6 +123,14 @@ result = my_task.apply_async(
     queue="high_priority",     # 覆盖默认队列
     countdown=10,              # 延迟执行
     expires=3600,              # 过期时间
+)
+
+# 通过任务名称调用（适用于跨模块/动态触发）
+from app.celery_app import celery_app
+celery_app.send_task(
+    "app.tasks.ssl_tasks.task_provision_ssl",
+    args=[domain_id],
+    queue="default",
 )
 
 # 租户任务必须传 tenant_id
@@ -126,6 +166,72 @@ sync_tenant_data.delay(tenant_id=42, data_type="quota")
 - `is_locked=True`：禁止删除（Service `_before_delete` 钩子校验）
 - `is_editable=False`：仅允许切换启用状态（Service `_before_update` 钩子校验）
 - 系统内置任务建议设置 `is_locked=True, is_editable=False`
+
+### Beat 调度注册（两种方式）
+
+**方式 1：代码级静态注册**（`celery_app.py` 的 `beat_schedule`）
+
+适用于系统内置、不需要运行时修改的任务。
+
+```python
+# celery_app.py beat_schedule 中添加
+from celery.schedules import crontab
+
+"check-ssl-renewals": {
+    "task": "app.tasks.ssl_tasks.task_check_ssl_renewals",
+    "schedule": crontab(hour=3, minute=0),  # 每天凌晨 3:00
+    "options": {"queue": "scheduled"},
+},
+```
+
+**方式 2：DB 动态注册**（`PeriodicTask` 表 + Alembic 种子数据）
+
+适用于需要管理员在后台管理界面查看/启停/修改的任务。
+
+```python
+# Alembic 迁移中插入种子数据
+PeriodicTask(
+    name="check-ssl-renewals",
+    task_path="app.tasks.ssl_tasks.task_check_ssl_renewals",
+    schedule_type="cron",
+    cron_expression="0 3 * * *",     # 分 时 日 月 周
+    is_active=True,
+    scope="platform",
+    is_locked=True,
+    is_editable=False,
+    description="每日检查 SSL 证书续期",
+    max_retries=1,
+    timeout=1800,
+    notify_on_failure=True,
+)
+```
+
+**最佳实践**：两种方式同时注册。Beat 静态注册保证兜底执行，DB 注册提供管理界面可见性。`scheduler.py` 的 `setup_periodic_tasks()` 会用 DB 配置覆盖同名静态配置。
+
+### crontab vs interval 选择
+
+| 场景 | 推荐 | 示例 |
+|------|------|------|
+| 每天固定时间执行 | `cron` | `0 3 * * *`（凌晨 3:00） |
+| 固定间隔（健康检查等） | `interval` | `300`（5 分钟） |
+| 一次性异步任务 | 不注册 Beat | `task.delay()` 或 `send_task()` |
+
+---
+
+## 现有任务清单
+
+| 任务 | 文件 | 队列 | 调度 |
+|------|------|------|------|
+| `system_health_check` | `scheduled.py` | `scheduled` | interval 300s |
+| `clean_expired_captchas` | `scheduled.py` | `scheduled` | interval 3600s |
+| `clean_expired_task_logs` | `scheduled.py` | `scheduled` | interval 86400s |
+| `reset_agent_daily_quotas` | `scheduled.py` | `scheduled` | interval 86400s |
+| `reset_agent_daily_stats` | `scheduled.py` | `scheduled` | interval 86400s |
+| `ai_provider_health_check` | `ai_health_check.py` | `scheduled` | interval 300s |
+| `cleanup_recycle_bin` | `recycle_bin.py` | `scheduled` | interval 86400s |
+| `cleanup_chunk_uploads` | `upload_cleanup.py` | `scheduled` | interval 21600s |
+| `log_ai_call_task` | `ai.py` | `ai_gateway` | 一次性（API 触发） |
+| `execute_batch_run` | `agent_batch.py` | `ai_gateway` | 一次性（API 触发） |
 
 ---
 

@@ -2,28 +2,23 @@
  * 平台端租户域名管理 API
  * 对接后端 /admin/tenants/{tenant_id}/domains/* 接口
  */
+import type { DomainType, SslStatus, VerificationStatus } from '#/types/domain';
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
+export type { DomainType, SslStatus, VerificationStatus } from '#/types/domain';
+
 // ============================================================
 // 类型定义
 // ============================================================
-
-/** 域名类型 */
-export type DomainType = 'custom' | 'default';
-
-/** SSL 状态 */
-export type SslStatus = 'active' | 'failed' | 'pending';
-
-/** 验证状态 */
-export type VerificationStatus = 'pending' | 'verified';
 
 /** 域名信息（后端原始格式 snake_case） */
 export interface TenantDomainInfoRaw {
   id: number;
   tenant_id: number;
   domain: string;
+  domain_type: DomainType;
   is_verified: boolean;
   is_primary: boolean;
   ssl_status: SslStatus;
@@ -92,8 +87,7 @@ function transformDomainInfo(raw: TenantDomainInfoRaw): TenantDomainInfo {
     id: raw.id,
     tenantId: raw.tenant_id,
     domain: raw.domain,
-    // 推断 domainType
-    domainType: raw.remark?.includes('默认') ? 'default' : 'custom',
+    domainType: raw.domain_type || 'custom',
     isPrimary: raw.is_primary,
     verificationStatus: raw.is_verified ? 'verified' : 'pending',
     sslStatus: raw.ssl_status,
@@ -250,4 +244,208 @@ export async function setPrimaryDomainApi(
     options,
   );
   return transformDomainInfo(raw);
+}
+
+// ============================================================
+// SSL 证书管理 API
+// ============================================================
+
+/** SSL 证书详情响应 */
+export interface SslCertificateInfo {
+  id: number;
+  domainId: number;
+  tenantId: number;
+  certType: 'custom' | 'platform';
+  status: 'active' | 'expired' | 'failed' | 'pending' | 'revoked';
+  issuer: null | string;
+  serialNumber: null | string;
+  issuedAt: null | string;
+  expiresAt: null | string;
+  autoRenew: boolean;
+  hasCertificate: boolean;
+  hasPrivateKey: boolean;
+  hasChain: boolean;
+  lastRenewalAttempt: null | string;
+  renewalError: null | string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** SSL 证书详情原始响应 */
+interface SslCertificateInfoRaw {
+  id: number;
+  domain_id: number;
+  tenant_id: number;
+  cert_type: 'custom' | 'platform';
+  status: 'active' | 'expired' | 'failed' | 'pending' | 'revoked';
+  issuer: null | string;
+  serial_number: null | string;
+  issued_at: null | string;
+  expires_at: null | string;
+  auto_renew: boolean;
+  has_certificate: boolean;
+  has_private_key: boolean;
+  has_chain: boolean;
+  last_renewal_attempt: null | string;
+  renewal_error: null | string;
+  created_at: string;
+  updated_at: string;
+}
+
+function transformSslCertInfo(raw: SslCertificateInfoRaw): SslCertificateInfo {
+  return {
+    id: raw.id,
+    domainId: raw.domain_id,
+    tenantId: raw.tenant_id,
+    certType: raw.cert_type,
+    status: raw.status,
+    issuer: raw.issuer,
+    serialNumber: raw.serial_number,
+    issuedAt: raw.issued_at,
+    expiresAt: raw.expires_at,
+    autoRenew: raw.auto_renew,
+    hasCertificate: raw.has_certificate,
+    hasPrivateKey: raw.has_private_key,
+    hasChain: raw.has_chain,
+    lastRenewalAttempt: raw.last_renewal_attempt,
+    renewalError: raw.renewal_error,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+/**
+ * 获取域名 SSL 证书详情
+ * GET /admin/tenants/{tenant_id}/domains/{domain_id}/ssl
+ */
+export async function getSslDetailApi(
+  tenantId: number,
+  domainId: number,
+  options?: ApiRequestOptions,
+): Promise<SslCertificateInfo | null> {
+  const raw = await requestClient.get<SslCertificateInfoRaw | null>(
+    `${getDomainApiPrefix(tenantId)}/${domainId}/ssl`,
+    options,
+  );
+  return raw ? transformSslCertInfo(raw) : null;
+}
+
+/**
+ * 手动触发 SSL 签发
+ * POST /admin/tenants/{tenant_id}/domains/{domain_id}/ssl/provision
+ */
+export async function provisionSslApi(
+  tenantId: number,
+  domainId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.post(
+    `${getDomainApiPrefix(tenantId)}/${domainId}/ssl/provision`,
+    {},
+    options,
+  );
+}
+
+/**
+ * 手动续期 SSL 证书
+ * POST /admin/tenants/{tenant_id}/domains/{domain_id}/ssl/renew
+ */
+export async function renewSslApi(
+  tenantId: number,
+  domainId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.post(
+    `${getDomainApiPrefix(tenantId)}/${domainId}/ssl/renew`,
+    {},
+    options,
+  );
+}
+
+/**
+ * 上传自定义 SSL 证书
+ * POST /admin/tenants/{tenant_id}/domains/{domain_id}/ssl/upload
+ */
+export async function uploadSslCertApi(
+  tenantId: number,
+  domainId: number,
+  data: { certificate: string; certificate_chain?: string; private_key: string },
+  options?: ApiRequestOptions,
+): Promise<SslCertificateInfo> {
+  const raw = await requestClient.post<SslCertificateInfoRaw>(
+    `${getDomainApiPrefix(tenantId)}/${domainId}/ssl/upload`,
+    data,
+    options,
+  );
+  return transformSslCertInfo(raw);
+}
+
+/**
+ * 强制替换 SSL 证书（Admin 独有）
+ * POST /admin/tenants/{tenant_id}/domains/{domain_id}/ssl/replace
+ */
+export async function replaceSslApi(
+  tenantId: number,
+  domainId: number,
+  data: {
+    certificate?: string;
+    certificate_chain?: string;
+    mode: 'custom' | 'platform';
+    private_key?: string;
+  },
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.post(
+    `${getDomainApiPrefix(tenantId)}/${domainId}/ssl/replace`,
+    data,
+    options,
+  );
+}
+
+/**
+ * 删除 SSL 证书
+ * DELETE /admin/tenants/{tenant_id}/domains/{domain_id}/ssl
+ */
+export async function deleteSslCertApi(
+  tenantId: number,
+  domainId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.delete(
+    `${getDomainApiPrefix(tenantId)}/${domainId}/ssl`,
+    options,
+  );
+}
+
+/**
+ * 设置 SSL 自动续期开关
+ * PUT /admin/tenants/{tenant_id}/domains/{domain_id}/ssl/auto-renew
+ */
+export async function updateSslAutoRenewApi(
+  tenantId: number,
+  domainId: number,
+  autoRenew: boolean,
+  options?: ApiRequestOptions,
+): Promise<SslCertificateInfo> {
+  const raw = await requestClient.put<SslCertificateInfoRaw>(
+    `${getDomainApiPrefix(tenantId)}/${domainId}/ssl/auto-renew`,
+    { auto_renew: autoRenew },
+    options,
+  );
+  return transformSslCertInfo(raw);
+}
+
+/**
+ * 批量签发租户所有域名 SSL（Admin 独有）
+ * POST /admin/tenants/{tenant_id}/domains/ssl/batch-provision
+ */
+export async function batchProvisionSslApi(
+  tenantId: number,
+  options?: ApiRequestOptions,
+): Promise<{ skipped: number; triggered: number }> {
+  return await requestClient.post<{ skipped: number; triggered: number }>(
+    `/admin/tenants/${tenantId}/domains/ssl/batch-provision`,
+    {},
+    options,
+  );
 }

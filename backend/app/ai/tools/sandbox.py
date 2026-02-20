@@ -286,6 +286,9 @@ class ToolSandbox:
                 executor.execute(definition, tool_call_id, arguments, context=context),
                 timeout=tool_timeout,
             )
+            # Ensure result.name is always set (some executors omit it in error paths)
+            if not result.name:
+                result.name = name
         except asyncio.TimeoutError:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.warning(

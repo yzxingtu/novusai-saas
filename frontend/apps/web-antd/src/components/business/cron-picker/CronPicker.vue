@@ -6,15 +6,10 @@ import { computed, ref, watch } from 'vue';
 import { IconifyIcon } from '@vben/icons';
 
 import {
-  Button,
-  Col,
-  Divider,
-  Flex,
   Input,
-  Popover,
-  Row,
+  Select,
+  Segmented,
   Tag,
-  Typography,
 } from 'ant-design-vue';
 
 import { $t } from '#/locales';
@@ -35,11 +30,13 @@ const emit = defineEmits<{
 }>();
 
 const cronValue = ref(props.value || '');
+const mode = ref<'custom' | 'preset'>('preset');
 
 interface Preset {
   label: string;
   value: string;
   description: string;
+  icon: string;
 }
 
 const presets = computed<Preset[]>(() => [
@@ -47,46 +44,55 @@ const presets = computed<Preset[]>(() => [
     label: $t('common.cronPicker.presets.everyMinute'),
     value: '* * * * *',
     description: $t('common.cronPicker.presets.everyMinuteDesc'),
+    icon: 'lucide:zap',
   },
   {
     label: $t('common.cronPicker.presets.every5Min'),
     value: '*/5 * * * *',
     description: $t('common.cronPicker.presets.every5MinDesc'),
+    icon: 'lucide:timer',
   },
   {
     label: $t('common.cronPicker.presets.every15Min'),
     value: '*/15 * * * *',
     description: $t('common.cronPicker.presets.every15MinDesc'),
+    icon: 'lucide:timer',
   },
   {
     label: $t('common.cronPicker.presets.every30Min'),
     value: '*/30 * * * *',
     description: $t('common.cronPicker.presets.every30MinDesc'),
+    icon: 'lucide:timer',
   },
   {
     label: $t('common.cronPicker.presets.everyHour'),
     value: '0 * * * *',
     description: $t('common.cronPicker.presets.everyHourDesc'),
+    icon: 'lucide:clock',
   },
   {
     label: $t('common.cronPicker.presets.daily2AM'),
     value: '0 2 * * *',
     description: $t('common.cronPicker.presets.daily2AMDesc'),
+    icon: 'lucide:moon',
   },
   {
     label: $t('common.cronPicker.presets.daily6AM'),
     value: '0 6 * * *',
     description: $t('common.cronPicker.presets.daily6AMDesc'),
+    icon: 'lucide:sunrise',
   },
   {
     label: $t('common.cronPicker.presets.weeklyMon'),
     value: '0 2 * * 1',
     description: $t('common.cronPicker.presets.weeklyMonDesc'),
+    icon: 'lucide:calendar',
   },
   {
     label: $t('common.cronPicker.presets.monthly1st'),
     value: '0 2 1 * *',
     description: $t('common.cronPicker.presets.monthly1stDesc'),
+    icon: 'lucide:calendar-days',
   },
 ]);
 
@@ -127,7 +133,7 @@ function describeCron(expr: string): string {
 
 const nextExecutions = computed(() => {
   try {
-    return getNextExecutions(cronValue.value, 5);
+    return getNextExecutions(cronValue.value, 3);
   } catch {
     return [];
   }
@@ -199,9 +205,16 @@ function onCustomInput(val: string) {
   emit('update:value', val);
 }
 
-function applyBuilder() {
+function onFieldChange() {
   cronValue.value = buildExpression.value;
   emit('update:value', buildExpression.value);
+}
+
+function onModeChange(val: string | number) {
+  mode.value = val as 'custom' | 'preset';
+  if (val === 'preset' && cronValue.value) {
+    parseCron(cronValue.value);
+  }
 }
 
 watch(
@@ -214,116 +227,183 @@ watch(
   },
 );
 
+if (props.value) {
+  parseCron(props.value);
+  const isPreset = presets.value.some((p) => p.value === props.value);
+  mode.value = isPreset ? 'preset' : 'custom';
+}
+
 const activePreset = computed(() => presets.value.find((p) => p.value === cronValue.value));
+
+const minuteOptions = computed(() => {
+  const opts = [{ label: `* (${$t('common.cronPicker.every')})`, value: '*' }];
+  for (const step of [5, 10, 15, 30]) {
+    opts.push({ label: `*/${step}`, value: `*/${step}` });
+  }
+  for (let i = 0; i <= 59; i++) {
+    opts.push({ label: String(i), value: String(i) });
+  }
+  return opts;
+});
+
+const hourOptions = computed(() => {
+  const opts = [{ label: `* (${$t('common.cronPicker.every')})`, value: '*' }];
+  for (let i = 0; i <= 23; i++) {
+    opts.push({ label: `${i}:00`, value: String(i) });
+  }
+  return opts;
+});
+
+const dayOfMonthOptions = computed(() => {
+  const opts = [{ label: `* (${$t('common.cronPicker.every')})`, value: '*' }];
+  for (let i = 1; i <= 31; i++) {
+    opts.push({ label: String(i), value: String(i) });
+  }
+  return opts;
+});
+
+const monthOptions = computed(() => {
+  const names = $t('common.cronPicker.monthNames').split(',');
+  const opts = [{ label: `* (${$t('common.cronPicker.every')})`, value: '*' }];
+  for (let i = 1; i <= 12; i++) {
+    opts.push({ label: `${i} - ${names[i - 1]?.trim() ?? ''}`, value: String(i) });
+  }
+  return opts;
+});
+
+const dayOfWeekOptions = computed(() => {
+  const names = $t('common.cronPicker.dayNames').split(',');
+  const opts = [{ label: `* (${$t('common.cronPicker.every')})`, value: '*' }];
+  for (let i = 0; i <= 6; i++) {
+    opts.push({ label: `${i} - ${names[i]?.trim() ?? ''}`, value: String(i) });
+  }
+  return opts;
+});
 </script>
 
 <template>
   <div class="cron-picker w-full">
-    <Flex :gap="8" align="center">
-      <Input
-        :value="cronValue"
-        :disabled="disabled"
-        :placeholder="$t('common.cronPicker.placeholder')"
-        class="flex-1"
-        @change="(e: any) => onCustomInput(e.target.value)"
-      />
-      <Popover
-        trigger="click"
-        placement="bottomRight"
-        :overlay-style="{ width: '480px' }"
+    <!-- 模式切换 -->
+    <Segmented
+      :value="mode"
+      :disabled="disabled"
+      :options="[
+        { label: $t('common.cronPicker.quickPresets'), value: 'preset' },
+        { label: $t('common.cronPicker.customMode'), value: 'custom' },
+      ]"
+      class="mb-3"
+      block
+      @change="onModeChange"
+    />
+
+    <!-- 预设模式 -->
+    <div v-if="mode === 'preset'" class="grid grid-cols-3 gap-2">
+      <div
+        v-for="preset in presets"
+        :key="preset.value"
+        class="cursor-pointer rounded-lg border px-3 py-2 transition-all"
+        :class="
+          activePreset?.value === preset.value
+            ? 'border-primary bg-primary/5 shadow-sm'
+            : 'border-border hover:border-primary/30 hover:bg-accent/30'
+        "
+        @click="selectPreset(preset)"
       >
-        <Button :disabled="disabled" type="dashed" size="small">
-          <IconifyIcon icon="lucide:calendar-clock" class="mr-1 size-3.5" />
-          {{ $t('common.cronPicker.helper') }}
-        </Button>
-        <template #content>
-          <div class="p-1">
-            <!-- 快捷预设 -->
-            <Typography.Text strong class="mb-2 block text-sm">
-              {{ $t('common.cronPicker.quickPresets') }}
-            </Typography.Text>
-            <Flex wrap="wrap" :gap="6" class="mb-3">
-              <Tag
-                v-for="preset in presets"
-                :key="preset.value"
-                :color="activePreset?.value === preset.value ? 'blue' : 'default'"
-                class="cursor-pointer"
-                @click="selectPreset(preset)"
-              >
-                {{ preset.label }}
-              </Tag>
-            </Flex>
+        <div class="flex items-center gap-1.5">
+          <IconifyIcon
+            :icon="preset.icon"
+            class="size-3.5 shrink-0"
+            :class="activePreset?.value === preset.value ? 'text-primary' : 'text-muted-foreground'"
+          />
+          <span
+            class="text-xs font-medium"
+            :class="activePreset?.value === preset.value ? 'text-primary' : 'text-foreground'"
+          >
+            {{ preset.label }}
+          </span>
+        </div>
+        <div class="mt-0.5 pl-5 text-[11px] text-muted-foreground">
+          {{ preset.description }}
+        </div>
+      </div>
+    </div>
 
-            <Divider class="!my-3" />
+    <!-- 自定义模式 -->
+    <div v-else>
+      <!-- 可视化字段选择器 -->
+      <div class="mb-3 grid grid-cols-5 gap-2">
+        <div v-for="field in [
+          { key: 'minute', label: $t('common.cronPicker.fields.minute'), model: minute, options: minuteOptions },
+          { key: 'hour', label: $t('common.cronPicker.fields.hour'), model: hour, options: hourOptions },
+          { key: 'dayOfMonth', label: $t('common.cronPicker.fields.dayOfMonth'), model: dayOfMonth, options: dayOfMonthOptions },
+          { key: 'month', label: $t('common.cronPicker.fields.month'), model: month, options: monthOptions },
+          { key: 'dayOfWeek', label: $t('common.cronPicker.fields.dayOfWeek'), model: dayOfWeek, options: dayOfWeekOptions },
+        ]" :key="field.key" class="flex flex-col gap-1">
+          <span class="text-center text-xs font-medium text-muted-foreground">
+            {{ field.label }}
+          </span>
+          <Select
+            :value="field.model"
+            size="small"
+            :disabled="disabled"
+            show-search
+            :options="field.options"
+            @change="(val: unknown) => {
+              const v = String(val);
+              if (field.key === 'minute') minute = v;
+              else if (field.key === 'hour') hour = v;
+              else if (field.key === 'dayOfMonth') dayOfMonth = v;
+              else if (field.key === 'month') month = v;
+              else if (field.key === 'dayOfWeek') dayOfWeek = v;
+              onFieldChange();
+            }"
+          />
+        </div>
+      </div>
 
-            <!-- 可视化构建器 -->
-            <Typography.Text strong class="mb-2 block text-sm">
-              {{ $t('common.cronPicker.visualBuilder') }}
-            </Typography.Text>
-            <Row :gutter="[8, 8]" class="mb-2">
-              <Col :span="4">
-                <div class="text-center text-xs text-muted-foreground">
-                  {{ $t('common.cronPicker.fields.minute') }}
-                </div>
-                <Input v-model:value="minute" size="small" class="text-center" />
-              </Col>
-              <Col :span="4">
-                <div class="text-center text-xs text-muted-foreground">
-                  {{ $t('common.cronPicker.fields.hour') }}
-                </div>
-                <Input v-model:value="hour" size="small" class="text-center" />
-              </Col>
-              <Col :span="5">
-                <div class="text-center text-xs text-muted-foreground">
-                  {{ $t('common.cronPicker.fields.dayOfMonth') }}
-                </div>
-                <Input v-model:value="dayOfMonth" size="small" class="text-center" />
-              </Col>
-              <Col :span="4">
-                <div class="text-center text-xs text-muted-foreground">
-                  {{ $t('common.cronPicker.fields.month') }}
-                </div>
-                <Input v-model:value="month" size="small" class="text-center" />
-              </Col>
-              <Col :span="5">
-                <div class="text-center text-xs text-muted-foreground">
-                  {{ $t('common.cronPicker.fields.dayOfWeek') }}
-                </div>
-                <Input v-model:value="dayOfWeek" size="small" class="text-center" />
-              </Col>
-              <Col :span="2" class="flex items-end">
-                <Button type="primary" size="small" @click="applyBuilder">
-                  <IconifyIcon icon="lucide:check" class="size-3" />
-                </Button>
-              </Col>
-            </Row>
-            <Typography.Text type="secondary" class="text-xs">
-              {{ buildExpression }}
-            </Typography.Text>
+      <!-- 手动输入 -->
+      <div class="flex items-center gap-2">
+        <span class="shrink-0 text-xs text-muted-foreground">
+          {{ $t('common.cronPicker.expression') }}:
+        </span>
+        <Input
+          :value="cronValue"
+          :disabled="disabled"
+          :placeholder="$t('common.cronPicker.placeholder')"
+          size="small"
+          class="font-mono"
+          @change="(e: Event) => onCustomInput((e.target as HTMLInputElement).value)"
+        />
+      </div>
+    </div>
 
-            <!-- 执行时间预览 -->
-            <template v-if="cronValue && nextExecutions.length > 0">
-              <Divider class="!my-3" />
-              <Typography.Text strong class="mb-1 block text-sm">
-                {{ $t('common.cronPicker.nextExecutions') }}
-              </Typography.Text>
-              <div class="space-y-1">
-                <div
-                  v-for="(time, idx) in nextExecutions"
-                  :key="idx"
-                  class="flex items-center gap-2 text-xs text-muted-foreground"
-                >
-                  <IconifyIcon icon="lucide:clock" class="size-3 text-primary" />
-                  {{ time }}
-                </div>
-              </div>
-            </template>
-          </div>
-        </template>
-      </Popover>
-    </Flex>
-    <div v-if="cronDescription && cronValue" class="mt-1 text-xs text-muted-foreground">
-      {{ cronDescription }}
+    <!-- 底部信息栏：当前表达式 + 描述 + 下次执行 -->
+    <div
+      v-if="cronValue"
+      class="mt-3 rounded-lg border border-border bg-accent/30 p-2.5"
+    >
+      <div class="flex items-center gap-2">
+        <Tag color="blue" class="!m-0 font-mono">{{ cronValue }}</Tag>
+        <span v-if="cronDescription" class="text-xs text-muted-foreground">
+          {{ cronDescription }}
+        </span>
+      </div>
+      <div
+        v-if="nextExecutions.length > 0"
+        class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1"
+      >
+        <span class="text-[11px] font-medium text-muted-foreground/70">
+          {{ $t('common.cronPicker.nextExecutions') }}:
+        </span>
+        <span
+          v-for="(time, idx) in nextExecutions"
+          :key="idx"
+          class="flex items-center gap-1 text-[11px] text-muted-foreground"
+        >
+          <IconifyIcon icon="lucide:clock" class="size-3 text-primary/60" />
+          {{ time }}
+        </span>
+      </div>
     </div>
   </div>
 </template>

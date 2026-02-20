@@ -79,6 +79,8 @@ export interface TenantAdminInfo extends BaseUserInfo {
   tenantId: number | string;
   tenantName?: string;
   email?: string;
+  hasPlan: boolean;
+  planName?: string;
 }
 
 /** 租户用户信息 */

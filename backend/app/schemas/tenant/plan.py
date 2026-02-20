@@ -6,11 +6,12 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import Field, field_validator
 
 from app.core.base_schema import BaseSchema
+from app.core.i18n import _
 from app.enums import BillingCycle
 
 
@@ -123,8 +124,20 @@ class TenantPlanDetailResponse(TenantPlanResponse):
     )
     
     @classmethod
-    def from_model(cls, plan) -> "TenantPlanDetailResponse":
-        """从模型创建详情响应"""
+    def from_model(
+        cls,
+        plan,
+        translate_fn: Callable[[str], str] | None = None,
+    ) -> "TenantPlanDetailResponse":
+        """从模型创建详情响应
+        
+        Args:
+            plan: TenantPlan ORM 对象
+            translate_fn: 可选的权限名称翻译函数
+        """
+        active_permissions = [
+            p for p in plan.permissions if p.is_enabled
+        ]
         return cls(
             id=plan.id,
             code=plan.code,
@@ -137,18 +150,18 @@ class TenantPlanDetailResponse(TenantPlanResponse):
             quota=plan.quota,
             features=plan.features,
             tenants_count=plan.tenants_count,
-            permissions_count=plan.permissions_count,
+            permissions_count=len(active_permissions),
             created_at=plan.created_at,
             updated_at=plan.updated_at,
             permissions=[
                 PermissionSimpleResponse(
                     id=p.id,
                     code=p.code,
-                    name=p.name,
+                    name=translate_fn(p.name) if translate_fn else p.name,
                     type=p.type,
                     resource=p.resource,
                 )
-                for p in plan.permissions
+                for p in active_permissions
             ],
         )
 
@@ -175,7 +188,7 @@ class TenantPlanCreateRequest(BaseSchema):
     def validate_billing_cycle(cls, v: str) -> str:
         """验证计费周期"""
         if v not in BillingCycle.values():
-            raise ValueError(f"计费周期必须是以下值之一: {BillingCycle.values()}")
+            raise ValueError(_("tenant_plan.invalid_billing_cycle"))
         return v
 
 
@@ -196,7 +209,7 @@ class TenantPlanUpdateRequest(BaseSchema):
     def validate_billing_cycle(cls, v: str | None) -> str | None:
         """验证计费周期"""
         if v is not None and v not in BillingCycle.values():
-            raise ValueError(f"计费周期必须是以下值之一: {BillingCycle.values()}")
+            raise ValueError(_("tenant_plan.invalid_billing_cycle"))
         return v
 
 

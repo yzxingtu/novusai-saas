@@ -4,7 +4,7 @@
 提供租户端域名管理 CRUD、验证、主域名设置等接口
 """
 
-from fastapi import HTTPException, Request, status, status
+from fastapi import HTTPException, Request, status
 
 from app.core.base_controller import TenantController
 from app.core.base_schema import PageResponse
@@ -28,7 +28,13 @@ from app.schemas.tenant.domain import (
     TenantDomainCreateRequest,
     TenantDomainUpdateRequest,
 )
+from app.schemas.tenant.ssl import (
+    SslCertificateResponse,
+    SslCertificateUploadRequest,
+    SslAutoRenewRequest,
+)
 from app.services.system.tenant_domain_service import TenantDomainTenantService
+from app.services.system.ssl_certificate_service import SslCertificateService
 
 
 @permission_resource(
@@ -323,6 +329,169 @@ class TenantDomainController(TenantController):
             return success(
                 data=TenantDomainResponse.model_validate(domain, from_attributes=True),
                 message=_("tenant_domain.primary_set"),
+            )
+
+        # ==================== SSL 证书管理端点 ====================
+
+        @router.get("/{domain_id}/ssl", summary="获取域名 SSL 证书详情")
+        @permission_action("ssl_detail", "action.tenant_domain.ssl_detail")
+        async def get_ssl_detail(
+            request: Request,
+            db: DbSession,
+            domain_id: int,
+            current_admin: ActiveTenantAdmin,
+        ):
+            """获取域名 SSL 证书详情（租户隔离）"""
+            service = self.get_service(db, current_admin.tenant_id)
+            domain = await service.get_by_id(domain_id)
+            if not domain or domain.tenant_id != current_admin.tenant_id:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("tenant_domain.not_found"))
+
+            ssl_service = SslCertificateService(db)
+            cert = await ssl_service.get_cert_detail(domain_id)
+            if not cert:
+                return success(data=None, message=_("ssl_certificate.not_found"))
+            return success(data=SslCertificateResponse.from_model(cert))
+
+        @router.post("/{domain_id}/ssl/provision", summary="手动触发 SSL 签发")
+        @permission_action("ssl_provision", "action.tenant_domain.ssl_provision")
+        async def provision_ssl(
+            request: Request,
+            db: DbSession,
+            domain_id: int,
+            current_admin: ActiveTenantAdmin,
+        ):
+            """手动触发 ACME SSL 证书签发（Celery 队列异步执行）"""
+            service = self.get_service(db, current_admin.tenant_id)
+            domain = await service.get_by_id(domain_id)
+            if not domain or domain.tenant_id != current_admin.tenant_id:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("tenant_domain.not_found"))
+            if not domain.is_verified:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_("ssl_certificate.domain_not_verified"))
+
+            from app.enums.domain import DomainSslStatus
+            await service.update(domain_id, {"ssl_status": DomainSslStatus.PROVISIONING.value})
+            await db.commit()
+
+            from app.celery_app import celery_app
+            celery_app.send_task("app.tasks.ssl_tasks.task_provision_ssl", args=[domain_id], queue="default")
+
+            return success(message=_("ssl_certificate.provision_started"))
+
+        @router.post("/{domain_id}/ssl/renew", summary="手动续期 SSL 证书")
+        @permission_action("ssl_renew", "action.tenant_domain.ssl_renew")
+        async def renew_ssl(
+            request: Request,
+            db: DbSession,
+            domain_id: int,
+            current_admin: ActiveTenantAdmin,
+        ):
+            """手动续期平台证书（Celery 队列异步执行），仅 platform 类型"""
+            service = self.get_service(db, current_admin.tenant_id)
+            domain = await service.get_by_id(domain_id)
+            if not domain or domain.tenant_id != current_admin.tenant_id:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("tenant_domain.not_found"))
+
+            ssl_service = SslCertificateService(db)
+            cert = await ssl_service.get_cert_detail(domain_id)
+            if not cert:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("ssl_certificate.not_found"))
+
+            from app.enums.domain import SslCertType
+            if cert.cert_type != SslCertType.PLATFORM.value:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_("ssl_certificate.custom_cert_no_renew"))
+
+            from app.celery_app import celery_app
+            celery_app.send_task("app.tasks.ssl_tasks.task_renew_ssl", kwargs={"cert_id": cert.id}, queue="default")
+
+            return success(message=_("ssl_certificate.renew_started"))
+
+        @router.post("/{domain_id}/ssl/upload", summary="上传自定义 SSL 证书")
+        @permission_action("ssl_upload", "action.tenant_domain.ssl_upload")
+        async def upload_ssl(
+            request: Request,
+            db: DbSession,
+            domain_id: int,
+            data: SslCertificateUploadRequest,
+            current_admin: ActiveTenantAdmin,
+        ):
+            """
+            上传自定义证书（需套餐 allow_custom_ssl）
+            自动设置 cert_type=custom, auto_renew=False
+            """
+            service = self.get_service(db, current_admin.tenant_id)
+            domain = await service.get_by_id(domain_id)
+            if not domain or domain.tenant_id != current_admin.tenant_id:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("tenant_domain.not_found"))
+
+            # 套餐权限检查
+            from app.models.tenant.tenant import Tenant
+            from sqlalchemy import select
+            from sqlalchemy.orm import selectinload
+            tenant_result = await db.execute(
+                select(Tenant).where(Tenant.id == current_admin.tenant_id).options(selectinload(Tenant.tenant_plan))
+            )
+            tenant = tenant_result.scalar_one_or_none()
+            if tenant and not tenant.get_quota_value("allow_custom_ssl", False):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("ssl_certificate.custom_ssl_not_allowed"))
+
+            ssl_service = SslCertificateService(db)
+            cert = await ssl_service.upload_custom_cert(
+                domain_id=domain_id,
+                tenant_id=current_admin.tenant_id,
+                cert_pem=data.certificate,
+                key_pem=data.private_key,
+                chain_pem=data.certificate_chain,
+            )
+            await db.commit()
+
+            return success(
+                data=SslCertificateResponse.from_model(cert),
+                message=_("ssl_certificate.upload_success"),
+            )
+
+        @router.delete("/{domain_id}/ssl", summary="删除 SSL 证书")
+        @permission_action("ssl_delete", "action.tenant_domain.ssl_delete")
+        async def delete_ssl(
+            request: Request,
+            db: DbSession,
+            domain_id: int,
+            current_admin: ActiveTenantAdmin,
+        ):
+            """删除域名 SSL 证书，ssl_status 重置为 none"""
+            service = self.get_service(db, current_admin.tenant_id)
+            domain = await service.get_by_id(domain_id)
+            if not domain or domain.tenant_id != current_admin.tenant_id:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("tenant_domain.not_found"))
+
+            ssl_service = SslCertificateService(db)
+            await ssl_service.delete_cert(domain_id)
+            await db.commit()
+
+            return success(message=_("ssl_certificate.delete_success"))
+
+        @router.put("/{domain_id}/ssl/auto-renew", summary="设置 SSL 自动续期开关")
+        @permission_action("ssl_auto_renew", "action.tenant_domain.ssl_auto_renew")
+        async def toggle_ssl_auto_renew(
+            request: Request,
+            db: DbSession,
+            domain_id: int,
+            data: SslAutoRenewRequest,
+            current_admin: ActiveTenantAdmin,
+        ):
+            """开启/关闭 SSL 自动续期（仅 platform 类型可开启）"""
+            service = self.get_service(db, current_admin.tenant_id)
+            domain = await service.get_by_id(domain_id)
+            if not domain or domain.tenant_id != current_admin.tenant_id:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("tenant_domain.not_found"))
+
+            ssl_service = SslCertificateService(db)
+            cert = await ssl_service.toggle_auto_renew(domain_id, data.auto_renew)
+            await db.commit()
+
+            return success(
+                data=SslCertificateResponse.from_model(cert),
+                message=_("ssl_certificate.auto_renew_updated"),
             )
 
 

@@ -18,6 +18,7 @@ from app.plugins.extensions.adapter_plugin import AdapterPlugin
 from app.plugins.extensions.api_plugin import ApiPlugin
 from app.plugins.extensions.hook_plugin import HookPlugin
 from app.plugins.extensions.skill_plugin import SkillPlugin
+from app.plugins.extensions.storage_plugin import StoragePlugin
 from app.plugins.extensions.tool_plugin import ToolPlugin
 
 logger = LogManager.get_logger("app")
@@ -31,6 +32,7 @@ def resolve_plugin_type(plugin_instance: BasePlugin) -> str:
         (HookPlugin, PluginTypeEnum.HOOK.value),
         (ApiPlugin, PluginTypeEnum.API.value),
         (SkillPlugin, PluginTypeEnum.SKILL.value),
+        (StoragePlugin, PluginTypeEnum.STORAGE.value),
     ]
     types_found: list[str] = []
     for cls, type_val in type_map:

@@ -94,6 +94,7 @@ export interface AIAgentSkillBindRequest {
 /** 批量绑定请求 */
 export interface AIAgentSkillBatchBindRequest {
   package_ids: number[];
+  consent_modes?: Record<string, string>;
 }
 
 /** 更新绑定请求 */

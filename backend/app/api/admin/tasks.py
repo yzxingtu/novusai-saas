@@ -132,7 +132,7 @@ class AdminTaskController(GlobalController):
             task_log = await service.get_by_id(task_log_id)
             new_task_id = TaskManagerService.retry_task(
                 task_name=task_log.task_name,
-                args=list(task_log.args.values()) if task_log.args else None,
+                args=task_log.args if isinstance(task_log.args, list) else list(task_log.args.values()) if isinstance(task_log.args, dict) else None,
                 kwargs=task_log.kwargs,
                 queue=body.queue if body and body.queue else task_log.queue,
             )

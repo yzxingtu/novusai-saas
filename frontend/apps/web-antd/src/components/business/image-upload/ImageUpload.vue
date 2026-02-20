@@ -4,9 +4,15 @@ import { Button, Upload } from 'ant-design-vue';
 import { $t as t } from '#/locales';
 import { requestClient } from '#/utils/request';
 
+interface UploadResponseData {
+  url?: string;
+  path?: string;
+  attachment?: { path?: string };
+}
+
 interface UploadRequestOption {
   file: Blob | File | string;
-  onSuccess?: (body: any, xhr?: XMLHttpRequest) => void;
+  onSuccess?: (body: UploadResponseData) => void;
   onError?: (err: Error) => void;
   onProgress?: (e: { percent: number }) => void;
 }
@@ -26,18 +32,17 @@ const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>();
 async function handleCustomRequest(options: UploadRequestOption) {
   const { file, onSuccess, onError, onProgress } = options;
   try {
-    const data = await requestClient.upload(
+    const data = await requestClient.upload<UploadResponseData>(
       props.uploadUrl,
       { file: file as File },
       {},
       (progress) => onProgress && onProgress({ percent: progress.percent }),
     );
-    // 约定后端返回 url
-    const url = (data && (data.url || data.path || data.src)) as string;
+    const url = data?.url || data?.path || '';
     emit('update:modelValue', url);
-    onSuccess && onSuccess(data as any, {} as any);
+    onSuccess?.(data);
   } catch (error) {
-    onError && onError(error as any);
+    onError?.(error instanceof Error ? error : new Error(String(error)));
   }
 }
 </script>

@@ -8,7 +8,7 @@ import shutil
 import tempfile
 from pathlib import Path as FilePath
 
-from fastapi import Path, Query, Request, UploadFile
+from fastapi import File, Path, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
@@ -151,6 +151,7 @@ class AdminPluginController(GlobalController):
                 db,
                 entry_point=body.entry_point,
                 is_system=body.is_system,
+                admin_id=current_admin.id,
             )
             return created(data=_mask_plugin_response(plugin))
 
@@ -165,7 +166,7 @@ class AdminPluginController(GlobalController):
             from app.plugins.manager import get_plugin_manager
 
             manager = get_plugin_manager()
-            await manager.uninstall(db, plugin_id)
+            await manager.uninstall(db, plugin_id, admin_id=current_admin.id)
             return deleted()
 
         @router.put("/{plugin_id}", summary="更新插件信息")
@@ -210,7 +211,7 @@ class AdminPluginController(GlobalController):
             from app.plugins.manager import get_plugin_manager
 
             manager = get_plugin_manager()
-            plugin = await manager.enable_platform(db, plugin_id)
+            plugin = await manager.enable_platform(db, plugin_id, admin_id=current_admin.id)
             return success(data=_mask_plugin_response(plugin))
 
         @router.post("/{plugin_id}/disable", summary="禁用插件（平台级）")
@@ -224,7 +225,7 @@ class AdminPluginController(GlobalController):
             from app.plugins.manager import get_plugin_manager
 
             manager = get_plugin_manager()
-            plugin = await manager.disable_platform(db, plugin_id)
+            plugin = await manager.disable_platform(db, plugin_id, admin_id=current_admin.id)
             return success(data=_mask_plugin_response(plugin))
 
         @router.post("/{plugin_id}/upgrade", summary="升级插件")
@@ -294,7 +295,7 @@ class AdminPluginController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
-            file: UploadFile = ...,
+            file: UploadFile = File(..., description="Plugin package (.zip / .nap)"),
             overwrite: bool = Query(False, description="Overwrite existing plugin (upgrade)"),
         ):
             from app.plugins.packaging import (
@@ -432,16 +433,18 @@ class AdminPluginController(GlobalController):
                 )
 
             plugins_base = FilePath(__file__).resolve().parent.parent.parent / "plugins"
-            plugin_dir = plugins_base / plugin.name
+            module_name = plugin.name.replace("-", "_")
+            plugin_dir = plugins_base / module_name
             if not plugin_dir.exists():
-                plugin_dir = (
-                    FilePath(__file__).resolve().parent.parent.parent
-                    / "plugins" / "builtin"
+                plugin_dir = plugins_base / plugin.name
+            if not plugin_dir.exists():
+                plugin_dir = plugins_base / "builtin" / module_name
+            if not plugin_dir.exists():
+                plugin_dir = plugins_base / "builtin" / plugin.name
+            if not plugin_dir.exists():
+                raise NotFoundException(
+                    message=_("plugin.plugin_dir_not_found")
                 )
-                if not plugin_dir.exists():
-                    raise NotFoundException(
-                        message=_("plugin.plugin_dir_not_found")
-                    )
 
             # 使用持久化临时目录，避免 FileResponse 流式发送前目录被清理
             tmp_dir = tempfile.mkdtemp()

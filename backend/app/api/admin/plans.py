@@ -11,24 +11,6 @@ from app.core.base_schema import PageResponse
 from app.core.deps import DbSession, QueryParams, ActiveAdmin
 from app.core.i18n import _
 from app.core.response import success
-
-
-def _translate_permission_name(name: str) -> str:
-    """
-    翻译权限名称
-    
-    Args:
-        name: 权限名称（可能是 i18n key）
-    
-    Returns:
-        翻译后的名称
-    """
-    if name and "." in name:
-        translated = _(name)
-        if translated == name:
-            return name.split(".")[-1]
-        return translated
-    return name or ""
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
     permission_resource,
@@ -52,6 +34,24 @@ from app.schemas.common import ReorderRequest
 from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.services.tenant import TenantPlanService
 from app.exceptions import NotFoundException
+
+
+def _translate_permission_name(name: str) -> str:
+    """
+    翻译权限名称
+    
+    Args:
+        name: 权限名称（可能是 i18n key）
+    
+    Returns:
+        翻译后的名称
+    """
+    if name and "." in name:
+        translated = _(name)
+        if translated == name:
+            return name.split(".")[-1]
+        return translated
+    return name or ""
 
 
 @permission_resource(
@@ -161,6 +161,12 @@ class AdminPlanController(GlobalController):
             service = TenantPlanService(db)
             items, total = await service.query_list(spec, scope="admin")
             
+            # 批量获取租户数量（高效 COUNT 查询，避免加载全部租户对象）
+            plan_ids = [item.id for item in items]
+            tenant_counts = await service.repo.get_tenant_counts_batch(plan_ids)
+            for item in items:
+                item.tenants_count = tenant_counts.get(item.id, 0)
+            
             return success(
                 data=PageResponse.create(
                     items=[TenantPlanResponse.from_model(item) for item in items],
@@ -237,7 +243,7 @@ class AdminPlanController(GlobalController):
                 )
             
             return success(
-                data=TenantPlanDetailResponse.from_model(plan),
+                data=TenantPlanDetailResponse.from_model(plan, translate_fn=_translate_permission_name),
                 message=_("common.success"),
             )
         
@@ -383,6 +389,7 @@ class AdminPlanController(GlobalController):
                         resource=p.resource,
                     )
                     for p in permissions
+                    if p.is_enabled
                 ],
                 message=_("common.success"),
             )
@@ -409,7 +416,7 @@ class AdminPlanController(GlobalController):
             await db.commit()
             
             return success(
-                data=TenantPlanDetailResponse.from_model(plan),
+                data=TenantPlanDetailResponse.from_model(plan, translate_fn=_translate_permission_name),
                 message=_("tenant_plan.permissions_updated"),
             )
 

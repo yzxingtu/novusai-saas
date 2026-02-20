@@ -96,15 +96,33 @@ async def tenant_admin_logout(
 @router.get("/me", summary="获取当前租户管理员信息")
 @auth_only
 async def get_current_tenant_admin_info(
+    db: DbSession,
     current_admin: ActiveTenantAdmin,
 ):
     """
     获取当前登录租户管理员的详细信息
+
+    响应中包含 has_plan 字段，前端据此判断是否显示"未分配套餐"提示。
     """
-    return success(
-        data=TenantAdminResponse.model_validate(current_admin, from_attributes=True),
-        message=_("common.success"),
+    from sqlalchemy import select as sa_select
+    from sqlalchemy.orm import selectinload
+    from app.models.tenant.tenant import Tenant
+
+    result = await db.execute(
+        sa_select(Tenant)
+        .where(Tenant.id == current_admin.tenant_id)
+        .options(selectinload(Tenant.tenant_plan))
     )
+    tenant = result.scalar_one_or_none()
+    has_plan = tenant is not None and tenant.plan_id is not None
+    plan_name = None
+    if has_plan and tenant and tenant.tenant_plan:
+        plan_name = tenant.tenant_plan.name
+
+    resp = TenantAdminResponse.model_validate(current_admin, from_attributes=True)
+    resp.has_plan = has_plan
+    resp.plan_name = plan_name
+    return success(data=resp, message=_("common.success"))
 
 
 @router.put("/password", summary="修改密码")

@@ -10,6 +10,7 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Ind
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import BaseModel
+from app.enums.domain import DomainSslStatus, DomainType
 
 
 class TenantDomain(BaseModel):
@@ -34,6 +35,12 @@ class TenantDomain(BaseModel):
         "created_at": "created_at",
         "updated_at": "updated_at",
     }
+    
+    # 允许前端排序的字段
+    __sortable__ = [
+        "id", "domain", "is_verified", "is_primary",
+        "ssl_status", "created_at", "updated_at",
+    ]
     
     # 下拉选项配置
     __selectable__ = {
@@ -85,8 +92,8 @@ class TenantDomain(BaseModel):
     # SSL 证书状态
     ssl_status: Mapped[str] = mapped_column(
         String(20),
-        default="pending",
-        comment="SSL 状态: pending/provisioning/active/failed",
+        default=DomainSslStatus.PENDING,
+        comment="SSL 状态: none/pending/provisioning/active/failed/expired",
     )
     
     # SSL 证书到期时间
@@ -119,6 +126,14 @@ class TenantDomain(BaseModel):
         lazy="selectin",
     )
     
+    # 关联的 SSL 证书
+    ssl_certificates = relationship(
+        "DomainSslCertificate",
+        back_populates="domain",
+        lazy="noload",
+        cascade="all, delete-orphan",
+    )
+    
     # ==================== 索引 ====================
     
     __table_args__ = (
@@ -129,9 +144,18 @@ class TenantDomain(BaseModel):
     # ==================== 辅助方法 ====================
     
     @property
+    def domain_type(self) -> str:
+        """域名类型：default（平台默认）或 custom（自定义）"""
+        from app.core.config import settings
+        suffix = settings.TENANT_DOMAIN_SUFFIX.lstrip(".")
+        if self.domain and self.domain.endswith(suffix):
+            return DomainType.DEFAULT
+        return DomainType.CUSTOM
+    
+    @property
     def is_active(self) -> bool:
         """域名是否处于可用状态"""
-        return self.is_verified and self.ssl_status == "active"
+        return self.is_verified and self.ssl_status == DomainSslStatus.ACTIVE
     
     @property
     def cname_target(self) -> str | None:

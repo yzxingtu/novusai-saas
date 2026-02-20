@@ -14,6 +14,7 @@ from app.core.base_service import GlobalService, TenantService
 from app.core.config import settings
 from app.core.i18n import _
 from app.enums import ErrorCode
+from app.enums.domain import DomainSslStatus
 from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_domain import TenantDomain
@@ -129,7 +130,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             "is_verified": True,
             "verified_at": utc_now(),
             "is_primary": True,
-            "ssl_status": "active",
+            "ssl_status": DomainSslStatus.ACTIVE.value,
             "remark": _("tenant_domain.default_domain_remark"),
         }
         
@@ -160,18 +161,17 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         is_allowed, max_domains = await self._check_custom_domain_allowed(tenant_id)
         if not is_allowed:
             raise BusinessException(
-                message=_("domain.custom_domain_disabled"),
+                message=_("tenant_domain.custom_domain_disabled"),
                 code=ErrorCode.FORBIDDEN,
             )
         
-        current_count = await self.repo.count_tenant_domains(tenant_id)
         suffix = await self._get_domain_suffix()
         domains = await self.repo.get_tenant_domains(tenant_id)
         custom_count = sum(1 for d in domains if not d.domain.endswith(suffix))
         
         if max_domains > 0 and custom_count >= max_domains:
             raise BusinessException(
-                message=_("domain.quota_exceeded"),
+                message=_("tenant_domain.quota_exceeded"),
                 code=ErrorCode.DOMAIN_QUOTA_EXCEEDED,
             )
         
@@ -188,7 +188,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             "domain": domain,
             "is_verified": False,
             "is_primary": False,
-            "ssl_status": "pending",
+            "ssl_status": DomainSslStatus.PENDING.value,
             "verification_token": verification_token,
             "remark": remark,
         }
@@ -305,7 +305,11 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
                 code=ErrorCode.VALIDATION_ERROR,
             )
         
-        is_valid = await self._verify_dns_txt_record(domain)
+        # 开发模式跳过 DNS 验证
+        if settings.DEBUG:
+            is_valid = True
+        else:
+            is_valid = await self._verify_dns_txt_record(domain)
         
         if not is_valid:
             raise BusinessException(
@@ -316,10 +320,19 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         result = await self.update(domain_id, {
             "is_verified": True,
             "verified_at": utc_now(),
-            "ssl_status": "provisioning",
+            "ssl_status": DomainSslStatus.PROVISIONING.value,
         })
         if not result:
             raise NotFoundException(message=_("tenant_domain.not_found"))
+        
+        # 自动触发 SSL 证书签发（Celery 异步任务）
+        from app.celery_app import celery_app
+        celery_app.send_task(
+            "app.tasks.ssl_tasks.task_provision_ssl",
+            args=[domain_id],
+            queue="default",
+        )
+        
         return result
     
     async def _verify_dns_txt_record(self, domain: TenantDomain) -> bool:
@@ -332,6 +345,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         Returns:
             验证是否通过
         """
+        import asyncio
         import dns.resolver
         
         prefix = await self._get_verification_prefix()
@@ -340,7 +354,9 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         expected_value = domain.verification_token
         
         try:
-            answers = dns.resolver.resolve(txt_record_name, "TXT")
+            answers = await asyncio.to_thread(
+                dns.resolver.resolve, txt_record_name, "TXT"
+            )
             
             for rdata in answers:
                 txt_value = str(rdata).strip('"').strip()
@@ -349,13 +365,8 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             
             return False
             
-        except dns.resolver.NXDOMAIN:
-            return False
-        except dns.resolver.NoAnswer:
-            return False
-        except dns.resolver.NoNameservers:
-            return False
-        except Exception:
+        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer,
+                dns.resolver.NoNameservers, Exception):
             return False
     
     async def get_tenant_domains(self, tenant_id: int) -> list[TenantDomain]:

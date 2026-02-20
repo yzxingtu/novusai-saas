@@ -5,11 +5,11 @@
 """
 
 from datetime import datetime
-from typing import Any
 
 from pydantic import Field, field_validator
 
 from app.core.base_schema import BaseSchema
+from app.core.i18n import _
 
 
 class TenantDomainSimpleResponse(BaseSchema):
@@ -36,6 +36,7 @@ class TenantDomainResponse(BaseSchema):
     id: int = Field(..., description="域名 ID")
     tenant_id: int = Field(..., description="租户 ID")
     domain: str = Field(..., description="域名")
+    domain_type: str = Field("custom", description="域名类型: default/custom")
     is_verified: bool = Field(..., description="是否已验证")
     verified_at: datetime | None = Field(None, description="验证时间")
     is_primary: bool = Field(..., description="是否主域名")
@@ -72,13 +73,13 @@ class TenantDomainCreateRequest(BaseSchema):
         # 基本域名格式验证
         pattern = r"^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$"
         if not re.match(pattern, v):
-            raise ValueError("域名格式不正确")
+            raise ValueError(_("tenant_domain.invalid_format"))
         
         # 禁止使用平台域名
         from app.core.config import settings
         suffix = settings.TENANT_DOMAIN_SUFFIX.lstrip(".")
         if v.endswith(suffix):
-            raise ValueError(f"不能使用平台域名后缀 {suffix}")
+            raise ValueError(_("tenant_domain.platform_suffix_forbidden", suffix=suffix))
         
         return v
 
@@ -144,7 +145,7 @@ class TenantSettingsUpdateRequest(BaseSchema):
         import re
         v = v.strip()
         if not re.match(r"^#[0-9a-fA-F]{6}$", v):
-            raise ValueError("主题色必须是有效的十六进制颜色码（如 #FF5500）")
+            raise ValueError(_("tenant_settings.invalid_theme_color"))
         
         return v.upper()
     
@@ -158,10 +159,10 @@ class TenantSettingsUpdateRequest(BaseSchema):
         allowed = {"password", "sms", "email", "wechat", "dingtalk", "oauth2"}
         for method in v:
             if method not in allowed:
-                raise ValueError(f"不支持的登录方式: {method}")
+                raise ValueError(_("tenant_settings.unsupported_login_method", method=method))
         
         if not v:
-            raise ValueError("至少需要一种登录方式")
+            raise ValueError(_("tenant_settings.at_least_one_login_method"))
         
         return v
 

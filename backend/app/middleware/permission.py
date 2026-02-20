@@ -133,6 +133,8 @@ class PermissionMiddleware:
         self, request: Request, tenant_admin_id: int
     ) -> None:
         """加载租户管理员权限"""
+        from app.models.tenant.tenant import Tenant
+
         async with async_session_factory() as db:
             result = await db.execute(
                 select(TenantAdmin).where(TenantAdmin.id == tenant_admin_id)
@@ -145,7 +147,16 @@ class PermissionMiddleware:
             # 将用户对象存入 state（供审计日志等使用）
             request.state.user = tenant_admin
             
-            # 租户所有者拥有所有租户权限
+            # 严格模式：无套餐 → 无权限（所有租户管理员，包括 owner）
+            plan_result = await db.execute(
+                select(Tenant.plan_id).where(Tenant.id == tenant_admin.tenant_id)
+            )
+            plan_id = plan_result.scalar_one_or_none()
+            if plan_id is None:
+                # 租户未分配套餐，拒绝所有功能访问
+                return
+            
+            # 租户所有者拥有套餐内全部权限
             if tenant_admin.is_owner:
                 request.state.user_permissions = {"*"}
                 return

@@ -10,6 +10,7 @@ import { Page } from '@vben/common-ui';
 import { IconifyIcon, Plus } from '@vben/icons';
 
 import {
+  Button,
   Card,
   Dropdown,
   Menu,
@@ -175,25 +176,23 @@ const {
     <!-- 表格 -->
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
-        <!-- 租户编码列 -->
-        <template #code_cell="{ row }">
-          <Tooltip :title="$t('admin.tenant.domain.clickToCopy')">
-            <span
-              class="cursor-pointer font-mono text-sm text-muted-foreground transition-colors hover:text-primary"
-              @click="onCopyDomain(row.code)"
-            >
-              {{ row.code }}
-              <IconifyIcon
-                icon="lucide:copy"
-                class="ml-1 inline-block size-3 opacity-40"
-              />
-            </span>
-          </Tooltip>
-        </template>
-
-        <!-- 租户名称列 -->
+        <!-- 租户名称 + 账号列 -->
         <template #name_cell="{ row }">
-          <span class="font-medium text-foreground">{{ row.name }}</span>
+          <div class="flex flex-col gap-0.5">
+            <span class="font-medium text-foreground">{{ row.name }}</span>
+            <Tooltip :title="$t('admin.tenant.domain.clickToCopy')">
+              <span
+                class="cursor-pointer font-mono text-xs text-muted-foreground transition-colors hover:text-primary"
+                @click="onCopyDomain(row.code)"
+              >
+                {{ row.code }}
+                <IconifyIcon
+                  icon="lucide:copy"
+                  class="ml-0.5 inline-block size-3 opacity-40"
+                />
+              </span>
+            </Tooltip>
+          </div>
         </template>
 
         <!-- 主域名列 -->
@@ -232,6 +231,18 @@ const {
             <span v-else class="text-muted-foreground">{{
               $t('admin.common.notSet')
             }}</span>
+
+            <!-- 域名管理入口 -->
+            <Tooltip :title="$t('admin.tenant.manageDomains')">
+              <Button
+                type="link"
+                size="small"
+                class="!p-0"
+                @click.stop="onManageDomains(row)"
+              >
+                <IconifyIcon icon="lucide:settings" class="size-3" />
+              </Button>
+            </Tooltip>
 
             <!-- 更多域名 -->
             <Popover

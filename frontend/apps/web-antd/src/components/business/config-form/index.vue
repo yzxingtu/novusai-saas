@@ -511,12 +511,21 @@ defineExpose({
           />
 
           <!-- password -->
-          <Input.Password
+          <div
             v-else-if="cfg.value_type === 'password'"
-            v-model:value="formModel[cfg.key]"
-            autocomplete="new-password"
-            :visibility-toggle="formModel[cfg.key] !== '******'"
-          />
+            class="flex items-center gap-2"
+          >
+            <Input.Password
+              v-model:value="formModel[cfg.key]"
+              autocomplete="new-password"
+              :visibility-toggle="formModel[cfg.key] !== '******'"
+              class="flex-1"
+            />
+            <slot
+              :name="`generate-${cfg.key}`"
+              :set-value="(v: string) => (formModel[cfg.key] = v)"
+            />
+          </div>
 
           <!-- color -->
           <div

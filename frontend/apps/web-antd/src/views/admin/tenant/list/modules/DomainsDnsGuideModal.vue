@@ -241,12 +241,12 @@ function getDnsHostRecord(domain: string): string {
                 <code
                   class="break-all rounded bg-accent px-2 py-1 text-xs text-foreground"
                 >
-                  {{ guideData.cnameTarget || 'cname.platform.com' }}
+                  {{ guideData.cnameTarget || '-' }}
                 </code>
                 <Button
                   type="link"
                   size="small"
-                  @click="onCopy(guideData.cnameTarget || 'cname.platform.com')"
+                  @click="onCopy(guideData.cnameTarget || '')"
                 >
                   <IconifyIcon icon="lucide:copy" class="size-4" />
                 </Button>

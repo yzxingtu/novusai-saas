@@ -183,6 +183,7 @@ class AgentSkillBindingService:
         self,
         agent_id: int,
         package_ids: list[int],
+        consent_modes: dict[str, str] | None = None,
     ) -> list[AgentSkillBinding]:
         """
         批量绑定技能包（替换模式：先清空再批量插入）
@@ -216,15 +217,20 @@ class AgentSkillBindingService:
             await self.binding_repo.delete_by_agent_id(agent_id)
 
             # 批量插入
+            _modes = consent_modes or {}
             bindings = []
             for idx, pid in enumerate(package_ids):
-                binding = await self.binding_repo.create({
+                row: dict[str, Any] = {
                     "agent_id": agent_id,
                     "package_id": pid,
                     "tenant_id": self.tenant_id,
                     "enabled": True,
                     "sort_order": idx,
-                })
+                }
+                _cm = _modes.get(str(pid))
+                if _cm and _cm in ("auto", "ask", "reject"):
+                    row["consent_mode"] = _cm
+                binding = await self.binding_repo.create(row)
                 bindings.append(binding)
 
         logger.info(

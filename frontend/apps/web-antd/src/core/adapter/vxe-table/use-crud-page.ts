@@ -252,6 +252,13 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
 
   /** 操作按钮点击处理 */
   function handleActionClick(e: OnActionClickParams<T>) {
+    // 自定义操作优先于内置操作
+    const customAction = customActions[e.code];
+    if (customAction) {
+      customAction(e.row);
+      return;
+    }
+
     switch (e.code) {
       case 'delete': {
         onDelete(e.row);
@@ -262,11 +269,6 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         break;
       }
       default: {
-        // 自定义操作
-        const action = customActions[e.code];
-        if (action) {
-          action(e.row);
-        }
         break;
       }
     }

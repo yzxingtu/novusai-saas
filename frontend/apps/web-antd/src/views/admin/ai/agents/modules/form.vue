@@ -19,7 +19,7 @@ import {
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
-import { Alert } from 'ant-design-vue';
+import { Alert, Select as ASelect } from 'ant-design-vue';
 
 import { getFormDefaults, useFormSchema } from '../data';
 
@@ -27,10 +27,24 @@ const emits = defineEmits<{ success: [] }>();
 
 const isSystemAgent = ref(false);
 const pendingPackageIds = ref<number[]>([]);
+const consentModes = ref<Record<string, string>>({});
+const selectedPackages = ref<Array<{ label: string; value: number }>>([]);
 
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(),
   showDefaultActions: false,
+  handleValuesChange: (values, changedFields) => {
+    if (changedFields.includes('package_ids')) {
+      const rawPkgIds = values.package_ids as Array<number | { label: string; value: number }>;
+      if (rawPkgIds) {
+        selectedPackages.value = rawPkgIds.map((p: number | { label: string; value: number }) =>
+          typeof p === 'object' && p !== null ? p : { label: `#${p}`, value: p as number },
+        );
+      } else {
+        selectedPackages.value = [];
+      }
+    }
+  },
 });
 
 const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<AIAgentInfo>({
@@ -40,8 +54,12 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<A
   defaults: getFormDefaults,
   transform: (values, edit) => {
     const rawPkgIds = values.package_ids as Array<number | { label: string; value: number }>;
-    pendingPackageIds.value = (rawPkgIds || []).map((p) =>
+    const resolved = (rawPkgIds || []).map((p) =>
       typeof p === 'object' && p !== null ? p.value : p,
+    );
+    pendingPackageIds.value = resolved;
+    selectedPackages.value = (rawPkgIds || []).map((p) =>
+      typeof p === 'object' && p !== null ? p : { label: `#${p}`, value: p as number },
     );
     // suggested_questions: newline-separated text → JSON array
     const sqText = (values.suggested_questions as string) || '';
@@ -101,6 +119,9 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<A
       try {
         await batchBindAIAgentSkillsApi(agentId, {
           package_ids: pendingPackageIds.value,
+          consent_modes: Object.keys(consentModes.value).length > 0
+            ? consentModes.value
+            : undefined,
         });
       } catch {
         // package binding errors are non-fatal
@@ -117,6 +138,14 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<A
         label: b.package_name || `#${b.package_id}`,
         value: b.package_id,
       }));
+      const modes: Record<string, string> = {};
+      for (const b of bindings) {
+        if (b.consent_mode && b.consent_mode !== 'auto') {
+          modes[String(b.package_id)] = b.consent_mode;
+        }
+      }
+      consentModes.value = modes;
+      selectedPackages.value = ext._package_options;
     } catch {
       (agent as AIAgentInfo & { _package_options?: { label: string; value: number }[] })._package_options = [];
     }
@@ -125,6 +154,26 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<A
 });
 
 defineExpose({ openNew, openEdit });
+
+const consentModeOptions = computed(() => [
+  { label: $t('admin.ai.agent.consentModeOptions.auto'), value: 'auto' },
+  { label: $t('admin.ai.agent.consentModeOptions.ask'), value: 'ask' },
+  { label: $t('admin.ai.agent.consentModeOptions.reject'), value: 'reject' },
+]);
+
+function getConsentMode(pkgId: number): string {
+  return consentModes.value[String(pkgId)] || 'auto';
+}
+
+function setConsentMode(pkgId: number, mode: string) {
+  if (mode === 'auto') {
+    const { [String(pkgId)]: _, ...rest } = consentModes.value;
+    consentModes.value = rest;
+  } else {
+    consentModes.value = { ...consentModes.value, [String(pkgId)]: mode };
+  }
+}
+
 
 const title = computed(() => {
   if (isSystemAgent.value && isEdit.value) {
@@ -146,5 +195,28 @@ const title = computed(() => {
       class="mb-4"
     />
     <Form />
+
+    <!-- Consent mode per skill package -->
+    <div v-if="selectedPackages.length > 0" class="mt-4">
+      <div class="mb-2 text-sm font-medium text-foreground">
+        {{ $t('admin.ai.agent.consentMode') }}
+      </div>
+      <div class="space-y-2">
+        <div
+          v-for="pkg in selectedPackages"
+          :key="pkg.value"
+          class="flex items-center gap-3 rounded-md border border-border px-3 py-2"
+        >
+          <span class="flex-1 truncate text-sm">{{ pkg.label }}</span>
+          <ASelect
+            :value="getConsentMode(pkg.value)"
+            :options="consentModeOptions"
+            size="small"
+            class="w-[140px]"
+            @change="(v: unknown) => setConsentMode(pkg.value, v as string)"
+          />
+        </div>
+      </div>
+    </div>
   </Drawer>
 </template>

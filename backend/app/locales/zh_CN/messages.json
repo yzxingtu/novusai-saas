@@ -75,7 +75,8 @@
     "settings_updated": "租户设置更新成功",
     "identification_failed": "无法识别租户",
     "owner_not_found": "租户所有者不存在",
-    "owner_password_reset": "租户超级管理员密码重置成功"
+    "owner_password_reset": "租户超级管理员密码重置成功",
+    "no_plan": "当前租户未分配套餐，无法使用任何功能。请联系平台管理员分配套餐。"
   },
   "tenant_plan": {
     "not_found": "套餐不存在",
@@ -84,7 +85,8 @@
     "updated": "套餐更新成功",
     "deleted": "套餐删除成功",
     "has_tenants": "套餐正在被租户使用，无法删除",
-    "permissions_updated": "套餐权限更新成功"
+    "permissions_updated": "套餐权限更新成功",
+    "invalid_billing_cycle": "无效的计费周期"
   },
   "tenant_domain": {
     "not_found": "域名不存在",
@@ -100,22 +102,41 @@
     "cannot_delete_primary": "不能删除主域名，请先设置其他域名为主域名",
     "cannot_delete_default": "不能删除系统默认域名",
     "quota_exceeded": "自定义域名数量已达上限",
-    "default_domain_remark": "系统自动生成的默认域名"
-  },
-  "domain": {
-    "not_found": "域名不存在",
-    "already_exists": "域名已被使用",
+    "default_domain_remark": "系统自动生成的默认域名",
     "invalid_format": "域名格式不正确",
-    "quota_exceeded": "自定义域名数量已达上限",
-    "custom_domain_disabled": "当前套餐不支持自定义域名",
-    "created": "域名添加成功",
-    "updated": "域名更新成功",
-    "deleted": "域名删除成功",
-    "verified": "域名验证成功",
-    "verification_failed": "域名验证失败",
-    "set_primary_success": "已设置为主域名",
-    "cannot_delete_primary": "不能删除主域名",
-    "not_owned_by_tenant": "域名不属于当前租户"
+    "platform_suffix_forbidden": "不能使用平台域名后缀 {suffix}",
+    "custom_domain_disabled": "当前套餐不支持自定义域名"
+  },
+  "ssl_certificate": {
+    "not_found": "SSL 证书不存在",
+    "already_exists": "该域名已有有效证书",
+    "provision_started": "证书签发已启动",
+    "provision_failed": "证书签发失败",
+    "renew_started": "证书续期已启动",
+    "renew_failed": "证书续期失败",
+    "upload_success": "自定义证书上传成功",
+    "delete_success": "证书已删除",
+    "auto_renew_updated": "自动续期设置已更新",
+    "replace_success": "证书替换成功",
+    "batch_provision_started": "批量签发已启动",
+    "invalid_cert_format": "证书格式不正确，请提供 PEM 格式的证书",
+    "invalid_key_format": "私钥格式不正确，请提供 PEM 格式的私钥",
+    "invalid_chain_format": "证书链格式不正确，请提供 PEM 格式的证书链",
+    "invalid_replace_mode": "替换模式无效，请选择 platform 或 custom",
+    "cert_key_mismatch": "证书与私钥不匹配",
+    "domain_not_in_cert": "证书不包含该域名",
+    "cert_expired": "证书已过期",
+    "custom_cert_no_renew": "自定义证书不支持自动续期，请重新上传",
+    "custom_cert_no_auto_renew": "自定义证书无法开启自动续期",
+    "domain_not_verified": "域名未验证，请先完成域名验证",
+    "custom_ssl_not_allowed": "当前套餐不支持自定义 SSL 证书",
+    "provision_in_progress": "证书签发中，请稍后再试",
+    "encryption_key_not_configured": "SSL 私钥加密密钥未配置，请在系统配置 → SSL 证书管理中设置"
+  },
+  "tenant_settings": {
+    "invalid_theme_color": "主题色必须是有效的十六进制颜色码（如 #FF5500）",
+    "unsupported_login_method": "不支持的登录方式: {method}",
+    "at_least_one_login_method": "至少需要一种登录方式"
   },
   "validation": {
     "required": "{field}不能为空",
@@ -945,6 +966,29 @@
       "lifetime": "终身",
       "custom": "自定义"
     },
+    "domain_ssl_status": {
+      "none": "未配置",
+      "pending": "待处理",
+      "provisioning": "颁发中",
+      "active": "已启用",
+      "failed": "失败",
+      "expired": "已过期"
+    },
+    "domain_type": {
+      "default": "默认域名",
+      "custom": "自定义域名"
+    },
+    "ssl_cert_type": {
+      "platform": "平台证书",
+      "custom": "自定义证书"
+    },
+    "ssl_cert_status": {
+      "pending": "待签发",
+      "active": "有效",
+      "expired": "已过期",
+      "revoked": "已吊销",
+      "failed": "签发失败"
+    },
     "user_type": {
       "admin": "平台管理员",
       "tenant_admin": "租户管理员",
@@ -1105,6 +1149,7 @@
       "hook": "事件钩子",
       "api": "API 端点",
       "skill": "技能扩展",
+      "storage": "存储驱动",
       "composite": "复合插件"
     },
     "plugin_status": {
@@ -1218,6 +1263,10 @@
       "platform_storage": {
         "name": "存储设置",
         "desc": "文件存储和对象存储配置"
+      },
+      "platform_ssl": {
+        "name": "SSL 证书管理",
+        "desc": "ACME/Let's Encrypt 配置、证书自动续期策略"
       },
       "tenant_general": {
         "name": "基础设置",
@@ -1428,6 +1477,36 @@
       "email_enabled": {
         "name": "启用邮件发送",
         "desc": "是否启用邮件发送功能"
+      },
+      "ssl": {
+        "acme_account_email": {
+          "name": "ACME 注册邮箱",
+          "desc": "用于 Let's Encrypt 账户注册和证书到期通知"
+        },
+        "acme_use_staging": {
+          "name": "使用测试环境",
+          "desc": "开启后使用 Let's Encrypt 测试环境（不签发真实证书），开发调试时建议开启"
+        },
+        "acme_directory_url": {
+          "name": "ACME 生产环境 URL",
+          "desc": "Let's Encrypt 生产环境 ACME 目录地址"
+        },
+        "acme_staging_url": {
+          "name": "ACME 测试环境 URL",
+          "desc": "Let's Encrypt 测试环境 ACME 目录地址"
+        },
+        "encryption_key": {
+          "name": "私钥加密密钥",
+          "desc": "用于加密存储 SSL 私钥的 Fernet 密钥（32 字节 Base64 编码）"
+        },
+        "auto_renew_days": {
+          "name": "自动续期提前天数",
+          "desc": "证书到期前多少天自动触发续期"
+        },
+        "allow_custom_cert": {
+          "name": "允许自定义证书",
+          "desc": "是否允许租户上传自定义 SSL 证书"
+        }
       }
     },
     "tenant": {
@@ -1653,11 +1732,6 @@
       "cannot_add_member": "当前节点类型不允许添加成员",
       "member_exists": "成员已存在于该节点",
       "member_not_in_node": "成员不在该节点中"
-    },
-    "domain": {
-      "custom_disabled": "当前套餐不支持自定义域名",
-      "quota_exceeded": "自定义域名数量已达上限",
-      "already_exists": "域名已被使用"
     },
     "admin": {
       "username_exists": "用户名已被占用",
@@ -1901,6 +1975,8 @@
     "packages_not_whitelisted": "以下依赖包不在安全白名单中，请联系管理员审批: {packages}",
     "migration_failed": "插件数据库迁移执行失败",
     "skill_type_conflict": "技能类型已被其他插件注册",
+    "storage_driver_conflict": "存储驱动标识已被其他插件注册",
+    "downgrade_not_allowed": "不允许降级插件版本",
     "install_success": "插件安装成功",
     "uninstall_success": "插件卸载成功",
     "enable_success": "插件启用成功",

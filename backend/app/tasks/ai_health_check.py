@@ -8,10 +8,12 @@ AI 供应商健康检查定时任务
 import json
 import time
 
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import sessionmaker, Session
+import redis
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.database import sync_session_factory
 from app.core.logging import LogManager
 from app.core.i18n import _
 from app.tasks.base import register_task, BaseTask
@@ -19,43 +21,24 @@ from app.core.base_model import utc_now
 
 logger = LogManager.get_logger("tasks.ai")
 
-# Redis 键前缀
 HEALTH_KEY_PREFIX = "ai:provider:{provider_id}:health"
 HEALTH_HISTORY_PREFIX = "ai:provider:{provider_id}:health_history"
-HEALTH_TTL = 600  # 10 分钟
-HEALTH_HISTORY_TTL = 86400  # 24 小时
+HEALTH_TTL = 600
+HEALTH_HISTORY_TTL = 86400
 CONSECUTIVE_FAILURES_THRESHOLD = 3
 
-# 数据库连接
-_engine = None
-_SessionLocal = None
 
-
-def _get_db_session() -> Session:
-    """获取同步数据库会话"""
-    global _engine, _SessionLocal
-    if _engine is None:
-        _engine = create_engine(
-            settings.DATABASE_URL_SYNC,
-            pool_pre_ping=True,
-        )
-        _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
-    return _SessionLocal()
-
-
-def _get_redis():
-    """获取同步 Redis 连接"""
-    import redis
-    return redis.from_url(settings.redis_url, decode_responses=True)
+def _get_sync_redis() -> redis.Redis:
+    """获取同步 Redis 客户端（Celery Worker 专用）"""
+    return redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 @register_task(
     queue="scheduled",
     description="AI 供应商健康检查",
     max_retries=1,
-    ignore_result=True,
 )
-def ai_provider_health_check(self: BaseTask):
+def ai_provider_health_check(self: BaseTask) -> dict:
     """
     AI 供应商健康检查
 
@@ -65,8 +48,8 @@ def ai_provider_health_check(self: BaseTask):
     """
     from app.models.ai import AIProvider
 
-    db = _get_db_session()
-    redis_client = _get_redis()
+    db = sync_session_factory()
+    redis_client = _get_sync_redis()
 
     try:
         # 获取所有启用的供应商
@@ -77,21 +60,24 @@ def ai_provider_health_check(self: BaseTask):
         result = db.execute(stmt)
         providers = result.scalars().all()
 
-        logger.info(_("ai.log.health_check_start"), provider_count=len(providers))
+        logger.info("%s provider_count=%d", _("ai.log.health_check_start"), len(providers))
 
         for provider in providers:
             _check_provider_health(provider, db, redis_client)
 
-        logger.info(_("ai.log.health_check_completed"), provider_count=len(providers))
+        logger.info("%s provider_count=%d", _("ai.log.health_check_completed"), len(providers))
+        return {"provider_count": len(providers), "status": "completed"}
 
     except Exception as e:
-        logger.error(_("ai.log.health_check_task_failed"), error=str(e))
+        logger.error("%s error=%s", _("ai.log.health_check_task_failed"), str(e))
         raise
     finally:
         db.close()
 
+    return {"provider_count": 0, "status": "no_providers"}
 
-def _check_provider_health(provider, db: Session, redis_client):
+
+def _check_provider_health(provider: object, db: Session, redis_client: redis.Redis) -> None:
     """
     检查单个供应商的健康状态
 
@@ -125,8 +111,9 @@ def _check_provider_health(provider, db: Session, redis_client):
         if not api_key:
             error_message = _("ai.log.health_no_api_key")
             logger.warning(
+                "%s provider=%s",
                 _("ai.log.health_skip_no_key"),
-                provider=provider.code,
+                provider.code,
             )
         else:
             # 发送轻量级测试请求
@@ -141,9 +128,10 @@ def _check_provider_health(provider, db: Session, redis_client):
         error_message = str(e)
         response_time_ms = int((time.time() - start_time) * 1000)
         logger.error(
+            "%s provider=%s error=%s",
             _("ai.log.health_check_provider_failed"),
-            provider=provider.code,
-            error=str(e),
+            provider.code,
+            str(e),
         )
 
     # 读取当前状态获取连续失败次数
@@ -195,11 +183,12 @@ def _check_provider_health(provider, db: Session, redis_client):
     redis_client.expire(history_key, HEALTH_HISTORY_TTL)
 
     logger.info(
+        "%s provider=%s is_healthy=%s consecutive_failures=%d response_time_ms=%d",
         _("ai.log.health_check_result"),
-        provider=provider.code,
-        is_healthy=is_healthy,
-        consecutive_failures=consecutive_failures,
-        response_time_ms=response_time_ms,
+        provider.code,
+        is_healthy,
+        consecutive_failures,
+        response_time_ms,
     )
 
 

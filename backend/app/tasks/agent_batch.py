@@ -2,15 +2,43 @@
 智能体批处理 Celery 任务
 
 异步执行批量请求，逐项处理并实时更新 BatchRun 进度
+
+注意：Celery Worker (Windows --pool=solo) 中，asyncio.new_event_loop() 在 retries 之间
+会导致模块级 async_session_factory 绑定的 event loop 失效。
+因此必须在每次任务调用时创建独立的 async engine + session。
 """
 
 import asyncio
+from contextlib import asynccontextmanager
 
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from app.core.config import settings
 from app.core.logging import LogManager
 from app.tasks.base import register_task, BaseTask
 from app.core.base_model import utc_now
 
 logger = LogManager.get_logger("task")
+
+
+@asynccontextmanager
+async def _task_async_session():
+    """为 Celery 任务创建独立的 async engine + session。"""
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        pool_pre_ping=True,
+        pool_size=2,
+        max_overflow=0,
+    )
+    factory = async_sessionmaker(
+        bind=engine, class_=AsyncSession, expire_on_commit=False,
+    )
+    async with factory() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
+    await engine.dispose()
 
 
 @register_task(
@@ -36,7 +64,6 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
     """
 
     async def _execute() -> dict:
-        from app.core.database import async_session_factory
         from app.ai.engine.types import ExecutionRequest
         from app.ai.engine.task import TaskEngine
         from app.ai.gateway import AIGateway
@@ -45,7 +72,7 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
         from app.models.ai.batch_run import BatchRun
         from app.repositories.ai.agent_repository import AgentRepository
 
-        async with async_session_factory() as db:
+        async with _task_async_session() as db:
             try:
                 # 1. 加载 BatchRun
                 from sqlalchemy import select

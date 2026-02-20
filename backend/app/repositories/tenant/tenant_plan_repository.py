@@ -4,10 +4,11 @@
 提供套餐的数据访问操作（平台级，非租户隔离）
 """
 
-from sqlalchemy import select, asc
+from sqlalchemy import select, asc, func
 from sqlalchemy.orm import selectinload
 
 from app.core.base_repository import BaseRepository
+from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_plan import TenantPlan
 
 
@@ -133,6 +134,34 @@ class TenantPlanRepository(BaseRepository[TenantPlan]):
         )
         result = await self.db.execute(query)
         return list(result.scalars().all())
+
+
+    async def get_tenant_counts_batch(self, plan_ids: list[int]) -> dict[int, int]:
+        """
+        批量获取套餐的租户数量
+        
+        Args:
+            plan_ids: 套餐 ID 列表
+        
+        Returns:
+            {plan_id: tenant_count} 映射
+        """
+        if not plan_ids:
+            return {}
+        
+        query = (
+            select(
+                Tenant.plan_id,
+                func.count(Tenant.id).label("cnt"),
+            )
+            .where(
+                Tenant.plan_id.in_(plan_ids),
+                Tenant.is_deleted.is_(False),
+            )
+            .group_by(Tenant.plan_id)
+        )
+        result = await self.db.execute(query)
+        return {row.plan_id: row.cnt for row in result.all()}
 
 
 __all__ = ["TenantPlanRepository"]

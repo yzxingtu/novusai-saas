@@ -134,13 +134,22 @@ export interface TenantPlanPermissionsRequest {
   permission_ids: number[];
 }
 
-/** 权限信息 */
+/** 权限信息（树形结构） */
 export interface PermissionInfo {
   children?: PermissionInfo[];
   code: string;
   id: number;
   name: string;
   parentId?: null | number;
+}
+
+/** 权限简要信息（套餐已分配权限） */
+export interface PermissionSimpleInfo {
+  code: string;
+  id: number;
+  name: string;
+  resource: string;
+  type: string;
 }
 
 /** 后端权限格式 */
@@ -396,12 +405,14 @@ export async function getAvailablePermissionsApi(
 /**
  * 获取套餐权限
  * GET /admin/plans/{plan_id}/permissions
+ *
+ * 后端返回 PermissionSimpleInfo[]，前端提取 id 数组供 PermissionSelector 使用
  */
 export async function getTenantPlanPermissionsApi(
   planId: number,
   options?: ApiRequestOptions,
-): Promise<number[]> {
-  return requestClient.get<number[]>(
+): Promise<PermissionSimpleInfo[]> {
+  return requestClient.get<PermissionSimpleInfo[]>(
     `${API_PREFIX}/${planId}/permissions`,
     options,
   );

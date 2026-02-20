@@ -1,7 +1,7 @@
 """
 插件扩展点注册表
 
-负责管理插件扩展点的注册和注销（Adapter、Hook、Tool、Skill、Api）。
+负责管理插件扩展点的注册和注销（Adapter、Hook、Tool、Skill、Api、Storage）。
 从 PluginManager 提取，降低 God Object 复杂度。
 """
 
@@ -18,6 +18,7 @@ from app.plugins.extensions.adapter_plugin import AdapterPlugin
 from app.plugins.extensions.api_plugin import ApiPlugin
 from app.plugins.extensions.hook_plugin import HookPlugin
 from app.plugins.extensions.skill_plugin import SkillPlugin
+from app.plugins.extensions.storage_plugin import StoragePlugin
 from app.plugins.extensions.tool_plugin import ToolPlugin
 from app.plugins.route_manager import PluginRouteManager
 
@@ -29,9 +30,9 @@ class ExtensionRegistry:
     插件扩展点注册表
 
     职责：
-    - 注册/注销 Adapter、Hook、Tool、Skill、Api 扩展点
+    - 注册/注销 Adapter、Hook、Tool、Skill、Api、Storage 扩展点
     - 维护扩展点映射关系
-    - 提供 Skill 查询接口
+    - 提供 Skill / Storage 查询接口
     """
 
     def __init__(self, route_manager: PluginRouteManager) -> None:
@@ -44,6 +45,8 @@ class ExtensionRegistry:
         self._plugin_skills: dict[str, str] = {}
         # skill_type -> SkillPlugin instance
         self._skill_instances: dict[str, SkillPlugin] = {}
+        # driver_name -> plugin_name
+        self._plugin_storage_drivers: dict[str, str] = {}
 
     # ========================================
     # 注册 / 注销
@@ -91,6 +94,22 @@ class ExtensionRegistry:
                 skill_type, instance.name,
             )
 
+        if isinstance(instance, StoragePlugin):
+            from app.storage import storage_manager
+            driver_name = instance.get_driver_name()
+            existing_owner = self._plugin_storage_drivers.get(driver_name)
+            if existing_owner and existing_owner != instance.name:
+                raise ConflictException(
+                    _("plugin.storage_driver_conflict"),
+                )
+            driver_class = instance.get_driver_class()
+            storage_manager.register_driver(driver_class)
+            self._plugin_storage_drivers[driver_name] = instance.name
+            logger.info(
+                "Storage plugin registered: driver=%s plugin=%s",
+                driver_name, instance.name,
+            )
+
         if isinstance(instance, ApiPlugin) and self._route_manager.app is not None:
             self._route_manager.mount_plugin_routes(instance)
 
@@ -125,6 +144,17 @@ class ExtensionRegistry:
             logger.info(
                 "Skill plugin unregistered: type=%s plugin=%s",
                 skill_type, instance.name,
+            )
+
+        if isinstance(instance, StoragePlugin):
+            from app.storage import storage_manager
+            driver_name = instance.get_driver_name()
+            if hasattr(storage_manager, 'unregister_driver'):
+                storage_manager.unregister_driver(driver_name)
+            self._plugin_storage_drivers.pop(driver_name, None)
+            logger.info(
+                "Storage plugin unregistered: driver=%s plugin=%s",
+                driver_name, instance.name,
             )
 
         if isinstance(instance, ApiPlugin) and self._route_manager.app is not None:
@@ -170,6 +200,14 @@ class ExtensionRegistry:
     def is_plugin_skill_type(self, skill_type: str) -> bool:
         """判断给定的 Skill 类型是否由插件提供"""
         return skill_type in self._plugin_skills
+
+    def get_plugin_storage_drivers(self) -> dict[str, str]:
+        """获取所有已注册的存储驱动插件映射 (driver_name -> plugin_name)"""
+        return dict(self._plugin_storage_drivers)
+
+    def is_plugin_storage_driver(self, driver_name: str) -> bool:
+        """判断给定的存储驱动是否由插件提供"""
+        return driver_name in self._plugin_storage_drivers
 
 
 __all__ = ["ExtensionRegistry"]

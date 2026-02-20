@@ -54,6 +54,7 @@
     "email_from_name": "发件人名称",
     "email_enabled": "启用邮件发送"
   },
+  "generate_key": "生成密钥",
   "validation": {
     "required": "{field}不能为空",
     "min_length": "长度不能少于 {min} 个字符",

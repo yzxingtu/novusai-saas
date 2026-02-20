@@ -12,6 +12,65 @@ import { $t } from '#/locales';
 type TaskLogInfo = adminApi.TaskLogInfo;
 
 /**
+ * 从完整任务路径提取简短友好名称
+ */
+export function getTaskShortName(taskName: string): string {
+  const funcName = taskName.split('.').at(-1) ?? taskName;
+  const key = `admin.system.taskLog.taskNames.${funcName}`;
+  const translated = $t(key);
+  if (translated !== key) return translated;
+  return funcName;
+}
+
+/**
+ * 格式化耗时为易读字符串
+ */
+export function formatDuration(ms: number | null | undefined): string {
+  if (ms === null || ms === undefined) return '-';
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const minutes = Math.floor(ms / 60_000);
+  const seconds = Math.round((ms % 60_000) / 1000);
+  return `${minutes}m ${seconds}s`;
+}
+
+/**
+ * 从任务结果中提取摘要信息
+ */
+export function getResultSummary(
+  row: TaskLogInfo,
+): { text: string; type: 'error' | 'info' | 'success' } | null {
+  if (row.errorMessage) {
+    return { text: row.errorMessage, type: 'error' };
+  }
+  if (!row.result || typeof row.result !== 'object') return null;
+  const r = row.result as Record<string, unknown>;
+  const parts: string[] = [];
+  if ('total_cleaned' in r) {
+    parts.push(`${$t('admin.system.taskLog.resultKeys.cleaned')}: ${r.total_cleaned}`);
+  }
+  if ('cleaned' in r) {
+    parts.push(`${$t('admin.system.taskLog.resultKeys.cleaned')}: ${r.cleaned}`);
+  }
+  if ('reset_count' in r) {
+    parts.push(`${$t('admin.system.taskLog.resultKeys.reset')}: ${r.reset_count}`);
+  }
+  if ('db' in r) {
+    parts.push(`DB: ${r.db}`);
+  }
+  if ('redis' in r) {
+    parts.push(`Redis: ${r.redis}`);
+  }
+  if ('error' in r && typeof r.error === 'string') {
+    return { text: r.error as string, type: 'error' };
+  }
+  if (parts.length > 0) {
+    return { text: parts.join(' | '), type: 'success' };
+  }
+  return { text: JSON.stringify(r), type: 'info' };
+}
+
+/**
  * 获取任务状态颜色
  */
 export function getStatusColor(status: string | undefined): string {
@@ -82,7 +141,7 @@ export function useColumns<T = TaskLogInfo>(
     {
       field: 'taskName',
       title: $t('admin.system.taskLog.taskName'),
-      minWidth: 200,
+      minWidth: 220,
       slots: {
         default: 'taskName_cell',
       },
@@ -90,7 +149,7 @@ export function useColumns<T = TaskLogInfo>(
     {
       field: 'status',
       title: $t('admin.system.taskLog.status.label'),
-      width: 110,
+      width: 100,
       align: 'center',
       slots: {
         default: 'status_cell',
@@ -107,28 +166,19 @@ export function useColumns<T = TaskLogInfo>(
     },
     {
       field: 'durationMs',
-      title: $t('admin.system.taskLog.durationMs'),
-      width: 110,
+      title: $t('admin.system.taskLog.duration'),
+      width: 100,
       align: 'center',
       slots: {
         default: 'durationMs_cell',
       },
     },
     {
-      field: 'retryCount',
-      title: $t('admin.system.taskLog.retryCount'),
-      width: 100,
-      align: 'center',
+      field: 'result',
+      title: $t('admin.system.taskLog.resultSummary'),
+      minWidth: 240,
       slots: {
-        default: 'retryCount_cell',
-      },
-    },
-    {
-      field: 'errorMessage',
-      title: $t('admin.system.taskLog.errorMessage'),
-      minWidth: 200,
-      slots: {
-        default: 'errorMessage_cell',
+        default: 'result_cell',
       },
     },
     {
@@ -161,13 +211,14 @@ export function useColumns<T = TaskLogInfo>(
             text: $t('admin.system.taskLog.retry'),
             icon: 'lucide:rotate-ccw',
             accessCodes: ['task_log:retry'],
+            show: (row: Record<string, unknown>) => row.status === 'failed',
           },
         ],
       },
       field: 'operation',
       fixed: 'right',
       title: $t('admin.common.operation'),
-      width: 160,
+      width: 120,
     },
   ];
 }

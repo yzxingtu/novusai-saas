@@ -329,6 +329,12 @@
     "welcomeMessage": "欢迎语",
     "suggestedQuestions": "推荐问题",
     "skillPackageBindings": "技能包绑定",
+    "consentMode": "工具授权模式",
+    "consentModeOptions": {
+      "auto": "自动执行",
+      "ask": "需要确认",
+      "reject": "禁止执行"
+    },
     "create": "创建智能体",
     "noDescription": "暂无描述",
     "viewDetail": "查看详情",

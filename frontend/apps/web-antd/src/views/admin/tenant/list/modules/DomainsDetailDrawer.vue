@@ -111,14 +111,6 @@ async function onSaveRemark() {
   }
 }
 
-/** 复制文本 */
-// function onCopy(text?: string) {
-//   if (text) {
-//     copyToClipboard(text);
-//     message.success($t('admin.tenant.domain.copySuccess'));
-//   }
-// }
-
 /** 获取验证状态标签配置 */
 function getVerificationTagConfig(status: string) {
   switch (status) {
@@ -241,7 +233,7 @@ defineExpose({ open });
             </Button>
             <span
               v-if="domainDetail.verifiedAt"
-              class="ml-2 text-xs text-gray-400"
+              class="ml-2 text-xs text-muted-foreground"
             >
               {{ formatDate(domainDetail.verifiedAt) }}
             </span>
@@ -253,7 +245,7 @@ defineExpose({ open });
             </Tag>
             <span
               v-if="domainDetail.sslExpiresAt"
-              class="ml-2 text-xs text-gray-400"
+              class="ml-2 text-xs text-muted-foreground"
             >
               {{ $t('admin.tenant.domain.ssl.info.validTo') }}:
               {{ formatDate(domainDetail.sslExpiresAt) }}
@@ -270,7 +262,7 @@ defineExpose({ open });
         </Descriptions>
 
         <!-- 备注编辑 -->
-        <div class="rounded-lg border border-gray-200 p-4">
+        <div class="rounded-lg border border-border p-4">
           <div class="mb-2 flex items-center justify-between">
             <h4 class="text-sm font-medium">
               {{ $t('admin.tenant.domain.remark') }}
@@ -313,7 +305,7 @@ defineExpose({ open });
             </Form>
           </template>
           <template v-else>
-            <p class="text-sm text-gray-500">
+            <p class="text-sm text-muted-foreground">
               {{ domainDetail.remark || $t('shared.common.notAssigned') }}
             </p>
           </template>

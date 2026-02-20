@@ -2,18 +2,27 @@
 内置定时任务
 
 系统内置的周期性维护任务
+注意：Celery Worker 是独立的同步进程，不经过 FastAPI lifespan，
+因此 RedisManager 不会被初始化。所有 Redis 操作必须使用同步 redis 客户端。
 """
 
 from datetime import timedelta
 
+import redis
+
+from app.core.config import settings
 from app.core.database import sync_session_factory
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.core.redis import RedisManager
 from app.tasks.base import register_task, BaseTask
 from app.core.base_model import utc_now
 
 logger = LogManager.get_logger("task")
+
+
+def _get_sync_redis() -> redis.Redis:
+    """获取同步 Redis 客户端（Celery Worker 专用）"""
+    return redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 @register_task(
@@ -22,36 +31,27 @@ logger = LogManager.get_logger("task")
     max_retries=1,
 )
 def clean_expired_captchas(self: BaseTask) -> dict:
-    from app.core.redis import get_redis_client
-    import asyncio
-
-    async def _clean() -> int:
-        client = get_redis_client()
-        cursor = 0
+    try:
+        client = _get_sync_redis()
+        cursor: int | str = 0
         cleaned = 0
         while True:
-            cursor, keys = await client.scan(
+            cursor, keys = client.scan(
                 cursor=cursor,
                 match="captcha:*",
                 count=100,
             )
             if keys:
-                ttls = [await client.ttl(key) for key in keys]
+                ttls = [client.ttl(key) for key in keys]
                 expired_keys = [k for k, t in zip(keys, ttls) if t == -1]
                 if expired_keys:
-                    cleaned += await client.delete(*expired_keys)
+                    cleaned += client.delete(*expired_keys)
             if cursor == 0:
                 break
-        return cleaned
-
-    try:
-        loop = asyncio.new_event_loop()
-        cleaned = loop.run_until_complete(_clean())
-        loop.close()
-        logger.info(_("task.log.captcha_cleaned"), count=cleaned)
+        logger.info("%s count=%d", _("task.log.captcha_cleaned"), cleaned)
         return {"cleaned": cleaned}
     except Exception as e:
-        logger.warning(_("task.log.captcha_cleanup_skipped"), error=str(e))
+        logger.warning("%s error=%s", _("task.log.captcha_cleanup_skipped"), str(e))
         return {"cleaned": 0, "error": str(e)}
 
 
@@ -61,8 +61,6 @@ def clean_expired_captchas(self: BaseTask) -> dict:
     max_retries=1,
 )
 def system_health_check(self: BaseTask) -> dict:
-    import asyncio
-
     results: dict = {
         "timestamp": utc_now().isoformat(),
         "db": "unknown",
@@ -81,18 +79,13 @@ def system_health_check(self: BaseTask) -> dict:
         if session:
             session.close()
 
-    async def _check_redis() -> bool:
-        return await RedisManager.health_check()
-
     try:
-        loop = asyncio.new_event_loop()
-        redis_ok = loop.run_until_complete(_check_redis())
-        loop.close()
-        results["redis"] = "connected" if redis_ok else "disconnected"
+        client = _get_sync_redis()
+        results["redis"] = "connected" if client.ping() else "disconnected"
     except Exception as e:
         results["redis"] = f"error: {e}"
 
-    logger.info(_("task.log.health_check_result"), db=results["db"], redis=results["redis"])
+    logger.info(f"Health check: db={results['db']}, redis={results['redis']}")
     return results
 
 
@@ -102,11 +95,8 @@ def system_health_check(self: BaseTask) -> dict:
     max_retries=1,
 )
 def reset_agent_daily_quotas(self: BaseTask) -> dict:
-    import asyncio
-
-    async def _reset() -> int:
-        from app.core.redis import get_redis_client
-        client = get_redis_client()
+    try:
+        client = _get_sync_redis()
         cleaned = 0
         patterns = [
             "ai:agent_quota:daily:*",
@@ -114,28 +104,22 @@ def reset_agent_daily_quotas(self: BaseTask) -> dict:
             "ai:agent_quota:user:*",
         ]
         for pattern in patterns:
-            cursor = 0
+            cursor: int | str = 0
             while True:
-                cursor, keys = await client.scan(
+                cursor, keys = client.scan(
                     cursor=cursor, match=pattern, count=200,
                 )
                 if keys:
-                    ttls = [await client.ttl(key) for key in keys]
+                    ttls = [client.ttl(key) for key in keys]
                     no_ttl = [k for k, t in zip(keys, ttls) if t == -1]
                     if no_ttl:
-                        cleaned += await client.delete(*no_ttl)
+                        cleaned += client.delete(*no_ttl)
                 if cursor == 0:
                     break
-        return cleaned
-
-    try:
-        loop = asyncio.new_event_loop()
-        cleaned = loop.run_until_complete(_reset())
-        loop.close()
-        logger.info(_("task.log.quota_reset"), count=cleaned)
+        logger.info("%s count=%d", _("task.log.quota_reset"), cleaned)
         return {"cleaned": cleaned}
     except Exception as e:
-        logger.warning(_("task.log.quota_reset_skipped"), error=str(e))
+        logger.warning("%s error=%s", _("task.log.quota_reset_skipped"), str(e))
         return {"cleaned": 0, "error": str(e)}
 
 
@@ -145,20 +129,22 @@ def reset_agent_daily_quotas(self: BaseTask) -> dict:
     max_retries=1,
 )
 def reset_agent_daily_stats(self: BaseTask) -> dict:
-    import asyncio
-
-    async def _reset() -> int:
-        from app.ai.agent_stats import AgentStatsManager
-        return await AgentStatsManager.reset_daily_stats()
-
     try:
-        loop = asyncio.new_event_loop()
-        count = loop.run_until_complete(_reset())
-        loop.close()
-        logger.info(_("task.log.stats_reset"), count=count)
-        return {"reset_count": count}
+        client = _get_sync_redis()
+        cursor: int | str = 0
+        reset_count = 0
+        while True:
+            cursor, keys = client.scan(
+                cursor=cursor, match="ai:agent_stats:daily:*", count=200,
+            )
+            if keys:
+                reset_count += client.delete(*keys)
+            if cursor == 0:
+                break
+        logger.info("%s count=%d", _("task.log.stats_reset"), reset_count)
+        return {"reset_count": reset_count}
     except Exception as e:
-        logger.warning(_("task.log.stats_reset_skipped"), error=str(e))
+        logger.warning("%s error=%s", _("task.log.stats_reset_skipped"), str(e))
         return {"reset_count": 0, "error": str(e)}
 
 
@@ -180,12 +166,12 @@ def clean_expired_task_logs(self: BaseTask) -> dict:
             .update({"is_deleted": True})
         )
         session.commit()
-        logger.info(_("task.log.task_log_cleaned"), count=result)
+        logger.info("%s count=%d", _("task.log.task_log_cleaned"), result)
         return {"deleted": result}
     except Exception as e:
         if session:
             session.rollback()
-        logger.error(_("task.log.task_log_cleanup_failed"), error=str(e))
+        logger.error("%s error=%s", _("task.log.task_log_cleanup_failed"), str(e))
         return {"deleted": 0, "error": str(e)}
     finally:
         if session:

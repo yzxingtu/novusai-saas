@@ -21,6 +21,8 @@ import {
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
+import { Select as ASelect } from 'ant-design-vue';
+
 import {
   getFormDefaults,
   getWizardSteps,
@@ -35,10 +37,24 @@ const emits = defineEmits<{ success: [] }>();
 const wizardMode = ref(false);
 const currentStep = ref(0);
 const pendingPackageIds = ref<number[]>([]);
+const consentModes = ref<Record<string, string>>({});
+const selectedPackages = ref<Array<{ label: string; value: number }>>([]);
 
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(),
   showDefaultActions: false,
+  handleValuesChange: (values, changedFields) => {
+    if (changedFields.includes('package_ids')) {
+      const rawPkgIds = values.package_ids as Array<number | { label: string; value: number }>;
+      if (rawPkgIds) {
+        selectedPackages.value = rawPkgIds.map((p: number | { label: string; value: number }) =>
+          typeof p === 'object' && p !== null ? p : { label: `#${p}`, value: p as number },
+        );
+      } else {
+        selectedPackages.value = [];
+      }
+    }
+  },
 });
 
 function goStep(step: number) {
@@ -84,8 +100,12 @@ const { Drawer, isEdit, recordId, openNew: _openNew, openEdit: _openEdit } = use
   apiPath: '/tenant/ai/agents',
   transform: (values) => {
     const rawPkgIds = values.package_ids as Array<number | { label: string; value: number }>;
-    pendingPackageIds.value = (rawPkgIds || []).map((p) =>
+    const resolved = (rawPkgIds || []).map((p) =>
       typeof p === 'object' && p !== null ? p.value : p,
+    );
+    pendingPackageIds.value = resolved;
+    selectedPackages.value = (rawPkgIds || []).map((p) =>
+      typeof p === 'object' && p !== null ? p : { label: `#${p}`, value: p as number },
     );
     return {
       name: values.name,
@@ -145,7 +165,13 @@ const { Drawer, isEdit, recordId, openNew: _openNew, openEdit: _openEdit } = use
     const agentId = recordId.value as number | undefined;
     if (agentId && pendingPackageIds.value.length >= 0) {
       try {
-        await batchBindPackagesApi(agentId, pendingPackageIds.value);
+        await batchBindPackagesApi(
+          agentId,
+          pendingPackageIds.value,
+          Object.keys(consentModes.value).length > 0
+            ? consentModes.value
+            : undefined,
+        );
       } catch {
         // package binding errors are non-fatal
       }
@@ -160,6 +186,14 @@ const { Drawer, isEdit, recordId, openNew: _openNew, openEdit: _openEdit } = use
         label: b.package?.name || `#${b.package_id}`,
         value: b.package_id,
       }));
+      const modes: Record<string, string> = {};
+      for (const b of bindings) {
+        if (b.consent_mode && b.consent_mode !== 'auto') {
+          modes[String(b.package_id)] = b.consent_mode;
+        }
+      }
+      consentModes.value = modes;
+      selectedPackages.value = (agent as AgentDetailWithBindings)._package_options!;
     } catch {
       (agent as AgentDetailWithBindings)._package_options = [];
     }
@@ -182,6 +216,26 @@ function openEdit(record: AgentListItem) {
 }
 
 defineExpose({ openNew, openEdit });
+
+const consentModeOptions = computed(() => [
+  { label: $t('tenant.ai.agent.consentModeOptions.auto'), value: 'auto' },
+  { label: $t('tenant.ai.agent.consentModeOptions.ask'), value: 'ask' },
+  { label: $t('tenant.ai.agent.consentModeOptions.reject'), value: 'reject' },
+]);
+
+function getConsentMode(pkgId: number): string {
+  return consentModes.value[String(pkgId)] || 'auto';
+}
+
+function setConsentMode(pkgId: number, mode: string) {
+  if (mode === 'auto') {
+    const { [String(pkgId)]: _, ...rest } = consentModes.value;
+    consentModes.value = rest;
+  } else {
+    consentModes.value = { ...consentModes.value, [String(pkgId)]: mode };
+  }
+}
+
 
 const title = computed(() =>
   isEdit.value
@@ -206,6 +260,29 @@ const isFirstStep = computed(() => currentStep.value === 0);
       </a-steps>
     </div>
     <Form />
+
+    <!-- Consent mode per skill package -->
+    <div v-if="selectedPackages.length > 0" class="mt-4">
+      <div class="mb-2 text-sm font-medium text-foreground">
+        {{ $t('tenant.ai.agent.consentMode') }}
+      </div>
+      <div class="space-y-2">
+        <div
+          v-for="pkg in selectedPackages"
+          :key="pkg.value"
+          class="flex items-center gap-3 rounded-md border border-border px-3 py-2"
+        >
+          <span class="flex-1 truncate text-sm">{{ pkg.label }}</span>
+          <ASelect
+            :value="getConsentMode(pkg.value)"
+            :options="consentModeOptions"
+            size="small"
+            class="w-[140px]"
+            @change="(v: unknown) => setConsentMode(pkg.value, v as string)"
+          />
+        </div>
+      </div>
+    </div>
     <div v-if="wizardMode" class="mt-4 flex justify-between">
       <a-button :disabled="isFirstStep" @click="prevStep">
         {{ $t('shared.common.prevStep') }}

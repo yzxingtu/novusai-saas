@@ -19,7 +19,7 @@ class TenantDomainTenantRepository(TenantRepository[TenantDomain]):
     
     async def get_primary_domain(self, tenant_id: int) -> TenantDomain | None:
         query = select(self.model).where(
-            self.model.tenant_id == self.tenant_id,
+            self.model.tenant_id == tenant_id,
             self.model.is_primary.is_(True),
             self.model.is_deleted.is_(False),
         )
@@ -30,7 +30,7 @@ class TenantDomainTenantRepository(TenantRepository[TenantDomain]):
         query = (
             select(self.model)
             .where(
-                self.model.tenant_id == self.tenant_id,
+                self.model.tenant_id == tenant_id,
                 self.model.is_deleted.is_(False),
             )
             .order_by(
@@ -57,10 +57,10 @@ class TenantDomainTenantRepository(TenantRepository[TenantDomain]):
         return result.scalar_one_or_none() is not None
     
     async def count_tenant_domains(self, tenant_id: int) -> int:
-        return await self.count(tenant_id=self.tenant_id)
+        return await self.count(tenant_id=tenant_id)
     
     async def has_primary_domain(self, tenant_id: int) -> bool:
-        primary = await self.get_primary_domain(self.tenant_id)
+        primary = await self.get_primary_domain(tenant_id)
         return primary is not None
     
     async def clear_primary_flag(self, tenant_id: int) -> None:
@@ -69,7 +69,7 @@ class TenantDomainTenantRepository(TenantRepository[TenantDomain]):
         stmt = (
             update(self.model)
             .where(
-                self.model.tenant_id == self.tenant_id,
+                self.model.tenant_id == tenant_id,
                 self.model.is_primary.is_(True),
                 self.model.is_deleted.is_(False),
             )

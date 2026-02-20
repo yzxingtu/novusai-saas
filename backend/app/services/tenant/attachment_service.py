@@ -554,7 +554,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
     async def _load_session(self, upload_id: str) -> dict[str, Any]:
         """
-        加载会话状态
+        加载会话状态（含租户隔离校验）
         """
         session_file = self._get_session_file(upload_id)
         if not session_file.exists():
@@ -566,7 +566,17 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         def _read() -> dict[str, Any]:
             return json.loads(session_file.read_text(encoding="utf-8"))
 
-        return await anyio.to_thread.run_sync(_read)
+        session = await anyio.to_thread.run_sync(_read)
+
+        # 租户隔离校验：确保当前租户只能操作自己的上传会话
+        session_tenant_id = session.get("tenant_id")
+        if session_tenant_id is not None and int(session_tenant_id) != self.tenant_id:
+            raise BusinessException(
+                message=_("error.auth.forbidden"),
+                code=ErrorCode.FORBIDDEN,
+            )
+
+        return session
 
     async def _remove_session(self, upload_id: str) -> None:
         """

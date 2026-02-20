@@ -8,6 +8,7 @@ from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
 from app.models.tenant.tenant_user import TenantUser
 from app.models.tenant.tenant_domain import TenantDomain
+from app.models.tenant.domain_ssl_certificate import DomainSslCertificate
 from app.models.tenant.tenant_plan import TenantPlan, tenant_plan_permissions
 from app.models.tenant.attachment import Attachment
 
@@ -16,6 +17,7 @@ __all__ = [
     "TenantAdmin",
     "TenantUser",
     "TenantDomain",
+    "DomainSslCertificate",
     "TenantPlan",
     "tenant_plan_permissions",
     "Attachment",

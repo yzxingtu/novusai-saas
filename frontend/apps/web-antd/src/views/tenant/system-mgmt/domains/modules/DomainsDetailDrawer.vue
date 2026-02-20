@@ -104,14 +104,6 @@ async function onSaveRemark() {
   }
 }
 
-/** 复制文本 */
-// function onCopy(text?: string) {
-//   if (text) {
-//     copyToClipboard(text);
-//     message.success($t('common.copied'));
-//   }
-// }
-
 /** 获取验证状态标签配置 */
 function getVerificationTagConfig(status: string) {
   switch (status) {
@@ -233,7 +225,7 @@ defineExpose({ open });
             </Button>
             <span
               v-if="domainDetail.verifiedAt"
-              class="ml-2 text-xs text-gray-400"
+              class="ml-2 text-xs text-muted-foreground"
             >
               {{ formatDate(domainDetail.verifiedAt) }}
             </span>
@@ -245,7 +237,7 @@ defineExpose({ open });
             </Tag>
             <span
               v-if="domainDetail.sslExpiresAt"
-              class="ml-2 text-xs text-gray-400"
+              class="ml-2 text-xs text-muted-foreground"
             >
               {{ $t('tenant.system.domain.ssl.expiresAt') }}:
               {{ formatDate(domainDetail.sslExpiresAt) }}

@@ -404,7 +404,8 @@ export function useAIChat(options: UseAIChatOptions) {
     }
   }
 
-  async function sendMessage() {
+  async function sendMessage(opts?: { silent?: boolean }) {
+    const silent = opts?.silent ?? false;
     const hasText = inputMessage.value.trim().length > 0;
     const hasAttachments = pendingAttachments.value.length > 0;
     if ((!hasText && !hasAttachments) || !selectedAgentId.value || sending.value)
@@ -413,11 +414,13 @@ export function useAIChat(options: UseAIChatOptions) {
     const userMsg = inputMessage.value.trim();
     const msgAttachments = [...pendingAttachments.value];
 
-    chatMessages.value.push({
-      role: 'user',
-      content: userMsg,
-      attachments: msgAttachments.length > 0 ? msgAttachments : undefined,
-    });
+    if (!silent) {
+      chatMessages.value.push({
+        role: 'user',
+        content: userMsg,
+        attachments: msgAttachments.length > 0 ? msgAttachments : undefined,
+      });
+    }
     chatMessages.value.push({ role: 'assistant', content: '', streaming: true });
     userScrolledUp = false;
     scrollToBottom(true);
@@ -554,7 +557,17 @@ export function useAIChat(options: UseAIChatOptions) {
           },
           onEnd() {
             const msg = chatMessages.value[assistantIdx];
-            if (msg) msg.streaming = false;
+            if (msg) {
+              msg.streaming = false;
+              // Clean up any tool calls still stuck in 'running' status
+              if (msg.toolCalls) {
+                for (const tc of msg.toolCalls) {
+                  if (tc.status === 'running') {
+                    tc.status = 'error';
+                  }
+                }
+              }
+            }
             loadConversations();
           },
           onError(error: Error) {
@@ -565,6 +578,13 @@ export function useAIChat(options: UseAIChatOptions) {
                 msg.content =
                   '\u26A0\uFE0F ' + $t('common.requestFailed');
               msg.streaming = false;
+              if (msg.toolCalls) {
+                for (const tc of msg.toolCalls) {
+                  if (tc.status === 'running') {
+                    tc.status = 'error';
+                  }
+                }
+              }
             }
           },
         },
@@ -577,7 +597,16 @@ export function useAIChat(options: UseAIChatOptions) {
       streamAbortController = null;
       userScrolledUp = false;
       const msg = chatMessages.value[assistantIdx];
-      if (msg) msg.streaming = false;
+      if (msg) {
+        msg.streaming = false;
+        if (msg.toolCalls) {
+          for (const tc of msg.toolCalls) {
+            if (tc.status === 'running') {
+              tc.status = 'error';
+            }
+          }
+        }
+      }
     }
   }
 
@@ -586,7 +615,7 @@ export function useAIChat(options: UseAIChatOptions) {
     if (!msg?.pendingConfirmation || msg.pendingConfirmation.resolved) return;
     msg.pendingConfirmation.resolved = true;
     inputMessage.value = $t('common.globalAiChat.confirmExecute');
-    sendMessage();
+    sendMessage({ silent: true });
   }
 
   function rejectAction(msgIndex: number) {
@@ -594,7 +623,7 @@ export function useAIChat(options: UseAIChatOptions) {
     if (!msg?.pendingConfirmation || msg.pendingConfirmation.resolved) return;
     msg.pendingConfirmation.resolved = true;
     inputMessage.value = $t('common.globalAiChat.rejectExecute');
-    sendMessage();
+    sendMessage({ silent: true });
   }
 
   function confirmConsent(msgIndex: number) {
@@ -602,7 +631,7 @@ export function useAIChat(options: UseAIChatOptions) {
     if (!msg?.pendingConsent || msg.pendingConsent.resolved) return;
     msg.pendingConsent.resolved = true;
     inputMessage.value = $t('common.globalAiChat.confirmExecute');
-    sendMessage();
+    sendMessage({ silent: true });
   }
 
   function rejectConsent(msgIndex: number) {
@@ -610,7 +639,7 @@ export function useAIChat(options: UseAIChatOptions) {
     if (!msg?.pendingConsent || msg.pendingConsent.resolved) return;
     msg.pendingConsent.resolved = true;
     inputMessage.value = $t('common.globalAiChat.rejectExecute');
-    sendMessage();
+    sendMessage({ silent: true });
   }
 
   function stopGeneration() {

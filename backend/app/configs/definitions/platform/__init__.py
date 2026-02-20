@@ -9,6 +9,7 @@ from app.configs.definitions.platform import general
 from app.configs.definitions.platform import security
 from app.configs.definitions.platform import email
 from app.configs.definitions.platform import storage
+from app.configs.definitions.platform import ssl
 
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "security",
     "email",
     "storage",
+    "ssl",
 ]

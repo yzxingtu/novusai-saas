@@ -1,6 +1,36 @@
 # 数据库迁移最佳实践
 
-## 问题描述
+## 核心机制：启动时自动迁移（实时迁移）
+
+**本项目启动时自动执行 `alembic upgrade head`，无需手动运行迁移命令。**
+
+流程（`app/core/database.py` → `init_database()` → `run_migrations()`）：
+```
+FastAPI 启动 (lifespan)
+  → init_database()
+    → create_database_if_not_exists()  # 检查/创建数据库
+    → run_migrations()                 # 自动执行 alembic upgrade head
+    → check_database_connection()      # 验证连接
+```
+
+**这意味着：**
+1. 创建模型 + 生成迁移文件后，只需等待后端热重载（开发模式 uvicorn --reload），迁移会自动执行
+2. **不需要手动运行** `alembic upgrade head`
+3. 生产部署时，服务启动也会自动迁移
+4. 如果迁移失败，服务启动会报错并退出
+
+**开发流程：**
+```
+1. 创建/修改 Model 文件
+2. 在 models/__init__.py 和 migrations/env.py 注册模型
+3. 生成迁移文件：alembic revision --autogenerate -m "描述"
+4. 清理迁移文件（删除不相关的 autogenerate 噪音）
+5. 等待热重载自动执行迁移 ✅
+```
+
+---
+
+## 常见问题
 
 在开发过程中，经常遇到 Alembic 迁移相关的问题，主要包括：
 
@@ -168,7 +198,29 @@ down_revision = '676cbd976326'  # 最新的迁移版本号
 .venv\Scripts\python -m app.main
 ```
 
-### 6. 最佳实践清单
+### 6. LabeledStrEnum 与 asyncpg 兼容性
+
+**关键：** 本项目使用 asyncpg 驱动，`LabeledStrEnum` 枚举对象不能直接用在 SQLAlchemy 查询条件中，必须用 `.value` 获取字符串值。
+
+```python
+# ❌ 错误 — asyncpg 报错: expected str, got SslCertStatus
+query = select(Model).where(Model.status == SslCertStatus.ACTIVE)
+
+# ✅ 正确 — 使用 .value
+query = select(Model).where(Model.status == SslCertStatus.ACTIVE.value)
+
+# ❌ 错误 — update values 也一样
+await self.update(id, {"status": SslCertStatus.FAILED})
+
+# ✅ 正确
+await self.update(id, {"status": SslCertStatus.FAILED.value})
+```
+
+**适用范围：** Repository 的 `where()` 条件 + Service 的 `create()`/`update()` dict 值中所有 `LabeledStrEnum` 引用。
+
+**不受影响：** Model 字段的 `default=EnumValue` 可以用枚举对象（SQLAlchemy 自动处理）。
+
+### 7. 最佳实践清单
 
 - [ ] 使用日期时间格式命名迁移文件：`YYYYMMDD_HHMM_descriptive_name.py`
 - [ ] 创建迁移后立即设置 `down_revision`

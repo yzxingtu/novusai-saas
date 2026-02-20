@@ -1,18 +1,19 @@
 /**
  * 租户端域名管理 - 类型定义
  */
+import type {
+  DomainType,
+  SslStatus,
+  SslType,
+  VerificationStatus,
+} from '#/types/domain';
 
-/** 域名类型 */
-export type DomainType = 'custom' | 'default';
-
-/** 验证状态 */
-export type VerificationStatus = 'failed' | 'pending' | 'verified';
-
-/** SSL 状态 */
-export type SslStatus = 'active' | 'expired' | 'failed' | 'none' | 'pending';
-
-/** SSL 类型 */
-export type SslType = 'custom' | 'platform';
+export type {
+  DomainType,
+  SslStatus,
+  SslType,
+  VerificationStatus,
+} from '#/types/domain';
 
 /** 域名信息 */
 export interface TenantDomainInfo {

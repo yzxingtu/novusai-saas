@@ -10,3 +10,6 @@ export * from './endpoint';
 
 // 通用筛选类型
 export * from './query';
+
+// 域名管理共享类型
+export * from './domain';

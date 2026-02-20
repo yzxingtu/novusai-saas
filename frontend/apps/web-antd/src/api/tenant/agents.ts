@@ -330,6 +330,7 @@ export interface AgentSkillBindingInfo {
   enabled: boolean;
   config_override: Record<string, unknown> | null;
   sort_order: number;
+  consent_mode: string;
   package: {
     id: number;
     name: string;
@@ -355,11 +356,12 @@ export async function getAgentSkillsApi(
 export async function batchBindPackagesApi(
   agentId: number,
   packageIds: number[],
+  consentModes?: Record<string, string>,
   options?: ApiRequestOptions,
 ): Promise<AgentSkillBindingInfo[]> {
   return requestClient.put<AgentSkillBindingInfo[]>(
     `${PREFIX}/${agentId}/skills/batch`,
-    { package_ids: packageIds },
+    { package_ids: packageIds, consent_modes: consentModes },
     options,
   );
 }

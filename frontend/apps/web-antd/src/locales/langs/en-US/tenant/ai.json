@@ -172,6 +172,12 @@
     "toolBindings": "Tool Bindings (JSON)",
     "skillBindings": "Skill Bindings",
     "skillPackageBindings": "Skill Package Bindings",
+    "consentMode": "Tool Consent Mode",
+    "consentModeOptions": {
+      "auto": "Auto Execute",
+      "ask": "Require Confirmation",
+      "reject": "Deny Execution"
+    },
     "skillCount": "Skills",
     "hasWelcomeMessage": "Welcome message configured",
     "sharedPackageTag": "Shared",

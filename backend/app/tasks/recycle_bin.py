@@ -133,15 +133,17 @@ def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
                 results[model_name] = model_cleaned
                 total_cleaned += model_cleaned
                 logger.info(
+                    "%s model=%s count=%d",
                     _("task.log.recycle_bin_cleaned"),
-                    model=model_name,
-                    count=model_cleaned,
+                    model_name,
+                    model_cleaned,
                 )
 
         except Exception as e:
             logger.error(
+                "%s error=%s",
                 _("task.log.recycle_bin_cleanup_failed"),
-                error=f"{model_path}: {e}",
+                f"{model_path}: {e}",
             )
             if session:
                 session.rollback()
@@ -151,9 +153,10 @@ def cleanup_recycle_bin(self: BaseTask, retention_days: int = 30) -> dict:
 
     elapsed = time.monotonic() - start
     logger.info(
+        "%s total=%d elapsed=%.2fs",
         _("task.log.recycle_bin_cleanup_total"),
-        total=total_cleaned,
-        elapsed=elapsed,
+        total_cleaned,
+        elapsed,
     )
 
     return {

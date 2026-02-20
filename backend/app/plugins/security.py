@@ -37,6 +37,7 @@ VALID_PERMISSIONS = frozenset({
     "config:write",
     "storage:read",
     "storage:write",
+    "storage:register",
 })
 
 # semver 正则

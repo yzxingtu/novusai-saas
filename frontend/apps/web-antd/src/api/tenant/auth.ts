@@ -122,6 +122,10 @@ interface TenantAdminInfoRaw {
   created_at?: string;
   /** 权限码列表 */
   permissions?: string[];
+  /** 租户是否已分配套餐 */
+  has_plan?: boolean;
+  /** 套餐名称 */
+  plan_name?: string;
 }
 
 /**
@@ -145,6 +149,8 @@ export async function getTenantAdminInfoApi(
     tenantName: raw.tenant_name,
     roles: [],
     permissions: raw.permissions || [],
+    hasPlan: raw.has_plan ?? true,
+    planName: raw.plan_name,
   };
 }
 

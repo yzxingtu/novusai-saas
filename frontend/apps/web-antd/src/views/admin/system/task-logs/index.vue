@@ -15,7 +15,15 @@ import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
-import { getQueueColor, getStatusColor, useColumns, useGridFormSchema } from './data';
+import {
+  formatDuration,
+  getQueueColor,
+  getResultSummary,
+  getStatusColor,
+  getTaskShortName,
+  useColumns,
+  useGridFormSchema,
+} from './data';
 import TaskLogDetail from './modules/TaskLogDetail.vue';
 
 type TaskLogInfo = adminApi.TaskLogInfo;
@@ -63,13 +71,16 @@ const { Grid, onRefresh } = useCrudPage<TaskLogInfo>({
       <Grid>
         <!-- 任务名称列 -->
         <template #taskName_cell="{ row }">
-          <Tooltip :title="row.taskId">
-            <code
-              class="max-w-[300px] truncate rounded bg-accent px-1 py-0.5 text-xs"
-            >
-              {{ row.taskName }}
-            </code>
-          </Tooltip>
+          <div class="flex flex-col gap-0.5">
+            <span class="font-medium text-foreground">
+              {{ getTaskShortName(row.taskName) }}
+            </span>
+            <Tooltip :title="row.taskId">
+              <span class="truncate text-xs text-muted-foreground">
+                {{ row.taskName }}
+              </span>
+            </Tooltip>
+          </div>
         </template>
 
         <!-- 状态列 -->
@@ -93,33 +104,42 @@ const { Grid, onRefresh } = useCrudPage<TaskLogInfo>({
         <!-- 耗时列 -->
         <template #durationMs_cell="{ row }">
           <span
-            v-if="row.durationMs !== null"
-            :class="
+            v-if="row.durationMs !== null && row.durationMs !== undefined"
+            :class="[
+              'tabular-nums',
               row.durationMs > 5000
                 ? 'font-medium text-warning'
-                : 'text-muted-foreground'
-            "
+                : 'text-muted-foreground',
+            ]"
           >
-            {{ row.durationMs }} ms
+            {{ formatDuration(row.durationMs) }}
           </span>
           <span v-else class="text-muted-foreground">-</span>
         </template>
 
-        <!-- 重试次数列 -->
-        <template #retryCount_cell="{ row }">
-          <Tag v-if="row.retryCount > 0" color="orange">
-            {{ row.retryCount }}
-          </Tag>
-          <span v-else class="text-muted-foreground">0</span>
-        </template>
-
-        <!-- 错误信息列 -->
-        <template #errorMessage_cell="{ row }">
-          <Tooltip v-if="row.errorMessage" :title="row.errorMessage">
-            <span class="line-clamp-1 text-destructive">
-              {{ row.errorMessage }}
+        <!-- 结果摘要列 -->
+        <template #result_cell="{ row }">
+          <template v-if="getResultSummary(row)">
+            <Tooltip
+              v-if="getResultSummary(row)!.type === 'error'"
+              :title="getResultSummary(row)!.text"
+            >
+              <span class="line-clamp-1 text-xs text-destructive">
+                {{ getResultSummary(row)!.text }}
+              </span>
+            </Tooltip>
+            <span
+              v-else
+              class="line-clamp-1 text-xs"
+              :class="
+                getResultSummary(row)!.type === 'success'
+                  ? 'text-success'
+                  : 'text-muted-foreground'
+              "
+            >
+              {{ getResultSummary(row)!.text }}
             </span>
-          </Tooltip>
+          </template>
           <span v-else class="text-muted-foreground">-</span>
         </template>
 

@@ -41,6 +41,7 @@ from app.enums.agent import (
 )
 from app.enums.ai import ToolParameterTypeEnum
 from app.enums.plugin import PluginTypeEnum, PluginStatusEnum
+from app.enums.domain import DomainSslStatus, DomainType, SslCertType, SslCertStatus
 from app.enums.knowledge_base import (
     KBStatusEnum,
     DocumentStatusEnum,
@@ -105,6 +106,11 @@ __all__ = [
     # 插件
     "PluginTypeEnum",
     "PluginStatusEnum",
+    # 域名
+    "DomainSslStatus",
+    "DomainType",
+    "SslCertType",
+    "SslCertStatus",
     # 知识库
     "KBStatusEnum",
     "DocumentStatusEnum",

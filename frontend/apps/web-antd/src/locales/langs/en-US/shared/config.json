@@ -54,6 +54,7 @@
     "email_from_name": "From Name",
     "email_enabled": "Enable Email Sending"
   },
+  "generate_key": "Generate Key",
   "validation": {
     "required": "{field} is required",
     "min_length": "Length must be at least {min} characters",

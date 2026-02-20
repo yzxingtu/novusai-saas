@@ -290,6 +290,21 @@ class AdminConfigController(GlobalController):
                 ),
                 message=_("config.updated"),
             )
+        
+        @router.post("/generate-fernet-key", summary="生成 Fernet 加密密钥")
+        @action_update("action.platform_config.update")
+        async def generate_fernet_key(
+            request: Request,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            生成一个随机的 Fernet 密钥（用于 SSL 私钥加密等场景）
+            
+            权限: platform_config:update
+            """
+            from cryptography.fernet import Fernet
+            key = Fernet.generate_key().decode()
+            return success(data={"key": key})
 
 
 # 导出路由

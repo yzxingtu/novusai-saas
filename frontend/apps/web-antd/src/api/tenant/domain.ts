@@ -2,29 +2,23 @@
  * 租户端域名管理 API
  * 对接后端 /tenant/domains/* 接口
  */
+import type { DomainType, SslStatus, VerificationStatus } from '#/types/domain';
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
 
+export type { DomainType, SslStatus, VerificationStatus } from '#/types/domain';
+
 // ============================================================
 // 类型定义
 // ============================================================
-
-/** 域名类型 */
-export type DomainType = 'custom' | 'default';
-
-/** SSL 状态 */
-export type SslStatus = 'active' | 'failed' | 'none' | 'pending';
-
-/** 验证状态 */
-export type VerificationStatus = 'failed' | 'pending' | 'verified';
 
 /** 域名信息（后端原始格式 snake_case） */
 export interface TenantDomainInfoRaw {
   id: number;
   tenant_id: number;
   domain: string;
-  domain_type?: DomainType; // 后端可能不返回此字段，前端需要推断
+  domain_type: DomainType;
   is_verified: boolean;
   is_primary: boolean;
   ssl_status: SslStatus;
@@ -101,32 +95,9 @@ export interface DnsVerificationInfo {
 // 转换函数
 // ============================================================
 
-/**
- * 判断是否为默认域名
- * 默认域名格式：{subdomain}.{app_platform_domain}
- * 例如：t5od3oj3p.app.novusai.com
- */
-function isDefaultDomain(domain: string, raw: TenantDomainInfoRaw): boolean {
-  // 如果后端返回了 domain_type，直接使用
-  if ('domain_type' in raw && raw.domain_type) {
-    return raw.domain_type === 'default';
-  }
-
-  // 否则根据规则推断：默认域名通常包含 app.novusai.com 或类似的平台域名
-  // 这里可以根据实际平台域名调整判断逻辑
-  const platformDomains = [
-    'app.novusai.com',
-    'novusai.com',
-    // 可以添加更多平台域名
-  ];
-
-  return platformDomains.some((pd) => domain.endsWith(pd));
-}
-
 /** 将后端 snake_case 转换为前端 camelCase */
 function transformDomainInfo(raw: TenantDomainInfoRaw): TenantDomainInfo {
-  // 处理缺失的 domain_type 字段
-  const domainType = isDefaultDomain(raw.domain, raw) ? 'default' : 'custom';
+  const domainType = raw.domain_type || 'custom';
 
   return {
     id: raw.id,
@@ -281,16 +252,178 @@ export async function setPrimaryDomainApi(
   return transformDomainInfo(raw);
 }
 
+// TODO: getDomainDnsInfoApi 待后端实现对应端点后启用
+// /**
+//  * 获取域名 DNS 验证信息
+//  * GET /tenant/domains/{domain_id}/dns-info
+//  */
+// export async function getDomainDnsInfoApi(
+//   domainId: number,
+//   options?: ApiRequestOptions,
+// ): Promise<DnsVerificationInfo> {
+//   return await requestClient.get<DnsVerificationInfo>(
+//     `/tenant/domains/${domainId}/dns-info`,
+//     options,
+//   );
+// }
+
+// ============================================================
+// SSL 证书管理 API
+// ============================================================
+
+/** SSL 证书详情响应 */
+export interface SslCertificateInfo {
+  id: number;
+  domainId: number;
+  tenantId: number;
+  certType: 'custom' | 'platform';
+  status: 'active' | 'expired' | 'failed' | 'pending' | 'revoked';
+  issuer: null | string;
+  serialNumber: null | string;
+  issuedAt: null | string;
+  expiresAt: null | string;
+  autoRenew: boolean;
+  hasCertificate: boolean;
+  hasPrivateKey: boolean;
+  hasChain: boolean;
+  lastRenewalAttempt: null | string;
+  renewalError: null | string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** SSL 证书详情原始响应 */
+interface SslCertificateInfoRaw {
+  id: number;
+  domain_id: number;
+  tenant_id: number;
+  cert_type: 'custom' | 'platform';
+  status: 'active' | 'expired' | 'failed' | 'pending' | 'revoked';
+  issuer: null | string;
+  serial_number: null | string;
+  issued_at: null | string;
+  expires_at: null | string;
+  auto_renew: boolean;
+  has_certificate: boolean;
+  has_private_key: boolean;
+  has_chain: boolean;
+  last_renewal_attempt: null | string;
+  renewal_error: null | string;
+  created_at: string;
+  updated_at: string;
+}
+
+function transformSslCertInfo(raw: SslCertificateInfoRaw): SslCertificateInfo {
+  return {
+    id: raw.id,
+    domainId: raw.domain_id,
+    tenantId: raw.tenant_id,
+    certType: raw.cert_type,
+    status: raw.status,
+    issuer: raw.issuer,
+    serialNumber: raw.serial_number,
+    issuedAt: raw.issued_at,
+    expiresAt: raw.expires_at,
+    autoRenew: raw.auto_renew,
+    hasCertificate: raw.has_certificate,
+    hasPrivateKey: raw.has_private_key,
+    hasChain: raw.has_chain,
+    lastRenewalAttempt: raw.last_renewal_attempt,
+    renewalError: raw.renewal_error,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
 /**
- * 获取域名 DNS 验证信息
- * GET /tenant/domains/{domain_id}/dns-info
+ * 获取域名 SSL 证书详情
+ * GET /tenant/domains/{domain_id}/ssl
  */
-export async function getDomainDnsInfoApi(
+export async function getTenantSslDetailApi(
   domainId: number,
   options?: ApiRequestOptions,
-): Promise<DnsVerificationInfo> {
-  return await requestClient.get<DnsVerificationInfo>(
-    `/tenant/domains/${domainId}/dns-info`,
+): Promise<SslCertificateInfo | null> {
+  const raw = await requestClient.get<SslCertificateInfoRaw | null>(
+    `/tenant/domains/${domainId}/ssl`,
     options,
   );
+  return raw ? transformSslCertInfo(raw) : null;
+}
+
+/**
+ * 手动触发 SSL 签发
+ * POST /tenant/domains/{domain_id}/ssl/provision
+ */
+export async function provisionTenantSslApi(
+  domainId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.post(
+    `/tenant/domains/${domainId}/ssl/provision`,
+    {},
+    options,
+  );
+}
+
+/**
+ * 手动续期 SSL 证书
+ * POST /tenant/domains/{domain_id}/ssl/renew
+ */
+export async function renewTenantSslApi(
+  domainId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.post(
+    `/tenant/domains/${domainId}/ssl/renew`,
+    {},
+    options,
+  );
+}
+
+/**
+ * 上传自定义 SSL 证书
+ * POST /tenant/domains/{domain_id}/ssl/upload
+ */
+export async function uploadTenantSslCertApi(
+  domainId: number,
+  data: { certificate: string; certificate_chain?: string; private_key: string },
+  options?: ApiRequestOptions,
+): Promise<SslCertificateInfo> {
+  const raw = await requestClient.post<SslCertificateInfoRaw>(
+    `/tenant/domains/${domainId}/ssl/upload`,
+    data,
+    options,
+  );
+  return transformSslCertInfo(raw);
+}
+
+/**
+ * 删除 SSL 证书
+ * DELETE /tenant/domains/{domain_id}/ssl
+ */
+export async function deleteTenantSslCertApi(
+  domainId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.delete(
+    `/tenant/domains/${domainId}/ssl`,
+    options,
+  );
+}
+
+/**
+ * 设置 SSL 自动续期开关
+ * PUT /tenant/domains/{domain_id}/ssl/auto-renew
+ */
+export async function updateTenantSslAutoRenewApi(
+  domainId: number,
+  autoRenew: boolean,
+  options?: ApiRequestOptions,
+): Promise<SslCertificateInfo> {
+  const raw = await requestClient.put<SslCertificateInfoRaw>(
+    `/tenant/domains/${domainId}/ssl/auto-renew`,
+    { auto_renew: autoRenew },
+    options,
+  );
+  return transformSslCertInfo(raw);
 }

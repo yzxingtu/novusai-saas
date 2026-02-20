@@ -28,22 +28,22 @@ function transformAttachmentInfo(raw: AttachmentInfoRaw): AttachmentInfo {
     id: raw.id,
     tenantId: raw.tenant_id,
     name: raw.name,
+    originalName: raw.original_name,
     path: raw.path,
-    mimeType: raw.mime_type,
     size: raw.size,
     hash: raw.hash,
+    mimeType: raw.mime_type,
+    extension: raw.extension,
+    visibility: raw.visibility,
     driver: raw.driver,
     baseUrl: raw.base_url,
-    visibility: raw.visibility,
-    folderId: raw.folder_id,
-    // category 后端不返回，通过 mime_type 推算
-    category: raw.category || inferCategory(raw.mime_type),
-    refType: raw.ref_type,
-    refId: raw.ref_id,
-    metadata: raw.metadata,
-    uploadedBy: raw.uploaded_by,
-    // 后端无 uploaded_at 字段，回退到 created_at 确保时间列显示
-    uploadedAt: raw.uploaded_at || raw.created_at,
+    status: raw.status,
+    source: raw.source,
+    uploaderId: raw.uploader_id,
+    businessType: raw.business_type,
+    businessId: raw.business_id,
+    meta: raw.meta,
+    category: inferCategory(raw.mime_type),
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };
@@ -52,15 +52,14 @@ function transformAttachmentInfo(raw: AttachmentInfoRaw): AttachmentInfo {
 /** 转换存储配额信息 */
 function transformStorageQuota(raw: StorageQuotaInfoRaw): StorageQuotaInfo {
   return {
-    spaceLimit: raw.space_limit,
-    spaceUsed: raw.space_used,
-    spaceAvailable: raw.space_available,
-    spacePercent: raw.space_percent,
-    fileCount: raw.file_count,
-    fileCountLimit: raw.file_count_limit,
-    maxFileSize: raw.max_file_size,
-    bandwidthLimit: raw.bandwidth_limit,
-    bandwidthUsed: raw.bandwidth_used,
+    usedBytes: raw.used_bytes,
+    limitBytes: raw.limit_bytes,
+    limitGb: raw.limit_gb,
+    remainingBytes: raw.remaining_bytes,
+    usagePercent: raw.usage_percent,
+    totalCount: raw.total_count,
+    maxFileSizeMb: raw.max_file_size_mb,
+    unlimited: raw.unlimited,
   };
 }
 
@@ -209,39 +208,17 @@ export interface UploadAttachmentParams {
   file: Blob | File;
   /** 可见性，默认 private */
   visibility?: 'private' | 'public';
-  /** 文件夹 ID (Deprecated, use business_type) */
-  folder_id?: number;
   /** 业务类型 (如 avatar, document) */
   business_type?: string;
   /** 业务 ID */
   business_id?: number;
-  /** @deprecated use business_type */
-  ref_type?: string;
-  /** @deprecated use business_id */
-  ref_id?: number;
 }
 
-/** 上传附件响应 */
+/** 上传附件响应（后端返回嵌套结构） */
 export interface UploadAttachmentResponse {
-  id: number;
-  tenant_id: number;
-  name: string;
-  path: string;
-  mime_type: string;
-  size: number;
-  hash: string;
-  driver: string;
-  visibility: 'private' | 'public';
-  folder_id: null | number;
-  category: string;
-  ref_type: null | string;
-  ref_id: null | number;
-  metadata: Record<string, any>;
-  uploaded_by: number;
-  uploaded_at: string;
-  created_at: string;
-  updated_at: string;
-  url?: string;
+  attachment: AttachmentInfoRaw;
+  url: string;
+  used_bytes: number;
 }
 
 /** 分片上传初始化响应 */
@@ -282,21 +259,14 @@ export async function uploadAttachmentApi(
   const {
     file,
     visibility = 'private',
-    folder_id,
     business_type,
     business_id,
-    ref_type,
-    ref_id,
   } = params;
 
-  const uploadData: Record<string, any> & { file: Blob | File } = { file };
+  const uploadData: { file: Blob | File; [key: string]: Blob | File | string } = { file };
   if (visibility) uploadData.visibility = visibility;
-  // 兼容旧参数
-  if (folder_id) uploadData.folder_id = String(folder_id);
-  if (business_type || ref_type)
-    uploadData.business_type = business_type || ref_type;
-  if (business_id || ref_id)
-    uploadData.business_id = String(business_id || ref_id);
+  if (business_type) uploadData.business_type = business_type;
+  if (business_id) uploadData.business_id = String(business_id);
 
   return requestClient.upload<UploadAttachmentResponse>(
     `${API_PREFIX}/upload`,
@@ -381,15 +351,11 @@ export async function completeChunkUploadApi(
   uploadId: string,
   options?: ApiRequestOptions,
 ): Promise<UploadAttachmentResponse> {
-  const { data } = await requestClient.post<{
-    data: { attachment: any; url: string; used_bytes: number };
-  }>(`${API_PREFIX}/chunk/${uploadId}/complete`, {}, options);
-
-  // 转换响应格式以匹配普通上传
-  return {
-    ...data.attachment,
-    url: data.url,
-  } as UploadAttachmentResponse;
+  return requestClient.post<UploadAttachmentResponse>(
+    `${API_PREFIX}/chunk/${uploadId}/complete`,
+    {},
+    options,
+  );
 }
 
 /**
@@ -440,8 +406,6 @@ export async function smartUploadFile(
     visibility = 'private',
     business_type,
     business_id,
-    ref_type,
-    ref_id,
   } = params;
 
   // 1. 初始化
@@ -452,8 +416,8 @@ export async function smartUploadFile(
       chunk_size: CHUNK_SIZE,
       mime_type: file.type,
       visibility,
-      business_type: business_type || ref_type,
-      business_id: business_id || ref_id,
+      business_type,
+      business_id,
     },
     options,
   );

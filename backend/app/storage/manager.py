@@ -47,6 +47,12 @@ class StorageManager:
             raise StorageConfigError()
         self._drivers[driver_cls.name] = driver_cls
 
+    def unregister_driver(self, driver_name: str) -> None:
+        """
+        注销驱动（插件禁用时调用）
+        """
+        self._drivers.pop(driver_name, None)
+
     def get_driver(self, config: StorageConfig) -> StorageDriver:
         """
         根据配置获取驱动实例
@@ -55,6 +61,18 @@ class StorageManager:
         if not driver_cls:
             raise StorageConfigError()
         return driver_cls(config)
+
+    def get_available_drivers(self) -> list[str]:
+        """
+        获取所有已注册的驱动名称列表（供前端存储配置下拉使用）
+        """
+        return list(self._drivers.keys())
+
+    def has_driver(self, driver_name: str) -> bool:
+        """
+        判断指定驱动是否已注册
+        """
+        return driver_name in self._drivers
 
 
 storage_manager = StorageManager()

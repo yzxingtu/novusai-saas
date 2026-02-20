@@ -80,7 +80,7 @@ class PluginManager:
         self.route_manager: PluginRouteManager = PluginRouteManager()
         # 配置管理器（合并/校验/上下文构建）
         self.config_manager: PluginConfigManager = PluginConfigManager()
-        # 扩展点注册表（Adapter/Hook/Tool/Skill/Api）
+        # 扩展点注册表（Adapter/Hook/Tool/Skill/Api/Storage）
         self.extension_registry: ExtensionRegistry = ExtensionRegistry(self.route_manager)
         # 异步写操作互斥锁（install/uninstall/enable/disable/upgrade）
         self._write_lock: asyncio.Lock = asyncio.Lock()
@@ -167,6 +167,7 @@ class PluginManager:
         db: AsyncSession,
         entry_point: str,
         is_system: bool = False,
+        admin_id: int | None = None,
     ) -> Plugin:
         """
         安装插件
@@ -283,6 +284,7 @@ class PluginManager:
         log_plugin_action(
             action="install",
             plugin_name=instance.name,
+            admin_id=admin_id,
             details={"version": instance.version, "entry_point": entry_point, "is_system": is_system},
         )
 
@@ -294,7 +296,7 @@ class PluginManager:
     # ========================================
 
     @_write_locked
-    async def uninstall(self, db: AsyncSession, plugin_id: int) -> None:
+    async def uninstall(self, db: AsyncSession, plugin_id: int, admin_id: int | None = None) -> None:
         """
         卸载插件
 
@@ -394,6 +396,7 @@ class PluginManager:
         log_plugin_action(
             action="uninstall",
             plugin_name=plugin_name,
+            admin_id=admin_id,
             details={"version": plugin_version, "plugin_id": plugin_id},
         )
 
@@ -404,7 +407,7 @@ class PluginManager:
     # ========================================
 
     @_write_locked
-    async def enable_platform(self, db: AsyncSession, plugin_id: int) -> Plugin:
+    async def enable_platform(self, db: AsyncSession, plugin_id: int, admin_id: int | None = None) -> Plugin:
         """
         平台级启用插件
 
@@ -447,6 +450,14 @@ class PluginManager:
                 "Plugin extension registration failed: %s — %s",
                 plugin.name, str(exc), exc_info=True,
             )
+            # 回滚 on_enable 副作用
+            try:
+                await instance.on_disable(ctx)
+            except Exception as rollback_exc:
+                logger.warning(
+                    "Failed to rollback on_enable for %s: %s",
+                    plugin.name, str(rollback_exc),
+                )
             await repo.update(
                 plugin_id, {"status": PluginStatusEnum.ERROR.value}
             )
@@ -463,6 +474,18 @@ class PluginManager:
                     "Skill plugin provisioning failed: %s — %s",
                     plugin.name, str(exc), exc_info=True,
                 )
+                # 装配失败：回滚扩展点注册 + on_enable，标记 error
+                self.extension_registry.unregister(instance, ctx)
+                try:
+                    await instance.on_disable(ctx)
+                except Exception:
+                    pass
+                await repo.update(
+                    plugin_id, {"status": PluginStatusEnum.ERROR.value}
+                )
+                raise BusinessException(
+                    _("plugin.enable_hook_failed")
+                ) from exc
 
         updated = await repo.update(
             plugin_id, {"status": PluginStatusEnum.ENABLED.value}
@@ -471,6 +494,7 @@ class PluginManager:
         log_plugin_action(
             action="enable",
             plugin_name=plugin.name,
+            admin_id=admin_id,
             details={"scope": "platform", "plugin_id": plugin_id},
         )
 
@@ -478,7 +502,7 @@ class PluginManager:
         return updated
 
     @_write_locked
-    async def disable_platform(self, db: AsyncSession, plugin_id: int) -> Plugin:
+    async def disable_platform(self, db: AsyncSession, plugin_id: int, admin_id: int | None = None) -> Plugin:
         """
         平台级禁用插件
 
@@ -501,6 +525,21 @@ class PluginManager:
         # 检查反向依赖：是否有其他已启用插件依赖当前插件
         from app.plugins.dependencies import check_reverse_dependencies_or_raise
         await check_reverse_dependencies_or_raise(db, plugin.name, action="disable")
+
+        # 检查是否有租户正在使用该插件（记录警告，不阻塞）
+        from app.repositories.system.tenant_plugin_repository import (
+            TenantPluginRepository as _TpRepo,
+        )
+        _tp_repo = _TpRepo(db)
+        active_tenants = await _tp_repo.get_list(
+            limit=1, plugin_id=plugin_id, is_active=True
+        )
+        if active_tenants:
+            logger.warning(
+                "Disabling plugin %s while tenants are still using it. "
+                "Active tenant plugin records exist for plugin_id=%d",
+                plugin.name, plugin_id,
+            )
 
         instance = self.get_or_load_instance(plugin.name, plugin.entry_point)
         ctx = self.config_manager.build_context(instance, db=db)
@@ -533,6 +572,7 @@ class PluginManager:
         log_plugin_action(
             action="disable",
             plugin_name=plugin.name,
+            admin_id=admin_id,
             details={"scope": "platform", "plugin_id": plugin_id},
         )
 
@@ -709,6 +749,28 @@ class PluginManager:
             raise BusinessException(
                 _("plugin.already_at_version", version=old_version)
             )
+
+        # 版本降级保护：比较 semver 主版本号
+        try:
+            old_parts = [int(x) for x in old_version.split("-")[0].split("+")[0].split(".")]
+            new_parts = [int(x) for x in new_version.split("-")[0].split("+")[0].split(".")]
+            if new_parts < old_parts:
+                if old_instance is not None:
+                    self.loader.set_instance(plugin.name, old_instance)
+                raise BusinessException(
+                    _("plugin.downgrade_not_allowed")
+                )
+        except (ValueError, IndexError):
+            pass  # 非标准版本号，跳过比较
+
+        # 校验新版本的平台兼容性
+        from app.plugins.dependencies import check_platform_version_or_raise
+        try:
+            check_platform_version_or_raise(instance.platform_version)
+        except Exception:
+            if old_instance is not None:
+                self.loader.set_instance(plugin.name, old_instance)
+            raise
 
         # 调用升级钩子
         ctx = self.config_manager.build_context(instance, db=db)

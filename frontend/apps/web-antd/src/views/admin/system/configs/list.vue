@@ -11,12 +11,24 @@ import { IconifyIcon } from '@vben/icons';
 import { Button, Card, Empty, Modal, Spin } from 'ant-design-vue';
 
 import {
+  generateFernetKeyApi,
   getAdminConfigGroupDetailApi,
   getAdminConfigGroupsApi,
   updateAdminConfigGroupApi,
 } from '#/api/admin/configs';
 import { ConfigForm } from '#/components';
 import { $t as t } from '#/locales';
+
+const generatingKey = ref(false);
+async function onGenerateFernetKey(setValue: (v: string) => void) {
+  generatingKey.value = true;
+  try {
+    const result = await generateFernetKeyApi();
+    setValue(result.key);
+  } catch {} finally {
+    generatingKey.value = false;
+  }
+}
 
 const groups = ref<ConfigGroupListItemMeta[]>([]);
 const activeGroup = ref<string>('');
@@ -240,7 +252,18 @@ onBeforeUnmount(() => {
 
         <Spin :spinning="loading">
           <div v-if="activeGroup" class="max-w-[800px]">
-            <ConfigForm ref="formRef" :configs="configs" />
+            <ConfigForm ref="formRef" :configs="configs">
+              <template #generate-ssl_private_key_encryption_key="{ setValue }">
+                <Button
+                  size="small"
+                  :loading="generatingKey"
+                  @click="onGenerateFernetKey(setValue)"
+                >
+                  <IconifyIcon icon="lucide:key" class="mr-1 size-3" />
+                  {{ t('shared.config.generate_key') }}
+                </Button>
+              </template>
+            </ConfigForm>
           </div>
           <Empty
             v-else

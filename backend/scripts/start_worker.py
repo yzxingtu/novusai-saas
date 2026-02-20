@@ -16,9 +16,14 @@ Celery Worker / Beat 启动脚本
 """
 
 import argparse
+import os
 import subprocess
 import sys
+from pathlib import Path
 
+# 确保 backend 目录在 Python path 中
+BACKEND_DIR = str(Path(__file__).parent.parent)
+os.environ.setdefault("PYTHONPATH", BACKEND_DIR)
 
 CELERY_APP = "app.celery_app:celery_app"
 
@@ -48,15 +53,48 @@ def start_beat(loglevel: str = "info") -> None:
 
 
 def start_dev(loglevel: str = "info") -> None:
-    cmd = [
-        sys.executable, "-m", "celery",
-        "-A", CELERY_APP,
-        "worker",
-        "--beat",
-        f"--loglevel={loglevel}",
-        "-c", "2",
-    ]
-    subprocess.run(cmd, check=True)
+    import platform
+    if platform.system() == "Windows":
+        # Windows 不支持 --beat，需要分开启动 worker 和 beat
+        import threading
+        
+        def run_worker():
+            subprocess.run([
+                sys.executable, "-m", "celery",
+                "-A", CELERY_APP,
+                "worker",
+                f"--loglevel={loglevel}",
+                "--pool=solo",
+            ], cwd=BACKEND_DIR)
+        
+        def run_beat():
+            subprocess.run([
+                sys.executable, "-m", "celery",
+                "-A", CELERY_APP,
+                "beat",
+                f"--loglevel={loglevel}",
+            ], cwd=BACKEND_DIR)
+        
+        print(f"Starting Celery Worker + Beat (Windows mode, cwd={BACKEND_DIR})")
+        worker_thread = threading.Thread(target=run_worker, daemon=True)
+        beat_thread = threading.Thread(target=run_beat, daemon=True)
+        worker_thread.start()
+        beat_thread.start()
+        
+        try:
+            worker_thread.join()
+        except KeyboardInterrupt:
+            print("\nStopping...")
+    else:
+        cmd = [
+            sys.executable, "-m", "celery",
+            "-A", CELERY_APP,
+            "worker",
+            "--beat",
+            f"--loglevel={loglevel}",
+            "-c", "2",
+        ]
+        subprocess.run(cmd, check=True)
 
 
 def main() -> None:

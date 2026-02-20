@@ -278,7 +278,7 @@ defineExpose({ open });
           <div
             v-for="domain in domains"
             :key="domain.id"
-            class="rounded-lg border border-gray-200 p-4 transition-all hover:border-primary hover:shadow-sm"
+            class="rounded-lg border border-border p-4 transition-all hover:border-primary hover:shadow-sm"
           >
             <!-- 域名信息头部 -->
             <div class="flex items-center justify-between">
@@ -299,7 +299,7 @@ defineExpose({ open });
             <!-- 状态标签 -->
             <div class="mt-3 flex flex-wrap items-center gap-4">
               <!-- 域名类型 -->
-              <div class="flex items-center gap-1 text-sm text-gray-500">
+              <div class="flex items-center gap-1 text-sm text-muted-foreground">
                 <span>{{ $t('admin.tenant.domain.type') }}:</span>
                 <span>{{
                   domain.domainType === 'default'
@@ -310,7 +310,7 @@ defineExpose({ open });
 
               <!-- 验证状态 -->
               <div class="flex items-center gap-1">
-                <span class="text-sm text-gray-500">{{ $t('admin.tenant.domain.verificationStatus') }}:</span>
+                <span class="text-sm text-muted-foreground">{{ $t('admin.tenant.domain.verificationStatus') }}:</span>
                 <Tag
                   :color="
                     getVerificationTagConfig(domain.verificationStatus).color
@@ -331,7 +331,7 @@ defineExpose({ open });
                 v-if="domain.domainType === 'custom'"
                 class="flex items-center gap-1"
               >
-                <span class="text-sm text-gray-500">SSL:</span>
+                <span class="text-sm text-muted-foreground">SSL:</span>
                 <Tag :color="getSslTagConfig(domain.sslStatus).color">
                   <IconifyIcon
                     :icon="getSslTagConfig(domain.sslStatus).icon"
@@ -343,14 +343,14 @@ defineExpose({ open });
             </div>
 
             <!-- 备注 -->
-            <div v-if="domain.remark" class="mt-2 text-sm text-gray-500">
+            <div v-if="domain.remark" class="mt-2 text-sm text-muted-foreground">
               <span class="font-medium">{{ $t('admin.tenant.domain.remark') }}:</span>
               <span class="ml-1">{{ domain.remark }}</span>
             </div>
 
             <!-- 操作按钮 -->
             <div
-              class="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3"
+              class="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3"
             >
               <!-- 编辑域名 -->
               <Button type="link" size="small" @click="onOpenDetail(domain)">
@@ -436,7 +436,7 @@ defineExpose({ open });
         <!-- 空状态 -->
         <div
           v-if="!loading && domains.length === 0"
-          class="flex flex-col items-center justify-center py-16 text-gray-400"
+          class="flex flex-col items-center justify-center py-16 text-muted-foreground"
         >
           <IconifyIcon icon="lucide:globe" class="mb-3 size-16 opacity-30" />
           <span class="text-sm">{{ $t('admin.tenant.domain.noDomains') }}</span>

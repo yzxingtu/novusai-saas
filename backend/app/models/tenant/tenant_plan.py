@@ -151,10 +151,12 @@ class TenantPlan(BaseModel):
     )
     
     # 使用该套餐的租户（一对多）
+    # lazy="noload": 不自动加载，避免列表查询时加载全部租户对象
+    # 需要时通过 get_with_tenants() 显式加载
     tenants: Mapped[list["Tenant"]] = relationship(
         "Tenant",
         back_populates="tenant_plan",
-        lazy="selectin",
+        lazy="noload",
     )
     
     # ==================== 辅助属性 ====================
@@ -164,10 +166,25 @@ class TenantPlan(BaseModel):
         """获取权限数量"""
         return len(self.permissions)
     
+    # 租户数量缓存（由查询端注入，避免加载全部租户对象）
+    # 注意：不使用类型注解，避免 SQLAlchemy MappedAnnotationError
+    _tenants_count_cache = None
+    
     @property
     def tenants_count(self) -> int:
         """获取使用该套餐的租户数量"""
-        return len([t for t in self.tenants if not t.is_deleted])
+        if self._tenants_count_cache is not None:
+            return self._tenants_count_cache
+        # 如果 tenants 已显式加载（如 get_with_tenants），用列表计数
+        try:
+            return len([t for t in self.tenants if not t.is_deleted])
+        except Exception:
+            return 0
+    
+    @tenants_count.setter
+    def tenants_count(self, value: int) -> None:
+        """设置租户数量缓存"""
+        self._tenants_count_cache = value
     
     @property
     def has_tenants(self) -> bool:

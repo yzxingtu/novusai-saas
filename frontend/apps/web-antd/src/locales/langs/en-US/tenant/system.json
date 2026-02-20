@@ -108,6 +108,7 @@
     "sslStatus": "SSL Status",
     "createdAt": "Created At",
     "remark": "Remark",
+    "noDomains": "No domains yet",
     "placeholder": {
       "inputDomain": "Please enter domain, e.g.: app.example.com",
       "inputRemark": "Please enter remark (optional)"
@@ -122,12 +123,38 @@
       "failed": "Failed"
     },
     "ssl": {
+      "title": "SSL Certificate Management",
       "none": "Not Configured",
       "pending": "Pending",
       "active": "Active",
       "failed": "Failed",
       "expired": "Expired",
-      "expiresAt": "Expires At"
+      "provisioning": "Provisioning",
+      "expiresAt": "Expires At",
+      "typeLabel": "Certificate Type",
+      "typePlatform": "Platform Certificate",
+      "typeCustom": "Custom Certificate",
+      "issuer": "Issuer",
+      "issuedAt": "Issued At",
+      "autoRenewLabel": "Auto Renewal",
+      "autoRenewEnabled": "Enabled",
+      "autoRenewDisabled": "Disabled",
+      "renewalError": "Renewal Error",
+      "provision": "Issue Certificate",
+      "renew": "Renew Certificate",
+      "upload": "Upload Certificate",
+      "deleteCert": "Delete Certificate",
+      "certLabel": "Certificate (PEM)",
+      "keyLabel": "Private Key (PEM)",
+      "chainLabel": "Certificate Chain (PEM)",
+      "provisionStarted": "Certificate issuance started, please wait",
+      "renewStarted": "Certificate renewal started, please wait",
+      "autoRenewUpdated": "Auto-renewal setting updated",
+      "uploadSuccess": "Custom certificate uploaded successfully",
+      "uploadRequired": "Please fill in certificate and private key",
+      "deleteTitle": "Delete Certificate",
+      "deleteConfirm": "Are you sure you want to delete this domain's SSL certificate?",
+      "deleteSuccess": "Certificate deleted"
     },
     "messages": {
       "addSuccess": "Domain added successfully",
@@ -139,7 +166,9 @@
       "cannotDeleteDefault": "Cannot delete default domain",
       "cannotDeletePrimary": "Please set another domain as primary before deleting",
       "maxDomainsReached": "Maximum number of domains allowed by your plan has been reached",
-      "updateSuccess": "Domain updated successfully"
+      "updateSuccess": "Domain updated successfully",
+      "verifyPending": "Domain verification in progress, please try again later",
+      "confirmDelete": "Are you sure you want to delete domain {domain}?"
     },
     "dns": {
       "title": "DNS Configuration Guide",
@@ -150,8 +179,12 @@
       "step2Title": "CNAME Record",
       "step3Title": "Verify Domain",
       "step1Desc": "First add TXT verification record to confirm domain ownership",
+      "step1Action": "Add TXT verification record (confirm domain ownership)",
       "step2Desc": "Then add CNAME record to point domain to platform",
+      "step2Action": "Add CNAME record (point to platform server)",
       "step3Desc": "After configuration, click the button below to verify",
+      "incompleteTitle": "DNS configuration incomplete",
+      "incompleteDesc": "DNS records need to be configured before domain verification. Please follow the steps below:",
       "step1Hint1": "Aliyun DNS, Tencent Cloud DNS, Cloudflare, etc.",
       "step1Hint2": "Find DNS resolution settings or DNS management page",
       "step3Hint1": "DNS records usually take <strong>a few minutes to 48 hours</strong> to take effect",

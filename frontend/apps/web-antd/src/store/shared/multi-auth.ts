@@ -243,6 +243,16 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
     const api = getAuthApi(endpoint);
     const userInfo = await api.getUserInfo();
 
+    // 租户端：检查套餐状态，无套餐时提示
+    const ep = endpoint || currentEndpoint.value;
+    if (ep === 'tenant' && userInfo && 'hasPlan' in userInfo && !userInfo.hasPlan) {
+      notification.warning({
+        description: $t('tenant.common.noPlanDesc'),
+        duration: 0,
+        message: $t('tenant.common.noPlan'),
+      });
+    }
+
     // 转换为 vben 需要的 UserInfo 格式
     const vbenUserInfo: UserInfo = {
       avatar: userInfo?.avatar || '',

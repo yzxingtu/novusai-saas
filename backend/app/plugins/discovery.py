@@ -116,7 +116,7 @@ async def load_enabled_plugins(db: AsyncSession) -> dict[str, Any]:
             )
             # 标记为 error 状态
             try:
-                await repo.update_by_id(
+                await repo.update(
                     plugin.id, {"status": PluginStatusEnum.ERROR.value}
                 )
             except Exception:

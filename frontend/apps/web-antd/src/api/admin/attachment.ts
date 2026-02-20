@@ -28,22 +28,22 @@ function transformAttachmentInfo(raw: AttachmentInfoRaw): AttachmentInfo {
     id: raw.id,
     tenantId: raw.tenant_id,
     name: raw.name,
+    originalName: raw.original_name,
     path: raw.path,
-    mimeType: raw.mime_type,
     size: raw.size,
     hash: raw.hash,
+    mimeType: raw.mime_type,
+    extension: raw.extension,
+    visibility: raw.visibility,
     driver: raw.driver,
     baseUrl: raw.base_url,
-    visibility: raw.visibility,
-    folderId: raw.folder_id,
-    // category 后端不返回，通过 mime_type 推算
-    category: raw.category || inferCategory(raw.mime_type),
-    refType: raw.ref_type,
-    refId: raw.ref_id,
-    metadata: raw.metadata,
-    uploadedBy: raw.uploaded_by,
-    // 后端无 uploaded_at 字段，回退到 created_at 确保时间列显示
-    uploadedAt: raw.uploaded_at || raw.created_at,
+    status: raw.status,
+    source: raw.source,
+    uploaderId: raw.uploader_id,
+    businessType: raw.business_type,
+    businessId: raw.business_id,
+    meta: raw.meta,
+    category: inferCategory(raw.mime_type),
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };
@@ -190,5 +190,57 @@ export async function getAttachmentPreviewUrlApi(
   return requestClient.get<AttachmentUrlResult>(
     `${API_PREFIX}/${attachmentId}/preview-url`,
     { params, ...options },
+  );
+}
+
+// ============================================================
+// 上传接口
+// ============================================================
+
+/** 上传附件响应（后端返回嵌套结构） */
+export interface AdminUploadAttachmentResponse {
+  attachment: AttachmentInfoRaw;
+  url: string;
+  used_bytes: number;
+}
+
+/**
+ * 上传附件（平台端）
+ * POST /admin/attachments/upload
+ *
+ * 权限: attachment:upload
+ */
+export async function uploadAttachmentApi(
+  params: {
+    file: Blob | File;
+    tenant_id?: number;
+    visibility?: 'private' | 'public';
+    business_type?: string;
+    business_id?: number;
+  },
+  onProgress?: (progress: { percent: number }) => void,
+  options?: ApiRequestOptions,
+): Promise<AdminUploadAttachmentResponse> {
+  const { file, tenant_id = 0, visibility = 'private', business_type, business_id } = params;
+  const uploadData: { file: Blob | File; [key: string]: Blob | File | string } = { file };
+  uploadData.tenant_id = String(tenant_id);
+  if (visibility) uploadData.visibility = visibility;
+  if (business_type) uploadData.business_type = business_type;
+  if (business_id) uploadData.business_id = String(business_id);
+
+  return requestClient.upload<AdminUploadAttachmentResponse>(
+    `${API_PREFIX}/upload`,
+    uploadData,
+    {
+      ...options,
+      onUploadProgress: onProgress
+        ? (progressEvent) => {
+            const percent = progressEvent.total
+              ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
+              : 0;
+            onProgress({ percent });
+          }
+        : undefined,
+    },
   );
 }

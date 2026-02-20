@@ -54,6 +54,12 @@ from app.schemas.tenant.plan import (
     TenantPlanUpdateRequest,
     TenantPlanPermissionsRequest,
 )
+from app.schemas.tenant.ssl import (
+    SslCertificateResponse,
+    SslCertificateUploadRequest,
+    SslAutoRenewRequest,
+    SslReplaceRequest,
+)
 from app.schemas.tenant.attachment import AttachmentAccessUrlResponse
 
 __all__ = [
@@ -103,4 +109,9 @@ __all__ = [
     "TenantPlanUpdateRequest",
     "TenantPlanPermissionsRequest",
     "AttachmentAccessUrlResponse",
+    # SSL
+    "SslCertificateResponse",
+    "SslCertificateUploadRequest",
+    "SslAutoRenewRequest",
+    "SslReplaceRequest",
 ]

@@ -7,6 +7,7 @@
 from datetime import datetime, timedelta
 
 from app.celery_app import celery_app
+from app.core.base_model import utc_now
 from app.core.base_service import GlobalService
 from app.exceptions import BusinessException
 from app.core.logging import LogManager
@@ -34,13 +35,19 @@ class PeriodicTaskService(GlobalService[PeriodicTask, PeriodicTaskRepository]):
 
     async def trigger_now(self, task_id: int) -> str:
         task = await self.get_by_id(task_id)
+        # 使用任务注册时定义的队列（从 task registry 查询），回退到 scheduled
+        from app.tasks.base import get_task_registry
+        registry = get_task_registry()
+        task_info = registry.get(task.task_path, {})
+        queue = task_info.get("queue", "scheduled")
+        
         result = celery_app.send_task(
             task.task_path,
             args=list(task.args.values()) if task.args else [],
             kwargs=task.kwargs or {},
-            queue="scheduled",
+            queue=queue,
         )
-        now = datetime.now()
+        now = utc_now()
         update_data: dict = {"last_run_at": now}
         next_run = self._compute_next_run(task, now)
         if next_run:
@@ -56,7 +63,7 @@ class PeriodicTaskService(GlobalService[PeriodicTask, PeriodicTaskRepository]):
         task: PeriodicTask, base_time: datetime | None = None,
     ) -> datetime | None:
         """根据调度配置计算下次执行时间"""
-        base = base_time or datetime.now()
+        base = base_time or utc_now()
         if task.schedule_type == "cron" and task.cron_expression:
             try:
                 from celery.schedules import crontab

@@ -107,12 +107,23 @@ TENANT_STORAGE_GROUP = ConfigGroupMeta(
 # 分组列表
 # ==========================================
 
+# SSL 证书设置分组
+PLATFORM_SSL_GROUP = ConfigGroupMeta(
+    code="platform_ssl",
+    name_key="config.group.platform_ssl.name",
+    description_key="config.group.platform_ssl.desc",
+    scope=ConfigScope.PLATFORM,
+    icon="lucide:shield-check",
+    sort_order=50,
+)
+
 # 所有平台配置分组
 PLATFORM_CONFIG_GROUPS = [
     PLATFORM_GENERAL_GROUP,
     PLATFORM_SECURITY_GROUP,
     PLATFORM_EMAIL_GROUP,
     PLATFORM_STORAGE_GROUP,
+    PLATFORM_SSL_GROUP,
 ]
 
 # 所有租户配置分组
@@ -133,6 +144,7 @@ __all__ = [
     "PLATFORM_SECURITY_GROUP",
     "PLATFORM_EMAIL_GROUP",
     "PLATFORM_STORAGE_GROUP",
+    "PLATFORM_SSL_GROUP",
     "PLATFORM_CONFIG_GROUPS",
     # 租户分组
     "TENANT_GENERAL_GROUP",

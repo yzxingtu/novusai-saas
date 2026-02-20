@@ -312,6 +312,7 @@ class AdminAgentController(GlobalController):
             bindings = await binding_service.batch_bind(
                 agent_id=agent_id,
                 package_ids=data.package_ids,
+                consent_modes=data.consent_modes,
             )
             await db.commit()
             return success(data=[b.to_dict() for b in bindings])

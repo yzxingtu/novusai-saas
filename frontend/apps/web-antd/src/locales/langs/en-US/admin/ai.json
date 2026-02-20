@@ -329,6 +329,12 @@
     "welcomeMessage": "Welcome Message",
     "suggestedQuestions": "Suggested Questions",
     "skillPackageBindings": "Skill Package Bindings",
+    "consentMode": "Tool Consent Mode",
+    "consentModeOptions": {
+      "auto": "Auto Execute",
+      "ask": "Require Confirmation",
+      "reject": "Deny Execution"
+    },
     "create": "Create Agent",
     "noDescription": "No description",
     "viewDetail": "View Detail",

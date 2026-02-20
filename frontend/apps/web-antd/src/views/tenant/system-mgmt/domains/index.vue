@@ -36,6 +36,7 @@ import {
 import DomainsAddDrawer from './modules/DomainsAddDrawer.vue';
 import DomainsDetailDrawer from './modules/DomainsDetailDrawer.vue';
 import DomainsDnsGuideModal from './modules/DomainsDnsGuideModal.vue';
+import DomainsSslDrawer from './modules/DomainsSslDrawer.vue';
 
 defineOptions({ name: 'TenantDomains' });
 
@@ -50,6 +51,14 @@ const refreshing = ref(false);
 const addDrawerRef = ref<InstanceType<typeof DomainsAddDrawer>>();
 const detailDrawerRef = ref<InstanceType<typeof DomainsDetailDrawer>>();
 const dnsGuideModalRef = ref<InstanceType<typeof DomainsDnsGuideModal>>();
+const sslDrawerRef = ref<InstanceType<typeof DomainsSslDrawer>>();
+
+function onOpenSsl(domain: TenantDomainInfo) {
+  sslDrawerRef.value?.open({
+    domainId: domain.id,
+    domain: domain.domain,
+  });
+}
 
 // Lifecycle
 onMounted(() => {
@@ -294,10 +303,7 @@ function onCopy(text: string) {
             </div>
 
             <!-- SSL -->
-            <div
-              v-if="domain.domainType === 'custom'"
-              class="flex items-center justify-between gap-4"
-            >
+            <div class="flex items-center justify-between gap-4">
               <div class="flex items-center text-muted-foreground">
                 <IconifyIcon
                   icon="lucide:shield-check"
@@ -305,10 +311,20 @@ function onCopy(text: string) {
                 />
                 <span>SSL</span>
               </div>
-              <Badge
-                :status="getSslStatusConfig(domain.sslStatus).status"
-                :text="getSslStatusConfig(domain.sslStatus).text"
-              />
+              <div class="flex items-center gap-2">
+                <Badge
+                  :status="getSslStatusConfig(domain.sslStatus).status"
+                  :text="getSslStatusConfig(domain.sslStatus).text"
+                />
+                <Button
+                  type="link"
+                  size="small"
+                  class="!p-0"
+                  @click="onOpenSsl(domain)"
+                >
+                  <IconifyIcon icon="lucide:settings" class="size-3" />
+                </Button>
+              </div>
             </div>
 
             <!-- Created At -->
@@ -428,5 +444,6 @@ function onCopy(text: string) {
     <DomainsAddDrawer ref="addDrawerRef" @success="onAddSuccess" />
     <DomainsDetailDrawer ref="detailDrawerRef" @success="onDetailSuccess" />
     <DomainsDnsGuideModal ref="dnsGuideModalRef" @success="loadDomains" />
+    <DomainsSslDrawer ref="sslDrawerRef" />
   </Page>
 </template>

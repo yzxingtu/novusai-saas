@@ -301,9 +301,10 @@ class CreateRecordExecutor(BaseToolExecutor):
         arguments: dict[str, Any],
         context: ExecutionContext | None = None,
     ) -> ToolResult:
+        _name = definition.name
         if not context or not context.db:
             return ToolResult.error_result(
-                tool_call_id, _("data_intelligence.crud.no_context"),
+                tool_call_id, _("data_intelligence.crud.no_context"), name=_name,
             )
 
         table_name = arguments["table_name"]
@@ -313,7 +314,7 @@ class CreateRecordExecutor(BaseToolExecutor):
         # 表名安全校验
         table_err = _validate_table_name(table_name)
         if table_err:
-            return ToolResult.error_result(tool_call_id, table_err)
+            return ToolResult.error_result(tool_call_id, table_err, name=_name)
 
         # 加载策略
         policy = await _load_policy(context, table_name)
@@ -321,6 +322,7 @@ class CreateRecordExecutor(BaseToolExecutor):
             return ToolResult.error_result(
                 tool_call_id,
                 _("data_intelligence.crud.table_not_found").format(table=table_name),
+                name=_name,
             )
 
         if not policy.allow_create:
@@ -329,12 +331,13 @@ class CreateRecordExecutor(BaseToolExecutor):
                 _("data_intelligence.crud.operation_denied").format(
                     operation="create", table=table_name,
                 ) + _("data_intelligence.crud.no_retry_hint").format(operation="create"),
+                name=_name,
             )
 
         # RBAC: 检查用户是否有 create 权限
         rbac_error = _check_rbac(context, policy, "create")
         if rbac_error:
-            return ToolResult.error_result(tool_call_id, rbac_error)
+            return ToolResult.error_result(tool_call_id, rbac_error, name=_name)
 
         # 剥离系统管理列（tenant_id/is_deleted 等，由系统注入）
         _strip_system_columns(data)
@@ -342,13 +345,13 @@ class CreateRecordExecutor(BaseToolExecutor):
         # 列名安全校验（防 SQL 注入）
         col_err = _validate_column_names(data)
         if col_err:
-            return ToolResult.error_result(tool_call_id, col_err)
+            return ToolResult.error_result(tool_call_id, col_err, name=_name)
 
         # 校验写入数据
         blocked = _get_blocked_columns(policy)
         violation = _validate_write_data(data, blocked)
         if violation:
-            return ToolResult.error_result(tool_call_id, violation)
+            return ToolResult.error_result(tool_call_id, violation, name=_name)
 
         # 注入系统默认值（验证后，确保 raw SQL 不缺少 NOT NULL 列）
         _enforce_tenant_isolation(context, policy, data)
@@ -405,7 +408,7 @@ class CreateRecordExecutor(BaseToolExecutor):
                 success=False, error=str(exc),
             )
             return ToolResult.error_result(
-                tool_call_id, str(exc),
+                tool_call_id, str(exc), name=_name,
             )
 
 
@@ -438,9 +441,10 @@ class UpdateRecordExecutor(BaseToolExecutor):
         arguments: dict[str, Any],
         context: ExecutionContext | None = None,
     ) -> ToolResult:
+        _name = definition.name
         if not context or not context.db:
             return ToolResult.error_result(
-                tool_call_id, _("data_intelligence.crud.no_context"),
+                tool_call_id, _("data_intelligence.crud.no_context"), name=_name,
             )
 
         table_name = arguments["table_name"]
@@ -451,7 +455,7 @@ class UpdateRecordExecutor(BaseToolExecutor):
         # 表名安全校验
         table_err = _validate_table_name(table_name)
         if table_err:
-            return ToolResult.error_result(tool_call_id, table_err)
+            return ToolResult.error_result(tool_call_id, table_err, name=_name)
 
         # 加载策略
         policy = await _load_policy(context, table_name)
@@ -459,6 +463,7 @@ class UpdateRecordExecutor(BaseToolExecutor):
             return ToolResult.error_result(
                 tool_call_id,
                 _("data_intelligence.crud.table_not_found").format(table=table_name),
+                name=_name,
             )
 
         if not policy.allow_update:
@@ -467,12 +472,13 @@ class UpdateRecordExecutor(BaseToolExecutor):
                 _("data_intelligence.crud.operation_denied").format(
                     operation="update", table=table_name,
                 ) + _("data_intelligence.crud.no_retry_hint").format(operation="update"),
+                name=_name,
             )
 
         # RBAC: 检查用户是否有 update 权限
         rbac_error = _check_rbac(context, policy, "update")
         if rbac_error:
-            return ToolResult.error_result(tool_call_id, rbac_error)
+            return ToolResult.error_result(tool_call_id, rbac_error, name=_name)
 
         # 剥离系统管理列
         _strip_system_columns(data)
@@ -480,13 +486,13 @@ class UpdateRecordExecutor(BaseToolExecutor):
         # 列名安全校验（防 SQL 注入）
         col_err = _validate_column_names(data)
         if col_err:
-            return ToolResult.error_result(tool_call_id, col_err)
+            return ToolResult.error_result(tool_call_id, col_err, name=_name)
 
         # 校验写入数据
         blocked = _get_blocked_columns(policy)
         violation = _validate_write_data(data, blocked)
         if violation:
-            return ToolResult.error_result(tool_call_id, violation)
+            return ToolResult.error_result(tool_call_id, violation, name=_name)
 
         # 强制租户隔离（从 context 注入，不信任 LLM 输入）
         _enforce_tenant_isolation(context, policy, data)
@@ -514,6 +520,7 @@ class UpdateRecordExecutor(BaseToolExecutor):
                 _("data_intelligence.crud.record_not_found").format(
                     table=table_name, id=record_id,
                 ),
+                name=_name,
             )
 
         # 确认流程
@@ -578,7 +585,7 @@ class UpdateRecordExecutor(BaseToolExecutor):
                 success=False, error=str(exc),
             )
             return ToolResult.error_result(
-                tool_call_id, str(exc),
+                tool_call_id, str(exc), name=_name,
             )
 
 
@@ -607,9 +614,10 @@ class DeleteRecordExecutor(BaseToolExecutor):
         arguments: dict[str, Any],
         context: ExecutionContext | None = None,
     ) -> ToolResult:
+        _name = definition.name
         if not context or not context.db:
             return ToolResult.error_result(
-                tool_call_id, _("data_intelligence.crud.no_context"),
+                tool_call_id, _("data_intelligence.crud.no_context"), name=_name,
             )
 
         table_name = arguments["table_name"]
@@ -619,7 +627,7 @@ class DeleteRecordExecutor(BaseToolExecutor):
         # 表名安全校验
         table_err = _validate_table_name(table_name)
         if table_err:
-            return ToolResult.error_result(tool_call_id, table_err)
+            return ToolResult.error_result(tool_call_id, table_err, name=_name)
 
         # 加载策略
         policy = await _load_policy(context, table_name)
@@ -627,6 +635,7 @@ class DeleteRecordExecutor(BaseToolExecutor):
             return ToolResult.error_result(
                 tool_call_id,
                 _("data_intelligence.crud.table_not_found").format(table=table_name),
+                name=_name,
             )
 
         if not policy.allow_delete:
@@ -635,12 +644,13 @@ class DeleteRecordExecutor(BaseToolExecutor):
                 _("data_intelligence.crud.operation_denied").format(
                     operation="delete", table=table_name,
                 ) + _("data_intelligence.crud.no_retry_hint").format(operation="delete"),
+                name=_name,
             )
 
         # RBAC: 检查用户是否有 delete 权限
         rbac_error = _check_rbac(context, policy, "delete")
         if rbac_error:
-            return ToolResult.error_result(tool_call_id, rbac_error)
+            return ToolResult.error_result(tool_call_id, rbac_error, name=_name)
 
         # 查询记录详情用于确认预览
         try:
@@ -667,6 +677,7 @@ class DeleteRecordExecutor(BaseToolExecutor):
                 _("data_intelligence.crud.record_not_found").format(
                     table=table_name, id=record_id,
                 ),
+                name=_name,
             )
 
         # 确认流程（删除始终需要确认）
@@ -728,7 +739,7 @@ class DeleteRecordExecutor(BaseToolExecutor):
                 success=False, error=str(exc),
             )
             return ToolResult.error_result(
-                tool_call_id, str(exc),
+                tool_call_id, str(exc), name=_name,
             )
 
 

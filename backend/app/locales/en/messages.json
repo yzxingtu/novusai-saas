@@ -75,7 +75,8 @@
     "settings_updated": "Tenant settings updated successfully",
     "identification_failed": "Unable to identify tenant",
     "owner_not_found": "Tenant owner not found",
-    "owner_password_reset": "Tenant owner password reset successfully"
+    "owner_password_reset": "Tenant owner password reset successfully",
+    "no_plan": "No plan assigned to this tenant. All features are disabled. Please contact the platform administrator."
   },
   "tenant_plan": {
     "not_found": "Plan not found",
@@ -84,7 +85,8 @@
     "updated": "Plan updated successfully",
     "deleted": "Plan deleted successfully",
     "has_tenants": "Plan is in use by tenants and cannot be deleted",
-    "permissions_updated": "Plan permissions updated successfully"
+    "permissions_updated": "Plan permissions updated successfully",
+    "invalid_billing_cycle": "Invalid billing cycle"
   },
   "tenant_domain": {
     "not_found": "Domain not found",
@@ -100,22 +102,41 @@
     "cannot_delete_primary": "Cannot delete primary domain, please set another domain as primary first",
     "cannot_delete_default": "Cannot delete system default domain",
     "quota_exceeded": "Custom domain limit reached",
-    "default_domain_remark": "System generated default domain"
-  },
-  "domain": {
-    "not_found": "Domain not found",
-    "already_exists": "Domain is already in use",
+    "default_domain_remark": "System generated default domain",
     "invalid_format": "Invalid domain format",
-    "quota_exceeded": "Custom domain limit reached",
-    "custom_domain_disabled": "Custom domains not supported by current plan",
-    "created": "Domain added successfully",
-    "updated": "Domain updated successfully",
-    "deleted": "Domain deleted successfully",
-    "verified": "Domain verified successfully",
-    "verification_failed": "Domain verification failed",
-    "set_primary_success": "Set as primary domain",
-    "cannot_delete_primary": "Cannot delete primary domain",
-    "not_owned_by_tenant": "Domain does not belong to current tenant"
+    "platform_suffix_forbidden": "Cannot use platform domain suffix {suffix}",
+    "custom_domain_disabled": "Custom domains not supported by current plan"
+  },
+  "ssl_certificate": {
+    "not_found": "SSL certificate not found",
+    "already_exists": "Domain already has an active certificate",
+    "provision_started": "Certificate provisioning started",
+    "provision_failed": "Certificate provisioning failed",
+    "renew_started": "Certificate renewal started",
+    "renew_failed": "Certificate renewal failed",
+    "upload_success": "Custom certificate uploaded successfully",
+    "delete_success": "Certificate deleted",
+    "auto_renew_updated": "Auto-renewal setting updated",
+    "replace_success": "Certificate replaced successfully",
+    "batch_provision_started": "Batch provisioning started",
+    "invalid_cert_format": "Invalid certificate format, please provide a PEM-encoded certificate",
+    "invalid_key_format": "Invalid private key format, please provide a PEM-encoded private key",
+    "invalid_chain_format": "Invalid certificate chain format, please provide PEM-encoded certificates",
+    "invalid_replace_mode": "Invalid replace mode, choose platform or custom",
+    "cert_key_mismatch": "Certificate and private key do not match",
+    "domain_not_in_cert": "Certificate does not cover this domain",
+    "cert_expired": "Certificate has expired",
+    "custom_cert_no_renew": "Custom certificates cannot be renewed automatically, please upload a new one",
+    "custom_cert_no_auto_renew": "Auto-renewal is not available for custom certificates",
+    "domain_not_verified": "Domain not verified, please complete domain verification first",
+    "custom_ssl_not_allowed": "Custom SSL certificates not supported by current plan",
+    "provision_in_progress": "Certificate provisioning in progress, please try again later",
+    "encryption_key_not_configured": "SSL private key encryption key not configured. Please set it in System Config → SSL Certificate Management"
+  },
+  "tenant_settings": {
+    "invalid_theme_color": "Theme color must be a valid hex color code (e.g. #FF5500)",
+    "unsupported_login_method": "Unsupported login method: {method}",
+    "at_least_one_login_method": "At least one login method is required"
   },
   "validation": {
     "required": "{field} is required",
@@ -943,6 +964,29 @@
       "lifetime": "Lifetime",
       "custom": "Custom"
     },
+    "domain_ssl_status": {
+      "none": "Not Configured",
+      "pending": "Pending",
+      "provisioning": "Provisioning",
+      "active": "Active",
+      "failed": "Failed",
+      "expired": "Expired"
+    },
+    "domain_type": {
+      "default": "Default Domain",
+      "custom": "Custom Domain"
+    },
+    "ssl_cert_type": {
+      "platform": "Platform Certificate",
+      "custom": "Custom Certificate"
+    },
+    "ssl_cert_status": {
+      "pending": "Pending",
+      "active": "Active",
+      "expired": "Expired",
+      "revoked": "Revoked",
+      "failed": "Failed"
+    },
     "user_type": {
       "admin": "Platform Admin",
       "tenant_admin": "Tenant Admin",
@@ -1084,6 +1128,7 @@
       "hook": "Event Hook",
       "api": "API Endpoint",
       "skill": "Skill Extension",
+      "storage": "Storage Driver",
       "composite": "Composite"
     },
     "plugin_status": {
@@ -1216,6 +1261,10 @@
       "platform_storage": {
         "name": "Storage Settings",
         "desc": "File storage and object storage configuration"
+      },
+      "platform_ssl": {
+        "name": "SSL Certificate Management",
+        "desc": "ACME/Let's Encrypt configuration, certificate auto-renewal policy"
       },
       "tenant_general": {
         "name": "General Settings",
@@ -1426,6 +1475,36 @@
       "email_enabled": {
         "name": "Enable Email",
         "desc": "Enable email sending functionality"
+      },
+      "ssl": {
+        "acme_account_email": {
+          "name": "ACME Account Email",
+          "desc": "Email for Let's Encrypt account registration and certificate expiry notifications"
+        },
+        "acme_use_staging": {
+          "name": "Use Staging Environment",
+          "desc": "When enabled, uses Let's Encrypt staging environment (no real certificates). Recommended for development"
+        },
+        "acme_directory_url": {
+          "name": "ACME Production URL",
+          "desc": "Let's Encrypt production ACME directory URL"
+        },
+        "acme_staging_url": {
+          "name": "ACME Staging URL",
+          "desc": "Let's Encrypt staging ACME directory URL"
+        },
+        "encryption_key": {
+          "name": "Private Key Encryption Key",
+          "desc": "Fernet key for encrypting stored SSL private keys (32-byte Base64 encoded)"
+        },
+        "auto_renew_days": {
+          "name": "Auto-Renewal Lead Days",
+          "desc": "Number of days before expiry to automatically trigger certificate renewal"
+        },
+        "allow_custom_cert": {
+          "name": "Allow Custom Certificates",
+          "desc": "Whether to allow tenants to upload custom SSL certificates"
+        }
       }
     },
     "tenant": {
@@ -1650,11 +1729,6 @@
       "cannot_add_member": "Cannot add members to this node type",
       "member_exists": "Member already exists in this node",
       "member_not_in_node": "Member is not in this node"
-    },
-    "domain": {
-      "custom_disabled": "Custom domains not supported by current plan",
-      "quota_exceeded": "Custom domain limit reached",
-      "already_exists": "Domain is already in use"
     },
     "admin": {
       "username_exists": "Username already taken",
@@ -1898,6 +1972,8 @@
     "packages_not_whitelisted": "The following packages are not in the security whitelist, please contact admin for approval: {packages}",
     "migration_failed": "Plugin database migration execution failed",
     "skill_type_conflict": "Skill type is already registered by another plugin",
+    "storage_driver_conflict": "Storage driver name is already registered by another plugin",
+    "downgrade_not_allowed": "Plugin version downgrade is not allowed",
     "install_success": "Plugin installed successfully",
     "uninstall_success": "Plugin uninstalled successfully",
     "enable_success": "Plugin enabled successfully",

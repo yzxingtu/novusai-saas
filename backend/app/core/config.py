@@ -161,6 +161,22 @@ class Settings(BaseSettings):
     # 租户域名验证前缀（用于 DNS TXT 记录验证）
     DOMAIN_VERIFICATION_PREFIX: str = "_novusai-verification"
     
+    # ========================================
+    # SSL 证书管理
+    # ========================================
+    # 私钥加密密钥（Fernet key，用于加密存储 SSL 私钥）
+    SSL_PRIVATE_KEY_ENCRYPTION_KEY: str = ""
+    # ACME 目录 URL（生产环境）
+    ACME_DIRECTORY_URL: str = "https://acme-v02.api.letsencrypt.org/directory"
+    # ACME 目录 URL（测试环境）
+    ACME_STAGING_URL: str = "https://acme-staging-v02.api.letsencrypt.org/directory"
+    # ACME 注册邮箱
+    ACME_ACCOUNT_EMAIL: str = ""
+    # 是否使用 staging 环境（开发/测试时设 True）
+    ACME_USE_STAGING: bool = True
+    # 自动续期提前天数
+    SSL_AUTO_RENEW_DAYS: int = 30
+    
     @property
     def tz(self) -> ZoneInfo:
         """获取时区对象"""

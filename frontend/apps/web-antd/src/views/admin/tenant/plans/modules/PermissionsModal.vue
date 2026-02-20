@@ -79,7 +79,7 @@ async function loadData() {
   loading.value = true;
   try {
     // 并行加载可分配权限和已分配权限
-    const [availablePermissions, assignedResult] = await Promise.all([
+    const [availablePermissions, assignedPermissions] = await Promise.all([
       admin.getAvailablePermissionsApi(),
       admin.getTenantPlanPermissionsApi(currentPlan.value.id),
     ]);
@@ -87,29 +87,8 @@ async function loadData() {
     // 转换为 PermissionNode 格式
     permissionTree.value = transformPermissions(availablePermissions);
 
-    // 确保 assignedIds 是数字数组（兼容数组和对象包装格式）
-    let rawAssignedList: unknown[] = [];
-    if (Array.isArray(assignedResult)) {
-      rawAssignedList = assignedResult;
-    } else if (assignedResult && typeof assignedResult === 'object') {
-      // 处理可能的包装格式 { items: [...] } 或 { data: [...] }
-      // 使用类型断言为 unknown Record 以避免 any，但保持灵活性
-      const resultObj = assignedResult as Record<string, unknown>;
-      if (Array.isArray(resultObj.items)) {
-        rawAssignedList = resultObj.items;
-      } else if (Array.isArray(resultObj.data)) {
-        rawAssignedList = resultObj.data;
-      }
-    }
-
-    const assignedIds = rawAssignedList.map((item) =>
-      typeof item === 'object' && item !== null
-        ? (item as { id?: unknown }).id
-        : item,
-    );
-    selectedPermissionIds.value = assignedIds.filter(
-      (id): id is number => typeof id === 'number',
-    );
+    // 提取已分配权限的 ID
+    selectedPermissionIds.value = assignedPermissions.map((p) => p.id);
   } catch {} finally {
     loading.value = false;
   }

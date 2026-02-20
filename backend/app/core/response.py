@@ -11,6 +11,23 @@ from pydantic import BaseModel, Field
 
 from app.core.i18n import _
 
+
+def _serialize(data: Any) -> Any:
+    """
+    将 Pydantic 模型实例转为 dict，触发 model_serializer。
+    
+    解决 FastAPI 的 jsonable_encoder 绕过自定义 model_serializer 的问题：
+    当 Pydantic 模型直接传入 dict 响应时，jsonable_encoder 使用内部序列化，
+    不会调用我们的 model_serializer，导致 datetime +00:00 丢失。
+    """
+    if isinstance(data, BaseModel):
+        return data.model_dump()
+    if isinstance(data, list):
+        return [_serialize(item) for item in data]
+    if isinstance(data, dict):
+        return {k: _serialize(v) for k, v in data.items()}
+    return data
+
 T = TypeVar("T")
 
 
@@ -72,7 +89,7 @@ def success(
     return {
         "code": code,
         "message": message or _("common.success"),
-        "data": data,
+        "data": _serialize(data),
     }
 
 
@@ -124,7 +141,7 @@ def created(
     return {
         "code": 0,
         "message": message or _("common.created"),
-        "data": data,
+        "data": _serialize(data),
     }
 
 
@@ -145,7 +162,7 @@ def updated(
     return {
         "code": 0,
         "message": message or _("common.updated"),
-        "data": data,
+        "data": _serialize(data),
     }
 
 
@@ -197,7 +214,7 @@ def paginated(
         "code": 0,
         "message": message or _("common.success"),
         "data": {
-            "items": items,
+            "items": _serialize(items),
             "total": total,
             "page": page,
             "page_size": page_size,

@@ -23,6 +23,7 @@ class AgentSkillBatchBindRequest(BaseCreateSchema):
     """批量技能包绑定请求（替换模式）"""
 
     package_ids: list[int] = Field(..., description=_("agent_skill_binding.field.package_id"))
+    consent_modes: dict[str, str] | None = Field(None, description=_("agent_skill_binding.field.consent_mode"))
 
 
 class AgentSkillBindingUpdate(BaseUpdateSchema):

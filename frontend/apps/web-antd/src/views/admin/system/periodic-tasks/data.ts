@@ -76,32 +76,15 @@ export function useColumns<T = PeriodicTaskInfo>(
     {
       field: 'name',
       title: $t('admin.system.periodicTask.name'),
-      minWidth: 180,
+      minWidth: 280,
       slots: {
         default: 'name_cell',
       },
     },
     {
-      field: 'taskPath',
-      title: $t('admin.system.periodicTask.taskPath'),
-      minWidth: 200,
-      slots: {
-        default: 'taskPath_cell',
-      },
-    },
-    {
-      field: 'scheduleType',
-      title: $t('admin.system.periodicTask.scheduleTypeLabel'),
-      width: 120,
-      align: 'center',
-      slots: {
-        default: 'scheduleType_cell',
-      },
-    },
-    {
       field: 'schedule',
       title: $t('admin.system.periodicTask.schedule'),
-      width: 140,
+      width: 150,
       align: 'center',
       slots: {
         default: 'schedule_cell',
@@ -110,14 +93,14 @@ export function useColumns<T = PeriodicTaskInfo>(
     {
       field: 'scope',
       title: $t('admin.system.periodicTask.scopeLabel'),
-      width: 120,
+      width: 110,
       align: 'center',
       slots: { default: 'scope_cell' },
     },
     {
       field: 'isActive',
       title: $t('admin.system.periodicTask.isActive'),
-      width: 100,
+      width: 80,
       align: 'center',
       slots: {
         default: 'isActive_cell',
@@ -125,18 +108,10 @@ export function useColumns<T = PeriodicTaskInfo>(
     },
     {
       field: 'lastRunAt',
-      title: $t('admin.system.periodicTask.lastRunAt'),
-      width: 160,
+      title: $t('admin.system.periodicTask.runInfo'),
+      width: 180,
       slots: {
-        default: 'lastRunAt_cell',
-      },
-    },
-    {
-      field: 'nextRunAt',
-      title: $t('admin.system.periodicTask.nextRunAt'),
-      width: 160,
-      slots: {
-        default: 'nextRunAt_cell',
+        default: 'runInfo_cell',
       },
     },
     {
@@ -157,13 +132,18 @@ export function useColumns<T = PeriodicTaskInfo>(
             icon: 'lucide:play',
             accessCodes: ['periodic_task:trigger'],
           },
+          {
+            code: 'logs',
+            text: $t('admin.system.periodicTask.viewLogs'),
+            icon: 'lucide:scroll-text',
+          },
           'delete',
         ],
       },
       field: 'operation',
       fixed: 'right',
       title: $t('admin.common.operation'),
-      width: 200,
+      width: 180,
     },
   ];
 }

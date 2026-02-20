@@ -25,5 +25,7 @@
   "success": "Success",
   "failed": "Failed",
   "noData": "No data",
-  "createdAt": "Created At"
+  "createdAt": "Created At",
+  "noPlan": "No Plan Assigned",
+  "noPlanDesc": "All features are disabled. Please contact the platform administrator to assign a plan."
 }

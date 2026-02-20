@@ -90,7 +90,7 @@ class TenantAttachmentController(TenantController):
                     url=result["url"],
                     used_bytes=result["used_bytes"],
                 ),
-                message=_("文件上传成功"),
+                message=_("file.upload_success"),
             )
 
         @router.post("/chunk/init", summary="初始化分片上传")

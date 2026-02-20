@@ -13,6 +13,7 @@ class PluginTypeEnum(LabeledStrEnum):
     HOOK = ("hook", "enum.plugin_type.hook")
     API = ("api", "enum.plugin_type.api")
     SKILL = ("skill", "enum.plugin_type.skill")
+    STORAGE = ("storage", "enum.plugin_type.storage")
     COMPOSITE = ("composite", "enum.plugin_type.composite")
 
 

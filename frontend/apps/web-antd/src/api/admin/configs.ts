@@ -40,3 +40,14 @@ export async function updateAdminConfigGroupApi(
     options,
   );
 }
+
+/** 生成 Fernet 加密密钥 */
+export async function generateFernetKeyApi(
+  options?: ApiRequestOptions,
+): Promise<{ key: string }> {
+  return await requestClient.post<{ key: string }>(
+    '/admin/configs/generate-fernet-key',
+    {},
+    options,
+  );
+}

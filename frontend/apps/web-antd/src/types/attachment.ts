@@ -40,25 +40,27 @@ export function inferCategory(mimeType?: null | string): AttachmentCategory {
 
 /**
  * 附件信息（后端原始格式 snake_case）
+ * 对应后端 AttachmentResponse / AttachmentListItem
  */
 export interface AttachmentInfoRaw {
   id: number;
-  tenant_id?: number;
+  tenant_id: number;
   name: string;
+  original_name?: null | string;
   path: string;
-  mime_type: string;
   size: number;
-  hash: string;
+  hash?: null | string;
+  mime_type?: null | string;
+  extension?: null | string;
+  visibility: StorageVisibility;
   driver: string;
   base_url: string;
-  visibility: StorageVisibility;
-  folder_id?: null | number;
-  category?: AttachmentCategory | null;
-  ref_type?: null | string;
-  ref_id?: null | number;
-  metadata?: Record<string, unknown>;
-  uploaded_by?: null | number;
-  uploaded_at: string;
+  status: string;
+  source?: null | string;
+  uploader_id?: null | number;
+  business_type?: null | string;
+  business_id?: null | number;
+  meta?: Record<string, unknown> | null;
   created_at: string;
   updated_at?: string;
 }
@@ -68,22 +70,25 @@ export interface AttachmentInfoRaw {
  */
 export interface AttachmentInfo {
   id: number;
-  tenantId?: number;
+  tenantId: number;
   name: string;
+  originalName?: null | string;
   path: string;
-  mimeType: string;
   size: number;
-  hash: string;
+  hash?: null | string;
+  mimeType?: null | string;
+  extension?: null | string;
+  visibility: StorageVisibility;
   driver: string;
   baseUrl: string;
-  visibility: StorageVisibility;
-  folderId?: null | number;
+  status: string;
+  source?: null | string;
+  uploaderId?: null | number;
+  businessType?: null | string;
+  businessId?: null | number;
+  meta?: Record<string, unknown> | null;
+  /** 推算分类（后端不返回，前端通过 mimeType 推算） */
   category?: AttachmentCategory | null;
-  refType?: null | string;
-  refId?: null | number;
-  metadata?: Record<string, unknown>;
-  uploadedBy?: null | number;
-  uploadedAt: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -116,41 +121,39 @@ export interface AttachmentUrlResult {
 
 /**
  * 存储配额信息（后端原始格式）
+ * 对应后端 TenantStorageQuotaResponse
  */
 export interface StorageQuotaInfoRaw {
-  space_limit: number;
-  space_used: number;
-  space_available: number;
-  space_percent: number;
-  file_count: number;
-  file_count_limit: number;
-  max_file_size: number;
-  bandwidth_limit: number;
-  bandwidth_used: number;
+  used_bytes: number;
+  limit_bytes: number;
+  limit_gb: number;
+  remaining_bytes: number;
+  usage_percent: number;
+  total_count: number;
+  max_file_size_mb: number;
+  unlimited: boolean;
 }
 
 /**
  * 存储配额信息（前端格式）
  */
 export interface StorageQuotaInfo {
-  /** 空间上限 (bytes) */
-  spaceLimit: number;
-  /** 已用空间 (bytes) */
-  spaceUsed: number;
-  /** 可用空间 (bytes) */
-  spaceAvailable: number;
-  /** 使用百分比 */
-  spacePercent: number;
-  /** 文件数量 */
-  fileCount: number;
-  /** 文件数量上限 */
-  fileCountLimit: number;
-  /** 单文件大小上限 (bytes) */
-  maxFileSize: number;
-  /** 流量上限 (bytes) */
-  bandwidthLimit: number;
-  /** 已用流量 (bytes) */
-  bandwidthUsed: number;
+  /** 已使用存储空间 (bytes) */
+  usedBytes: number;
+  /** 存储限制 (bytes)，0 表示无限制 */
+  limitBytes: number;
+  /** 存储限制 (GB)，0 表示无限制 */
+  limitGb: number;
+  /** 剩余存储空间 (bytes) */
+  remainingBytes: number;
+  /** 使用率百分比 */
+  usagePercent: number;
+  /** 附件总数 */
+  totalCount: number;
+  /** 单文件大小限制 (MB)，0 表示无限制 */
+  maxFileSizeMb: number;
+  /** 是否无限制 */
+  unlimited: boolean;
 }
 
 /**
