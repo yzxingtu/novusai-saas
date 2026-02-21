@@ -12,7 +12,10 @@
     "unauthorized": "Unauthorized access",
     "forbidden": "Access forbidden",
     "validation_error": "Validation failed",
-    "unknown_error": "Unknown error"
+    "unknown_error": "Unknown error",
+    "error": {
+      "has_dependencies": "Cannot delete, resources are still in use"
+    }
   },
   "auth": {
     "login_success": "Login successful",
@@ -178,6 +181,12 @@
     "extension_not_allowed": "File type {extension} is not in the allowed list",
     "validation_failed": "File validation failed"
   },
+  "storage": {
+    "error": {
+      "driver_error": "Storage driver error",
+      "config_error": "Storage configuration error, please check storage driver settings"
+    }
+  },
   "task": {
     "created": "Task created successfully",
     "started": "Task started",
@@ -205,12 +214,14 @@
     "permanently_deleted": "Permanently deleted",
     "escalated": "Moved to admin recycle bin",
     "error": {
-      "not_found": "Record not found in recycle bin",
+      "not_found": "Record not found",
       "not_in_recycle_bin": "Record is not in recycle bin",
       "restore_failed": "Restore failed",
       "already_deleted": "Record is already deleted",
-      "batch_too_large": "Batch operation exceeds limit (max 100 items)"
-    }
+      "batch_too_large": "Batch size exceeded",
+      "invalid_module": "Invalid module code"
+    },
+    "cleanup_triggered": "Cleanup task submitted"
   },
   "agent": {
     "created": "Agent created successfully",
@@ -275,6 +286,7 @@
     "created": "Skill package created successfully",
     "updated": "Skill package updated successfully",
     "deleted": "Skill package deleted successfully",
+    "import_success": "Skill package imported successfully",
     "field": {
       "name": "Package Name",
       "description": "Description",
@@ -296,6 +308,8 @@
       "file_must_be_zip": "Only .zip skill package files are supported",
       "no_valves_schema": "This skill package has no configurable options",
       "invalid_valves_config": "valves_config must be a JSON object",
+      "invalid_export_format": "Invalid skill package export format or incompatible version",
+      "scope_tenant_id_required": "Tenant must be specified when scope is 'Tenant'",
       "valves_missing_required": "Missing required configuration fields: {fields}"
     }
   },
@@ -328,7 +342,8 @@
       "invalid_type": "Invalid skill type",
       "invalid_scope": "Invalid scope",
       "system_protected": "System skill cannot be deleted or have key properties modified",
-      "toolkit_parse_failed": "Toolkit source parsing failed: {error}"
+      "toolkit_parse_failed": "Toolkit source parsing failed: {error}",
+      "toolkit_security_violation": "Toolkit security scan failed: {detail}"
     },
     "test": {
       "unknown_type": "Unknown skill type: {type}",
@@ -355,6 +370,7 @@
       "toolkit_no_content": "No toolkit source code configured",
       "toolkit_invalid": "Toolkit validation failed: {errors}",
       "toolkit_ok": "Toolkit parsed successfully (tools: {tools}, has valves: {valves})",
+      "toolkit_security_warn": "Toolkit security scan found {count} violations, check details",
       "toolkit_error": "Toolkit parse error: {error}"
     },
     "import": {
@@ -362,6 +378,17 @@
         "no_name": "Item #{index} missing skill name",
         "no_type": "Item #{index} ({name}) missing skill type"
       }
+    }
+  },
+  "skill_call_log": {
+    "field": {
+      "skill_id": "Skill ID",
+      "agent_id": "Agent ID",
+      "tool_name": "Tool Name",
+      "tool_type": "Tool Type",
+      "status": "Status",
+      "duration_ms": "Duration (ms)",
+      "error_message": "Error Message"
     }
   },
   "skill_script": {
@@ -460,7 +487,8 @@
     "error": {
       "conversation_not_found": "Conversation not found",
       "conversation_archived": "Conversation is archived and cannot continue",
-      "execution_failed": "Agent execution failed"
+      "execution_failed": "Agent execution failed",
+      "skill_load_failed": "Some skills failed to load, agent will work without tools"
     },
     "conversation_deleted": "Conversation deleted"
   },
@@ -843,15 +871,15 @@
     "cannot_assign_permission": "Cannot assign this permission, you can only assign permissions you have",
     "parent_must_be_visible": "Parent role must be your role or its descendant",
     "invalid_child_type": "Cannot add child of this type to current node",
-      "only_department_can_set_leader": "Only department nodes can have a leader",
-      "cannot_modify_own_leader_status": "Cannot modify your own leader status",
-      "cannot_add_member": "Cannot add members to this node type",
-      "member_exists": "Member already exists in this node",
-      "member_not_in_node": "Member is not in this node",
-      "member_added": "Member added successfully",
-      "member_removed": "Member removed successfully",
-      "leader_set": "Leader set successfully"
-    },
+    "only_department_can_set_leader": "Only department nodes can have a leader",
+    "cannot_modify_own_leader_status": "Cannot modify your own leader status",
+    "cannot_add_member": "Cannot add members to this node type",
+    "member_exists": "Member already exists in this node",
+    "member_not_in_node": "Member is not in this node",
+    "member_added": "Member added successfully",
+    "member_removed": "Member removed successfully",
+    "leader_set": "Leader set successfully"
+  },
   "tenant_admin": {
     "not_found": "Admin not found",
     "username_exists": "Username already taken",
@@ -868,7 +896,9 @@
     "cannot_disable_self": "Cannot disable yourself",
     "cannot_modify_owner": "Cannot modify tenant owner",
     "owner_required": "Tenant owner privileges required",
-    "role_not_found": "Role not found"
+    "role_not_found": "Role not found",
+    "username_or_email_exists": "Username or email is already used by another admin in this tenant",
+    "cannot_disable_owner": "Cannot disable tenant owner"
   },
   "enum": {
     "status": {
@@ -1043,7 +1073,10 @@
         "data_update": "Data Update",
         "data_delete": "Data Delete",
         "plugin": "Plugin",
-        "crud_generator": "CRUD Code Generator"
+        "crud_generator": "CRUD Code Generator",
+        "http": "HTTP Request",
+        "email": "Email Send",
+        "code_execution": "Code Execution"
       },
       "conversation_status": {
         "active": "Active",
@@ -1149,7 +1182,10 @@
         "knowledge_base": "Knowledge Base",
         "data_intelligence": "Data Intelligence",
         "toolkit": "Toolkit",
-        "builtin": "Built-in"
+        "builtin": "Built-in",
+        "http": "HTTP Request",
+        "email": "Email",
+        "code_execution": "Code Execution"
       },
       "scope": {
         "tenant": "Tenant Skill",
@@ -1219,6 +1255,13 @@
         "scope_both": "scope=both will generate files for both admin and tenant. Ensure controller/service layers are compatible with both scopes.",
         "scope_both_status_toggle": "has_status_toggle with scope=both: toggle endpoint will be generated for both admin and tenant controllers."
       }
+    },
+    "deletion_strategy": {
+      "block": "Block deletion",
+      "cascade_soft": "Cascade soft delete",
+      "cascade_delete": "Cascade hard delete",
+      "nullify": "Clear reference",
+      "ignore": "Ignore"
     }
   },
   "crud_generation_record": {
@@ -1265,6 +1308,14 @@
       "platform_ssl": {
         "name": "SSL Certificate Management",
         "desc": "ACME/Let's Encrypt configuration, certificate auto-renewal policy"
+      },
+      "platform_ai_toolkit": {
+        "name": "AI Toolkit Security",
+        "desc": "Security policies, resource limits, and static analysis for user-uploaded Toolkits"
+      },
+      "platform_websocket": {
+        "name": "Real-time & Notifications",
+        "desc": "Socket.IO connection parameters and notification system settings"
       },
       "tenant_general": {
         "name": "General Settings",
@@ -1476,49 +1527,112 @@
         "name": "Enable Email",
         "desc": "Enable email sending functionality"
       },
-      "ssl": {
-        "acme_account_email": {
-          "name": "ACME Account Email",
-          "desc": "Email for Let's Encrypt account registration and certificate expiry notifications"
-        },
-        "acme_use_staging": {
-          "name": "Use Staging Environment",
-          "desc": "When enabled, uses Let's Encrypt staging environment (no real certificates). Recommended for development"
-        },
-        "acme_directory_url": {
-          "name": "ACME Production URL",
-          "desc": "Let's Encrypt production ACME directory URL"
-        },
-        "acme_staging_url": {
-          "name": "ACME Staging URL",
-          "desc": "Let's Encrypt staging ACME directory URL"
-        },
-        "encryption_key": {
-          "name": "Private Key Encryption Key",
-          "desc": "Fernet key for encrypting stored SSL private keys (32-byte Base64 encoded)"
-        },
-        "auto_renew_days": {
-          "name": "Auto-Renewal Lead Days",
-          "desc": "Number of days before expiry to automatically trigger certificate renewal"
-        },
-        "allow_custom_cert": {
-          "name": "Allow Custom Certificates",
-          "desc": "Whether to allow tenants to upload custom SSL certificates"
-        },
-        "dns_provider": {
-          "name": "DNS Provider",
-          "desc": "DNS provider for ACME DNS-01 challenge validation",
-          "manual": "Manual (requires manual DNS record setup)",
-          "cloudflare": "Cloudflare"
-        },
-        "dns_cloudflare_api_token": {
-          "name": "Cloudflare API Token",
-          "desc": "Cloudflare API Token (requires Zone.DNS edit permission)"
-        },
-        "dns_cloudflare_zone_id": {
-          "name": "Cloudflare Zone ID",
-          "desc": "Cloudflare domain zone ID"
-        }
+      "acme_account_email": {
+        "name": "ACME Account Email",
+        "desc": "Email for Let's Encrypt account registration and certificate expiry notifications"
+      },
+      "acme_use_staging": {
+        "name": "Use Staging Environment",
+        "desc": "ON = request certificates from Let's Encrypt staging server (real issuance but not browser-trusted, relaxed rate limits, for development); OFF = request from production server (browser-trusted, 5 certs per domain per week). Both require DNS validation, valid 90 days, auto-renewed"
+      },
+      "acme_directory_url": {
+        "name": "ACME Production URL",
+        "desc": "Let's Encrypt production ACME directory URL"
+      },
+      "acme_staging_url": {
+        "name": "ACME Staging URL",
+        "desc": "Let's Encrypt staging ACME directory URL"
+      },
+      "ssl_private_key_encryption_key": {
+        "name": "Private Key Encryption Key",
+        "desc": "Fernet key for encrypting stored SSL private keys (32-byte Base64 encoded)"
+      },
+      "ssl_auto_renew_days": {
+        "name": "Auto-Renewal Lead Days",
+        "desc": "Number of days before expiry to automatically trigger certificate renewal"
+      },
+      "ssl_allow_custom_cert": {
+        "name": "Allow Custom Certificates",
+        "desc": "Whether to allow tenants to upload custom SSL certificates"
+      },
+      "dns_provider": {
+        "name": "DNS Provider",
+        "desc": "DNS provider for ACME DNS-01 challenge validation",
+        "manual": "Manual (requires manual DNS record setup)",
+        "cloudflare": "Cloudflare",
+        "aliyun": "Alibaba Cloud DNS",
+        "dnspod": "DNSPod (Tencent Cloud)"
+      },
+      "dns_cloudflare_api_token": {
+        "name": "Cloudflare API Token",
+        "desc": "Cloudflare API Token (requires Zone.DNS edit permission)"
+      },
+      "dns_cloudflare_zone_id": {
+        "name": "Cloudflare Zone ID",
+        "desc": "Cloudflare domain zone ID"
+      },
+      "dns_aliyun_access_key_id": {
+        "name": "Alibaba Cloud AccessKey ID",
+        "desc": "Alibaba Cloud RAM AccessKey ID (requires AliyunDNSFullAccess permission)"
+      },
+      "dns_aliyun_access_key_secret": {
+        "name": "Alibaba Cloud AccessKey Secret",
+        "desc": "Alibaba Cloud RAM AccessKey Secret"
+      },
+      "dns_dnspod_secret_id": {
+        "name": "DNSPod SecretId",
+        "desc": "Tencent Cloud API SecretId (requires DNSPod domain resolution permission)"
+      },
+      "dns_dnspod_secret_key": {
+        "name": "DNSPod SecretKey",
+        "desc": "Tencent Cloud API SecretKey"
+      },
+      "toolkit_security_level": {
+        "name": "Toolkit Security Level",
+        "desc": "Controls which modules user-uploaded Toolkits can use",
+        "strict": "Strict (only safe modules allowed)",
+        "normal": "Normal (network libs allowed, system modules blocked)",
+        "permissive": "Permissive (only the most dangerous modules blocked)"
+      },
+      "toolkit_memory_limit_mb": {
+        "name": "Memory Limit (MB)",
+        "desc": "Maximum memory for Toolkit subprocess, terminated if exceeded"
+      },
+      "toolkit_max_timeout": {
+        "name": "Max Execution Timeout (s)",
+        "desc": "Maximum allowed execution time per Toolkit call, skill timeout cannot exceed this"
+      },
+      "toolkit_scan_on_upload": {
+        "name": "Scan on Upload",
+        "desc": "Automatically scan source code for dangerous imports and system calls when creating or updating a Toolkit skill"
+      },
+      "ws_enabled": {
+        "name": "Real-time Communication",
+        "desc": "Enable Socket.IO real-time communication (online status, push notifications, etc.)"
+      },
+      "ws_ping_interval": {
+        "name": "Ping Interval (s)",
+        "desc": "Interval between server-to-client ping packets"
+      },
+      "ws_ping_timeout": {
+        "name": "Ping Timeout (s)",
+        "desc": "Timeout for client pong response, connection will be closed if exceeded"
+      },
+      "ws_max_connections_per_user": {
+        "name": "Max Connections per User",
+        "desc": "Maximum simultaneous Socket.IO connections per user (multi-device/multi-tab)"
+      },
+      "notification_enabled": {
+        "name": "Notification System",
+        "desc": "Enable the notification system (inbox, real-time push, email notifications)"
+      },
+      "notification_retention_days": {
+        "name": "Notification Retention (days)",
+        "desc": "Maximum number of days to keep notifications, expired ones are auto-cleaned"
+      },
+      "notification_max_per_user": {
+        "name": "Max Notifications per User",
+        "desc": "Maximum number of notifications kept in each user's inbox, oldest are auto-cleaned when exceeded"
       }
     },
     "tenant": {
@@ -2045,5 +2159,43 @@
       "config_missing": "Email configuration missing: {fields}",
       "no_recipients": "No recipients specified"
     }
+  },
+  "deletion": {
+    "model": {
+      "ai_provider": "AI Provider",
+      "ai_model": "AI Model",
+      "provider_api_key": "API Key",
+      "agent": "Agent",
+      "agent_conversation": "Conversation",
+      "agent_skill_binding": "Skill Binding",
+      "batch_run": "Batch Run",
+      "skill_package": "Skill Package",
+      "skill": "Skill",
+      "knowledge_base": "Knowledge Base",
+      "knowledge_document": "Knowledge Document",
+      "table_policy": "Table Policy",
+      "table_policy_override": "Table Policy Override",
+      "tenant_quota": "Tenant Quota",
+      "tenant_rate_limit": "Rate Limit",
+      "admin_role": "Admin Role",
+      "admin": "Admin",
+      "tenant_admin_role": "Tenant Role",
+      "tenant_admin": "Tenant Admin",
+      "tenant_plan": "Tenant Plan",
+      "tenant": "Tenant",
+      "tenant_domain": "Domain",
+      "tenant_plugin": "Tenant Plugin",
+      "system_agent_assignment": "System Agent Assignment"
+    }
+  },
+  "quota": {
+    "no_limit": "No limit",
+    "storage_exceeded": "Storage exceeded, currently used {current}GB, limit {limit}GB",
+    "users_exceeded": "User limit reached: {limit}",
+    "admins_exceeded": "Admin limit reached: {limit}",
+    "custom_domain_not_supported": "Custom domains not supported in current plan",
+    "domains_exceeded": "Custom domain limit reached: {limit}",
+    "api_calls_exceeded": "Monthly API call limit reached: {limit}",
+    "file_size_exceeded": "File size exceeds limit: {limit}MB"
   }
 }

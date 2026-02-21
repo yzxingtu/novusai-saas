@@ -105,6 +105,18 @@ TASKS = [
         "max_retries": 1,
         "timeout": 600,
     },
+    {
+        "name": "清理过期通知",
+        "task_path": "app.tasks.notification_cleanup.cleanup_expired_notifications",
+        "schedule_type": "cron",
+        "cron_expression": "0 3 * * *",
+        "interval_seconds": None,
+        "kwargs": None,
+        "description": "每天凌晨 3:00 根据 notification_retention_days 配置清理过期通知（物理删除）",
+        "is_locked": True,
+        "max_retries": 1,
+        "timeout": 1800,
+    },
 ]
 
 

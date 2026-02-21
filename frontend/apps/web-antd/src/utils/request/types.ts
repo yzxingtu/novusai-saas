@@ -228,7 +228,7 @@ export interface SseRequestOptions extends Omit<RequestInit, 'signal'> {
 /**
  * 文件上传数据
  */
-export interface UploadFileData extends Record<string, any> {
+export interface UploadFileData extends Record<string, Blob | File | string> {
   file: Blob | File;
 }
 

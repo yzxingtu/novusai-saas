@@ -31,7 +31,6 @@ export interface AIAgentInfo {
   temperature: number;
   max_tokens: number;
   knowledge_base_ids: number[] | null;
-  tool_ids: number[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -48,7 +47,6 @@ export interface AIAgentCreateRequest {
   temperature?: number;
   max_tokens?: number;
   knowledge_base_ids?: number[];
-  tool_ids?: number[];
 }
 
 /** 更新智能体请求 */
@@ -62,7 +60,6 @@ export interface AIAgentUpdateRequest {
   temperature?: number;
   max_tokens?: number;
   knowledge_base_ids?: number[];
-  tool_ids?: number[];
 }
 
 // ============================================================
@@ -103,6 +100,7 @@ export interface AIAgentSkillBindingUpdateRequest {
   config_override?: Record<string, unknown> | null;
   sort_order?: number | null;
   consent_mode?: string | null;
+  skill_consent_overrides?: Record<string, string> | null;
 }
 
 // ============================================================

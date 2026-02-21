@@ -133,6 +133,7 @@ async function doRefreshToken(): Promise<string> {
     accessStore.setRefreshToken(result.refresh_token);
   }
 
+  // Socket.IO 的 token getter 会自动从 TokenStorage 读取最新值，无需手动通知
   return newToken;
 }
 

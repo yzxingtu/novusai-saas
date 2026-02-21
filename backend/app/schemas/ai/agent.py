@@ -25,7 +25,6 @@ class _AgentOptionalFields(BaseModel):
     avatar: str | None = Field(None, max_length=255, description=_("enum.agent_model.avatar"))
     max_tokens: int | None = Field(None, ge=1, description=_("enum.agent_model.max_tokens"))
     top_p: float | None = Field(None, ge=0.0, le=1.0, description=_("enum.agent_model.top_p"))
-    tool_bindings: list | None = Field(None, description=_("enum.agent_model.tool_bindings"))
     input_variables: list | None = Field(None, description=_("enum.agent_model.input_variables"))
     welcome_message: str | None = Field(None, description=_("enum.agent_model.welcome_message"))
     suggested_questions: list | None = Field(None, description=_("enum.agent_model.suggested_questions"))

@@ -33,12 +33,14 @@ from app.api.tenant.plugins import router as plugins_router, TenantPluginControl
 from app.api.tenant.skill_packages import router as skill_packages_router, TenantSkillPackageController
 from app.api.tenant.skills import router as skills_router, TenantSkillController
 from app.api.tenant.agent_assignments import router as agent_assignments_router, TenantAgentAssignmentController
+from app.api.tenant.dashboard import router as dashboard_router
 
 # 创建租户管理后台路由器
 tenant_router = APIRouter()
 
 # 注册子路由
 tenant_router.include_router(auth_router)
+tenant_router.include_router(dashboard_router)
 tenant_router.include_router(configs_router)
 tenant_router.include_router(attachments_router)
 tenant_router.include_router(domains_router)
@@ -72,6 +74,12 @@ tenant_router.include_router(skill_packages_router)
 tenant_router.include_router(skills_router)
 # 系统智能体绑定
 tenant_router.include_router(agent_assignments_router)
+# WebSocket 在线状态
+from app.api.tenant.ws import router as ws_router
+tenant_router.include_router(ws_router)
+# 通知
+from app.api.tenant.notifications import router as notifications_router
+tenant_router.include_router(notifications_router)
 
 
 __all__ = [

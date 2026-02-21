@@ -41,71 +41,46 @@ defineExpose({ refresh: loadQuota });
       }}</span>
     </template>
     <Row :gutter="24">
-      <Col :span="6">
+      <Col :span="8">
         <Statistic
           :title="$t('tenant.system.attachment.quota.spaceUsed')"
-          :value="quota.spaceUsed || 0"
+          :value="quota.usedBytes || 0"
         >
           <template #formatter="{ value }">
             {{ formatFileSize(Number(value)) }}
             <span class="text-xs text-muted-foreground">
               /
               {{
-                quota?.spaceLimit === 0
+                quota?.unlimited
                   ? $t('tenant.system.attachment.quota.unlimited')
-                  : formatFileSize(quota?.spaceLimit || 0)
+                  : formatFileSize(quota?.limitBytes || 0)
               }}
             </span>
           </template>
         </Statistic>
         <Progress
-          :percent="Number((quota.spacePercent || 0).toFixed(1))"
-          :status="(quota.spacePercent || 0) > 90 ? 'exception' : 'active'"
+          :percent="Number((quota.usagePercent || 0).toFixed(1))"
+          :status="(quota.usagePercent || 0) > 90 ? 'exception' : 'active'"
           size="small"
         />
       </Col>
-      <Col :span="6">
+      <Col :span="8">
         <Statistic
           :title="$t('tenant.system.attachment.quota.fileCount')"
-          :value="quota.fileCount || 0"
-        >
-          <template #suffix>
-            <span class="text-xs text-muted-foreground">
-              /
-              {{
-                (quota?.fileCountLimit || 0) === 0
-                  ? $t('tenant.system.attachment.quota.unlimited')
-                  : quota?.fileCountLimit
-              }}
-            </span>
-          </template>
-        </Statistic>
+          :value="quota.totalCount || 0"
+        />
       </Col>
-      <Col :span="6">
+      <Col :span="8">
         <Statistic
           :title="$t('tenant.system.attachment.quota.maxFileSize')"
-          :value="quota.maxFileSize || 0"
+          :value="quota.maxFileSizeMb || 0"
         >
           <template #formatter="{ value }">
-            {{ formatFileSize(Number(value)) }}
-          </template>
-        </Statistic>
-      </Col>
-      <Col :span="6">
-        <Statistic
-          :title="$t('tenant.system.attachment.quota.bandwidthUsed')"
-          :value="quota.bandwidthUsed || 0"
-        >
-          <template #formatter="{ value }">
-            {{ formatFileSize(Number(value)) }}
-            <span class="text-xs text-muted-foreground">
-              /
-              {{
-                quota?.bandwidthLimit === 0
-                  ? $t('tenant.system.attachment.quota.unlimited')
-                  : formatFileSize(quota?.bandwidthLimit || 0)
-              }}
-            </span>
+            {{
+              Number(value) === 0
+                ? $t('tenant.system.attachment.quota.unlimited')
+                : `${value} MB`
+            }}
           </template>
         </Statistic>
       </Col>

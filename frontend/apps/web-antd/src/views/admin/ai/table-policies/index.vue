@@ -13,7 +13,7 @@ import { ref } from 'vue';
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Card, message, Modal, Switch, Tooltip } from 'ant-design-vue';
+import { Button, Card, message, Modal, Switch, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import {
@@ -198,20 +198,19 @@ const { Grid, FormDrawer, onRefresh } =
           />
         </template>
 
-        <!-- 工具栏 -->
-        <template #toolbar-tools>
-          <Card
+        <!-- 左侧工具栏：同步 -->
+        <template #toolbar-actions>
+          <Button
             v-access:code="['ai_table_policy:update']"
-            size="small"
-            class="mr-2 cursor-pointer transition-shadow duration-200 hover:shadow-md"
-            :class="{ 'opacity-50 pointer-events-none': syncing }"
+            type="primary"
+            :loading="syncing"
             @click="onSync"
           >
-            <div class="flex items-center gap-2 text-primary">
-              <IconifyIcon icon="lucide:refresh-cw" class="size-4" :class="{ 'animate-spin': syncing }" />
-              <span class="font-medium">{{ $t('admin.ai.tablePolicy.sync') }}</span>
-            </div>
-          </Card>
+            <template v-if="!syncing" #icon>
+              <IconifyIcon icon="lucide:refresh-cw" class="size-4" />
+            </template>
+            {{ $t('admin.ai.tablePolicy.sync') }}
+          </Button>
         </template>
       </Grid>
     </Card>

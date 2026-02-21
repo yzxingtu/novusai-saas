@@ -69,8 +69,8 @@ function getGroupDesc(g: ConfigGroupListItemMeta): string {
     const translated = t(g.description_key);
     if (translated !== g.description_key) return translated;
   }
-  // 3. fallback: 尝试使用 shared.config.group.{code}.desc 格式
-  const fallbackKey = `shared.config.group.${g.code}.desc`;
+  // 3. fallback: 尝试使用 shared.config.group_desc.{code} 格式
+  const fallbackKey = `shared.config.group_desc.${g.code}`;
   const fallbackTranslated = t(fallbackKey);
   if (fallbackTranslated !== fallbackKey) return fallbackTranslated;
   return '';
@@ -167,7 +167,7 @@ onBeforeUnmount(() => {
 
 <template>
   <Page auto-content-height>
-    <div class="flex h-full flex-col gap-4 overflow-hidden md:flex-row">
+    <div class="relative z-0 flex h-full flex-col gap-4 overflow-hidden md:flex-row">
       <!-- 左侧：配置分组列表 -->
       <Card
         class="w-full flex-shrink-0 overflow-hidden md:w-[260px]"

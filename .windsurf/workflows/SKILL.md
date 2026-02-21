@@ -292,6 +292,38 @@ const result = await smartUploadFile(
 // result.used_bytes — 已用存储
 ```
 
+#### 图片显示（附件 ID → 可访问 URL）
+
+工具文件：`utils/image.ts`（文档 ID: 258）
+
+| 函数 | 参数 | 用途 |
+|------|------|------|
+| `getProcessedImageUrl(id, options?)` | 附件 ID (number) | 只有 ID 时生成图片 URL，支持 preset/width/height/quality/format |
+| `getAttachmentUrl(attachment, options?)` | 附件对象 (含 id/driver/path/baseUrl) | 有完整附件对象时使用，自动区分 local/远程驱动 |
+
+```typescript
+import { getProcessedImageUrl, getAttachmentUrl } from '#/utils/image';
+
+// 场景 1：只有附件 ID（如系统配置存储的 site_logo = "10"）
+const logoUrl = getProcessedImageUrl(10);
+// → http://127.0.0.1:8000/api/public/attachments/10/image
+
+// 场景 2：需要缩略图/指定尺寸
+const thumbUrl = getProcessedImageUrl(10, { preset: 'thumb' });
+// → .../10/image?p=thumb
+const customUrl = getProcessedImageUrl(10, { width: 200, height: 200, format: 'webp', quality: 80 });
+// → .../10/image?w=200&h=200&f=webp&q=80
+
+// 场景 3：有完整附件对象（如列表页的 AttachmentInfo）
+const url = getAttachmentUrl(row, { preset: 'medium' });
+// local driver → /api/public/attachments/{id}/image?p=medium
+// 远程 driver → {baseUrl}/{path}（直接拼接外部 URL）
+```
+
+**预设尺寸**：`thumb` | `small` | `medium` | `large` | `preview` | `avatar` | `banner`
+
+**注意**：配置项（如 `site_logo`）存储的是附件 ID 字符串，在 `api/public/config.ts` 的 `transformPlatformConfig` / `transformTenantConfig` 中已通过 `attachmentIdToUrl()` 自动转换为图片 URL。
+
 ### 前端 API 层
 
 | 端 | 文件 | 关键导出 |
@@ -1407,8 +1439,8 @@ raise self.retry(
 **当前已实现**：
 - ✅ 日志记录（`logger.warning` 输出通知信息）
 
-**预留接口（待实现）**：
-- 🔲 WebSocket 实时推送：`ws_manager.broadcast_admin({ type: "task_failure", ... })`
+**预留接口**：
+- ✅ WebSocket 实时推送：`sio_bridge.notify_admins_sync({ type: "task_failure", ... })`（见§二十五）
 - 🔲 邮件通知：`send_task_failure_email.delay(emails=..., task_name=..., error=...)`
 
 通知仅在 `on_failure`（任务最终失败）时触发，`on_retry`（重试中）不触发。
@@ -1549,7 +1581,245 @@ send_email_task.delay(
 
 ---
 
-## 二十四、参考文件
+## 二十四、删除依赖保护规范
+
+### 24.1 何时需要声明 `__delete_deps__`
+
+任何 Model 只要有 **其他 Model 通过 FK 引用它**，就必须在被引用方声明 `__delete_deps__`。
+声明的是"谁引用了我，删我时怎么办"。
+
+### 24.2 五种策略选择标准
+
+| 策略 | 行为 | 选择标准 | 典型场景 |
+|------|------|---------|---------|
+| `BLOCK` | 有依赖就拒绝删除 | 子记录有独立业务价值，不应随父消失 | Provider→Model, Model→Agent, Role→Admin |
+| `CASCADE_SOFT` | 子记录跟着软删除进回收站 | 子记录依附父记录，父删子也该进回收站 | Provider→ApiKey, Model→Quota, Agent→Conversation |
+| `CASCADE_DELETE` | 子记录物理删除 | 子记录是纯关联/绑定，无独立价值 | Agent→SkillBinding |
+| `NULLIFY` | FK 字段置 NULL | FK 是可选的引用 | AIModel→fallback_model_id |
+| `IGNORE` | 不处理 | 日志/统计类，不影响数据完整性 | CallLog, UsageStat |
+
+### 24.3 声明语法
+
+```python
+# backend/app/models/xxx.py
+from app.core.deletion import DeletionDep, DeletionStrategy
+
+class MyModel(BaseModel):
+    __delete_deps__ = [
+        DeletionDep("ChildModel", "parent_id", DeletionStrategy.BLOCK,
+                    label_field="name", i18n_key="child_model"),
+        DeletionDep("RelatedModel", "my_model_id", DeletionStrategy.CASCADE_SOFT,
+                    label_field="id", i18n_key="related_model"),
+    ]
+```
+
+**参数说明：**
+- `model`: 引用本模型的目标模型类名（字符串）
+- `fk_field`: 目标模型中的 FK 字段名
+- `strategy`: 五种策略之一
+- `label_field`: 用于前端展示的字段（默认 `"name"`）
+- `i18n_key`: 前端 `common.dependency.model.{i18n_key}` 的翻译 key
+
+### 24.4 前端 DependencyBlockModal
+
+`useCrudPage` 已自动集成：删除被 4221 阻止时自动弹出依赖详情弹窗。
+
+**非 useCrudPage 页面手动使用：**
+
+```vue
+<script setup>
+import DependencyBlockModal from '#/components/business/dependency-block-modal/index.vue';
+const depBlockRef = ref<InstanceType<typeof DependencyBlockModal> | null>(null);
+
+async function onDelete(record) {
+  try {
+    await requestClient.delete(`/resource/${record.id}`, { showCodeMessage: false });
+  } catch (error) {
+    const resp = error?.response?.data;
+    if (resp?.code === 4221 && resp?.dependencies) {
+      depBlockRef.value?.open(resp.dependencies, record.name);
+    }
+  }
+}
+</script>
+<template>
+  <DependencyBlockModal ref="depBlockRef" />
+</template>
+```
+
+### 24.5 useCrudPage 回收站配置
+
+```typescript
+const { Grid } = useCrudPage({
+  // ... 其他配置
+  recycleBin: true,  // 启用回收站（使用默认配置）
+  // 或自定义：
+  recycleBin: {
+    nameField: 'title',
+    columns: [{ title: '标题', dataIndex: 'title', width: 200 }],
+  },
+});
+```
+
+### 24.6 新模块 Checklist
+
+每次新增模块时，按以下清单逐项完成：
+
+- [ ] **Model 声明 `__delete_deps__`** — 分析所有引用此模型的 FK，选择合适策略
+- [ ] **Service 验证** — 尝试删除有依赖的记录，确认返回 4221 + 依赖详情
+- [ ] **useCrudPage 启用 `recycleBin`** — 列表页配置 `recycleBin: true`
+- [ ] **RECYCLABLE_MODELS 注册** — `backend/app/tasks/recycle_bin.py` 添加模型路径，注意顺序（叶子先父后）
+- [ ] **总回收站模块注册** — `backend/app/api/admin/recycle_bin.py` 的 `RECYCLABLE_MODULES` 添加条目
+- [ ] **i18n 模型名称** — 后端 `deletion.model.xxx` + 前端 `common.dependency.model.xxx`（zh-CN + en-US）
+
+### 24.7 错误码
+
+| 错误码 | 含义 | 前端处理 |
+|--------|------|---------|
+| 4221 | 删除被依赖阻止 | 弹出 DependencyBlockModal |
+
+---
+
+## 二十五、WebSocket 实时通信（Socket.IO）
+
+### 架构概览
+
+```
+前端 socket.io-client → /sio (ASGI) → AsyncServer(Redis Manager) → Namespace(/admin, /tenant, /user)
+Celery Worker → sio_bridge(RedisManager write_only) → Redis Pub/Sub → AsyncServer → 前端
+```
+
+三端分离 namespace：`/admin`（平台管理员）、`/tenant`（租户管理员）、`/user`（租户业务用户）。
+
+### 关键目录
+
+| 文件 | 说明 |
+|------|------|
+| `backend/app/core/socketio_server.py` | AsyncServer 单例（Redis Manager 多 Worker 同步） |
+| `backend/app/core/sio_bridge.py` | 同步桥接（Celery Worker 中发 Socket.IO 消息） |
+| `backend/app/sio/__init__.py` | Namespace 注册 |
+| `backend/app/sio/admin_ns.py` | /admin namespace（连接认证、房间管理、在线状态） |
+| `backend/app/sio/tenant_ns.py` | /tenant namespace |
+| `backend/app/sio/user_ns.py` | /user namespace |
+| `backend/app/sio/presence.py` | PresenceManager（Redis Hash + Lua 原子操作） |
+| `backend/app/sio/notification_seeds.py` | 32 个通知模板种子数据 |
+| `backend/app/api/admin/ws.py` | 在线状态 HTTP API（admin 端） |
+| `backend/app/api/tenant/ws.py` | 在线状态 HTTP API（tenant 端） |
+| `frontend/.../composables/use-socketio.ts` | Socket.IO 连接 composable |
+| `frontend/.../store/shared/socketio.ts` | 全局连接管理 Store |
+| `frontend/.../store/shared/notification.ts` | 通知 Store（HTTP + Socket.IO） |
+| `frontend/.../store/shared/presence.ts` | 在线状态 Store |
+
+### 后端：Namespace 连接流程
+
+```python
+# on_connect 流程（以 admin_ns 为例）：
+1. auth.token → Bearer 提取 → verify_token_with_scope(raise_on_expired=True)
+2. TokenExpiredError → raise ConnectionRefusedError("token_expired")
+3. 无效 Token → raise ConnectionRefusedError("authentication_failed")
+4. check_connect_rate（Lua 原子限流，60s/20次）
+5. DB 查询用户 → 验证 is_active + is_deleted
+6. save_session + _sid_sessions 备份
+7. enter_room("user:{user_id}", "admins")
+8. PresenceManager.set_online → 首次连接广播 presence:online
+9. emit("presence:list", online_ids, to=sid)
+```
+
+### 后端：发送通知
+
+```python
+# FastAPI 异步环境
+from app.core.socketio_server import get_sio
+sio = get_sio()
+await sio.emit("notification", data, room="user:5", namespace="/admin")
+
+# Celery 同步环境（通过 Redis Pub/Sub 桥接）
+from app.core.sio_bridge import notify_user_sync, notify_admins_sync, notify_tenant_sync
+
+notify_user_sync("admin", user_id=5, notification_data={...})
+notify_admins_sync(notification_data={...})          # 广播所有管理员
+notify_tenant_sync(tenant_id=1, notification_data={...})  # 广播指定租户
+```
+
+### 后端：事件与房间
+
+| 事件 | 方向 | 数据 | 说明 |
+|------|------|------|------|
+| `notification` | S→C | `{type, category, title, body, data, link, priority}` | 通知推送 |
+| `presence:online` | S→C | `{user_id, user_type, tenant_id?}` | 用户上线 |
+| `presence:offline` | S→C | `{user_id, user_type, tenant_id?}` | 用户下线 |
+| `presence:list` | S→C | `{online_ids: number[]}` | 连接时推送在线列表 |
+| `tenant_presence:online` | S→C(/admin) | `{user_id, tenant_id}` | 租户管理员上线（跨 namespace） |
+| `tenant_presence:offline` | S→C(/admin) | `{user_id, tenant_id}` | 租户管理员下线（跨 namespace） |
+
+| 房间 | Namespace | 说明 |
+|------|-----------|------|
+| `user:{user_id}` | 全部 | 指定用户的所有设备 |
+| `admins` | /admin | 所有平台管理员 |
+| `tenant:{tenant_id}` | /tenant, /user | 该租户的所有在线用户 |
+
+### 前端：连接管理
+
+```typescript
+// 自动连接（basic.vue onMounted 中调用）
+socketIOStore.connect();  // 自动检测 endpoint、从 TokenStorage 读 token
+
+// 手动断开（logout 时调用）
+socketIOStore.disconnect();  // 断开 socket + 清理 handlers
+
+// 事件注册（notification/presence store 的 initSocketHandlers 中）
+socketIOStore.registerHandler('notification', handler);
+socketIOStore.registerHandler('presence:online', handler);
+```
+
+**Token 同步机制**：socketio store 使用 getter 函数 `() => TokenStorage.getToken(ep)` 实时读取最新 token。axios 拦截器刷新 token 后 `TokenStorage` 自动更新，Socket.IO 在 `connect_error` 时通过 `getToken()` 读取最新值并自动重连。
+
+### 前端：连接状态 UI
+
+`basic.vue` 中：
+- 用户头像旁的绿/黄/灰点表示连接状态
+- 断连时显示 warning toast（`duration: 0`），重连后自动销毁
+- 登出时不显示断连警告（通过检查 `currentEndpoint` 判断）
+
+### 在线状态 HTTP API
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `GET /admin/ws/presence` | admin | 所有管理员在线状态 |
+| `GET /admin/ws/presence/tenant/{id}` | admin | 指定租户管理员在线状态 |
+| `GET /tenant/ws/presence` | tenant | 当前租户管理员在线状态 |
+
+### PresenceManager 存储结构
+
+Redis Hash：`presence:admin` → `{ "5": "2", "8": "1" }`（user_id → 连接数）
+
+- 所有写操作通过 Lua 脚本保证原子性
+- Hash 设有 24h TTL，`set_online` 时刷新，防止 worker 崩溃后 stale 数据永久残留
+- 启动时 `clear_all()` 清空所有 presence key
+
+### 禁止事项
+
+- ❌ 禁止在 namespace `on_connect` 外发起未认证的 emit
+- ❌ 禁止 `async with session` 外访问 ORM 属性（在 session 内提取到局部变量）
+- ❌ 禁止手动创建 `io()` 实例，必须通过 `useSocketIO` composable
+- ❌ 禁止在 Celery Worker 中 `import get_sio()`（使用 `sio_bridge` 的 `*_sync` 函数）
+- ❌ 禁止跨 namespace 直接 emit（通过 `get_sio().emit(namespace="/admin")` 方式）
+
+### 检查清单
+
+- [ ] Namespace 连接认证使用 `raise_on_expired=True` 区分 token 过期和无效
+- [ ] DB 属性在 `async with session` 内提取到局部变量
+- [ ] 广播使用 `skip_sid=sid` 排除发起者
+- [ ] Celery 中用 `sio_bridge` 同步函数，不用 `get_sio()`
+- [ ] 前端 handler 通过 `socketIOStore.registerHandler` 注册（非直接 `socket.on`）
+- [ ] 登出时调用 `socketIOStore.disconnect()`（自动清理 handlers）
+- [ ] 新增事件类型需在 `notification_seeds.py` 添加模板
+
+完整指南 → `.windsurf/workflows/websocket-guide.md`
+
+---
+
+## 二十六、参考文件
 
 完整规范详见 references 目录：
 

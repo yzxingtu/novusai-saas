@@ -10,6 +10,7 @@ from sqlalchemy import Boolean, Column, Float, ForeignKey, Index, Integer, Strin
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
 from app.enums.agent import AgentStatusEnum, AgentExecutionModeEnum, AgentVisibilityEnum
 from app.enums.common import ResourceScopeEnum
@@ -24,6 +25,17 @@ class Agent(TenantModel):
     """
 
     __tablename__ = "agents"
+
+    __delete_deps__ = [
+        DeletionDep("AgentSkillBinding", "agent_id", DeletionStrategy.CASCADE_DELETE,
+                    label_field="id", i18n_key="agent_skill_binding"),
+        DeletionDep("AgentConversation", "agent_id", DeletionStrategy.CASCADE_SOFT,
+                    label_field="id", i18n_key="agent_conversation"),
+        DeletionDep("BatchRun", "agent_id", DeletionStrategy.CASCADE_SOFT,
+                    label_field="id", i18n_key="batch_run"),
+        DeletionDep("SystemAgentAssignment", "agent_id", DeletionStrategy.NULLIFY,
+                    label_field="id", i18n_key="system_agent_assignment"),
+    ]
 
     # 覆盖 TenantModel 的 tenant_id，改为可选（scope=global/admin 时为 NULL）
     tenant_id = Column(
@@ -154,16 +166,8 @@ class Agent(TenantModel):
         comment=_("enum.agent_model.quota_config"),
     )
 
-    # ==================== 工具与变量 ====================
+    # ==================== 变量 ====================
 
-    # DEPRECATED: replaced by AgentSkillBinding (SkillPackage-based architecture)
-    # Retained for backward compatibility; no active callers remain.
-    tool_bindings: Mapped[list | None] = mapped_column(
-        JSON,
-        nullable=True,
-        default=list,
-        comment=_("enum.agent_model.tool_bindings"),
-    )
     input_variables: Mapped[list | None] = mapped_column(
         JSON,
         nullable=True,

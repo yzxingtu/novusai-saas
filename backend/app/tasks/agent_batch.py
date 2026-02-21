@@ -102,12 +102,43 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                 batch_run.started_at = utc_now()
                 await db.commit()
 
-                # 4. 创建引擎
+                # 4. 解析技能绑定 + 读取平台安全配置
                 gateway = AIGateway(db)
+
+                # 解析 Agent 绑定的技能
+                tool_definitions = None
+                try:
+                    from app.ai.skills.resolver import resolve_for_agent
+                    skill_result = await resolve_for_agent(
+                        db, agent, tenant_id=tenant_id,
+                    )
+                    if skill_result:
+                        tool_definitions = skill_result.tools
+                except Exception as skill_exc:
+                    logger.warning(
+                        "Batch %d: skill resolution failed: %s",
+                        batch_run_id, str(skill_exc),
+                    )
+
+                # 读取平台 Toolkit 安全配置
+                from app.configs.service import ConfigService
+                _cfg = ConfigService(db)
+                _toolkit_security_level = str(
+                    await _cfg.get_platform_config("toolkit_security_level", default="normal")
+                )
+                _toolkit_memory_limit_mb = int(
+                    await _cfg.get_platform_config("toolkit_memory_limit_mb", default=256)
+                )
+
                 sandbox = ToolSandbox(
                     tenant_id=tenant_id,
                     agent_id=agent.id,
                     config=SandboxConfig(),
+                    gateway=gateway,
+                    db=db,
+                    agent=agent,
+                    toolkit_security_level=_toolkit_security_level,
+                    toolkit_memory_limit_mb=_toolkit_memory_limit_mb,
                 )
                 task_engine = TaskEngine(
                     db=db,
@@ -181,6 +212,28 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                     batch_run.failed_items = failed
                     await db.commit()
 
+                    # Socket.IO 实时进度推送
+                    try:
+                        from app.core.sio_bridge import notify_user_sync
+                        if batch_run.created_by:
+                            percent = int((idx + 1) / len(items) * 100)
+                            notify_user_sync("tenant_admin", batch_run.created_by, {
+                                "type": "ai.batch_progress",
+                                "category": "ai",
+                                "title": f"Batch {batch_run_id}: {idx + 1}/{len(items)}",
+                                "data": {
+                                    "batch_id": batch_run_id,
+                                    "current": idx + 1,
+                                    "total": len(items),
+                                    "percent": percent,
+                                    "succeeded": succeeded,
+                                    "failed": failed,
+                                },
+                                "priority": "normal",
+                            })
+                    except Exception:
+                        pass
+
                 # 6. 最终状态更新
                 if batch_run.status != BatchRunStatusEnum.CANCELLED.value:
                     if failed == 0:
@@ -198,6 +251,28 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                 batch_run.errors = all_errors if all_errors else None
                 batch_run.completed_at = utc_now()
                 await db.commit()
+
+                # Socket.IO 完成/失败通知
+                try:
+                    from app.core.sio_bridge import notify_user_sync
+                    if batch_run.created_by:
+                        event_type = "ai.batch_complete" if failed == 0 else "ai.batch_failed"
+                        priority = "normal" if failed == 0 else "high"
+                        notify_user_sync("tenant_admin", batch_run.created_by, {
+                            "type": event_type,
+                            "category": "ai",
+                            "title": f"Batch {batch_run_id}: {succeeded}/{len(items)} succeeded",
+                            "data": {
+                                "batch_id": batch_run_id,
+                                "total": len(items),
+                                "succeeded": succeeded,
+                                "failed": failed,
+                                "status": batch_run.status,
+                            },
+                            "priority": priority,
+                        })
+                except Exception:
+                    pass
 
                 logger.info(
                     "Batch %d done: %d/%d succeeded, %d failed",

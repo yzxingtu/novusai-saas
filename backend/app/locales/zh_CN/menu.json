@@ -44,7 +44,8 @@
       "dev_tools": "开发工具",
       "crud_generator": "CRUD 生成器",
       "agent_assignment": "功能分配",
-      "email_log": "邮件日志"
+      "email_log": "邮件日志",
+      "recycle_bin": "回收站"
     },
     "tags": {
       "admin_agent_mgmt": "智能体管理（平台）",

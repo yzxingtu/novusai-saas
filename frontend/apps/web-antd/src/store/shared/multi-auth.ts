@@ -205,6 +205,19 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
       // 忽略错误
     }
 
+    // 先断开 Socket.IO（必须在清除 Token 之前，确保 disconnect 事件正确处理）
+    try {
+      const { useSocketIOStore } = await import('./socketio');
+      const { useNotificationStore } = await import('./notification');
+      const { usePresenceStore } = await import('./presence');
+      const socketIOStore = useSocketIOStore();
+      socketIOStore.disconnect();
+      useNotificationStore().$reset();
+      usePresenceStore().$reset();
+    } catch {
+      // 静默
+    }
+
     // 清除所有标签页（重置为空数组）
     tabbarStore.$patch({ tabs: [], cachedTabs: new Set() });
     // 清除 sessionStorage 中的标签页持久化数据

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
 
 from app.core.base_model import BaseModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
 from app.enums.ai import ModelTypeEnum
 
@@ -21,6 +22,19 @@ class AIModel(BaseModel):
     """
     
     __tablename__ = "ai_models"
+
+    __delete_deps__ = [
+        DeletionDep("Agent", "model_id", DeletionStrategy.BLOCK,
+                    label_field="name", i18n_key="agent"),
+        DeletionDep("KnowledgeBase", "embedding_model_id", DeletionStrategy.BLOCK,
+                    label_field="name", i18n_key="knowledge_base"),
+        DeletionDep("TenantQuota", "model_id", DeletionStrategy.CASCADE_SOFT,
+                    label_field="id", i18n_key="tenant_quota"),
+        DeletionDep("TenantModelRateLimit", "model_id", DeletionStrategy.CASCADE_SOFT,
+                    label_field="id", i18n_key="tenant_rate_limit"),
+        DeletionDep("AIModel", "fallback_model_id", DeletionStrategy.NULLIFY,
+                    label_field="name", i18n_key="ai_model"),
+    ]
     
     # 允许前端筛选的字段
     __filterable__ = {
@@ -125,6 +139,20 @@ class AIModel(BaseModel):
         Boolean,
         default=True,
         comment=_("enum.ai_model.supports_streaming")
+    )
+    
+    # 图片限制（仅 supports_vision=True 时有效）
+    max_image_count: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        default=5,
+        comment=_("enum.ai_model.max_image_count")
+    )
+    max_image_size_mb: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        default=10,
+        comment=_("enum.ai_model.max_image_size_mb")
     )
     
     # 是否启用

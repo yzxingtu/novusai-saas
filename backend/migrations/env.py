@@ -61,6 +61,10 @@ from app.models import (
     TenantPlugin,
     # 域名 SSL 证书
     DomainSslCertificate,
+    # 通知
+    NotificationTemplate,
+    Notification,
+    NotificationPreference,
 )
 
 # Alembic 配置对象

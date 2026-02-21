@@ -9,21 +9,24 @@
   },
   "group": {
     "platform_general": "General Settings",
-    "platform_general.desc": "Site info, maintenance mode, etc.",
     "platform_security": "Security Settings",
-    "platform_security.desc": "Password policy, login security, etc.",
     "platform_email": "Email Settings",
-    "platform_email.desc": "SMTP email delivery configuration",
+    "platform_ssl": "SSL Certificate Management",
     "tenant_appearance": "Appearance",
-    "tenant_appearance.desc": "Logo, theme colors, branding",
     "tenant_general": "General",
-    "tenant_general.desc": "Login methods, session timeout, etc.",
-    "tenant_features": "Features",
-    "tenant_features.desc": "Registration, notifications, API access"
+    "tenant_features": "Features"
+  },
+  "group_desc": {
+    "platform_general": "Site info, maintenance mode, etc.",
+    "platform_security": "Password policy, login security, etc.",
+    "platform_email": "SMTP email delivery configuration",
+    "platform_ssl": "ACME certificate issuance, DNS provider, renewal policy",
+    "tenant_appearance": "Logo, theme colors, branding",
+    "tenant_general": "Login methods, session timeout, etc.",
+    "tenant_features": "Registration, notifications, API access"
   },
   "platform": {
     "site_name": "Site Name",
-    "site_name.desc": "Displayed in browser title bar and header",
     "site_description": "Site Description",
     "site_logo": "Site Logo",
     "site_favicon": "Site Favicon",
@@ -33,9 +36,6 @@
     "maintenance_message": "Maintenance Message",
     "password_min_length": "Minimum Password Length",
     "password_complexity": "Password Complexity",
-    "password_complexity.low": "Low (length only)",
-    "password_complexity.medium": "Medium (letters + numbers)",
-    "password_complexity.high": "High (letters + numbers + special chars)",
     "password_expiry_days": "Password Expiry Days",
     "login_max_attempts": "Max Login Attempts",
     "login_lockout_minutes": "Account Lockout Minutes",
@@ -45,14 +45,60 @@
     "email_smtp_host": "SMTP Host",
     "email_smtp_port": "SMTP Port",
     "email_smtp_encryption": "Encryption",
-    "email_smtp_encryption.none": "None",
-    "email_smtp_encryption.ssl": "SSL",
-    "email_smtp_encryption.tls": "TLS",
     "email_smtp_username": "SMTP Username",
     "email_smtp_password": "SMTP Password",
     "email_from_address": "From Address",
     "email_from_name": "From Name",
-    "email_enabled": "Enable Email Sending"
+    "email_enabled": "Enable Email Sending",
+    "acme_account_email": "ACME Account Email",
+    "acme_use_staging": "Use Staging Environment (90-day test certs)",
+    "acme_directory_url": "ACME Production URL",
+    "acme_staging_url": "ACME Staging URL",
+    "ssl_private_key_encryption_key": "Private Key Encryption Key",
+    "ssl_auto_renew_days": "Auto-Renewal Lead Days",
+    "ssl_allow_custom_cert": "Allow Custom Certificates",
+    "dns_provider": "DNS Provider",
+    "dns_cloudflare_api_token": "Cloudflare API Token",
+    "dns_cloudflare_zone_id": "Cloudflare Zone ID",
+    "dns_aliyun_access_key_id": "Alibaba Cloud AccessKey ID",
+    "dns_aliyun_access_key_secret": "Alibaba Cloud AccessKey Secret",
+    "dns_dnspod_secret_id": "DNSPod SecretId",
+    "dns_dnspod_secret_key": "DNSPod SecretKey"
+  },
+  "platform_desc": {
+    "site_name": "Displayed in browser title bar and header",
+    "acme_account_email": "Used for Let's Encrypt account registration and certificate expiry notifications",
+    "acme_use_staging": "ON = request from staging server (not browser-trusted, relaxed rate limits, for dev); OFF = request from production server (trusted certs, 5 per domain per week). Both require DNS validation, 90-day, auto-renewed",
+    "acme_directory_url": "Let's Encrypt production ACME directory URL",
+    "acme_staging_url": "Let's Encrypt staging ACME directory URL",
+    "ssl_private_key_encryption_key": "Fernet key for encrypting stored SSL private keys",
+    "ssl_auto_renew_days": "Days before expiry to trigger automatic renewal",
+    "ssl_allow_custom_cert": "Whether to allow tenants to upload custom SSL certificates",
+    "dns_provider": "DNS provider for ACME DNS-01 challenge validation",
+    "dns_cloudflare_api_token": "Cloudflare API Token (requires Zone.DNS edit permission)",
+    "dns_cloudflare_zone_id": "Cloudflare domain zone ID",
+    "dns_aliyun_access_key_id": "Alibaba Cloud RAM AccessKey ID (requires AliyunDNSFullAccess permission)",
+    "dns_aliyun_access_key_secret": "Alibaba Cloud RAM AccessKey Secret",
+    "dns_dnspod_secret_id": "Tencent Cloud API SecretId (requires DNSPod domain resolution permission)",
+    "dns_dnspod_secret_key": "Tencent Cloud API SecretKey"
+  },
+  "platform_options": {
+    "password_complexity": {
+      "low": "Low (length only)",
+      "medium": "Medium (letters + numbers)",
+      "high": "High (letters + numbers + special chars)"
+    },
+    "email_smtp_encryption": {
+      "none": "None",
+      "ssl": "SSL",
+      "tls": "TLS"
+    },
+    "dns_provider": {
+      "manual": "Manual (requires manual DNS record setup)",
+      "cloudflare": "Cloudflare",
+      "aliyun": "Alibaba Cloud DNS",
+      "dnspod": "DNSPod (Tencent Cloud)"
+    }
   },
   "generate_key": "Generate Key",
   "validation": {
@@ -65,7 +111,6 @@
   },
   "tenant": {
     "tenant_logo": "Tenant Logo",
-    "tenant_logo.desc": "Logo displayed in tenant admin panel",
     "tenant_favicon": "Tenant Favicon",
     "tenant_login_bg": "Login Background",
     "tenant_primary_color": "Primary Color",
@@ -75,8 +120,6 @@
     "tenant_footer_copyright": "Footer Copyright",
     "tenant_captcha_enabled": "Enable Captcha",
     "tenant_login_methods": "Login Methods",
-    "tenant_login_methods.password": "Password Login",
-    "tenant_login_methods.sms": "SMS Login",
     "tenant_login_max_attempts": "Max Login Attempts",
     "tenant_login_lockout_minutes": "Account Lockout Minutes",
     "tenant_password_min_length": "Minimum Password Length",
@@ -89,5 +132,14 @@
     "tenant_sms_notification": "SMS Notification",
     "tenant_api_access": "API Access",
     "tenant_file_upload": "File Upload"
+  },
+  "tenant_desc": {
+    "tenant_logo": "Logo displayed in tenant admin panel"
+  },
+  "tenant_options": {
+    "tenant_login_methods": {
+      "password": "Password Login",
+      "sms": "SMS Login"
+    }
   }
 }

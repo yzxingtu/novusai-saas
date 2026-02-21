@@ -7,7 +7,7 @@ import type { AIProviderInfo } from '#/api/admin/ai';
 defineOptions({ name: 'AIProviderList' });
 
 import { Page } from '@vben/common-ui';
-import { IconifyIcon, Plus } from '@vben/icons';
+import { IconifyIcon } from '@vben/icons';
 
 import { Badge, Card, message, Modal, Switch, Tag, Tooltip } from 'ant-design-vue';
 
@@ -52,7 +52,7 @@ function onToggleActive(row: AIProviderInfo) {
 // CRUD Grid
 // ============================================================
 
-const { Grid, FormDrawer, gridApi, onCreate, onRefresh } =
+const { Grid, FormDrawer, gridApi, onRefresh } =
   useCrudPage<AIProviderInfo>({
     api: {
       list: getAIProviderListApi,
@@ -66,6 +66,7 @@ const { Grid, FormDrawer, gridApi, onCreate, onRefresh } =
     nameField: 'name',
     defaultSort: 'sort_order',
     recycleBin: true,
+    createPermission: 'ai_provider:create',
   });
 
 function onFormSuccess() {
@@ -161,20 +162,6 @@ useAutoTableDragSort(() => gridApi.grid, {
           />
         </template>
 
-        <!-- 工具栏 -->
-        <template #toolbar-tools>
-          <Card
-            v-access:code="['ai_provider:create']"
-            size="small"
-            class="mr-2 cursor-pointer transition-shadow duration-200 hover:shadow-md"
-            @click="onCreate"
-          >
-            <div class="flex items-center gap-2 text-primary">
-              <Plus class="size-4" />
-              <span class="font-medium">{{ $t('admin.ai.provider.create') }}</span>
-            </div>
-          </Card>
-        </template>
       </Grid>
     </Card>
   </Page>

@@ -9,9 +9,9 @@ defineOptions({ name: 'TenantSkillList' });
 import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
-import { IconifyIcon, Plus } from '@vben/icons';
+import { IconifyIcon } from '@vben/icons';
 
-import { Card, Modal, Tag, Tooltip } from 'ant-design-vue';
+import { Button, Card, Modal, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import {
@@ -86,21 +86,18 @@ function onFormSuccess() {
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
-        <!-- 工具栏 -->
-        <template #toolbar-tools>
-          <Card
+        <!-- 左侧工具栏：创建按钮 -->
+        <template #toolbar-actions>
+          <Button
             v-access:code="['skill:create']"
-            size="small"
-            class="mr-2 cursor-pointer transition-shadow duration-200 hover:shadow-md"
+            type="primary"
             @click="skillFormRef?.openNew()"
           >
-            <div class="flex items-center gap-2 text-primary">
-              <Plus class="size-4" />
-              <span class="font-medium">{{
-                $t('tenant.ai.skill.create')
-              }}</span>
-            </div>
-          </Card>
+            <template #icon>
+              <IconifyIcon icon="lucide:plus" class="size-4" />
+            </template>
+            {{ $t('tenant.ai.skill.create') }}
+          </Button>
         </template>
 
         <!-- 技能名称列 -->

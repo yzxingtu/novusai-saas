@@ -180,9 +180,6 @@ watch(
           class="mt-4"
         >
           <DescriptionsItem :label="$t('tenant.system.attachment.uploadedAt')">
-            {{ formatDate(detail.uploadedAt) }}
-          </DescriptionsItem>
-          <DescriptionsItem :label="$t('tenant.system.attachment.createdAt')">
             {{ formatDate(detail.createdAt) }}
           </DescriptionsItem>
           <DescriptionsItem :label="$t('tenant.system.attachment.updatedAt')">

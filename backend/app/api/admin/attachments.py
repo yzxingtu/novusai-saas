@@ -60,6 +60,41 @@ class AdminAttachmentController(GlobalController):
     def _register_routes(self) -> None:
         router = self.router
 
+        # ========== 上传规则 ==========
+
+        @router.get("/upload-rules", summary="获取上传规则")
+        @action_read("action.attachment.upload_rules")
+        async def get_upload_rules(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            获取平台上传规则（扩展名白名单、黑名单、大小限制）
+
+            前端用于预校验，避免无效上传。
+
+            权限: attachment:upload_rules
+            """
+            from app.configs.service import ConfigService
+            config_service = ConfigService(db)
+
+            allowed = await config_service.get_platform_config(
+                "platform_storage_allowed_extensions", default=""
+            )
+            denied = await config_service.get_platform_config(
+                "platform_storage_denied_extensions", default=""
+            )
+            max_size = await config_service.get_platform_config(
+                "platform_storage_max_file_size_mb", default=100
+            )
+
+            return success(data={
+                "allowed_extensions": str(allowed) if allowed else "",
+                "denied_extensions": str(denied) if denied else "",
+                "max_file_size_mb": int(max_size) if max_size else 100,
+            })
+
         # ========== 上传接口 ==========
 
         @router.post("/upload", summary="上传附件")

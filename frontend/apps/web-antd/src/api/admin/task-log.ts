@@ -7,11 +7,24 @@ import type { ApiRequestOptions } from '#/utils/request';
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义
+// 类型定义（从 shared 导入）
 // ============================================================
 
-/** 任务日志列表查询参数 */
-export type TaskLogListParams = Record<string, unknown>;
+export type {
+  TaskLogDetailInfo,
+  TaskLogInfo,
+  TaskLogListParams,
+  TaskLogListResponse,
+  TaskStatsItem,
+} from '#/api/shared/task-log-types';
+
+import type {
+  TaskLogDetailInfo,
+  TaskLogInfo,
+  TaskLogListParams,
+  TaskLogListResponse,
+  TaskStatsItem,
+} from '#/api/shared/task-log-types';
 
 /** 任务日志信息（后端原始格式 snake_case） */
 export interface TaskLogInfoRaw {
@@ -32,30 +45,6 @@ export interface TaskLogInfoRaw {
   created_at: string;
 }
 
-/** 任务日志信息（前端格式 camelCase） */
-export interface TaskLogInfo {
-  id: number;
-  taskId: string;
-  taskName: string;
-  queue: string;
-  status: string;
-  args: Record<string, unknown> | null;
-  kwargs: Record<string, unknown> | null;
-  result: Record<string, unknown> | null;
-  errorMessage: string | null;
-  startedAt: string | null;
-  finishedAt: string | null;
-  durationMs: number | null;
-  retryCount: number;
-  tenantId: number | null;
-  createdAt: string;
-}
-
-/** 任务日志详情（含堆栈） */
-export interface TaskLogDetailInfo extends TaskLogInfo {
-  traceback: string | null;
-}
-
 /** 任务日志详情原始格式 */
 interface TaskLogDetailInfoRaw extends TaskLogInfoRaw {
   traceback: string | null;
@@ -66,13 +55,6 @@ interface TaskStatsItemRaw {
   status: string;
   count: number;
   avg_duration_ms: number;
-}
-
-/** 任务统计项 */
-export interface TaskStatsItem {
-  status: string;
-  count: number;
-  avgDurationMs: number;
 }
 
 /** 活跃任务（后端原始格式） */
@@ -89,14 +71,6 @@ export interface ActiveTaskInfo {
   taskName: string;
   worker: string;
   startedAt: number | null;
-}
-
-/** 分页列表响应 */
-export interface TaskLogListResponse {
-  items: TaskLogInfo[];
-  total: number;
-  page: number;
-  page_size: number;
 }
 
 // ============================================================

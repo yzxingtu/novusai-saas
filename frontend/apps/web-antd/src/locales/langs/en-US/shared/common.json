@@ -107,5 +107,6 @@
   },
   "copied": "Copied to clipboard",
   "notSet": "Not Set",
-  "saveSuccess": "Saved successfully"
+  "saveSuccess": "Saved successfully",
+  "connectionLost": "Real-time connection lost, reconnecting..."
 }

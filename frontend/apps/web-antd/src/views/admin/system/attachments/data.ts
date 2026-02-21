@@ -182,7 +182,7 @@ export function useColumns<T = AttachmentInfo>(
       },
     },
     {
-      field: 'uploadedAt',
+      field: 'createdAt',
       title: $t('admin.system.attachment.uploadedAt'),
       width: 140,
       slots: {

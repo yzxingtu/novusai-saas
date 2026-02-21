@@ -12,6 +12,7 @@ import type { AdminSkillPackageInfo } from '#/api/admin/skill-packages';
 defineOptions({ name: 'AdminSkillPackageList' });
 
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon, Plus } from '@vben/icons';
@@ -43,6 +44,8 @@ import {
   getSkillPackageValvesApi,
   permanentDeleteSkillPackageApi,
   restoreSkillPackageApi,
+  exportSkillPackageApi,
+  importSkillPackageApi,
   toggleSkillPackageStatusApi,
   updateSkillPackageValvesApi,
   uploadSkillPackageApi,
@@ -102,8 +105,70 @@ async function loadPackages() {
   }
 }
 
+const router = useRouter();
+
 function onSelectPackage(pkg: AdminSkillPackageInfo) {
   selectedPackageId.value = pkg.id;
+}
+
+function goToDetail(pkg: AdminSkillPackageInfo) {
+  router.push(`/admin/ai/skill-packages/${pkg.id}`);
+}
+
+// ==================== 导出 / 导入 ====================
+
+async function onExportPackage(pkg: AdminSkillPackageInfo) {
+  try {
+    const data = await exportSkillPackageApi(pkg.id);
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `skill-package-${pkg.name.replace(/\s+/g, '_')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    message.success($t('admin.ai.skillPackage.messages.exportSuccess'));
+  } catch {
+    // handled by interceptor
+  }
+}
+
+const importModalVisible = ref(false);
+const importing = ref(false);
+
+function onImportClick() {
+  importModalVisible.value = true;
+}
+
+async function handleImportFile(file: File) {
+  importing.value = true;
+  try {
+    const text = await file.text();
+    const exportData = JSON.parse(text);
+    const result = await importSkillPackageApi({
+      export_data: exportData,
+      conflict_mode: 'rename',
+      target_scope: 'admin',
+    });
+    if (result.status === 'skipped') {
+      message.info($t('admin.ai.skillPackage.messages.importSkipped'));
+    } else {
+      message.success(
+        $t('admin.ai.skillPackage.messages.importSuccess', {
+          name: result.package_name,
+          count: result.skills_created,
+        }),
+      );
+    }
+    importModalVisible.value = false;
+    await loadPackages();
+  } catch {
+    message.error($t('admin.ai.skillPackage.messages.importFailed'));
+  } finally {
+    importing.value = false;
+  }
+  return false;
 }
 
 // ==================== 技能包 ZIP 上传 ====================
@@ -475,6 +540,46 @@ onMounted(() => {
       </div>
     </Modal>
 
+    <!-- JSON 导入弹窗 -->
+    <Modal
+      v-model:open="importModalVisible"
+      :title="$t('admin.ai.skillPackage.importBtn')"
+      :footer="null"
+      :destroy-on-close="true"
+      width="520px"
+    >
+      <div class="py-2">
+        <Upload.Dragger
+          :before-upload="handleImportFile"
+          accept=".json"
+          :multiple="false"
+          :show-upload-list="false"
+          :disabled="importing"
+        >
+          <div class="flex flex-col items-center gap-4 py-8">
+            <div
+              class="flex size-14 items-center justify-center rounded-2xl"
+              :style="{ background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 75%) 100%)' }"
+            >
+              <IconifyIcon
+                :icon="importing ? 'lucide:loader-2' : 'lucide:file-input'"
+                class="size-8 text-white"
+                :class="{ 'animate-spin': importing }"
+              />
+            </div>
+            <div class="flex flex-col items-center gap-1">
+              <span class="text-sm font-semibold text-foreground">
+                {{ importing ? $t('admin.ai.skillPackage.messages.uploading') : $t('admin.ai.skillPackage.importDragText') }}
+              </span>
+              <span class="text-xs text-muted-foreground">
+                {{ $t('admin.ai.skillPackage.importDesc') }}
+              </span>
+            </div>
+          </div>
+        </Upload.Dragger>
+      </div>
+    </Modal>
+
     <!-- ========== 左侧：技能包列表 ========== -->
     <Card
       class="h-full w-[280px] shrink-0"
@@ -496,6 +601,16 @@ onMounted(() => {
                 <IconifyIcon icon="lucide:trash-2" class="size-4 text-muted-foreground" />
               </Button>
             </Badge>
+          </Tooltip>
+          <Tooltip :title="$t('admin.ai.skillPackage.importBtn')">
+            <Button
+              v-access:code="['ai_skill_package:create']"
+              type="text"
+              size="small"
+              @click="onImportClick"
+            >
+              <IconifyIcon icon="lucide:file-input" class="size-4 text-primary" />
+            </Button>
           </Tooltip>
           <Tooltip :title="$t('admin.ai.skillPackage.uploadZip')">
             <Button
@@ -599,6 +714,26 @@ onMounted(() => {
               </div>
               <!-- hover 操作按钮 -->
               <div class="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                <Tooltip :title="$t('shared.common.viewDetail')">
+                  <Button
+                    type="text"
+                    size="small"
+                    class="!size-6 !min-w-0 !p-0"
+                    @click.stop="goToDetail(pkg)"
+                  >
+                    <IconifyIcon icon="lucide:external-link" class="size-3 text-muted-foreground" />
+                  </Button>
+                </Tooltip>
+                <Tooltip :title="$t('admin.ai.skillPackage.exportBtn')">
+                  <Button
+                    type="text"
+                    size="small"
+                    class="!size-6 !min-w-0 !p-0"
+                    @click.stop="onExportPackage(pkg)"
+                  >
+                    <IconifyIcon icon="lucide:download" class="size-3 text-muted-foreground" />
+                  </Button>
+                </Tooltip>
                 <Tooltip :title="$t('admin.common.edit')">
                   <Button
                     v-if="!pkg.is_system"

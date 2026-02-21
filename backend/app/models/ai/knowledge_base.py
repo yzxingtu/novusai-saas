@@ -10,6 +10,7 @@ from sqlalchemy import Column, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
 from app.enums.common import ResourceScopeEnum
 from app.enums.knowledge_base import (
@@ -28,6 +29,11 @@ class KnowledgeBase(TenantModel):
     """
 
     __tablename__ = "knowledge_bases"
+
+    __delete_deps__ = [
+        DeletionDep("KnowledgeDocument", "knowledge_base_id", DeletionStrategy.CASCADE_SOFT,
+                    label_field="name", i18n_key="knowledge_document"),
+    ]
 
     # 覆盖 TenantModel 的 tenant_id，改为可选（scope=global/admin 时为 NULL）
     tenant_id = Column(

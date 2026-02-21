@@ -15,6 +15,9 @@ function getSkillTypeOptions() {
     { label: $t('admin.ai.skill.type_options.knowledge_base'), value: 'knowledge_base' },
     { label: $t('admin.ai.skill.type_options.data_intelligence'), value: 'data_intelligence' },
     { label: $t('admin.ai.skill.type_options.builtin'), value: 'builtin' },
+    { label: $t('admin.ai.skill.type_options.http'), value: 'http' },
+    { label: $t('admin.ai.skill.type_options.email'), value: 'email' },
+    { label: $t('admin.ai.skill.type_options.code_execution'), value: 'code_execution' },
   ];
 }
 

@@ -14,11 +14,21 @@ from typing import Any, Generic, TypeVar, Type
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_model import BaseModel
+from app.core.dependency_checker import (
+    check_deletion_deps,
+    execute_cascade_deps,
+    execute_cascade_escalate,
+    execute_cascade_restore,
+)
 from app.enums.common import DeleteLevelEnum
+from app.exceptions.base import DependencyBlockedException
 from app.core.base_repository import BaseRepository, TenantRepository
 from app.core.base_schema import PageParams, PageResponse
+from app.core.logging import LogManager
 from app.schemas.common.query import QuerySpec, FilterRule
 from app.schemas.common.select import SelectOption, SelectResponse
+
+_logger = LogManager.get_logger("db")
 
 # 泛型类型变量
 ModelType = TypeVar("ModelType", bound=BaseModel)
@@ -189,6 +199,10 @@ class BaseService(Generic[ModelType, RepoType]):
         """
         删除记录（软删除时进入回收站）
         
+        自动执行 __delete_deps__ 声明的依赖检查：
+        - BLOCK 依赖存在时抛出 DependencyBlockedException
+        - CASCADE_SOFT/CASCADE_DELETE/NULLIFY 在软删除后自动执行
+        
         Args:
             id: 记录 ID
             soft: 是否软删除（默认 True）
@@ -196,15 +210,22 @@ class BaseService(Generic[ModelType, RepoType]):
         Returns:
             是否删除成功
         """
-        # 删除前钩子
+        # 删除前钩子（子类可覆盖，如 is_system 保护）
         await self._before_delete(id)
         
         if soft:
             instance = await self.repo.get_by_id(id)
             if instance is None:
                 return False
+
+            # 声明式依赖检查（BLOCK 策略）
+            await self._check_deletion_deps(instance)
+
             instance.soft_delete(level=self._default_delete_level)
             await self.repo.db.flush()
+
+            # 声明式级联操作（CASCADE_SOFT/CASCADE_DELETE/NULLIFY）
+            await self._execute_deletion_cascade(instance)
         else:
             result = await self.repo.delete(id, soft=False)
             if not result:
@@ -365,7 +386,8 @@ class BaseService(Generic[ModelType, RepoType]):
         """
         删除前钩子
         
-        可用于：关联检查、权限验证等
+        可用于：关联检查、权限验证等（如 is_system 保护）。
+        此钩子在依赖检查之前执行。
         
         Args:
             id: 记录 ID
@@ -437,6 +459,8 @@ class BaseService(Generic[ModelType, RepoType]):
         """
         恢复已删除记录
 
+        自动级联恢复 __delete_deps__ 中 CASCADE_SOFT 声明的子记录。
+
         Args:
             id: 记录 ID
 
@@ -446,6 +470,8 @@ class BaseService(Generic[ModelType, RepoType]):
         await self._before_restore(id)
         instance = await self.repo.restore_by_id(id)
         if instance:
+            tenant_id = getattr(self, "tenant_id", None)
+            await execute_cascade_restore(self.db, instance, tenant_id=tenant_id)
             await self._after_restore(instance)
         return instance
 
@@ -453,13 +479,19 @@ class BaseService(Generic[ModelType, RepoType]):
         """
         升级删除层级（tenant → admin）
 
+        自动级联升级 __delete_deps__ 中 CASCADE_SOFT 声明的子记录。
+
         Args:
             id: 记录 ID
 
         Returns:
             更新后的模型实例或 None
         """
-        return await self.repo.escalate_delete_by_id(id)
+        instance = await self.repo.escalate_delete_by_id(id)
+        if instance is not None:
+            tenant_id = getattr(self, "tenant_id", None)
+            await execute_cascade_escalate(self.db, instance, tenant_id=tenant_id)
+        return instance
 
     async def permanent_delete(self, id: int) -> bool:
         """
@@ -561,6 +593,65 @@ class BaseService(Generic[ModelType, RepoType]):
             ValueError: 模型未配置 __sortable__
         """
         return await self.repo.batch_update_sort_order(ordered_ids, **scope_filters)
+
+
+    # ========================================
+    # 声明式依赖保护（内部方法）
+    # ========================================
+
+    async def _check_deletion_deps(self, instance: ModelType) -> None:
+        """
+        读取 __delete_deps__ 声明，检查 BLOCK 策略依赖。
+        
+        如果存在活跃依赖，抛出 DependencyBlockedException。
+        无 __delete_deps__ 声明时静默跳过。
+        """
+        deps = getattr(instance.__class__, "__delete_deps__", None)
+        if not deps:
+            return
+
+        from app.core.i18n import _
+
+        tenant_id = getattr(self, "tenant_id", None)
+        result = await check_deletion_deps(
+            self.db, instance, tenant_id=tenant_id,
+        )
+        if result.blocked:
+            raise DependencyBlockedException(
+                message=_("common.error.has_dependencies"),
+                dependencies=[
+                    {
+                        "type": b.model_name,
+                        "count": b.count,
+                        "items": b.items,
+                    }
+                    for b in result.blockers
+                ],
+            )
+
+    async def _execute_deletion_cascade(self, instance: ModelType) -> None:
+        """
+        执行 __delete_deps__ 中的非 BLOCK 级联操作。
+        
+        在 soft_delete 之后调用。
+        无 __delete_deps__ 声明时静默跳过。
+        """
+        deps = getattr(instance.__class__, "__delete_deps__", None)
+        if not deps:
+            return
+
+        tenant_id = getattr(self, "tenant_id", None)
+        stats = await execute_cascade_deps(
+            self.db,
+            instance,
+            delete_level=self._default_delete_level,
+            tenant_id=tenant_id,
+        )
+        if stats:
+            _logger.info(
+                "Deletion cascade for %s#%d: %s",
+                instance.__class__.__name__, instance.id, stats,
+            )
 
 
 class TenantService(BaseService[ModelType, RepoType]):

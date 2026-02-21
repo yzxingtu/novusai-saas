@@ -1,0 +1,80 @@
+"""
+Socket.IO 服务器单例
+
+提供全局 AsyncServer 实例，使用 AsyncRedisManager 支持多 Worker 部署。
+通过 ASGI 模式与 FastAPI 集成。
+"""
+
+import socketio
+
+from app.core.config import settings
+from app.core.logging import LogManager
+
+logger = LogManager.get_logger("app")
+
+# ========================================
+# Redis Manager（多 Worker 消息同步）
+# ========================================
+
+_redis_manager = socketio.AsyncRedisManager(
+    settings.REDIS_URL,
+    write_only=False,
+)
+
+# ========================================
+# AsyncServer 实例
+# ========================================
+
+_cors_origins: list[str] | str = (
+    "*" if settings.APP_ENV == "development"
+    else (settings.CORS_ORIGINS if settings.CORS_ORIGINS else [])
+)
+
+sio = socketio.AsyncServer(
+    async_mode="asgi",
+    client_manager=_redis_manager,
+    cors_allowed_origins=_cors_origins,
+    ping_interval=25,
+    ping_timeout=20,
+    logger=False,
+    engineio_logger=False,
+)
+
+logger.info("Socket.IO AsyncServer created with Redis manager")
+
+
+def get_sio() -> socketio.AsyncServer:
+    """获取全局 Socket.IO 服务器实例"""
+    return sio
+
+
+async def apply_ws_config() -> None:
+    """
+    从平台配置读取 WS 参数并应用到 AsyncServer
+
+    在 lifespan startup（DB + Redis 初始化之后）调用。
+    修改 engine.io 的 ping_interval / ping_timeout 属性，
+    对新建连接生效（已有连接保持旧值）。
+    """
+    try:
+        from app.sio.ws_config import get_ws_configs
+
+        cfg = await get_ws_configs(
+            "ws_enabled", "ws_ping_interval", "ws_ping_timeout",
+        )
+
+        ping_interval = cfg.get("ws_ping_interval", 25)
+        ping_timeout = cfg.get("ws_ping_timeout", 20)
+
+        # 更新 engine.io 属性（对新连接生效）
+        if hasattr(sio, "eio"):
+            sio.eio.ping_interval = int(ping_interval)
+            sio.eio.ping_timeout = int(ping_timeout)
+
+        ws_enabled = cfg.get("ws_enabled", True)
+        logger.info(
+            "Socket.IO config applied: enabled=%s ping_interval=%s ping_timeout=%s",
+            ws_enabled, ping_interval, ping_timeout,
+        )
+    except Exception as e:
+        logger.warning("Failed to apply WS config: %s", e)

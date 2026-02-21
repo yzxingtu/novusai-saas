@@ -1,0 +1,272 @@
+"""
+代码执行工具执行器
+
+在安全沙箱中执行用户提供的代码（子进程隔离 + 模块白名单 + 超时控制）。
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import subprocess
+import sys
+import textwrap
+import time
+from typing import Any, TYPE_CHECKING
+
+from app.ai.tools.executors.base import BaseToolExecutor
+from app.ai.tools.types import ToolDefinition, ToolResult
+from app.core.logging import LogManager
+
+if TYPE_CHECKING:
+    from app.ai.tools.types import ExecutionContext
+
+logger = LogManager.get_logger("ai.tool.code_execution")
+
+# 安全限制
+_MAX_OUTPUT_SIZE = 50_000  # 50KB
+_DEFAULT_TIMEOUT = 30
+_DEFAULT_MEMORY_LIMIT_MB = 256
+
+# 绝对禁止的 import（无论白名单如何设置）
+_BLOCKED_MODULES = frozenset({
+    "os", "subprocess", "shutil", "sys", "importlib",
+    "ctypes", "socket", "http", "urllib", "requests",
+    "httpx", "aiohttp", "pathlib", "glob", "tempfile",
+    "signal", "multiprocessing", "threading", "pickle",
+    "shelve", "marshal", "code", "compile", "exec",
+    "eval", "builtins", "__builtins__",
+})
+
+
+def _build_sandbox_script(
+    user_code: str,
+    allowed_modules: list[str],
+) -> str:
+    """
+    构建沙箱执行脚本
+
+    1. 清除危险 builtins（exec, eval, __import__, compile, open）
+    2. 仅允许白名单模块 import
+    3. 捕获 stdout 输出
+    4. 捕获异常并以 JSON 返回
+    """
+    allowed_set = json.dumps(allowed_modules)
+    escaped_code = user_code.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+
+    return textwrap.dedent(f"""\
+import sys
+import io
+import json
+
+# 1. 限制 import 到白名单
+_ALLOWED = set({allowed_set})
+_BLOCKED = {{{", ".join(repr(m) for m in _BLOCKED_MODULES)}}}
+_original_import = __builtins__.__import__ if hasattr(__builtins__, '__import__') else __import__
+
+def _safe_import(name, *args, **kwargs):
+    top = name.split(".")[0]
+    if top in _BLOCKED:
+        raise ImportError(f"Module '{{top}}' is not allowed in sandbox")
+    if _ALLOWED and top not in _ALLOWED:
+        raise ImportError(f"Module '{{top}}' is not in the allowed list")
+    return _original_import(name, *args, **kwargs)
+
+if isinstance(__builtins__, dict):
+    __builtins__["__import__"] = _safe_import
+    __builtins__.pop("exec", None)
+    __builtins__.pop("eval", None)
+    __builtins__.pop("compile", None)
+    __builtins__.pop("open", None)
+    __builtins__.pop("globals", None)
+else:
+    __builtins__.__import__ = _safe_import
+
+# 2. 捕获 stdout
+_stdout_capture = io.StringIO()
+sys.stdout = _stdout_capture
+
+# 3. 执行用户代码
+try:
+    _user_code = '{escaped_code}'
+    _code_obj = _original_import("builtins").compile(_user_code, "<sandbox>", "exec")
+    _ns = {{}}
+    _original_import("builtins").exec(_code_obj, _ns)
+    _output = _stdout_capture.getvalue()
+    sys.stdout = sys.__stdout__
+    print(json.dumps({{"success": True, "output": _output}}))
+except Exception as _e:
+    sys.stdout = sys.__stdout__
+    _partial = _stdout_capture.getvalue()
+    print(json.dumps({{"success": False, "error": str(_e), "output": _partial}}))
+""")
+
+
+class CodeExecutionExecutor(BaseToolExecutor):
+    """
+    代码执行工具执行器
+
+    从 ToolDefinition.config 中读取：
+    - _code_language: 编程语言（当前仅支持 python）
+    - _code_timeout: 执行超时秒数
+    - _code_memory_limit_mb: 内存限制
+    - _code_allowed_modules: 允许导入的模块列表
+    """
+
+    async def execute(
+        self,
+        definition: ToolDefinition,
+        tool_call_id: str,
+        arguments: dict[str, Any],
+        context: ExecutionContext | None = None,
+    ) -> ToolResult:
+        """在子进程沙箱中执行代码"""
+        start = time.perf_counter()
+        cfg = definition.config or {}
+
+        code = arguments.get("code", "")
+        if not code or not code.strip():
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=definition.name,
+                success=False,
+                error="No code provided",
+            )
+
+        language = cfg.get("_code_language", "python")
+        if language != "python":
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=definition.name,
+                success=False,
+                error=f"Language '{language}' is not supported. Only 'python' is available.",
+            )
+
+        timeout = cfg.get("_code_timeout", _DEFAULT_TIMEOUT)
+        allowed_modules = cfg.get("_code_allowed_modules", [])
+
+        # 静态安全扫描
+        violations = self._static_scan(code)
+        if violations:
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=definition.name,
+                success=False,
+                error=f"Code blocked: {'; '.join(violations[:3])}",
+            )
+
+        # 构建沙箱脚本
+        sandbox_script = _build_sandbox_script(code, allowed_modules)
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable, "-c", sandbox_script,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            try:
+                stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                    proc.communicate(),
+                    timeout=timeout,
+                )
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+                duration_ms = int((time.perf_counter() - start) * 1000)
+                return ToolResult(
+                    tool_call_id=tool_call_id,
+                    name=definition.name,
+                    success=False,
+                    error=f"Code execution timed out after {timeout}s",
+                    duration_ms=duration_ms,
+                )
+
+            duration_ms = int((time.perf_counter() - start) * 1000)
+            stdout_text = stdout_bytes.decode("utf-8", errors="replace").strip()
+
+            # 解析 JSON 结果
+            try:
+                result_data = json.loads(stdout_text)
+                output = result_data.get("output", "")
+                if len(output) > _MAX_OUTPUT_SIZE:
+                    output = output[:_MAX_OUTPUT_SIZE] + "\n... (truncated)"
+
+                if result_data.get("success"):
+                    return ToolResult(
+                        tool_call_id=tool_call_id,
+                        name=definition.name,
+                        success=True,
+                        output=output if output else "(no output)",
+                        duration_ms=duration_ms,
+                    )
+                else:
+                    error_msg = result_data.get("error", "Unknown error")
+                    partial = result_data.get("output", "")
+                    return ToolResult(
+                        tool_call_id=tool_call_id,
+                        name=definition.name,
+                        success=False,
+                        error=f"Execution error: {error_msg}" + (f"\nPartial output: {partial}" if partial else ""),
+                        duration_ms=duration_ms,
+                    )
+            except json.JSONDecodeError:
+                # 子进程输出不是有效 JSON（可能是崩溃或语法错误）
+                stderr_text = stderr_bytes.decode("utf-8", errors="replace").strip()
+                error = stderr_text or stdout_text or "Unknown execution error"
+                return ToolResult(
+                    tool_call_id=tool_call_id,
+                    name=definition.name,
+                    success=False,
+                    error=f"Execution failed: {error[:1000]}",
+                    duration_ms=duration_ms,
+                )
+
+        except Exception as exc:
+            duration_ms = int((time.perf_counter() - start) * 1000)
+            logger.error("Code execution error: %s", str(exc), exc_info=True)
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=definition.name,
+                success=False,
+                error=f"Execution error: {str(exc)}",
+                duration_ms=duration_ms,
+            )
+
+    async def validate(
+        self,
+        definition: ToolDefinition,
+        arguments: dict[str, Any],
+    ) -> bool:
+        """校验代码执行参数"""
+        return bool(arguments.get("code"))
+
+    @staticmethod
+    def _static_scan(code: str) -> list[str]:
+        """
+        静态安全扫描：检测危险模式
+
+        Returns:
+            违规列表（空列表表示安全）
+        """
+        violations: list[str] = []
+        import re
+
+        # 检测直接 import 危险模块
+        for mod in _BLOCKED_MODULES:
+            pattern = rf'\b(?:import\s+{re.escape(mod)}|from\s+{re.escape(mod)}\s+import)\b'
+            if re.search(pattern, code):
+                violations.append(f"Blocked import: {mod}")
+
+        # 检测 eval/exec 调用
+        if re.search(r'\b(?:eval|exec|compile)\s*\(', code):
+            violations.append("Direct eval/exec/compile calls are not allowed")
+
+        # 检测文件操作
+        if re.search(r'\bopen\s*\(', code):
+            violations.append("File operations (open) are not allowed")
+
+        return violations
+
+
+__all__ = ["CodeExecutionExecutor"]

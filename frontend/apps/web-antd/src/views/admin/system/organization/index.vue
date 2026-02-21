@@ -495,6 +495,7 @@ onMounted(async () => {
                 :leader-id="selectedNode.leaderId"
                 :role-tree-api="getRoleTreeApi"
                 api-prefix="admin"
+                :show-online-status="true"
                 @refresh="handleMemberPanelRefresh"
               />
             </Card>

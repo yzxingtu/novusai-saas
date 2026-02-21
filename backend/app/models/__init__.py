@@ -45,6 +45,11 @@ from app.models.auth import (
     tenant_admin_role_permissions,
 )
 
+# 通知模型
+from app.models.common.notification_template import NotificationTemplate
+from app.models.common.notification import Notification
+from app.models.common.notification_preference import NotificationPreference
+
 # AI 模型
 from app.models.ai import (
     AIProvider,
@@ -123,4 +128,8 @@ __all__ = [
     "AgentSkillBinding",
     # 系统智能体绑定
     "SystemAgentAssignment",
+    # 通知
+    "NotificationTemplate",
+    "Notification",
+    "NotificationPreference",
 ]

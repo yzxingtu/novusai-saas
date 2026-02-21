@@ -29,6 +29,15 @@ class ChatAttachment(BaseModel):
     )
 
 
+class ImageParams(BaseModel):
+    """图像生成参数"""
+
+    size: str = Field("1024x1024", description=_("agent_chat.field.image_size"))
+    quality: str = Field("standard", description=_("agent_chat.field.image_quality"))
+    style: str = Field("vivid", description=_("agent_chat.field.image_style"))
+    n: int = Field(1, ge=1, le=4, description=_("agent_chat.field.image_n"))
+
+
 class AgentChatRequest(BaseModel):
     """对话请求"""
 
@@ -55,6 +64,10 @@ class AgentChatRequest(BaseModel):
     attachments: list[ChatAttachment] | None = Field(
         None,
         description=_("agent_chat.field.attachments"),
+    )
+    image_params: ImageParams | None = Field(
+        None,
+        description=_("agent_chat.field.image_params"),
     )
 
 
@@ -96,6 +109,7 @@ class AgentConfirmRequest(BaseModel):
 
 __all__ = [
     "ChatAttachment",
+    "ImageParams",
     "AgentChatRequest",
     "AgentChatResponse",
     "AgentConfirmRequest",

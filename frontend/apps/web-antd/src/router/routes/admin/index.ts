@@ -107,6 +107,18 @@ const mainRoutes: RouteRecordRaw = {
         title: $t('admin.system.emailLog.title'),
       },
     },
+    // Fallback 静态注册：总回收站（后端菜单动态路由优先生效）
+    {
+      name: 'AdminSystemRecycleBin',
+      path: 'system/recycle-bin',
+      component: () =>
+        import('#/views/admin/system/recycle-bin/index.vue'),
+      meta: {
+        hideInMenu: true,
+        icon: 'lucide:trash-2',
+        title: $t('admin.system.recycleBin.title'),
+      },
+    },
     // Fallback 静态注册：AI 网关管理（后端菜单动态路由优先生效）
     {
       name: 'AdminAIGateway',
@@ -210,7 +222,17 @@ const mainRoutes: RouteRecordRaw = {
             title: $t('admin.ai.skillPackage.title'),
           },
         },
-        // AdminAISkillPackageDetail + AdminAISkills routes removed — Master-Detail layout in index.vue
+        {
+          name: 'AdminAISkillPackageDetail',
+          path: 'skill-packages/:id',
+          component: () =>
+            import('#/views/admin/ai/skill-packages/detail.vue'),
+          meta: {
+            hideInMenu: true,
+            title: $t('admin.ai.skillPackage.detail.title'),
+            activePath: '/admin/ai/skill-packages',
+          },
+        },
         {
           name: 'AdminAIAgents',
           path: 'agents',
@@ -262,6 +284,16 @@ const mainRoutes: RouteRecordRaw = {
       ],
     },
     // CRUD Generator routes removed — now provided by plugin
+    // 个人中心
+    {
+      name: 'Profile',
+      path: '/admin/profile',
+      component: () => import('#/views/_core/profile/index.vue'),
+      meta: {
+        hideInMenu: true,
+        title: $t('page.auth.profile'),
+      },
+    },
   ],
 };
 

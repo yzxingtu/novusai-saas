@@ -7,7 +7,6 @@ import type { AIQuotaInfo } from '#/api/admin/ai';
 defineOptions({ name: 'AIQuotaList' });
 
 import { Page } from '@vben/common-ui';
-import { Plus } from '@vben/icons';
 
 import { Card, Tag, Tooltip } from 'ant-design-vue';
 
@@ -35,7 +34,7 @@ function formatTokens(num: null | number | undefined): string {
   return `${num}`;
 }
 
-const { Grid, FormDrawer, onCreate, onRefresh } =
+const { Grid, FormDrawer, onRefresh } =
   useCrudPage<AIQuotaInfo>({
     api: {
       list: getAIQuotaListApi,
@@ -48,6 +47,7 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
     i18nPrefix: 'admin.ai.quota',
     nameField: 'id',
     defaultSort: '-created_at',
+    createPermission: 'ai_quota:create',
   });
 </script>
 
@@ -125,22 +125,6 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
           </Tooltip>
         </template>
 
-        <!-- 工具栏 -->
-        <template #toolbar-tools>
-          <Card
-            v-access:code="['ai_quota:create']"
-            size="small"
-            class="mr-2 cursor-pointer transition-shadow duration-200 hover:shadow-md"
-            @click="onCreate"
-          >
-            <div class="flex items-center gap-2 text-primary">
-              <Plus class="size-4" />
-              <span class="font-medium">{{
-                $t('admin.ai.quota.create')
-              }}</span>
-            </div>
-          </Card>
-        </template>
       </Grid>
     </Card>
   </Page>

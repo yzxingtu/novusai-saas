@@ -57,6 +57,37 @@ export function formatInterval(seconds: number | null | undefined): string {
 }
 
 /**
+ * 格式化 Cron 表达式为可读文本
+ */
+export function formatCronHuman(cron: string | null | undefined): string {
+  if (!cron) return '-';
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return cron;
+  const [minute, hour, dom, , dow] = parts;
+
+  if (dom !== '*' && dow === '*') {
+    return `${$t('admin.system.periodicTask.cronHuman.monthly')} ${dom}${$t('admin.system.periodicTask.cronHuman.day')} ${hour}:${minute?.padStart(2, '0')}`;
+  }
+  if (hour !== '*' && minute !== '*') {
+    return `${$t('admin.system.periodicTask.cronHuman.daily')} ${hour}:${minute?.padStart(2, '0')}`;
+  }
+  if (hour === '*' && minute !== '*') {
+    return `${$t('admin.system.periodicTask.cronHuman.hourly')} :${minute?.padStart(2, '0')}`;
+  }
+  return cron;
+}
+
+/**
+ * 获取调度显示文本（合并类型 + 表达式）
+ */
+export function getScheduleDisplay(row: PeriodicTaskInfo): string {
+  if (row.scheduleType === 'cron') {
+    return formatCronHuman(row.cronExpression);
+  }
+  return formatInterval(row.intervalSeconds);
+}
+
+/**
  * 调度类型选项
  */
 function getScheduleTypeOptions() {
@@ -64,6 +95,51 @@ function getScheduleTypeOptions() {
     { label: $t('admin.system.periodicTask.scheduleType.cron'), value: 'cron' },
     { label: $t('admin.system.periodicTask.scheduleType.interval'), value: 'interval' },
   ];
+}
+
+/**
+ * 获取任务图标（根据 task_path 推断）
+ */
+export function getTaskIcon(taskPath: string): string {
+  if (taskPath.includes('health_check') || taskPath.includes('health')) return 'lucide:heart-pulse';
+  if (taskPath.includes('cleanup') || taskPath.includes('clean') || taskPath.includes('recycle')) return 'lucide:trash-2';
+  if (taskPath.includes('reset')) return 'lucide:rotate-ccw';
+  if (taskPath.includes('ssl') || taskPath.includes('certificate')) return 'lucide:shield-check';
+  if (taskPath.includes('upload')) return 'lucide:upload-cloud';
+  if (taskPath.includes('notification') || taskPath.includes('notify')) return 'lucide:bell';
+  if (taskPath.includes('ai') || taskPath.includes('agent')) return 'lucide:bot';
+  if (taskPath.includes('email') || taskPath.includes('mail')) return 'lucide:mail';
+  return 'lucide:clock';
+}
+
+/**
+ * 获取任务图标颜色
+ */
+export function getTaskIconColor(taskPath: string): string {
+  if (taskPath.includes('health_check') || taskPath.includes('health')) return 'text-emerald-500';
+  if (taskPath.includes('cleanup') || taskPath.includes('clean') || taskPath.includes('recycle')) return 'text-orange-500';
+  if (taskPath.includes('reset')) return 'text-blue-500';
+  if (taskPath.includes('ssl') || taskPath.includes('certificate')) return 'text-violet-500';
+  if (taskPath.includes('upload')) return 'text-cyan-500';
+  if (taskPath.includes('notification') || taskPath.includes('notify')) return 'text-amber-500';
+  if (taskPath.includes('ai') || taskPath.includes('agent')) return 'text-pink-500';
+  if (taskPath.includes('email') || taskPath.includes('mail')) return 'text-indigo-500';
+  return 'text-slate-500';
+}
+
+/**
+ * 获取任务图标背景色
+ */
+export function getTaskIconBg(taskPath: string): string {
+  if (taskPath.includes('health_check') || taskPath.includes('health')) return 'bg-emerald-500/10';
+  if (taskPath.includes('cleanup') || taskPath.includes('clean') || taskPath.includes('recycle')) return 'bg-orange-500/10';
+  if (taskPath.includes('reset')) return 'bg-blue-500/10';
+  if (taskPath.includes('ssl') || taskPath.includes('certificate')) return 'bg-violet-500/10';
+  if (taskPath.includes('upload')) return 'bg-cyan-500/10';
+  if (taskPath.includes('notification') || taskPath.includes('notify')) return 'bg-amber-500/10';
+  if (taskPath.includes('ai') || taskPath.includes('agent')) return 'bg-pink-500/10';
+  if (taskPath.includes('email') || taskPath.includes('mail')) return 'bg-indigo-500/10';
+  return 'bg-slate-500/10';
 }
 
 /**
@@ -76,43 +152,28 @@ export function useColumns<T = PeriodicTaskInfo>(
     {
       field: 'name',
       title: $t('admin.system.periodicTask.name'),
-      minWidth: 280,
-      slots: {
-        default: 'name_cell',
-      },
+      minWidth: 260,
+      slots: { default: 'name_cell' },
     },
     {
       field: 'schedule',
       title: $t('admin.system.periodicTask.schedule'),
-      width: 150,
+      width: 140,
       align: 'center',
-      slots: {
-        default: 'schedule_cell',
-      },
-    },
-    {
-      field: 'scope',
-      title: $t('admin.system.periodicTask.scopeLabel'),
-      width: 110,
-      align: 'center',
-      slots: { default: 'scope_cell' },
+      slots: { default: 'schedule_cell' },
     },
     {
       field: 'isActive',
       title: $t('admin.system.periodicTask.isActive'),
       width: 80,
       align: 'center',
-      slots: {
-        default: 'isActive_cell',
-      },
+      slots: { default: 'isActive_cell' },
     },
     {
       field: 'lastRunAt',
       title: $t('admin.system.periodicTask.runInfo'),
-      width: 180,
-      slots: {
-        default: 'runInfo_cell',
-      },
+      width: 170,
+      slots: { default: 'runInfo_cell' },
     },
     {
       align: 'center',
@@ -143,7 +204,7 @@ export function useColumns<T = PeriodicTaskInfo>(
       field: 'operation',
       fixed: 'right',
       title: $t('admin.common.operation'),
-      width: 180,
+      width: 160,
     },
   ];
 }
@@ -156,9 +217,6 @@ export function useGridFormSchema(): VbenFormSchema[] {
     searchInput('name', $t('admin.system.periodicTask.name'), {
       placeholder: $t('admin.system.periodicTask.placeholder.searchName'),
     }),
-    searchInput('task_path', $t('admin.system.periodicTask.taskPath'), {
-      placeholder: $t('admin.system.periodicTask.placeholder.searchTaskPath'),
-    }),
     select('filter[schedule_type][eq]', $t('admin.system.periodicTask.scheduleTypeLabel'), {
       options: getScheduleTypeOptions(),
       placeholder: $t('admin.system.periodicTask.placeholder.allScheduleTypes'),
@@ -166,11 +224,6 @@ export function useGridFormSchema(): VbenFormSchema[] {
     select('filter[scope][eq]', $t('admin.system.periodicTask.scopeLabel'), {
       options: getScopeOptions(),
       placeholder: $t('admin.system.periodicTask.placeholder.allScopes'),
-    }),
-    select('filter[tenant_id]', $t('admin.system.periodicTask.tenantName'), {
-      api: getTenantSelectApi,
-      params: { is_active: 'true' },
-      placeholder: $t('admin.system.periodicTask.placeholder.allTenant'),
     }),
   ];
 }

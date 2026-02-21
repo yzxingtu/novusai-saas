@@ -41,6 +41,7 @@
     "deleteSuccess": "Deleted successfully",
     "createSuccess": "Created successfully",
     "updateSuccess": "Updated successfully",
+    "noPrimaryDomain": "This tenant has no primary domain. Please configure one in domain management first",
     "impersonating": "Entering \"{name}\" backend...",
     "impersonateSuccess": "Opening tenant backend",
     "impersonateFailed": "Login failed, please try again"
@@ -74,6 +75,27 @@
     "nameMaxLength": "Tenant name must be at most 100 characters"
   },
   "tip": "Manage platform tenants, configure tenant plans and expiration",
+  "adminPanel": {
+    "title": "Admin List",
+    "createAdmin": "Create Sub-Admin",
+    "empty": "No admins yet",
+    "owner": "Owner",
+    "lastLogin": "Last login",
+    "ownerCannotDisable": "Owner admin cannot be disabled",
+    "confirmDisable": "Are you sure to disable this admin?",
+    "confirmEnable": "Are you sure to enable this admin?",
+    "createTitle": "Create Admin for \"{name}\"",
+    "editTitle": "Edit Admin - {name}",
+    "username": "Username",
+    "usernamePlaceholder": "Enter username",
+    "email": "Email",
+    "emailPlaceholder": "Enter email",
+    "password": "Password",
+    "passwordPlaceholder": "Enter password",
+    "nickname": "Nickname",
+    "nicknamePlaceholder": "Enter nickname (optional)",
+    "formRequired": "Username, email and password are required"
+  },
   "domain": {
     "title": "Domain Management",
     "domain": "Domain",

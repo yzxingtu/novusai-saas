@@ -7,7 +7,7 @@ import type { adminApi } from '#/api';
 defineOptions({ name: 'SystemPeriodicTaskList' });
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
-import { IconifyIcon, Plus } from '@vben/icons';
+import { IconifyIcon } from '@vben/icons';
 
 import { Card, message, Switch, Tag, Tooltip } from 'ant-design-vue';
 
@@ -19,7 +19,11 @@ import { formatDate, formatRelativeTime } from '#/utils/common';
 import {
   formatInterval,
   getFormDefaults,
+  getScheduleDisplay,
   getScheduleTypeText,
+  getTaskIcon,
+  getTaskIconBg,
+  getTaskIconColor,
   useColumns,
   useGridFormSchema,
 } from './data';
@@ -58,7 +62,7 @@ async function onToggleActive(row: PeriodicTaskInfo, checked: boolean) {
   }
 }
 
-const { Grid, FormDrawer, onCreate, onRefresh } =
+const { Grid, FormDrawer, onRefresh } =
   useCrudPage<PeriodicTaskInfo>({
     api: {
       list: admin.getPeriodicTaskListApi,
@@ -70,8 +74,10 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
     formDefaults: getFormDefaults,
     i18nPrefix: 'admin.system.periodicTask',
     nameField: 'name',
-    defaultSort: '-created_at',
+    defaultSort: 'name',
+    rowHeight: 72,
     recycleBin: true,
+    createPermission: 'periodic_task:create',
     customActions: {
       trigger: onTriggerTask,
       logs: onViewLogs,
@@ -86,36 +92,49 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
-        <!-- 名称列（含任务路径 + 描述） -->
+        <!-- ═══ 任务名称（图标 + 名称 + 描述 + 路径 + scope 标签） ═══ -->
         <template #name_cell="{ row }">
-          <div class="flex items-center gap-2.5">
+          <div class="flex items-center gap-3">
+            <!-- 彩色任务图标 -->
             <div
-              class="flex size-8 shrink-0 items-center justify-center rounded-lg"
-              :class="row.isActive ? 'bg-success/10' : 'bg-muted'"
+              class="flex size-9 shrink-0 items-center justify-center rounded-xl transition-colors"
+              :class="[
+                row.isActive ? getTaskIconBg(row.taskPath) : 'bg-muted',
+              ]"
             >
               <IconifyIcon
-                icon="lucide:timer"
-                class="size-4"
-                :class="row.isActive ? 'text-success' : 'text-muted-foreground'"
+                :icon="getTaskIcon(row.taskPath)"
+                class="size-[18px]"
+                :class="row.isActive ? getTaskIconColor(row.taskPath) : 'text-muted-foreground/50'"
               />
             </div>
-            <div class="flex min-w-0 flex-col gap-0.5">
+            <!-- 文本信息 -->
+            <div class="flex min-w-0 flex-1 flex-col gap-0.5">
               <div class="flex items-center gap-1.5">
-                <span class="font-medium text-foreground">{{ row.name }}</span>
+                <span
+                  class="truncate text-[13px] font-medium"
+                  :class="row.isActive ? 'text-foreground' : 'text-muted-foreground'"
+                >
+                  {{ row.name }}
+                </span>
                 <IconifyIcon
                   v-if="row.isLocked"
                   icon="lucide:lock"
-                  class="size-3.5 shrink-0 text-warning"
+                  class="size-3 shrink-0 text-warning/70"
                 />
+                <Tag
+                  v-if="row.scope && row.scope !== 'platform'"
+                  :color="row.scope === 'all_tenants' ? 'green' : 'orange'"
+                  class="!m-0 !px-1 !text-[10px] !leading-4"
+                >
+                  {{ $t(`admin.system.periodicTask.scope.${row.scope === 'all_tenants' ? 'allTenants' : row.scope}`) }}
+                </Tag>
               </div>
-              <span
-                v-if="row.description"
-                class="line-clamp-1 text-xs text-muted-foreground"
-              >
-                {{ row.description }}
-              </span>
-              <Tooltip :title="row.taskPath">
-                <code class="w-fit truncate text-[11px] text-muted-foreground/60">
+              <Tooltip v-if="row.description" :title="row.description.trim()" placement="bottomLeft">
+                <span class="block w-full truncate text-left text-xs text-muted-foreground">{{ row.description.trim() }}</span>
+              </Tooltip>
+              <Tooltip :title="row.taskPath" placement="bottomLeft">
+                <code class="w-fit max-w-[280px] truncate text-[11px] leading-4 text-muted-foreground/50">
                   {{ row.taskPath }}
                 </code>
               </Tooltip>
@@ -123,40 +142,39 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
           </div>
         </template>
 
-        <!-- 调度配置列（类型 + 表达式合并） -->
+        <!-- ═══ 调度配置（类型标签 + 人类可读表达式） ═══ -->
         <template #schedule_cell="{ row }">
           <div class="flex flex-col items-center gap-1">
             <Tag
               :color="row.scheduleType === 'cron' ? 'purple' : 'blue'"
-              class="!m-0"
+              class="!m-0 !text-xs"
             >
-              {{ getScheduleTypeText(row.scheduleType) }}
+              <div class="flex items-center gap-1">
+                <IconifyIcon
+                  :icon="row.scheduleType === 'cron' ? 'lucide:calendar-clock' : 'lucide:repeat'"
+                  class="size-3"
+                />
+                {{ getScheduleTypeText(row.scheduleType) }}
+              </div>
             </Tag>
-            <code
+            <Tooltip
               v-if="row.scheduleType === 'cron' && row.cronExpression"
-              class="text-[11px] text-muted-foreground"
+              :title="row.cronExpression"
             >
-              {{ row.cronExpression }}
-            </code>
+              <span class="text-xs text-muted-foreground">
+                {{ getScheduleDisplay(row) }}
+              </span>
+            </Tooltip>
             <span
               v-else-if="row.scheduleType === 'interval'"
               class="text-xs text-muted-foreground"
             >
-              {{ formatInterval(row.intervalSeconds) }}
+              {{ $t('admin.system.periodicTask.every') }} {{ formatInterval(row.intervalSeconds) }}
             </span>
           </div>
         </template>
 
-        <!-- 作用范围列 -->
-        <template #scope_cell="{ row }">
-          <Tag
-            :color="row.scope === 'platform' ? 'geekblue' : row.scope === 'all_tenants' ? 'green' : 'orange'"
-          >
-            {{ $t(`admin.system.periodicTask.scope.${row.scope === 'all_tenants' ? 'allTenants' : row.scope}`) }}
-          </Tag>
-        </template>
-
-        <!-- 启用状态列 -->
+        <!-- ═══ 启用状态 ═══ -->
         <template #isActive_cell="{ row }">
           <Switch
             v-access:code="['periodic_task:toggle']"
@@ -166,30 +184,27 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
           />
         </template>
 
-        <!-- 执行信息列（上次 + 下次合并） -->
+        <!-- ═══ 执行信息（上次 + 下次） ═══ -->
         <template #runInfo_cell="{ row }">
-          <div class="flex flex-col gap-0.5 text-xs">
-            <div class="flex items-center gap-1">
-              <span class="text-muted-foreground/60">{{
-                $t('admin.system.periodicTask.lastRunAt')
-              }}:</span>
+          <div class="flex flex-col gap-1 text-xs">
+            <div class="flex items-center gap-1.5">
+              <IconifyIcon icon="lucide:history" class="size-3 shrink-0 text-muted-foreground/40" />
               <Tooltip
                 v-if="row.lastRunAt"
                 :title="formatDate(row.lastRunAt)"
               >
-                <span class="text-muted-foreground">{{
-                  formatRelativeTime(row.lastRunAt)
-                }}</span>
+                <span class="tabular-nums text-muted-foreground">
+                  {{ formatRelativeTime(row.lastRunAt) }}
+                </span>
               </Tooltip>
-              <span v-else class="text-muted-foreground/40">-</span>
+              <span v-else class="text-muted-foreground/30">—</span>
             </div>
-            <div class="flex items-center gap-1">
-              <span class="text-muted-foreground/60">{{
-                $t('admin.system.periodicTask.nextRunAt')
-              }}:</span>
+            <div class="flex items-center gap-1.5">
+              <IconifyIcon icon="lucide:timer" class="size-3 shrink-0 text-muted-foreground/40" />
               <template v-if="row.nextRunAt">
                 <Tooltip :title="formatDate(row.nextRunAt)">
                   <span
+                    class="tabular-nums"
                     :class="
                       new Date(row.nextRunAt).getTime() > Date.now()
                         ? 'text-success'
@@ -200,27 +215,11 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
                   </span>
                 </Tooltip>
               </template>
-              <span v-else class="text-muted-foreground/40">-</span>
+              <span v-else class="text-muted-foreground/30">—</span>
             </div>
           </div>
         </template>
 
-        <!-- 工具栏 -->
-        <template #toolbar-tools>
-          <Card
-            v-access:code="['periodic_task:create']"
-            size="small"
-            class="mr-2 cursor-pointer transition-shadow duration-200 hover:shadow-md"
-            @click="onCreate"
-          >
-            <div class="flex items-center gap-2 text-primary">
-              <Plus class="size-4" />
-              <span class="font-medium">{{
-                $t('admin.system.periodicTask.create')
-              }}</span>
-            </div>
-          </Card>
-        </template>
       </Grid>
     </Card>
   </Page>

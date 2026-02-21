@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.task_failure.title }}{% endblock %}
+
+{% block header_title %}{{ t.task_failure.title }}{% endblock %}
+
+{% block content %}
+<p>{{ t.common.greeting }},</p>
+
+<table class="info-table">
+  <tr>
+    <td class="label">{{ t.task_failure.task_name_label }}</td>
+    <td class="value">{{ task_name }}</td>
+  </tr>
+  <tr>
+    <td class="label">{{ t.task_failure.task_id_label }}</td>
+    <td class="value">{{ task_id }}</td>
+  </tr>
+</table>
+
+<p style="color: #6b7280; font-size: 14px; margin-bottom: 4px;">{{ t.task_failure.error_label }}:</p>
+<div class="error-box">
+  <pre>{{ error }}</pre>
+</div>
+
+<div class="alert-box">
+  {{ t.task_failure.action_hint }}
+</div>
+{% endblock %}

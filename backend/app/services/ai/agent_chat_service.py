@@ -243,6 +243,7 @@ class AgentChatService:
         permissions: set[str] | None = None,
         consented_actions: list[str] | None = None,
         attachments: list[dict[str, Any]] | None = None,
+        image_params: dict[str, Any] | None = None,
     ) -> StreamingResponse:
         """
         流式对话（返回 StreamingResponse）
@@ -374,29 +375,66 @@ class AgentChatService:
                 )
             raise
 
-        # 6. 解析 Skill（在 Service 层完成，不在 Engine 内部查 DB）
-        from app.ai.skills.resolver import resolve_for_agent
-        skill_result = await resolve_for_agent(
-            self.db, agent, tenant_id=self.tenant_id,
+        # 6. 创建 Gateway
+        gateway = AIGateway(self.db)
+
+        # 6.1 检测是否为生图模型 → 使用 ImageGenerationEngine
+        model_obj = getattr(agent, "model", None)
+        is_image_model = (
+            model_obj is not None
+            and getattr(model_obj, "type", "") == "image"
         )
 
-        # 7. 创建引擎
-        gateway = AIGateway(self.db)
-        sandbox = ToolSandbox(
-            tenant_id=self.tenant_id,
-            agent_id=agent_id,
-            user_id=user_id,
-            user_role=user_role,
-            permissions=permissions,
-            gateway=gateway,
-            db=self.db,
-            agent=agent,
-        )
-        engine = ConversationEngine(
-            db=self.db,
-            gateway=gateway,
-            sandbox=sandbox,
-        )
+        if is_image_model:
+            from app.ai.engine.image_generation import ImageGenerationEngine
+            engine = ImageGenerationEngine(gateway=gateway)
+            skill_result = None
+            skill_warnings: list[str] = []
+        else:
+            # 解析 Skill（在 Service 层完成，不在 Engine 内部查 DB）
+            from app.ai.skills.resolver import resolve_for_agent
+            skill_warnings = []
+            try:
+                skill_result = await resolve_for_agent(
+                    self.db, agent, tenant_id=self.tenant_id,
+                )
+                if skill_result and skill_result.warnings:
+                    skill_warnings = skill_result.warnings
+            except Exception as skill_exc:
+                logger.error(
+                    "Skill resolution failed for agent %d: %s",
+                    agent_id, str(skill_exc),
+                )
+                skill_result = None
+                skill_warnings = [_("agent_chat.skill_load_failed")]
+
+            # 读取平台 Toolkit 安全配置
+            from app.configs.service import ConfigService
+            _cfg = ConfigService(self.db)
+            _toolkit_security_level = await _cfg.get_platform_config(
+                "toolkit_security_level", default="normal",
+            )
+            _toolkit_memory_limit_mb = await _cfg.get_platform_config(
+                "toolkit_memory_limit_mb", default=256,
+            )
+
+            sandbox = ToolSandbox(
+                tenant_id=self.tenant_id,
+                agent_id=agent_id,
+                user_id=user_id,
+                user_role=user_role,
+                permissions=permissions,
+                gateway=gateway,
+                db=self.db,
+                agent=agent,
+                toolkit_security_level=str(_toolkit_security_level),
+                toolkit_memory_limit_mb=int(_toolkit_memory_limit_mb),
+            )
+            engine = ConversationEngine(
+                db=self.db,
+                gateway=gateway,
+                sandbox=sandbox,
+            )
 
         # 7. 创建持久化回调（流式完成后调用，含配额记录+并发释放+钩子）
         history_count = len(history_messages)
@@ -481,12 +519,20 @@ class AgentChatService:
                         lock_token=lock_token,
                     )
 
-        return await engine.stream_execute(
-            agent=agent,
-            request=request,
-            on_complete=on_stream_complete,
-            skill_result=skill_result,
-        )
+        if is_image_model:
+            return await engine.stream_execute(
+                agent=agent,
+                request=request,
+                on_complete=on_stream_complete,
+                image_params=image_params,
+            )
+        else:
+            return await engine.stream_execute(
+                agent=agent,
+                request=request,
+                on_complete=on_stream_complete,
+                skill_result=skill_result,
+            )
 
     # ========================================
     # 操作确认/取消

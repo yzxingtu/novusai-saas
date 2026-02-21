@@ -33,6 +33,7 @@ class AgentSkillBindingUpdate(BaseUpdateSchema):
     config_override: dict[str, Any] | None = Field(None, description=_("agent_skill_binding.field.config_override"))
     sort_order: int | None = Field(None, ge=0, description=_("agent_skill_binding.field.sort_order"))
     consent_mode: str | None = Field(None, description=_("agent_skill_binding.field.consent_mode"))
+    skill_consent_overrides: dict[str, str] | None = Field(None, description=_("agent_skill_binding.field.skill_consent_overrides"))
 
 
 __all__ = [

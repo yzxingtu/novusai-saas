@@ -117,6 +117,26 @@ PLATFORM_SSL_GROUP = ConfigGroupMeta(
     sort_order=50,
 )
 
+# WebSocket & 通知设置分组
+PLATFORM_WEBSOCKET_GROUP = ConfigGroupMeta(
+    code="platform_websocket",
+    name_key="config.group.platform_websocket.name",
+    description_key="config.group.platform_websocket.desc",
+    scope=ConfigScope.PLATFORM,
+    icon="lucide:radio",
+    sort_order=70,
+)
+
+# AI Toolkit 安全设置分组
+PLATFORM_AI_TOOLKIT_GROUP = ConfigGroupMeta(
+    code="platform_ai_toolkit",
+    name_key="config.group.platform_ai_toolkit.name",
+    description_key="config.group.platform_ai_toolkit.desc",
+    scope=ConfigScope.PLATFORM,
+    icon="lucide:wrench",
+    sort_order=60,
+)
+
 # 所有平台配置分组
 PLATFORM_CONFIG_GROUPS = [
     PLATFORM_GENERAL_GROUP,
@@ -124,6 +144,8 @@ PLATFORM_CONFIG_GROUPS = [
     PLATFORM_EMAIL_GROUP,
     PLATFORM_STORAGE_GROUP,
     PLATFORM_SSL_GROUP,
+    PLATFORM_AI_TOOLKIT_GROUP,
+    PLATFORM_WEBSOCKET_GROUP,
 ]
 
 # 所有租户配置分组
@@ -145,6 +167,8 @@ __all__ = [
     "PLATFORM_EMAIL_GROUP",
     "PLATFORM_STORAGE_GROUP",
     "PLATFORM_SSL_GROUP",
+    "PLATFORM_AI_TOOLKIT_GROUP",
+    "PLATFORM_WEBSOCKET_GROUP",
     "PLATFORM_CONFIG_GROUPS",
     # 租户分组
     "TENANT_GENERAL_GROUP",

@@ -85,15 +85,16 @@ def _to_string(value: Any) -> str:
 
 def main() -> None:
     """主入口：从 stdin 读取参数，执行后写入 stdout"""
-    # 设置资源限制
-    _apply_resource_limits()
-
     try:
         raw = sys.stdin.read()
         params = json.loads(raw)
     except (json.JSONDecodeError, Exception) as exc:
         _write_error(f"Invalid input: {exc}")
         return
+
+    # 设置资源限制（从参数中读取内存限制）
+    memory_limit = params.get("memory_limit_mb", 256)
+    _apply_resource_limits(memory_limit)
 
     source_path = params.get("source_path", "")
     method_name = params.get("method", "")

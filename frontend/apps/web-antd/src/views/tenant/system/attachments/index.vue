@@ -132,11 +132,11 @@ const { Grid, gridApi } = useCrudPage<AttachmentInfo>({
     <!-- 表格 -->
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
-        <!-- 工具栏插槽 -->
-        <template #toolbar-tools>
+        <!-- 左侧工具栏：上传按钮 -->
+        <template #toolbar-actions>
           <Button type="primary" @click="pickerRef?.open()">
             <template #icon>
-              <IconifyIcon icon="lucide:upload" />
+              <IconifyIcon icon="lucide:upload" class="size-4" />
             </template>
             {{ $t('tenant.system.attachment.upload') }}
           </Button>
@@ -214,9 +214,9 @@ const { Grid, gridApi } = useCrudPage<AttachmentInfo>({
 
         <!-- 上传时间列 -->
         <template #uploadedAt_cell="{ row }">
-          <Tooltip :title="formatDate(row.uploadedAt)">
+          <Tooltip :title="formatDate(row.createdAt)">
             <span class="text-muted-foreground">
-              {{ formatRelativeTime(row.uploadedAt) }}
+              {{ formatRelativeTime(row.createdAt) }}
             </span>
           </Tooltip>
         </template>

@@ -91,7 +91,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         action="admin.system_mgmt",
         icon="lucide:wrench",
         path="/system-mgmt",
-        sort_order=30,
+        sort_order=80,
     ),
     # 子菜单由控制器声明:
     # - menu:admin.platform_config (平台配置)
@@ -108,7 +108,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         action="admin.ai_mgmt",
         icon="lucide:brain-circuit",
         path="/ai",
-        sort_order=35,
+        sort_order=30,
     ),
 
     # ---- 基础设施（子目录） ----
@@ -182,7 +182,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         action="admin.system_maintenance",
         icon="lucide:hard-drive",
         path="/system-maintenance",
-        sort_order=40,
+        sort_order=90,
     ),
     # 子菜单由控制器声明:
     # - menu:admin.operation_log (操作日志)

@@ -14,3 +14,11 @@ export {
 } from '#/adapter/vxe-table';
 
 export { useCrudDrawer, type UseCrudDrawerOptions } from './use-crud-form';
+
+export {
+  useFileUpload,
+  type FileValidationResult,
+  type FileValidationRules,
+  type UploadOptions,
+  type UploadResult,
+} from './use-file-upload';

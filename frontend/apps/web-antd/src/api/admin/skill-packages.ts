@@ -170,3 +170,25 @@ export function getSkillPackageSkillsApi(
     { params },
   );
 }
+
+/** 导出技能包 JSON */
+export function exportSkillPackageApi(packageId: number) {
+  return requestClient.get<Record<string, unknown>>(
+    `${BASE_URL}/${packageId}/export`,
+  );
+}
+
+/** 导入技能包 JSON */
+export function importSkillPackageApi(data: {
+  export_data: Record<string, unknown>;
+  conflict_mode?: 'skip' | 'rename';
+  target_scope?: string;
+  target_tenant_id?: number | null;
+}) {
+  return requestClient.post<{
+    status: string;
+    package_id: number;
+    package_name: string;
+    skills_created: number;
+  }>(`${BASE_URL}/import`, data);
+}

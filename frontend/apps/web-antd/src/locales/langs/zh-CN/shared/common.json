@@ -35,6 +35,8 @@
   "export": "导出",
   "import": "导入",
   "upload": "上传",
+  "uploadFailed": "上传失败",
+  "uploadSuccess": "上传成功",
   "change": "更换",
   "preview": "预览",
   "back": "返回",
@@ -108,5 +110,6 @@
   },
   "copied": "已复制到剪贴板",
   "notSet": "未设置",
-  "saveSuccess": "保存成功"
+  "saveSuccess": "保存成功",
+  "connectionLost": "实时连接已断开，正在尝试重连..."
 }

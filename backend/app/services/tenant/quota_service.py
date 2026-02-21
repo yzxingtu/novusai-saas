@@ -10,9 +10,11 @@ from typing import Any
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.i18n import _
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
 from app.models.tenant.tenant_domain import TenantDomain
+from app.models.tenant.tenant_user import TenantUser
 
 
 @dataclass
@@ -124,7 +126,7 @@ class QuotaService:
                 current=0,
                 limit=0,
                 remaining=0,
-                message="无存储限制",
+                message=_("quota.no_limit"),
             )
         
         # 使用传入的存储使用量，未传入则使用默认值
@@ -141,7 +143,7 @@ class QuotaService:
             current=int(current_bytes / (1024 * 1024 * 1024)),  # 转为 GB
             limit=limit_gb,
             remaining=max(0, int(remaining / (1024 * 1024 * 1024))),
-            message=None if allowed else f"存储空间不足，当前已使用 {current_bytes / (1024 * 1024 * 1024):.2f}GB，限制 {limit_gb}GB",
+            message=None if allowed else _("quota.storage_exceeded", current=f"{current_bytes / (1024 * 1024 * 1024):.2f}", limit=limit_gb),
         )
     
     async def check_user_quota(self, additional: int = 1) -> QuotaCheckResult:
@@ -163,12 +165,16 @@ class QuotaService:
                 current=0,
                 limit=0,
                 remaining=0,
-                message="无用户数限制",
+                message=_("quota.no_limit"),
             )
         
-        # 统计当前用户数（需要有 TenantUser 模型）
-        # TODO: 实现实际的用户统计
-        current = 0
+        # 统计当前用户数
+        query = select(func.count(TenantUser.id)).where(
+            TenantUser.tenant_id == self.tenant.id,
+            TenantUser.is_deleted.is_(False),
+        )
+        result = await self.db.execute(query)
+        current = result.scalar() or 0
         
         remaining = limit - current
         allowed = (current + additional) <= limit
@@ -178,7 +184,7 @@ class QuotaService:
             current=current,
             limit=limit,
             remaining=max(0, remaining),
-            message=None if allowed else f"用户数已达上限 {limit}",
+            message=None if allowed else _("quota.users_exceeded", limit=limit),
         )
     
     async def check_admin_quota(self, additional: int = 1) -> QuotaCheckResult:
@@ -200,7 +206,7 @@ class QuotaService:
                 current=0,
                 limit=0,
                 remaining=0,
-                message="无管理员数限制",
+                message=_("quota.no_limit"),
             )
         
         # 统计当前管理员数
@@ -219,7 +225,7 @@ class QuotaService:
             current=current,
             limit=limit,
             remaining=max(0, remaining),
-            message=None if allowed else f"管理员数已达上限 {limit}",
+            message=None if allowed else _("quota.admins_exceeded", limit=limit),
         )
     
     async def check_domain_quota(self, additional: int = 1) -> QuotaCheckResult:
@@ -240,7 +246,7 @@ class QuotaService:
                 current=0,
                 limit=-1,
                 remaining=0,
-                message="当前套餐不支持自定义域名",
+                message=_("quota.custom_domain_not_supported"),
             )
         
         limit = self.get_quota_value("max_custom_domains", 0)
@@ -252,7 +258,7 @@ class QuotaService:
                 current=0,
                 limit=0,
                 remaining=0,
-                message="无域名数限制",
+                message=_("quota.no_limit"),
             )
         
         # 统计当前自定义域名数（排除主域名/子域名）
@@ -272,7 +278,7 @@ class QuotaService:
             current=current,
             limit=limit,
             remaining=max(0, remaining),
-            message=None if allowed else f"自定义域名数已达上限 {limit}",
+            message=None if allowed else _("quota.domains_exceeded", limit=limit),
         )
     
     async def check_api_calls_quota(self, additional: int = 1) -> QuotaCheckResult:
@@ -294,11 +300,20 @@ class QuotaService:
                 current=0,
                 limit=0,
                 remaining=0,
-                message="无 API 调用限制",
+                message=_("quota.no_limit"),
             )
         
-        # TODO: 从计数服务获取当前月份调用次数
-        current = 0
+        # 从 AI 调用日志统计当月调用次数
+        from app.core.base_model import utc_now
+        now = utc_now()
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        from app.models.ai.call_log import AICallLog
+        query = select(func.count(AICallLog.id)).where(
+            AICallLog.tenant_id == self.tenant.id,
+            AICallLog.created_at >= month_start,
+        )
+        result = await self.db.execute(query)
+        current = result.scalar() or 0
         
         remaining = limit - current
         allowed = (current + additional) <= limit
@@ -308,7 +323,7 @@ class QuotaService:
             current=current,
             limit=limit,
             remaining=max(0, remaining),
-            message=None if allowed else f"本月 API 调用次数已达上限 {limit}",
+            message=None if allowed else _("quota.api_calls_exceeded", limit=limit),
         )
     
     def check_file_size(self, file_size_bytes: int) -> QuotaCheckResult:
@@ -330,7 +345,7 @@ class QuotaService:
                 current=0,
                 limit=0,
                 remaining=0,
-                message="无文件大小限制",
+                message=_("quota.no_limit"),
             )
         
         file_size_mb = file_size_bytes / (1024 * 1024)
@@ -341,7 +356,7 @@ class QuotaService:
             current=int(file_size_mb),
             limit=limit_mb,
             remaining=max(0, int(limit_mb - file_size_mb)),
-            message=None if allowed else f"文件大小超出限制 {limit_mb}MB",
+            message=None if allowed else _("quota.file_size_exceeded", limit=limit_mb),
         )
     
     def get_all_quotas(self) -> dict[str, Any]:

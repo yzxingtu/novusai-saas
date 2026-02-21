@@ -80,8 +80,11 @@ def send_email_task(
                 "triggered_by": triggered_by,
             }
 
-        # 发送失败但非异常（如配置缺失）—— 不重试
-        if result.message in ("email_disabled", "config_incomplete", "no_recipients"):
+        # 发送失败但非异常（配置缺失/校验失败）—— 不重试
+        if result.message in (
+            "email_disabled", "config_incomplete", "no_recipients",
+            "too_many_recipients", "invalid_email", "attachment_too_large",
+        ):
             logger.warning(
                 "Email skipped: reason=%s to=%s",
                 result.message, ", ".join(to),

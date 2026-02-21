@@ -225,7 +225,9 @@ ehthumbs_vista.db
 # Uploads and media
 uploads/
 media/
-storage/
+# Storage data directories (not backend/app/storage/ source code)
+/storage/
+/backend/storage/
 
 # Database
 *.db

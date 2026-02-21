@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.ssl_expiry.title }}{% endblock %}
+
+{% block header_title %}{{ t.ssl_expiry.title }}{% endblock %}
+
+{% block content %}
+<p>{{ t.common.greeting }},</p>
+<p>{{ t.ssl_expiry.body }}</p>
+
+<table class="info-table">
+  <tr>
+    <td class="label">{{ t.ssl_expiry.domain_label }}</td>
+    <td class="value">{{ domain }}</td>
+  </tr>
+  <tr>
+    <td class="label">{{ t.ssl_expiry.expires_label }}</td>
+    <td class="value">{{ expires_at }}</td>
+  </tr>
+  <tr>
+    <td class="label">{{ t.ssl_expiry.days_label }}</td>
+    <td class="value" style="color: {% if days_remaining <= 7 %}#ef4444{% elif days_remaining <= 14 %}#f59e0b{% else %}#374151{% endif %}; font-weight: 600;">
+      {{ days_remaining }}
+    </td>
+  </tr>
+</table>
+
+<div class="alert-box">
+  {{ t.ssl_expiry.action_hint }}
+</div>
+{% endblock %}

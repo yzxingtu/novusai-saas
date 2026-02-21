@@ -40,12 +40,15 @@ from app.api.admin.skill_packages import router as ai_skill_packages_router, Adm
 from app.api.admin.skills import router as ai_skills_router, AdminSkillController
 from app.api.admin.agent_assignments import router as agent_assignments_router, AdminAgentAssignmentController
 from app.api.admin.email_logs import router as email_logs_router, AdminEmailLogController
+from app.api.admin.recycle_bin import router as recycle_bin_router, AdminRecycleBinController
+from app.api.admin.dashboard import router as dashboard_router
 
 # 创建平台管理后台路由器
 admin_router = APIRouter()
 
 # 注册子路由
 admin_router.include_router(auth_router)
+admin_router.include_router(dashboard_router)
 admin_router.include_router(permissions_router)
 admin_router.include_router(roles_router)
 admin_router.include_router(tenants_router)
@@ -86,6 +89,17 @@ admin_router.include_router(ai_skills_router)
 # 系统智能体绑定
 admin_router.include_router(agent_assignments_router)
 admin_router.include_router(email_logs_router)
+# 总回收站
+admin_router.include_router(recycle_bin_router)
+# WebSocket 在线状态
+from app.api.admin.ws import router as ws_router
+admin_router.include_router(ws_router)
+# 租户管理员管理
+from app.api.admin.tenant_admins import router as tenant_admins_router, AdminTenantAdminController
+admin_router.include_router(tenant_admins_router)
+# 通知
+from app.api.admin.notifications import router as notifications_router
+admin_router.include_router(notifications_router)
 
 
 __all__ = [
@@ -130,4 +144,6 @@ __all__ = [
     "AdminSkillController",
     # 系统智能体绑定
     "AdminAgentAssignmentController",
+    # 总回收站
+    "AdminRecycleBinController",
 ]

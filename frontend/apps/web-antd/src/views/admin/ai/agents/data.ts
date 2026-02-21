@@ -166,9 +166,6 @@ export function useFormSchema(_isEdit = false, isSystem = false): VbenFormSchema
       component: 'ImageUpload',
       fieldName: 'avatar',
       label: $t('admin.ai.agent.avatar'),
-      componentProps: {
-        uploadUrl: '/admin/attachments/upload',
-      },
     },
     textareaField('description', $t('admin.ai.agent.description'), {
       rows: 2,

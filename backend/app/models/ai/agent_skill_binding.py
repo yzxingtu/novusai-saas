@@ -78,6 +78,12 @@ class AgentSkillBinding(TenantModel):
         default=ToolConsentModeEnum.AUTO.value,
         comment=_("agent_skill_binding.field.consent_mode"),
     )
+    skill_consent_overrides: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
+        comment=_("agent_skill_binding.field.skill_consent_overrides"),
+    )
 
     # ==================== 约束与索引 ====================
 

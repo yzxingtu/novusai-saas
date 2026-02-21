@@ -18,6 +18,9 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
 from app.core.base_model import Base
+from app.core.logging import LogManager
+
+logger = LogManager.get_logger("db")
 
 
 # ============================================
@@ -169,7 +172,7 @@ async def check_database_connection() -> bool:
             await conn.execute(text("SELECT 1"))
         return True
     except Exception as e:
-        print(f"Database connection failed: {e}")
+        logger.error("Database connection failed: %s", e)
         return False
 
 
@@ -203,17 +206,17 @@ def create_database_if_not_exists() -> bool:
             exists = result.scalar() is not None
 
             if not exists:
-                print(f"Database '{settings.DATABASE_NAME}' does not exist, creating...")
+                logger.info("Database '%s' does not exist, creating...", settings.DATABASE_NAME)
                 conn.execute(
                     text(f'CREATE DATABASE "{settings.DATABASE_NAME}"')
                 )
-                print(f"Database '{settings.DATABASE_NAME}' created successfully")
+                logger.info("Database '%s' created successfully", settings.DATABASE_NAME)
             else:
-                print(f"Database '{settings.DATABASE_NAME}' already exists")
+                logger.debug("Database '%s' already exists", settings.DATABASE_NAME)
 
         return True
     except Exception as e:
-        print(f"Database creation failed: {e}")
+        logger.error("Database creation failed: %s", e)
         return False
     finally:
         admin_engine.dispose()
@@ -236,15 +239,15 @@ def run_migrations() -> bool:
         alembic_ini = backend_dir / "alembic.ini"
 
         if not alembic_ini.exists():
-            print("alembic.ini not found, skipping migrations")
+            logger.warning("alembic.ini not found, skipping migrations")
             return True
 
         migrations_dir = backend_dir / "migrations" / "versions"
         if not migrations_dir.exists() or not any(migrations_dir.glob("*.py")):
-            print("No migration files found, skipping migrations")
+            logger.warning("No migration files found, skipping migrations")
             return True
 
-        print("Running database migrations...")
+        logger.info("Running database migrations...")
 
         alembic_cfg = Config(str(alembic_ini))
         alembic_cfg.set_main_option(
@@ -256,13 +259,13 @@ def run_migrations() -> bool:
 
         command.upgrade(alembic_cfg, "head")
 
-        print("Database migrations completed")
+        logger.info("Database migrations completed")
         return True
     except ImportError:
-        print("Alembic not installed, skipping migrations")
+        logger.warning("Alembic not installed, skipping migrations")
         return True
     except Exception as e:
-        print(f"Database migration failed: {e}")
+        logger.error("Database migration failed: %s", e)
         return False
 
 
@@ -277,7 +280,7 @@ async def init_database() -> bool:
     Returns:
         是否成功
     """
-    print("Initializing database...")
+    logger.info("Initializing database...")
 
     # 1. 检查/创建数据库
     if not await asyncio.to_thread(create_database_if_not_exists):
@@ -291,7 +294,7 @@ async def init_database() -> bool:
     if not await check_database_connection():
         return False
 
-    print("Database initialization complete")
+    logger.info("Database initialization complete")
     return True
 
 
@@ -303,7 +306,7 @@ async def close_database() -> None:
     sync_engine.dispose()
     if _readonly_engine is not None:
         await _readonly_engine.dispose()
-    print("Database connections closed")
+    logger.info("Database connections closed")
 
 
 # 导出

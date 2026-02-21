@@ -12,6 +12,7 @@ import type { TenantSkillPackageInfo } from '#/api/tenant/skill-packages';
 defineOptions({ name: 'TenantSkillPackageList' });
 
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon, Plus } from '@vben/icons';
@@ -90,8 +91,14 @@ async function loadPackages() {
   }
 }
 
+const router = useRouter();
+
 function onSelectPackage(pkg: TenantSkillPackageInfo) {
   selectedPackageId.value = pkg.id;
+}
+
+function goToDetail(pkg: TenantSkillPackageInfo) {
+  router.push(`/tenant/ai/skill-packages/${pkg.id}`);
 }
 
 // ==================== 技能包 ZIP 上传 ====================
@@ -479,6 +486,16 @@ onMounted(() => {
               </div>
               <!-- hover 操作按钮 -->
               <div class="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                <Tooltip :title="$t('shared.common.viewDetail')">
+                  <Button
+                    type="text"
+                    size="small"
+                    class="!size-6 !min-w-0 !p-0"
+                    @click.stop="goToDetail(pkg)"
+                  >
+                    <IconifyIcon icon="lucide:external-link" class="size-3 text-muted-foreground" />
+                  </Button>
+                </Tooltip>
                 <Tooltip :title="$t('tenant.common.edit')">
                   <Button
                     v-if="!pkg.is_system && pkg.scope !== 'global'"

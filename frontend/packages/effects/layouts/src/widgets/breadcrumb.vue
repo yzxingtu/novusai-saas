@@ -6,6 +6,7 @@ import type { IBreadcrumb } from '@vben-core/shadcn-ui';
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
+import { $t, $te } from '@vben/locales';
 import { useAccessStore } from '@vben/stores';
 
 import { VbenBreadcrumbView } from '@vben-core/shadcn-ui';
@@ -41,7 +42,14 @@ const breadcrumbs = computed((): IBreadcrumb[] => {
 
     // 从 accessMenus 获取已翻译的标题，因为切换语言时 accessMenus 会重新加载
     const menu = accessStore.getMenuByPath(path);
-    const menuTitle = menu?.name || title || '';
+    // 静态路由的 meta.title 在模块导入时通过 $t() 设置，
+    // 此时 i18n 尚未就绪，值为原始 key（如 "page.auth.profile"）。
+    // 动态路由的 title 由后端已翻译。此处对未匹配到动态菜单的 title 尝试运行时翻译。
+    const rawTitle = (title || '') as string;
+    const resolvedTitle = !menu && rawTitle.includes('.') && $te(rawTitle)
+      ? $t(rawTitle)
+      : rawTitle;
+    const menuTitle = menu?.name || resolvedTitle;
 
     resultBreadcrumb.push({
       icon: menu?.icon || icon,

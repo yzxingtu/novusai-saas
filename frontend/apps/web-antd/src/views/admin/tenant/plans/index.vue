@@ -9,7 +9,7 @@ import { ref } from 'vue';
 defineOptions({ name: 'TenantPlanList' });
 
 import { Page } from '@vben/common-ui';
-import { IconifyIcon, Plus } from '@vben/icons';
+import { IconifyIcon } from '@vben/icons';
 
 import { Card, message, Popover, Tag, Tooltip } from 'ant-design-vue';
 
@@ -52,7 +52,7 @@ function handleSetPermissions(row: TenantPlanInfo) {
 }
 
 // 声明式 CRUD 页面（导出按钮自动添加）
-const { Grid, FormDrawer, ExportModal, gridApi, onCreate, onRefresh } =
+const { Grid, FormDrawer, ExportModal, gridApi, onRefresh } =
   useCrudPage<TenantPlanInfo>({
     api: {
       list: admin.getTenantPlanListApi,
@@ -67,6 +67,7 @@ const { Grid, FormDrawer, ExportModal, gridApi, onCreate, onRefresh } =
     nameField: 'name',
     defaultSort: 'sort_order',
     recycleBin: true,
+    createPermission: 'tenant_plan:create',
     customActions: {
       permissions: handleSetPermissions,
     },
@@ -294,21 +295,6 @@ useAutoTableDragSort(() => gridApi.grid, {
           </div>
         </template>
 
-        <template #toolbar-tools>
-          <Card
-            v-access:code="['tenant_plan:create']"
-            size="small"
-            class="mr-2 cursor-pointer transition-shadow duration-200 hover:shadow-md"
-            @click="onCreate"
-          >
-            <div class="flex items-center gap-2 text-primary">
-              <Plus class="size-4" />
-              <span class="font-medium">{{
-                $t('admin.tenant.plan.create')
-              }}</span>
-            </div>
-          </Card>
-        </template>
       </Grid>
     </Card>
   </Page>

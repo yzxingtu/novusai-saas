@@ -14,6 +14,7 @@ import { Button, Spin, Tag, Tooltip } from 'ant-design-vue';
 
 import { MarkdownRender } from '#/components/business/markdown-render';
 import { $t } from '#/locales';
+import { getFileIcon } from '#/utils/file';
 
 const props = withDefaults(
   defineProps<{
@@ -32,6 +33,9 @@ const emit = defineEmits<{
   'consent-confirm': [index: number];
   'consent-reject': [index: number];
   'open-url': [url: string];
+  'action-click': [index: number, value: string];
+  regenerate: [index: number];
+  edit: [index: number];
 }>();
 
 function agentAvatar(agent: { avatar?: string | null }) {
@@ -126,7 +130,8 @@ function agentInitial(agent: { name: string }) {
                   <span class="font-medium text-foreground/70">{{ tc.skillName }}</span>
                   <span :class="compact ? 'mx-0.5' : 'mx-1'" class="text-muted-foreground/50">›</span>
                 </template>
-                {{ tc.name }}
+                {{ tc.displayName || tc.name }}
+                <span v-if="tc.summary && tc.status === 'success'" class="ml-1 text-muted-foreground/70">— {{ tc.summary }}</span>
               </span>
               <!-- Tag status (page mode only) -->
               <Tag
@@ -170,6 +175,16 @@ function agentInitial(agent: { name: string }) {
               <div v-if="tc.error" class="whitespace-pre-wrap break-all text-red-500">
                 {{ tc.error }}
               </div>
+              <a
+                v-if="tc.resultLink && tc.status === 'success'"
+                :href="tc.resultLink"
+                target="_blank"
+                class="mt-1 inline-flex items-center gap-1 text-primary hover:underline"
+                :class="compact ? 'text-[10px]' : 'text-[11px]'"
+              >
+                <IconifyIcon icon="lucide:external-link" :class="compact ? 'size-2.5' : 'size-3'" />
+                {{ $t('common.globalAiChat.viewResult') }}
+              </a>
             </div>
           </details>
           <!-- Generating indicator after tool calls -->
@@ -193,6 +208,43 @@ function agentInitial(agent: { name: string }) {
           <span v-if="msg.streaming" class="streaming-cursor" />
         </div>
 
+        <!-- Generated images -->
+        <div
+          v-if="msg.imageResults && msg.imageResults.length > 0"
+          class="flex flex-wrap"
+          :class="compact ? 'mt-1.5 gap-2' : 'mt-2 gap-3'"
+        >
+          <div
+            v-for="(img, ii) in msg.imageResults"
+            :key="ii"
+            class="group/img relative overflow-hidden rounded-lg border border-border"
+          >
+            <img
+              :src="img.isBase64 ? `data:image/png;base64,${img.url}` : img.url"
+              :alt="img.revisedPrompt || $t('common.globalAiChat.generatedImage')"
+              class="cursor-pointer object-cover transition-transform hover:scale-105"
+              :class="compact ? 'max-h-48 max-w-56' : 'max-h-64 max-w-72'"
+              @click="emit('open-url', img.isBase64 ? `data:image/png;base64,${img.url}` : img.url)"
+            />
+            <a
+              :href="img.isBase64 ? `data:image/png;base64,${img.url}` : img.url"
+              :download="img.isBase64 ? 'generated-image.png' : undefined"
+              target="_blank"
+              class="absolute bottom-2 right-2 flex size-7 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity hover:bg-black/70 group-hover/img:opacity-100"
+              :title="$t('common.globalAiChat.downloadImage')"
+            >
+              <IconifyIcon icon="lucide:download" class="size-3.5" />
+            </a>
+            <div
+              v-if="img.revisedPrompt"
+              class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 pb-1.5 pt-4 text-white opacity-0 transition-opacity group-hover/img:opacity-100"
+              :class="compact ? 'text-[10px]' : 'text-xs'"
+            >
+              <span class="line-clamp-2">{{ img.revisedPrompt }}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Confirmation card -->
         <div
           v-if="msg.pendingConfirmation && !msg.streaming"
@@ -208,10 +260,19 @@ function agentInitial(agent: { name: string }) {
           </div>
           <div
             v-if="msg.pendingConfirmation.preview"
-            class="overflow-y-auto rounded-md bg-accent/50 font-mono text-muted-foreground"
+            class="overflow-y-auto rounded-md bg-accent/50"
             :class="compact ? 'mb-2 max-h-32 px-2 py-1.5 text-[10px]' : 'mb-3 max-h-40 px-3 py-2 text-xs'"
           >
-            <pre class="whitespace-pre-wrap">{{ JSON.stringify(msg.pendingConfirmation.preview, null, 2) }}</pre>
+            <table class="w-full text-left">
+              <tr
+                v-for="(val, key) in msg.pendingConfirmation.preview"
+                :key="String(key)"
+                class="border-b border-border/30 last:border-0"
+              >
+                <td class="whitespace-nowrap py-0.5 pr-3 font-medium text-foreground/70">{{ key }}</td>
+                <td class="break-all py-0.5 text-muted-foreground">{{ typeof val === 'object' ? JSON.stringify(val) : val }}</td>
+              </tr>
+            </table>
           </div>
           <div v-if="!msg.pendingConfirmation.resolved" class="flex items-center gap-2">
             <Button type="primary" size="small" @click="emit('confirm', props.index)">
@@ -280,30 +341,56 @@ function agentInitial(agent: { name: string }) {
           </div>
         </div>
 
-        <!-- RAG sources (page mode only) -->
+        <!-- RAG sources -->
         <div
-          v-if="!compact && msg.ragSources && msg.ragSources.length > 0 && !msg.streaming"
-          class="mt-2"
+          v-if="msg.ragSources && msg.ragSources.length > 0 && !msg.streaming"
+          :class="compact ? 'mt-1' : 'mt-2'"
         >
           <details class="group">
-            <summary class="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
-              <IconifyIcon icon="lucide:book-open" class="size-3.5" />
+            <summary
+              class="flex cursor-pointer items-center text-muted-foreground hover:text-foreground"
+              :class="compact ? 'gap-1 text-[11px]' : 'gap-1.5 text-xs'"
+            >
+              <IconifyIcon icon="lucide:book-open" :class="compact ? 'size-3' : 'size-3.5'" />
               <span>{{ $t('common.globalAiChat.ragSources') }} ({{ msg.ragSources.length }})</span>
             </summary>
-            <div class="mt-1.5 space-y-1.5 pl-5">
+            <div
+              :class="compact ? 'mt-1 space-y-1 pl-4' : 'mt-1.5 space-y-1.5 pl-5'"
+            >
               <div
                 v-for="(src, si) in msg.ragSources"
                 :key="si"
-                class="rounded-md bg-accent/50 px-2.5 py-1.5 text-xs text-muted-foreground"
+                class="rounded-md bg-accent/50 text-muted-foreground"
+                :class="compact ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-1.5 text-xs'"
               >
                 <div class="font-medium text-foreground">{{ src.doc_name }}</div>
-                <div class="mt-0.5 line-clamp-2">{{ src.snippet }}</div>
+                <div :class="compact ? 'mt-0.5 line-clamp-1' : 'mt-0.5 line-clamp-2'">{{ src.snippet }}</div>
               </div>
             </div>
           </details>
         </div>
 
-        <!-- Stats + Copy -->
+        <!-- Action Buttons -->
+        <div
+          v-if="msg.actionButtons && msg.actionButtons.length > 0 && !msg.streaming"
+          class="flex flex-wrap"
+          :class="compact ? 'mt-1.5 gap-1.5' : 'mt-2 gap-2'"
+        >
+          <Button
+            v-for="(btn, bi) in msg.actionButtons"
+            :key="bi"
+            size="small"
+            :type="btn.style === 'primary' ? 'primary' : btn.style === 'danger' ? 'default' : 'default'"
+            :danger="btn.style === 'danger'"
+            :disabled="!!msg.actionButtonsUsed"
+            :class="compact ? '!text-xs' : ''"
+            @click="emit('action-click', props.index, btn.value)"
+          >
+            {{ btn.label }}
+          </Button>
+        </div>
+
+        <!-- Stats + Copy + Regenerate -->
         <div
           v-if="msg.content && !msg.streaming"
           class="flex items-center text-muted-foreground"
@@ -325,12 +412,20 @@ function agentInitial(agent: { name: string }) {
             class="size-3 cursor-pointer opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
             @click="emit('copy', msg.content)"
           />
+          <Tooltip :title="$t('common.globalAiChat.regenerate')">
+            <IconifyIcon
+              icon="lucide:refresh-cw"
+              class="cursor-pointer opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+              :class="compact ? 'size-3' : 'size-3.5'"
+              @click="emit('regenerate', props.index)"
+            />
+          </Tooltip>
         </div>
       </div>
     </div>
 
     <!-- ===== User message ===== -->
-    <div v-else :class="compact ? 'max-w-[85%]' : 'max-w-[75%]'">
+    <div v-else class="group" :class="compact ? 'max-w-[85%]' : 'max-w-[75%]'">
       <!-- Attachments -->
       <div
         v-if="msg.attachments?.length"
@@ -347,13 +442,16 @@ function agentInitial(agent: { name: string }) {
             @click="emit('open-url', att.url)"
           />
           <a
-            v-else-if="!compact"
+            v-else
             :href="att.url"
             target="_blank"
-            class="flex items-center gap-1.5 rounded-lg bg-primary-foreground/10 px-2 py-1 text-xs text-primary-foreground hover:bg-primary-foreground/20"
+            class="flex items-center rounded-lg bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20"
+            :class="compact ? 'gap-1 px-1.5 py-0.5 text-[11px]' : 'gap-1.5 px-2 py-1 text-xs'"
           >
-            <IconifyIcon icon="lucide:file" class="size-3.5" />
-            {{ att.name || $t('common.globalAiChat.file') }}
+            <IconifyIcon :icon="getFileIcon(att.name || '', att.mime_type)" :class="compact ? 'size-3' : 'size-3.5'" />
+            <span :class="compact ? 'max-w-[80px]' : 'max-w-[120px]'" class="truncate">
+              {{ att.name || $t('common.globalAiChat.file') }}
+            </span>
           </a>
         </template>
       </div>
@@ -362,6 +460,15 @@ function agentInitial(agent: { name: string }) {
         class="whitespace-pre-wrap rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground"
       >
         {{ msg.content }}
+      </div>
+      <div class="mt-0.5 flex justify-end">
+        <Tooltip :title="$t('common.edit')">
+          <IconifyIcon
+            icon="lucide:pencil"
+            class="size-3 cursor-pointer text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+            @click="emit('edit', props.index)"
+          />
+        </Tooltip>
       </div>
     </div>
   </div>

@@ -197,9 +197,8 @@ async def auto_install_local_plugins(db: AsyncSession) -> dict[str, Any]:
 
 
 # 内置插件清单：(entry_point, is_system)
-BUILTIN_PLUGINS: list[tuple[str, bool]] = [
-    ("app.plugins.builtin.openai_plugin.OpenAIAdapterPlugin", True),
-]
+# OpenAI Compatible Adapter 已集成到核心系统（main.py），不再作为插件注册
+BUILTIN_PLUGINS: list[tuple[str, bool]] = []
 
 
 async def register_builtin_plugins(db: AsyncSession) -> dict[str, Any]:

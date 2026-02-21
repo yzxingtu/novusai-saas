@@ -2,7 +2,19 @@
  * 公开配置 API
  * 获取平台/租户公开配置，无需认证
  */
+import { getProcessedImageUrl } from '#/utils/image';
 import { baseRequestClient } from '#/utils/request';
+
+/**
+ * 将附件 ID 字符串转为图片访问 URL
+ * 配置项存储的是附件 ID（如 "10"），需转为 /api/public/attachments/{id}/image
+ */
+function attachmentIdToUrl(idStr: string | undefined): string | undefined {
+  if (!idStr) return undefined;
+  const id = Number(idStr);
+  if (!Number.isFinite(id) || id <= 0) return idStr;
+  return getProcessedImageUrl(id);
+}
 
 // ============================================================
 // 类型定义
@@ -221,9 +233,9 @@ function transformPlatformConfig(
     brand: {
       siteName: raw.site_name,
       siteDescription: raw.site_description,
-      logo: raw.site_logo,
-      logoDark: raw.logo_dark,
-      favicon: raw.site_favicon,
+      logo: attachmentIdToUrl(raw.site_logo),
+      logoDark: attachmentIdToUrl(raw.logo_dark),
+      favicon: attachmentIdToUrl(raw.site_favicon),
       primaryColor: raw.primary_color,
       copyright: raw.site_copyright,
       icp: raw.site_icp,
@@ -270,9 +282,9 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
     brand: {
       siteName: raw.site_name,
       siteDescription: raw.site_description,
-      logo: raw.site_logo,
-      logoDark: raw.logo_dark,
-      favicon: raw.site_favicon,
+      logo: attachmentIdToUrl(raw.site_logo),
+      logoDark: attachmentIdToUrl(raw.logo_dark),
+      favicon: attachmentIdToUrl(raw.site_favicon),
       primaryColor: raw.primary_color,
       copyright: raw.site_copyright,
       icp: raw.site_icp,

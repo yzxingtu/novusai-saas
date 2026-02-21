@@ -8,6 +8,7 @@
 在 Celery 任务中使用时需通过 sync 包装器调用。
 """
 
+import re
 import smtplib
 import ssl as ssl_module
 from dataclasses import dataclass, field
@@ -70,6 +71,17 @@ class SmtpConfig:
     from_address: str
     from_name: str
     enabled: bool
+
+
+# 安全限制常量
+MAX_RECIPIENTS = 50
+MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024  # 10MB
+_EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
+
+
+def _is_valid_email(address: str) -> bool:
+    """校验邮箱格式"""
+    return bool(_EMAIL_REGEX.match(address.strip()))
 
 
 class EmailService:
@@ -143,11 +155,43 @@ class EmailService:
                 error=_("email.error.no_recipients"),
             )
 
+        # 安全校验：收件人数量
+        all_recipients = message.to + message.cc + message.bcc
+        if len(all_recipients) > MAX_RECIPIENTS:
+            return EmailResult(
+                success=False,
+                message="too_many_recipients",
+                recipients=message.to,
+                error=_("email.error.too_many_recipients",
+                        max=MAX_RECIPIENTS, got=len(all_recipients)),
+            )
+
+        # 安全校验：邮箱格式
+        invalid = [addr for addr in all_recipients if not _is_valid_email(addr)]
+        if invalid:
+            return EmailResult(
+                success=False,
+                message="invalid_email",
+                recipients=message.to,
+                error=_("email.error.invalid_email", addresses=", ".join(invalid)),
+            )
+
+        # 安全校验：附件大小
+        if message.attachments:
+            total_size = sum(len(a.content) for a in message.attachments)
+            if total_size > MAX_ATTACHMENT_SIZE:
+                max_mb = MAX_ATTACHMENT_SIZE / (1024 * 1024)
+                return EmailResult(
+                    success=False,
+                    message="attachment_too_large",
+                    recipients=message.to,
+                    error=_("email.error.attachment_too_large", max_mb=f"{max_mb:.0f}"),
+                )
+
         # 构建 MIME 邮件
         mime_msg = self._build_mime_message(message, config)
 
         # 发送
-        all_recipients = message.to + message.cc + message.bcc
         try:
             self._smtp_send(config, mime_msg, all_recipients)
             logger.info(
@@ -282,6 +326,19 @@ def send_email_sync(
         if not config.host or not config.from_address:
             return EmailResult(success=False, message="config_incomplete", recipients=to, error=_("email.error.config_missing", fields="smtp_host, from_address"))
 
+        all_recipients = to + (cc or []) + (bcc or [])
+
+        # 安全校验：收件人数量
+        if len(all_recipients) > MAX_RECIPIENTS:
+            return EmailResult(success=False, message="too_many_recipients", recipients=to,
+                               error=f"Too many recipients: {len(all_recipients)} > {MAX_RECIPIENTS}")
+
+        # 安全校验：邮箱格式
+        invalid = [addr for addr in all_recipients if not _is_valid_email(addr)]
+        if invalid:
+            return EmailResult(success=False, message="invalid_email", recipients=to,
+                               error=f"Invalid email: {', '.join(invalid)}")
+
         message = EmailMessage(
             to=to,
             subject=subject,
@@ -292,7 +349,6 @@ def send_email_sync(
         )
 
         mime_msg = EmailService._build_mime_message(message, config)
-        all_recipients = to + (cc or []) + (bcc or [])
 
         EmailService._smtp_send(config, mime_msg, all_recipients)
 

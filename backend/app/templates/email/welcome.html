@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.welcome.title }}{% endblock %}
+
+{% block header_title %}{{ t.welcome.title }}{% endblock %}
+
+{% block content %}
+<p>{{ t.common.greeting }}{{ " " + admin_name if admin_name else "" }},</p>
+<p>{{ t.welcome.body }}</p>
+
+<table class="info-table">
+  <tr>
+    <td class="label">{{ t.welcome.tenant_label }}</td>
+    <td class="value">{{ tenant_name }}</td>
+  </tr>
+</table>
+
+<div class="btn-center">
+  <a href="{{ login_url }}" class="btn">{{ t.welcome.button }}</a>
+</div>
+
+<p style="color: #6b7280; font-size: 13px;">
+  {{ t.welcome.support_notice }}
+</p>
+{% endblock %}

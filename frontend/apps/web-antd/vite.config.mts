@@ -10,6 +10,7 @@ export default defineConfig(async () => {
         },
       },
       server: {
+        allowedHosts: 'all',
         proxy: {
           '/api': {
             changeOrigin: true,

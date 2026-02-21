@@ -1,7 +1,7 @@
 """
 平台端技能包管理 API
 
-提供跨租户技能包列表、详情、CRUD，支持 admin + tenant scope 技能包管理
+提供跨租户技能包列表、详情、CRUD，支持 admin / tenant / global scope 技能包管理
 """
 
 from typing import Any
@@ -386,6 +386,128 @@ class AdminSkillPackageController(GlobalController):
                 page=query.page,
                 page_size=query.size,
             )
+
+        # ==================== 导入 / 导出 ====================
+
+        @router.get("/{package_id}/export", summary="导出技能包")
+        @action_read("action.ai_skill_package.detail")
+        async def export_package(
+            request: Request,
+            db: DbSession,
+            package_id: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            导出技能包为 JSON（含所有技能定义、valves_schema）
+
+            导出内容：
+            - package_info: 技能包基本信息（不含 id/tenant_id/created_at 等运行时字段）
+            - skills: 包内所有技能的定义
+            - export_version: 导出格式版本号
+            """
+            from app.api.shared._skill_package_export import export_skill_package
+
+            service = AdminSkillPackageService(db)
+            pkg = await service.get_by_id(package_id)
+            if not pkg:
+                raise NotFoundException(message=_("skill_package.error.not_found"))
+
+            export_data = await export_skill_package(db, pkg)
+            return success(data=export_data)
+
+        @router.post("/import", summary="导入技能包")
+        @action_create("action.ai_skill_package.create")
+        async def import_package(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            data: dict[str, Any] = ...,
+        ):
+            """
+            从导出 JSON 导入技能包
+
+            参数：
+            - data: 导出的 JSON 数据
+            - conflict_mode (in data): skip / rename（同名技能包处理方式）
+            - target_scope (in data): 目标作用域 (admin/tenant/global)
+            - target_tenant_id (in data): 目标租户 ID（scope=tenant 时必填）
+            """
+            from app.api.shared._skill_package_export import import_skill_package
+
+            result = await import_skill_package(db, data)
+            await db.commit()
+            return created(data=result, message=_("skill_package.import_success"))
+
+        # ==================== 克隆 ====================
+
+        @router.post("/{package_id}/clone", summary="克隆技能包")
+        @action_create("action.ai_skill_package.create")
+        async def clone_package(
+            request: Request,
+            db: DbSession,
+            package_id: int,
+            admin: ActiveAdmin,
+            data: dict[str, Any] = ...,
+        ):
+            """
+            克隆技能包（含所有技能）
+
+            参数：
+            - new_name: 新技能包名称（可选，默认追加 " (Copy)"）
+            - target_scope: 目标作用域 (admin/tenant/global)
+            - target_tenant_id: 目标租户 ID（scope=tenant 时必填）
+            """
+            from app.api.shared._skill_package_export import (
+                export_skill_package,
+                import_skill_package,
+            )
+
+            service = AdminSkillPackageService(db)
+            pkg = await service.get_by_id(package_id)
+            if not pkg:
+                raise NotFoundException(message=_("skill_package.error.not_found"))
+
+            # 导出再导入实现克隆
+            export_data = await export_skill_package(db, pkg)
+
+            new_name = data.get("new_name") or f"{pkg.name} (Copy)"
+            export_data["package_info"]["name"] = new_name
+
+            result = await import_skill_package(db, {
+                "export_data": export_data,
+                "conflict_mode": "rename",
+                "target_scope": data.get("target_scope", pkg.scope),
+                "target_tenant_id": data.get("target_tenant_id", pkg.tenant_id),
+            })
+            await db.commit()
+
+            return created(data=result, message=_("skill_package.created"))
+
+        # ==================== 调用统计 ====================
+
+        @router.get("/{package_id}/stats", summary="技能包调用统计")
+        @action_read("action.ai_skill_package.detail")
+        async def get_package_stats(
+            request: Request,
+            db: DbSession,
+            package_id: int,
+            admin: ActiveAdmin,
+            days: int = Query(7, ge=1, le=90, description="统计天数"),
+        ):
+            """
+            获取技能包内所有技能的调用统计
+
+            返回：总调用次数、成功率、平均耗时、按技能分组统计
+            """
+            from app.api.shared._skill_stats import get_package_call_stats
+
+            service = AdminSkillPackageService(db)
+            pkg = await service.get_by_id(package_id)
+            if not pkg:
+                raise NotFoundException(message=_("skill_package.error.not_found"))
+
+            stats = await get_package_call_stats(db, package_id, days)
+            return success(data=stats)
 
 
 # 导出路由器

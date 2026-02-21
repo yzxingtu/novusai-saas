@@ -8,7 +8,7 @@ from datetime import timedelta
 from typing import Any
 
 import bcrypt
-from jose import JWTError, jwt
+from jose import ExpiredSignatureError, JWTError, jwt
 from cryptography.fernet import Fernet
 
 from app.core.config import settings
@@ -101,21 +101,34 @@ def create_refresh_token(
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def decode_token(token: str) -> dict[str, Any] | None:
+class TokenExpiredError(Exception):
+    """Token 已过期（区别于无效 Token）"""
+
+
+def decode_token(token: str, raise_on_expired: bool = False) -> dict[str, Any] | None:
     """
     解码并验证 Token
     
     Args:
         token: JWT Token 字符串
+        raise_on_expired: 为 True 时，过期 Token 抛出 TokenExpiredError
+            而非静默返回 None，允许调用方区分过期和无效。
         
     Returns:
         解码后的 payload，验证失败返回 None
+    
+    Raises:
+        TokenExpiredError: raise_on_expired=True 且 Token 已过期
     """
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
         return payload
+    except ExpiredSignatureError:
+        if raise_on_expired:
+            raise TokenExpiredError()
+        return None
     except JWTError:
         return None
 
@@ -146,6 +159,7 @@ def verify_token_with_scope(
     token: str,
     expected_scope: str,
     token_type: str = TOKEN_TYPE_ACCESS,
+    raise_on_expired: bool = False,
 ) -> tuple[str | None, str | None]:
     """
     验证 Token 并检查 scope
@@ -154,11 +168,15 @@ def verify_token_with_scope(
         token: JWT Token 字符串
         expected_scope: 期望的 scope（用户类型）
         token_type: 期望的 Token 类型
+        raise_on_expired: 为 True 时，过期 Token 抛出 TokenExpiredError
         
     Returns:
         (subject, scope) 元组，验证失败返回 (None, None)
+    
+    Raises:
+        TokenExpiredError: raise_on_expired=True 且 Token 已过期
     """
-    payload = decode_token(token)
+    payload = decode_token(token, raise_on_expired=raise_on_expired)
     if payload is None:
         return None, None
     

@@ -33,7 +33,15 @@ export interface ConversationDetailResponse {
 
 export interface FileUploadResponse {
   url: string;
-  attachment: { id: number; filename: string; mime_type: string };
+  attachment: {
+    id: number;
+    name: string;
+    original_name?: string | null;
+    mime_type?: string | null;
+    size: number;
+    extension?: string | null;
+  };
+  used_bytes: number;
 }
 
 export interface SSEOptions {
@@ -102,14 +110,23 @@ export async function getChatConversationMessagesApi(
 
 /**
  * 上传聊天附件
+ *
+ * @param uploadUrl - Upload endpoint URL
+ * @param file - File to upload
+ * @param extraData - Additional form fields (e.g. tenant_id for admin endpoint)
  */
 export async function uploadChatFileApi(
   uploadUrl: string,
   file: File,
+  extraData?: Record<string, string>,
 ): Promise<FileUploadResponse> {
+  const uploadData: Record<string, Blob | File | string> = { file };
+  if (extraData) {
+    Object.assign(uploadData, extraData);
+  }
   return requestClient.upload<FileUploadResponse>(
     uploadUrl,
-    { file, tenant_id: '0' },
+    uploadData as { file: File; [key: string]: Blob | File | string },
   );
 }
 

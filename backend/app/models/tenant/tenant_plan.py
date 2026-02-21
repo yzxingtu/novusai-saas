@@ -11,6 +11,7 @@ from sqlalchemy import Boolean, String, Integer, Text, Numeric, Table, Column, F
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import BaseModel, Base
+from app.core.deletion import DeletionDep, DeletionStrategy
 
 
 # 套餐-权限关联表（多对多）
@@ -32,6 +33,11 @@ class TenantPlan(BaseModel):
     """
     
     __tablename__ = "tenant_plans"
+
+    __delete_deps__ = [
+        DeletionDep("Tenant", "plan_id", DeletionStrategy.BLOCK,
+                    label_field="name", i18n_key="tenant"),
+    ]
     
     # 允许前端筛选的字段
     __filterable__ = {

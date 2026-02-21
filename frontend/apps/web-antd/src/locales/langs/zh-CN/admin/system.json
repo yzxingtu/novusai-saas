@@ -416,9 +416,16 @@
       "retry": "重试策略",
       "notify": "失败通知"
     },
+    "every": "每",
     "scheduleType": {
       "cron": "Cron",
       "interval": "间隔"
+    },
+    "cronHuman": {
+      "daily": "每天",
+      "hourly": "每小时",
+      "monthly": "每月",
+      "day": "日"
     },
     "messages": {
       "createSuccess": "创建成功",
@@ -464,11 +471,11 @@
     },
     "trigger": {
       "manual": "手动发送",
-      "task_failure": "任务失败",
-      "password_reset": "密码重置",
+      "taskFailure": "任务失败",
+      "passwordReset": "密码重置",
       "test": "测试",
       "welcome": "欢迎邮件",
-      "ssl_expiry": "SSL到期"
+      "sslExpiry": "SSL到期"
     },
     "placeholder": {
       "searchTo": "搜索收件人",
@@ -493,5 +500,19 @@
       "deleteSuccess": "删除成功",
       "deleteConfirm": "确定要删除此邮件记录吗？"
     }
+  },
+  "recycleBin": {
+    "title": "回收站",
+    "description": "查看和管理所有模块的已删除记录",
+    "cleanup": "清理过期记录",
+    "cleanupConfirm": "确定要清理超过 30 天的过期记录吗？此操作不可恢复。",
+    "cleanupTriggered": "清理任务已提交",
+    "noModule": "请选择左侧模块",
+    "tenant": "所属租户",
+    "deleteLevel": "删除层级",
+    "levelAdmin": "管理端",
+    "levelTenant": "租户端",
+    "searchPlaceholder": "搜索已删除记录…",
+    "allTenants": "全部租户"
   }
 }

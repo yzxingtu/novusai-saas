@@ -19,6 +19,7 @@ export interface TenantSkillPackageInfo {
   is_active: boolean;
   sort_order: number;
   skill_count: number;
+  source_plugin: string | null;
   valves_schema: Record<string, unknown> | null;
   valves_config: Record<string, unknown> | null;
   created_at: string;

@@ -29,6 +29,8 @@ export interface AIModelInfo {
   supports_function_calling: boolean;
   supports_vision: boolean;
   supports_streaming: boolean;
+  max_image_count: null | number;
+  max_image_size_mb: null | number;
   is_active: boolean;
   config: null | Record<string, unknown>;
   provider_name: null | string;
@@ -51,6 +53,8 @@ export interface AIModelCreateRequest {
   supports_function_calling?: boolean;
   supports_vision?: boolean;
   supports_streaming?: boolean;
+  max_image_count?: null | number;
+  max_image_size_mb?: null | number;
   is_active?: boolean;
   config?: null | Record<string, unknown>;
 }
@@ -70,6 +74,8 @@ export interface AIModelUpdateRequest {
   supports_function_calling?: boolean | null;
   supports_vision?: boolean | null;
   supports_streaming?: boolean | null;
+  max_image_count?: null | number;
+  max_image_size_mb?: null | number;
   is_active?: boolean | null;
   config?: null | Record<string, unknown>;
 }

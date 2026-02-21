@@ -21,6 +21,9 @@ export function getSkillTypeColor(type: string | undefined): string {
     case 'knowledge_base': return 'green';
     case 'data_intelligence': return 'blue';
     case 'builtin': return 'default';
+    case 'http': return 'orange';
+    case 'email': return 'cyan';
+    case 'code_execution': return 'purple';
     default: return 'default';
   }
 }
@@ -32,6 +35,9 @@ export function getSkillTypeIcon(type: string | undefined): string {
     case 'knowledge_base': return 'lucide:book-open';
     case 'data_intelligence': return 'lucide:database';
     case 'builtin': return 'lucide:cpu';
+    case 'http': return 'lucide:globe';
+    case 'email': return 'lucide:mail';
+    case 'code_execution': return 'lucide:terminal';
     default: return 'lucide:sparkles';
   }
 }

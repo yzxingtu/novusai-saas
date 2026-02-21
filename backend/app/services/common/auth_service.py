@@ -152,6 +152,10 @@ class AuthService:
         if await self._is_account_locked(admin.id, "admin"):
             raise AuthenticationException(message=_("auth.account_locked"))
 
+        # 检查账户状态（在密码验证之前，防止通过不同错误消息泄漏密码正确性）
+        if not admin.is_active:
+            raise AuthenticationException(message=_("auth.credentials_invalid"))
+
         captcha_enabled = await self._config_service.get_platform_config(
             "login_captcha_enabled", default=True
         )
@@ -180,10 +184,6 @@ class AuthService:
                 message=_("auth.credentials_invalid"),
                 data={"captcha_required": captcha_required_after},
             )
-
-        # 检查账户状态
-        if not admin.is_active:
-            raise AuthenticationException(message=_("auth.account_disabled"))
 
         # 登录成功，重置失败计数
         await self._reset_admin_login_failures(admin.id)
@@ -502,6 +502,10 @@ class AuthService:
         if await self._is_account_locked(tenant_admin.id, "tenant_admin"):
             raise AuthenticationException(message=_("auth.account_locked"))
 
+        # 检查账户状态（在密码验证之前，防止通过不同错误消息泄漏密码正确性）
+        if not tenant_admin.is_active:
+            raise AuthenticationException(message=_("auth.credentials_invalid"))
+
         captcha_enabled = await self._config_service.get_tenant_config(
             tenant_admin.tenant_id, "tenant_captcha_enabled", default=True
         )
@@ -529,10 +533,6 @@ class AuthService:
                 message=_("auth.credentials_invalid"),
                 data={"captcha_required": captcha_required_after},
             )
-        
-        # 检查管理员状态
-        if not tenant_admin.is_active:
-            raise AuthenticationException(message=_("auth.account_disabled"))
         
         # 检查租户状态
         tenant_result = await self.db.execute(
@@ -769,6 +769,10 @@ class AuthService:
         if await self._is_account_locked(user.id, "tenant_user"):
             raise AuthenticationException(message=_("auth.account_locked"))
 
+        # 检查账户状态（在密码验证之前，防止通过不同错误消息泄漏密码正确性）
+        if not user.is_active:
+            raise AuthenticationException(message=_("auth.credentials_invalid"))
+
         captcha_enabled = await self._config_service.get_tenant_config(
             user.tenant_id, "tenant_captcha_enabled", default=True
         )
@@ -796,10 +800,6 @@ class AuthService:
                 message=_("auth.credentials_invalid"),
                 data={"captcha_required": captcha_required_after},
             )
-        
-        # 检查用户状态
-        if not user.is_active:
-            raise AuthenticationException(message=_("auth.account_disabled"))
 
         # 登录成功，重置失败计数
         await self._reset_login_failures(user.id, "tenant_user")

@@ -136,6 +136,58 @@ class ConfigRegistry:
         
         logger.debug(f"Unregistered config group: {group_code}")
     
+    def add_option(self, config_key: str, option: "ConfigOption") -> bool:
+        """
+        向指定配置项动态追加选项（插件启用时注入驱动选项）
+        
+        Args:
+            config_key: 配置键名（跨分组查找）
+            option: 要追加的 ConfigOption
+            
+        Returns:
+            True=成功追加, False=配置项不存在
+        """
+        config = self.get_config_by_key(config_key)
+        if not config:
+            logger.warning(f"add_option: config key '{config_key}' not found")
+            return False
+        
+        # 避免重复添加
+        existing_values = {opt.value for opt in config.options}
+        if option.value in existing_values:
+            logger.debug(f"add_option: option '{option.value}' already exists in '{config_key}'")
+            return True
+        
+        config.options.append(option)
+        logger.info(f"add_option: added '{option.value}' to config '{config_key}'")
+        return True
+    
+    def remove_option(self, config_key: str, option_value: Any) -> bool:
+        """
+        从指定配置项移除选项（插件禁用时撤回驱动选项）
+        
+        Args:
+            config_key: 配置键名
+            option_value: 要移除的选项值
+            
+        Returns:
+            True=成功移除, False=配置项不存在或选项不存在
+        """
+        config = self.get_config_by_key(config_key)
+        if not config:
+            logger.warning(f"remove_option: config key '{config_key}' not found")
+            return False
+        
+        original_len = len(config.options)
+        config.options = [opt for opt in config.options if opt.value != option_value]
+        
+        if len(config.options) < original_len:
+            logger.info(f"remove_option: removed '{option_value}' from config '{config_key}'")
+            return True
+        
+        logger.debug(f"remove_option: option '{option_value}' not found in '{config_key}'")
+        return False
+    
     def get_group(self, group_code: str) -> ConfigGroupMeta | None:
         """
         获取配置分组

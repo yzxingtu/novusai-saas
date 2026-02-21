@@ -7,3 +7,6 @@ export * from './endpoints';
 
 // 存储键名常量
 export * from './storage-keys';
+
+// 上传规则常量
+export * from './upload';

@@ -160,26 +160,44 @@ class BaseTask(Task):
             task_name, task_id, str(exc)[:200], notify_emails or "(none)",
         )
 
-        # 2. TODO: WebSocket 实时推送（待实现）
-        # 预留接口：向管理端推送任务失败事件
-        # from app.core.ws import ws_manager
-        # await ws_manager.broadcast_admin({
-        #     "type": "task_failure",
-        #     "task_name": task_name,
-        #     "task_id": task_id,
-        #     "error": str(exc)[:500],
-        # })
+        # 2. Socket.IO 实时推送（通过 sio_bridge 同步发布）
+        try:
+            from app.core.sio_bridge import notify_admins_sync
+            notify_admins_sync({
+                "type": "task.failed",
+                "category": "task",
+                "title": f"Task failed: {task_name}",
+                "body": str(exc)[:500],
+                "data": {"task_name": task_name, "task_id": task_id},
+                "priority": "high",
+            })
+        except Exception as ws_err:
+            logger.warning("Failed to send WS task failure notification: %s", str(ws_err))
 
-        # 3. TODO: 邮件通知（待实现）
-        # 预留接口：向配置的邮箱发送失败通知
-        # if notify_emails:
-        #     from app.tasks.notifications import send_task_failure_email
-        #     send_task_failure_email.delay(
-        #         emails=notify_emails,
-        #         task_name=task_name,
-        #         task_id=task_id,
-        #         error=str(exc)[:1000],
-        #     )
+        # 3. 邮件通知
+        if notify_emails:
+            emails = [e.strip() for e in notify_emails.split(",") if e.strip()]
+            if emails:
+                try:
+                    from app.services.common.email_templates import render_task_failure_email
+                    from app.tasks.email import send_email_task
+
+                    subject, html_body, text_body = render_task_failure_email(
+                        task_name=task_name,
+                        task_id=task_id,
+                        error=str(exc)[:1000],
+                    )
+                    send_email_task.delay(
+                        to=emails,
+                        subject=subject,
+                        html_body=html_body,
+                        text_body=text_body,
+                        triggered_by="task_failure",
+                    )
+                except Exception as mail_err:
+                    logger.warning(
+                        "Failed to send task failure email: %s", str(mail_err),
+                    )
 
     def _get_elapsed(self) -> float:
         if self._start_time is not None:

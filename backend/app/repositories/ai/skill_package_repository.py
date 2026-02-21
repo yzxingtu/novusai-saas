@@ -292,6 +292,17 @@ class AdminSkillPackageRepository(BaseRepository[SkillPackage]):
             .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
         )
 
+    async def cascade_update_skill_tenant_id(
+        self, package_id: int, new_tenant_id: int | None,
+    ) -> None:
+        """级联更新技能包下所有技能的 tenant_id"""
+        now = utc_now()
+        await self.db.execute(
+            update(Skill)
+            .where(Skill.package_id == package_id)
+            .values(tenant_id=new_tenant_id, updated_at=now)
+        )
+
     async def delete_skill_bindings(self, package_id: int) -> None:
         """物理删除技能包的 AgentSkillBinding 记录"""
         await self.db.execute(

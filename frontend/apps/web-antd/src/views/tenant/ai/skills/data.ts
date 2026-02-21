@@ -106,6 +106,9 @@ export function getSkillTypeOptions() {
     { label: $t('tenant.ai.skill.type_options.knowledge_base'), value: 'knowledge_base' },
     { label: $t('tenant.ai.skill.type_options.data_intelligence'), value: 'data_intelligence' },
     { label: $t('tenant.ai.skill.type_options.builtin'), value: 'builtin' },
+    { label: $t('tenant.ai.skill.type_options.http'), value: 'http' },
+    { label: $t('tenant.ai.skill.type_options.email'), value: 'email' },
+    { label: $t('tenant.ai.skill.type_options.code_execution'), value: 'code_execution' },
   ];
 }
 
@@ -394,6 +397,169 @@ export function useFormSchema(): VbenFormSchema[] {
         if: (values: Record<string, unknown>) => values.type === 'knowledge_base',
       },
     },
+    // ============ http 专属字段 ============
+    {
+      component: 'Divider',
+      fieldName: '_http_divider',
+      label: '',
+      hideLabel: true,
+      componentProps: { orientation: 'left', dashed: true },
+      renderComponentContent: () => ({ default: () => $t('tenant.ai.skill.httpConfig.title') }),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
+    },
+    {
+      ...inputField('http_url', $t('tenant.ai.skill.httpConfig.url'), {
+        required: true,
+        placeholder: $t('tenant.ai.skill.httpConfig.urlPlaceholder'),
+      }),
+      help: $t('tenant.ai.skill.httpConfig.urlHelp'),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
+    },
+    {
+      ...select('http_method', $t('tenant.ai.skill.httpConfig.method'), {
+        options: [{ label: 'GET', value: 'GET' }, { label: 'POST', value: 'POST' }, { label: 'PUT', value: 'PUT' }, { label: 'PATCH', value: 'PATCH' }, { label: 'DELETE', value: 'DELETE' }],
+      }),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
+    },
+    {
+      ...textareaField('http_headers', $t('tenant.ai.skill.httpConfig.headers'), {
+        placeholder: $t('tenant.ai.skill.httpConfig.headersPlaceholder'),
+        rows: 3,
+      }),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
+    },
+    {
+      ...textareaField('http_body_template', $t('tenant.ai.skill.httpConfig.bodyTemplate'), {
+        placeholder: $t('tenant.ai.skill.httpConfig.bodyTemplatePlaceholder'),
+        rows: 4,
+      }),
+      help: $t('tenant.ai.skill.httpConfig.bodyTemplateHelp'),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
+    },
+    {
+      ...select('http_auth_type', $t('tenant.ai.skill.httpConfig.authType'), {
+        options: [
+          { label: $t('tenant.ai.skill.httpConfig.authTypeOptions.none'), value: 'none' },
+          { label: $t('tenant.ai.skill.httpConfig.authTypeOptions.bearer'), value: 'bearer' },
+          { label: $t('tenant.ai.skill.httpConfig.authTypeOptions.api_key'), value: 'api_key' },
+          { label: $t('tenant.ai.skill.httpConfig.authTypeOptions.basic'), value: 'basic' },
+        ],
+      }),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
+    },
+    {
+      ...inputField('http_auth_token', $t('tenant.ai.skill.httpConfig.authToken'), {
+        placeholder: $t('tenant.ai.skill.httpConfig.authTokenPlaceholder'),
+      }),
+      dependencies: { triggerFields: ['type', 'http_auth_type'], if: (v: Record<string, unknown>) => v.type === 'http' && v.http_auth_type === 'bearer' },
+    },
+    {
+      ...inputField('http_auth_key_name', $t('tenant.ai.skill.httpConfig.authKeyName'), {
+        placeholder: $t('tenant.ai.skill.httpConfig.authKeyNamePlaceholder'),
+      }),
+      dependencies: { triggerFields: ['type', 'http_auth_type'], if: (v: Record<string, unknown>) => v.type === 'http' && v.http_auth_type === 'api_key' },
+    },
+    {
+      ...inputField('http_auth_key_value', $t('tenant.ai.skill.httpConfig.authKeyValue')),
+      dependencies: { triggerFields: ['type', 'http_auth_type'], if: (v: Record<string, unknown>) => v.type === 'http' && v.http_auth_type === 'api_key' },
+    },
+    {
+      ...inputField('http_auth_username', $t('tenant.ai.skill.httpConfig.authUsername')),
+      dependencies: { triggerFields: ['type', 'http_auth_type'], if: (v: Record<string, unknown>) => v.type === 'http' && v.http_auth_type === 'basic' },
+    },
+    {
+      ...inputField('http_auth_password', $t('tenant.ai.skill.httpConfig.authPassword')),
+      dependencies: { triggerFields: ['type', 'http_auth_type'], if: (v: Record<string, unknown>) => v.type === 'http' && v.http_auth_type === 'basic' },
+    },
+    {
+      ...inputField('http_response_path', $t('tenant.ai.skill.httpConfig.responsePath'), {
+        placeholder: $t('tenant.ai.skill.httpConfig.responsePathPlaceholder'),
+      }),
+      help: $t('tenant.ai.skill.httpConfig.responsePathHelp'),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
+    },
+    // ============ email 专属字段 ============
+    {
+      component: 'Divider',
+      fieldName: '_email_divider',
+      label: '',
+      hideLabel: true,
+      componentProps: { orientation: 'left', dashed: true },
+      renderComponentContent: () => ({ default: () => $t('tenant.ai.skill.emailConfig.title') }),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'email' },
+    },
+    {
+      component: 'Alert',
+      fieldName: '_email_smtp_hint',
+      label: '',
+      hideLabel: true,
+      componentProps: { type: 'info', showIcon: true, message: $t('tenant.ai.skill.emailConfig.smtpHint') },
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'email' },
+    },
+    {
+      ...inputField('email_subject_prefix', $t('tenant.ai.skill.emailConfig.subjectPrefix'), {
+        placeholder: $t('tenant.ai.skill.emailConfig.subjectPrefixPlaceholder'),
+      }),
+      help: $t('tenant.ai.skill.emailConfig.subjectPrefixHelp'),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'email' },
+    },
+    {
+      ...inputField('email_allowed_domains', $t('tenant.ai.skill.emailConfig.allowedDomains'), {
+        placeholder: $t('tenant.ai.skill.emailConfig.allowedDomainsPlaceholder'),
+      }),
+      help: $t('tenant.ai.skill.emailConfig.allowedDomainsHelp'),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'email' },
+    },
+    {
+      ...numberField('email_max_recipients', $t('tenant.ai.skill.emailConfig.maxRecipients'), { min: 1, max: 50 }),
+      help: $t('tenant.ai.skill.emailConfig.maxRecipientsHelp'),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'email' },
+    },
+    {
+      ...switchField('email_require_confirmation', $t('tenant.ai.skill.emailConfig.requireConfirmation')),
+      help: $t('tenant.ai.skill.emailConfig.requireConfirmationHelp'),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'email' },
+    },
+    {
+      ...switchField('email_allow_cc', $t('tenant.ai.skill.emailConfig.allowCc')),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'email' },
+    },
+    // ============ code_execution 专属字段 ============
+    {
+      component: 'Divider',
+      fieldName: '_code_divider',
+      label: '',
+      hideLabel: true,
+      componentProps: { orientation: 'left', dashed: true },
+      renderComponentContent: () => ({ default: () => $t('tenant.ai.skill.codeExecutionConfig.title') }),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'code_execution' },
+    },
+    {
+      component: 'Alert',
+      fieldName: '_code_sandbox_hint',
+      label: '',
+      hideLabel: true,
+      componentProps: { type: 'info', showIcon: true, message: $t('tenant.ai.skill.codeExecutionConfig.sandboxHint') },
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'code_execution' },
+    },
+    {
+      ...select('code_language', $t('tenant.ai.skill.codeExecutionConfig.language'), {
+        options: [{ label: $t('tenant.ai.skill.codeExecutionConfig.languageOptions.python'), value: 'python' }],
+      }),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'code_execution' },
+    },
+    {
+      ...numberField('code_memory_limit_mb', $t('tenant.ai.skill.codeExecutionConfig.memoryLimitMb'), { min: 64, max: 1024 }),
+      help: $t('tenant.ai.skill.codeExecutionConfig.memoryLimitHelp'),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'code_execution' },
+    },
+    {
+      ...inputField('code_allowed_modules', $t('tenant.ai.skill.codeExecutionConfig.allowedModules'), {
+        placeholder: $t('tenant.ai.skill.codeExecutionConfig.allowedModulesPlaceholder'),
+      }),
+      help: $t('tenant.ai.skill.codeExecutionConfig.allowedModulesHelp'),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'code_execution' },
+    },
     // ============ data_intelligence 专属字段 ============
     {
       component: 'Divider',
@@ -504,5 +670,27 @@ export function getFormDefaults(): Record<string, unknown> {
     // data_intelligence defaults
     di_table_policy_ids: [],
     di_max_rows_override: 0,
+    // http defaults
+    http_url: '',
+    http_method: 'GET',
+    http_headers: '',
+    http_body_template: '',
+    http_auth_type: 'none',
+    http_auth_token: '',
+    http_auth_key_name: 'X-API-Key',
+    http_auth_key_value: '',
+    http_auth_username: '',
+    http_auth_password: '',
+    http_response_path: '',
+    // email defaults
+    email_subject_prefix: '',
+    email_allowed_domains: '',
+    email_max_recipients: 5,
+    email_require_confirmation: true,
+    email_allow_cc: true,
+    // code_execution defaults
+    code_language: 'python',
+    code_memory_limit_mb: 256,
+    code_allowed_modules: 'math,json,datetime,re,collections,itertools,functools,statistics,random,string',
   };
 }

@@ -12,6 +12,7 @@ from app.ai.types import (
     ChatResponse,
     ChatChunk,
     EmbeddingResponse,
+    ImageGenerationResponse,
 )
 
 
@@ -118,6 +119,38 @@ class BaseAdapter(ABC):
         """
         pass
     
+    async def generate_image(
+        self,
+        prompt: str,
+        model: str,
+        size: str = "1024x1024",
+        quality: str = "standard",
+        style: str = "vivid",
+        n: int = 1,
+        **kwargs,
+    ) -> ImageGenerationResponse:
+        """
+        图像生成
+
+        Args:
+            prompt: 生成提示词
+            model: 模型名称（如 dall-e-3）
+            size: 图片尺寸（如 1024x1024, 1792x1024, 1024x1792）
+            quality: 质量（standard / hd）
+            style: 风格（vivid / natural）
+            n: 生成数量
+            **kwargs: 其他参数
+
+        Returns:
+            ImageGenerationResponse: 图像生成响应
+
+        Raises:
+            NotImplementedError: 子类未实现时抛出
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support image generation"
+        )
+
     async def list_models(self) -> list[dict]:
         """
         列出供应商可用的模型列表
@@ -161,6 +194,7 @@ class BaseAdapter(ABC):
             "function_calling": False,
             "vision": False,
             "embedding": False,
+            "image_generation": False,
         }
 
 

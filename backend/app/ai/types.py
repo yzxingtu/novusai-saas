@@ -134,6 +134,26 @@ class ImageResponse:
 
 
 @dataclass
+class ImageGenerationResponse:
+    """
+    图像生成聚合响应
+
+    包含一次生图请求返回的所有图像及元数据
+    """
+    # 生成的图像列表
+    images: list[ImageResponse]
+
+    # 模型信息
+    model: str | None = None
+
+    # 修订后的提示词（某些模型会重写 prompt）
+    revised_prompt: str | None = None
+
+    # 元数据
+    metadata: dict = field(default_factory=dict)
+
+
+@dataclass
 class TestModelResult:
     """
     模型测试结果
@@ -163,6 +183,7 @@ __all__ = [
     "ChatChunk",
     "EmbeddingResponse",
     "ImageResponse",
+    "ImageGenerationResponse",
     "TestModelResult",
     "messages_to_dicts",
 ]

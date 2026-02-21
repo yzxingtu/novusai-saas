@@ -44,7 +44,8 @@
       "dev_tools": "Dev Tools",
       "crud_generator": "CRUD Generator",
       "agent_assignment": "Agent Assignment",
-      "email_log": "Email Logs"
+      "email_log": "Email Logs",
+      "recycle_bin": "Recycle Bin"
     },
     "tags": {
       "admin_agent_mgmt": "Agent Management (Platform)",

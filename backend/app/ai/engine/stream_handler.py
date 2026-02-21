@@ -8,6 +8,7 @@ SSE 流式执行处理器
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import TYPE_CHECKING, Any, AsyncIterator, Awaitable, Callable
 
@@ -125,6 +126,15 @@ class StreamExecutionHandler:
                         break
 
                 messages.append(ChatMessage(role="assistant", content=output))
+
+            # ---- 解析并发送 Action Buttons ----
+            cleaned_output, action_buttons = self._extract_action_buttons(output)
+            if action_buttons:
+                output = cleaned_output
+                yield SSEChunkEncoder.encode({
+                    "event": "action_buttons",
+                    "buttons": action_buttons,
+                })
 
             # ---- 发送 RAG 引用来源事件 ----
             if rag_sources:
@@ -443,6 +453,63 @@ class StreamExecutionHandler:
                 })
 
         messages.append(ChatMessage(role="assistant", content=self._output))
+
+    # ========================================
+    # Action Buttons 解析
+    # ========================================
+
+    _ACTION_BUTTONS_RE = re.compile(
+        r"\[ACTIONS\](.*?)\[/ACTIONS\]",
+        re.DOTALL,
+    )
+
+    @staticmethod
+    def _extract_action_buttons(
+        output: str,
+    ) -> tuple[str, list[dict[str, str]] | None]:
+        """
+        从 LLM 输出中提取 [ACTIONS]...[/ACTIONS] 标记中的按钮定义。
+
+        支持格式:
+            [ACTIONS]
+            [{"label": "方案A", "value": "选择方案A", "style": "primary"}]
+            [/ACTIONS]
+
+        Returns:
+            (cleaned_output, buttons) — 清理后的输出和按钮列表（无按钮时为 None）
+        """
+        match = StreamExecutionHandler._ACTION_BUTTONS_RE.search(output)
+        if not match:
+            return output, None
+
+        raw = match.group(1).strip()
+        try:
+            buttons = json.loads(raw)
+            if not isinstance(buttons, list):
+                return output, None
+            # 校验每个按钮至少有 label 和 value
+            valid_buttons: list[dict[str, str]] = []
+            for btn in buttons:
+                if isinstance(btn, dict) and "label" in btn and "value" in btn:
+                    item: dict[str, str] = {
+                        "label": str(btn["label"]),
+                        "value": str(btn["value"]),
+                    }
+                    if "style" in btn and btn["style"] in (
+                        "primary", "default", "danger",
+                    ):
+                        item["style"] = btn["style"]
+                    valid_buttons.append(item)
+            if not valid_buttons:
+                return output, None
+            # 从输出中移除标记
+            cleaned = StreamExecutionHandler._ACTION_BUTTONS_RE.sub(
+                "", output,
+            ).strip()
+            return cleaned, valid_buttons
+        except (json.JSONDecodeError, TypeError, ValueError):
+            logger.warning("Failed to parse action buttons from LLM output")
+            return output, None
 
 
 __all__ = ["StreamExecutionHandler"]

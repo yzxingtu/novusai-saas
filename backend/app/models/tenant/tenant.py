@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
 
 from app.core.base_model import BaseModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 
 
 class Tenant(BaseModel):
@@ -22,6 +23,17 @@ class Tenant(BaseModel):
     """
     
     __tablename__ = "tenants"
+
+    __delete_deps__ = [
+        DeletionDep("TenantAdmin", "tenant_id", DeletionStrategy.BLOCK,
+                    label_field="username", i18n_key="tenant_admin"),
+        DeletionDep("TenantDomain", "tenant_id", DeletionStrategy.CASCADE_SOFT,
+                    label_field="domain", i18n_key="tenant_domain"),
+        DeletionDep("TenantPlugin", "tenant_id", DeletionStrategy.CASCADE_DELETE,
+                    label_field="id", i18n_key="tenant_plugin"),
+        DeletionDep("SystemAgentAssignment", "tenant_id", DeletionStrategy.CASCADE_DELETE,
+                    label_field="id", i18n_key="system_agent_assignment"),
+    ]
     
     # 允许前端筛选的字段
     __filterable__ = {

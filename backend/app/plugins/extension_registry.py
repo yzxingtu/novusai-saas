@@ -105,6 +105,10 @@ class ExtensionRegistry:
             driver_class = instance.get_driver_class()
             storage_manager.register_driver(driver_class)
             self._plugin_storage_drivers[driver_name] = instance.name
+
+            # 动态注入驱动选项到存储配置下拉
+            self._inject_storage_driver_option(driver_name, instance.display_name)
+
             logger.info(
                 "Storage plugin registered: driver=%s plugin=%s",
                 driver_name, instance.name,
@@ -152,6 +156,10 @@ class ExtensionRegistry:
             if hasattr(storage_manager, 'unregister_driver'):
                 storage_manager.unregister_driver(driver_name)
             self._plugin_storage_drivers.pop(driver_name, None)
+
+            # 从存储配置下拉中移除驱动选项
+            self._remove_storage_driver_option(driver_name)
+
             logger.info(
                 "Storage plugin unregistered: driver=%s plugin=%s",
                 driver_name, instance.name,
@@ -200,6 +208,33 @@ class ExtensionRegistry:
     def is_plugin_skill_type(self, skill_type: str) -> bool:
         """判断给定的 Skill 类型是否由插件提供"""
         return skill_type in self._plugin_skills
+
+    # ========================================
+    # 存储驱动配置动态注入
+    # ========================================
+
+    @staticmethod
+    def _inject_storage_driver_option(driver_name: str, display_name: str) -> None:
+        """向 platform_storage_driver / tenant_storage_driver 配置项注入新驱动选项"""
+        try:
+            from app.configs.meta import ConfigOption
+            from app.configs.registry import config_registry
+            label_key = f"config.storage_driver.{driver_name}"
+            opt = ConfigOption(value=driver_name, label_key=label_key)
+            config_registry.add_option("platform_storage_driver", opt)
+            config_registry.add_option("tenant_storage_driver", opt)
+        except Exception as e:
+            logger.warning("Failed to inject storage driver option: %s", e)
+
+    @staticmethod
+    def _remove_storage_driver_option(driver_name: str) -> None:
+        """从 platform_storage_driver / tenant_storage_driver 配置项移除驱动选项"""
+        try:
+            from app.configs.registry import config_registry
+            config_registry.remove_option("platform_storage_driver", driver_name)
+            config_registry.remove_option("tenant_storage_driver", driver_name)
+        except Exception as e:
+            logger.warning("Failed to remove storage driver option: %s", e)
 
     def get_plugin_storage_drivers(self) -> dict[str, str]:
         """获取所有已注册的存储驱动插件映射 (driver_name -> plugin_name)"""

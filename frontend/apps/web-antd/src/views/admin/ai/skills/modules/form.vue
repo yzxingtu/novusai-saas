@@ -74,6 +74,9 @@ function getSkillTypeOptions() {
     { label: $t('admin.ai.skill.type_options.knowledge_base'), value: 'knowledge_base' },
     { label: $t('admin.ai.skill.type_options.data_intelligence'), value: 'data_intelligence' },
     { label: $t('admin.ai.skill.type_options.builtin'), value: 'builtin' },
+    { label: $t('admin.ai.skill.type_options.http'), value: 'http' },
+    { label: $t('admin.ai.skill.type_options.email'), value: 'email' },
+    { label: $t('admin.ai.skill.type_options.code_execution'), value: 'code_execution' },
   ];
 }
 
@@ -99,6 +102,31 @@ const isKb = (v: Record<string, unknown>) => v.type === 'knowledge_base';
 const isDi = (v: Record<string, unknown>) => v.type === 'data_intelligence';
 const isDiNonSystem = (v: Record<string, unknown>) =>
   v.type === 'data_intelligence' && !isSystemSkill.value;
+const isHttp = (v: Record<string, unknown>) => v.type === 'http';
+const isEmail = (v: Record<string, unknown>) => v.type === 'email';
+const isCode = (v: Record<string, unknown>) => v.type === 'code_execution';
+const isHttpBearer = (v: Record<string, unknown>) => v.type === 'http' && v.http_auth_type === 'bearer';
+const isHttpApiKey = (v: Record<string, unknown>) => v.type === 'http' && v.http_auth_type === 'api_key';
+const isHttpBasic = (v: Record<string, unknown>) => v.type === 'http' && v.http_auth_type === 'basic';
+
+function getHttpMethodOptions() {
+  return [
+    { label: 'GET', value: 'GET' },
+    { label: 'POST', value: 'POST' },
+    { label: 'PUT', value: 'PUT' },
+    { label: 'PATCH', value: 'PATCH' },
+    { label: 'DELETE', value: 'DELETE' },
+  ];
+}
+
+function getAuthTypeOptions() {
+  return [
+    { label: $t('admin.ai.skill.httpConfig.authTypeOptions.none'), value: 'none' },
+    { label: $t('admin.ai.skill.httpConfig.authTypeOptions.bearer'), value: 'bearer' },
+    { label: $t('admin.ai.skill.httpConfig.authTypeOptions.api_key'), value: 'api_key' },
+    { label: $t('admin.ai.skill.httpConfig.authTypeOptions.basic'), value: 'basic' },
+  ];
+}
 
 const isSystemSkill = ref(false);
 
@@ -295,6 +323,175 @@ function useFormSchema() {
       },
       dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'builtin' },
     },
+    // ============ http 专属字段 ============
+    {
+      component: 'Divider',
+      fieldName: '_http_divider',
+      label: '',
+      hideLabel: true,
+      componentProps: { orientation: 'left', dashed: true },
+      renderComponentContent: () => ({ default: () => $t('admin.ai.skill.httpConfig.title') }),
+      dependencies: { triggerFields: ['type'], if: isHttp },
+    },
+    {
+      ...inputField('http_url', $t('admin.ai.skill.httpConfig.url'), {
+        required: true,
+        placeholder: $t('admin.ai.skill.httpConfig.urlPlaceholder'),
+      }),
+      help: $t('admin.ai.skill.httpConfig.urlHelp'),
+      dependencies: { triggerFields: ['type'], if: isHttp },
+    },
+    {
+      ...select('http_method', $t('admin.ai.skill.httpConfig.method'), {
+        options: getHttpMethodOptions(),
+      }),
+      dependencies: { triggerFields: ['type'], if: isHttp },
+    },
+    {
+      ...textareaField('http_headers', $t('admin.ai.skill.httpConfig.headers'), {
+        placeholder: $t('admin.ai.skill.httpConfig.headersPlaceholder'),
+        rows: 3,
+      }),
+      dependencies: { triggerFields: ['type'], if: isHttp },
+    },
+    {
+      ...textareaField('http_body_template', $t('admin.ai.skill.httpConfig.bodyTemplate'), {
+        placeholder: $t('admin.ai.skill.httpConfig.bodyTemplatePlaceholder'),
+        rows: 4,
+      }),
+      help: $t('admin.ai.skill.httpConfig.bodyTemplateHelp'),
+      dependencies: { triggerFields: ['type'], if: isHttp },
+    },
+    {
+      ...textareaField('http_query_params', $t('admin.ai.skill.httpConfig.queryParams'), {
+        placeholder: $t('admin.ai.skill.httpConfig.queryParamsPlaceholder'),
+        rows: 2,
+      }),
+      dependencies: { triggerFields: ['type'], if: isHttp },
+    },
+    {
+      ...select('http_auth_type', $t('admin.ai.skill.httpConfig.authType'), {
+        options: getAuthTypeOptions(),
+      }),
+      dependencies: { triggerFields: ['type'], if: isHttp },
+    },
+    {
+      ...inputField('http_auth_token', $t('admin.ai.skill.httpConfig.authToken'), {
+        placeholder: $t('admin.ai.skill.httpConfig.authTokenPlaceholder'),
+      }),
+      dependencies: { triggerFields: ['type', 'http_auth_type'], if: isHttpBearer },
+    },
+    {
+      ...inputField('http_auth_key_name', $t('admin.ai.skill.httpConfig.authKeyName'), {
+        placeholder: $t('admin.ai.skill.httpConfig.authKeyNamePlaceholder'),
+      }),
+      dependencies: { triggerFields: ['type', 'http_auth_type'], if: isHttpApiKey },
+    },
+    {
+      ...inputField('http_auth_key_value', $t('admin.ai.skill.httpConfig.authKeyValue')),
+      dependencies: { triggerFields: ['type', 'http_auth_type'], if: isHttpApiKey },
+    },
+    {
+      ...inputField('http_auth_username', $t('admin.ai.skill.httpConfig.authUsername')),
+      dependencies: { triggerFields: ['type', 'http_auth_type'], if: isHttpBasic },
+    },
+    {
+      ...inputField('http_auth_password', $t('admin.ai.skill.httpConfig.authPassword')),
+      dependencies: { triggerFields: ['type', 'http_auth_type'], if: isHttpBasic },
+    },
+    {
+      ...inputField('http_response_path', $t('admin.ai.skill.httpConfig.responsePath'), {
+        placeholder: $t('admin.ai.skill.httpConfig.responsePathPlaceholder'),
+      }),
+      help: $t('admin.ai.skill.httpConfig.responsePathHelp'),
+      dependencies: { triggerFields: ['type'], if: isHttp },
+    },
+    // ============ email 专属字段 ============
+    {
+      component: 'Divider',
+      fieldName: '_email_divider',
+      label: '',
+      hideLabel: true,
+      componentProps: { orientation: 'left', dashed: true },
+      renderComponentContent: () => ({ default: () => $t('admin.ai.skill.emailConfig.title') }),
+      dependencies: { triggerFields: ['type'], if: isEmail },
+    },
+    {
+      component: 'Alert',
+      fieldName: '_email_smtp_hint',
+      label: '',
+      hideLabel: true,
+      componentProps: { type: 'info', showIcon: true, message: $t('admin.ai.skill.emailConfig.smtpHint') },
+      dependencies: { triggerFields: ['type'], if: isEmail },
+    },
+    {
+      ...inputField('email_subject_prefix', $t('admin.ai.skill.emailConfig.subjectPrefix'), {
+        placeholder: $t('admin.ai.skill.emailConfig.subjectPrefixPlaceholder'),
+      }),
+      help: $t('admin.ai.skill.emailConfig.subjectPrefixHelp'),
+      dependencies: { triggerFields: ['type'], if: isEmail },
+    },
+    {
+      ...inputField('email_allowed_domains', $t('admin.ai.skill.emailConfig.allowedDomains'), {
+        placeholder: $t('admin.ai.skill.emailConfig.allowedDomainsPlaceholder'),
+      }),
+      help: $t('admin.ai.skill.emailConfig.allowedDomainsHelp'),
+      dependencies: { triggerFields: ['type'], if: isEmail },
+    },
+    {
+      ...numberField('email_max_recipients', $t('admin.ai.skill.emailConfig.maxRecipients'), {
+        min: 1, max: 50,
+      }),
+      help: $t('admin.ai.skill.emailConfig.maxRecipientsHelp'),
+      dependencies: { triggerFields: ['type'], if: isEmail },
+    },
+    {
+      ...switchField('email_require_confirmation', $t('admin.ai.skill.emailConfig.requireConfirmation')),
+      help: $t('admin.ai.skill.emailConfig.requireConfirmationHelp'),
+      dependencies: { triggerFields: ['type'], if: isEmail },
+    },
+    {
+      ...switchField('email_allow_cc', $t('admin.ai.skill.emailConfig.allowCc')),
+      dependencies: { triggerFields: ['type'], if: isEmail },
+    },
+    // ============ code_execution 专属字段 ============
+    {
+      component: 'Divider',
+      fieldName: '_code_divider',
+      label: '',
+      hideLabel: true,
+      componentProps: { orientation: 'left', dashed: true },
+      renderComponentContent: () => ({ default: () => $t('admin.ai.skill.codeExecutionConfig.title') }),
+      dependencies: { triggerFields: ['type'], if: isCode },
+    },
+    {
+      component: 'Alert',
+      fieldName: '_code_sandbox_hint',
+      label: '',
+      hideLabel: true,
+      componentProps: { type: 'info', showIcon: true, message: $t('admin.ai.skill.codeExecutionConfig.sandboxHint') },
+      dependencies: { triggerFields: ['type'], if: isCode },
+    },
+    {
+      ...select('code_language', $t('admin.ai.skill.codeExecutionConfig.language'), {
+        options: [{ label: $t('admin.ai.skill.codeExecutionConfig.languageOptions.python'), value: 'python' }],
+      }),
+      dependencies: { triggerFields: ['type'], if: isCode },
+    },
+    {
+      ...numberField('code_memory_limit_mb', $t('admin.ai.skill.codeExecutionConfig.memoryLimitMb'), {
+        min: 64, max: 1024,
+      }),
+      help: $t('admin.ai.skill.codeExecutionConfig.memoryLimitHelp'),
+      dependencies: { triggerFields: ['type'], if: isCode },
+    },
+    {
+      ...inputField('code_allowed_modules', $t('admin.ai.skill.codeExecutionConfig.allowedModules'), {
+        placeholder: $t('admin.ai.skill.codeExecutionConfig.allowedModulesPlaceholder'),
+      }),
+      help: $t('admin.ai.skill.codeExecutionConfig.allowedModulesHelp'),
+      dependencies: { triggerFields: ['type'], if: isCode },
+    },
     // ============ data_intelligence 专属字段 ============
     {
       component: 'Divider',
@@ -358,6 +555,29 @@ function getFormDefaults(): Record<string, unknown> {
     rag_context_token_ratio: 0.3,
     di_table_policy_ids: [],
     di_max_rows_override: 0,
+    // http defaults
+    http_url: '',
+    http_method: 'GET',
+    http_headers: '',
+    http_body_template: '',
+    http_query_params: '',
+    http_auth_type: 'none',
+    http_auth_token: '',
+    http_auth_key_name: 'X-API-Key',
+    http_auth_key_value: '',
+    http_auth_username: '',
+    http_auth_password: '',
+    http_response_path: '',
+    // email defaults
+    email_subject_prefix: '',
+    email_allowed_domains: '',
+    email_max_recipients: 5,
+    email_require_confirmation: true,
+    email_allow_cc: true,
+    // code_execution defaults
+    code_language: 'python',
+    code_memory_limit_mb: 256,
+    code_allowed_modules: 'math,json,datetime,re,collections,itertools,functools,statistics,random,string',
   };
 }
 
@@ -398,6 +618,48 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
       config = valvesConfig && Object.keys(valvesConfig).length > 0
         ? { valves: valvesConfig }
         : null;
+    } else if (type === 'http') {
+      let headers: Record<string, string> = {};
+      let queryParams: Record<string, string> = {};
+      try { headers = JSON.parse((values.http_headers as string) || '{}'); } catch { /* empty */ }
+      try { queryParams = JSON.parse((values.http_query_params as string) || '{}'); } catch { /* empty */ }
+      const authConfig: Record<string, string> = {};
+      const authType = (values.http_auth_type as string) || 'none';
+      if (authType === 'bearer') authConfig.token = (values.http_auth_token as string) || '';
+      if (authType === 'api_key') {
+        authConfig.key_name = (values.http_auth_key_name as string) || 'X-API-Key';
+        authConfig.key_value = (values.http_auth_key_value as string) || '';
+      }
+      if (authType === 'basic') {
+        authConfig.username = (values.http_auth_username as string) || '';
+        authConfig.password = (values.http_auth_password as string) || '';
+      }
+      config = {
+        url: values.http_url || '',
+        method: values.http_method || 'GET',
+        headers,
+        body_template: values.http_body_template || '',
+        query_params: queryParams,
+        auth_type: authType,
+        auth_config: authConfig,
+        response_path: values.http_response_path || '',
+      };
+    } else if (type === 'email') {
+      const domainsRaw = (values.email_allowed_domains as string) || '';
+      config = {
+        subject_prefix: values.email_subject_prefix || '',
+        allowed_domains: domainsRaw ? domainsRaw.split(',').map((d: string) => d.trim()).filter(Boolean) : [],
+        max_recipients: values.email_max_recipients ?? 5,
+        require_confirmation: values.email_require_confirmation ?? true,
+        allow_cc: values.email_allow_cc ?? true,
+      };
+    } else if (type === 'code_execution') {
+      const modulesRaw = (values.code_allowed_modules as string) || '';
+      config = {
+        language: values.code_language || 'python',
+        memory_limit_mb: values.code_memory_limit_mb ?? 256,
+        allowed_modules: modulesRaw ? modulesRaw.split(',').map((m: string) => m.trim()).filter(Boolean) : [],
+      };
     }
 
     const result: Record<string, unknown> = {
@@ -454,6 +716,29 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
       rag_context_token_ratio: (ragCfg.context_token_ratio as number) ?? 0.3,
       di_table_policy_ids: (cfg.table_policy_ids as number[]) || [],
       di_max_rows_override: (cfg.max_rows_override as number) ?? 0,
+      // http fields
+      http_url: (cfg.url as string) || '',
+      http_method: (cfg.method as string) || 'GET',
+      http_headers: cfg.headers ? JSON.stringify(cfg.headers, null, 2) : '',
+      http_body_template: (cfg.body_template as string) || '',
+      http_query_params: cfg.query_params ? JSON.stringify(cfg.query_params, null, 2) : '',
+      http_auth_type: (cfg.auth_type as string) || 'none',
+      http_auth_token: ((cfg.auth_config as Record<string, string>)?.token) || '',
+      http_auth_key_name: ((cfg.auth_config as Record<string, string>)?.key_name) || 'X-API-Key',
+      http_auth_key_value: ((cfg.auth_config as Record<string, string>)?.key_value) || '',
+      http_auth_username: ((cfg.auth_config as Record<string, string>)?.username) || '',
+      http_auth_password: ((cfg.auth_config as Record<string, string>)?.password) || '',
+      http_response_path: (cfg.response_path as string) || '',
+      // email fields
+      email_subject_prefix: (cfg.subject_prefix as string) || '',
+      email_allowed_domains: Array.isArray(cfg.allowed_domains) ? (cfg.allowed_domains as string[]).join(', ') : '',
+      email_max_recipients: (cfg.max_recipients as number) ?? 5,
+      email_require_confirmation: (cfg.require_confirmation as boolean) ?? true,
+      email_allow_cc: (cfg.allow_cc as boolean) ?? true,
+      // code_execution fields
+      code_language: (cfg.language as string) || 'python',
+      code_memory_limit_mb: (cfg.memory_limit_mb as number) ?? 256,
+      code_allowed_modules: Array.isArray(cfg.allowed_modules) ? (cfg.allowed_modules as string[]).join(',') : '',
     };
   },
   onSuccess: () => {

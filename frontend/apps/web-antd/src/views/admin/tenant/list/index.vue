@@ -7,7 +7,7 @@ import type { adminApi } from '#/api';
 import { computed, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
-import { IconifyIcon, Plus } from '@vben/icons';
+import { IconifyIcon } from '@vben/icons';
 
 import {
   Button,
@@ -34,6 +34,7 @@ import {
 
 import { useColumns, useGridFormSchema } from './data';
 import DomainsModal from './modules/DomainsModal.vue';
+import TenantAdminPanel from './modules/TenantAdminPanel.vue';
 import Form from './modules/TenantForm.vue';
 import ResetPasswordModal from './modules/ResetPasswordModal.vue';
 
@@ -43,6 +44,18 @@ type TenantInfo = adminApi.TenantInfo;
 
 // 检测是否为开发模式
 const isDev = computed(() => import.meta.env.DEV);
+
+/**
+ * 构建租户端 origin URL
+ * 开发模式下使用当前 origin（通过 tenant_code 参数识别租户）
+ * 生产模式下使用租户主域名
+ */
+function getTenantOrigin(domain: string): string {
+  if (isDev.value) {
+    return window.location.origin;
+  }
+  return `${window.location.protocol}//${domain}`;
+}
 
 // 域名管理弹窗引用
 const domainsModalRef = ref<InstanceType<typeof DomainsModal>>();
@@ -87,6 +100,11 @@ function onResetPassword(row: TenantInfo) {
  * 一键登录租户后台(新窗口)
  */
 async function onImpersonate(row: TenantInfo) {
+  // 租户端通过域名识别租户，必须有主域名
+  if (!row.primaryDomain?.domain) {
+    message.warning($t('admin.tenant.messages.noPrimaryDomain'));
+    return;
+  }
   const hideLoading = message.loading({
     content: $t('admin.tenant.messages.impersonating', { name: row.name }),
     duration: 0,
@@ -98,8 +116,8 @@ async function onImpersonate(row: TenantInfo) {
       content: $t('admin.tenant.messages.impersonateSuccess'),
       key: 'impersonate_tenant',
     });
-    // 构建跳转 URL 并在新窗口打开
-    const targetUrl = `/tenant/impersonate?token=${encodeURIComponent(result.impersonateToken)}&tenant_code=${encodeURIComponent(row.code)}`;
+    // 通过租户主域名跳转，租户端根据域名识别租户
+    const targetUrl = `${getTenantOrigin(row.primaryDomain.domain)}/tenant/impersonate?token=${encodeURIComponent(result.impersonateToken)}&tenant_code=${encodeURIComponent(row.code)}`;
     window.open(targetUrl, '_blank');
   } catch {
     hideLoading();
@@ -114,6 +132,11 @@ async function onImpersonate(row: TenantInfo) {
  * 一键登录租户后台(当前标签页) - 仅开发模式
  */
 async function onImpersonateInCurrentTab(row: TenantInfo) {
+  // 租户端通过域名识别租户，必须有主域名
+  if (!row.primaryDomain?.domain) {
+    message.warning($t('admin.tenant.messages.noPrimaryDomain'));
+    return;
+  }
   const hideLoading = message.loading({
     content: $t('admin.tenant.messages.impersonating', { name: row.name }),
     duration: 0,
@@ -125,8 +148,8 @@ async function onImpersonateInCurrentTab(row: TenantInfo) {
       content: $t('admin.tenant.messages.impersonateSuccess'),
       key: 'impersonate_tenant_current',
     });
-    // 在当前标签页跳转,添加 tenant_code 参数用于开发环境识别租户
-    const targetUrl = `/tenant/impersonate?token=${encodeURIComponent(result.impersonateToken)}&tenant_code=${encodeURIComponent(row.code)}`;
+    // 通过租户主域名跳转，租户端根据域名识别租户
+    const targetUrl = `${getTenantOrigin(row.primaryDomain.domain)}/tenant/impersonate?token=${encodeURIComponent(result.impersonateToken)}&tenant_code=${encodeURIComponent(row.code)}`;
     window.location.href = targetUrl;
   } catch {
     hideLoading();
@@ -142,7 +165,6 @@ const {
   Grid,
   FormDrawer,
   ExportModal,
-  onCreate,
   onRefresh,
   handleActionClick,
 } = useCrudPage<TenantInfo>({
@@ -157,6 +179,10 @@ const {
   i18nPrefix: 'admin.tenant',
   nameField: 'name',
   recycleBin: true,
+  createPermission: 'tenant:create',
+  gridOptions: {
+    expandConfig: { accordion: true, iconOpen: 'vxe-icon-square-minus', iconClose: 'vxe-icon-square-plus', height: 'auto' },
+  },
   customActions: {
     impersonate: onImpersonate,
     impersonateInCurrentTab: onImpersonateInCurrentTab,
@@ -176,6 +202,13 @@ const {
     <!-- 表格 -->
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
+        <!-- 租户管理员展开行 -->
+        <template #expand_content="{ row }">
+          <TenantAdminPanel
+            :tenant-id="row.id"
+            :tenant-name="row.name"
+          />
+        </template>
         <!-- 租户名称 + 账号列 -->
         <template #name_cell="{ row }">
           <div class="flex flex-col gap-0.5">
@@ -464,20 +497,14 @@ const {
               $t('admin.tenant.tip')
             }}</span>
           </Card>
-          <Card
-            v-access:code="['tenant:create']"
-            size="small"
-            class="mr-2 cursor-pointer transition-shadow duration-200 hover:shadow-md"
-            @click="onCreate"
-          >
-            <div class="flex items-center gap-2 text-primary">
-              <Plus class="size-4" />
-              <span class="font-medium">{{ $t('admin.tenant.create') }}</span>
-            </div>
-          </Card>
-          <!-- 导出按钮由 useCrudPage 自动添加 -->
         </template>
       </Grid>
     </Card>
   </Page>
 </template>
+
+<style scoped>
+:deep(.vxe-body--expanded-cell) {
+  padding: 0 !important;
+}
+</style>

@@ -86,6 +86,11 @@ export function useColumns<T = TenantInfo>(
 ): VxeTableGridOptions['columns'] {
   return [
     {
+      type: 'expand',
+      width: 40,
+      slots: { content: 'expand_content' },
+    },
+    {
       field: 'name',
       title: $t('admin.tenant.name'),
       minWidth: 200,

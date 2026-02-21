@@ -19,7 +19,7 @@ export function formatFileSize(bytes: number): string {
  * @param filename 文件名
  * @param mimeType MIME 类型
  */
-export function getFileIcon(filename: string, mimeType?: string): string {
+export function getFileIcon(filename: string, mimeType?: null | string): string {
   // 1. 优先根据 MIME 类型判断
   if (mimeType) {
     if (mimeType.startsWith('image/')) return 'lucide:image';

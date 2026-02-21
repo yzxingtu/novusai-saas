@@ -21,7 +21,9 @@ import {
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
-import { Select as ASelect } from 'ant-design-vue';
+import { Button as AButton, Select as ASelect, Steps as ASteps } from 'ant-design-vue';
+
+const AStep = ASteps.Step;
 
 import {
   getFormDefaults,
@@ -250,14 +252,14 @@ const isFirstStep = computed(() => currentStep.value === 0);
 <template>
   <Drawer :title="title" class="w-[640px]">
     <div v-if="wizardMode" class="mb-6">
-      <a-steps :current="currentStep" size="small">
-        <a-step
+      <ASteps :current="currentStep" size="small">
+        <AStep
           v-for="(step, idx) in wizardSteps"
           :key="idx"
           :title="step.title"
           :description="step.description"
         />
-      </a-steps>
+      </ASteps>
     </div>
     <Form />
 
@@ -284,12 +286,12 @@ const isFirstStep = computed(() => currentStep.value === 0);
       </div>
     </div>
     <div v-if="wizardMode" class="mt-4 flex justify-between">
-      <a-button :disabled="isFirstStep" @click="prevStep">
+      <AButton :disabled="isFirstStep" @click="prevStep">
         {{ $t('shared.common.prevStep') }}
-      </a-button>
-      <a-button v-if="!isLastStep" type="primary" @click="nextStep">
+      </AButton>
+      <AButton v-if="!isLastStep" type="primary" @click="nextStep">
         {{ $t('shared.common.nextStep') }}
-      </a-button>
+      </AButton>
     </div>
   </Drawer>
 </template>

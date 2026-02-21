@@ -6,7 +6,7 @@
 
 from typing import Any, TypeVar, Generic
 
-from fastapi.responses import JSONResponse, ORJSONResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.core.i18n import _

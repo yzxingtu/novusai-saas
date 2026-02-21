@@ -143,7 +143,7 @@ export interface UseCrudPageOptions<T extends BaseRow = BaseRow> {
   /** 默认排序字段，默认 '-created_at' */
   defaultSort?: string;
 
-  /** 行高，默认 64 */
+  /** 行高，默认 56 */
   rowHeight?: number;
 
   /** 是否启用分页，默认 true */
@@ -159,12 +159,26 @@ export interface UseCrudPageOptions<T extends BaseRow = BaseRow> {
   customActions?: Record<string, (row: T) => void>;
 
   /**
+   * 创建按钮权限码
+   * 提供后 CrudGrid 会在左侧工具栏自动渲染带权限的创建按钮
+   * @example 'ai_api_key:create'
+   */
+  createPermission?: string;
+
+  /**
    * 回收站配置
    * - true: 启用回收站，使用默认配置
    * - RecycleBinConfig: 启用并自定义
    * - false/undefined: 不启用
    */
   recycleBin?: boolean | RecycleBinConfig;
+
+  /**
+   * 额外的 VXE Grid 配置（会与内部默认配置深度合并）
+   * 用于 expandConfig、editConfig 等不在 useCrudPage 中直接支持的选项
+   * @example { expandConfig: { lazy: true, accordion: true } }
+   */
+  gridOptions?: Record<string, unknown>;
 }
 
 /**
@@ -187,7 +201,7 @@ export interface GridOptionsConfig {
   queryApi: (params: Record<string, any>) => Promise<any>;
   /** 默认排序字段，默认 '-created_at' */
   defaultSort?: string;
-  /** 行高，默认 64 */
+  /** 行高，默认 56 */
   rowHeight?: number;
   /** 是否启用分页，默认 true */
   pager?: boolean;

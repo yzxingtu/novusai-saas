@@ -382,6 +382,24 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
                 # 清除 Redis 进度
                 await _clear_progress(document_id)
 
+                # Socket.IO 索引完成通知
+                try:
+                    from app.core.sio_bridge import notify_tenant_sync
+                    notify_tenant_sync(tenant_id, {
+                        "type": "ai.kb_index_complete",
+                        "category": "ai",
+                        "title": f"Document indexed: {doc.name}",
+                        "data": {
+                            "document_id": document_id,
+                            "kb_id": kb.id,
+                            "chunks": total_chunks,
+                            "tokens": total_token_count,
+                        },
+                        "priority": "normal",
+                    })
+                except Exception:
+                    pass
+
                 logger.info(
                     "Document %d processed: %d chunks, %d tokens",
                     document_id, total_chunks, total_token_count,
@@ -419,6 +437,23 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
                     await _report_progress(
                         document_id, "error", 0,
                     )
+
+                    # Socket.IO 索引失败通知
+                    try:
+                        from app.core.sio_bridge import notify_tenant_sync
+                        notify_tenant_sync(tenant_id, {
+                            "type": "ai.kb_index_failed",
+                            "category": "ai",
+                            "title": f"Document indexing failed: {doc.name}",
+                            "data": {
+                                "document_id": document_id,
+                                "kb_id": kb.id,
+                                "error": str(exc)[:200],
+                            },
+                            "priority": "high",
+                        })
+                    except Exception:
+                        pass
                 except Exception:
                     pass
 

@@ -230,7 +230,7 @@ function getConfigLabel(cfg: ConfigItemMeta): string {
   return cfg.key;
 }
 
-// 获取配置项描述（优先使用 description，其次 description_key，不做 fallback 避免警告）
+// 获取配置项描述（优先使用 description，其次 description_key，最后 fallback）
 function getConfigDesc(cfg: ConfigItemMeta): string | undefined {
   // 1. 直接使用 description 字段
   if (cfg.description) return cfg.description;
@@ -239,7 +239,14 @@ function getConfigDesc(cfg: ConfigItemMeta): string | undefined {
     const translated = t(cfg.description_key);
     if (translated !== cfg.description_key) return translated;
   }
-  // 不做 fallback，避免 i18n 警告
+  // 3. fallback: 尝试 shared.config.platform_desc.{key} 或 shared.config.tenant_desc.{key}
+  const platformDescKey = `shared.config.platform_desc.${cfg.key}`;
+  const platformDescTranslated = t(platformDescKey);
+  if (platformDescTranslated !== platformDescKey) return platformDescTranslated;
+
+  const tenantDescKey = `shared.config.tenant_desc.${cfg.key}`;
+  const tenantDescTranslated = t(tenantDescKey);
+  if (tenantDescTranslated !== tenantDescKey) return tenantDescTranslated;
   return undefined;
 }
 
@@ -254,7 +261,17 @@ function getSelectOptions(cfg: ConfigItemMeta) {
       if (translated !== o.label_key)
         return { value: o.value, label: translated };
     }
-    // 3. fallback 到 value
+    // 3. fallback: 尝试 shared.config.platform_options.{key}.{value}
+    const platformOptKey = `shared.config.platform_options.${cfg.key}.${o.value}`;
+    const platformOptTranslated = t(platformOptKey);
+    if (platformOptTranslated !== platformOptKey)
+      return { value: o.value, label: platformOptTranslated };
+
+    const tenantOptKey = `shared.config.tenant_options.${cfg.key}.${o.value}`;
+    const tenantOptTranslated = t(tenantOptKey);
+    if (tenantOptTranslated !== tenantOptKey)
+      return { value: o.value, label: tenantOptTranslated };
+    // 4. fallback 到 value
     return { value: o.value, label: o.value };
   });
 }

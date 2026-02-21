@@ -17,13 +17,19 @@ const props = withDefaults(
     isLeader?: boolean;
     /** 成员信息 */
     member: OrgMember;
+    /** 是否在线（仅 showOnlineStatus=true 时有效） */
+    online?: boolean;
     /** 是否显示操作按钮 */
     showActions?: boolean;
+    /** 是否显示在线状态指示器 */
+    showOnlineStatus?: boolean;
   }>(),
   {
     isLeader: false,
     disabled: false,
+    online: false,
     showActions: true,
+    showOnlineStatus: false,
   },
 );
 
@@ -77,12 +83,18 @@ function handleResetPassword() {
     class="member-item flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
     :class="{ 'opacity-60': !member.isActive }"
   >
-    <!-- 头像 -->
+    <!-- 头像 + 在线指示器 -->
     <div class="relative flex-shrink-0">
       <Avatar v-if="member.avatar" :src="member.avatar" :size="40" />
       <Avatar v-else :size="40" class="bg-primary text-white">
         {{ avatarText }}
       </Avatar>
+      <!-- 在线状态圆点（头像右下角） -->
+      <span
+        v-if="showOnlineStatus"
+        class="absolute -bottom-0.5 -right-0.5 block size-3 rounded-full border-2 border-background"
+        :class="online ? 'bg-green-500' : 'bg-muted-foreground/30'"
+      />
       <!-- 负责人皇冠图标 -->
       <div
         v-if="isLeader"

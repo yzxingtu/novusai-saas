@@ -53,6 +53,7 @@
     "markdown-it": "^14.1.0",
     "pinia": "catalog:",
     "qs": "catalog:",
+    "socket.io-client": "^4.8.3",
     "sortablejs": "catalog:",
     "vue": "catalog:",
     "vue-echarts": "^7.0.3",

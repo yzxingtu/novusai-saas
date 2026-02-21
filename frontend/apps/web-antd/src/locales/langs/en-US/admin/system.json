@@ -415,9 +415,16 @@
       "retry": "Retry Policy",
       "notify": "Failure Notification"
     },
+    "every": "Every",
     "scheduleType": {
       "cron": "Cron",
       "interval": "Interval"
+    },
+    "cronHuman": {
+      "daily": "Daily",
+      "hourly": "Hourly",
+      "monthly": "Monthly",
+      "day": ""
     },
     "messages": {
       "createSuccess": "Created successfully",
@@ -463,11 +470,11 @@
     },
     "trigger": {
       "manual": "Manual",
-      "task_failure": "Task Failure",
-      "password_reset": "Password Reset",
+      "taskFailure": "Task Failure",
+      "passwordReset": "Password Reset",
       "test": "Test",
       "welcome": "Welcome",
-      "ssl_expiry": "SSL Expiry"
+      "sslExpiry": "SSL Expiry"
     },
     "placeholder": {
       "searchTo": "Search recipient",
@@ -492,5 +499,19 @@
       "deleteSuccess": "Deleted successfully",
       "deleteConfirm": "Are you sure you want to delete this email record?"
     }
+  },
+  "recycleBin": {
+    "title": "Recycle Bin",
+    "description": "View and manage deleted records across all modules",
+    "cleanup": "Cleanup Expired",
+    "cleanupConfirm": "Are you sure you want to cleanup records older than 30 days? This action cannot be undone.",
+    "cleanupTriggered": "Cleanup task submitted",
+    "noModule": "Please select a module from the left",
+    "tenant": "Tenant",
+    "deleteLevel": "Delete Level",
+    "levelAdmin": "Admin",
+    "levelTenant": "Tenant",
+    "searchPlaceholder": "Search deleted records...",
+    "allTenants": "All Tenants"
   }
 }

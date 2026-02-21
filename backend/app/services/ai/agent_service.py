@@ -56,6 +56,72 @@ class AgentService(TenantService[Agent, AgentRepository]):
         """获取版本 Repository"""
         return AgentVersionRepository(self.db, self.tenant_id)
 
+    async def _snapshot_skill_bindings(self, agent_id: int) -> list[dict[str, Any]]:
+        """快照当前 Agent 的技能绑定列表（用于版本发布）"""
+        from sqlalchemy import select
+        from app.models.ai.agent_skill_binding import AgentSkillBinding
+
+        result = await self.db.execute(
+            select(AgentSkillBinding).where(
+                AgentSkillBinding.agent_id == agent_id,
+                AgentSkillBinding.is_deleted.is_(False),
+            ).order_by(AgentSkillBinding.sort_order),
+        )
+        bindings = result.scalars().all()
+
+        return [
+            {
+                "package_id": b.package_id,
+                "package_name": b.package.name if b.package else None,
+                "enabled": b.enabled,
+                "consent_mode": b.consent_mode,
+                "skill_consent_overrides": b.skill_consent_overrides,
+                "sort_order": b.sort_order,
+                "config_override": b.config_override,
+            }
+            for b in bindings
+        ]
+
+    async def _restore_skill_bindings(
+        self,
+        agent_id: int,
+        bindings_snapshot: list[dict[str, Any]] | None,
+    ) -> None:
+        """从版本快照恢复技能绑定（用于版本回滚）"""
+        if bindings_snapshot is None:
+            return
+
+        from app.services.ai.agent_skill_binding_service import AgentSkillBindingService
+        binding_svc = AgentSkillBindingService(self.db, self.tenant_id)
+
+        # 删除当前所有绑定
+        await binding_svc.delete_all_for_agent(agent_id)
+
+        # 从快照重建绑定（跳过已删除的技能包）
+        from app.models.ai.skill_package import SkillPackage
+        for item in bindings_snapshot:
+            pkg_id = item.get("package_id")
+            if not pkg_id:
+                continue
+            pkg = await self.db.get(SkillPackage, pkg_id)
+            if not pkg or pkg.is_deleted:
+                logger.warning(
+                    "Skipping deleted package %d during rollback for agent %d",
+                    pkg_id, agent_id,
+                )
+                continue
+
+            await binding_svc.create({
+                "agent_id": agent_id,
+                "package_id": pkg_id,
+                "tenant_id": self.tenant_id,
+                "enabled": item.get("enabled", True),
+                "consent_mode": item.get("consent_mode", "auto"),
+                "skill_consent_overrides": item.get("skill_consent_overrides"),
+                "sort_order": item.get("sort_order", 0),
+                "config_override": item.get("config_override"),
+            })
+
     def _get_access_repo(self) -> AgentAccessRepository:
         """获取访问权限 Repository"""
         return AgentAccessRepository(self.db, self.tenant_id)
@@ -183,6 +249,9 @@ class AgentService(TenantService[Agent, AgentRepository]):
         for field_name in _VERSION_SNAPSHOT_FIELDS:
             version_data[field_name] = getattr(agent, field_name)
 
+        # 快照包含技能绑定信息
+        version_data["tool_bindings"] = await self._snapshot_skill_bindings(agent_id)
+
         await version_repo.create(version_data)
 
         # 更新 Agent 状态
@@ -235,6 +304,11 @@ class AgentService(TenantService[Agent, AgentRepository]):
             rollback_data[field_name] = getattr(version_record, field_name)
 
         updated = await self.repo.update(agent_id, rollback_data)
+
+        # 恢复技能绑定
+        await self._restore_skill_bindings(
+            agent_id, version_record.tool_bindings,
+        )
 
         logger.info(
             _("agent.version.log.rolled_back"),

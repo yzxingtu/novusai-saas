@@ -7,7 +7,7 @@ import type { ApiRequestOptions } from '#/utils/request';
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义（复用 admin 端类型）
+// 类型定义（从 shared 导入）
 // ============================================================
 
 export type {
@@ -15,7 +15,7 @@ export type {
   PeriodicTaskInfo,
   PeriodicTaskListParams,
   PeriodicTaskListResponse,
-} from '#/api/admin/periodic-task';
+} from '#/api/shared/periodic-task-types';
 
 /** 后端原始格式（内部使用） */
 interface PeriodicTaskInfoRaw {
@@ -45,7 +45,7 @@ interface PeriodicTaskInfoRaw {
 // 转换函数
 // ============================================================
 
-import type { PeriodicTaskInfo } from '#/api/admin/periodic-task';
+import type { PeriodicTaskInfo } from '#/api/shared/periodic-task-types';
 
 function transformPeriodicTaskInfo(raw: PeriodicTaskInfoRaw): PeriodicTaskInfo {
   return {

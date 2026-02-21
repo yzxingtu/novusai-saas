@@ -70,6 +70,45 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<SkillInfo>({
       config = valvesConfig && Object.keys(valvesConfig).length > 0
         ? { valves: valvesConfig }
         : null;
+    } else if (type === 'http') {
+      let headers: Record<string, string> = {};
+      try { headers = JSON.parse((values.http_headers as string) || '{}'); } catch { /* empty */ }
+      const authConfig: Record<string, string> = {};
+      const authType = (values.http_auth_type as string) || 'none';
+      if (authType === 'bearer') authConfig.token = (values.http_auth_token as string) || '';
+      if (authType === 'api_key') {
+        authConfig.key_name = (values.http_auth_key_name as string) || 'X-API-Key';
+        authConfig.key_value = (values.http_auth_key_value as string) || '';
+      }
+      if (authType === 'basic') {
+        authConfig.username = (values.http_auth_username as string) || '';
+        authConfig.password = (values.http_auth_password as string) || '';
+      }
+      config = {
+        url: values.http_url || '',
+        method: values.http_method || 'GET',
+        headers,
+        body_template: values.http_body_template || '',
+        auth_type: authType,
+        auth_config: authConfig,
+        response_path: values.http_response_path || '',
+      };
+    } else if (type === 'email') {
+      const domainsRaw = (values.email_allowed_domains as string) || '';
+      config = {
+        subject_prefix: values.email_subject_prefix || '',
+        allowed_domains: domainsRaw ? domainsRaw.split(',').map((d: string) => d.trim()).filter(Boolean) : [],
+        max_recipients: values.email_max_recipients ?? 5,
+        require_confirmation: values.email_require_confirmation ?? true,
+        allow_cc: values.email_allow_cc ?? true,
+      };
+    } else if (type === 'code_execution') {
+      const modulesRaw = (values.code_allowed_modules as string) || '';
+      config = {
+        language: values.code_language || 'python',
+        memory_limit_mb: values.code_memory_limit_mb ?? 256,
+        allowed_modules: modulesRaw ? modulesRaw.split(',').map((m: string) => m.trim()).filter(Boolean) : [],
+      };
     }
 
     const result: Record<string, unknown> = {
@@ -125,6 +164,28 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<SkillInfo>({
       // data_intelligence fields
       di_table_policy_ids: (cfg.table_policy_ids as number[]) || [],
       di_max_rows_override: (cfg.max_rows_override as number) ?? 0,
+      // http fields
+      http_url: (cfg.url as string) || '',
+      http_method: (cfg.method as string) || 'GET',
+      http_headers: cfg.headers ? JSON.stringify(cfg.headers, null, 2) : '',
+      http_body_template: (cfg.body_template as string) || '',
+      http_auth_type: (cfg.auth_type as string) || 'none',
+      http_auth_token: ((cfg.auth_config as Record<string, string>)?.token) || '',
+      http_auth_key_name: ((cfg.auth_config as Record<string, string>)?.key_name) || 'X-API-Key',
+      http_auth_key_value: ((cfg.auth_config as Record<string, string>)?.key_value) || '',
+      http_auth_username: ((cfg.auth_config as Record<string, string>)?.username) || '',
+      http_auth_password: ((cfg.auth_config as Record<string, string>)?.password) || '',
+      http_response_path: (cfg.response_path as string) || '',
+      // email fields
+      email_subject_prefix: (cfg.subject_prefix as string) || '',
+      email_allowed_domains: Array.isArray(cfg.allowed_domains) ? (cfg.allowed_domains as string[]).join(', ') : '',
+      email_max_recipients: (cfg.max_recipients as number) ?? 5,
+      email_require_confirmation: (cfg.require_confirmation as boolean) ?? true,
+      email_allow_cc: (cfg.allow_cc as boolean) ?? true,
+      // code_execution fields
+      code_language: (cfg.language as string) || 'python',
+      code_memory_limit_mb: (cfg.memory_limit_mb as number) ?? 256,
+      code_allowed_modules: Array.isArray(cfg.allowed_modules) ? (cfg.allowed_modules as string[]).join(',') : '',
     };
   },
   onSuccess: () => {

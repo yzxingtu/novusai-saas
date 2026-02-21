@@ -1,0 +1,241 @@
+"""
+租户管理员管理 API（平台端）
+
+平台管理员查看/创建/管理指定租户的管理员。
+使用独立资源码 tenant_admin，权限与租户资源分离。
+"""
+
+from fastapi import HTTPException, Request, status
+from pydantic import BaseModel, Field
+
+from app.core.base_controller import GlobalController
+from app.core.deps import DbSession, ActiveAdmin
+from app.core.i18n import _
+from app.core.response import success, created
+from app.core.security import get_password_hash
+from app.enums.rbac import PermissionScope
+from app.rbac.decorators import (
+    permission_resource,
+    action_read,
+    action_create,
+    action_update,
+)
+from app.services.system import TenantService
+
+
+# ==========================================
+# 请求/响应 Schema
+# ==========================================
+
+class TenantAdminCreateRequest(BaseModel):
+    """创建租户管理员请求"""
+    username: str = Field(..., min_length=2, max_length=50)
+    email: str = Field(..., max_length=255)
+    password: str = Field(..., min_length=6, max_length=100)
+    nickname: str | None = Field(None, max_length=100)
+    role_id: int | None = Field(None)
+
+
+class TenantAdminStatusRequest(BaseModel):
+    """切换管理员状态请求"""
+    is_active: bool
+
+
+# ==========================================
+# Controller
+# ==========================================
+
+@permission_resource(
+    resource="tenant_admin",
+    name="menu.admin.tenant_admin",
+    scope=PermissionScope.ADMIN,
+    parent_resource="tenant",
+    menu=None,
+)
+class AdminTenantAdminController(GlobalController):
+    """
+    租户管理员管理控制器
+
+    平台管理员可查看/创建/禁用指定租户的管理员。
+    路由嵌套在 /admin/tenants/{tenant_id}/admins 下。
+    """
+
+    prefix = "/tenants/{tenant_id}/admins"
+    tags = ["Tenant Admin Management"]
+
+    def _register_routes(self) -> None:
+        """注册路由"""
+        router = self.router
+
+        async def _verify_tenant(db: DbSession, tenant_id: int):
+            """验证租户存在"""
+            tenant_service = TenantService(db)
+            tenant = await tenant_service.get_by_id(tenant_id)
+            if tenant is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=_("tenant.not_found"),
+                )
+            return tenant
+
+        @router.get("", summary="获取租户管理员列表")
+        @action_read("action.tenant_admin.list")
+        async def list_tenant_admins(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            tenant_id: int,
+        ):
+            """
+            获取指定租户下所有管理员列表
+
+            返回管理员基本信息、角色名、在线状态相关字段。
+            """
+            await _verify_tenant(db, tenant_id)
+
+            from sqlalchemy import select
+            from sqlalchemy.orm import selectinload
+            from app.models import TenantAdmin
+
+            result = await db.execute(
+                select(TenantAdmin)
+                .where(
+                    TenantAdmin.tenant_id == tenant_id,
+                    TenantAdmin.is_deleted.is_(False),
+                )
+                .options(selectinload(TenantAdmin.role))
+                .order_by(TenantAdmin.is_owner.desc(), TenantAdmin.created_at.asc())
+            )
+            admins = list(result.scalars().all())
+
+            items = []
+            for ta in admins:
+                items.append({
+                    "id": ta.id,
+                    "username": ta.username,
+                    "email": ta.email,
+                    "nickname": ta.nickname,
+                    "avatar": ta.avatar,
+                    "is_owner": ta.is_owner,
+                    "is_active": ta.is_active,
+                    "role_name": ta.role.name if ta.role else None,
+                    "role_id": ta.role_id,
+                    "last_login_at": ta.last_login_at.isoformat() if ta.last_login_at else None,
+                    "last_login_ip": ta.last_login_ip,
+                    "created_at": ta.created_at.isoformat() if ta.created_at else None,
+                })
+
+            return success(data=items)
+
+        @router.post("", summary="为租户创建管理员")
+        @action_create("action.tenant_admin.create")
+        async def create_tenant_admin(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            tenant_id: int,
+            data: TenantAdminCreateRequest,
+        ):
+            """
+            为指定租户创建新管理员
+
+            - 自动设置 tenant_id 和 is_owner=False
+            - 验证用户名/邮箱在该租户内唯一
+            """
+            await _verify_tenant(db, tenant_id)
+
+            from sqlalchemy import select, or_
+            from app.models import TenantAdmin
+
+            # 验证用户名/邮箱唯一性
+            existing = await db.execute(
+                select(TenantAdmin).where(
+                    TenantAdmin.tenant_id == tenant_id,
+                    TenantAdmin.is_deleted.is_(False),
+                    or_(
+                        TenantAdmin.username == data.username,
+                        TenantAdmin.email == data.email,
+                    ),
+                )
+            )
+            if existing.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=_("tenant_admin.username_or_email_exists"),
+                )
+
+            # 创建管理员
+            new_admin = TenantAdmin(
+                tenant_id=tenant_id,
+                username=data.username,
+                email=data.email,
+                password_hash=get_password_hash(data.password),
+                nickname=data.nickname,
+                role_id=data.role_id,
+                is_owner=False,
+                is_active=True,
+            )
+            db.add(new_admin)
+            await db.flush()
+
+            return created(data={
+                "id": new_admin.id,
+                "username": new_admin.username,
+                "email": new_admin.email,
+                "nickname": new_admin.nickname,
+                "is_owner": new_admin.is_owner,
+                "is_active": new_admin.is_active,
+            })
+
+        @router.put("/{admin_id}/status", summary="切换管理员状态")
+        @action_update("action.tenant_admin.update")
+        async def toggle_admin_status(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            tenant_id: int,
+            admin_id: int,
+            data: TenantAdminStatusRequest,
+        ):
+            """
+            切换租户管理员的启用/禁用状态
+
+            不可禁用租户所有者（is_owner=True）。
+            """
+            await _verify_tenant(db, tenant_id)
+
+            from sqlalchemy import select
+            from app.models import TenantAdmin
+
+            result = await db.execute(
+                select(TenantAdmin).where(
+                    TenantAdmin.id == admin_id,
+                    TenantAdmin.tenant_id == tenant_id,
+                    TenantAdmin.is_deleted.is_(False),
+                )
+            )
+            tenant_admin = result.scalar_one_or_none()
+            if not tenant_admin:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=_("tenant_admin.not_found"),
+                )
+
+            if tenant_admin.is_owner and not data.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=_("tenant_admin.cannot_disable_owner"),
+                )
+
+            tenant_admin.is_active = data.is_active
+            await db.flush()
+
+            return success(data={
+                "id": tenant_admin.id,
+                "is_active": tenant_admin.is_active,
+            })
+
+
+# 创建 router（GlobalController 自动注册路由）
+_controller = AdminTenantAdminController()
+router = _controller.router

@@ -9,7 +9,7 @@ defineOptions({ name: 'SystemEmailLogList' });
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Card, Tag, Tooltip } from 'ant-design-vue';
+import { Button, Card, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { getEmailLogListApi } from '#/api/admin/email-log';
@@ -98,21 +98,18 @@ const { Grid, onRefresh } = useCrudPage<EmailLogInfo>({
           </Tooltip>
         </template>
 
-        <!-- 工具栏 -->
-        <template #toolbar-tools>
-          <Card
+        <!-- 左侧工具栏：发送邮件 -->
+        <template #toolbar-actions>
+          <Button
             v-access:code="['email_log:send']"
-            size="small"
-            class="mr-2 cursor-pointer transition-shadow duration-200 hover:shadow-md"
+            type="primary"
             @click="onOpenSendDrawer"
           >
-            <div class="flex items-center gap-2 text-primary">
+            <template #icon>
               <IconifyIcon icon="lucide:send" class="size-4" />
-              <span class="font-medium">
-                {{ $t('admin.system.emailLog.send.title') }}
-              </span>
-            </div>
-          </Card>
+            </template>
+            {{ $t('admin.system.emailLog.send.title') }}
+          </Button>
         </template>
       </Grid>
     </Card>

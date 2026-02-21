@@ -167,8 +167,8 @@ function onSelectionChange(rows: OperationLogInfo[]) {
           </Tooltip>
         </template>
 
-        <!-- 工具栏 -->
-        <template #toolbar-tools>
+        <!-- 左侧工具栏：批量删除 -->
+        <template #toolbar-actions>
           <Popconfirm
             v-if="selectedRows.length > 0"
             :title="
@@ -184,10 +184,9 @@ function onSelectionChange(rows: OperationLogInfo[]) {
             <Button
               v-access:code="['operation_log:delete']"
               danger
-              class="mr-2"
             >
               <template #icon>
-                <IconifyIcon icon="lucide:trash-2" />
+                <IconifyIcon icon="lucide:trash-2" class="size-4" />
               </template>
               {{ $t('admin.system.operationLog.batchDelete') }} ({{
                 selectedRows.length

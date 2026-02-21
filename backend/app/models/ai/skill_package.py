@@ -14,6 +14,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
 from app.enums.common import ResourceScopeEnum
 
@@ -27,6 +28,11 @@ class SkillPackage(TenantModel):
     """
 
     __tablename__ = "skill_packages"
+
+    __delete_deps__ = [
+        DeletionDep("Skill", "package_id", DeletionStrategy.CASCADE_SOFT,
+                    label_field="name", i18n_key="skill"),
+    ]
 
     # 覆盖 TenantModel 的 tenant_id，admin scope 时为 NULL
     tenant_id = Column(

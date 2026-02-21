@@ -41,8 +41,13 @@ import { message, Modal } from 'ant-design-vue';
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
 
+import DependencyBlockModal from '#/components/business/dependency-block-modal/index.vue';
+
 import { CrudGrid, RecycleBinDrawer, useExportModal } from './components';
 import { useGridSearchFormOptions, useVbenVxeGrid } from './use-vxe-grid';
+
+/** 依赖阻止错误码 */
+const DEPENDENCY_BLOCKED_CODE = 4221;
 
 /**
  * 声明式 CRUD 列表页 Composable
@@ -60,7 +65,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     i18nPrefix,
     nameField = 'name' as keyof T & string,
     defaultSort = '-created_at',
-    rowHeight = 64,
+    rowHeight = 56,
     stripe = true,
     pager = true,
     toolbar = {
@@ -71,7 +76,9 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       zoom: true,
     },
     customActions = {},
+    createPermission,
     recycleBin,
+    gridOptions: extraGridOptions = {},
   } = options;
 
   // ==================== 回收站配置 ====================
@@ -79,6 +86,9 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   const recycleBinConfig: RecycleBinConfig =
     typeof recycleBin === 'object' ? recycleBin : {};
   const recycleBinRef = ref<InstanceType<typeof RecycleBinDrawer> | null>(null);
+
+  // ==================== 依赖阻止弹窗 ====================
+  const depBlockRef = ref<InstanceType<typeof DependencyBlockModal> | null>(null);
 
   // ==================== 表单弹窗 ====================
   let FormPopup:
@@ -175,9 +185,10 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     setProcessing(row.id, true);
     try {
       // 自动构造 DELETE 请求：DELETE {resource}/{id}
+      // 关闭默认错误消息，由下方 catch 手动处理 4221
       await requestClient.delete(`${api.resource}/${row.id}`, {
         loading: true,
-        showCodeMessage: true,
+        showCodeMessage: false,
         showSuccessMessage: true,
         successMessage: $t(`${i18nPrefix}.messages.deleteSuccess`),
       });
@@ -185,6 +196,16 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       // 刷新回收站计数
       if (recycleBinEnabled) {
         recycleBinRef.value?.refreshCount();
+      }
+    } catch (error: unknown) {
+      const resp = (error as any)?.response?.data;
+      if (resp?.code === DEPENDENCY_BLOCKED_CODE && resp?.dependencies) {
+        // 4221: 依赖阻止 → 弹出依赖详情弹窗
+        const displayName = String(row[nameField] || row.id);
+        depBlockRef.value?.open(resp.dependencies, displayName);
+      } else if (resp?.message) {
+        // 其他业务错误 → 显示错误消息
+        message.error(resp.message);
       }
     } finally {
       setProcessing(row.id, false);
@@ -295,7 +316,11 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   const toolbarConfig = {
     ...toolbar,
     export: false, // 禁用原生导出，使用自定义导出按钮
+    refresh: false, // 禁用原生刷新，CrudGrid 左侧自定义渲染
   };
+
+  // 创建按钮文案：默认取 i18nPrefix + '.create'
+  const createLabel = formComponent ? $t(`${i18nPrefix}.create`) : '';
 
   /**
    * 处理表单参数，转换日期范围等特殊字段
@@ -349,6 +374,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     cellConfig: { height: rowHeight },
     rowConfig: { keyField: 'id' },
     toolbarConfig,
+    ...extraGridOptions,
   };
 
   // 创建表格
@@ -383,6 +409,14 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
               recycleBinCount: recycleBinRef.value?.deletedCount ?? 0,
               onExport: openExportModal,
               onRecycleBin: openRecycleBin,
+              onRefresh,
+              ...(formComponent && createPermission
+                ? {
+                    onCreate,
+                    createPermission,
+                    createLabel,
+                  }
+                : {}),
               ...attrs,
             },
             slots,
@@ -403,6 +437,11 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
             }),
           );
         }
+
+        // 渲染依赖阻止弹窗
+        children.push(
+          h(DependencyBlockModal, { ref: depBlockRef }),
+        );
 
         return h('div', { class: 'crud-page-grid h-full' }, children);
       };

@@ -386,3 +386,84 @@ export async function tenantImpersonateApi(
     expiresIn: raw.expires_in,
   };
 }
+
+// ============================================================
+// 租户管理员管理 API
+// ============================================================
+
+/** 租户管理员信息 */
+export interface TenantAdminItem {
+  id: number;
+  username: string;
+  email: string;
+  nickname: string | null;
+  avatar: string | null;
+  is_owner: boolean;
+  is_active: boolean;
+  role_name: string | null;
+  role_id: number | null;
+  last_login_at: string | null;
+  last_login_ip: string | null;
+  created_at: string | null;
+}
+
+/** 创建租户管理员请求 */
+export interface TenantAdminCreateRequest {
+  username: string;
+  email: string;
+  password: string;
+  nickname?: string;
+  role_id?: number;
+}
+
+/**
+ * 获取租户管理员列表
+ */
+export async function getTenantAdminsApi(
+  tenantId: number,
+): Promise<TenantAdminItem[]> {
+  return requestClient.get<TenantAdminItem[]>(
+    `${API_PREFIX}/${tenantId}/admins`,
+  );
+}
+
+/**
+ * 创建租户管理员
+ */
+export async function createTenantAdminApi(
+  tenantId: number,
+  data: TenantAdminCreateRequest,
+): Promise<Record<string, unknown>> {
+  return requestClient.post(
+    `${API_PREFIX}/${tenantId}/admins`,
+    data,
+  );
+}
+
+/**
+ * 更新租户管理员
+ */
+export async function updateTenantAdminApi(
+  tenantId: number,
+  adminId: number,
+  data: { email?: string; nickname?: string; password?: string },
+): Promise<Record<string, unknown>> {
+  return requestClient.put(
+    `${API_PREFIX}/${tenantId}/admins/${adminId}`,
+    data,
+  );
+}
+
+/**
+ * 切换租户管理员状态
+ */
+export async function toggleTenantAdminStatusApi(
+  tenantId: number,
+  adminId: number,
+  isActive: boolean,
+): Promise<Record<string, unknown>> {
+  return requestClient.put(
+    `${API_PREFIX}/${tenantId}/admins/${adminId}/status`,
+    { is_active: isActive },
+  );
+}

@@ -55,8 +55,6 @@ oauth2_tenant_user_scheme = OAuth2PasswordBearer(
     auto_error=False,
 )
 
-# 兼容旧代码
-oauth2_scheme = oauth2_tenant_user_scheme
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -321,7 +319,6 @@ __all__ = [
     "CurrentTenantUser",
     "ActiveTenantUser",
     # 通用
-    "oauth2_scheme",
     "DbSession",
     "RedisClient",
     # 查询参数

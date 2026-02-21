@@ -28,7 +28,8 @@ import {
   Upload,
 } from 'ant-design-vue';
 
-import { getAttachmentListApi, smartUploadFile } from '#/api/tenant/attachment';
+import { getAttachmentListApi as adminGetAttachmentListApi, uploadAttachmentApi as adminUploadAttachmentApi } from '#/api/admin/attachment';
+import { getAttachmentListApi as tenantGetAttachmentListApi, smartUploadFile as tenantSmartUploadFile } from '#/api/tenant/attachment';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { formatFileSize, getFileIcon } from '#/utils/file';
@@ -38,6 +39,8 @@ defineOptions({ name: 'FilePicker' });
 const props = withDefaults(
   defineProps<{
     accept?: string;
+    /** API 端类型：admin 使用平台附件 API，tenant 使用租户附件 API。默认根据 URL 自动检测。 */
+    endpoint?: 'admin' | 'tenant';
     imageOnly?: boolean;
     maxConcurrency?: number;
     maxCount?: number;
@@ -55,6 +58,12 @@ const props = withDefaults(
     maxRetries: 2,
   },
 );
+
+/** 解析实际使用的端类型：优先 prop，否则从 URL 自动检测 */
+const resolvedEndpoint = computed(() => {
+  if (props.endpoint) return props.endpoint;
+  return window.location.pathname.startsWith('/admin') ? 'admin' : 'tenant';
+});
 
 const emit = defineEmits<{
   (e: 'select', files: AttachmentInfo[]): void;
@@ -170,14 +179,16 @@ async function loadFiles() {
       params['filter[name][ilike]'] = searchKeyword.value;
     }
     // 按分类/文件类型筛选：优先用户选择的分类，其次 imageOnly，最后 accept prop 推导的 MIME 大类
+    // 使用 ilike 操作符，后端自动包裹 %...%，无需手动添加通配符
     if (categoryFilter.value) {
-      params['filter[mime_type][like]'] = `${categoryFilter.value}/%`;
+      params['filter[mime_type][ilike]'] = `${categoryFilter.value}/`;
     } else if (props.imageOnly) {
-      params['filter[mime_type][like]'] = 'image/%';
+      params['filter[mime_type][ilike]'] = 'image/';
     } else if (acceptMimeFilter.value) {
-      params['filter[mime_type][like]'] = `${acceptMimeFilter.value}/%`;
+      params['filter[mime_type][ilike]'] = `${acceptMimeFilter.value}/`;
     }
-    const result = await getAttachmentListApi(params);
+    const listApi = resolvedEndpoint.value === 'admin' ? adminGetAttachmentListApi : tenantGetAttachmentListApi;
+    const result = await listApi(params);
     files.value = result.items;
     total.value = result.total;
   } catch {
@@ -241,7 +252,11 @@ async function executeUploadTask(task: UploadTask): Promise<void> {
   task.abortController = new AbortController();
 
   try {
-    const result = await smartUploadFile(
+    const uploadFn = resolvedEndpoint.value === 'admin'
+      ? (p: { file: File; visibility: string }, onProg: (pg: { percent: number }) => void, opts: Record<string, unknown>) =>
+          adminUploadAttachmentApi({ file: p.file, tenant_id: 0, visibility: p.visibility as 'private' | 'public' }, onProg, opts)
+      : tenantSmartUploadFile;
+    const result = await uploadFn(
       { file: task.file, visibility: 'private' },
       (progress) => {
         task.percent = progress.percent;
@@ -251,10 +266,10 @@ async function executeUploadTask(task: UploadTask): Promise<void> {
     task.status = 'success';
     task.percent = 100;
 
-    if (result.id) {
+    if (result.attachment?.id) {
       if (!props.multiple) selectedIds.value.clear();
       if (selectedIds.value.size < props.maxCount) {
-        selectedIds.value.add(result.id);
+        selectedIds.value.add(result.attachment.id);
         selectedIds.value = new Set(selectedIds.value);
       }
     }
@@ -716,7 +731,7 @@ defineExpose({
                   </span>
                 </div>
                 <span class="shrink-0 text-xs text-muted-foreground">
-                  {{ formatDate(file.uploadedAt) }}
+                  {{ formatDate(file.createdAt) }}
                 </span>
                 <!-- 列表模式下的预览按钮 -->
                 <button

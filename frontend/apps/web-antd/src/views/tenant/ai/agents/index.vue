@@ -9,9 +9,9 @@ defineOptions({ name: 'TenantAgentList' });
 import { ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
-import { IconifyIcon, Plus } from '@vben/icons';
+import { IconifyIcon } from '@vben/icons';
 
-import { Card, Input, message, Modal, Tag, Tooltip } from 'ant-design-vue';
+import { Button, Card, Input, message, Modal, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 
@@ -193,21 +193,18 @@ function onVersionSuccess() {
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
-        <!-- 工具栏 -->
-        <template #toolbar-tools>
-          <Card
+        <!-- 左侧工具栏：创建按钮 -->
+        <template #toolbar-actions>
+          <Button
             v-access:code="['agent:create']"
-            size="small"
-            class="mr-2 cursor-pointer transition-shadow duration-200 hover:shadow-md"
+            type="primary"
             @click="agentFormRef?.openNew()"
           >
-            <div class="flex items-center gap-2 text-primary">
-              <Plus class="size-4" />
-              <span class="font-medium">{{
-                $t('tenant.ai.agent.create')
-              }}</span>
-            </div>
-          </Card>
+            <template #icon>
+              <IconifyIcon icon="lucide:plus" class="size-4" />
+            </template>
+            {{ $t('tenant.ai.agent.create') }}
+          </Button>
         </template>
 
         <!-- 名称列 -->

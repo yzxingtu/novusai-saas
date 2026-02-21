@@ -214,9 +214,9 @@ const { Grid } = useCrudPage<AttachmentInfo>({
 
         <!-- 上传时间列 -->
         <template #uploadedAt_cell="{ row }">
-          <Tooltip :title="formatDate(row.uploadedAt)">
+          <Tooltip :title="formatDate(row.createdAt)">
             <span class="text-muted-foreground">
-              {{ formatRelativeTime(row.uploadedAt) }}
+              {{ formatRelativeTime(row.createdAt) }}
             </span>
           </Tooltip>
         </template>

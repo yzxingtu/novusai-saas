@@ -13,6 +13,7 @@ from sqlalchemy import Boolean, Index, Integer, String, Text, JSON, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import BaseModel, TenantModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
 
 
@@ -25,6 +26,11 @@ class AITablePolicy(BaseModel):
     """
 
     __tablename__ = "ai_table_policies"
+
+    __delete_deps__ = [
+        DeletionDep("AITablePolicyOverride", "policy_id", DeletionStrategy.CASCADE_SOFT,
+                    label_field="id", i18n_key="table_policy_override"),
+    ]
 
     # 允许前端筛选的字段
     __filterable__ = {

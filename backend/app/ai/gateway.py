@@ -28,6 +28,7 @@ from app.ai.types import (
     ChatResponse,
     ChatChunk,
     EmbeddingResponse,
+    ImageGenerationResponse,
     TestModelResult,
     messages_to_dicts,
 )
@@ -694,6 +695,138 @@ class AIGateway:
 
             except Exception as e:
                 logger.error("Record usage failed: %s", str(e))
+
+        await self.db.commit()
+
+        return response
+
+    async def generate_image(
+        self,
+        provider_code: str,
+        prompt: str,
+        model: str,
+        size: str = "1024x1024",
+        quality: str = "standard",
+        style: str = "vivid",
+        n: int = 1,
+        tenant_id: int | None = None,
+        user_id: int | None = None,
+        **kwargs,
+    ) -> ImageGenerationResponse:
+        """
+        图像生成（统一接口，完整调用链路）
+
+        调用链路:
+        限流检查 → 配额检查 → 获取 API Key → 调用适配器(含重试) → 记录日志 → 更新用量
+
+        Args:
+            provider_code: 供应商代码
+            prompt: 生成提示词
+            model: 模型名称（如 dall-e-3）
+            size: 图片尺寸
+            quality: 质量（standard / hd）
+            style: 风格（vivid / natural）
+            n: 生成数量
+            tenant_id: 租户 ID
+            user_id: 用户 ID
+            **kwargs: 其他参数
+
+        Returns:
+            ImageGenerationResponse: 图像生成响应
+        """
+        start_time = time.time()
+
+        # 获取供应商、API Key 和模型信息
+        provider, api_key = await self.get_provider_and_key(provider_code, tenant_id)
+        ai_model = await self._get_model(model, provider.id)
+
+        if not ai_model:
+            raise NotFoundException(message=_("ai.error.model_not_found"))
+
+        model_id = ai_model.id
+
+        # 原子检查+记录速率限制 + 配额检查（仅租户调用）
+        # 生图按固定 token 估算（无法精确预估，使用 1000 作为基准）
+        estimated_input = 0
+        if tenant_id:
+            estimated_input = 1000 * n
+            await self.usage_recorder.check_rate_and_quota(
+                tenant_id, model_id, ai_model, estimated_input,
+            )
+
+        # 调用适配器（含重试）
+        response, _retry_count, used_api_key = await self.retry_service.execute_with_retry(
+            provider=provider,
+            api_key=api_key,
+            model=model,
+            call_fn=lambda adapter: adapter.generate_image(
+                prompt=prompt, model=model, size=size,
+                quality=quality, style=style, n=n, **kwargs,
+            ),
+            tenant_id=tenant_id,
+            log_key="ai.log.gateway_image_call",
+        )
+
+        # 计算延迟
+        latency_ms = int((time.time() - start_time) * 1000)
+
+        # 生图无 token 消耗，按次计量
+        input_tokens = estimated_input
+        output_tokens = 0
+        total_tokens = input_tokens
+
+        cost = CostCalculator.calculate_cost(
+            ai_model, input_tokens, output_tokens,
+        ) if ai_model else 0
+
+        # 更新 API Key 使用计数
+        used_api_key.increment_usage()
+
+        # 记录使用量和日志
+        if tenant_id:
+            try:
+                await self.usage_recorder.record_usage_and_adjust(
+                    tenant_id=tenant_id,
+                    model_id=model_id,
+                    request_type=RequestTypeEnum.IMAGE.value,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens,
+                    cost=cost,
+                    estimated_input=estimated_input,
+                    latency_ms=latency_ms,
+                    user_id=user_id,
+                )
+
+                request_data = {
+                    "prompt": prompt[:200],
+                    "size": size,
+                    "quality": quality,
+                    "n": n,
+                }
+
+                await self.usage_recorder.call_log_service.log_call_async(
+                    tenant_id=tenant_id,
+                    model_id=model_id,
+                    provider_id=provider.id,
+                    request_type=RequestTypeEnum.IMAGE.value,
+                    request_data=request_data,
+                    response_data={
+                        "image_count": len(response.images),
+                        "revised_prompt": response.revised_prompt,
+                    },
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens,
+                    cost=cost,
+                    latency_ms=latency_ms,
+                    status=CallStatusEnum.SUCCESS.value,
+                    user_id=user_id,
+                    user_type=UserTypeEnum.TENANT_ADMIN.value,
+                )
+
+            except Exception as e:
+                logger.error("Record image generation usage failed: %s", str(e))
 
         await self.db.commit()
 

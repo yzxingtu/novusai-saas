@@ -97,7 +97,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as redis_err:
             logger.warning(f"Redis initialization failed: {redis_err}")
 
-        # 注册内置插件 + 加载已启用的插件
+        # 注册核心 AI 适配器（硬编码，不依赖插件系统）
+        from app.ai.adapters import AdapterRegistry
+        from app.ai.adapters.openai_adapter import OpenAIAdapter
+        AdapterRegistry.register("openai_compatible", OpenAIAdapter)
+
+        # 加载插件系统
         from app.plugins.discovery import (
             register_builtin_plugins,
             load_enabled_plugins,
@@ -131,6 +136,34 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     )
         except Exception as plugin_err:
             logger.warning(f"Plugin loading failed: {plugin_err}")
+
+        # 清理残留的在线状态数据（服务器重启后旧连接已断开）
+        try:
+            from app.sio.presence import PresenceManager
+            await PresenceManager.clear_all()
+        except Exception as presence_err:
+            logger.warning(f"Presence cleanup failed: {presence_err}")
+
+        # 应用 WebSocket 平台配置（ping_interval / ping_timeout）
+        try:
+            from app.core.socketio_server import apply_ws_config
+            await apply_ws_config()
+        except Exception as ws_cfg_err:
+            logger.warning(f"WS config apply failed: {ws_cfg_err}")
+
+        # 种子数据：通知模板
+        try:
+            from app.sio.notification_seeds import seed_notification_templates
+            async with async_session_factory() as db:
+                seed_result = await seed_notification_templates(db)
+                if seed_result["created"] > 0:
+                    logger.info(
+                        f"Notification templates seeded: "
+                        f"created={seed_result['created']}, "
+                        f"existing={seed_result['existing']}"
+                    )
+        except Exception as seed_err:
+            logger.warning(f"Notification template seed failed: {seed_err}")
 
         # 验证 Celery broker 连通性
         try:
@@ -386,7 +419,23 @@ def create_application() -> FastAPI:
         name="local_storage",
     )
     
-    return app
+    # ========================================
+    # Socket.IO 集成
+    # ========================================
+    import socketio as _socketio
+    from app.core.socketio_server import sio
+    from app.sio import register_namespaces
+
+    register_namespaces(sio)
+
+    # 用 ASGIApp 包装 FastAPI，Socket.IO 路径为 /sio
+    sio_app = _socketio.ASGIApp(
+        sio,
+        other_asgi_app=app,
+        socketio_path="/sio",
+    )
+
+    return sio_app
 
 
 # 创建应用实例

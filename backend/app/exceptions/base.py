@@ -142,6 +142,33 @@ class BusinessException(AppException):
     default_message = "common.failed"
 
 
+class DependencyBlockedException(BusinessException):
+    """
+    删除被依赖阻止异常
+
+    当删除记录时发现有活跃依赖引用，阻止删除并返回依赖详情。
+    前端通过 error_code=4221 识别并弹出依赖详情弹窗。
+    """
+
+    code = 4221
+    status_code = 422
+    default_message = "common.error.has_dependencies"
+
+    def __init__(
+        self,
+        message: str | None = None,
+        dependencies: list[dict[str, Any]] | None = None,
+    ):
+        super().__init__(message=message)
+        self.dependencies = dependencies or []
+
+    def to_dict(self) -> dict[str, Any]:
+        """重写序列化，携带 dependencies 字段"""
+        base = super().to_dict()
+        base["dependencies"] = self.dependencies
+        return base
+
+
 class RateLimitException(AppException):
     """
     请求频率限制异常
@@ -183,6 +210,7 @@ __all__ = [
     "NotFoundException",
     "ConflictException",
     "BusinessException",
+    "DependencyBlockedException",
     "RateLimitException",
     "ExternalServiceException",
     "ServiceUnavailableException",

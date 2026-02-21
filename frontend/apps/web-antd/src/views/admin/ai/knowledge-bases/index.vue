@@ -9,7 +9,7 @@ defineOptions({ name: 'AdminKnowledgeBaseList' });
 import { onMounted, ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
-import { IconifyIcon, Plus } from '@vben/icons';
+import { IconifyIcon } from '@vben/icons';
 
 import { Card, Statistic, Tag } from 'ant-design-vue';
 
@@ -51,7 +51,7 @@ function onDetailClick(row: AdminKnowledgeBaseItem) {
   detailDrawerApi.open();
 }
 
-const { Grid, FormDrawer, onCreate, onRefresh } = useCrudPage<AdminKnowledgeBaseItem>({
+const { Grid, FormDrawer, onRefresh } = useCrudPage<AdminKnowledgeBaseItem>({
   api: {
     list: getAdminKnowledgeBaseListApi,
     delete: deleteAdminKnowledgeBaseApi,
@@ -64,6 +64,7 @@ const { Grid, FormDrawer, onCreate, onRefresh } = useCrudPage<AdminKnowledgeBase
   i18nPrefix: 'admin.knowledgeBase',
   nameField: 'name',
   defaultSort: '-created_at',
+  createPermission: 'ai_knowledge_base:create',
   customActions: {
     detail: onDetailClick,
   },
@@ -155,20 +156,6 @@ function getScopeText(scope: string) {
           </span>
         </template>
 
-        <!-- 工具栏 -->
-        <template #toolbar-tools>
-          <Card
-            v-access:code="['ai_knowledge_base:create']"
-            size="small"
-            class="mr-2 cursor-pointer transition-shadow duration-200 hover:shadow-md"
-            @click="onCreate"
-          >
-            <div class="flex items-center gap-2 text-primary">
-              <Plus class="size-4" />
-              <span class="font-medium">{{ $t('admin.knowledgeBase.create') }}</span>
-            </div>
-          </Card>
-        </template>
       </Grid>
     </Card>
   </Page>

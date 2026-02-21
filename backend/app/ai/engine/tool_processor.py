@@ -283,14 +283,21 @@ class ToolCallProcessor:
         if skill_info:
             event.update(skill_info)
 
+        if result.display_name:
+            event["display_name"] = result.display_name
+        if result.summary:
+            event["summary"] = result.summary
+        if result.result_link:
+            event["result_link"] = result.result_link
+
         if result.success and result.output:
             if '"__crud_form_fill__"' in result.output:
                 event["output"] = result.output
             else:
-                summary = result.output[:500]
+                truncated = result.output[:500]
                 if len(result.output) > 500:
-                    summary += "..."
-                event["output"] = summary
+                    truncated += "..."
+                event["output"] = truncated
         elif not result.success and result.error:
             event["error"] = result.error[:300]
 

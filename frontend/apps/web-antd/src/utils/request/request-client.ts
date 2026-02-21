@@ -481,7 +481,7 @@ export class RequestClient {
   /**
    * 文件上传
    */
-  async upload<T = any>(
+  async upload<T = unknown>(
     url: string,
     data: UploadFileData,
     config?: RequestClientConfig,

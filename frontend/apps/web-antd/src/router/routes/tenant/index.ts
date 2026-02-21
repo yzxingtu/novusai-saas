@@ -169,7 +169,17 @@ const mainRoutes: RouteRecordRaw = {
             title: $t('tenant.ai.skillPackage.title'),
           },
         },
-        // TenantAISkillPackageDetail + TenantAISkills routes removed — Master-Detail layout in index.vue
+        {
+          name: 'TenantAISkillPackageDetail',
+          path: 'skill-packages/:id',
+          component: () =>
+            import('#/views/tenant/ai/skill-packages/detail.vue'),
+          meta: {
+            hideInMenu: true,
+            title: $t('tenant.ai.skillPackage.detail.title'),
+            activePath: '/tenant/ai/skill-packages',
+          },
+        },
         {
           name: 'TenantAIAgents',
           path: 'agents',
@@ -228,6 +238,16 @@ const mainRoutes: RouteRecordRaw = {
           },
         },
       ],
+    },
+    // 个人中心
+    {
+      name: 'TenantProfile',
+      path: '/tenant/profile',
+      component: () => import('#/views/_core/profile/index.vue'),
+      meta: {
+        hideInMenu: true,
+        title: $t('page.auth.profile'),
+      },
     },
   ],
 };

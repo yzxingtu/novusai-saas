@@ -43,6 +43,7 @@ class SkillResolveResult:
     knowledge_base_ids: list[int] = field(default_factory=list)
     rag_config: dict[str, Any] = field(default_factory=dict)
     tool_consent_modes: dict[str, str] = field(default_factory=dict)
+    warnings: list[str] = field(default_factory=list)
 
 
 class SkillResolver:
@@ -86,6 +87,8 @@ class SkillResolver:
             try:
                 await self._resolve_one(skill, merged_config, result)
             except Exception as exc:
+                warning_msg = f"Skill '{skill.name}' (id={skill.id}) failed to load: {str(exc)}"
+                result.warnings.append(warning_msg)
                 logger.warning(
                     "Failed to resolve skill %d (%s): %s",
                     skill.id, skill.name, str(exc),
@@ -114,6 +117,12 @@ class SkillResolver:
             self._resolve_toolkit(skill, config, result)
         elif skill_type == SkillTypeEnum.BUILTIN.value:
             self._resolve_builtin(skill, config, result)
+        elif skill_type == SkillTypeEnum.HTTP.value:
+            self._resolve_http(skill, config, result)
+        elif skill_type == SkillTypeEnum.EMAIL.value:
+            self._resolve_email(skill, config, result)
+        elif skill_type == SkillTypeEnum.CODE_EXECUTION.value:
+            self._resolve_code_execution(skill, config, result)
         else:
             await self._resolve_plugin_skill(skill, config, result)
 
@@ -432,6 +441,262 @@ class SkillResolver:
             ))
 
     # ========================================
+    # HTTP/Webhook Skill
+    # ========================================
+
+    def _resolve_http(
+        self,
+        skill: Skill,
+        config: dict[str, Any],
+        result: SkillResolveResult,
+    ) -> None:
+        """
+        HTTP/Webhook Skill → 1 个 ToolDefinition
+
+        声明式 HTTP 调用：用户只需填写 URL / Method / Headers / Body 模板，
+        无需编写代码即可集成外部 API。
+
+        Skill.config 结构：
+        {
+            "url": "https://api.example.com/v1/data",
+            "method": "POST",
+            "headers": {"Authorization": "Bearer {{api_key}}"},
+            "body_template": "{\"query\": \"{{question}}\"}",
+            "query_params": {"format": "json"},
+            "auth_type": "none|bearer|api_key|basic",
+            "auth_config": {"token": "xxx"} | {"key_name": "X-API-Key", "key_value": "xxx"} | {"username": "x", "password": "y"},
+            "response_path": "$.data.result",
+            "timeout": 30
+        }
+        """
+        url = config.get("url", "")
+        if not url:
+            logger.warning(
+                "HTTP skill %d (%s) has no URL configured",
+                skill.id, skill.name,
+            )
+            return
+
+        method = (config.get("method", "GET") or "GET").upper()
+        body_template = config.get("body_template", "")
+        response_path = config.get("response_path", "")
+
+        # 从 body_template 提取 {{variable}} 占位符作为 LLM 参数
+        import re
+        template_vars = re.findall(r"\{\{(\w+)\}\}", body_template or "")
+        # 也从 URL 和 query_params 提取变量
+        url_vars = re.findall(r"\{\{(\w+)\}\}", url)
+        query_params = config.get("query_params", {}) or {}
+        qp_vars = []
+        for v in query_params.values():
+            if isinstance(v, str):
+                qp_vars.extend(re.findall(r"\{\{(\w+)\}\}", v))
+
+        all_vars = list(dict.fromkeys(url_vars + template_vars + qp_vars))
+
+        params: list[ToolParameter] = []
+        for var_name in all_vars:
+            params.append(ToolParameter(
+                name=var_name,
+                type="string",
+                description=f"Value for {{{{{var_name}}}}}",
+                required=True,
+            ))
+
+        # 如果没有模板变量但有 body，添加通用 input 参数
+        if not params and method in ("POST", "PUT", "PATCH"):
+            params.append(ToolParameter(
+                name="input",
+                type="string",
+                description="Request body or input data",
+                required=True,
+            ))
+
+        description = skill.description or f"Call {method} {url}"
+
+        result.tools.append(ToolDefinition(
+            name=skill.name.lower().replace(" ", "_"),
+            description=description,
+            tool_type=ToolTypeEnum.HTTP.value,
+            parameters=params,
+            config={
+                "_http_url": url,
+                "_http_method": method,
+                "_http_headers": config.get("headers", {}),
+                "_http_body_template": body_template,
+                "_http_query_params": query_params,
+                "_http_auth_type": config.get("auth_type", "none"),
+                "_http_auth_config": config.get("auth_config", {}),
+                "_http_response_path": response_path,
+            },
+            enabled=True,
+            timeout=config.get("timeout", skill.timeout),
+            source_skill_id=skill.id,
+            source_skill_name=skill.name,
+            source_skill_type=skill.type,
+        ))
+
+        logger.debug(
+            "HTTP skill '%s' resolved: %s %s (%d params)",
+            skill.name, method, url, len(params),
+        )
+
+    # ========================================
+    # Email Skill
+    # ========================================
+
+    def _resolve_email(
+        self,
+        skill: Skill,
+        config: dict[str, Any],
+        result: SkillResolveResult,
+    ) -> None:
+        """
+        Email Skill → 1 个 ToolDefinition (send_email)
+
+        利用已有的 EmailService 发送邮件。默认 consent_mode=ask（发邮件需用户确认）。
+
+        Skill.config 结构：
+        {
+            "subject_prefix": "[NovusAI]",
+            "allowed_domains": ["example.com"],
+            "max_recipients": 5,
+            "require_confirmation": true,
+            "allow_cc": true,
+            "allow_attachments": false
+        }
+        """
+        max_recipients = config.get("max_recipients", 5)
+        allow_cc = config.get("allow_cc", True)
+
+        description = (
+            "Send an email to specified recipients. "
+            f"Maximum {max_recipients} recipients allowed."
+        )
+        if skill.description:
+            description = skill.description
+
+        params: list[ToolParameter] = [
+            ToolParameter(
+                name="to",
+                type="string",
+                description="Recipient email address(es), comma-separated for multiple",
+                required=True,
+            ),
+            ToolParameter(
+                name="subject",
+                type="string",
+                description="Email subject line",
+                required=True,
+            ),
+            ToolParameter(
+                name="body",
+                type="string",
+                description="Email body content (supports HTML)",
+                required=True,
+            ),
+        ]
+
+        if allow_cc:
+            params.append(ToolParameter(
+                name="cc",
+                type="string",
+                description="CC email address(es), comma-separated (optional)",
+                required=False,
+            ))
+
+        result.tools.append(ToolDefinition(
+            name="send_email",
+            description=description,
+            tool_type=ToolTypeEnum.EMAIL.value,
+            parameters=params,
+            config={
+                "_email_subject_prefix": config.get("subject_prefix", ""),
+                "_email_allowed_domains": config.get("allowed_domains", []),
+                "_email_max_recipients": max_recipients,
+                "_email_require_confirmation": config.get("require_confirmation", True),
+                "_email_allow_cc": allow_cc,
+                "_email_allow_attachments": config.get("allow_attachments", False),
+            },
+            enabled=True,
+            timeout=config.get("timeout", skill.timeout),
+            source_skill_id=skill.id,
+            source_skill_name=skill.name,
+            source_skill_type=skill.type,
+        ))
+
+        logger.debug("Email skill '%s' resolved", skill.name)
+
+    # ========================================
+    # Code Execution Skill
+    # ========================================
+
+    def _resolve_code_execution(
+        self,
+        skill: Skill,
+        config: dict[str, Any],
+        result: SkillResolveResult,
+    ) -> None:
+        """
+        Code Execution Skill → 1 个 ToolDefinition (execute_code)
+
+        在安全沙箱中执行用户提供的代码。
+
+        Skill.config 结构：
+        {
+            "language": "python",
+            "timeout": 30,
+            "memory_limit_mb": 256,
+            "allowed_modules": ["math", "json", "datetime", "re", "collections"]
+        }
+        """
+        language = config.get("language", "python")
+        allowed_modules = config.get("allowed_modules", [
+            "math", "json", "datetime", "re", "collections",
+            "itertools", "functools", "statistics", "decimal",
+            "fractions", "random", "string", "textwrap",
+        ])
+
+        description = (
+            f"Execute {language} code in a secure sandbox. "
+            f"Allowed modules: {', '.join(allowed_modules[:10])}. "
+            "Use this for calculations, data processing, or text manipulation. "
+            "The code must print its output to stdout."
+        )
+        if skill.description:
+            description = skill.description
+
+        result.tools.append(ToolDefinition(
+            name="execute_code",
+            description=description,
+            tool_type=ToolTypeEnum.CODE_EXECUTION.value,
+            parameters=[
+                ToolParameter(
+                    name="code",
+                    type="string",
+                    description=f"The {language} code to execute. Must use print() to output results.",
+                    required=True,
+                ),
+            ],
+            config={
+                "_code_language": language,
+                "_code_timeout": config.get("timeout", skill.timeout),
+                "_code_memory_limit_mb": config.get("memory_limit_mb", 256),
+                "_code_allowed_modules": allowed_modules,
+            },
+            enabled=True,
+            timeout=config.get("timeout", skill.timeout),
+            source_skill_id=skill.id,
+            source_skill_name=skill.name,
+            source_skill_type=skill.type,
+        ))
+
+        logger.debug(
+            "Code execution skill '%s' resolved: lang=%s",
+            skill.name, language,
+        )
+
+    # ========================================
     # 插件 Skill
     # ========================================
 
@@ -541,6 +806,10 @@ async def resolve_for_agent(
     独立于 Engine 的 Skill 解析入口，供 Dispatcher / Service 层调用。
     Engine 不再直接访问 AgentSkillBinding 或 Skill 模型。
 
+    异常处理策略：
+    - DB 连接 / SQL 错误 → 上抛（调用方可向用户显示"技能加载失败"）
+    - 单个 Skill 解析错误 → 降级（跳过该 Skill，记录到 result.warnings）
+
     Args:
         db: 数据库会话
         agent: Agent 模型实例
@@ -548,60 +817,73 @@ async def resolve_for_agent(
 
     Returns:
         SkillResolveResult 或 None（无绑定时）
-    """
-    try:
-        from sqlalchemy import select, and_
-        from app.models.ai.skill import Skill as SkillModel
-        from app.models.ai.agent_skill_binding import AgentSkillBinding
 
-        agent_tenant_id = tenant_id or getattr(agent, "tenant_id", None)
-        if agent_tenant_id:
-            binding_stmt = (
-                select(AgentSkillBinding)
-                .where(
-                    and_(
-                        AgentSkillBinding.agent_id == agent.id,
-                        AgentSkillBinding.tenant_id == agent_tenant_id,
-                        AgentSkillBinding.enabled.is_(True),
-                        AgentSkillBinding.is_deleted.is_(False),
-                    )
+    Raises:
+        sqlalchemy.exc.SQLAlchemyError: DB 连接/查询异常（不再静默吞掉）
+    """
+    from sqlalchemy import select, and_
+    from sqlalchemy.exc import SQLAlchemyError
+    from app.models.ai.skill import Skill as SkillModel
+    from app.models.ai.agent_skill_binding import AgentSkillBinding
+
+    # ── Phase 1: 加载绑定数据（DB 错误直接上抛） ──
+    agent_tenant_id = tenant_id or getattr(agent, "tenant_id", None)
+    if agent_tenant_id:
+        binding_stmt = (
+            select(AgentSkillBinding)
+            .where(
+                and_(
+                    AgentSkillBinding.agent_id == agent.id,
+                    AgentSkillBinding.tenant_id == agent_tenant_id,
+                    AgentSkillBinding.enabled.is_(True),
+                    AgentSkillBinding.is_deleted.is_(False),
                 )
-                .order_by(AgentSkillBinding.sort_order)
             )
-        else:
-            binding_stmt = (
-                select(AgentSkillBinding)
-                .where(
-                    and_(
-                        AgentSkillBinding.agent_id == agent.id,
-                        AgentSkillBinding.tenant_id.is_(None),
-                        AgentSkillBinding.enabled.is_(True),
-                        AgentSkillBinding.is_deleted.is_(False),
-                    )
+            .order_by(AgentSkillBinding.sort_order)
+        )
+    else:
+        binding_stmt = (
+            select(AgentSkillBinding)
+            .where(
+                and_(
+                    AgentSkillBinding.agent_id == agent.id,
+                    AgentSkillBinding.tenant_id.is_(None),
+                    AgentSkillBinding.enabled.is_(True),
+                    AgentSkillBinding.is_deleted.is_(False),
                 )
-                .order_by(AgentSkillBinding.sort_order)
             )
+            .order_by(AgentSkillBinding.sort_order)
+        )
+
+    try:
         binding_result = await db.execute(binding_stmt)
         bindings = list(binding_result.scalars().all())
+    except SQLAlchemyError as exc:
+        logger.error(
+            "DB error loading skill bindings for agent %d: %s",
+            agent.id, str(exc),
+        )
+        raise
 
-        if not bindings:
-            return None
+    if not bindings:
+        return None
 
-        package_ids: list[int] = []
-        config_overrides: dict[int, dict[str, Any]] = {}
-        consent_by_package: dict[int, str] = {}
-        for binding in bindings:
-            if binding.package and binding.package.is_active and not binding.package.is_deleted:
-                package_ids.append(binding.package.id)
-                if binding.config_override:
-                    config_overrides[binding.package.id] = binding.config_override
-                consent_by_package[binding.package.id] = getattr(
-                    binding, "consent_mode", "auto"
-                )
+    package_ids: list[int] = []
+    config_overrides: dict[int, dict[str, Any]] = {}
+    consent_by_package: dict[int, str] = {}
+    for binding in bindings:
+        if binding.package and binding.package.is_active and not binding.package.is_deleted:
+            package_ids.append(binding.package.id)
+            if binding.config_override:
+                config_overrides[binding.package.id] = binding.config_override
+            consent_by_package[binding.package.id] = getattr(
+                binding, "consent_mode", "auto"
+            )
 
-        if not package_ids:
-            return None
+    if not package_ids:
+        return None
 
+    try:
         stmt = (
             select(SkillModel)
             .where(
@@ -615,63 +897,79 @@ async def resolve_for_agent(
         )
         result = await db.execute(stmt)
         skills = list(result.scalars().all())
-
-        if not skills:
-            return None
-
-        skill_config_overrides: dict[int, dict[str, Any]] = {}
-        pkg_valves: dict[int, dict[str, Any]] = {}
-        for binding in bindings:
-            if binding.package and binding.package.valves_config:
-                pkg_valves[binding.package.id] = binding.package.valves_config
-
-        for skill in skills:
-            merged: dict[str, Any] = {}
-            pkg_vc = pkg_valves.get(skill.package_id)
-            if pkg_vc:
-                merged["valves"] = pkg_vc
-            pkg_override = config_overrides.get(skill.package_id)
-            if pkg_override:
-                merged.update(pkg_override)
-            if merged:
-                skill_config_overrides[skill.id] = merged
-
-        resolver = SkillResolver(db=db)
-        resolve_result = await resolver.resolve(skills, skill_config_overrides)
-
-        consent_by_skill: dict[int, str] = {}
-        package_name_by_skill: dict[int, str] = {}
-        for skill in skills:
-            consent_by_skill[skill.id] = consent_by_package.get(
-                skill.package_id, "auto"
-            )
-            for binding in bindings:
-                if binding.package and binding.package.id == skill.package_id:
-                    package_name_by_skill[skill.id] = binding.package.name
-                    break
-        for tool in resolve_result.tools:
-            if tool.source_skill_id and tool.source_skill_id in consent_by_skill:
-                resolve_result.tool_consent_modes[tool.name] = consent_by_skill[
-                    tool.source_skill_id
-                ]
-            if tool.source_skill_id and tool.source_skill_id in package_name_by_skill:
-                tool.source_package_name = package_name_by_skill[tool.source_skill_id]
-
-        logger.info(
-            "Resolved skills for agent=%s: packages=%s, tools=%s, kb_ids=%s",
-            agent.name if agent else "?",
-            package_ids,
-            [t.name for t in resolve_result.tools],
-            resolve_result.knowledge_base_ids,
-        )
-        return resolve_result
-
-    except Exception as exc:
-        logger.warning(
-            "Skill resolution failed for agent %d, falling back: %s",
+    except SQLAlchemyError as exc:
+        logger.error(
+            "DB error loading skills for agent %d: %s",
             agent.id, str(exc),
         )
+        raise
+
+    if not skills:
         return None
+
+    # ── Phase 2: 解析 Skill → ToolDefinition（单个失败降级） ──
+    skill_config_overrides: dict[int, dict[str, Any]] = {}
+    pkg_valves: dict[int, dict[str, Any]] = {}
+    for binding in bindings:
+        if binding.package and binding.package.valves_config:
+            pkg_valves[binding.package.id] = binding.package.valves_config
+
+    for skill in skills:
+        merged: dict[str, Any] = {}
+        pkg_vc = pkg_valves.get(skill.package_id)
+        if pkg_vc:
+            merged["valves"] = pkg_vc
+        pkg_override = config_overrides.get(skill.package_id)
+        if pkg_override:
+            merged.update(pkg_override)
+        if merged:
+            skill_config_overrides[skill.id] = merged
+
+    resolver = SkillResolver(db=db)
+    resolve_result = await resolver.resolve(skills, skill_config_overrides)
+    # Note: resolver.resolve() internally catches per-skill errors and logs warnings.
+    # Any warnings from individual skill resolution are already in resolve_result.warnings
+    # via the try/except in SkillResolver._resolve_one → logged by resolver.
+
+    # ── Phase 3: 映射 consent_mode 和 package_name（纯内存操作，不应失败） ──
+    # Build per-skill consent overrides from bindings
+    skill_overrides_by_package: dict[int, dict[str, str]] = {}
+    for binding in bindings:
+        overrides = getattr(binding, "skill_consent_overrides", None)
+        if overrides and isinstance(overrides, dict) and binding.package:
+            skill_overrides_by_package[binding.package.id] = overrides
+
+    consent_by_skill: dict[int, str] = {}
+    package_name_by_skill: dict[int, str] = {}
+    for skill in skills:
+        # Default: package-level consent_mode
+        pkg_consent = consent_by_package.get(skill.package_id, "auto")
+        # Override: per-skill consent from skill_consent_overrides
+        pkg_overrides = skill_overrides_by_package.get(skill.package_id, {})
+        consent_by_skill[skill.id] = pkg_overrides.get(
+            str(skill.id), pkg_consent
+        )
+        for binding in bindings:
+            if binding.package and binding.package.id == skill.package_id:
+                package_name_by_skill[skill.id] = binding.package.name
+                break
+    for tool in resolve_result.tools:
+        if tool.source_skill_id and tool.source_skill_id in consent_by_skill:
+            resolve_result.tool_consent_modes[tool.name] = consent_by_skill[
+                tool.source_skill_id
+            ]
+        if tool.source_skill_id and tool.source_skill_id in package_name_by_skill:
+            tool.source_package_name = package_name_by_skill[tool.source_skill_id]
+
+    logger.info(
+        "Resolved skills for agent=%s: packages=%s, tools=%s, kb_ids=%s, warnings=%d",
+        agent.name if agent else "?",
+        package_ids,
+        [t.name for t in resolve_result.tools],
+        resolve_result.knowledge_base_ids,
+        len(resolve_result.warnings),
+    )
+    return resolve_result
 
 
 __all__ = ["SkillResolver", "SkillResolveResult", "resolve_for_agent"]

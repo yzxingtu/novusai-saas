@@ -140,8 +140,13 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         if scope not in ResourceScopeEnum.values():
             raise BusinessException(message=_("skill_package.error.invalid_scope"))
 
+        # scope 与 tenant_id 一致性校验
         if scope in (ResourceScopeEnum.ADMIN.value, ResourceScopeEnum.GLOBAL.value):
             data["tenant_id"] = None
+        elif scope == ResourceScopeEnum.TENANT.value and not data.get("tenant_id"):
+            raise BusinessException(
+                message=_("skill_package.error.scope_tenant_id_required"),
+            )
 
         name = data.get("name")
         if name:
@@ -176,6 +181,15 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
             )
             if existing:
                 raise BusinessException(message=_("skill_package.error.name_exists"))
+
+        # 如果 tenant_id 发生变化，级联同步子技能的 tenant_id
+        new_tenant_id = data.get("tenant_id")
+        if new_tenant_id is not None and new_tenant_id != pkg.tenant_id:
+            await self.repo.cascade_update_skill_tenant_id(id, new_tenant_id)
+            logger.info(
+                "Cascade synced Skill.tenant_id to %s for package %d",
+                new_tenant_id, id,
+            )
 
     async def _before_delete(self, id: int) -> None:
         """删除前校验：系统技能包不可删除，级联软删除技能"""

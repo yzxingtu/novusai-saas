@@ -17,21 +17,26 @@ logger = LogManager.get_logger("task")
 
 # 需要清理的模型列表（延迟导入避免循环依赖）
 RECYCLABLE_MODELS = [
-    # ── 叶子节点（无子表依赖），优先清理 ──
-    "app.models.ai.agent_conversation.AgentConversation",  # child of Agent
-    "app.models.ai.knowledge_document.KnowledgeDocument",  # child of KnowledgeBase
-    "app.models.ai.skill.Skill",                           # child of SkillPackage
-    # ── 父节点（有子表 CASCADE） ──
+    # ── 深层叶子节点（无子表依赖），优先清理 ──
+    "app.models.ai.agent_conversation.AgentConversation",    # child of Agent
+    "app.models.ai.batch_run.BatchRun",                      # child of Agent
+    "app.models.ai.knowledge_document.KnowledgeDocument",    # child of KnowledgeBase
+    "app.models.ai.skill.Skill",                             # child of SkillPackage
+    "app.models.ai.table_policy.AITablePolicyOverride",      # child of AITablePolicy
+    "app.models.ai.tenant_quota.TenantQuota",                # child of AIModel
+    "app.models.ai.tenant_rate_limit.TenantModelRateLimit",  # child of AIModel
+    # ── 父节点（有子表 CASCADE_SOFT/CASCADE_DELETE） ──
     "app.models.ai.agent.Agent",
     "app.models.ai.knowledge_base.KnowledgeBase",
     "app.models.ai.skill_package.SkillPackage",
+    "app.models.ai.table_policy.AITablePolicy",
     # ── 独立模型（无父子关系） ──
     "app.models.ai.api_key.ProviderApiKey",
     "app.models.ai.model.AIModel",
     "app.models.ai.provider.AIProvider",
     "app.models.auth.admin_role.AdminRole",
     "app.models.auth.tenant_admin_role.TenantAdminRole",
-    # ── Tenant 子表（FK → tenants.id CASCADE），在 Tenant 之前清理 ──
+    # ── Tenant 子表，在 Tenant 之前清理 ──
     "app.models.tenant.tenant_plan.TenantPlan",
     "app.models.tenant.tenant_domain.TenantDomain",
     "app.models.system.periodic_task.PeriodicTask",

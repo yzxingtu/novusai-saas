@@ -3,7 +3,7 @@ import type { RoleTreeApi } from './data';
 
 import type { OrgMember } from '#/api/admin/organization';
 
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -23,6 +23,8 @@ import AdminFormDrawer from './modules/AdminFormDrawer.vue';
 import MemberItem from './modules/MemberItem.vue';
 import ResetPasswordModal from './modules/ResetPasswordModal.vue';
 import { toResetPasswordInfo } from './types';
+import { usePresenceStore } from '#/store';
+
 import { useMemberPanel } from './use-member-panel';
 
 const props = withDefaults(
@@ -39,6 +41,8 @@ const props = withDefaults(
     nodeName?: string;
     /** 角色树 API（编辑模式下可选择角色） */
     roleTreeApi?: RoleTreeApi;
+    /** 是否显示在线状态 */
+    showOnlineStatus?: boolean;
   }>(),
   {
     nodeId: null,
@@ -47,8 +51,17 @@ const props = withDefaults(
     leaderId: null,
     apiPrefix: 'admin',
     roleTreeApi: undefined,
+    showOnlineStatus: false,
   },
 );
+
+const presenceStore = usePresenceStore();
+
+/** 判断成员是否在线 */
+function isMemberOnline(memberId: number): boolean {
+  const userType = props.apiPrefix === 'admin' ? 'admin' : 'tenant_admin';
+  return presenceStore.isOnline(userType, memberId);
+}
 
 const emit = defineEmits<{
   (e: 'leaderChanged', leaderId: null | number): void;
@@ -181,6 +194,18 @@ async function handleCancelLeader(member: OrgMember) {
 async function handleRefresh() {
   await refresh();
 }
+
+/** 加载在线状态 */
+onMounted(() => {
+  if (props.showOnlineStatus) {
+    if (props.apiPrefix === 'admin') {
+      presenceStore.loadAdminPresence();
+    } else {
+      presenceStore.loadCurrentTenantPresence();
+    }
+    presenceStore.initSocketHandlers();
+  }
+});
 </script>
 
 <template>
@@ -298,6 +323,8 @@ async function handleRefresh() {
               <MemberItem
                 :member="leaderInfo"
                 :is-leader="true"
+                :show-online-status="showOnlineStatus"
+                :online="isMemberOnline(leaderInfo.id)"
                 @edit="handleEditMember"
                 @reset-password="handleResetPassword"
                 @remove="handleRemoveMember"
@@ -319,6 +346,8 @@ async function handleRefresh() {
               :key="member.id"
               :member="member"
               :is-leader="member.isLeader"
+              :show-online-status="showOnlineStatus"
+              :online="isMemberOnline(member.id)"
               @edit="handleEditMember"
               @reset-password="handleResetPassword"
               @remove="handleRemoveMember"

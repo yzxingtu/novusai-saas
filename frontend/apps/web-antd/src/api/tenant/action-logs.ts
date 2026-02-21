@@ -21,12 +21,17 @@ export interface ActionLogItem {
   created_at: string;
 }
 
-/** 操作日志统计 */
+/** 操作日志统计（后端实际返回结构） */
 export interface ActionLogStats {
-  total_actions: number;
+  total: number;
   success_count: number;
   failed_count: number;
-  today_actions: number;
+  rejected_count: number;
+  pending_count: number;
+  level_read: number;
+  level_safe_write: number;
+  level_dangerous: number;
+  avg_duration_ms: number | null;
 }
 
 /** 操作日志列表分页响应 */
@@ -52,5 +57,6 @@ export async function getActionLogListApi(
 
 /** 获取操作日志统计 */
 export async function getActionLogStatsApi(): Promise<ActionLogStats> {
-  return requestClient.get<ActionLogStats>(`${PREFIX}/stats`);
+  const res = await requestClient.get<{ stats: ActionLogStats }>(`${PREFIX}/stats`);
+  return res.stats;
 }

@@ -50,6 +50,52 @@ class TenantAttachmentController(TenantController):
     def _register_routes(self) -> None:
         router = self.router
 
+        # ========== 上传规则 ==========
+
+        @router.get("/upload-rules", summary="获取上传规则")
+        @action_read("action.attachment.upload_rules")
+        async def get_upload_rules(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+        ):
+            """
+            获取租户上传规则（扩展名白名单、黑名单、大小限制）
+
+            优先使用租户配置，留空则回退平台配置。
+
+            权限: attachment:upload_rules
+            """
+            from app.configs.service import ConfigService
+            config_service = ConfigService(db)
+            tid = current_admin.tenant_id
+
+            tenant_allowed = await config_service.get_tenant_config(
+                tid, "tenant_storage_allowed_extensions", default=""
+            )
+            tenant_denied = await config_service.get_tenant_config(
+                tid, "tenant_storage_denied_extensions", default=""
+            )
+
+            if not tenant_allowed:
+                tenant_allowed = await config_service.get_platform_config(
+                    "platform_storage_allowed_extensions", default=""
+                )
+            if not tenant_denied:
+                tenant_denied = await config_service.get_platform_config(
+                    "platform_storage_denied_extensions", default=""
+                )
+
+            max_size = await config_service.get_platform_config(
+                "platform_storage_max_file_size_mb", default=100
+            )
+
+            return success(data={
+                "allowed_extensions": str(tenant_allowed) if tenant_allowed else "",
+                "denied_extensions": str(tenant_denied) if tenant_denied else "",
+                "max_file_size_mb": int(max_size) if max_size else 100,
+            })
+
         # ========== 上传接口 ==========
 
         @router.post("/upload", summary="上传附件")

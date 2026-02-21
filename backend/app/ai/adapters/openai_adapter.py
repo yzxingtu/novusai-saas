@@ -20,6 +20,8 @@ from app.ai.types import (
     ChatResponse,
     ChatChunk,
     EmbeddingResponse,
+    ImageGenerationResponse,
+    ImageResponse,
 )
 from app.core.logging import LogManager
 
@@ -221,11 +223,19 @@ class OpenAIAdapter(BaseAdapter):
                 for att in msg.attachments:
                     att_type = att.get("type", "")
                     att_url = att.get("url", "")
+                    att_name = att.get("name", "")
+                    att_mime = att.get("mime_type", "")
                     if att_type == "image" and att_url:
                         content_parts.append({
                             "type": "image_url",
                             "image_url": {"url": att_url},
                         })
+                    elif att_type == "file" and att_name:
+                        file_hint = f"[Attached file: {att_name}"
+                        if att_mime:
+                            file_hint += f", type: {att_mime}"
+                        file_hint += "]"
+                        content_parts.append({"type": "text", "text": file_hint})
                 openai_msg["content"] = content_parts if content_parts else msg.content
             else:
                 openai_msg["content"] = msg.content
@@ -323,6 +333,68 @@ class OpenAIAdapter(BaseAdapter):
             tool_calls=delta.tool_calls,
         )
     
+    async def generate_image(
+        self,
+        prompt: str,
+        model: str,
+        size: str = "1024x1024",
+        quality: str = "standard",
+        style: str = "vivid",
+        n: int = 1,
+        **kwargs,
+    ) -> ImageGenerationResponse:
+        """
+        图像生成（调用 OpenAI /v1/images/generations）
+        """
+        try:
+            logger.info(
+                "Image generation request: model=%s size=%s quality=%s n=%d",
+                model, size, quality, n,
+            )
+
+            request_params: dict = {
+                "model": model,
+                "prompt": prompt,
+                "size": size,
+                "quality": quality,
+                "n": n,
+                "response_format": "url",
+            }
+            # style 仅 dall-e-3 支持
+            if "dall-e-3" in model:
+                request_params["style"] = style
+
+            request_params.update(kwargs)
+
+            response = await self.client.images.generate(**request_params)
+
+            images: list[ImageResponse] = []
+            revised_prompt: str | None = None
+            for item in response.data:
+                url = item.url or ""
+                b64 = item.b64_json or ""
+                is_base64 = bool(b64 and not url)
+                rp = getattr(item, "revised_prompt", None)
+                if rp and not revised_prompt:
+                    revised_prompt = rp
+                images.append(ImageResponse(
+                    url=b64 if is_base64 else url,
+                    is_base64=is_base64,
+                    revised_prompt=rp,
+                ))
+
+            return ImageGenerationResponse(
+                images=images,
+                model=model,
+                revised_prompt=revised_prompt,
+            )
+
+        except AIGatewayError:
+            raise
+        except Exception as e:
+            logger.error("Image generation error: model=%s error=%s", model, str(e))
+            raise convert_openai_error(e, provider_code="openai", model_code=model)
+
     def get_supported_features(self) -> dict[str, bool]:
         """
         获取支持的功能
@@ -333,6 +405,7 @@ class OpenAIAdapter(BaseAdapter):
             "function_calling": True,
             "vision": True,
             "embedding": True,
+            "image_generation": True,
         }
 
 

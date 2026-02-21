@@ -145,6 +145,7 @@ class AdminAgentChatController(GlobalController):
                 permissions=user_perms,
                 consented_actions=data.consented_actions,
                 attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
+                image_params=data.image_params.model_dump() if data.image_params else None,
             )
 
         # ========================================

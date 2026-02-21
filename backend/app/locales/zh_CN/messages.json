@@ -12,7 +12,10 @@
     "unauthorized": "未授权访问",
     "forbidden": "禁止访问",
     "validation_error": "数据验证失败",
-    "unknown_error": "未知错误"
+    "unknown_error": "未知错误",
+    "error": {
+      "has_dependencies": "无法删除，仍有关联资源在使用"
+    }
   },
   "auth": {
     "login_success": "登录成功",
@@ -178,6 +181,12 @@
     "extension_not_allowed": "不允许上传 {extension} 类型的文件",
     "validation_failed": "文件验证失败"
   },
+  "storage": {
+    "error": {
+      "driver_error": "存储驱动异常",
+      "config_error": "存储配置错误，请检查存储驱动配置"
+    }
+  },
   "task": {
     "created": "任务创建成功",
     "started": "任务已启动",
@@ -205,12 +214,14 @@
     "permanently_deleted": "已永久删除",
     "escalated": "已移入管理端回收站",
     "error": {
-      "not_found": "回收站中未找到该记录",
+      "not_found": "记录不存在",
       "not_in_recycle_bin": "该记录不在回收站中",
       "restore_failed": "恢复失败",
       "already_deleted": "该记录已被删除",
-      "batch_too_large": "批量操作数量超出限制（最多 100 条）"
-    }
+      "batch_too_large": "批量操作数量超限",
+      "invalid_module": "无效的模块代码"
+    },
+    "cleanup_triggered": "清理任务已提交"
   },
   "agent": {
     "created": "智能体创建成功",
@@ -275,6 +286,7 @@
     "created": "技能包创建成功",
     "updated": "技能包更新成功",
     "deleted": "技能包删除成功",
+    "import_success": "技能包导入成功",
     "field": {
       "name": "技能包名称",
       "description": "技能包描述",
@@ -296,6 +308,8 @@
       "file_must_be_zip": "仅支持 .zip 格式的技能包文件",
       "no_valves_schema": "该技能包没有可配置项",
       "invalid_valves_config": "valves_config 必须是 JSON 对象",
+      "invalid_export_format": "无效的技能包导出格式或版本不兼容",
+      "scope_tenant_id_required": "作用域为「指定租户」时必须选择租户",
       "valves_missing_required": "缺少必填配置项: {fields}"
     }
   },
@@ -328,7 +342,8 @@
       "invalid_type": "无效的技能类型",
       "invalid_scope": "无效的作用域",
       "system_protected": "系统技能不可删除或修改关键属性",
-      "toolkit_parse_failed": "Toolkit 源码解析失败: {error}"
+      "toolkit_parse_failed": "Toolkit 源码解析失败: {error}",
+      "toolkit_security_violation": "Toolkit 安全扫描未通过: {detail}"
     },
     "test": {
       "unknown_type": "未知的技能类型: {type}",
@@ -355,6 +370,7 @@
       "toolkit_no_content": "未配置 Toolkit 源码",
       "toolkit_invalid": "Toolkit 源码校验失败: {errors}",
       "toolkit_ok": "Toolkit 解析成功 (工具数: {tools}，含 Valves: {valves})",
+      "toolkit_security_warn": "Toolkit 安全扫描发现 {count} 个违规项，请检查详情",
       "toolkit_error": "Toolkit 解析失败: {error}"
     },
     "import": {
@@ -362,6 +378,17 @@
         "no_name": "第 {index} 项缺少技能名称",
         "no_type": "第 {index} 项 ({name}) 缺少技能类型"
       }
+    }
+  },
+  "skill_call_log": {
+    "field": {
+      "skill_id": "技能 ID",
+      "agent_id": "智能体 ID",
+      "tool_name": "工具名称",
+      "tool_type": "工具类型",
+      "status": "状态",
+      "duration_ms": "耗时(ms)",
+      "error_message": "错误信息"
     }
   },
   "skill_script": {
@@ -460,7 +487,8 @@
     "error": {
       "conversation_not_found": "对话不存在",
       "conversation_archived": "对话已归档，无法继续",
-      "execution_failed": "智能体执行失败"
+      "execution_failed": "智能体执行失败",
+      "skill_load_failed": "部分技能加载失败，智能体将在无工具状态下工作"
     },
     "conversation_deleted": "对话已删除"
   },
@@ -819,41 +847,41 @@
       "detail": "查看对话详情（审计）"
     }
   },
-    "role": {
-      "not_found": "角色不存在",
-      "code_exists": "角色代码已存在",
-      "created": "角色创建成功",
-      "tenant_root_description": "租户组织架构根节点，不可删除",
-      "platform_root_description": "平台组织架构根节点，不可删除",
-      "updated": "角色更新成功",
-      "deleted": "角色删除成功",
-      "system_role_cannot_modify": "系统内置角色不可修改",
-      "system_role_cannot_delete": "系统内置角色不可删除",
-      "permissions_updated": "角色权限更新成功",
-      "parent_not_found": "父角色不存在",
-      "cannot_set_self_as_parent": "不能将自己设为父角色",
-      "circular_reference": "检测到循环引用，父角色不能是当前角色的子孙角色",
-      "has_children": "角色存在子角色，请先删除或移动子角色",
-      "has_users": "角色下存在关联用户，请先移除用户的角色关联",
-      "max_depth_exceeded": "超出最大层级深度限制",
-      "system_role_cannot_change_parent": "系统内置角色不可修改父级关系",
-      "moved": "角色移动成功",
-      "no_permission_to_view": "无权查看该角色",
-      "no_permission_to_manage": "无权管理该角色",
-      "cannot_assign_permission": "无权分配该权限，只能分配您已拥有的权限",
-      "parent_must_be_visible": "父角色必须是您的角色或其下级角色",
-      "invalid_child_type": "当前节点类型不允许添加此类型的子节点",
-      "only_department_can_set_leader": "只有部门类型节点才能设置负责人",
-      "cannot_modify_own_leader_status": "不能修改自己的负责人身份",
-      "cannot_add_member": "当前节点类型不允许添加成员",
-      "member_exists": "成员已存在于该节点",
-      "member_not_in_node": "成员不在该节点中",
-      "member_added": "成员添加成功",
-      "member_created": "成员创建成功",
-      "member_updated": "成员更新成功",
-      "member_removed": "成员移除成功",
-      "leader_set": "负责人设置成功"
-    },
+  "role": {
+    "not_found": "角色不存在",
+    "code_exists": "角色代码已存在",
+    "created": "角色创建成功",
+    "tenant_root_description": "租户组织架构根节点，不可删除",
+    "platform_root_description": "平台组织架构根节点，不可删除",
+    "updated": "角色更新成功",
+    "deleted": "角色删除成功",
+    "system_role_cannot_modify": "系统内置角色不可修改",
+    "system_role_cannot_delete": "系统内置角色不可删除",
+    "permissions_updated": "角色权限更新成功",
+    "parent_not_found": "父角色不存在",
+    "cannot_set_self_as_parent": "不能将自己设为父角色",
+    "circular_reference": "检测到循环引用，父角色不能是当前角色的子孙角色",
+    "has_children": "角色存在子角色，请先删除或移动子角色",
+    "has_users": "角色下存在关联用户，请先移除用户的角色关联",
+    "max_depth_exceeded": "超出最大层级深度限制",
+    "system_role_cannot_change_parent": "系统内置角色不可修改父级关系",
+    "moved": "角色移动成功",
+    "no_permission_to_view": "无权查看该角色",
+    "no_permission_to_manage": "无权管理该角色",
+    "cannot_assign_permission": "无权分配该权限，只能分配您已拥有的权限",
+    "parent_must_be_visible": "父角色必须是您的角色或其下级角色",
+    "invalid_child_type": "当前节点类型不允许添加此类型的子节点",
+    "only_department_can_set_leader": "只有部门类型节点才能设置负责人",
+    "cannot_modify_own_leader_status": "不能修改自己的负责人身份",
+    "cannot_add_member": "当前节点类型不允许添加成员",
+    "member_exists": "成员已存在于该节点",
+    "member_not_in_node": "成员不在该节点中",
+    "member_added": "成员添加成功",
+    "member_created": "成员创建成功",
+    "member_updated": "成员更新成功",
+    "member_removed": "成员移除成功",
+    "leader_set": "负责人设置成功"
+  },
   "tenant_admin": {
     "not_found": "管理员不存在",
     "username_exists": "用户名已被占用",
@@ -870,7 +898,9 @@
     "cannot_disable_self": "不能禁用自己",
     "cannot_modify_owner": "不能修改租户所有者",
     "owner_required": "需要租户所有者权限",
-    "role_not_found": "角色不存在"
+    "role_not_found": "角色不存在",
+    "username_or_email_exists": "用户名或邮箱已被该租户下其他管理员使用",
+    "cannot_disable_owner": "不能禁用租户所有者"
   },
   "enum": {
     "status": {
@@ -1045,7 +1075,10 @@
         "data_update": "数据更新",
         "data_delete": "数据删除",
         "plugin": "插件",
-        "crud_generator": "CRUD 代码生成器"
+        "crud_generator": "CRUD 代码生成器",
+        "http": "HTTP 请求",
+        "email": "邮件发送",
+        "code_execution": "代码执行"
       },
       "conversation_status": {
         "active": "进行中",
@@ -1136,7 +1169,10 @@
         "knowledge_base": "知识库",
         "data_intelligence": "数据智能",
         "toolkit": "工具集",
-        "builtin": "内置功能"
+        "builtin": "内置功能",
+        "http": "HTTP 请求",
+        "email": "邮件发送",
+        "code_execution": "代码执行"
       },
       "scope": {
         "tenant": "租户技能",
@@ -1221,6 +1257,13 @@
         "scope_both": "scope=both 将同时生成 admin 和 tenant 文件，请确保 controller/service 层兼容两种 scope",
         "scope_both_status_toggle": "has_status_toggle 与 scope=both 同时使用：状态切换端点将同时生成在 admin 和 tenant 控制器中"
       }
+    },
+    "deletion_strategy": {
+      "block": "阻止删除",
+      "cascade_soft": "级联软删除",
+      "cascade_delete": "级联物理删除",
+      "nullify": "清除引用",
+      "ignore": "忽略"
     }
   },
   "crud_generation_record": {
@@ -1267,6 +1310,14 @@
       "platform_ssl": {
         "name": "SSL 证书管理",
         "desc": "ACME/Let's Encrypt 配置、证书自动续期策略"
+      },
+      "platform_ai_toolkit": {
+        "name": "AI Toolkit 安全",
+        "desc": "用户上传 Toolkit 的安全策略、资源限制、静态分析"
+      },
+      "platform_websocket": {
+        "name": "实时通信 & 通知",
+        "desc": "Socket.IO 连接参数与通知系统配置"
       },
       "tenant_general": {
         "name": "基础设置",
@@ -1478,49 +1529,112 @@
         "name": "启用邮件发送",
         "desc": "是否启用邮件发送功能"
       },
-      "ssl": {
-        "acme_account_email": {
-          "name": "ACME 注册邮箱",
-          "desc": "用于 Let's Encrypt 账户注册和证书到期通知"
-        },
-        "acme_use_staging": {
-          "name": "使用测试环境",
-          "desc": "开启后使用 Let's Encrypt 测试环境（不签发真实证书），开发调试时建议开启"
-        },
-        "acme_directory_url": {
-          "name": "ACME 生产环境 URL",
-          "desc": "Let's Encrypt 生产环境 ACME 目录地址"
-        },
-        "acme_staging_url": {
-          "name": "ACME 测试环境 URL",
-          "desc": "Let's Encrypt 测试环境 ACME 目录地址"
-        },
-        "encryption_key": {
-          "name": "私钥加密密钥",
-          "desc": "用于加密存储 SSL 私钥的 Fernet 密钥（32 字节 Base64 编码）"
-        },
-        "auto_renew_days": {
-          "name": "自动续期提前天数",
-          "desc": "证书到期前多少天自动触发续期"
-        },
-        "allow_custom_cert": {
-          "name": "允许自定义证书",
-          "desc": "是否允许租户上传自定义 SSL 证书"
-        },
-        "dns_provider": {
-          "name": "DNS 提供商",
-          "desc": "用于 ACME DNS-01 验证的 DNS 提供商类型",
-          "manual": "手动模式（需人工设置 DNS 记录）",
-          "cloudflare": "Cloudflare"
-        },
-        "dns_cloudflare_api_token": {
-          "name": "Cloudflare API Token",
-          "desc": "Cloudflare API Token（需要 Zone.DNS 编辑权限）"
-        },
-        "dns_cloudflare_zone_id": {
-          "name": "Cloudflare Zone ID",
-          "desc": "Cloudflare 域名区域 ID"
-        }
+      "acme_account_email": {
+        "name": "ACME 注册邮箱",
+        "desc": "用于 Let's Encrypt 账户注册和证书到期通知"
+      },
+      "acme_use_staging": {
+        "name": "使用测试环境",
+        "desc": "开启 = 向 Let's Encrypt 测试服务器申请证书（证书真实签发但不被浏览器信任，速率限制宽松，适合开发调试）；关闭 = 向 Let's Encrypt 生产服务器申请证书（浏览器信任的正式证书，每域名每周限 5 张）。两者均需完成 DNS 验证，有效期 90 天，到期自动续期"
+      },
+      "acme_directory_url": {
+        "name": "ACME 生产环境 URL",
+        "desc": "Let's Encrypt 生产环境 ACME 目录地址"
+      },
+      "acme_staging_url": {
+        "name": "ACME 测试环境 URL",
+        "desc": "Let's Encrypt 测试环境 ACME 目录地址"
+      },
+      "ssl_private_key_encryption_key": {
+        "name": "私钥加密密钥",
+        "desc": "用于加密存储 SSL 私钥的 Fernet 密钥（32 字节 Base64 编码）"
+      },
+      "ssl_auto_renew_days": {
+        "name": "自动续期提前天数",
+        "desc": "证书到期前多少天自动触发续期"
+      },
+      "ssl_allow_custom_cert": {
+        "name": "允许自定义证书",
+        "desc": "是否允许租户上传自定义 SSL 证书"
+      },
+      "dns_provider": {
+        "name": "DNS 提供商",
+        "desc": "用于 ACME DNS-01 验证的 DNS 提供商类型",
+        "manual": "手动模式（需人工设置 DNS 记录）",
+        "cloudflare": "Cloudflare",
+        "aliyun": "阿里云 DNS",
+        "dnspod": "DNSPod（腾讯云）"
+      },
+      "dns_cloudflare_api_token": {
+        "name": "Cloudflare API Token",
+        "desc": "Cloudflare API Token（需要 Zone.DNS 编辑权限）"
+      },
+      "dns_cloudflare_zone_id": {
+        "name": "Cloudflare Zone ID",
+        "desc": "Cloudflare 域名区域 ID"
+      },
+      "dns_aliyun_access_key_id": {
+        "name": "阿里云 AccessKey ID",
+        "desc": "阿里云 RAM 访问密钥 ID（需要 AliyunDNSFullAccess 权限）"
+      },
+      "dns_aliyun_access_key_secret": {
+        "name": "阿里云 AccessKey Secret",
+        "desc": "阿里云 RAM 访问密钥 Secret"
+      },
+      "dns_dnspod_secret_id": {
+        "name": "DNSPod SecretId",
+        "desc": "腾讯云 API 密钥 SecretId（需要 DNSPod 域名解析权限）"
+      },
+      "dns_dnspod_secret_key": {
+        "name": "DNSPod SecretKey",
+        "desc": "腾讯云 API 密钥 SecretKey"
+      },
+      "toolkit_security_level": {
+        "name": "Toolkit 安全等级",
+        "desc": "控制用户上传 Toolkit 可使用的模块范围",
+        "strict": "严格模式（仅允许安全模块）",
+        "normal": "标准模式（允许网络库，禁止系统模块）",
+        "permissive": "宽松模式（仅禁止最危险模块）"
+      },
+      "toolkit_memory_limit_mb": {
+        "name": "内存限制 (MB)",
+        "desc": "Toolkit 子进程的最大内存限制，超出将被终止"
+      },
+      "toolkit_max_timeout": {
+        "name": "最大执行超时 (秒)",
+        "desc": "Toolkit 单次执行的最大允许时间，技能自身超时不得超过此值"
+      },
+      "toolkit_scan_on_upload": {
+        "name": "上传时静态分析",
+        "desc": "创建或更新 Toolkit 技能时，自动扫描源码中的危险 import 和系统调用"
+      },
+      "ws_enabled": {
+        "name": "实时通信开关",
+        "desc": "启用 Socket.IO 实时通信功能（在线状态、通知推送等）"
+      },
+      "ws_ping_interval": {
+        "name": "心跳间隔（秒）",
+        "desc": "Socket.IO 服务端向客户端发送 ping 的间隔时间"
+      },
+      "ws_ping_timeout": {
+        "name": "心跳超时（秒）",
+        "desc": "客户端未响应 pong 的超时时间，超时将断开连接"
+      },
+      "ws_max_connections_per_user": {
+        "name": "单用户最大连接数",
+        "desc": "每个用户允许同时建立的最大 Socket.IO 连接数（多设备/多标签页）"
+      },
+      "notification_enabled": {
+        "name": "通知系统开关",
+        "desc": "启用通知系统（收件箱、实时推送、邮件通知）"
+      },
+      "notification_retention_days": {
+        "name": "通知保留天数",
+        "desc": "通知消息的最大保留天数，过期自动清理"
+      },
+      "notification_max_per_user": {
+        "name": "每用户最大通知数",
+        "desc": "每个用户收件箱中保留的最大通知条数，超出后自动清理最早的通知"
       }
     },
     "tenant": {
@@ -1957,9 +2071,9 @@
       "description": "可视化 CRUD 代码生成器，支持 CLI、AI 助手和 Alembic 迁移。"
     },
     "slack_skill": {
-      "display_name": "Slack \u901a\u77e5"
+      "display_name": "Slack 通知"
     },
-    "not_found": "\u63d2\u4ef6\u4e0d\u5b58\u5728",
+    "not_found": "插件不存在",
     "already_exists": "插件名称已存在",
     "is_system": "系统内置插件不可执行此操作",
     "cannot_uninstall_system": "系统内置插件不可卸载",
@@ -2048,5 +2162,43 @@
       "config_missing": "邮件配置缺失: {fields}",
       "no_recipients": "未指定收件人"
     }
+  },
+  "deletion": {
+    "model": {
+      "ai_provider": "AI 供应商",
+      "ai_model": "AI 模型",
+      "provider_api_key": "API 密钥",
+      "agent": "智能体",
+      "agent_conversation": "对话记录",
+      "agent_skill_binding": "技能绑定",
+      "batch_run": "批量运行",
+      "skill_package": "技能包",
+      "skill": "技能",
+      "knowledge_base": "知识库",
+      "knowledge_document": "知识库文档",
+      "table_policy": "表策略",
+      "table_policy_override": "表策略覆盖",
+      "tenant_quota": "租户配额",
+      "tenant_rate_limit": "速率限制",
+      "admin_role": "管理员角色",
+      "admin": "管理员",
+      "tenant_admin_role": "租户角色",
+      "tenant_admin": "租户管理员",
+      "tenant_plan": "租户套餐",
+      "tenant": "租户",
+      "tenant_domain": "域名",
+      "tenant_plugin": "租户插件",
+      "system_agent_assignment": "系统智能体绑定"
+    }
+  },
+  "quota": {
+    "no_limit": "无限制",
+    "storage_exceeded": "存储空间不足，当前已使用 {current}GB，限制 {limit}GB",
+    "users_exceeded": "用户数已达上限 {limit}",
+    "admins_exceeded": "管理员数已达上限 {limit}",
+    "custom_domain_not_supported": "当前套餐不支持自定义域名",
+    "domains_exceeded": "自定义域名数已达上限 {limit}",
+    "api_calls_exceeded": "本月 API 调用次数已达上限 {limit}",
+    "file_size_exceeded": "文件大小超出限制 {limit}MB"
   }
 }

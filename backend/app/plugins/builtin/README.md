@@ -11,8 +11,9 @@ System plugins:
 
 | Plugin | Type | Description |
 |--------|------|-------------|
-| `openai_plugin.py` | AdapterPlugin | OpenAI-compatible API adapter |
 | `anthropic/` | AdapterPlugin | Anthropic Claude API adapter |
+
+> **Note**: The OpenAI Compatible Adapter has been integrated into the core system (`main.py` → `AdapterRegistry.register`) and is no longer a plugin.
 
 ## Adding a New System Plugin
 

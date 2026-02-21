@@ -94,6 +94,8 @@ class ToolSandbox:
         gateway: AIGateway | None = None,
         db: AsyncSession | None = None,
         agent: Agent | None = None,
+        toolkit_security_level: str = "normal",
+        toolkit_memory_limit_mb: int = 256,
     ):
         """
         Args:
@@ -106,6 +108,8 @@ class ToolSandbox:
             gateway: AI 网关（可选，供 TextToSQLExecutor 使用）
             db: 数据库会话（可选，供 TextToSQLExecutor 使用）
             agent: 智能体模型实例（可选，供 TextToSQLExecutor 使用）
+            toolkit_security_level: Toolkit 安全等级 (strict/normal/permissive)
+            toolkit_memory_limit_mb: Toolkit 子进程内存限制 (MB)
         """
         self.tenant_id = tenant_id
         self.agent_id = agent_id
@@ -117,6 +121,8 @@ class ToolSandbox:
         self._gateway = gateway
         self._db = db
         self._agent = agent
+        self._toolkit_security_level = toolkit_security_level
+        self._toolkit_memory_limit_mb = toolkit_memory_limit_mb
 
         # 初始化执行器
         self._executors: dict[str, BaseToolExecutor] = {}
@@ -128,6 +134,8 @@ class ToolSandbox:
         self._executors[ToolTypeEnum.TOOLKIT.value] = ToolkitExecutor(
             timeout=self.config.timeout_seconds,
             max_output_size=self.config.max_output_size,
+            security_level=self._toolkit_security_level,
+            memory_limit_mb=self._toolkit_memory_limit_mb,
         )
         self._executors[ToolTypeEnum.BUILTIN.value] = BuiltinToolExecutor()
         # Text-to-SQL 执行器（需要 AIGateway 注入）
@@ -143,6 +151,15 @@ class ToolSandbox:
         self._executors[ToolTypeEnum.DATA_DELETE.value] = DeleteRecordExecutor()
         # 插件 Skill 执行器
         self._executors[ToolTypeEnum.PLUGIN.value] = PluginSkillExecutor()
+        # HTTP/Webhook 执行器
+        from app.ai.tools.executors.http_executor import HttpToolExecutor
+        self._executors[ToolTypeEnum.HTTP.value] = HttpToolExecutor()
+        # 邮件执行器
+        from app.ai.tools.executors.email_executor import EmailToolExecutor
+        self._executors[ToolTypeEnum.EMAIL.value] = EmailToolExecutor()
+        # 代码执行器
+        from app.ai.tools.executors.code_execution_executor import CodeExecutionExecutor
+        self._executors[ToolTypeEnum.CODE_EXECUTION.value] = CodeExecutionExecutor()
 
     def get_executor(self, tool_type: str) -> BaseToolExecutor | None:
         """获取指定类型的执行器"""
@@ -355,6 +372,15 @@ class ToolSandbox:
                 error=result.error,
             ))
 
+        # 11. 记录技能调用日志（fire-and-forget，不阻塞返回）
+        try:
+            await self._log_skill_call(
+                definition=definition,
+                result=result,
+            )
+        except Exception as log_exc:
+            logger.warning("Failed to log skill call: %s", str(log_exc))
+
         return result
 
     async def execute_batch(
@@ -382,6 +408,30 @@ class ToolSandbox:
             )
             results.append(result)
         return results
+
+    async def _log_skill_call(
+        self,
+        definition: ToolDefinition,
+        result: ToolResult,
+    ) -> None:
+        """记录技能调用日志到 skill_call_logs 表"""
+        if not self._db:
+            return
+
+        from app.models.ai.skill_call_log import SkillCallLog
+        log = SkillCallLog(
+            tenant_id=self.tenant_id,
+            skill_id=definition.source_skill_id,
+            agent_id=self.agent_id,
+            tool_name=definition.name,
+            tool_type=definition.tool_type,
+            status="success" if result.success else "failed",
+            duration_ms=result.duration_ms or 0,
+            error_message=result.error if not result.success else None,
+        )
+        self._db.add(log)
+        # flush 但不 commit — 由外层事务统一提交
+        await self._db.flush()
 
     def _find_definition(
         self,

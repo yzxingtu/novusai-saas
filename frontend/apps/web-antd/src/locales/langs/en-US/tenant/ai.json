@@ -172,6 +172,7 @@
     "toolBindings": "Tool Bindings (JSON)",
     "skillBindings": "Skill Bindings",
     "skillPackageBindings": "Skill Package Bindings",
+    "availablePackages": "Available Packages",
     "consentMode": "Tool Consent Mode",
     "consentModeOptions": {
       "auto": "Auto Execute",
@@ -252,6 +253,7 @@
     "inputVariables": {
       "title": "Input Variables",
       "label": "Variable Definitions (JSON)",
+      "queryParamsPlaceholder": "JSON format query parameters",
       "placeholder": "JSON array, e.g.: [{'{'}\"name\": \"topic\", \"label\": \"Topic\", \"type\": \"text\", \"required\": true{'}'}]"
     },
     "contextConfig": {
@@ -491,7 +493,7 @@
       "title": "Audit Statistics",
       "totalActions": "Total Actions",
       "successRate": "Success Rate",
-      "todayActions": "Today",
+      "rejectedCount": "Rejected",
       "typeDistribution": "Type Distribution"
     },
     "type_options": {
@@ -700,8 +702,21 @@
     },
     "detail": {
       "title": "Package Details",
+      "basicInfo": "Basic Info",
       "skills": "Skills in Package",
-      "empty": "No skills yet, click the button above to add"
+      "empty": "No skills yet, click the button above to add",
+      "noDescription": "No description",
+      "updatedAt": "Updated At",
+      "isSystem": "System Built-in",
+      "yes": "Yes",
+      "no": "No",
+      "sourcePlugin": "Source Plugin",
+      "skillName": "Skill Name",
+      "skillType": "Skill Type",
+      "skillTimeout": "Timeout",
+      "skillStatus": "Status",
+      "skillDescription": "Description",
+      "backToList": "Back to List"
     },
     "valves": {
       "configBtn": "Env Config",
@@ -736,13 +751,76 @@
       "toolkit": "Toolkit",
       "knowledge_base": "Knowledge Base",
       "data_intelligence": "Data Intelligence",
-      "builtin": "Builtin"
+      "builtin": "Builtin",
+      "http": "HTTP Request",
+      "email": "Email",
+      "code_execution": "Code Execution"
     },
     "typeDesc": {
       "toolkit": "Python Toolkit: Write a Tools class in the editor below. Each method is auto-registered as an LLM-callable tool. Supports Valves config and ZIP upload.",
       "knowledge_base": "RAG Document Q&A: Link one or more knowledge bases. The agent will auto-retrieve relevant context during conversations. Select knowledge bases and tune retrieval parameters below.",
       "data_intelligence": "Data Intelligence: Query databases via natural language using Text-to-SQL, with CRUD support. Select accessible table policies below to control data scope.",
-      "builtin": "Built-in Tools: System-predefined tools (e.g. date calculation, math), not editable. View the tool list below after creation."
+      "builtin": "Built-in Tools: System-predefined tools (e.g. date calculation, math), not editable. View the tool list below after creation.",
+      "http": "HTTP Request: Declarative external API integration. Fill in URL, method and parameter templates — no coding needed for the agent to call any HTTP endpoint.",
+      "email": "Email: Let the agent send emails via conversation. Uses the platform's SMTP service with domain allowlist and recipient limits.",
+      "code_execution": "Code Execution: Let the agent run code in a secure sandbox. Ideal for calculations, data processing, and text manipulation with module allowlist control."
+    },
+    "httpConfig": {
+      "title": "HTTP Request Config",
+      "url": "Request URL",
+      "urlPlaceholder": "https://api.example.com/v1/data",
+      "urlHelp": "Supports template variables (e.g. variable), auto-filled by LLM",
+      "method": "Method",
+      "headers": "Headers",
+      "headersPlaceholder": "JSON format request headers",
+      "bodyTemplate": "Body Template",
+      "bodyTemplatePlaceholder": "JSON format request body",
+      "bodyTemplateHelp": "Use double-brace variable names as placeholders — LLM extracts them as tool parameters",
+      "authType": "Auth Type",
+      "authTypeOptions": {
+        "none": "None",
+        "bearer": "Bearer Token",
+        "api_key": "API Key",
+        "basic": "Basic Auth"
+      },
+      "authToken": "Token",
+      "authTokenPlaceholder": "Bearer Token value",
+      "authKeyName": "Key Name",
+      "authKeyNamePlaceholder": "e.g. X-API-Key",
+      "authKeyValue": "Key Value",
+      "authUsername": "Username",
+      "authPassword": "Password",
+      "responsePath": "Response Path",
+      "responsePathPlaceholder": "$.data.result (JSONPath, leave empty for full response)",
+      "responsePathHelp": "Use JSONPath syntax to extract specific fields from the response"
+    },
+    "emailConfig": {
+      "title": "Email Config",
+      "subjectPrefix": "Subject Prefix",
+      "subjectPrefixPlaceholder": "e.g. [NovusAI]",
+      "subjectPrefixHelp": "Auto-prepended to every email subject",
+      "allowedDomains": "Allowed Domains",
+      "allowedDomainsPlaceholder": "e.g. example.com (comma-separated, empty = no restriction)",
+      "allowedDomainsHelp": "Restrict sending to specific email domains only",
+      "maxRecipients": "Max Recipients",
+      "maxRecipientsHelp": "Maximum recipients per email (including CC)",
+      "requireConfirmation": "Require Confirmation",
+      "requireConfirmationHelp": "When enabled, AI asks user to confirm before sending",
+      "allowCc": "Allow CC",
+      "smtpHint": "Email skill requires platform SMTP configuration. Contact admin to ensure email service is configured."
+    },
+    "codeExecutionConfig": {
+      "title": "Code Execution Config",
+      "language": "Language",
+      "languageOptions": {
+        "python": "Python"
+      },
+      "memoryLimitMb": "Memory Limit (MB)",
+      "memoryLimitHelp": "Maximum memory for code execution",
+      "allowedModules": "Allowed Modules",
+      "allowedModulesPlaceholder": "Comma-separated, e.g. math,json,datetime,re",
+      "allowedModulesHelp": "Python module allowlist for import statements",
+      "sandboxHint": "Code runs in a secure sandbox. File operations, network requests, and system calls are blocked."
     },
     "knowledgeBaseConfig": {
       "title": "Knowledge Base Config",

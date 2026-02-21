@@ -43,7 +43,7 @@ const imageStyle = computed<CSSProperties>(() => {
 });
 
 const text = computed(() => {
-  return props.alt.slice(-2).toUpperCase();
+  return props.alt.slice(0, 2).toUpperCase();
 });
 
 const rootStyle = computed(() => {

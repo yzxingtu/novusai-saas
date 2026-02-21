@@ -120,14 +120,15 @@ function onBatchArchiveSuccess() {
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
-        <!-- 工具栏插槽 -->
-        <template #toolbar-tools>
+        <!-- 左侧工具栏：批量归档 -->
+        <template #toolbar-actions>
           <Button
             v-access:code="['agent_conversation:update']"
-            type="default"
             @click="batchArchiveOpen = true"
           >
-            <IconifyIcon icon="lucide:archive" class="mr-1 size-4" />
+            <template #icon>
+              <IconifyIcon icon="lucide:archive" class="size-4" />
+            </template>
             {{ $t('tenant.ai.conversation.batchArchive') }}
           </Button>
         </template>

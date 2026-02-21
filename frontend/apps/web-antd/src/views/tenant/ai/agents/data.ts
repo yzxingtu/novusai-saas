@@ -311,9 +311,6 @@ export function useFormSchema(): VbenFormSchema[] {
       component: 'ImageUpload',
       fieldName: 'avatar',
       label: $t('tenant.ai.agent.avatar'),
-      componentProps: {
-        uploadUrl: '/tenant/attachments/upload',
-      },
     },
     select('model_id', $t('tenant.ai.agent.modelName'), {
       api: getModelSelectOptions,

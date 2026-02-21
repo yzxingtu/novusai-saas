@@ -44,10 +44,17 @@ _MODULE_CACHE: dict[str, types.ModuleType] = {}
 _CACHE_MAX_SIZE = 128
 
 # --------------------------------------------------------------------------- #
-# 安全：危险模块 / 内置函数黑名单
+# 安全：危险模块 / 内置函数黑名单（按安全等级分级）
 # --------------------------------------------------------------------------- #
 
-_BLOCKED_MODULES: frozenset[str] = frozenset({
+# permissive: 仅禁止最危险的模块（适合可信环境）
+_BLOCKED_MODULES_PERMISSIVE: frozenset[str] = frozenset({
+    "os", "subprocess", "ctypes",
+    "builtins", "__builtin__",
+})
+
+# normal (默认): 禁止系统/进程/文件/反序列化模块，允许网络库
+_BLOCKED_MODULES_NORMAL: frozenset[str] = frozenset({
     # 进程 / OS
     "os", "subprocess", "shutil", "signal",
     "multiprocessing", "threading",
@@ -68,6 +75,25 @@ _BLOCKED_MODULES: frozenset[str] = frozenset({
     "builtins", "__builtin__",
 })
 
+# strict: 仅允许安全的计算/数据处理模块
+_BLOCKED_MODULES_STRICT: frozenset[str] = _BLOCKED_MODULES_NORMAL | frozenset({
+    # 网络
+    "requests", "httpx", "urllib", "urllib3", "aiohttp",
+    "http", "xmlrpc", "ftplib", "smtplib", "poplib", "imaplib",
+    # 外部进程
+    "asyncio",
+    # 序列化
+    "shelve", "dbm",
+    # 调试
+    "pdb", "traceback", "dis", "inspect",
+})
+
+_SECURITY_LEVEL_MAP: dict[str, frozenset[str]] = {
+    "strict": _BLOCKED_MODULES_STRICT,
+    "normal": _BLOCKED_MODULES_NORMAL,
+    "permissive": _BLOCKED_MODULES_PERMISSIVE,
+}
+
 _BLOCKED_MODULE_PREFIXES: tuple[str, ...] = (
     "app.",       # 应用内部模块
     "config.",    # 配置模块
@@ -77,6 +103,13 @@ _BLOCKED_BUILTINS: frozenset[str] = frozenset({
     "eval", "exec", "compile", "__import__",
     "open", "breakpoint", "exit", "quit",
 })
+
+
+def get_blocked_modules(security_level: str | None = None) -> frozenset[str]:
+    """根据安全等级返回被阻止的模块集合"""
+    if security_level is None:
+        security_level = "normal"
+    return _SECURITY_LEVEL_MAP.get(security_level, _BLOCKED_MODULES_NORMAL)
 
 
 class ToolkitExecutor(BaseToolExecutor):
@@ -99,10 +132,14 @@ class ToolkitExecutor(BaseToolExecutor):
         timeout: int = 30,
         max_output_size: int = 10000,
         sandbox_mode: str | None = None,
+        security_level: str = "normal",
+        memory_limit_mb: int = 256,
     ) -> None:
         self._timeout = timeout
         self._max_output_size = max_output_size
         self._sandbox_mode = sandbox_mode or _SANDBOX_MODE
+        self._security_level = security_level
+        self._memory_limit_mb = memory_limit_mb
 
     async def execute(
         self,
@@ -129,7 +166,9 @@ class ToolkitExecutor(BaseToolExecutor):
         try:
             # 0. 安全扫描（非信任工具包）
             if not trusted:
-                violations = _scan_toolkit_security(toolkit_content)
+                violations = _scan_toolkit_security(
+                    toolkit_content, self._security_level,
+                )
                 if violations:
                     detail = "; ".join(violations[:5])
                     logger.warning(
@@ -244,6 +283,7 @@ class ToolkitExecutor(BaseToolExecutor):
             "method": method_name,
             "args": arguments,
             "valves_config": valves_config,
+            "memory_limit_mb": self._memory_limit_mb,
         }, ensure_ascii=False)
 
         # 启动子进程
@@ -356,31 +396,38 @@ class ToolkitExecutor(BaseToolExecutor):
 # --------------------------------------------------------------------------- #
 
 
-def _scan_toolkit_security(source: str) -> list[str]:
+def _scan_toolkit_security(
+    source: str,
+    security_level: str | None = None,
+) -> list[str]:
     """
     AST 静态分析：检测 Toolkit 源码中的危险 import 和内置函数调用。
+
+    Args:
+        source: Toolkit Python 源码
+        security_level: 安全等级 (strict/normal/permissive)，None 使用 normal
 
     Returns:
         违规描述列表（空列表表示安全）。
     """
     try:
         tree = ast.parse(source)
-    except SyntaxError:
-        # 语法错误由后续 importlib 加载时报告
-        return []
+    except SyntaxError as exc:
+        return [f"Syntax error at line {exc.lineno}: {exc.msg}"]
 
+    blocked_modules = get_blocked_modules(security_level)
     violations: list[str] = []
 
     for node in ast.walk(tree):
         # 检查 import xxx
         if isinstance(node, ast.Import):
             for alias in node.names:
-                _check_module(alias.name, node.lineno, violations)
+                _check_module(alias.name, node.lineno, violations, blocked_modules)
 
         # 检查 from xxx import yyy
         elif isinstance(node, ast.ImportFrom):
             if node.module:
-                _check_module(node.module, node.lineno, violations)
+                _check_module(node.module, node.lineno, violations, blocked_modules)
 
         # 检查危险内置函数调用：eval(), exec(), open() 等
         elif isinstance(node, ast.Call):
@@ -393,10 +440,15 @@ def _scan_toolkit_security(source: str) -> list[str]:
     return violations
 
 
-def _check_module(module_name: str, lineno: int, violations: list[str]) -> None:
+def _check_module(
+    module_name: str,
+    lineno: int,
+    violations: list[str],
+    blocked_modules: frozenset[str],
+) -> None:
     """检查模块名是否在黑名单中"""
     top_level = module_name.split(".")[0]
-    if top_level in _BLOCKED_MODULES:
+    if top_level in blocked_modules:
         violations.append(
             f"Blocked import '{module_name}' at line {lineno}"
         )

@@ -17,6 +17,8 @@ import type {
 
 import { nextTick, ref, computed, unref } from 'vue';
 
+import { message } from 'ant-design-vue';
+
 import {
   deleteChatConversationApi,
   getChatAgentsApi,
@@ -25,6 +27,8 @@ import {
   sendChatStreamApi,
   uploadChatFileApi,
 } from '#/api/shared/ai-chat';
+import { useFileUpload } from '#/composables/use-file-upload';
+import { CHAT_ACCEPT_ATTRIBUTE } from '#/constants/upload';
 import { $t } from '#/locales';
 import { addConsent, getConsentedActions } from '#/utils/ai-consent';
 
@@ -37,9 +41,16 @@ export interface UseAIChatOptions {
   initialAgentId?: Ref<number | undefined> | number;
   /** Callback when a tool call completes successfully */
   onToolCall?: (toolName: string, output: string) => void;
+  /** Callback when streaming completes (used for unread badge) */
+  onStreamComplete?: () => void;
 }
 
 export function useAIChat(options: UseAIChatOptions) {
+  const {
+    validateChatFile,
+    revokePreviewUrls,
+  } = useFileUpload();
+
   // ============ Agents ============
 
   const agents = ref<AgentItem[]>([]);
@@ -80,6 +91,7 @@ export function useAIChat(options: UseAIChatOptions) {
     selectedAgentId.value = agentId;
     activeConversationId.value = null;
     chatMessages.value = [];
+    clearPendingAttachments();
   }
 
   // ============ Conversations ============
@@ -316,25 +328,130 @@ export function useAIChat(options: UseAIChatOptions) {
     }
   }
 
+  // ============ Model Capabilities ============
+
+  const supportsVision = computed(() =>
+    selectedAgent.value?.model_capabilities?.supports_vision ?? false,
+  );
+
+  const totalTokensUsed = computed(() =>
+    chatMessages.value.reduce((sum, m) => sum + (m.tokenUsage || 0), 0),
+  );
+
+  const imageParams = ref<{ size: string; quality: string; style: string; n: number }>({
+    size: '1024x1024',
+    quality: 'standard',
+    style: 'vivid',
+    n: 1,
+  });
+
+  const maxImageCount = computed(() =>
+    selectedAgent.value?.model_capabilities?.max_image_count ?? 5,
+  );
+
+  const maxImageSizeMb = computed(() =>
+    selectedAgent.value?.model_capabilities?.max_image_size_mb ?? 10,
+  );
+
+  /**
+   * Validate a file before upload (images + non-images).
+   * Uses the unified useFileUpload composable.
+   */
+  function validateUpload(file: File): boolean {
+    const currentImageCount = pendingAttachments.value.filter(
+      (a) => a.type === 'image',
+    ).length;
+    const result = validateChatFile(file, {
+      supportsVision: supportsVision.value,
+      maxImageCount: maxImageCount.value,
+      currentImageCount,
+      maxImageSizeMb: maxImageSizeMb.value,
+    });
+    return result.valid;
+  }
+
   // ============ File Uploads ============
 
   const pendingAttachments = ref<ChatAttachment[]>([]);
   const uploading = ref(false);
   const fileInput = ref<HTMLInputElement | null>(null);
+  /** Pre-built accept attribute for file input */
+  const chatAcceptAttribute = CHAT_ACCEPT_ATTRIBUTE;
+
+  /**
+   * Compress an image file using Canvas API.
+   * Returns the original file if compression is not possible or not needed.
+   */
+  async function compressImage(file: File, maxDimension = 2048, quality = 0.85): Promise<File> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(img.src);
+        let { width, height } = img;
+        if (width <= maxDimension && height <= maxDimension && file.size < 1024 * 1024) {
+          resolve(file);
+          return;
+        }
+        if (width > maxDimension || height > maxDimension) {
+          const ratio = Math.min(maxDimension / width, maxDimension / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(file); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob || blob.size >= file.size) { resolve(file); return; }
+            resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }));
+          },
+          'image/jpeg',
+          quality,
+        );
+      };
+      img.onerror = () => { URL.revokeObjectURL(img.src); resolve(file); };
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  /**
+   * Determine extra upload form data based on API prefix.
+   * Admin endpoint needs tenant_id=0 for platform attachments.
+   */
+  function getUploadExtraData(): Record<string, string> | undefined {
+    const prefix = unref(options.apiPrefix) as string;
+    if (prefix.includes('/admin')) {
+      return { tenant_id: '0' };
+    }
+    return undefined;
+  }
 
   async function uploadFile(file: File): Promise<ChatAttachment | null> {
+    uploading.value = true;
     try {
-      uploading.value = true;
-      const data = await uploadChatFileApi(unref(options.uploadUrl) as string, file);
       const isImage = file.type.startsWith('image/');
+      const fileToUpload = isImage ? await compressImage(file) : file;
+      const data = await uploadChatFileApi(
+        unref(options.uploadUrl) as string,
+        fileToUpload,
+        getUploadExtraData(),
+      );
       return {
         type: isImage ? 'image' : 'file',
         url: data.url,
         name: file.name,
-        mime_type: file.type,
-        preview: isImage ? URL.createObjectURL(file) : undefined,
+        mime_type: fileToUpload.type,
+        preview: isImage ? URL.createObjectURL(fileToUpload) : undefined,
       };
-    } catch {
+    } catch (error: unknown) {
+      const errorMsg =
+        error instanceof Error
+          ? error.message
+          : $t('common.uploadValidation.uploadFailed');
+      message.error(errorMsg);
       return null;
     } finally {
       uploading.value = false;
@@ -345,6 +462,7 @@ export function useAIChat(options: UseAIChatOptions) {
     const input = e.target as HTMLInputElement;
     if (!input.files?.length) return;
     for (const file of Array.from(input.files)) {
+      if (!validateUpload(file)) continue;
       const att = await uploadFile(file);
       if (att) pendingAttachments.value.push(att);
     }
@@ -354,15 +472,22 @@ export function useAIChat(options: UseAIChatOptions) {
   async function handlePaste(e: ClipboardEvent) {
     const items = e.clipboardData?.items;
     if (!items) return;
+
+    const imageFiles: File[] = [];
     for (const item of Array.from(items)) {
       if (item.type.startsWith('image/')) {
-        e.preventDefault();
         const file = item.getAsFile();
-        if (file) {
-          const att = await uploadFile(file);
-          if (att) pendingAttachments.value.push(att);
-        }
+        if (file) imageFiles.push(file);
       }
+    }
+    if (imageFiles.length === 0) return;
+
+    e.preventDefault();
+
+    for (const file of imageFiles) {
+      if (!validateUpload(file)) continue;
+      const att = await uploadFile(file);
+      if (att) pendingAttachments.value.push(att);
     }
   }
 
@@ -375,6 +500,7 @@ export function useAIChat(options: UseAIChatOptions) {
     const files = e.dataTransfer?.files;
     if (!files?.length) return;
     for (const file of Array.from(files)) {
+      if (!validateUpload(file)) continue;
       const att = await uploadFile(file);
       if (att) pendingAttachments.value.push(att);
     }
@@ -384,6 +510,12 @@ export function useAIChat(options: UseAIChatOptions) {
     const att = pendingAttachments.value[idx];
     if (att?.preview) URL.revokeObjectURL(att.preview);
     pendingAttachments.value.splice(idx, 1);
+  }
+
+  /** Clear pending attachments and revoke all preview URLs */
+  function clearPendingAttachments() {
+    revokePreviewUrls(pendingAttachments.value);
+    pendingAttachments.value = [];
   }
 
   // ============ SSE Streaming ============
@@ -426,7 +558,7 @@ export function useAIChat(options: UseAIChatOptions) {
     scrollToBottom(true);
 
     inputMessage.value = '';
-    pendingAttachments.value = [];
+    clearPendingAttachments();
     await nextTick();
 
     sending.value = true;
@@ -444,6 +576,20 @@ export function useAIChat(options: UseAIChatOptions) {
         }))
       : undefined;
 
+    function finalizeMessage() {
+      const msg = chatMessages.value[assistantIdx];
+      if (msg) {
+        msg.streaming = false;
+        if (msg.toolCalls) {
+          for (const tc of msg.toolCalls) {
+            if (tc.status === 'running') {
+              tc.status = 'error';
+            }
+          }
+        }
+      }
+    }
+
     try {
       const prefix = unref(options.apiPrefix) as string;
       await sendChatStreamApi(
@@ -457,6 +603,12 @@ export function useAIChat(options: UseAIChatOptions) {
             : {}),
           consented_actions: getConsentedActions(),
           ...(apiAttachments ? { attachments: apiAttachments } : {}),
+          ...(imageParams.value.size !== '1024x1024' ||
+              imageParams.value.quality !== 'standard' ||
+              imageParams.value.style !== 'vivid' ||
+              imageParams.value.n !== 1
+            ? { image_params: imageParams.value }
+            : {}),
         },
         {
           abortController: streamAbortController,
@@ -499,6 +651,9 @@ export function useAIChat(options: UseAIChatOptions) {
                     existing.error = event.error;
                     if (event.skill_name) existing.skillName = event.skill_name;
                     if (event.skill_type) existing.skillType = event.skill_type;
+                    if (event.display_name) existing.displayName = event.display_name;
+                    if (event.summary) existing.summary = event.summary;
+                    if (event.result_link) existing.resultLink = event.result_link;
                   } else {
                     msg.toolCalls.push({
                       name: event.name,
@@ -508,6 +663,9 @@ export function useAIChat(options: UseAIChatOptions) {
                       error: event.error,
                       skillName: event.skill_name || undefined,
                       skillType: event.skill_type || undefined,
+                      displayName: event.display_name || undefined,
+                      summary: event.summary || undefined,
+                      resultLink: event.result_link || undefined,
                     });
                   }
                   // Dispatch successful tool calls to external handler
@@ -534,6 +692,17 @@ export function useAIChat(options: UseAIChatOptions) {
                     skillType: event.skill_type || undefined,
                   };
                   scrollToBottom();
+                } else if (event.event === 'action_buttons' && event.buttons) {
+                  msg.actionButtons = event.buttons;
+                  scrollToBottom();
+                } else if (event.event === 'image_result' && event.url) {
+                  if (!msg.imageResults) msg.imageResults = [];
+                  msg.imageResults.push({
+                    url: event.url,
+                    isBase64: event.is_base64 || false,
+                    revisedPrompt: event.revised_prompt || undefined,
+                  });
+                  scrollToBottom();
                 } else if (event.event === 'rag_sources' && event.sources) {
                   msg.ragSources = event.sources;
                 } else if (event.event === 'message' && event.delta) {
@@ -544,6 +713,9 @@ export function useAIChat(options: UseAIChatOptions) {
                   msg.durationMs = event.duration_ms || 0;
                   if (event.conversation_id) {
                     activeConversationId.value = event.conversation_id;
+                  }
+                  if (options.onStreamComplete) {
+                    options.onStreamComplete();
                   }
                 } else if (event.error) {
                   msg.content =
@@ -556,36 +728,16 @@ export function useAIChat(options: UseAIChatOptions) {
             });
           },
           onEnd() {
-            const msg = chatMessages.value[assistantIdx];
-            if (msg) {
-              msg.streaming = false;
-              // Clean up any tool calls still stuck in 'running' status
-              if (msg.toolCalls) {
-                for (const tc of msg.toolCalls) {
-                  if (tc.status === 'running') {
-                    tc.status = 'error';
-                  }
-                }
-              }
-            }
+            finalizeMessage();
             loadConversations();
           },
           onError(error: Error) {
             if (error.name === 'AbortError') return;
             const msg = chatMessages.value[assistantIdx];
-            if (msg) {
-              if (!msg.content)
-                msg.content =
-                  '\u26A0\uFE0F ' + $t('common.requestFailed');
-              msg.streaming = false;
-              if (msg.toolCalls) {
-                for (const tc of msg.toolCalls) {
-                  if (tc.status === 'running') {
-                    tc.status = 'error';
-                  }
-                }
-              }
+            if (msg && !msg.content) {
+              msg.content = '\u26A0\uFE0F ' + $t('common.requestFailed');
             }
+            finalizeMessage();
           },
         },
       );
@@ -596,17 +748,7 @@ export function useAIChat(options: UseAIChatOptions) {
       streaming.value = false;
       streamAbortController = null;
       userScrolledUp = false;
-      const msg = chatMessages.value[assistantIdx];
-      if (msg) {
-        msg.streaming = false;
-        if (msg.toolCalls) {
-          for (const tc of msg.toolCalls) {
-            if (tc.status === 'running') {
-              tc.status = 'error';
-            }
-          }
-        }
-      }
+      finalizeMessage();
     }
   }
 
@@ -642,6 +784,80 @@ export function useAIChat(options: UseAIChatOptions) {
     sendMessage({ silent: true });
   }
 
+  function clickActionButton(msgIndex: number, value: string) {
+    const msg = chatMessages.value[msgIndex];
+    if (!msg || msg.actionButtonsUsed) return;
+    msg.actionButtonsUsed = true;
+    inputMessage.value = value;
+    sendMessage();
+  }
+
+  function editAndResend(msgIndex: number) {
+    if (sending.value || streaming.value) return;
+    const msg = chatMessages.value[msgIndex];
+    if (!msg || msg.role !== 'user') return;
+
+    // Fill input with the user message content
+    inputMessage.value = msg.content;
+
+    // Remove this message and all subsequent messages
+    chatMessages.value.splice(msgIndex);
+  }
+
+  function exportAsMarkdown() {
+    if (chatMessages.value.length === 0) return;
+    const agentName = selectedAgent.value?.name || 'AI';
+    const lines: string[] = [`# ${agentName} - ${$t('common.globalAiChat.history')}`, ''];
+    for (const msg of chatMessages.value) {
+      const role = msg.role === 'user' ? '**User**' : `**${agentName}**`;
+      lines.push(`### ${role}`);
+      lines.push('');
+      if (msg.content) lines.push(msg.content);
+      if (msg.toolCalls?.length) {
+        for (const tc of msg.toolCalls) {
+          lines.push(`> 🔧 ${tc.displayName || tc.name} — ${tc.status}`);
+        }
+      }
+      lines.push('');
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat-${activeConversationId.value || 'new'}-${Date.now()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function regenerateMessage(msgIndex: number) {
+    if (sending.value || streaming.value) return;
+    const msg = chatMessages.value[msgIndex];
+    if (!msg || msg.role !== 'assistant') return;
+
+    // Find the preceding user message
+    let userMsgIndex = -1;
+    for (let i = msgIndex - 1; i >= 0; i--) {
+      if (chatMessages.value[i]?.role === 'user') {
+        userMsgIndex = i;
+        break;
+      }
+    }
+    if (userMsgIndex < 0) return;
+
+    const userContent = chatMessages.value[userMsgIndex]!.content;
+    const userAttachments = chatMessages.value[userMsgIndex]!.attachments;
+
+    // Remove the assistant message (and any messages after it)
+    chatMessages.value.splice(msgIndex);
+
+    // Re-send the user message
+    inputMessage.value = userContent;
+    if (userAttachments?.length) {
+      pendingAttachments.value = [...userAttachments];
+    }
+    sendMessage({ silent: true });
+  }
+
   function stopGeneration() {
     if (streamAbortController) {
       streamAbortController.abort();
@@ -662,15 +878,6 @@ export function useAIChat(options: UseAIChatOptions) {
 
   // ============ Helpers ============
 
-  function getAgentInitial(agent: AgentItem | null): string {
-    if (!agent) return '?';
-    return agent.name.charAt(0).toUpperCase();
-  }
-
-  function openUrl(url: string) {
-    globalThis.open(url, '_blank');
-  }
-
   return {
     // Agents
     agents,
@@ -679,7 +886,6 @@ export function useAIChat(options: UseAIChatOptions) {
     selectedAgent,
     loadAgents,
     selectAgent,
-    getAgentInitial,
 
     // Conversations
     conversations,
@@ -707,18 +913,28 @@ export function useAIChat(options: UseAIChatOptions) {
     rejectAction,
     confirmConsent,
     rejectConsent,
+    clickActionButton,
+    regenerateMessage,
+    editAndResend,
     cleanup,
-    openUrl,
+
+    // Model capabilities
+    supportsVision,
+    imageParams,
+    exportAsMarkdown,
+    totalTokensUsed,
 
     // Attachments
     pendingAttachments,
     uploading,
     fileInput,
+    chatAcceptAttribute,
     uploadFile,
     handleFileSelect,
     handlePaste,
     handleDrop,
     handleDragOver,
     removePendingAttachment,
+    clearPendingAttachments,
   };
 }

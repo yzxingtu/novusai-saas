@@ -233,7 +233,7 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
                             cert.id, str(e),
                         )
 
-                # 2. 查询即将过期的自定义证书 → 记录提醒
+                # 2. 查询即将过期的自定义证书 → 记录提醒 + 邮件通知
                 custom_certs = await repo.get_expiring_custom_certs(days=30)
                 for cert in custom_certs:
                     await ssl_service.mark_renewal_failed(
@@ -245,6 +245,15 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
                         "Custom cert %d expiring soon (domain_id=%d, expires=%s)",
                         cert.id, cert.domain_id, cert.expires_at,
                     )
+                    # 发送 SSL 到期提醒邮件（在 async 上下文中提取关联数据）
+                    notify_email = await _get_cert_notify_email(db, cert.domain_id)
+                    if notify_email:
+                        _send_ssl_expiry_email(
+                            domain_name=notify_email["domain"],
+                            expires_at=cert.expires_at,
+                            contact_email=notify_email["email"],
+                            tenant_id=notify_email["tenant_id"],
+                        )
 
                 # 3. 查询已过期证书 → 标记 expired
                 expired_certs = await repo.get_expired_certs()
@@ -402,6 +411,72 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
         return loop.run_until_complete(_renew())
     finally:
         loop.close()
+
+
+async def _get_cert_notify_email(db: AsyncSession, domain_id: int) -> dict | None:
+    """
+    从 domain_id 查询域名 + 租户联系邮箱（显式查询，避免 ORM 懒加载）
+
+    Returns:
+        {"domain": str, "email": str, "tenant_id": int} 或 None
+    """
+    from sqlalchemy import select
+    from app.models.tenant.tenant_domain import TenantDomain
+    from app.models import Tenant
+
+    try:
+        result = await db.execute(
+            select(
+                TenantDomain.domain,
+                Tenant.id.label("tenant_id"),
+                Tenant.contact_email,
+            )
+            .join(Tenant, Tenant.id == TenantDomain.tenant_id)
+            .where(TenantDomain.id == domain_id)
+        )
+        row = result.first()
+        if row and row.contact_email:
+            return {
+                "domain": row.domain,
+                "email": row.contact_email,
+                "tenant_id": row.tenant_id,
+            }
+    except Exception as e:
+        logger.warning("Failed to query cert notify email: %s", str(e))
+    return None
+
+
+def _send_ssl_expiry_email(
+    domain_name: str,
+    expires_at,
+    contact_email: str,
+    tenant_id: int,
+) -> None:
+    """
+    发送 SSL 证书到期提醒邮件（接收纯值，不依赖 ORM 对象）
+
+    静默失败，不影响巡检主流程。
+    """
+    try:
+        from app.services.common.email_templates import render_ssl_expiry_email
+        from app.tasks.email import send_email_task
+
+        days_remaining = (expires_at - utc_now()).days if expires_at else 0
+        subject, html_body, text_body = render_ssl_expiry_email(
+            domain=domain_name,
+            expires_at=str(expires_at.date()) if expires_at else "-",
+            days_remaining=max(days_remaining, 0),
+        )
+        send_email_task.delay(
+            to=[contact_email],
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            triggered_by="ssl_expiry",
+            tenant_id=tenant_id,
+        )
+    except Exception as e:
+        logger.warning("Failed to send SSL expiry email: %s", str(e))
 
 
 __all__ = ["task_provision_ssl", "task_check_ssl_renewals", "task_renew_ssl"]

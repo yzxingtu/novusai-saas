@@ -10,6 +10,7 @@ from sqlalchemy import Boolean, String, Integer, Text, Table, Column, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import BaseModel, Base
+from app.core.deletion import DeletionDep, DeletionStrategy
 from app.enums.role import RoleType
 
 
@@ -33,6 +34,13 @@ class AdminRole(BaseModel):
     """
     
     __tablename__ = "admin_roles"
+
+    __delete_deps__ = [
+        DeletionDep("Admin", "role_id", DeletionStrategy.BLOCK,
+                    label_field="username", i18n_key="admin"),
+        DeletionDep("AdminRole", "parent_id", DeletionStrategy.BLOCK,
+                    label_field="name", i18n_key="admin_role"),
+    ]
     
     # 可过滤字段声明
     __filterable__ = {

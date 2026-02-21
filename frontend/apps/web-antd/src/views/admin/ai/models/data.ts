@@ -275,6 +275,30 @@ export function useFormSchema(
     switchField('supports_vision', $t('admin.ai.model.vision'), {
       defaultValue: false,
     }),
+    {
+      ...numberField('max_image_count', $t('admin.ai.model.maxImageCount'), {
+        min: 1,
+        max: 20,
+        placeholder: $t('admin.ai.model.placeholder.inputMaxImageCount'),
+      }),
+      dependencies: {
+        triggerFields: ['supports_vision'],
+        show: (values: Record<string, unknown>) => !!values.supports_vision,
+      },
+      help: $t('admin.ai.model.help.maxImageCount'),
+    },
+    {
+      ...numberField('max_image_size_mb', $t('admin.ai.model.maxImageSizeMb'), {
+        min: 1,
+        max: 50,
+        placeholder: $t('admin.ai.model.placeholder.inputMaxImageSizeMb'),
+      }),
+      dependencies: {
+        triggerFields: ['supports_vision'],
+        show: (values: Record<string, unknown>) => !!values.supports_vision,
+      },
+      help: $t('admin.ai.model.help.maxImageSizeMb'),
+    },
     switchField('supports_streaming', $t('admin.ai.model.streaming'), {
       defaultValue: true,
     }),
@@ -300,5 +324,7 @@ export function getFormDefaults(): Record<string, unknown> {
     supports_function_calling: false,
     supports_vision: false,
     supports_streaming: true,
+    max_image_count: 5,
+    max_image_size_mb: 10,
   };
 }

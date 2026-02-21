@@ -7,7 +7,7 @@ import type { ApiRequestOptions } from '#/utils/request';
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义（复用 admin 端类型）
+// 类型定义（从 shared 导入）
 // ============================================================
 
 export type {
@@ -16,7 +16,7 @@ export type {
   TaskLogListParams,
   TaskLogListResponse,
   TaskStatsItem,
-} from '#/api/admin/task-log';
+} from '#/api/shared/task-log-types';
 
 /** 后端原始格式（内部使用） */
 interface TaskLogInfoRaw {
@@ -50,7 +50,7 @@ interface TaskStatsItemRaw {
 // 转换函数
 // ============================================================
 
-import type { TaskLogDetailInfo, TaskLogInfo, TaskStatsItem } from '#/api/admin/task-log';
+import type { TaskLogDetailInfo, TaskLogInfo, TaskStatsItem } from '#/api/shared/task-log-types';
 
 function transformTaskLogInfo(raw: TaskLogInfoRaw): TaskLogInfo {
   return {

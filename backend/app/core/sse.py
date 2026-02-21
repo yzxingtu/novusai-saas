@@ -8,7 +8,7 @@ SSE (Server-Sent Events) 核心封装
 import asyncio
 import json
 import uuid
-from typing import Any, AsyncIterator, Callable, Optional
+from typing import Any, AsyncIterator, Callable
 
 from fastapi.responses import StreamingResponse
 from app.core.i18n import _
@@ -52,7 +52,7 @@ class SSEFormatter:
     def format_event(
         event: str,
         data: Any,
-        event_id: Optional[str] = None,
+        event_id: str | None = None,
     ) -> str:
         """
         格式化 SSE 事件
@@ -93,7 +93,7 @@ class SSEFormatter:
         return "\n".join(lines) + "\n"
     
     @staticmethod
-    def format_message(data: dict, event_id: Optional[str] = None) -> str:
+    def format_message(data: dict, event_id: str | None = None) -> str:
         """
         格式化消息事件
         
@@ -114,7 +114,7 @@ class SSEFormatter:
     def format_error(
         code: str,
         message: str,
-        event_id: Optional[str] = None,
+        event_id: str | None = None,
     ) -> str:
         """
         格式化错误事件
@@ -257,7 +257,7 @@ def create_sse_response(
     *,
     keepalive_interval: int = 15,
     media_type: str = "text/event-stream",
-    headers: Optional[dict[str, str]] = None,
+    headers: dict[str, str] | None = None,
 ) -> StreamingResponse:
     """
     创建 SSE 流式响应

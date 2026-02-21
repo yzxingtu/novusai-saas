@@ -151,6 +151,9 @@ class ToolResult:
     output: str = ""
     error: str = ""
     duration_ms: int = 0
+    display_name: str | None = None
+    summary: str | None = None
+    result_link: str | None = None
 
     @classmethod
     def error_result(

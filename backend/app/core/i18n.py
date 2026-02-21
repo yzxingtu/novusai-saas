@@ -8,10 +8,13 @@
 """
 
 import json
+import logging
 from contextvars import ContextVar
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger("app.i18n")
 
 # 当前请求的语言上下文
 _current_locale: ContextVar[str] = ContextVar("current_locale", default="zh_CN")
@@ -65,7 +68,7 @@ def _load_translations(locale: str) -> dict[str, Any]:
                 # 所有文件都深度合并到根级别
                 translations = deep_merge(translations, data)
         except (json.JSONDecodeError, IOError) as e:
-            print(f"Warning: Failed to load translation file {json_file}: {e}")
+            logger.warning("Failed to load translation file %s: %s", json_file, e)
     
     return translations
 

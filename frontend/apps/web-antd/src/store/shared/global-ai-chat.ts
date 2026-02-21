@@ -20,16 +20,42 @@ export const useGlobalAIChatStore = defineStore('global-ai-chat', () => {
   /** Pending agent ID — set by external pages, consumed by drawer on open */
   const pendingAgentId = ref<number | undefined>(undefined);
 
+  /** Whether there are unread messages (shown as badge on icon) */
+  const hasUnread = ref(false);
+
+  /** Whether the drawer is minimized to a floating bubble */
+  const minimized = ref(false);
+
   function toggle() {
-    open.value = !open.value;
+    if (open.value) {
+      minimize();
+    } else {
+      open.value = true;
+      minimized.value = false;
+      hasUnread.value = false;
+    }
   }
 
   function show() {
     open.value = true;
+    minimized.value = false;
+    hasUnread.value = false;
   }
 
   function hide() {
     open.value = false;
+    minimized.value = false;
+  }
+
+  function minimize() {
+    open.value = false;
+    minimized.value = activeConversationId.value !== null;
+  }
+
+  function restore() {
+    open.value = true;
+    minimized.value = false;
+    hasUnread.value = false;
   }
 
   /**
@@ -39,6 +65,8 @@ export const useGlobalAIChatStore = defineStore('global-ai-chat', () => {
   function openWithAgent(agentId: number) {
     pendingAgentId.value = agentId;
     open.value = true;
+    minimized.value = false;
+    hasUnread.value = false;
   }
 
   function resetConversation() {
@@ -79,11 +107,17 @@ export const useGlobalAIChatStore = defineStore('global-ai-chat', () => {
     }
   }
 
+  function markUnread() {
+    if (!open.value) hasUnread.value = true;
+  }
+
   function $reset() {
     open.value = false;
+    minimized.value = false;
     selectedAgentId.value = null;
     activeConversationId.value = null;
     pendingAgentId.value = undefined;
+    hasUnread.value = false;
     toolCallHandlers.clear();
   }
 
@@ -92,9 +126,14 @@ export const useGlobalAIChatStore = defineStore('global-ai-chat', () => {
     selectedAgentId,
     activeConversationId,
     pendingAgentId,
+    hasUnread,
+    minimized,
+    markUnread,
     toggle,
     show,
     hide,
+    minimize,
+    restore,
     openWithAgent,
     resetConversation,
     consumePendingAgentId,

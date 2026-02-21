@@ -25,9 +25,12 @@ const props = withDefaults(
     isExpanded: (id: number) => boolean;
     level: number;
     node: OrgTreeNodeData;
+    /** 节点内在线成员数（传入时显示在线计数 badge） */
+    onlineCount?: null | number;
     selectedId?: null | number;
   }>(),
   {
+    onlineCount: null,
     selectedId: null,
     i18nPrefix: 'admin',
   },
@@ -174,7 +177,7 @@ export default {
         </Tooltip>
       </div>
 
-      <!-- 成员数量 -->
+      <!-- 成员数量 + 在线计数 -->
       <Tooltip
         v-if="node.allowMembers"
         :title="$t(`${i18nPrefix}.system.organization.memberCount`)"
@@ -184,6 +187,12 @@ export default {
         >
           <IconifyIcon icon="lucide:users" class="size-3.5" />
           <span>{{ node.memberCount || 0 }}</span>
+          <span
+            v-if="onlineCount !== null && onlineCount !== undefined"
+            class="ml-0.5 text-green-600"
+          >
+            ({{ onlineCount }} {{ $t('common.presence.online') }})
+          </span>
         </div>
       </Tooltip>
 

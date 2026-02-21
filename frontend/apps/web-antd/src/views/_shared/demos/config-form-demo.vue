@@ -70,7 +70,7 @@ const configs = ref<ConfigItemMeta[]>([
 async function onSubmit() {
   await form.value?.validate();
   const payload = form.value?.prepareSubmitData();
-  console.log('payload', payload);
+  console.warn('payload', payload);
 }
 </script>
 

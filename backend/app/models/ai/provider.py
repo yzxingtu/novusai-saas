@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
 
 from app.core.base_model import BaseModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
 from app.enums.ai import ProviderTypeEnum
 
@@ -21,6 +22,13 @@ class AIProvider(BaseModel):
     """
     
     __tablename__ = "ai_providers"
+
+    __delete_deps__ = [
+        DeletionDep("AIModel", "provider_id", DeletionStrategy.BLOCK,
+                    label_field="name", i18n_key="ai_model"),
+        DeletionDep("ProviderApiKey", "provider_id", DeletionStrategy.CASCADE_SOFT,
+                    label_field="id", i18n_key="provider_api_key"),
+    ]
     
     # 允许前端筛选的字段
     __filterable__ = {

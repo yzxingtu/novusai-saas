@@ -35,6 +35,10 @@
   "export": "Export",
   "import": "Import",
   "upload": "Upload",
+  "uploadFailed": "Upload failed",
+  "uploadSuccess": "Upload successful",
+  "change": "Change",
+  "preview": "Preview",
   "back": "Back",
   "loading": "Loading...",
   "noData": "No Data",
@@ -110,6 +114,41 @@
   "copied": "Copied to clipboard",
   "notSet": "Not Set",
   "saveSuccess": "Saved successfully",
+  "uploadValidation": {
+    "extensionNotAllowed": "File type .{extension} is not allowed",
+    "fileTooLarge": "File size exceeds the limit ({max} MB)",
+    "uploadFailed": "File upload failed, please try again"
+  },
+  "socketio": {
+    "connected": "Real-time connection established",
+    "disconnected": "Real-time connection lost",
+    "reconnecting": "Reconnecting..."
+  },
+  "presence": {
+    "online": "Online",
+    "offline": "Offline",
+    "onlineCount": "{count}/{total} online"
+  },
+  "notification": {
+    "title": "Notifications",
+    "empty": "No notifications",
+    "markAllRead": "Mark all read",
+    "aiChatReply": "AI assistant has replied to your message",
+    "viewAll": "View all",
+    "settingsTitle": "Notification Preferences",
+    "categoryLabel": "Category",
+    "channelWs": "Real-time Push",
+    "channelInbox": "Inbox",
+    "channelEmail": "Email",
+    "category": {
+      "all": "All",
+      "system": "System",
+      "ai": "AI",
+      "task": "Tasks",
+      "biz": "Business",
+      "audit": "Audit"
+    }
+  },
   "globalAiChat": {
     "title": "AI Assistant",
     "selectAgent": "Select AI Agent",
@@ -147,7 +186,18 @@
     "consentDeny": "Deny",
     "consentResolved": "Resolved",
     "args": "Args:",
-    "tokens": "tokens"
+    "tokens": "tokens",
+    "regenerate": "Regenerate",
+    "imageNotSupported": "Current model does not support image recognition",
+    "imageLimitExceeded": "Maximum {max} images allowed",
+    "imageSizeExceeded": "Image size cannot exceed {max} MB",
+    "generatedImage": "Generated image",
+    "downloadImage": "Download image",
+    "openFullPage": "Full Page Mode",
+    "viewResult": "View Result",
+    "searchHistory": "Search conversations",
+    "minimize": "Minimize",
+    "messages": "messages"
   },
   "recycleBin": {
     "title": "Recycle Bin",
@@ -165,6 +215,39 @@
     "retentionDays": "Auto-cleanup after {days} days",
     "escalateHint": "Will be moved to admin recycle bin",
     "itemCount": "{count} records"
+  },
+  "dependency": {
+    "title": "Cannot Delete",
+    "blocked": "The following resources are still using this record:",
+    "description": "Please delete or migrate the above resources before deleting this record",
+    "itemCount": "{count} items",
+    "moreItems": "{count} more...",
+    "model": {
+      "ai_provider": "AI Provider",
+      "ai_model": "AI Model",
+      "provider_api_key": "API Key",
+      "agent": "Agent",
+      "agent_conversation": "Conversation",
+      "agent_skill_binding": "Skill Binding",
+      "batch_run": "Batch Run",
+      "skill_package": "Skill Package",
+      "skill": "Skill",
+      "knowledge_base": "Knowledge Base",
+      "knowledge_document": "Knowledge Document",
+      "table_policy": "Table Policy",
+      "table_policy_override": "Table Policy Override",
+      "tenant_quota": "Tenant Quota",
+      "tenant_rate_limit": "Rate Limit",
+      "admin_role": "Admin Role",
+      "admin": "Admin",
+      "tenant_admin_role": "Tenant Role",
+      "tenant_admin": "Tenant Admin",
+      "tenant_plan": "Tenant Plan",
+      "tenant": "Tenant",
+      "tenant_domain": "Domain",
+      "tenant_plugin": "Tenant Plugin",
+      "system_agent_assignment": "System Agent Assignment"
+    }
   },
   "cronPicker": {
     "placeholder": "Enter Cron expression (e.g. 0 2 * * *)",

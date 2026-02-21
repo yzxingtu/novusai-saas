@@ -75,9 +75,9 @@ class AgentSkillBindingService:
         校验 Agent scope 与 SkillPackage scope 的兼容性。
 
         Rules:
-          - tenant agent → 同租户 tenant 包 + admin 共享包
-          - admin agent  → admin 包
-          - global agent → admin 包 + 任意 tenant 包
+          - tenant agent → 同租户 tenant 包 + global 包 + admin 包
+          - admin agent  → admin 包 + global 包
+          - global agent → global 包 + admin 包 + 任意 tenant 包
         """
         a = agent_scope
         p = pkg_scope
@@ -88,17 +88,24 @@ class AgentSkillBindingService:
                     raise BusinessException(
                         message=_("agent_skill_binding.error.scope_mismatch")
                     )
-            elif p != ResourceScopeEnum.ADMIN.value:
+            elif p not in (
+                ResourceScopeEnum.ADMIN.value,
+                ResourceScopeEnum.GLOBAL.value,
+            ):
                 raise BusinessException(
                     message=_("agent_skill_binding.error.scope_mismatch")
                 )
         elif a == ResourceScopeEnum.ADMIN.value:
-            if p != ResourceScopeEnum.ADMIN.value:
+            if p not in (
+                ResourceScopeEnum.ADMIN.value,
+                ResourceScopeEnum.GLOBAL.value,
+            ):
                 raise BusinessException(
                     message=_("agent_skill_binding.error.scope_mismatch")
                 )
         elif a == ResourceScopeEnum.GLOBAL.value:
             if p not in (
+                ResourceScopeEnum.GLOBAL.value,
                 ResourceScopeEnum.ADMIN.value,
                 ResourceScopeEnum.TENANT.value,
             ):
@@ -261,6 +268,18 @@ class AgentSkillBindingService:
 
         updated = await self.binding_repo.update(binding_id, data)
         return updated
+
+    async def delete_all_for_agent(self, agent_id: int) -> int:
+        """
+        删除智能体的所有技能绑定（用于版本回滚前清空）
+
+        Args:
+            agent_id: 智能体 ID
+
+        Returns:
+            删除的绑定数量
+        """
+        return await self.binding_repo.delete_by_agent_id(agent_id)
 
 
 __all__ = ["AgentSkillBindingService"]

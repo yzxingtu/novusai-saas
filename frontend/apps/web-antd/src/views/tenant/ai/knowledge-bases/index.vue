@@ -9,9 +9,9 @@ defineOptions({ name: 'TenantKnowledgeBaseList' });
 import { ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
-import { IconifyIcon, Plus } from '@vben/icons';
+import { IconifyIcon } from '@vben/icons';
 
-import { Card, Tag, Tooltip } from 'ant-design-vue';
+import { Button, Card, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import {
@@ -85,21 +85,18 @@ function onDetailSuccess() {
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
-        <!-- 工具栏 -->
-        <template #toolbar-tools>
-          <Card
+        <!-- 左侧工具栏：创建按钮 -->
+        <template #toolbar-actions>
+          <Button
             v-access:code="['knowledge_base:create']"
-            size="small"
-            class="mr-2 cursor-pointer transition-shadow duration-200 hover:shadow-md"
+            type="primary"
             @click="kbFormRef?.openNew()"
           >
-            <div class="flex items-center gap-2 text-primary">
-              <Plus class="size-4" />
-              <span class="font-medium">{{
-                $t('tenant.knowledgeBase.create')
-              }}</span>
-            </div>
-          </Card>
+            <template #icon>
+              <IconifyIcon icon="lucide:plus" class="size-4" />
+            </template>
+            {{ $t('tenant.knowledgeBase.create') }}
+          </Button>
         </template>
 
         <!-- 名称列 -->

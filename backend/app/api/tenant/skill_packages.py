@@ -353,6 +353,48 @@ class TenantSkillPackageController(TenantController):
                 page_size=query.size,
             )
 
+        @router.post("/from-template/{package_id}", summary="从模板创建技能包")
+        @action_create("action.skill_package.create")
+        async def clone_from_template(
+            request: Request,
+            db: DbSession,
+            package_id: int,
+            tenant_admin: ActiveTenantAdmin,
+            data: dict[str, Any] = ...,
+        ):
+            """
+            从系统/全局技能包模板克隆为租户自己的技能包
+
+            参数：
+            - new_name: 新技能包名称（可选，默认追加 " (Copy)"）
+            """
+            from app.api.shared._skill_package_export import (
+                export_skill_package,
+                import_skill_package,
+            )
+            from app.services.ai.skill_package_service import AdminSkillPackageService
+
+            # 使用 AdminSkillPackageService 查询（不受租户隔离限制）
+            admin_svc = AdminSkillPackageService(db)
+            pkg = await admin_svc.get_by_id(package_id)
+            if not pkg:
+                raise NotFoundException(message=_("skill_package.error.not_found"))
+
+            export_data = await export_skill_package(db, pkg)
+
+            new_name = data.get("new_name") or f"{pkg.name} (Copy)"
+            export_data["package_info"]["name"] = new_name
+
+            result = await import_skill_package(db, {
+                "export_data": export_data,
+                "conflict_mode": "rename",
+                "target_scope": "tenant",
+                "target_tenant_id": tenant_admin.tenant_id,
+            })
+            await db.commit()
+
+            return created(data=result, message=_("skill_package.created"))
+
 
 # 导出路由器
 router = TenantSkillPackageController.get_router()

@@ -152,7 +152,7 @@ export function useColumns(
       },
     },
     {
-      field: 'uploadedAt',
+      field: 'createdAt',
       title: $t('tenant.system.attachment.uploadedAt'),
       width: 140,
       slots: {

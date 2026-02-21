@@ -33,10 +33,15 @@ import {
 // ============ 统计 ============
 
 const stats = ref<ActionLogStats>({
-  total_actions: 0,
+  total: 0,
   success_count: 0,
   failed_count: 0,
-  today_actions: 0,
+  rejected_count: 0,
+  pending_count: 0,
+  level_read: 0,
+  level_safe_write: 0,
+  level_dangerous: 0,
+  avg_duration_ms: null,
 });
 
 async function fetchStats() {
@@ -49,7 +54,7 @@ async function fetchStats() {
 
 const successRate = ref('0%');
 function computeSuccessRate() {
-  const total = stats.value.total_actions;
+  const total = stats.value.total;
   if (total === 0) {
     successRate.value = '-';
     return;
@@ -84,7 +89,7 @@ const { Grid } = useCrudPage<ActionLogItem>({
         <Card size="small">
           <Statistic
             :title="$t('tenant.ai.actionLog.stats.totalActions')"
-            :value="stats.total_actions"
+            :value="stats.total"
           >
             <template #prefix>
               <IconifyIcon
@@ -113,12 +118,12 @@ const { Grid } = useCrudPage<ActionLogItem>({
       <Col :span="6">
         <Card size="small">
           <Statistic
-            :title="$t('tenant.ai.actionLog.stats.todayActions')"
-            :value="stats.today_actions"
+            :title="$t('tenant.ai.actionLog.stats.rejectedCount')"
+            :value="stats.rejected_count"
           >
             <template #prefix>
               <IconifyIcon
-                icon="lucide:calendar"
+                icon="lucide:shield-x"
                 class="mr-1 text-warning"
               />
             </template>

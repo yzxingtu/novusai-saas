@@ -54,6 +54,8 @@ const { Drawer, isEdit, recordId } = useCrudDrawer<AIModelInfo>({
       supports_function_calling: values.supports_function_calling ?? false,
       supports_vision: values.supports_vision ?? false,
       supports_streaming: values.supports_streaming ?? true,
+      max_image_count: values.supports_vision ? (values.max_image_count || 5) : null,
+      max_image_size_mb: values.supports_vision ? (values.max_image_size_mb || 10) : null,
       is_active: values.is_active ?? true,
     };
   },
@@ -70,6 +72,8 @@ const { Drawer, isEdit, recordId } = useCrudDrawer<AIModelInfo>({
       supports_function_calling: data.supports_function_calling,
       supports_vision: data.supports_vision,
       supports_streaming: data.supports_streaming,
+      max_image_count: data.max_image_count ?? 5,
+      max_image_size_mb: data.max_image_size_mb ?? 10,
       is_active: data.is_active,
     };
   },

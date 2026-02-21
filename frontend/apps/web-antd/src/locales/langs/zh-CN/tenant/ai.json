@@ -172,6 +172,7 @@
     "toolBindings": "工具绑定 (JSON)",
     "skillBindings": "技能绑定",
     "skillPackageBindings": "技能包绑定",
+    "availablePackages": "可用技能包",
     "consentMode": "工具授权模式",
     "consentModeOptions": {
       "auto": "自动执行",
@@ -491,7 +492,7 @@
       "title": "审计统计",
       "totalActions": "总操作数",
       "successRate": "成功率",
-      "todayActions": "今日操作",
+      "rejectedCount": "已拒绝",
       "typeDistribution": "类型分布"
     },
     "type_options": {
@@ -700,8 +701,21 @@
     },
     "detail": {
       "title": "技能包详情",
+      "basicInfo": "基本信息",
       "skills": "包内技能",
-      "empty": "暂无技能，点击右上角添加"
+      "empty": "暂无技能，点击右上角添加",
+      "noDescription": "暂无描述",
+      "updatedAt": "更新时间",
+      "isSystem": "系统内置",
+      "yes": "是",
+      "no": "否",
+      "sourcePlugin": "来源插件",
+      "skillName": "技能名称",
+      "skillType": "技能类型",
+      "skillTimeout": "超时时间",
+      "skillStatus": "启用状态",
+      "skillDescription": "技能描述",
+      "backToList": "返回列表"
     },
     "valves": {
       "configBtn": "环境配置",
@@ -736,13 +750,76 @@
       "toolkit": "Toolkit 工具包",
       "knowledge_base": "知识库",
       "data_intelligence": "数据智能",
-      "builtin": "内置"
+      "builtin": "内置",
+      "http": "HTTP 请求",
+      "email": "邮件发送",
+      "code_execution": "代码执行"
     },
     "typeDesc": {
       "toolkit": "Python 工具包：在下方编辑器中编写 Tools 类，每个方法自动注册为 LLM 可调用的工具。支持 Valves 配置和 ZIP 上传。",
       "knowledge_base": "RAG 文档问答：关联一个或多个知识库，智能体对话时自动进行语义检索并注入上下文。请在下方选择知识库并调整检索参数。",
       "data_intelligence": "数据智能：通过 Text-to-SQL 实现自然语言查询数据库，支持 CRUD 操作。请在下方选择可访问的表策略来控制数据范围。",
-      "builtin": "内置工具：由系统预定义的基础工具（如日期计算、数学运算等），不可编辑。创建后可在下方查看工具列表。"
+      "builtin": "内置工具：由系统预定义的基础工具（如日期计算、数学运算等），不可编辑。创建后可在下方查看工具列表。",
+      "http": "HTTP 请求：声明式集成外部 API。填写 URL、请求方法和参数模板，无需编码即可让智能体调用任意 HTTP 接口。",
+      "email": "邮件发送：让智能体通过对话发送邮件。基于平台已配置的 SMTP 服务，支持域名白名单和收件人限制。",
+      "code_execution": "代码执行：让智能体在安全沙箱中运行代码。适用于计算、数据处理、文本操作等场景，支持模块白名单控制。"
+    },
+    "httpConfig": {
+      "title": "HTTP 请求配置",
+      "url": "请求 URL",
+      "urlPlaceholder": "https://api.example.com/v1/data",
+      "urlHelp": "支持模板变量（如 variable），LLM 会自动填充",
+      "method": "请求方法",
+      "headers": "请求头",
+      "headersPlaceholder": "JSON 格式的请求头",
+      "bodyTemplate": "请求体模板",
+      "bodyTemplatePlaceholder": "JSON 格式的请求体",
+      "bodyTemplateHelp": "使用双花括号变量名作为占位符，LLM 将自动提取为工具参数",
+      "authType": "认证方式",
+      "authTypeOptions": {
+        "none": "无认证",
+        "bearer": "Bearer Token",
+        "api_key": "API Key",
+        "basic": "Basic Auth"
+      },
+      "authToken": "Token",
+      "authTokenPlaceholder": "Bearer Token 值",
+      "authKeyName": "Key 名称",
+      "authKeyNamePlaceholder": "如 X-API-Key",
+      "authKeyValue": "Key 值",
+      "authUsername": "用户名",
+      "authPassword": "密码",
+      "responsePath": "响应提取路径",
+      "responsePathPlaceholder": "$.data.result（JSONPath 格式，留空返回全部）",
+      "responsePathHelp": "使用 JSONPath 语法提取响应中的特定字段"
+    },
+    "emailConfig": {
+      "title": "邮件发送配置",
+      "subjectPrefix": "主题前缀",
+      "subjectPrefixPlaceholder": "如 [NovusAI]",
+      "subjectPrefixHelp": "自动添加到每封邮件主题的前缀",
+      "allowedDomains": "允许的收件域名",
+      "allowedDomainsPlaceholder": "如 example.com（逗号分隔，留空不限制）",
+      "allowedDomainsHelp": "限制只能发送到指定域名的邮箱，留空则不限制",
+      "maxRecipients": "最大收件人数",
+      "maxRecipientsHelp": "每封邮件允许的最大收件人数量（含抄送）",
+      "requireConfirmation": "发送前需确认",
+      "requireConfirmationHelp": "启用后，AI 发送邮件前会先让用户确认内容",
+      "allowCc": "允许抄送",
+      "smtpHint": "邮件技能依赖平台 SMTP 配置，请联系管理员确保已配置邮件服务"
+    },
+    "codeExecutionConfig": {
+      "title": "代码执行配置",
+      "language": "编程语言",
+      "languageOptions": {
+        "python": "Python"
+      },
+      "memoryLimitMb": "内存限制 (MB)",
+      "memoryLimitHelp": "代码执行的最大内存使用量",
+      "allowedModules": "允许的模块",
+      "allowedModulesPlaceholder": "逗号分隔，如 math,json,datetime,re",
+      "allowedModulesHelp": "允许代码中 import 的 Python 模块白名单",
+      "sandboxHint": "代码在安全沙箱中执行，禁止文件操作、网络请求和系统调用"
     },
     "knowledgeBaseConfig": {
       "title": "知识库配置",

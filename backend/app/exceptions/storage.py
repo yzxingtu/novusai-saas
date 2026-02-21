@@ -4,13 +4,13 @@ from app.exceptions.base import AppException
 class StorageError(AppException):
     code = 5001
     status_code = 500
-    default_message = "common.server_error"
+    default_message = "storage.error.driver_error"
 
 
 class StorageConfigError(StorageError):
     code = 5002
     status_code = 500
-    default_message = "common.server_error"
+    default_message = "storage.error.config_error"
 
 
 class StorageNotFoundError(StorageError):

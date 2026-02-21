@@ -9,7 +9,7 @@ defineOptions({ name: 'AIModelList' });
 import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
-import { IconifyIcon, Plus } from '@vben/icons';
+import { IconifyIcon } from '@vben/icons';
 
 import { Card, message, Modal, Switch, Tag, Tooltip } from 'ant-design-vue';
 
@@ -98,7 +98,7 @@ async function onTestModel(row: AIModelInfo) {
   }
 }
 
-const { Grid, FormDrawer, onCreate, onRefresh } =
+const { Grid, FormDrawer, onRefresh } =
   useCrudPage<AIModelInfo>({
     api: {
       list: getAIModelListApi,
@@ -112,6 +112,7 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
     nameField: 'name',
     defaultSort: '-created_at',
     recycleBin: true,
+    createPermission: 'ai_model:create',
     customActions: {
       test: onTestModel,
     },
@@ -214,23 +215,6 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
             size="small"
             @change="() => onToggleModelActive(row)"
           />
-        </template>
-
-        <!-- 工具栏 -->
-        <template #toolbar-tools>
-          <Card
-            v-access:code="['ai_model:create']"
-            size="small"
-            class="mr-2 cursor-pointer transition-shadow duration-200 hover:shadow-md"
-            @click="onCreate"
-          >
-            <div class="flex items-center gap-2 text-primary">
-              <Plus class="size-4" />
-              <span class="font-medium">{{
-                $t('admin.ai.model.create')
-              }}</span>
-            </div>
-          </Card>
         </template>
       </Grid>
     </Card>

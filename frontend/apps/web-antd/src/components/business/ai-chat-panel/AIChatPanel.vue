@@ -10,7 +10,7 @@
  */
 import type { AIChatPanelProps } from './types';
 
-defineOptions({ name: 'AIChatPanel' });
+defineOptions({ name: 'AIChatPanel', inheritAttrs: false });
 
 import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue';
 
@@ -29,12 +29,13 @@ import {
 
 import { KbMentionSelector } from '#/components/business/kb-mention-selector';
 import { $t } from '#/locales';
+import { getFileIcon } from '#/utils/file';
 
 import ChatMessageItem from './ChatMessageItem.vue';
 import { useAIChat } from './use-ai-chat';
 
 const props = withDefaults(defineProps<AIChatPanelProps>(), {
-  showKBSelector: false,
+  showKbSelector: false,
   showAttachments: true,
   i18nPrefix: 'common.globalAiChat',
   welcomeMessage: '',
@@ -51,6 +52,7 @@ const chat = useAIChat({
   uploadUrl: toRef(props, 'uploadUrl'),
   initialAgentId: toRef(props, 'initialAgentId'),
   onToolCall: props.onToolCall,
+  onStreamComplete: props.onStreamComplete,
 });
 
 const {
@@ -79,10 +81,11 @@ const {
   copyMessage,
   handleInputKeyDown,
   cleanup,
-  openUrl,
+  supportsVision,
   pendingAttachments,
   uploading,
   fileInput,
+  chatAcceptAttribute,
   handleFileSelect,
   handlePaste,
   handleDrop,
@@ -92,12 +95,18 @@ const {
   rejectAction,
   confirmConsent,
   rejectConsent,
+  clickActionButton,
+  regenerateMessage,
+  editAndResend,
+  exportAsMarkdown,
+  totalTokensUsed,
 } = chat;
 
 // Template ref bindings (used via ref="..." in template)
 void messagesContainer;
 void fileInput;
 void handleMessagesScroll;
+void supportsVision;
 
 /**
  * Effective welcome message: props override > agent's welcome_message > default
@@ -121,6 +130,28 @@ const effectiveSuggestedQuestions = computed<string[]>(() => {
 function askSuggested(question: string) {
   inputMessage.value = question;
   sendMessage();
+}
+
+// ============ Conversation search ============
+
+const conversationSearch = ref('');
+
+const filteredConversations = computed(() => {
+  const keyword = conversationSearch.value.trim().toLowerCase();
+  if (!keyword) return conversations.value;
+  return conversations.value.filter(
+    (c) => (c.title || '').toLowerCase().includes(keyword),
+  );
+});
+
+// ============ Image preview lightbox ============
+
+const previewImageUrl = ref('');
+const previewImageVisible = ref(false);
+
+function openImagePreview(url: string) {
+  previewImageUrl.value = url;
+  previewImageVisible.value = true;
 }
 
 // ============ Drawer mode: history toggle ============
@@ -275,16 +306,29 @@ onUnmounted(() => {
           </Button>
         </div>
 
+        <Input
+          v-if="conversations.length > 3"
+          v-model:value="conversationSearch"
+          :placeholder="$t('common.globalAiChat.searchHistory')"
+          size="small"
+          allow-clear
+          class="mb-2"
+        >
+          <template #prefix>
+            <IconifyIcon icon="lucide:search" class="size-3 text-muted-foreground" />
+          </template>
+        </Input>
+
         <Spin :spinning="conversationsLoading">
           <div
-            v-if="conversations.length === 0 && !conversationsLoading"
+            v-if="filteredConversations.length === 0 && !conversationsLoading"
             class="py-4 text-center text-sm text-muted-foreground"
           >
             {{ $t('common.globalAiChat.noHistory') }}
           </div>
           <div class="space-y-1">
             <div
-              v-for="conv in conversations"
+              v-for="conv in filteredConversations"
               :key="conv.id"
               class="group flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm transition-colors"
               :class="
@@ -413,9 +457,25 @@ onUnmounted(() => {
               @reject="rejectAction"
               @consent-confirm="confirmConsent"
               @consent-reject="rejectConsent"
-              @open-url="openUrl"
+              @open-url="openImagePreview"
+              @action-click="clickActionButton"
+              @regenerate="regenerateMessage"
+              @edit="editAndResend"
             />
           </div>
+        </div>
+
+        <!-- Token usage indicator -->
+        <div
+          v-if="totalTokensUsed > 0 && !streaming"
+          class="flex items-center justify-center gap-1.5 border-t border-border/50 px-4 py-1 text-[11px] text-muted-foreground"
+        >
+          <IconifyIcon icon="lucide:activity" class="size-3" />
+          <span>{{ chatMessages.length }} {{ $t('common.globalAiChat.messages') }} · {{ totalTokensUsed.toLocaleString() }} {{ $t('common.globalAiChat.tokens') }}</span>
+          <span class="text-border">|</span>
+          <button class="hover:text-foreground" @click="exportAsMarkdown">
+            <IconifyIcon icon="lucide:download" class="size-3" />
+          </button>
         </div>
 
         <!-- Input area -->
@@ -435,13 +495,15 @@ onUnmounted(() => {
           </div>
 
           <!-- Pending attachments preview -->
-          <div
+          <TransitionGroup
             v-if="props.showAttachments && pendingAttachments.length > 0"
+            name="att-pop"
+            tag="div"
             class="mb-2 flex flex-wrap gap-2"
           >
             <div
               v-for="(att, ai) in pendingAttachments"
-              :key="ai"
+              :key="att.url || ai"
               class="group relative"
             >
               <div
@@ -465,7 +527,7 @@ onUnmounted(() => {
                 class="flex items-center gap-1.5 rounded-lg border border-border bg-accent/50 px-2 py-1.5"
               >
                 <IconifyIcon
-                  icon="lucide:file"
+                  :icon="getFileIcon(att.name || '', att.mime_type)"
                   class="size-4 text-muted-foreground"
                 />
                 <span
@@ -487,13 +549,13 @@ onUnmounted(() => {
             >
               <Spin size="small" />
             </div>
-          </div>
+          </TransitionGroup>
 
           <!-- KB mention selector -->
           <KbMentionSelector
-            v-if="props.showKBSelector && props.fetchKBApi"
+            v-if="props.showKbSelector && props.fetchKbApi"
             v-model:selected-ids="selectedKBIds"
-            :fetch-api="props.fetchKBApi"
+            :fetch-api="props.fetchKbApi"
             class="mb-2"
           />
 
@@ -516,7 +578,7 @@ onUnmounted(() => {
               ref="fileInput"
               type="file"
               multiple
-              accept="image/*,.pdf,.doc,.docx,.txt,.csv,.xlsx"
+              :accept="chatAcceptAttribute"
               class="hidden"
               @change="handleFileSelect"
             />
@@ -537,7 +599,7 @@ onUnmounted(() => {
                 sending
               "
               :loading="sending"
-              @click="sendMessage"
+              @click="() => sendMessage()"
             >
               <template #icon>
                 <IconifyIcon icon="lucide:send" class="size-3.5" />
@@ -588,6 +650,25 @@ onUnmounted(() => {
             </div>
           </Select.Option>
         </Select>
+        <!-- Agent description + model name -->
+        <div
+          v-if="selectedAgent && (selectedAgent.description || selectedAgent.model_name)"
+          class="mt-1.5 space-y-0.5 px-0.5"
+        >
+          <div
+            v-if="selectedAgent.description"
+            class="truncate text-[11px] text-muted-foreground"
+            :title="selectedAgent.description"
+          >
+            {{ selectedAgent.description }}
+          </div>
+          <div
+            v-if="selectedAgent.model_name"
+            class="truncate text-[11px] text-muted-foreground/60"
+          >
+            {{ selectedAgent.model_name }}
+          </div>
+        </div>
       </div>
 
       <!-- History panel (overlay) -->
@@ -695,13 +776,20 @@ onUnmounted(() => {
               @reject="rejectAction"
               @consent-confirm="confirmConsent"
               @consent-reject="rejectConsent"
-              @open-url="openUrl"
+              @open-url="openImagePreview"
+              @action-click="clickActionButton"
+              @regenerate="regenerateMessage"
+              @edit="editAndResend"
             />
           </div>
         </div>
 
         <!-- Input area -->
-        <div class="shrink-0 border-t border-border px-3 py-2">
+        <div
+          class="shrink-0 border-t border-border px-3 py-2"
+          @dragover="handleDragOver"
+          @drop="handleDrop"
+        >
           <div v-if="streaming" class="mb-1.5 flex justify-center">
             <Button size="small" danger @click="stopGeneration">
               <template #icon>
@@ -711,13 +799,15 @@ onUnmounted(() => {
             </Button>
           </div>
           <!-- Pending attachments -->
-          <div
+          <TransitionGroup
             v-if="props.showAttachments && pendingAttachments.length > 0"
+            name="att-pop"
+            tag="div"
             class="mb-1.5 flex flex-wrap gap-1.5"
           >
             <div
               v-for="(att, ai) in pendingAttachments"
-              :key="ai"
+              :key="att.url || ai"
               class="group relative"
             >
               <div
@@ -735,8 +825,36 @@ onUnmounted(() => {
                   <IconifyIcon icon="lucide:x" class="size-2.5" />
                 </button>
               </div>
+              <div
+                v-else
+                class="flex items-center gap-1 rounded border border-border bg-accent/50 px-1.5 py-1"
+              >
+                <IconifyIcon
+                  :icon="getFileIcon(att.name || '', att.mime_type)"
+                  class="size-3.5 shrink-0 text-muted-foreground"
+                />
+                <span
+                  class="max-w-[80px] truncate text-[11px] text-foreground"
+                >
+                  {{ att.name }}
+                </span>
+                <button
+                  class="flex size-3.5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-destructive"
+                  @click="removePendingAttachment(ai)"
+                >
+                  <IconifyIcon icon="lucide:x" class="size-2.5" />
+                </button>
+              </div>
             </div>
-          </div>
+          </TransitionGroup>
+          <!-- KB mention selector (drawer) -->
+          <KbMentionSelector
+            v-if="props.showKbSelector && props.fetchKbApi"
+            v-model:selected-ids="selectedKBIds"
+            :fetch-api="props.fetchKbApi"
+            class="mb-1.5"
+          />
+
           <div class="flex gap-2">
             <Tooltip
               v-if="props.showAttachments"
@@ -756,15 +874,16 @@ onUnmounted(() => {
               ref="fileInput"
               type="file"
               multiple
-              accept="image/*,.pdf,.doc,.docx,.txt,.csv,.xlsx"
+              :accept="chatAcceptAttribute"
               class="hidden"
               @change="handleFileSelect"
             />
-            <input
-              v-model="inputMessage"
+            <Input.TextArea
+              v-model:value="inputMessage"
               :placeholder="$t('common.globalAiChat.inputPlaceholder')"
+              :auto-size="{ minRows: 1, maxRows: 3 }"
               :disabled="!selectedAgentId || sending"
-              class="flex-1 rounded-md border border-border bg-transparent px-3 py-1.5 text-sm outline-none focus:border-primary"
+              class="flex-1 !text-sm"
               @keydown="handleInputKeyDown"
               @paste="handlePaste"
             />
@@ -777,7 +896,7 @@ onUnmounted(() => {
                 sending
               "
               :loading="sending"
-              @click="sendMessage"
+              @click="() => sendMessage()"
             >
               <template #icon>
                 <IconifyIcon icon="lucide:send" class="size-3.5" />
@@ -788,4 +907,39 @@ onUnmounted(() => {
       </template>
     </div>
   </template>
+
+  <!-- Image preview lightbox -->
+  <Modal
+    v-model:open="previewImageVisible"
+    :footer="null"
+    :width="'auto'"
+    :style="{ maxWidth: '90vw' }"
+    centered
+    destroy-on-close
+  >
+    <img
+      :src="previewImageUrl"
+      alt=""
+      class="max-h-[80vh] max-w-full object-contain"
+    />
+  </Modal>
 </template>
+
+<style scoped>
+.att-pop-enter-active {
+  animation: att-in 0.25s ease-out;
+}
+.att-pop-leave-active {
+  animation: att-in 0.15s ease-in reverse;
+}
+@keyframes att-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+</style>

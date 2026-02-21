@@ -34,6 +34,9 @@ class ToolTypeEnum(LabeledStrEnum):
     DATA_UPDATE = ("data_update", "enum.agent.tool_type.data_update")
     DATA_DELETE = ("data_delete", "enum.agent.tool_type.data_delete")
     PLUGIN = ("plugin", "enum.agent.tool_type.plugin")
+    HTTP = ("http", "enum.agent.tool_type.http")
+    EMAIL = ("email", "enum.agent.tool_type.email")
+    CODE_EXECUTION = ("code_execution", "enum.agent.tool_type.code_execution")
 
 
 class ConversationStatusEnum(LabeledStrEnum):
@@ -125,6 +128,9 @@ class SkillTypeEnum(LabeledStrEnum):
     DATA_INTELLIGENCE = ("data_intelligence", "enum.skill.type.data_intelligence")
     TOOLKIT = ("toolkit", "enum.skill.type.toolkit")
     BUILTIN = ("builtin", "enum.skill.type.builtin")
+    HTTP = ("http", "enum.skill.type.http")
+    EMAIL = ("email", "enum.skill.type.email")
+    CODE_EXECUTION = ("code_execution", "enum.skill.type.code_execution")
 
 
 

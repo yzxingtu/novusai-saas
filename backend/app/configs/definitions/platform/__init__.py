@@ -10,6 +10,8 @@ from app.configs.definitions.platform import security
 from app.configs.definitions.platform import email
 from app.configs.definitions.platform import storage
 from app.configs.definitions.platform import ssl
+from app.configs.definitions.platform import websocket
+from app.configs.definitions.platform import ai_toolkit
 
 
 __all__ = [
@@ -18,4 +20,6 @@ __all__ = [
     "email",
     "storage",
     "ssl",
+    "websocket",
+    "ai_toolkit",
 ]

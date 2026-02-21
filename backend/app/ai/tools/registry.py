@@ -33,7 +33,7 @@ class ToolRegistry:
     使用示例:
         registry = get_tool_registry(tenant_id=1)
         registry.register(my_tool_definition)
-        tools = registry.resolve_agent_tools(agent.tool_bindings)
+        tools = registry.list_all()
     """
 
     _instance: "ToolRegistry | None" = None
@@ -149,104 +149,6 @@ class ToolRegistry:
     def list_names(self) -> list[str]:
         """获取所有已注册工具名称"""
         return list(self._tools.keys())
-
-    # ========================================
-    # Agent 工具解析
-    # ========================================
-
-    def resolve_agent_tools(
-        self,
-        tool_bindings: list[dict[str, Any]] | None,
-    ) -> list[ToolDefinition]:
-        """
-        从 Agent.tool_bindings 解析工具列表
-
-        tool_bindings 格式示例:
-            [
-                {"name": "weather_api", "enabled": true},
-                {"name": "calculate", "enabled": true, "config": {...}},
-            ]
-
-        如果 binding 中的 name 在注册表中存在，使用注册表定义。
-        如果 binding 包含完整定义（含 tool_type + parameters），直接构造。
-
-        Args:
-            tool_bindings: Agent 的工具绑定 JSON
-
-        Returns:
-            解析后的工具定义列表
-        """
-        if not tool_bindings:
-            return []
-
-        definitions: list[ToolDefinition] = []
-
-        for binding in tool_bindings:
-            name = binding.get("name", "")
-            if not name:
-                continue
-
-            enabled = binding.get("enabled", True)
-            if not enabled:
-                continue
-
-            # 优先从注册表获取
-            registered = self._tools.get(name)
-            if registered:
-                # 允许 binding 覆盖 config 和 timeout
-                override_config = binding.get("config")
-                override_timeout = binding.get("timeout")
-                if override_config or override_timeout is not None:
-                    merged = ToolDefinition(
-                        name=registered.name,
-                        description=registered.description,
-                        tool_type=registered.tool_type,
-                        parameters=registered.parameters,
-                        config={**registered.config, **(override_config or {})},
-                        enabled=True,
-                        timeout=override_timeout if override_timeout is not None else registered.timeout,
-                    )
-                    definitions.append(merged)
-                else:
-                    definitions.append(registered)
-                continue
-
-            # 未注册：尝试从 binding 构造
-            tool_type = binding.get("tool_type", "")
-            description = binding.get("description", "")
-            raw_params = binding.get("parameters", [])
-            config = binding.get("config", {})
-
-            if tool_type and description:
-                params = [
-                    ToolParameter(
-                        name=p.get("name", ""),
-                        type=p.get("type", "string"),
-                        description=p.get("description", ""),
-                        required=p.get("required", False),
-                        default=p.get("default"),
-                        enum=p.get("enum"),
-                    )
-                    for p in raw_params
-                    if p.get("name")
-                ]
-                timeout = binding.get("timeout", 30)
-                definitions.append(ToolDefinition(
-                    name=name,
-                    description=description,
-                    tool_type=tool_type,
-                    parameters=params,
-                    config=config,
-                    enabled=True,
-                    timeout=timeout,
-                ))
-            else:
-                logger.warning(
-                    "Tool '%s' not found in registry and binding incomplete",
-                    name,
-                )
-
-        return definitions
 
     # ========================================
     # OpenAI 格式转换

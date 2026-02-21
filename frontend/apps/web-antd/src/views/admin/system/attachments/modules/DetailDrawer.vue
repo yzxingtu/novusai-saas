@@ -69,21 +69,18 @@ const { Drawer, detailData: detail } = useCrudDrawer<AttachmentInfo>({
           {{ detail.tenantId }}
         </DescriptionsItem>
         <DescriptionsItem
-          v-if="detail.refType"
-          :label="$t('admin.system.attachment.refType')"
+          v-if="detail.businessType"
+          :label="$t('admin.system.attachment.businessType')"
         >
-          {{ detail.refType }}
+          {{ detail.businessType }}
         </DescriptionsItem>
         <DescriptionsItem
-          v-if="detail.refId"
-          :label="$t('admin.system.attachment.refId')"
+          v-if="detail.businessId"
+          :label="$t('admin.system.attachment.businessId')"
         >
-          {{ detail.refId }}
+          {{ detail.businessId }}
         </DescriptionsItem>
         <DescriptionsItem :label="$t('admin.system.attachment.uploadedAt')">
-          {{ formatDate(detail.uploadedAt) }}
-        </DescriptionsItem>
-        <DescriptionsItem :label="$t('admin.system.attachment.createdAt')">
           {{ formatDate(detail.createdAt) }}
         </DescriptionsItem>
       </Descriptions>

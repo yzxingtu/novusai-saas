@@ -4,7 +4,7 @@ import type { tenantApi } from '#/api';
 defineOptions({ name: 'TenantSystemPeriodicTaskList' });
 
 import { Page } from '@vben/common-ui';
-import { IconifyIcon, Plus } from '@vben/icons';
+import { IconifyIcon } from '@vben/icons';
 
 import { Card, message, Switch, Tag, Tooltip } from 'ant-design-vue';
 
@@ -44,7 +44,7 @@ async function onToggleActive(row: PeriodicTaskInfo, checked: boolean) {
   }
 }
 
-const { Grid, FormDrawer, onCreate, onRefresh } =
+const { Grid, FormDrawer, onRefresh } =
   useCrudPage<PeriodicTaskInfo>({
     api: {
       list: tenant.getPeriodicTaskListApi,
@@ -57,6 +57,7 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
     i18nPrefix: 'tenant.system.periodicTask',
     nameField: 'name',
     defaultSort: '-created_at',
+    createPermission: 'periodic_task:create',
     customActions: {
       trigger: onTriggerTask,
     },
@@ -149,21 +150,6 @@ const { Grid, FormDrawer, onCreate, onRefresh } =
           <span v-else class="text-muted-foreground">-</span>
         </template>
 
-        <template #toolbar-tools>
-          <Card
-            v-access:code="['periodic_task:create']"
-            size="small"
-            class="mr-2 cursor-pointer transition-shadow duration-200 hover:shadow-md"
-            @click="onCreate"
-          >
-            <div class="flex items-center gap-2 text-primary">
-              <Plus class="size-4" />
-              <span class="font-medium">{{
-                $t('tenant.system.periodicTask.create')
-              }}</span>
-            </div>
-          </Card>
-        </template>
       </Grid>
     </Card>
   </Page>
