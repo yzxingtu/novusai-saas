@@ -56,6 +56,20 @@ class QuotaService:
         self.db = db
         self.tenant = tenant
     
+    async def _lock_tenant_row(self) -> None:
+        """
+        对租户行加排他锁，序列化同一租户的并发配额检查。
+        
+        在同一事务中先锁定再 COUNT，确保 CHECK → INSERT 之间
+        不会有其他事务插入同类资源，消除 TOCTOU 竞态。
+        锁在事务提交/回滚后自动释放。
+        """
+        await self.db.execute(
+            select(Tenant.id)
+            .where(Tenant.id == self.tenant.id)
+            .with_for_update()
+        )
+    
     def get_quota_value(self, key: str, default: int | bool | None = None) -> Any:
         """
         获取租户有效配额值
@@ -168,6 +182,9 @@ class QuotaService:
                 message=_("quota.no_limit"),
             )
         
+        # 锁定租户行，防止并发超额
+        await self._lock_tenant_row()
+        
         # 统计当前用户数
         query = select(func.count(TenantUser.id)).where(
             TenantUser.tenant_id == self.tenant.id,
@@ -208,6 +225,9 @@ class QuotaService:
                 remaining=0,
                 message=_("quota.no_limit"),
             )
+        
+        # 锁定租户行，防止并发超额
+        await self._lock_tenant_row()
         
         # 统计当前管理员数
         query = select(func.count(TenantAdmin.id)).where(
@@ -260,6 +280,9 @@ class QuotaService:
                 remaining=0,
                 message=_("quota.no_limit"),
             )
+        
+        # 锁定租户行，防止并发超额
+        await self._lock_tenant_row()
         
         # 统计当前自定义域名数（排除主域名/子域名）
         query = select(func.count(TenantDomain.id)).where(

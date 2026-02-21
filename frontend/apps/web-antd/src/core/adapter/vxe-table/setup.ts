@@ -20,18 +20,17 @@ export function setupVxeTable() {
         grid: {
           align: 'center',
           border: false,
-          stripe: true, // 默认启用斑马纹（交替行背景色）
+          stripe: true,
           columnConfig: {
             resizable: true,
           },
           minHeight: 180,
           formConfig: {
-            // 全局禁用 vxe-table 的表单配置，使用 formOptions
             enabled: false,
           },
           pagerConfig: {
-            pageSize: 10,
-            pageSizes: [10, 20, 50, 100],
+            pageSize: 15,
+            pageSizes: [10, 15, 20, 50, 100],
           },
           proxyConfig: {
             autoLoad: true,
@@ -43,13 +42,12 @@ export function setupVxeTable() {
             showActiveMsg: true,
             showResponseMsg: false,
           },
-          // 导出配置（仅支持 csv）
           exportConfig: {
             type: 'csv',
           },
           round: true,
           showOverflow: true,
-          size: 'small',
+          size: 'medium',
         } as VxeTableGridOptions,
       });
 

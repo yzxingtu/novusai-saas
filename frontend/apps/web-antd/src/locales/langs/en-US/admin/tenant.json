@@ -225,6 +225,7 @@
     }
   },
   "manageDomains": "Manage Domains",
+  "managePlugins": "Manage Plugins",
   "plan": {
     "title": "Plan Management",
     "create": "Create Plan",

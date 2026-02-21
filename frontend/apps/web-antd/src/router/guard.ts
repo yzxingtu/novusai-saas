@@ -88,7 +88,7 @@ function setupAccessGuard(router: Router) {
     if (currentEndpoint === 'admin') {
       if (!publicConfigStore.platformConfigLoaded) {
         // 平台端：加载平台公开配置
-        publicConfigStore.loadPlatformConfig().catch((error) => {
+        await publicConfigStore.loadPlatformConfig().catch((error) => {
           console.warn('[Router Guard] 加载平台公开配置失败:', error);
         });
       } else if (publicConfigStore.platformConfig?.brand) {
@@ -98,13 +98,34 @@ function setupAccessGuard(router: Router) {
     } else if (currentEndpoint === 'tenant') {
       if (!publicConfigStore.tenantConfigLoaded) {
         // 租户端：加载租户公开配置
-        publicConfigStore.loadTenantConfig().catch((error) => {
+        await publicConfigStore.loadTenantConfig().catch((error) => {
           console.warn('[Router Guard] 加载租户公开配置失败:', error);
         });
       } else if (publicConfigStore.tenantConfig?.brand) {
         // 如果已加载，确保应用当前端的品牌配置（处理端切换时的缓存问题）
         publicConfigStore.applyBrandConfig(publicConfigStore.tenantConfig.brand);
       }
+    }
+
+    // 维护模式检查：配置加载后检查是否处于维护状态
+    // 管理端（/admin/*）始终放行，确保管理员可以登录后台关闭维护模式
+    const isMaintenancePage = to.path === '/maintenance';
+    const maintenanceEnabled =
+      publicConfigStore.platformConfig?.maintenance?.enabled ||
+      publicConfigStore.tenantConfig?.maintenance?.enabled;
+    const isAdminRoute = currentEndpoint === 'admin';
+
+    if (
+      maintenanceEnabled &&
+      !isMaintenancePage &&
+      !isAdminRoute &&
+      !isLoginPath(to.path)
+    ) {
+      return { path: '/maintenance', replace: true };
+    }
+    // 维护模式已关闭但用户仍在维护页面，重定向回首页
+    if (!maintenanceEnabled && isMaintenancePage) {
+      return { path: currentHomePath, replace: true };
     }
 
     // 检测端切换：如果端类型变化，需要重新生成路由和权限

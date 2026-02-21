@@ -27,7 +27,7 @@ class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITableP
     async def get_effective_policies(self) -> list[dict[str, Any]]:
         """获取当前租户的有效策略列表（全局 + 覆盖合并）"""
         global_policies = await self.get_global_policies()
-        overrides = await self.repository.get_all_for_tenant()
+        overrides = await self.repo.get_all_for_tenant()
         overrides_map = {ov.policy_id: ov for ov in overrides}
 
         result: list[dict[str, Any]] = []
@@ -54,7 +54,7 @@ class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITableP
         # 执行收紧校验
         self._validate_restrict_only(global_policy, data)
 
-        existing = await self.repository.get_by_policy_id(policy_id)
+        existing = await self.repo.get_by_policy_id(policy_id)
         if existing:
             for key, value in data.items():
                 setattr(existing, key, value)
@@ -72,7 +72,7 @@ class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITableP
 
     async def remove_override(self, policy_id: int) -> None:
         """删除租户覆盖（恢复到全局策略）"""
-        existing = await self.repository.get_by_policy_id(policy_id)
+        existing = await self.repo.get_by_policy_id(policy_id)
         if not existing:
             raise NotFoundException(message=_("ai_table_policy_override.not_found"))
         await self.db.delete(existing)

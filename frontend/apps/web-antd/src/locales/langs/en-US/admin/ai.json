@@ -387,10 +387,42 @@
       "disabled": "Disabled",
       "system": "System"
     },
+    "actions": {
+      "publish": "Publish",
+      "versions": "Version History",
+      "access": "Access Config"
+    },
+    "versionHistory": "Version History",
+    "accessConfig": "Access Configuration",
+    "visibility": "Visibility",
+    "accessType": "Access Type",
+    "orgNodes": "Organization Nodes",
+    "specificUsers": "Specific Users",
+    "visibility_options": {
+      "public": "Public",
+      "private": "Private"
+    },
+    "access_type_options": {
+      "all_users": "All Users",
+      "org_node": "By Organization",
+      "specific_users": "Specific Users",
+      "api_only": "API Only"
+    },
     "messages": {
       "toggleSuccess": "Agent status updated",
       "confirmPublish": "Are you sure to publish this agent?",
-      "confirmDisable": "Are you sure to disable this agent? It will no longer be available."
+      "confirmDisable": "Are you sure to disable this agent? It will no longer be available.",
+      "publishTitle": "Publish Agent",
+      "publishDesc": "Publishing will freeze the current config as a new version. You can rollback anytime.",
+      "publishSuccess": "Agent published successfully",
+      "changeLogPlaceholder": "Enter change log (optional)",
+      "rollbackConfirm": "Are you sure to rollback to this version? Current config will be overwritten.",
+      "rollbackSuccess": "Agent rolled back successfully",
+      "rollback": "Rollback",
+      "noVersions": "No version history",
+      "accessUpdated": "Access config updated",
+      "visibilityPublicHint": "All users can see and use this agent",
+      "visibilityPrivateHint": "Only authorized users can see and use this agent"
     }
   },
   "conversation": {
@@ -507,12 +539,12 @@
         "desc": "Configure provider (OpenAI, Anthropic, Azure, etc.) API base URLs. Also supports custom OpenAI-compatible providers"
       },
       "step2": {
-        "title": "Configure Models",
-        "desc": "Add specific models (e.g. GPT-4, Claude 3) for providers, set pricing and capability tags. One-click remote fetch supported"
-      },
-      "step3": {
         "title": "Add API Key",
         "desc": "Platform keys are shared by all tenants; tenant keys are exclusive. System auto-handles load balancing and availability"
+      },
+      "step3": {
+        "title": "Configure Models",
+        "desc": "Add specific models (e.g. GPT-4, Claude 3) for providers, set pricing and capability tags. One-click remote fetch supported"
       },
       "step4": {
         "title": "Health Check",
@@ -567,16 +599,16 @@
       "time": "~2 min"
     },
     "step2": {
-      "title": "Configure Models",
-      "desc": "Add available AI models, supports one-click remote model fetch",
-      "detail": "Add specific models (e.g. GPT-4, Claude 3) for each provider. Manually add or one-click fetch remote list. Set pricing and capability tags",
-      "time": "~2 min"
-    },
-    "step3": {
       "title": "Add API Key",
       "desc": "Configure provider API keys, set as platform-wide or tenant-specific",
       "detail": "Platform keys are shared across all tenants; tenant keys are exclusive. System auto-handles load balancing and availability detection",
       "time": "~1 min"
+    },
+    "step3": {
+      "title": "Configure Models",
+      "desc": "Add available AI models, supports one-click remote model fetch",
+      "detail": "Add specific models (e.g. GPT-4, Claude 3) for each provider. Manually add or one-click fetch remote list. Set pricing and capability tags",
+      "time": "~2 min"
     },
     "step4": {
       "title": "Monitor & Run",

@@ -134,6 +134,22 @@ class BasePlugin(ABC):
         """最低平台版本要求（如 >=2.0.0）"""
         return None
 
+    @property
+    def scope(self) -> str:
+        """
+        插件作用域
+
+        控制插件在哪些端可见/可用：
+        - ``platform_only``: 仅管理端生效
+        - ``all_tenants``: 所有租户可用（默认）
+        - ``assigned_tenants``: 仅分配的租户可用
+        - ``global``: 全局自动对所有租户生效
+
+        Returns:
+            PluginScopeEnum 值
+        """
+        return "all_tenants"
+
     # ========================================
     # 生命周期钩子
     # ========================================
@@ -229,6 +245,7 @@ class BasePlugin(ABC):
             "author": self.author,
             "homepage": self.homepage,
             "icon": self.icon,
+            "scope": self.scope,
             "config_schema": self.config_schema,
             "default_config": self.default_config,
             "required_permissions": self.required_permissions,

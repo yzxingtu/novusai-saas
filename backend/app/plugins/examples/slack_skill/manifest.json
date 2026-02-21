@@ -5,6 +5,7 @@
   "description": "Send messages to Slack channels via webhook. Provides a 'slack' Skill type that AI agents can use to notify teams.",
   "author": "NovusAI Team",
   "plugin_type": "skill",
+  "scope": "all_tenants",
   "entry_point": "plugin.NovusaiSlackSkillPlugin",
   "icon": "lucide:message-square",
   "homepage": "",

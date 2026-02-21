@@ -2,11 +2,11 @@
 /**
  * 插件配置抽屉（平台管理端）
  *
- * 展示插件详情 + JSON Schema 配置表单（可编辑并保存默认配置）
+ * 展示插件详情 + scope 管理 + 租户分配 + JSON Schema 配置表单
  */
 import type { PluginInfo } from '#/api/admin/plugins';
 
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -16,11 +16,14 @@ import {
   Drawer,
   Empty,
   message,
+  Modal,
+  Select,
   Tag,
   Timeline,
   Typography,
 } from 'ant-design-vue';
 
+import { requestClient } from '#/utils/request';
 import { updatePluginApi } from '#/api/admin/plugins';
 import { SchemaForm } from '#/components';
 import { $t } from '#/locales';
@@ -36,17 +39,89 @@ const plugin = ref<PluginInfo | null>(null);
 const configValues = ref<Record<string, unknown>>({});
 const schemaFormRef = ref<InstanceType<typeof SchemaForm>>();
 
+const scopeOptions = computed(() => [
+  { value: 'platform_only', label: $t('admin.plugin.scope_options.platform_only') },
+  { value: 'all_tenants', label: $t('admin.plugin.scope_options.all_tenants') },
+  { value: 'assigned_tenants', label: $t('admin.plugin.scope_options.assigned_tenants') },
+  { value: 'global', label: $t('admin.plugin.scope_options.global') },
+]);
+
+const scopeSaving = ref(false);
+const assignedTenants = ref<Array<{ tenant_id: number; tenant_name: string }>>([]);
+const assignedLoading = ref(false);
+
+function getScopeColor(scope: string | undefined): string {
+  switch (scope) {
+    case 'platform_only': return 'orange';
+    case 'all_tenants': return 'blue';
+    case 'assigned_tenants': return 'purple';
+    case 'global': return 'green';
+    default: return 'default';
+  }
+}
+
+function getScopeText(scope: string | undefined): string {
+  if (!scope) return '-';
+  const opt = scopeOptions.value.find((o) => o.value === scope);
+  return opt?.label ?? scope;
+}
+
 function open(row: PluginInfo) {
   plugin.value = row;
   configValues.value = { ...(row.default_config ?? {}) };
   editing.value = false;
+  assignedTenants.value = [];
   visible.value = true;
+  if (row.scope === 'assigned_tenants') {
+    loadAssignedTenants();
+  }
 }
 
 function close() {
   visible.value = false;
   plugin.value = null;
   editing.value = false;
+}
+
+async function loadAssignedTenants() {
+  if (!plugin.value) return;
+  assignedLoading.value = true;
+  try {
+    const data = await requestClient.get<Array<{ tenant_id: number; tenant_name: string }>>(
+      `/admin/plugins/${plugin.value.id}/assigned-tenants`,
+    );
+    assignedTenants.value = data;
+  } catch {
+    // handled by interceptor
+  } finally {
+    assignedLoading.value = false;
+  }
+}
+
+async function onScopeChange(newScope: string) {
+  if (!plugin.value) return;
+  const oldScope = plugin.value.scope;
+  if (newScope === oldScope) return;
+
+  Modal.confirm({
+    title: $t('admin.plugin.messages.confirmScopeChange'),
+    onOk: async () => {
+      scopeSaving.value = true;
+      try {
+        const updated = await updatePluginApi(plugin.value!.id, { scope: newScope } as Record<string, unknown>);
+        plugin.value = updated;
+        message.success($t('common.saveSuccess'));
+        emit('saved');
+        if (newScope === 'assigned_tenants') {
+          await loadAssignedTenants();
+        }
+      } catch {
+        // handled by interceptor
+      } finally {
+        scopeSaving.value = false;
+      }
+    },
+  });
 }
 
 async function onSave() {
@@ -116,6 +191,22 @@ defineExpose({ open, close });
             {{ getStatusText(plugin.status) }}
           </Tag>
         </Descriptions.Item>
+        <Descriptions.Item :label="$t('admin.plugin.scope')" :span="2">
+          <div class="flex items-center gap-2">
+            <Select
+              v-access:code="['plugin:update']"
+              :value="plugin.scope"
+              :options="scopeOptions"
+              :loading="scopeSaving"
+              size="small"
+              class="w-40"
+              @change="(val: unknown) => onScopeChange(String(val))"
+            />
+            <Tag :color="getScopeColor(plugin.scope)" class="!m-0">
+              {{ getScopeText(plugin.scope) }}
+            </Tag>
+          </div>
+        </Descriptions.Item>
         <Descriptions.Item :label="$t('admin.plugin.author')" :span="2">
           {{ plugin.author || '-' }}
         </Descriptions.Item>
@@ -148,6 +239,38 @@ defineExpose({ open, close });
           </Tag>
         </Descriptions.Item>
       </Descriptions>
+
+      <!-- 已分配租户（scope=assigned_tenants 时显示） -->
+      <template v-if="plugin.scope === 'assigned_tenants'">
+        <div class="mb-3 flex items-center justify-between">
+          <span class="text-base font-medium text-foreground">
+            {{ $t('admin.plugin.assignedTenants') }}
+          </span>
+          <span class="text-xs text-muted-foreground">
+            {{ $t('admin.plugin.assignedCount', { count: assignedTenants.length }) }}
+          </span>
+        </div>
+        <div
+          v-if="assignedLoading"
+          class="mb-6 flex items-center justify-center py-4"
+        >
+          <IconifyIcon icon="lucide:loader-2" class="size-5 animate-spin text-muted-foreground" />
+        </div>
+        <div v-else-if="assignedTenants.length > 0" class="mb-6">
+          <div class="flex flex-wrap gap-2">
+            <Tag
+              v-for="t in assignedTenants"
+              :key="t.tenant_id"
+              color="purple"
+            >
+              {{ t.tenant_name || `#${t.tenant_id}` }}
+            </Tag>
+          </div>
+        </div>
+        <div v-else class="mb-6 text-center text-sm text-muted-foreground">
+          {{ $t('admin.plugin.noAssignedTenants') }}
+        </div>
+      </template>
 
       <!-- 市场信息 -->
       <template

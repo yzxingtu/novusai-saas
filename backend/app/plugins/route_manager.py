@@ -47,17 +47,26 @@ class PluginRouteManager:
 
     @classmethod
     def _get_auth_deps(cls, auth_level: str) -> list:
-        """根据认证级别返回 FastAPI 依赖列表"""
+        """根据认证级别返回 FastAPI 依赖列表
+
+        支持的认证级别：
+        - ``public``: 无认证
+        - ``auth_only``: 需要活跃管理员（默认）
+        - ``admin_only``: 需要超级管理员
+        - ``tenant_auth``: 需要活跃租户管理员
+        """
         if cls._AUTH_LEVEL_DEPS is None:
             from fastapi import Depends
             from app.core.deps import (
                 get_current_active_admin,
                 get_current_super_admin,
+                get_current_active_tenant_admin,
             )
             cls._AUTH_LEVEL_DEPS = {
                 "public": [],
                 "auth_only": [Depends(get_current_active_admin)],
                 "admin_only": [Depends(get_current_super_admin)],
+                "tenant_auth": [Depends(get_current_active_tenant_admin)],
             }
         return cls._AUTH_LEVEL_DEPS.get(auth_level, cls._AUTH_LEVEL_DEPS["auth_only"])
 

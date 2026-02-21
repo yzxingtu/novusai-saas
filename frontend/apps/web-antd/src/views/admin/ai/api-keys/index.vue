@@ -7,7 +7,7 @@ import type { AIApiKeyInfo } from '#/api/admin/ai';
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Card, message, Modal, Progress, Switch, Tag, Tooltip } from 'ant-design-vue';
+import { message, Modal, Progress, Switch, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import {
@@ -71,8 +71,7 @@ const { Grid, FormDrawer, onRefresh } =
   <Page auto-content-height :description="$t('admin.ai.apiKey.pageDesc')" content-class="flex flex-col gap-4">
     <FormDrawer @success="onRefresh" />
 
-    <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
-      <Grid>
+    <Grid>
         <!-- 名称列 -->
         <template #name_cell="{ row }">
           <div class="flex items-center gap-2">
@@ -202,7 +201,6 @@ const { Grid, FormDrawer, onRefresh } =
           </div>
         </template>
 
-      </Grid>
-    </Card>
+    </Grid>
   </Page>
 </template>

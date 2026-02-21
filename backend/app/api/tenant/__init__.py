@@ -29,10 +29,8 @@ from app.api.tenant.agent_chat import router as agent_chat_router, TenantAgentCh
 from app.api.tenant.ai_action_logs import router as ai_action_logs_router, TenantAIActionLogController
 from app.api.tenant.knowledge_bases import router as knowledge_bases_router, TenantKnowledgeBaseController
 from app.api.tenant.ai_table_policies import router as ai_table_policies_router, TenantAITablePolicyController
-from app.api.tenant.plugins import router as plugins_router, TenantPluginController
 from app.api.tenant.skill_packages import router as skill_packages_router, TenantSkillPackageController
 from app.api.tenant.skills import router as skills_router, TenantSkillController
-from app.api.tenant.agent_assignments import router as agent_assignments_router, TenantAgentAssignmentController
 from app.api.tenant.dashboard import router as dashboard_router
 
 # 创建租户管理后台路由器
@@ -67,13 +65,9 @@ tenant_router.include_router(ai_action_logs_router)
 tenant_router.include_router(knowledge_bases_router)
 # AI 表策略覆盖
 tenant_router.include_router(ai_table_policies_router)
-# 插件系统
-tenant_router.include_router(plugins_router)
 # 技能包 & 技能管理
 tenant_router.include_router(skill_packages_router)
 tenant_router.include_router(skills_router)
-# 系统智能体绑定
-tenant_router.include_router(agent_assignments_router)
 # WebSocket 在线状态
 from app.api.tenant.ws import router as ws_router
 tenant_router.include_router(ws_router)
@@ -111,11 +105,7 @@ __all__ = [
     "TenantKnowledgeBaseController",
     # AI 表策略覆盖
     "TenantAITablePolicyController",
-    # 插件系统
-    "TenantPluginController",
     # 技能包 & 技能管理
     "TenantSkillPackageController",
     "TenantSkillController",
-    # 系统智能体绑定
-    "TenantAgentAssignmentController",
 ]

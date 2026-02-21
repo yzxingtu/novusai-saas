@@ -9,36 +9,13 @@
 """
 
 import asyncio
-from contextlib import asynccontextmanager
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-from app.core.config import settings
 from app.core.logging import LogManager
 from app.tasks.base import register_task, BaseTask
 from app.core.base_model import utc_now
+from app.tasks.async_db import task_async_session as _task_async_session
 
 logger = LogManager.get_logger("task")
-
-
-@asynccontextmanager
-async def _task_async_session():
-    """为 Celery 任务创建独立的 async engine + session。"""
-    engine = create_async_engine(
-        settings.DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=2,
-        max_overflow=0,
-    )
-    factory = async_sessionmaker(
-        bind=engine, class_=AsyncSession, expire_on_commit=False,
-    )
-    async with factory() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
-    await engine.dispose()
 
 
 @register_task(

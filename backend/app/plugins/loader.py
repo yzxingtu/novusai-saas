@@ -133,6 +133,42 @@ class PluginLoader:
         """检查是否已缓存某插件实例"""
         return name in self._instances
 
+    @staticmethod
+    def clear_module_cache(plugin_name: str) -> list[str]:
+        """
+        从 sys.modules 中清除插件相关的所有模块缓存
+
+        升级插件时必须先调用此方法，否则 importlib.import_module
+        会返回旧版本的模块代码。
+
+        Args:
+            plugin_name: 插件名称（如 my-plugin 或 my_plugin）
+
+        Returns:
+            被清除的模块名列表
+        """
+        import sys
+
+        module_name = plugin_name.replace("-", "_")
+        removed: list[str] = []
+        keys_to_remove = [
+            key for key in sys.modules
+            if f"plugins.{module_name}" in key
+            or f"plugins.builtin.{module_name}" in key
+            or f"plugins.{plugin_name}" in key
+        ]
+        for key in keys_to_remove:
+            del sys.modules[key]
+            removed.append(key)
+
+        if removed:
+            logger.info(
+                "Cleared %d module cache entries for plugin '%s': %s",
+                len(removed), plugin_name, removed,
+            )
+
+        return removed
+
     @property
     def instances(self) -> dict[str, BasePlugin]:
         """获取所有已缓存的插件实例（只读副本）"""

@@ -172,7 +172,39 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "welcome": "Welcome back"
+    "welcome": "Welcome back",
+    "platformConsole": "Platform Console",
+    "greeting": "Hello, {name}",
+    "admin": "Admin",
+    "description": "Welcome to NovusAI SaaS Admin Platform. Manage tenants, configure the system and monitor platform health.",
+    "stats": {
+      "totalTenants": "Total Tenants",
+      "activeTenants": "Active Tenants",
+      "totalUsers": "Total Users",
+      "todayLogin": "Today Logins"
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "tenantManage": "Tenants",
+      "tenantManageDesc": "View and manage platform tenants",
+      "adminManage": "Admins",
+      "adminManageDesc": "Manage platform admin accounts",
+      "systemConfig": "System Config",
+      "systemConfigDesc": "Platform settings and configuration",
+      "aiProviders": "AI Providers",
+      "aiProvidersDesc": "Configure AI models and providers",
+      "periodicTasks": "Periodic Tasks",
+      "periodicTasksDesc": "View and manage scheduled tasks",
+      "operationLogs": "Audit Logs",
+      "operationLogsDesc": "View platform operation logs"
+    },
+    "systemOverview": {
+      "title": "System Overview",
+      "version": "Platform Version",
+      "environment": "Environment",
+      "uptime": "Uptime",
+      "currentTime": "Current Time"
+    }
   },
   "common": {
     "operation": "Operation",

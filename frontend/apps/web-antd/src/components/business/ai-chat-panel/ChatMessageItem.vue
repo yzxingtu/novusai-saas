@@ -64,7 +64,7 @@ function agentInitial(agent: { name: string }) {
       <!-- Avatar (page mode only) -->
       <div
         v-if="!compact"
-        class="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-medium text-primary"
+        class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 text-xs font-medium text-primary shadow-sm"
       >
         <img
           v-if="selectedAgent && agentAvatar(selectedAgent)"
@@ -201,8 +201,8 @@ function agentInitial(agent: { name: string }) {
         <!-- Markdown content -->
         <div
           v-if="msg.content"
-          class="rounded-lg border border-border bg-accent/30"
-          :class="compact ? 'px-3 py-2 text-sm' : 'px-4 py-2.5'"
+          class="rounded-2xl border border-border/40 bg-muted/30"
+          :class="compact ? 'px-3 py-2 text-sm' : 'px-4 py-3'"
         >
           <MarkdownRender :content="msg.content" :streaming="!!msg.streaming" />
           <span v-if="msg.streaming" class="streaming-cursor" />
@@ -394,31 +394,33 @@ function agentInitial(agent: { name: string }) {
         <div
           v-if="msg.content && !msg.streaming"
           class="flex items-center text-muted-foreground"
-          :class="compact ? 'mt-0.5 gap-2 text-[11px]' : 'mt-1 gap-3 text-xs'"
+          :class="compact ? 'mt-1 gap-1.5 text-[11px]' : 'mt-1.5 gap-1 text-xs'"
         >
-          <span v-if="msg.tokenUsage">{{ msg.tokenUsage }} {{ $t('common.globalAiChat.tokens') }}</span>
-          <span v-if="!compact && msg.durationMs">{{ (msg.durationMs / 1000).toFixed(1) }}s</span>
+          <span v-if="msg.tokenUsage" class="mr-1">{{ msg.tokenUsage }} {{ $t('common.globalAiChat.tokens') }}</span>
+          <span v-if="!compact && msg.durationMs" class="mr-1">{{ (msg.durationMs / 1000).toFixed(1) }}s</span>
           <Tooltip v-if="!compact" :title="$t('common.globalAiChat.copy')">
-            <IconifyIcon
-              icon="lucide:copy"
-              class="cursor-pointer opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-              :class="compact ? 'size-3' : 'size-3.5'"
+            <button
+              class="flex size-6 items-center justify-center rounded-md opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
               @click="emit('copy', msg.content)"
-            />
+            >
+              <IconifyIcon icon="lucide:copy" class="size-3.5" />
+            </button>
           </Tooltip>
-          <IconifyIcon
+          <button
             v-else
-            icon="lucide:copy"
-            class="size-3 cursor-pointer opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+            class="flex size-5 items-center justify-center rounded opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
             @click="emit('copy', msg.content)"
-          />
+          >
+            <IconifyIcon icon="lucide:copy" class="size-3" />
+          </button>
           <Tooltip :title="$t('common.globalAiChat.regenerate')">
-            <IconifyIcon
-              icon="lucide:refresh-cw"
-              class="cursor-pointer opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-              :class="compact ? 'size-3' : 'size-3.5'"
+            <button
+              class="flex items-center justify-center rounded-md opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
+              :class="compact ? 'size-5' : 'size-6'"
               @click="emit('regenerate', props.index)"
-            />
+            >
+              <IconifyIcon icon="lucide:refresh-cw" :class="compact ? 'size-3' : 'size-3.5'" />
+            </button>
           </Tooltip>
         </div>
       </div>
@@ -457,7 +459,7 @@ function agentInitial(agent: { name: string }) {
       </div>
       <div
         v-if="msg.content"
-        class="whitespace-pre-wrap rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground"
+        class="whitespace-pre-wrap rounded-2xl bg-gradient-to-br from-primary to-primary/90 px-4 py-2.5 text-sm text-primary-foreground shadow-sm shadow-primary/20"
       >
         {{ msg.content }}
       </div>

@@ -37,8 +37,7 @@ def cleanup_expired_notifications(self: BaseTask) -> dict:
     try:
         # 读取配置（同步环境，直接查 DB）
         from app.configs.service import PLATFORM_TENANT_ID
-        from app.models.system.system_config import SystemConfig
-        from app.models.system.system_config_value import SystemConfigValue
+        from app.models.system.config import SystemConfig, SystemConfigValue
         from sqlalchemy import select
 
         # 查询 notification_retention_days 配置值

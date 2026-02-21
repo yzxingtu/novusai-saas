@@ -240,3 +240,128 @@ export async function unbindAIAgentSkillApi(
     `${AGENT_PREFIX}/${agentId}/skills/${packageId}`,
   );
 }
+
+// ============================================================
+// API 接口 - 发布 / 版本管理
+// ============================================================
+
+/** 版本列表项 */
+export interface AIAgentVersionItem {
+  id: number;
+  agent_id: number;
+  version: number;
+  change_log: string | null;
+  created_by: number | null;
+  execution_mode: string;
+  created_at: string;
+}
+
+/** 发布智能体 */
+export async function publishAIAgentApi(
+  agentId: number,
+  data: { change_log?: null | string },
+): Promise<AIAgentInfo> {
+  return requestClient.post<AIAgentInfo>(
+    `${AGENT_PREFIX}/${agentId}/publish`,
+    data,
+  );
+}
+
+/** 回滚智能体 */
+export async function rollbackAIAgentApi(
+  agentId: number,
+  version: number,
+): Promise<AIAgentInfo> {
+  return requestClient.post<AIAgentInfo>(
+    `${AGENT_PREFIX}/${agentId}/rollback`,
+    { version },
+  );
+}
+
+/** 获取版本历史 */
+export async function getAIAgentVersionsApi(
+  agentId: number,
+): Promise<AIAgentVersionItem[]> {
+  return requestClient.get<AIAgentVersionItem[]>(
+    `${AGENT_PREFIX}/${agentId}/versions`,
+  );
+}
+
+/** 获取版本详情 */
+export async function getAIAgentVersionDetailApi(
+  agentId: number,
+  version: number,
+): Promise<Record<string, unknown>> {
+  return requestClient.get<Record<string, unknown>>(
+    `${AGENT_PREFIX}/${agentId}/versions/${version}`,
+  );
+}
+
+// ============================================================
+// API 接口 - 访问权限配置
+// ============================================================
+
+/** 访问权限配置 */
+export interface AIAgentAccessConfig {
+  visibility: string;
+  access_type: string;
+  org_node_ids: number[] | null;
+  user_ids: number[] | null;
+  access_rules: Array<Record<string, unknown>>;
+}
+
+/** 获取访问权限配置 */
+export async function getAIAgentAccessApi(
+  agentId: number,
+): Promise<AIAgentAccessConfig> {
+  return requestClient.get<AIAgentAccessConfig>(
+    `${AGENT_PREFIX}/${agentId}/access`,
+  );
+}
+
+/** 更新访问权限配置 */
+export async function updateAIAgentAccessApi(
+  agentId: number,
+  data: {
+    visibility?: string;
+    access_type?: string;
+    org_node_ids?: number[] | null;
+    user_ids?: number[] | null;
+  },
+): Promise<AIAgentAccessConfig> {
+  return requestClient.put<AIAgentAccessConfig>(
+    `${AGENT_PREFIX}/${agentId}/access`,
+    data,
+  );
+}
+
+// ============================================================
+// API 接口 - 回收站
+// ============================================================
+
+/** 获取回收站计数 */
+export async function getAIAgentRecycleBinCountApi(): Promise<{ count: number }> {
+  return requestClient.get<{ count: number }>(
+    `${AGENT_PREFIX}/recycle-bin/count`,
+  );
+}
+
+/** 获取回收站列表 */
+export async function getAIAgentRecycleBinApi(
+  params?: Record<string, unknown>,
+): Promise<{ items: AIAgentInfo[]; total: number }> {
+  return requestClient.get<{ items: AIAgentInfo[]; total: number }>(
+    `${AGENT_PREFIX}/recycle-bin`,
+    { params },
+  );
+}
+
+/** 恢复回收站项 */
+export async function restoreAIAgentApi(id: number): Promise<void> {
+  await requestClient.post(`${AGENT_PREFIX}/recycle-bin/${id}/restore`);
+}
+
+/** 永久删除回收站项 */
+export async function permanentDeleteAIAgentApi(id: number): Promise<void> {
+  await requestClient.delete(`${AGENT_PREFIX}/recycle-bin/${id}`);
+}

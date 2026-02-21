@@ -12,41 +12,15 @@ SSL 证书 Celery 任务
 """
 
 import asyncio
-from contextlib import asynccontextmanager
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.logging import LogManager
 from app.core.base_model import utc_now
 from app.tasks.base import register_task, BaseTask
+from app.tasks.async_db import task_async_session as _task_async_session
 
 logger = LogManager.get_logger("ssl")
-
-
-@asynccontextmanager
-async def _task_async_session():
-    """
-    为 Celery 任务创建独立的 async engine + session。
-    每次调用都创建新 engine，避免 event loop 复用问题。
-    """
-    engine = create_async_engine(
-        settings.DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=2,
-        max_overflow=0,
-    )
-    session_factory = async_sessionmaker(
-        bind=engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-    async with session_factory() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
-    await engine.dispose()
 
 
 @register_task(

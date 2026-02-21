@@ -233,6 +233,10 @@ def create_application() -> FastAPI:
     # i18n 国际化中间件（纯 ASGI 实现，使用 add_middleware 注册）
     app.add_middleware(I18nMiddleware)
     
+    # 维护模式中间件（开启时拦截非管理端请求返回 503）
+    from app.middleware.maintenance import MaintenanceMiddleware
+    app.add_middleware(MaintenanceMiddleware)
+    
     # RBAC 权限预加载中间件（加载用户权限到 request.state）
     app.add_middleware(PermissionMiddleware)
     

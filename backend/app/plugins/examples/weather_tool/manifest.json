@@ -5,6 +5,7 @@
   "description": "An example ToolPlugin that provides weather lookup for AI agents. Demonstrates tool definition, execution, and configuration schema.",
   "author": "NovusAI Team",
   "plugin_type": "tool",
+  "scope": "all_tenants",
   "entry_point": "plugin.ExampleWeatherToolPlugin",
   "icon": "lucide:cloud-sun",
   "homepage": "",

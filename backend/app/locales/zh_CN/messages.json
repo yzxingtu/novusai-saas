@@ -1194,6 +1194,12 @@
       "disabled": "已禁用",
       "error": "异常"
     },
+    "plugin_scope": {
+      "platform_only": "仅管理端",
+      "all_tenants": "所有租户",
+      "assigned_tenants": "指定租户",
+      "global": "全局生效"
+    },
     "knowledge_base": {
       "status": {
         "active": "启用",
@@ -2105,6 +2111,8 @@
     "skill_type_conflict": "技能类型已被其他插件注册",
     "storage_driver_conflict": "存储驱动标识已被其他插件注册",
     "downgrade_not_allowed": "不允许降级插件版本",
+    "tenant_ids_required": "请提供要分配的租户 ID 列表",
+    "tool_name_conflict": "工具名称已被其他插件注册",
     "install_success": "插件安装成功",
     "uninstall_success": "插件卸载成功",
     "enable_success": "插件启用成功",

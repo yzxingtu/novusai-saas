@@ -74,6 +74,7 @@ celery_app.conf.include = [
     "app.tasks.ssl_tasks",
     "app.tasks.email",
     "app.tasks.ai",
+    "app.tasks.notification_cleanup",
     "app.ai.rag.processor",
 ]
 

@@ -352,7 +352,8 @@
       "task_provision_ssl": "SSL 证书签发",
       "task_check_ssl_renewals": "SSL 证书续期检查",
       "task_renew_ssl": "SSL 证书续期",
-      "execute_batch_run": "智能体批处理"
+      "execute_batch_run": "智能体批处理",
+      "cleanup_expired_notifications": "清理过期通知"
     },
     "resultKeys": {
       "cleaned": "已清理",
@@ -513,6 +514,7 @@
     "levelAdmin": "管理端",
     "levelTenant": "租户端",
     "searchPlaceholder": "搜索已删除记录…",
-    "allTenants": "全部租户"
+    "allTenants": "全部租户",
+    "modules": "数据模块"
   }
 }

@@ -5,6 +5,7 @@
   "description": "Example ApiPlugin that registers custom webhook endpoints",
   "author": "NovusAI",
   "plugin_type": "api",
+  "scope": "all_tenants",
   "entry_point": "plugin.WebhookApiPlugin",
   "icon": "lucide:webhook",
   "homepage": "",

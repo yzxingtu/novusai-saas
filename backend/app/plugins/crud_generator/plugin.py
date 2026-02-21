@@ -45,6 +45,10 @@ class CrudGeneratorPlugin(ApiPlugin, SkillPlugin):
     def icon(self) -> str:
         return "lucide:wand-2"
 
+    @property
+    def scope(self) -> str:
+        return "platform_only"
+
     # ========================================
     # ApiPlugin — 动态路由
     # ========================================

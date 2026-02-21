@@ -92,11 +92,21 @@ class SkillPluginProvisioner:
         config_schema = instance.get_skill_config_schema()
         default_config = PluginConfigManager.extract_schema_defaults(config_schema)
 
+        # scope 根据插件作用域动态设置
+        from app.enums.plugin import PluginScopeEnum
+        plugin_scope = instance.scope
+        if plugin_scope == PluginScopeEnum.PLATFORM_ONLY.value:
+            pkg_scope = "admin"
+        elif plugin_scope in (PluginScopeEnum.ALL_TENANTS.value, PluginScopeEnum.GLOBAL.value):
+            pkg_scope = "system"
+        else:
+            pkg_scope = "admin"
+
         pkg = await pkg_repo.create({
             "name": display_name,
             "description": instance.description,
             "avatar": instance.get_skill_icon(),
-            "scope": "admin",
+            "scope": pkg_scope,
             "source_plugin": plugin_name,
             "is_system": True,
             "is_active": True,
@@ -111,7 +121,7 @@ class SkillPluginProvisioner:
             "description": instance.description,
             "avatar": instance.get_skill_icon(),
             "type": skill_type,
-            "scope": "admin",
+            "scope": pkg_scope,
             "is_system": True,
             "is_active": True,
             "config": default_config,

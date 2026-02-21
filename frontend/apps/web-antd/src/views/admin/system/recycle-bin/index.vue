@@ -12,17 +12,12 @@ import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
 import {
-  Badge,
   Button,
-  Card,
-  Empty,
   message,
   Modal,
   Popconfirm,
-  Space,
   Spin,
   Table,
-  Tabs,
   Tag,
   Tooltip,
 } from 'ant-design-vue';
@@ -283,92 +278,106 @@ onMounted(async () => {
 </script>
 
 <template>
-  <Page
-    auto-content-height
-    :title="$t('admin.system.recycleBin.title')"
-    :description="$t('admin.system.recycleBin.description')"
-  >
-    <template #extra>
-      <Space>
-        <Tag v-if="totalDeletedCount > 0" color="orange">
-          {{ $t('common.recycleBin.itemCount', { count: totalDeletedCount }) }}
-        </Tag>
-        <Popconfirm
-          :title="$t('admin.system.recycleBin.cleanupConfirm')"
-          @confirm="handleCleanup"
-        >
-          <Button type="primary" danger>
-            <template #icon>
-              <IconifyIcon icon="lucide:trash-2" class="size-4" />
-            </template>
-            {{ $t('admin.system.recycleBin.cleanup') }}
-          </Button>
-        </Popconfirm>
-      </Space>
-    </template>
+  <Page auto-content-height content-class="flex flex-col gap-5">
+    <!-- ===== Hero 头部 ===== -->
+    <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-destructive/5 via-background to-warning/3 p-6">
+      <div class="relative z-10 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="flex size-12 items-center justify-center rounded-xl bg-destructive/10">
+            <IconifyIcon icon="lucide:trash-2" class="size-6 text-destructive" />
+          </div>
+          <div>
+            <h1 class="text-xl font-bold text-foreground">{{ $t('admin.system.recycleBin.title') }}</h1>
+            <p class="mt-0.5 text-sm text-muted-foreground">{{ $t('admin.system.recycleBin.description') }}</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <div v-if="totalDeletedCount > 0" class="flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-1.5">
+            <IconifyIcon icon="lucide:archive" class="size-4 text-warning" />
+            <span class="text-sm font-medium text-warning">
+              {{ $t('common.recycleBin.itemCount', { count: totalDeletedCount }) }}
+            </span>
+          </div>
+          <Popconfirm
+            :title="$t('admin.system.recycleBin.cleanupConfirm')"
+            @confirm="handleCleanup"
+          >
+            <Button type="primary" danger class="!rounded-lg">
+              <IconifyIcon icon="lucide:flame" class="mr-1.5 size-4" />
+              {{ $t('admin.system.recycleBin.cleanup') }}
+            </Button>
+          </Popconfirm>
+        </div>
+      </div>
+      <div class="absolute -right-12 -top-12 size-40 rounded-full bg-destructive/5 blur-3xl" />
+    </div>
 
     <Spin :spinning="summaryLoading">
-      <!-- 无数据 -->
-      <div
-        v-if="!summaryLoading && summary.length === 0"
-        class="flex flex-col items-center justify-center py-20"
-      >
-        <IconifyIcon
-          icon="lucide:trash-2"
-          class="mb-4 size-16 text-muted-foreground/20"
-        />
-        <p class="text-base text-muted-foreground">
-          {{ $t('common.recycleBin.empty') }}
-        </p>
-        <p class="text-sm text-muted-foreground/60">
-          {{ $t('common.recycleBin.emptyDesc') }}
-        </p>
+      <!-- 空状态 -->
+      <div v-if="!summaryLoading && summary.length === 0" class="flex flex-col items-center justify-center gap-4 py-24">
+        <div class="flex size-20 items-center justify-center rounded-2xl bg-muted">
+          <IconifyIcon icon="lucide:check-circle" class="size-10 text-success/50" />
+        </div>
+        <div class="text-center">
+          <p class="text-sm font-medium text-foreground">{{ $t('common.recycleBin.empty') }}</p>
+          <p class="mt-1 text-xs text-muted-foreground">{{ $t('common.recycleBin.emptyDesc') }}</p>
+        </div>
       </div>
 
-      <!-- 有数据：Tab 切换模块 -->
-      <Card v-else :bordered="false" class="h-full">
-        <Tabs
-          v-model:activeKey="activeModule"
-          tab-position="left"
-          :style="{ minHeight: '400px' }"
-          @change="onTabChange"
-        >
-          <Tabs.TabPane
+      <!-- ===== 主内容：左侧模块导航 + 右侧列表 ===== -->
+      <div v-else class="flex gap-5" style="min-height: 500px;">
+        <!-- 左侧模块导航 -->
+        <div class="flex w-56 shrink-0 flex-col gap-1 rounded-2xl border border-border/50 bg-card p-3">
+          <div class="mb-2 px-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            {{ $t('admin.system.recycleBin.modules') || 'Modules' }}
+          </div>
+          <button
             v-for="mod in summary"
             :key="mod.module"
-            :tab="mod.label"
+            class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-200"
+            :class="activeModule === mod.module
+              ? 'bg-primary/10 text-primary shadow-sm'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'"
+            @click="onTabChange(mod.module)"
           >
-            <template #tab>
-              <div class="flex items-center gap-2">
-                <IconifyIcon
-                  :icon="moduleIcons[mod.module] || 'lucide:box'"
-                  class="size-4"
-                />
-                <span>{{ mod.label }}</span>
-                <Badge
-                  :count="mod.count"
-                  :number-style="{ backgroundColor: '#faad14' }"
-                  :overflow-count="999"
-                />
-              </div>
-            </template>
+            <div
+              class="flex size-8 shrink-0 items-center justify-center rounded-lg"
+              :class="activeModule === mod.module ? 'bg-primary/15' : 'bg-muted'"
+            >
+              <IconifyIcon
+                :icon="moduleIcons[mod.module] || 'lucide:box'"
+                class="size-4"
+              />
+            </div>
+            <div class="min-w-0 flex-1">
+              <span class="block truncate text-[13px] font-medium">{{ mod.label }}</span>
+            </div>
+            <span
+              class="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+              :class="activeModule === mod.module
+                ? 'bg-primary/20 text-primary'
+                : 'bg-muted text-muted-foreground'"
+            >
+              {{ mod.count }}
+            </span>
+          </button>
+        </div>
 
-            <!-- 高级搜索表单 -->
-            <div class="mb-3">
+        <!-- 右侧内容区 -->
+        <div class="recycle-table-wrap min-w-0 flex-1">
+          <!-- 搜索 + 提示（紧凑单行） -->
+          <div class="mb-3 flex flex-wrap items-center gap-3">
+            <div class="flex-1">
               <SearchForm />
             </div>
-
-            <!-- 保留天数提示 -->
-            <div
-              class="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground/70"
-            >
-              <IconifyIcon icon="lucide:info" class="size-3.5" />
-              <span>{{
-                $t('common.recycleBin.retentionDays', { days: 30 })
-              }}</span>
+            <div class="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+              <IconifyIcon icon="lucide:clock" class="size-3" />
+              <span>{{ $t('common.recycleBin.retentionDays', { days: 30 }) }}</span>
             </div>
+          </div>
 
-            <!-- 列表 -->
+          <!-- 表格 -->
+          <div class="overflow-hidden rounded-xl border border-border/40 bg-card">
             <Table
               :columns="columns"
               :data-source="items"
@@ -378,91 +387,103 @@ onMounted(async () => {
                 pageSize,
                 total,
                 showSizeChanger: true,
+                size: 'small',
                 showTotal: (t: number) => `${$t('admin.common.total')} ${t}`,
                 onChange: onPageChange,
               }"
               row-key="id"
-              size="small"
+              size="middle"
               :scroll="{ x: 800 }"
             >
               <template #bodyCell="{ column, record }">
-                <!-- 租户名称 -->
                 <template v-if="column.key === 'tenant_name'">
-                  <Tag v-if="record.tenant_name" color="blue">
+                  <Tag v-if="record.tenant_name" color="blue" class="!rounded-md !border-0">
                     {{ record.tenant_name }}
                   </Tag>
                   <span v-else class="text-muted-foreground">—</span>
                 </template>
 
-                <!-- 删除层级 -->
                 <template v-else-if="column.key === 'delete_level'">
-                  <Tag
+                  <span
                     v-if="record.delete_level === 'admin'"
-                    color="red"
+                    class="inline-flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive"
                   >
+                    <IconifyIcon icon="lucide:shield" class="size-3" />
                     {{ $t('admin.system.recycleBin.levelAdmin') }}
-                  </Tag>
-                  <Tag
+                  </span>
+                  <span
                     v-else-if="record.delete_level === 'tenant'"
-                    color="orange"
+                    class="inline-flex items-center gap-1 rounded-md bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning"
                   >
+                    <IconifyIcon icon="lucide:building-2" class="size-3" />
                     {{ $t('admin.system.recycleBin.levelTenant') }}
-                  </Tag>
+                  </span>
                   <span v-else class="text-muted-foreground">—</span>
                 </template>
 
-                <!-- 删除时间 -->
                 <template v-else-if="column.key === 'deleted_at'">
                   <Tooltip :title="formatDate(record.deleted_at)">
-                    <span class="text-muted-foreground">
+                    <span class="text-xs text-muted-foreground">
                       {{ formatRelativeTime(record.deleted_at) }}
                     </span>
                   </Tooltip>
                 </template>
 
-                <!-- 操作 -->
                 <template v-else-if="column.key === 'action'">
-                  <Space>
+                  <div class="flex items-center justify-center gap-1">
                     <Tooltip :title="$t('common.recycleBin.restore')">
-                      <Button
-                        type="link"
-                        size="small"
-                        class="text-primary"
+                      <button
+                        class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                         @click="handleRestore(record as RecycleBinItem)"
                       >
-                        <template #icon>
-                          <IconifyIcon
-                            icon="lucide:rotate-ccw"
-                            class="size-4"
-                          />
-                        </template>
-                      </Button>
+                        <IconifyIcon icon="lucide:rotate-ccw" class="size-4" />
+                      </button>
                     </Tooltip>
                     <Tooltip :title="$t('common.recycleBin.permanentDelete')">
-                      <Button
-                        type="link"
-                        size="small"
-                        danger
-                        @click="
-                          handlePermanentDelete(record as RecycleBinItem)
-                        "
+                      <button
+                        class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                        @click="handlePermanentDelete(record as RecycleBinItem)"
                       >
-                        <template #icon>
-                          <IconifyIcon icon="lucide:x" class="size-4" />
-                        </template>
-                      </Button>
+                        <IconifyIcon icon="lucide:x" class="size-4" />
+                      </button>
                     </Tooltip>
-                  </Space>
+                  </div>
                 </template>
               </template>
 
               <template #emptyText>
-                <Empty :description="$t('common.recycleBin.empty')" />
+                <div class="flex flex-col items-center gap-3 py-12">
+                  <IconifyIcon icon="lucide:inbox" class="size-10 text-muted-foreground/30" />
+                  <span class="text-sm text-muted-foreground">{{ $t('common.recycleBin.empty') }}</span>
+                </div>
               </template>
             </Table>
-          </Tabs.TabPane>
-        </Tabs>
-      </Card>
+          </div>
+        </div>
+      </div>
     </Spin>
   </Page>
 </template>
+
+<style scoped>
+.recycle-table-wrap :deep(.ant-table-thead > tr > th) {
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--ant-color-bg-layout);
+}
+
+.recycle-table-wrap :deep(.ant-table-tbody > tr > td) {
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.recycle-table-wrap :deep(.ant-table-tbody > tr:hover > td) {
+  background: hsl(var(--primary) / 0.03);
+}
+
+.recycle-table-wrap :deep(.ant-pagination) {
+  padding: 10px 12px;
+  margin: 0;
+}
+</style>

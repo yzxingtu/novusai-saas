@@ -17,6 +17,15 @@ class PluginTypeEnum(LabeledStrEnum):
     COMPOSITE = ("composite", "enum.plugin_type.composite")
 
 
+class PluginScopeEnum(LabeledStrEnum):
+    """插件作用域枚举"""
+
+    PLATFORM_ONLY = ("platform_only", "enum.plugin_scope.platform_only")
+    ALL_TENANTS = ("all_tenants", "enum.plugin_scope.all_tenants")
+    ASSIGNED_TENANTS = ("assigned_tenants", "enum.plugin_scope.assigned_tenants")
+    GLOBAL = ("global", "enum.plugin_scope.global")
+
+
 class PluginStatusEnum(LabeledStrEnum):
     """插件状态枚举"""
 
@@ -28,5 +37,6 @@ class PluginStatusEnum(LabeledStrEnum):
 
 __all__ = [
     "PluginTypeEnum",
+    "PluginScopeEnum",
     "PluginStatusEnum",
 ]

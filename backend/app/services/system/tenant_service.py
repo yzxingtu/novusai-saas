@@ -152,6 +152,9 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             tenant_id=tenant.id,
         )
         
+        # 自动绑定插件（scope=global/all_tenants 的已启用插件）
+        await self._provision_tenant_plugins(tenant.id)
+        
         return tenant
     
     @staticmethod
@@ -264,7 +267,61 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         await self.db.flush()
         
         return owner
-    
+
+    async def _provision_tenant_plugins(self, tenant_id: int) -> None:
+        """
+        为新租户自动绑定插件
+
+        规则：
+        - scope=global / scope=all_tenants 的已启用插件 → 自动创建 tenant_plugins 记录
+        - scope=assigned_tenants → 不自动绑定（由管理员手动分配）
+        - scope=platform_only → 不涉及租户
+
+        失败不阻塞租户创建。
+        """
+        try:
+            from sqlalchemy import select
+            from app.enums.plugin import PluginScopeEnum, PluginStatusEnum
+            from app.models.system.plugin import Plugin
+            from app.repositories.system.tenant_plugin_repository import TenantPluginRepository
+
+            stmt = select(Plugin).where(
+                Plugin.status == PluginStatusEnum.ENABLED.value,
+                Plugin.scope.in_([
+                    PluginScopeEnum.GLOBAL.value,
+                    PluginScopeEnum.ALL_TENANTS.value,
+                ]),
+                Plugin.is_deleted.is_(False),
+            )
+            result = await self.db.execute(stmt)
+            plugins = list(result.scalars().all())
+
+            if not plugins:
+                return
+
+            tp_repo = TenantPluginRepository(self.db)
+            bound = 0
+            for plugin in plugins:
+                await tp_repo.create({
+                    "tenant_id": tenant_id,
+                    "plugin_id": plugin.id,
+                    "is_active": True,
+                    "config": None,
+                })
+                bound += 1
+
+            if bound > 0:
+                await self.db.flush()
+                logger.info(
+                    "Auto-bound %d plugins to new tenant %d",
+                    bound, tenant_id,
+                )
+        except Exception as exc:
+            logger.warning(
+                "Failed to auto-bind plugins for tenant %d: %s",
+                tenant_id, str(exc),
+            )
+
     async def reset_owner_password(
         self,
         tenant_id: int,

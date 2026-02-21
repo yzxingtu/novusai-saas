@@ -351,7 +351,8 @@
       "task_provision_ssl": "SSL Certificate Provision",
       "task_check_ssl_renewals": "SSL Renewal Check",
       "task_renew_ssl": "SSL Certificate Renew",
-      "execute_batch_run": "Agent Batch Run"
+      "execute_batch_run": "Agent Batch Run",
+      "cleanup_expired_notifications": "Cleanup Expired Notifications"
     },
     "resultKeys": {
       "cleaned": "Cleaned",
@@ -512,6 +513,7 @@
     "levelAdmin": "Admin",
     "levelTenant": "Tenant",
     "searchPlaceholder": "Search deleted records...",
-    "allTenants": "All Tenants"
+    "allTenants": "All Tenants",
+    "modules": "Modules"
   }
 }

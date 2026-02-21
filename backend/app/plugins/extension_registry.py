@@ -76,6 +76,12 @@ class ExtensionRegistry:
 
         if isinstance(instance, ToolPlugin) and ctx.tool_registry:
             for tool_def in instance.get_tool_definitions():
+                existing_owner = self._plugin_tools.get(tool_def.name)
+                if existing_owner and existing_owner != instance.name:
+                    raise ConflictException(
+                        _("plugin.tool_name_conflict") +
+                        f": '{tool_def.name}' (owned by {existing_owner})",
+                    )
                 ctx.tool_registry.register(tool_def)
                 self._plugin_tools[tool_def.name] = instance.name
                 logger.debug("Tool registered: %s (plugin=%s)", tool_def.name, instance.name)

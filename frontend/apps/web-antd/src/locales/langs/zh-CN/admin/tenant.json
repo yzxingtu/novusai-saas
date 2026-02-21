@@ -246,6 +246,7 @@
     }
   },
   "manageDomains": "域名管理",
+  "managePlugins": "插件管理",
   "plan": {
     "title": "套餐管理",
     "create": "新增套餐",

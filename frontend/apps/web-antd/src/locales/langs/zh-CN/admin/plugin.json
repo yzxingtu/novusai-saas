@@ -84,7 +84,18 @@
     "uploading": "正在上传安装中…",
     "uploadConflict": "插件已存在",
     "uploadConflictDesc": "插件 {name} 已安装（当前版本 {oldVersion}），上传版本为 {newVersion}。是否覆盖升级？",
-    "overwrite": "覆盖升级"
+    "overwrite": "覆盖升级",
+    "confirmScopeChange": "确定要修改插件作用域吗？这会影响插件对租户的可见性。"
   },
-  "providesSkill": "提供技能"
+  "providesSkill": "提供技能",
+  "scope": "作用域",
+  "scope_options": {
+    "platform_only": "仅管理端",
+    "all_tenants": "所有租户",
+    "assigned_tenants": "指定租户",
+    "global": "全局生效"
+  },
+  "assignedTenants": "已分配租户",
+  "assignedCount": "共 {count} 个租户",
+  "noAssignedTenants": "暂无已分配的租户"
 }

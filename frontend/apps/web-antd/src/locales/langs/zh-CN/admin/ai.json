@@ -387,10 +387,42 @@
       "disabled": "已禁用",
       "system": "系统级"
     },
+    "actions": {
+      "publish": "发布",
+      "versions": "版本历史",
+      "access": "访问权限"
+    },
+    "versionHistory": "版本历史",
+    "accessConfig": "访问权限配置",
+    "visibility": "可见性",
+    "accessType": "访问类型",
+    "orgNodes": "组织节点",
+    "specificUsers": "指定用户",
+    "visibility_options": {
+      "public": "公开",
+      "private": "私有"
+    },
+    "access_type_options": {
+      "all_users": "所有用户",
+      "org_node": "按组织节点",
+      "specific_users": "指定用户",
+      "api_only": "仅 API"
+    },
     "messages": {
       "toggleSuccess": "智能体状态已更新",
       "confirmPublish": "确认发布此智能体？",
-      "confirmDisable": "确认禁用此智能体？禁用后该智能体将无法使用"
+      "confirmDisable": "确认禁用此智能体？禁用后该智能体将无法使用",
+      "publishTitle": "发布智能体",
+      "publishDesc": "发布后将冻结当前配置为新版本，可随时回滚。",
+      "publishSuccess": "智能体发布成功",
+      "changeLogPlaceholder": "请输入变更说明（可选）",
+      "rollbackConfirm": "确认回滚到此版本？当前配置将被覆盖。",
+      "rollbackSuccess": "智能体回滚成功",
+      "rollback": "回滚",
+      "noVersions": "暂无版本记录",
+      "accessUpdated": "访问权限已更新",
+      "visibilityPublicHint": "所有用户都可以看到并使用此智能体",
+      "visibilityPrivateHint": "仅授权的用户才能看到并使用此智能体"
     }
   },
   "conversation": {
@@ -507,12 +539,12 @@
         "desc": "配置供应商（OpenAI、Anthropic、Azure 等）的 API 基地址。也支持兼容 OpenAI 格式的自定义供应商"
       },
       "step2": {
-        "title": "配置模型",
-        "desc": "为供应商添加具体模型（如 GPT-4、Claude 3），设置定价和能力标签。支持一键拉取远程模型列表"
-      },
-      "step3": {
         "title": "添加 API Key",
         "desc": "平台级 Key 供所有租户共享，租户级 Key 仅指定租户使用。系统自动负载均衡和可用性检测"
+      },
+      "step3": {
+        "title": "配置模型",
+        "desc": "为供应商添加具体模型（如 GPT-4、Claude 3），设置定价和能力标签。支持一键拉取远程模型列表"
       },
       "step4": {
         "title": "健康检查",
@@ -567,16 +599,16 @@
       "time": "~2 分钟"
     },
     "step2": {
-      "title": "配置模型",
-      "desc": "添加可用的 AI 模型，支持一键拉取远程模型列表",
-      "detail": "为供应商添加具体模型（如 GPT-4、Claude 3）。可手动添加或一键拉取远程列表。设置定价和能力标签",
-      "time": "~2 分钟"
-    },
-    "step3": {
       "title": "添加 API Key",
       "desc": "为供应商配置 API Key，可设为平台级或租户级",
       "detail": "平台级 Key 供所有租户共享，租户级 Key 仅供指定租户使用。系统自动负载均衡和可用性检测",
       "time": "~1 分钟"
+    },
+    "step3": {
+      "title": "配置模型",
+      "desc": "添加可用的 AI 模型，支持一键拉取远程模型列表",
+      "detail": "为供应商添加具体模型（如 GPT-4、Claude 3）。可手动添加或一键拉取远程列表。设置定价和能力标签",
+      "time": "~2 分钟"
     },
     "step4": {
       "title": "监控运行",

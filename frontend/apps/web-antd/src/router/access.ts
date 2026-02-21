@@ -123,6 +123,9 @@ async function loadPluginMenus(
 
       if (config.endpoint !== endpoint) continue;
 
+      // scope 过滤：platform_only 插件仅在 admin 端显示
+      if (config.scope === 'platform_only' && endpoint !== 'admin') continue;
+
       for (const menu of config.menus) {
         // 将插件菜单的 component 路径重写为 plugins/{name}/ 前缀
         allMenus.push(

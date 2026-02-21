@@ -138,21 +138,21 @@ const mainRoutes: RouteRecordRaw = {
           },
         },
         {
-          name: 'AdminAIModels',
-          path: 'models',
-          component: () => import('#/views/admin/ai/models/index.vue'),
-          meta: {
-            icon: 'lucide:brain',
-            title: $t('admin.ai.model.title'),
-          },
-        },
-        {
           name: 'AdminAIApiKeys',
           path: 'api-keys',
           component: () => import('#/views/admin/ai/api-keys/index.vue'),
           meta: {
             icon: 'lucide:key',
             title: $t('admin.ai.apiKey.title'),
+          },
+        },
+        {
+          name: 'AdminAIModels',
+          path: 'models',
+          component: () => import('#/views/admin/ai/models/index.vue'),
+          meta: {
+            icon: 'lucide:brain',
+            title: $t('admin.ai.model.title'),
           },
         },
         {

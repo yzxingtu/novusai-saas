@@ -28,7 +28,7 @@ from app.ai.failover import FailoverService
         path="/ai/monitor/health",
         component="ai/health/index",
         parent="ai_infra",
-        sort_order=30,
+        sort_order=40,
     ),
 )
 class AdminAIHealthController(GlobalController):

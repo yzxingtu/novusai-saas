@@ -18,7 +18,6 @@ import { IconifyIcon } from '@vben/icons';
 
 import {
   Button,
-  Card,
   Input,
   Modal,
   Select,
@@ -226,169 +225,175 @@ onUnmounted(() => {
   <template v-if="props.mode === 'page'">
     <div class="flex h-full gap-4">
       <!-- Left sidebar: Agent list + Conversations -->
-      <Card
-        class="w-72 shrink-0 overflow-y-auto"
-        :body-style="{ padding: '12px' }"
-      >
-        <!-- Agent list -->
-        <div class="mb-3 text-sm font-medium text-foreground">
-          {{ $t('common.globalAiChat.selectAgent') }}
-        </div>
-
-        <Spin :spinning="agentsLoading">
-          <div
-            v-if="agents.length === 0 && !agentsLoading"
-            class="py-4 text-center text-sm text-muted-foreground"
-          >
-            {{ $t('common.globalAiChat.noAgents') }}
+      <div class="flex w-72 shrink-0 flex-col overflow-hidden rounded-2xl border border-border/50 bg-card">
+        <div class="flex-1 overflow-y-auto p-3">
+          <!-- Agent list -->
+          <div class="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {{ $t('common.globalAiChat.selectAgent') }}
           </div>
-          <div class="space-y-1.5">
+
+          <Spin :spinning="agentsLoading">
             <div
-              v-for="agent in agents"
-              :key="agent.id"
-              class="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors"
-              :class="
-                selectedAgentId === agent.id
-                  ? 'bg-primary/10 text-primary'
-                  : 'hover:bg-accent text-foreground'
-              "
-              @click="selectAgent(agent.id)"
+              v-if="agents.length === 0 && !agentsLoading"
+              class="py-6 text-center text-sm text-muted-foreground"
             >
-              <!-- Agent avatar -->
+              {{ $t('common.globalAiChat.noAgents') }}
+            </div>
+            <div class="space-y-1">
               <div
-                class="flex size-8 shrink-0 items-center justify-center rounded-lg text-sm font-medium"
+                v-for="agent in agents"
+                :key="agent.id"
+                class="flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition-all duration-200"
                 :class="
                   selectedAgentId === agent.id
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-accent text-muted-foreground'
+                    ? 'bg-primary/10 text-primary shadow-sm'
+                    : 'hover:bg-muted text-foreground'
                 "
+                @click="selectAgent(agent.id)"
               >
-                <img
-                  v-if="agentAvatar(agent)"
-                  :src="agentAvatar(agent)!"
-                  :alt="agent.name"
-                  class="size-full rounded-lg object-cover"
-                />
-                <span v-else>{{ agentInitial(agent) }}</span>
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="truncate font-medium">{{ agent.name }}</div>
                 <div
-                  v-if="agent.description"
-                  class="truncate text-xs text-muted-foreground"
+                  class="flex size-9 shrink-0 items-center justify-center rounded-xl text-sm font-medium shadow-sm"
+                  :class="
+                    selectedAgentId === agent.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground'
+                  "
                 >
-                  {{ agent.description }}
+                  <img
+                    v-if="agentAvatar(agent)"
+                    :src="agentAvatar(agent)!"
+                    :alt="agent.name"
+                    class="size-full rounded-xl object-cover"
+                  />
+                  <span v-else>{{ agentInitial(agent) }}</span>
                 </div>
-                <div
-                  v-else-if="agent.model_name"
-                  class="truncate text-xs text-muted-foreground"
-                >
-                  {{ agent.model_name }}
+                <div class="min-w-0 flex-1">
+                  <div class="truncate font-medium">{{ agent.name }}</div>
+                  <div
+                    v-if="agent.description"
+                    class="truncate text-xs text-muted-foreground/70"
+                  >
+                    {{ agent.description }}
+                  </div>
+                  <div
+                    v-else-if="agent.model_name"
+                    class="truncate text-xs text-muted-foreground/70"
+                  >
+                    {{ agent.model_name }}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </Spin>
+          </Spin>
 
-        <!-- Divider -->
-        <div class="my-3 border-t border-border" />
+          <!-- Divider -->
+          <div class="my-3 border-t border-border/40" />
 
-        <!-- Conversation history -->
-        <div class="mb-2 flex items-center justify-between">
-          <span class="text-sm font-medium text-foreground">
-            {{ $t('common.globalAiChat.history') }}
-          </span>
-          <Button size="small" type="text" @click="startNewConversation">
-            <template #icon>
-              <IconifyIcon icon="lucide:plus" class="size-3.5" />
-            </template>
-            {{ $t('common.globalAiChat.newChat') }}
-          </Button>
-        </div>
-
-        <Input
-          v-if="conversations.length > 3"
-          v-model:value="conversationSearch"
-          :placeholder="$t('common.globalAiChat.searchHistory')"
-          size="small"
-          allow-clear
-          class="mb-2"
-        >
-          <template #prefix>
-            <IconifyIcon icon="lucide:search" class="size-3 text-muted-foreground" />
-          </template>
-        </Input>
-
-        <Spin :spinning="conversationsLoading">
-          <div
-            v-if="filteredConversations.length === 0 && !conversationsLoading"
-            class="py-4 text-center text-sm text-muted-foreground"
-          >
-            {{ $t('common.globalAiChat.noHistory') }}
-          </div>
-          <div class="space-y-1">
-            <div
-              v-for="conv in filteredConversations"
-              :key="conv.id"
-              class="group flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm transition-colors"
-              :class="
-                activeConversationId === conv.id
-                  ? 'bg-accent text-foreground font-medium'
-                  : 'text-muted-foreground hover:bg-accent/50'
-              "
-              @click="loadConversationMessages(conv.id)"
+          <!-- Conversation history -->
+          <div class="mb-2 flex items-center justify-between px-1">
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {{ $t('common.globalAiChat.history') }}
+            </span>
+            <button
+              class="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-primary transition-colors hover:bg-primary/10"
+              @click="startNewConversation"
             >
-              <span class="truncate">
-                {{ conv.title || `#${conv.id}` }}
-              </span>
-              <Tooltip :title="$t('common.globalAiChat.deleteConversation')">
-                <IconifyIcon
-                  icon="lucide:trash-2"
-                  class="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
-                  @click.stop="onDeleteConversation(conv.id)"
-                />
-              </Tooltip>
-            </div>
+              <IconifyIcon icon="lucide:plus" class="size-3" />
+              {{ $t('common.globalAiChat.newChat') }}
+            </button>
           </div>
-        </Spin>
-      </Card>
+
+          <Input
+            v-if="conversations.length > 3"
+            v-model:value="conversationSearch"
+            :placeholder="$t('common.globalAiChat.searchHistory')"
+            size="small"
+            allow-clear
+            class="mb-2 !rounded-lg"
+          >
+            <template #prefix>
+              <IconifyIcon icon="lucide:search" class="size-3 text-muted-foreground" />
+            </template>
+          </Input>
+
+          <Spin :spinning="conversationsLoading">
+            <div
+              v-if="filteredConversations.length === 0 && !conversationsLoading"
+              class="py-6 text-center text-sm text-muted-foreground"
+            >
+              {{ $t('common.globalAiChat.noHistory') }}
+            </div>
+            <div class="space-y-0.5">
+              <div
+                v-for="conv in filteredConversations"
+                :key="conv.id"
+                class="group flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm transition-all duration-150"
+                :class="
+                  activeConversationId === conv.id
+                    ? 'bg-accent text-foreground font-medium'
+                    : 'text-muted-foreground hover:bg-accent/50'
+                "
+                @click="loadConversationMessages(conv.id)"
+              >
+                <div class="flex min-w-0 items-center gap-2">
+                  <IconifyIcon icon="lucide:message-square" class="size-3.5 shrink-0 opacity-50" />
+                  <span class="truncate">
+                    {{ conv.title || `#${conv.id}` }}
+                  </span>
+                </div>
+                <Tooltip :title="$t('common.globalAiChat.deleteConversation')">
+                  <IconifyIcon
+                    icon="lucide:trash-2"
+                    class="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                    @click.stop="onDeleteConversation(conv.id)"
+                  />
+                </Tooltip>
+              </div>
+            </div>
+          </Spin>
+        </div>
+      </div>
 
       <!-- Right: Chat area -->
-      <Card
-        class="flex flex-1 flex-col overflow-hidden"
-        :body-style="{
-          padding: '0',
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-        }"
-      >
+      <div class="flex flex-1 flex-col overflow-hidden rounded-2xl border border-border/50 bg-card">
         <!-- Header: Current agent info -->
         <div
           v-if="selectedAgent"
-          class="flex items-center gap-3 border-b border-border px-4 py-3"
+          class="flex items-center justify-between border-b border-border/40 px-5 py-3"
         >
-          <div
-            class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-sm font-medium text-primary"
-          >
-            <img
-              v-if="agentAvatar(selectedAgent)"
-              :src="agentAvatar(selectedAgent)!"
-              :alt="selectedAgent.name"
-              class="size-full rounded-lg object-cover"
-            />
-            <span v-else>{{ agentInitial(selectedAgent) }}</span>
-          </div>
-          <div>
-            <div class="text-sm font-medium text-foreground">
-              {{ selectedAgent.name }}
-            </div>
+          <div class="flex items-center gap-3">
             <div
-              v-if="selectedAgent.model_name"
-              class="max-w-md truncate text-xs text-muted-foreground"
+              class="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 text-sm font-medium text-primary shadow-sm"
             >
-              {{ selectedAgent.model_name }}
+              <img
+                v-if="agentAvatar(selectedAgent)"
+                :src="agentAvatar(selectedAgent)!"
+                :alt="selectedAgent.name"
+                class="size-full rounded-xl object-cover"
+              />
+              <span v-else>{{ agentInitial(selectedAgent) }}</span>
             </div>
+            <div>
+              <div class="text-sm font-semibold text-foreground">
+                {{ selectedAgent.name }}
+              </div>
+              <div
+                v-if="selectedAgent.model_name"
+                class="max-w-md truncate text-xs text-muted-foreground/70"
+              >
+                {{ selectedAgent.model_name }}
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1">
+            <Tooltip :title="$t('common.globalAiChat.newChat')">
+              <button
+                class="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                @click="startNewConversation"
+              >
+                <IconifyIcon icon="lucide:plus" class="size-4" />
+              </button>
+            </Tooltip>
           </div>
         </div>
 
@@ -403,9 +408,9 @@ onUnmounted(() => {
             v-if="chatMessages.length === 0 && !sending"
             class="flex h-full items-center justify-center"
           >
-            <div class="max-w-md text-center">
+            <div class="max-w-lg text-center">
               <div
-                class="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-lg font-semibold text-primary"
+                class="mx-auto mb-5 flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 text-lg font-semibold text-primary shadow-lg shadow-primary/10"
               >
                 <img
                   v-if="selectedAgent && agentAvatar(selectedAgent)"
@@ -416,30 +421,29 @@ onUnmounted(() => {
                 <span v-else-if="selectedAgent">{{ agentInitial(selectedAgent) }}</span>
                 <IconifyIcon
                   v-else
-                  icon="lucide:bot"
+                  icon="lucide:sparkles"
                   class="size-7 text-primary"
                 />
               </div>
-              <div class="text-base font-medium text-foreground">
+              <div class="text-lg font-semibold text-foreground">
                 {{ effectiveWelcomeMessage || $t('common.globalAiChat.welcomeTitle') }}
               </div>
-              <div v-if="!effectiveWelcomeMessage" class="mt-1 text-sm text-muted-foreground">
+              <div v-if="!effectiveWelcomeMessage" class="mt-1.5 text-sm text-muted-foreground">
                 {{ $t('common.globalAiChat.welcomeDesc') }}
               </div>
               <!-- Suggested questions -->
               <div
                 v-if="effectiveSuggestedQuestions.length > 0"
-                class="mt-5 flex flex-wrap justify-center gap-2"
+                class="mt-6 flex flex-wrap justify-center gap-2"
               >
-                <Button
+                <button
                   v-for="(q, qi) in effectiveSuggestedQuestions"
                   :key="qi"
-                  size="small"
-                  class="max-w-[220px] truncate"
+                  class="max-w-[240px] truncate rounded-full border border-border/60 px-4 py-2 text-sm text-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md hover:shadow-primary/5"
                   @click="askSuggested(q)"
                 >
                   {{ q }}
-                </Button>
+                </button>
               </div>
             </div>
           </div>
@@ -480,18 +484,19 @@ onUnmounted(() => {
 
         <!-- Input area -->
         <div
-          class="border-t border-border px-4 py-3"
+          class="border-t border-border/40 px-5 py-3"
           @dragover="handleDragOver"
           @drop="handleDrop"
         >
           <!-- Stop button -->
           <div v-if="streaming" class="mb-2 flex justify-center">
-            <Button size="small" danger @click="stopGeneration">
-              <template #icon>
-                <IconifyIcon icon="lucide:square" class="size-3.5" />
-              </template>
+            <button
+              class="flex items-center gap-1.5 rounded-full bg-destructive/10 px-4 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
+              @click="stopGeneration"
+            >
+              <IconifyIcon icon="lucide:square" class="size-3" />
               {{ $t('common.globalAiChat.stop') }}
-            </Button>
+            </button>
           </div>
 
           <!-- Pending attachments preview -->
@@ -607,7 +612,7 @@ onUnmounted(() => {
             </Button>
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   </template>
 
@@ -615,7 +620,7 @@ onUnmounted(() => {
   <template v-else>
     <div class="flex h-full flex-col overflow-hidden">
       <!-- Agent selector bar -->
-      <div class="shrink-0 border-b border-border px-3 py-2">
+      <div class="shrink-0 border-b border-border/40 bg-muted/20 px-3 py-2.5">
         <Select
           :value="selectedAgentId ?? undefined"
           :loading="agentsLoading"
@@ -631,7 +636,7 @@ onUnmounted(() => {
           >
             <div class="flex items-center gap-2">
               <div
-                class="flex size-5 shrink-0 items-center justify-center rounded text-[10px] font-medium"
+                class="flex size-5 shrink-0 items-center justify-center rounded-md text-[10px] font-medium"
                 :class="
                   agentAvatar(agent)
                     ? ''
@@ -642,7 +647,7 @@ onUnmounted(() => {
                   v-if="agentAvatar(agent)"
                   :src="agentAvatar(agent)!"
                   :alt="agent.name"
-                  class="size-full rounded object-cover"
+                  class="size-full rounded-md object-cover"
                 />
                 <span v-else>{{ agentInitial(agent) }}</span>
               </div>
@@ -650,7 +655,6 @@ onUnmounted(() => {
             </div>
           </Select.Option>
         </Select>
-        <!-- Agent description + model name -->
         <div
           v-if="selectedAgent && (selectedAgent.description || selectedAgent.model_name)"
           class="mt-1.5 space-y-0.5 px-0.5"
@@ -664,8 +668,9 @@ onUnmounted(() => {
           </div>
           <div
             v-if="selectedAgent.model_name"
-            class="truncate text-[11px] text-muted-foreground/60"
+            class="flex items-center gap-1 truncate text-[11px] text-muted-foreground/60"
           >
+            <IconifyIcon icon="lucide:cpu" class="size-2.5" />
             {{ selectedAgent.model_name }}
           </div>
         </div>
@@ -721,22 +726,23 @@ onUnmounted(() => {
             <div class="max-w-xs text-center">
               <div
                 v-if="selectedAgent"
-                class="mx-auto mb-2 flex size-10 items-center justify-center rounded-xl bg-primary/10 text-sm font-medium text-primary"
+                class="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 text-sm font-medium text-primary shadow-md shadow-primary/10"
               >
                 <img
                   v-if="agentAvatar(selectedAgent)"
                   :src="agentAvatar(selectedAgent)!"
                   :alt="selectedAgent.name"
-                  class="size-full rounded-xl object-cover"
+                  class="size-full rounded-2xl object-cover"
                 />
                 <span v-else>{{ agentInitial(selectedAgent) }}</span>
               </div>
-              <IconifyIcon
+              <div
                 v-else
-                icon="lucide:bot"
-                class="mx-auto mb-2 size-10 text-primary/30"
-              />
-              <div class="text-sm font-medium text-foreground">
+                class="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl bg-muted"
+              >
+                <IconifyIcon icon="lucide:sparkles" class="size-6 text-muted-foreground/40" />
+              </div>
+              <div class="text-sm font-semibold text-foreground">
                 {{ effectiveWelcomeMessage || $t('common.globalAiChat.welcomeDesc') }}
               </div>
               <div
@@ -748,17 +754,16 @@ onUnmounted(() => {
               <!-- Suggested questions (drawer) -->
               <div
                 v-if="effectiveSuggestedQuestions.length > 0"
-                class="mt-3 flex flex-wrap justify-center gap-1.5"
+                class="mt-4 flex flex-wrap justify-center gap-1.5"
               >
-                <Button
+                <button
                   v-for="(q, qi) in effectiveSuggestedQuestions"
                   :key="qi"
-                  size="small"
-                  class="max-w-[180px] truncate !text-xs"
+                  class="max-w-[180px] truncate rounded-full border border-border/60 px-3 py-1.5 text-xs text-foreground transition-all hover:border-primary/30 hover:shadow-sm"
                   @click="askSuggested(q)"
                 >
                   {{ q }}
-                </Button>
+                </button>
               </div>
             </div>
           </div>

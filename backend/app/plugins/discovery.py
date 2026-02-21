@@ -129,6 +129,9 @@ async def load_enabled_plugins(db: AsyncSession) -> dict[str, Any]:
             "Plugin loading complete: loaded=%d, failed=%d",
             loaded, failed,
         )
+        if errors:
+            for err in errors:
+                logger.error("  Plugin load error: %s", err)
 
     return result
 

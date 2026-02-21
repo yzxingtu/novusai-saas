@@ -125,25 +125,18 @@ async def _try_reload_plugin(plugin_name: str) -> None:
     Args:
         plugin_name: 插件名称
     """
-    import sys
-
     try:
         from app.plugins.manager import PluginManager
+        from app.plugins.loader import PluginLoader
 
         manager = PluginManager.get_instance()
 
-        # 清除已缓存的模块
-        modules_to_remove = [
-            key for key in sys.modules
-            if f"plugins.{plugin_name}" in key
-            or f"plugins.builtin.{plugin_name}" in key
-        ]
-        for mod_key in modules_to_remove:
-            del sys.modules[mod_key]
+        # 清除 Python 模块缓存（使用公共 API）
+        PluginLoader.clear_module_cache(plugin_name)
 
-        # 从 manager 实例缓存中移除
-        if plugin_name in manager._instances:
-            instance = manager._instances.pop(plugin_name)
+        # 从实例缓存中移除（使用公共 API）
+        removed = manager.loader.pop_instance(plugin_name)
+        if removed:
             logger.info(
                 "Plugin dev watcher: cleared cached instance for '%s'",
                 plugin_name,

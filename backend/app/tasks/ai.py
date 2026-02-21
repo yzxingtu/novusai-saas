@@ -9,42 +9,14 @@ import json
 import hashlib
 from typing import Optional
 
-from celery import shared_task
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
-
-from app.core.config import settings
+from app.core.database import sync_session_factory
 from app.core.logging import LogManager
 from app.core.i18n import _
 from app.core.base_model import utc_now
+from app.tasks.base import register_task, BaseTask
 
 
 logger = LogManager.get_logger("tasks.ai")
-
-# 同步数据库引擎（延迟初始化）
-_engine = None
-_SessionLocal = None
-
-
-def _get_db_session() -> Session:
-    """
-    获取同步数据库会话
-
-    使用 DATABASE_URL_SYNC（postgresql://），不使用 asyncpg。
-
-    Returns:
-        同步 Session 实例
-    """
-    global _engine, _SessionLocal
-
-    if _engine is None:
-        _engine = create_engine(
-            settings.DATABASE_URL_SYNC,
-            pool_pre_ping=True,
-        )
-        _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
-
-    return _SessionLocal()
 
 
 def _sanitize_request(request_data: dict) -> dict:
@@ -98,15 +70,14 @@ def _generate_request_hash(
     return hashlib.sha256(params_str.encode()).hexdigest()
 
 
-@shared_task(
-    bind=True,
-    autoretry_for=(Exception,),
-    retry_kwargs={"max_retries": 3, "countdown": 60},
+@register_task(
     name="tasks.ai.log_ai_call",
     queue="ai_gateway",
+    description="异步记录 AI 调用日志",
+    max_retries=3,
 )
 def log_ai_call_task(
-    self,
+    self: BaseTask,
     tenant_id: int,
     model_id: int,
     provider_id: int,
@@ -148,7 +119,7 @@ def log_ai_call_task(
     """
     from app.models.ai.call_log import AICallLog
 
-    db = _get_db_session()
+    db = sync_session_factory()
     try:
         logger.info(
             _("ai.log.async_log_start"),

@@ -221,6 +221,13 @@ class PluginManager:
         default_config = instance.default_config
         if default_config and instance.config_schema:
             default_config = encrypt_sensitive_config(default_config, instance.config_schema)
+        # scope 优先从 manifest 读取，其次从实例 property 读取
+        plugin_scope = manifest.get("scope") or instance.scope
+        from app.enums.plugin import PluginScopeEnum
+        valid_scopes = {s.value for s in PluginScopeEnum}
+        if plugin_scope not in valid_scopes:
+            plugin_scope = PluginScopeEnum.ALL_TENANTS.value
+
         plugin = await repo.create({
             "name": instance.name,
             "display_name": instance.display_name,
@@ -229,6 +236,7 @@ class PluginManager:
             "author": instance.author,
             "plugin_type": plugin_type,
             "status": PluginStatusEnum.INSTALLED.value,
+            "scope": plugin_scope,
             "entry_point": entry_point,
             "manifest": manifest,
             "is_system": is_system,
@@ -335,8 +343,14 @@ class PluginManager:
             # 注销扩展点（防止已启用插件直接卸载时注册泄漏）
             self.extension_registry.unregister(instance, ctx)
 
-            # SkillPlugin 软删除技能包
+            # SkillPlugin：检查技能是否被 Agent 引用，然后软删除技能包
             if isinstance(instance, SkillPlugin):
+                affected_agents = await self._check_skill_references(db, instance)
+                if affected_agents:
+                    logger.warning(
+                        "Uninstalling skill plugin %s: %d agents reference its skills: %s",
+                        plugin_name, len(affected_agents), affected_agents,
+                    )
                 try:
                     await SkillPluginProvisioner.deprovision(
                         db, instance, soft_delete=True,
@@ -366,11 +380,11 @@ class PluginManager:
         # 回滚插件数据库迁移（失败不阻塞卸载）
         try:
             from app.plugins.migration_runner import rollback_migrations
-            rolled_back = await rollback_migrations(db, plugin_name)
-            if rolled_back:
+            rollback_result = await rollback_migrations(db, plugin_name)
+            if rollback_result.get("rolled_back") or rollback_result.get("skipped"):
                 logger.info(
                     "Plugin DB migrations rolled back: %s — %s",
-                    plugin_name, rolled_back,
+                    plugin_name, rollback_result,
                 )
         except Exception as mig_exc:
             await db.rollback()
@@ -389,6 +403,10 @@ class PluginManager:
         await repo.permanent_delete(plugin_id)
         self.loader.pop_instance(plugin_name)
 
+        # 卸载前自动备份插件为 .nap（失败不阻塞）
+        from app.plugins.utils import backup_plugin_directory
+        backup_path = backup_plugin_directory(plugin_name, plugin_version, plugin_entry_point)
+
         # 清理插件文件目录（仅限 .nap 上传安装的插件）
         cleanup_plugin_directory(plugin_name, plugin_entry_point)
 
@@ -397,7 +415,11 @@ class PluginManager:
             action="uninstall",
             plugin_name=plugin_name,
             admin_id=admin_id,
-            details={"version": plugin_version, "plugin_id": plugin_id},
+            details={
+                "version": plugin_version,
+                "plugin_id": plugin_id,
+                "backup_path": backup_path,
+            },
         )
 
         logger.info("Plugin uninstalled: %s", plugin_name)
@@ -428,9 +450,13 @@ class PluginManager:
         instance = self.get_or_load_instance(plugin.name, plugin.entry_point)
         ctx = self.config_manager.build_context(instance, db=db)
 
+        # 创建 savepoint 以便在后续步骤失败时回滚 on_enable 的 DB 副作用
+        savepoint = await db.begin_nested()
+
         try:
             await instance.on_enable(ctx)
         except Exception as exc:
+            await savepoint.rollback()
             logger.error(
                 "Plugin on_enable failed: %s — %s", plugin.name, str(exc),
                 exc_info=True,
@@ -446,11 +472,11 @@ class PluginManager:
         try:
             self.extension_registry.register(instance, ctx)
         except Exception as exc:
+            await savepoint.rollback()
             logger.error(
                 "Plugin extension registration failed: %s — %s",
                 plugin.name, str(exc), exc_info=True,
             )
-            # 回滚 on_enable 副作用
             try:
                 await instance.on_disable(ctx)
             except Exception as rollback_exc:
@@ -470,11 +496,11 @@ class PluginManager:
             try:
                 await SkillPluginProvisioner.provision(db, instance)
             except Exception as exc:
+                await savepoint.rollback()
                 logger.error(
                     "Skill plugin provisioning failed: %s — %s",
                     plugin.name, str(exc), exc_info=True,
                 )
-                # 装配失败：回滚扩展点注册 + on_enable，标记 error
                 self.extension_registry.unregister(instance, ctx)
                 try:
                     await instance.on_disable(ctx)
@@ -487,18 +513,33 @@ class PluginManager:
                     _("plugin.enable_hook_failed")
                 ) from exc
 
+        # savepoint 成功，提交
+        await savepoint.commit()
+
         updated = await repo.update(
             plugin_id, {"status": PluginStatusEnum.ENABLED.value}
         )
+
+        # Eager Provisioning: scope=global/all_tenants 时自动为所有现存租户创建 tenant_plugins 记录
+        from app.enums.plugin import PluginScopeEnum
+        if plugin.scope in (PluginScopeEnum.GLOBAL.value, PluginScopeEnum.ALL_TENANTS.value):
+            try:
+                await self._provision_all_tenants(db, plugin)
+            except Exception as prov_exc:
+                logger.error(
+                    "Tenant provisioning failed for plugin %s (scope=%s): %s",
+                    plugin.name, plugin.scope, str(prov_exc), exc_info=True,
+                )
+
         from app.plugins.security import log_plugin_action
         log_plugin_action(
             action="enable",
             plugin_name=plugin.name,
             admin_id=admin_id,
-            details={"scope": "platform", "plugin_id": plugin_id},
+            details={"scope": "platform", "plugin_id": plugin_id, "plugin_scope": plugin.scope},
         )
 
-        logger.info("Plugin enabled (platform): %s", plugin.name)
+        logger.info("Plugin enabled (platform): %s (scope=%s)", plugin.name, plugin.scope)
         return updated
 
     @_write_locked
@@ -526,19 +567,22 @@ class PluginManager:
         from app.plugins.dependencies import check_reverse_dependencies_or_raise
         await check_reverse_dependencies_or_raise(db, plugin.name, action="disable")
 
-        # 检查是否有租户正在使用该插件（记录警告，不阻塞）
+        # 联动禁用所有租户的 tenant_plugins 记录
         from app.repositories.system.tenant_plugin_repository import (
             TenantPluginRepository as _TpRepo,
         )
         _tp_repo = _TpRepo(db)
         active_tenants = await _tp_repo.get_list(
-            limit=1, plugin_id=plugin_id, is_active=True
+            limit=10000, plugin_id=plugin_id, is_active=True
         )
         if active_tenants:
-            logger.warning(
-                "Disabling plugin %s while tenants are still using it. "
-                "Active tenant plugin records exist for plugin_id=%d",
-                plugin.name, plugin_id,
+            disabled_count = 0
+            for tp in active_tenants:
+                await _tp_repo.update(tp.id, {"is_active": False})
+                disabled_count += 1
+            logger.info(
+                "Cascade disabled %d tenant plugin records for plugin %s",
+                disabled_count, plugin.name,
             )
 
         instance = self.get_or_load_instance(plugin.name, plugin.entry_point)
@@ -580,9 +624,198 @@ class PluginManager:
         return updated
 
     # ========================================
+    # 内部辅助方法
+    # ========================================
+
+    @staticmethod
+    async def _check_skill_references(
+        db: AsyncSession, instance: SkillPlugin,
+    ) -> list[str]:
+        """
+        检查是否有 Agent 引用了该 SkillPlugin 提供的技能
+
+        Args:
+            db: 数据库会话
+            instance: SkillPlugin 实例
+
+        Returns:
+            引用该技能的 Agent 名称列表（空列表表示无引用）
+        """
+        try:
+            from sqlalchemy import select
+            from app.models.ai.skill import Skill
+            from app.models.ai.agent_skill_binding import AgentSkillBinding
+            from app.models.ai.agent import Agent
+
+            skill_type = instance.get_skill_type()
+
+            # 查找该插件创建的技能 ID
+            stmt = select(Skill.id).where(
+                Skill.type == skill_type,
+                Skill.is_deleted.is_(False),
+            )
+            result = await db.execute(stmt)
+            skill_ids = [row[0] for row in result.all()]
+
+            if not skill_ids:
+                return []
+
+            # 查找绑定了这些技能的 Agent
+            stmt = (
+                select(Agent.name)
+                .join(AgentSkillBinding, AgentSkillBinding.agent_id == Agent.id)
+                .where(
+                    AgentSkillBinding.skill_id.in_(skill_ids),
+                    Agent.is_deleted.is_(False),
+                )
+                .distinct()
+            )
+            result = await db.execute(stmt)
+            return [row[0] for row in result.all()]
+        except Exception as exc:
+            logger.warning(
+                "Failed to check skill references for plugin %s: %s",
+                instance.name, str(exc),
+            )
+            return []
+
+    @staticmethod
+    async def _check_config_schema_compat(
+        db: AsyncSession,
+        plugin_id: int,
+        plugin_name: str,
+        old_schema: dict[str, Any],
+        new_schema: dict[str, Any],
+    ) -> None:
+        """
+        检查新旧 config_schema 兼容性，记录破坏性变更
+
+        检测项：
+        - 新增了 required 字段（旧配置可能缺少）
+        - 删除了字段（旧配置中的值会被忽略）
+        - 字段类型变更
+        """
+        old_props = old_schema.get("properties", {})
+        new_props = new_schema.get("properties", {})
+        old_required = set(old_schema.get("required", []))
+        new_required = set(new_schema.get("required", []))
+
+        warnings: list[str] = []
+
+        # 新增的 required 字段
+        new_required_fields = new_required - old_required
+        for field in new_required_fields:
+            if field not in old_props:
+                warnings.append(f"New required field: {field}")
+
+        # 删除的字段
+        removed_fields = set(old_props.keys()) - set(new_props.keys())
+        for field in removed_fields:
+            warnings.append(f"Removed field: {field}")
+
+        # 类型变更
+        for field in set(old_props.keys()) & set(new_props.keys()):
+            old_type = old_props[field].get("type")
+            new_type = new_props[field].get("type")
+            if old_type and new_type and old_type != new_type:
+                warnings.append(f"Type changed: {field} ({old_type} → {new_type})")
+
+        if not warnings:
+            return
+
+        # 统计受影响的租户数量
+        from app.repositories.system.tenant_plugin_repository import TenantPluginRepository
+        tp_repo = TenantPluginRepository(db)
+        active_tenants = await tp_repo.get_list(
+            limit=10000, plugin_id=plugin_id, is_active=True,
+        )
+        tenant_with_config = [
+            tp for tp in active_tenants if tp.config
+        ]
+
+        from app.plugins.security import log_plugin_action
+        log_plugin_action(
+            action="config_schema_compat_warning",
+            plugin_name=plugin_name,
+            details={
+                "warnings": warnings,
+                "affected_tenants": len(tenant_with_config),
+                "total_active_tenants": len(active_tenants),
+            },
+        )
+        logger.warning(
+            "Plugin %s config_schema breaking changes detected: %s "
+            "(affected tenants with custom config: %d/%d)",
+            plugin_name, warnings, len(tenant_with_config), len(active_tenants),
+        )
+
+    # ========================================
+    # 租户批量分配（内部方法）
+    # ========================================
+
+    async def _provision_all_tenants(
+        self,
+        db: AsyncSession,
+        plugin: Plugin,
+    ) -> int:
+        """
+        为所有现存租户创建 tenant_plugins 记录（Eager Provisioning）
+
+        仅在 scope=global 或 scope=all_tenants 时调用。
+        跳过已有记录的租户，不阻塞主流程（失败记录日志）。
+
+        Args:
+            db: 数据库会话
+            plugin: 已启用的插件模型
+
+        Returns:
+            新创建的 tenant_plugins 记录数
+        """
+        from sqlalchemy import select
+        from app.models.tenant.tenant import Tenant
+        from app.repositories.system.tenant_plugin_repository import TenantPluginRepository
+
+        # 获取所有活跃租户 ID
+        stmt = select(Tenant.id).where(Tenant.is_deleted.is_(False))
+        result = await db.execute(stmt)
+        tenant_ids = [row[0] for row in result.all()]
+
+        if not tenant_ids:
+            return 0
+
+        tp_repo = TenantPluginRepository(db)
+        created_count = 0
+
+        for tid in tenant_ids:
+            existing = await tp_repo.get_by_tenant_and_plugin(tid, plugin.id)
+            if existing:
+                # 已有记录：如果是禁用状态则重新激活
+                if not existing.is_active:
+                    await tp_repo.update(existing.id, {"is_active": True})
+                    created_count += 1
+                continue
+            await tp_repo.create({
+                "tenant_id": tid,
+                "plugin_id": plugin.id,
+                "is_active": True,
+                "config": None,
+            })
+            created_count += 1
+
+        if created_count > 0:
+            await db.flush()
+            logger.info(
+                "Provisioned plugin %s to %d tenants (scope=%s)",
+                plugin.name, created_count, plugin.scope,
+            )
+
+        return created_count
+
+    # ========================================
     # 启用 / 禁用（租户级）
     # ========================================
 
+    @_write_locked
     async def enable_tenant(
         self,
         db: AsyncSession,
@@ -656,6 +889,7 @@ class PluginManager:
         )
         return result
 
+    @_write_locked
     async def disable_tenant(
         self, db: AsyncSession, tenant_id: int, plugin_id: int
     ) -> TenantPlugin:
@@ -736,8 +970,9 @@ class PluginManager:
         # 保留旧实例以便回滚（必须在 pop 之前保存）
         old_instance = self.loader.get_instance(plugin.name)
 
-        # 清除缓存，强制重新加载
+        # 清除实例缓存 + Python 模块缓存，确保加载新版本代码
         self.loader.pop_instance(plugin.name)
+        self.loader.clear_module_cache(plugin.name)
         plugin_cls = self.load_plugin_class(entry_point)
         instance = plugin_cls()
 
@@ -763,10 +998,16 @@ class PluginManager:
         except (ValueError, IndexError):
             pass  # 非标准版本号，跳过比较
 
-        # 校验新版本的平台兼容性
-        from app.plugins.dependencies import check_platform_version_or_raise
+        # 校验新版本的平台兼容性、依赖和冲突
+        from app.plugins.dependencies import (
+            check_platform_version_or_raise,
+            check_dependencies_or_raise,
+            check_conflicts_or_raise,
+        )
         try:
             check_platform_version_or_raise(instance.platform_version)
+            await check_dependencies_or_raise(db, instance.dependencies)
+            await check_conflicts_or_raise(db, instance.conflicts, instance.name)
         except Exception:
             if old_instance is not None:
                 self.loader.set_instance(plugin.name, old_instance)
@@ -788,6 +1029,27 @@ class PluginManager:
             raise BusinessException(
                 _("plugin.upgrade_hook_failed")
             ) from exc
+
+        # 执行新版本的数据库迁移
+        try:
+            from app.plugins.migration_runner import run_migrations
+            applied = await run_migrations(db, instance.name)
+            if applied:
+                logger.info(
+                    "Plugin DB migrations applied during upgrade: %s %s→%s — %s",
+                    plugin.name, old_version, new_version, applied,
+                )
+        except Exception as mig_exc:
+            # 迁移失败：回滚实例缓存
+            if old_instance is not None:
+                self.loader.set_instance(plugin.name, old_instance)
+            logger.error(
+                "Plugin migration failed during upgrade: %s — %s",
+                plugin.name, str(mig_exc), exc_info=True,
+            )
+            raise BusinessException(
+                _("plugin.upgrade_hook_failed")
+            ) from mig_exc
 
         # 更新 DB
         manifest = instance.get_manifest()
@@ -833,6 +1095,20 @@ class PluginManager:
 
         self.loader.set_instance(plugin.name, instance)
 
+        # 检查 config_schema 兼容性：新版本是否与现有租户配置兼容
+        old_schema = plugin.config_schema
+        new_schema = instance.config_schema
+        if old_schema and new_schema:
+            try:
+                await self._check_config_schema_compat(
+                    db, plugin_id, plugin.name, old_schema, new_schema,
+                )
+            except Exception as compat_exc:
+                logger.warning(
+                    "Config schema compat check failed for %s: %s",
+                    plugin.name, str(compat_exc),
+                )
+
         # 如果插件处于启用状态，重新注册扩展点以反映新版本
         if plugin.status == PluginStatusEnum.ENABLED.value:
             try:
@@ -869,6 +1145,7 @@ class PluginManager:
     # 配置
     # ========================================
 
+    @_write_locked
     async def configure_tenant(
         self,
         db: AsyncSession,

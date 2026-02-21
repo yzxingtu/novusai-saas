@@ -82,6 +82,11 @@ async def get_tenant_public_config(request: Request, db: DbSession, tenant_code:
     )
     configs = {**general_config, **appearance_config, **feature_config, **storage_config}
     
+    # 加载平台品牌配置（用于租户未设置时的 fallback）
+    platform_general_config = await config_service.get_platform_configs_by_group(
+        group_code="platform_general",
+    )
+    
     # 确定存储配置：如果租户使用平台托管存储，则使用平台的配置
     platform_storage_config = await config_service.get_platform_configs_by_group(
         group_code="platform_storage",
@@ -113,20 +118,28 @@ async def get_tenant_public_config(request: Request, db: DbSession, tenant_code:
 
     subdomain_url = f"https://{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
     
+    # 品牌 fallback：租户未设置 → 平台默认
+    logo_url = configs.get("tenant_logo") or platform_general_config.get("site_logo") or ""
+    favicon_url = configs.get("tenant_favicon") or platform_general_config.get("site_favicon") or ""
+    login_title = configs.get("tenant_login_title") or platform_general_config.get("site_name") or ""
+    login_subtitle = configs.get("tenant_login_subtitle") or platform_general_config.get("site_description") or ""
+    footer_copyright = configs.get("tenant_footer_copyright") or platform_general_config.get("site_copyright") or ""
+    login_bg = configs.get("tenant_login_bg") or ""
+
     return success(
         data=TenantPublicConfig(
             tenant_id=tenant.id,
             tenant_code=tenant.code,
             tenant_name=tenant.name,
-            logo_url=configs.get("tenant_logo"),
-            favicon_url=configs.get("tenant_favicon"),
+            logo_url=logo_url,
+            favicon_url=favicon_url,
             theme_color=configs.get("tenant_primary_color"),
-            login_bg=configs.get("tenant_login_bg"),
+            login_bg=login_bg,
             primary_color=configs.get("tenant_primary_color"),
             accent_color=configs.get("tenant_accent_color"),
-            login_title=configs.get("tenant_login_title"),
-            login_subtitle=configs.get("tenant_login_subtitle"),
-            footer_copyright=configs.get("tenant_footer_copyright"),
+            login_title=login_title,
+            login_subtitle=login_subtitle,
+            footer_copyright=footer_copyright,
             captcha_enabled=configs.get("tenant_captcha_enabled", False),
             captcha_provider=configs.get("tenant_captcha_provider"),
             captcha_difficulty=configs.get("tenant_captcha_difficulty"),

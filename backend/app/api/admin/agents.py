@@ -22,11 +22,13 @@ from app.rbac.decorators import (
     action_delete,
 )
 from app.schemas.ai.agent import AdminAgentCreate, AdminAgentUpdate
+from app.schemas.ai.agent_access import AgentAccessUpdate
 from app.schemas.ai.agent_skill_binding import (
     AgentSkillBindRequest,
     AgentSkillBatchBindRequest,
     AgentSkillBindingUpdate,
 )
+from app.schemas.ai.agent_version import AgentPublishRequest, AgentRollbackRequest
 from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.services.ai.agent_service import AgentService, AdminAgentService
 from app.services.ai.agent_skill_binding_service import AgentSkillBindingService
@@ -368,6 +370,161 @@ class AdminAgentController(GlobalController):
             )
             await db.commit()
             return deleted()
+
+        # ========================================
+        # 发布 / 版本管理
+        # ========================================
+
+        @router.post("/{agent_id}/publish", summary="发布智能体")
+        @action_update("action.ai_agent.publish")
+        async def publish_agent(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            admin: ActiveAdmin,
+            data: AgentPublishRequest,
+        ):
+            """
+            发布智能体（冻结当前配置为新版本快照）
+
+            权限: ai_agent:publish
+            """
+            admin_svc = AdminAgentService(db)
+            agent = await admin_svc.get_by_id(agent_id)
+            if not agent:
+                raise NotFoundException(message=_("agent.error.not_found"))
+
+            service = AgentService(db, agent.tenant_id)
+            result = await service.publish_agent(
+                agent_id, change_log=data.change_log, created_by=admin.id,
+            )
+            await db.commit()
+            return success(data=result.to_dict(), message=_("agent.published"))
+
+        @router.post("/{agent_id}/rollback", summary="回滚智能体")
+        @action_update("action.ai_agent.rollback")
+        async def rollback_agent(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            admin: ActiveAdmin,
+            data: AgentRollbackRequest,
+        ):
+            """
+            回滚智能体到指定版本
+
+            权限: ai_agent:rollback
+            """
+            admin_svc = AdminAgentService(db)
+            agent = await admin_svc.get_by_id(agent_id)
+            if not agent:
+                raise NotFoundException(message=_("agent.error.not_found"))
+
+            service = AgentService(db, agent.tenant_id)
+            result = await service.rollback_agent(agent_id, data.version)
+            await db.commit()
+            return success(data=result.to_dict(), message=_("agent.version.rolled_back"))
+
+        @router.get("/{agent_id}/versions", summary="获取版本历史")
+        @action_read("action.ai_agent.versions")
+        async def list_versions(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            获取智能体版本历史列表
+
+            权限: ai_agent:versions
+            """
+            admin_svc = AdminAgentService(db)
+            agent = await admin_svc.get_by_id(agent_id)
+            if not agent:
+                raise NotFoundException(message=_("agent.error.not_found"))
+
+            service = AgentService(db, agent.tenant_id)
+            versions = await service.get_versions(agent_id)
+            return success(data=versions)
+
+        @router.get("/{agent_id}/versions/{version}", summary="获取版本详情")
+        @action_read("action.ai_agent.version_detail")
+        async def get_version_detail(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            version: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            获取指定版本的完整配置快照
+
+            权限: ai_agent:version_detail
+            """
+            admin_svc = AdminAgentService(db)
+            agent = await admin_svc.get_by_id(agent_id)
+            if not agent:
+                raise NotFoundException(message=_("agent.error.not_found"))
+
+            service = AgentService(db, agent.tenant_id)
+            detail = await service.get_version_detail(agent_id, version)
+            return success(data=detail)
+
+        # ========================================
+        # 访问权限配置
+        # ========================================
+
+        @router.get("/{agent_id}/access", summary="获取访问权限配置")
+        @action_read("action.ai_agent.access_config")
+        async def get_access_config(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            获取智能体访问权限配置
+
+            权限: ai_agent:access_config
+            """
+            admin_svc = AdminAgentService(db)
+            agent = await admin_svc.get_by_id(agent_id)
+            if not agent:
+                raise NotFoundException(message=_("agent.error.not_found"))
+
+            service = AgentService(db, agent.tenant_id)
+            config = await service.get_access_config(agent_id)
+            return success(data=config)
+
+        @router.put("/{agent_id}/access", summary="更新访问权限配置")
+        @action_update("action.ai_agent.update_access")
+        async def update_access_config(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            admin: ActiveAdmin,
+            data: AgentAccessUpdate,
+        ):
+            """
+            更新智能体访问权限配置
+
+            权限: ai_agent:update_access
+            """
+            admin_svc = AdminAgentService(db)
+            agent = await admin_svc.get_by_id(agent_id)
+            if not agent:
+                raise NotFoundException(message=_("agent.error.not_found"))
+
+            service = AgentService(db, agent.tenant_id)
+            config = await service.update_access_config(
+                agent_id=agent_id,
+                visibility=data.visibility,
+                access_type=data.access_type,
+                org_node_ids=data.org_node_ids,
+                user_ids=data.user_ids,
+            )
+            await db.commit()
+            return success(data=config, message=_("agent.access.updated"))
 
 
 # 导出路由器

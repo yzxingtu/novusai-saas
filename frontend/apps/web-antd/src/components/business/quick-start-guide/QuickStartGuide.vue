@@ -9,7 +9,7 @@ import { ref, onMounted } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Card } from 'ant-design-vue';
+// ant-design-vue components removed — using native buttons with Tailwind
 
 import { $t } from '#/locales';
 
@@ -67,74 +67,103 @@ defineExpose({ showGuide });
 
 <template>
   <!-- 引导卡片 -->
-  <Card
+  <div
     v-if="visible"
-    :body-style="{ padding: '20px' }"
-    class="border-primary/20 bg-primary/5"
+    class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/8 via-background to-primary/4 p-6"
   >
-    <div class="mb-3 flex items-center justify-between">
-      <div>
-        <div class="text-base font-semibold text-foreground">
-          {{ $t(`${i18nPrefix}.guide.title`) }}
-        </div>
-        <div class="mt-0.5 flex items-center gap-2 text-sm text-muted-foreground">
-          <span>{{ $t(`${i18nPrefix}.guide.subtitle`) }}</span>
-          <span class="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
-            {{ $t(`${i18nPrefix}.guide.totalTime`) }}
-          </span>
-        </div>
-      </div>
-      <Button size="small" type="text" @click="dismiss">
-        <IconifyIcon icon="lucide:x" class="size-4" />
-      </Button>
-    </div>
+    <!-- 装饰元素 -->
+    <div class="absolute -right-8 -top-8 size-32 rounded-full bg-primary/5 blur-2xl" />
+    <div class="absolute -bottom-6 -left-6 size-24 rounded-full bg-primary/3 blur-xl" />
 
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <router-link
-        v-for="(step, idx) in steps"
-        :key="step.key"
-        :to="step.link"
-        class="group flex items-start gap-3 rounded-lg border border-border bg-card p-3 transition-all hover:border-primary/40 hover:shadow-sm"
-      >
-        <div
-          class="flex size-9 shrink-0 items-center justify-center rounded-lg"
-          :class="step.bg"
-        >
-          <span class="text-xs font-bold" :class="step.color">{{ idx + 1 }}</span>
+    <div class="relative z-10">
+      <!-- 头部 -->
+      <div class="mb-5 flex items-start justify-between">
+        <div class="flex items-center gap-3">
+          <div class="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+            <IconifyIcon icon="lucide:rocket" class="size-5 text-primary" />
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-foreground">
+              {{ $t(`${i18nPrefix}.guide.title`) }}
+            </h3>
+            <div class="mt-0.5 flex items-center gap-2">
+              <span class="text-sm text-muted-foreground">{{ $t(`${i18nPrefix}.guide.subtitle`) }}</span>
+              <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary">
+                <IconifyIcon icon="lucide:timer" class="size-3" />
+                {{ $t(`${i18nPrefix}.guide.totalTime`) }}
+              </span>
+            </div>
+          </div>
         </div>
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-1.5">
-            <IconifyIcon :icon="step.icon" class="size-3.5" :class="step.color" />
-            <span class="text-sm font-medium text-foreground">
-              {{ $t(`${i18nPrefix}.guide.${step.key}.title`) }}
-            </span>
-            <span class="rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
+        <button
+          class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          @click="dismiss"
+        >
+          <IconifyIcon icon="lucide:x" class="size-4" />
+        </button>
+      </div>
+
+      <!-- 步骤卡片 -->
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <router-link
+          v-for="(step, idx) in steps"
+          :key="step.key"
+          :to="step.link"
+          class="group relative flex flex-col gap-3 rounded-xl border border-border/50 bg-card/80 p-4 backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+        >
+          <!-- 步骤编号 + 图标 -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div
+                class="flex size-8 items-center justify-center rounded-lg text-xs font-bold"
+                :class="step.bg + ' ' + step.color"
+              >
+                {{ idx + 1 }}
+              </div>
+              <IconifyIcon :icon="step.icon" class="size-4" :class="step.color" />
+            </div>
+            <span class="rounded-md bg-muted/80 px-1.5 py-0.5 text-[10px] text-muted-foreground">
               {{ $t(`${i18nPrefix}.guide.${step.key}.time`) }}
             </span>
           </div>
-          <div class="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-            {{ $t(`${i18nPrefix}.guide.${step.key}.detail`) }}
+          <!-- 标题 + 描述 -->
+          <div>
+            <div class="text-sm font-semibold text-foreground">
+              {{ $t(`${i18nPrefix}.guide.${step.key}.title`) }}
+            </div>
+            <div class="mt-1 text-xs leading-relaxed text-muted-foreground/80">
+              {{ $t(`${i18nPrefix}.guide.${step.key}.detail`) }}
+            </div>
           </div>
-        </div>
-        <IconifyIcon
-          icon="lucide:chevron-right"
-          class="mt-1 size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-        />
-      </router-link>
-    </div>
+          <!-- hover 箭头 -->
+          <div class="flex items-center gap-1 text-xs text-primary opacity-0 transition-all duration-200 group-hover:opacity-100">
+            <span>{{ $t('common.viewDetail') }}</span>
+            <IconifyIcon icon="lucide:arrow-right" class="size-3" />
+          </div>
+        </router-link>
+      </div>
 
-    <div class="mt-3 text-right">
-      <Button size="small" type="link" @click="dismiss">
-        {{ $t(`${i18nPrefix}.guide.dismiss`) }}
-      </Button>
+      <!-- 底部关闭 -->
+      <div class="mt-4 flex items-center justify-end">
+        <button
+          class="flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          @click="dismiss"
+        >
+          <IconifyIcon icon="lucide:eye-off" class="size-3" />
+          {{ $t(`${i18nPrefix}.guide.dismiss`) }}
+        </button>
+      </div>
     </div>
-  </Card>
+  </div>
 
   <!-- 已关闭时显示重新打开按钮 -->
   <div v-else-if="dismissed" class="flex justify-end">
-    <Button size="small" type="link" @click="showGuide">
-      <IconifyIcon icon="lucide:compass" class="mr-1 size-3.5" />
+    <button
+      class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-all hover:bg-primary/5 hover:text-primary"
+      @click="showGuide"
+    >
+      <IconifyIcon icon="lucide:compass" class="size-3.5" />
       {{ $t(`${i18nPrefix}.guide.showGuide`) }}
-    </Button>
+    </button>
   </div>
 </template>

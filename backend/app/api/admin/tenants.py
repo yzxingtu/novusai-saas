@@ -429,6 +429,95 @@ class AdminTenantController(GlobalController):
             
             return success(message=_("tenant.owner_password_reset"))
 
+        @router.get("/{tenant_id}/plugins", summary="查看租户已启用的插件")
+        @action_read("action.tenant.detail")
+        async def get_tenant_plugins(
+            request: Request,
+            db: DbSession,
+            tenant_id: int,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            查看该租户已启用的插件列表（含 scope 信息）
+
+            权限: tenant:detail
+            """
+            from app.repositories.system.tenant_plugin_repository import TenantPluginRepository
+            from app.repositories.system.plugin_repository import PluginRepository
+
+            tp_repo = TenantPluginRepository(db)
+            plugin_repo = PluginRepository(db)
+
+            tenant_plugins = await tp_repo.get_list(limit=1000, tenant_id=tenant_id)
+            result = []
+            for tp in tenant_plugins:
+                plugin = await plugin_repo.get_by_id(tp.plugin_id)
+                if not plugin:
+                    continue
+                result.append({
+                    "id": tp.id,
+                    "plugin_id": plugin.id,
+                    "plugin_name": plugin.name,
+                    "display_name": plugin.display_name,
+                    "plugin_type": plugin.plugin_type,
+                    "scope": plugin.scope,
+                    "is_active": tp.is_active,
+                    "icon": plugin.icon,
+                    "version": plugin.version,
+                })
+            return success(data=result)
+
+        @router.post("/{tenant_id}/plugins/{plugin_id}/toggle", summary="为租户启用/禁用插件")
+        @action_update("action.tenant.update")
+        async def toggle_tenant_plugin(
+            request: Request,
+            db: DbSession,
+            tenant_id: int,
+            plugin_id: int,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            切换租户插件启用状态
+
+            权限: tenant:update
+            """
+            from app.repositories.system.tenant_plugin_repository import TenantPluginRepository
+
+            tp_repo = TenantPluginRepository(db)
+            existing = await tp_repo.get_by_tenant_and_plugin(tenant_id, plugin_id)
+            if not existing:
+                from app.exceptions import NotFoundException
+                raise NotFoundException(message=_("tenant_plugin.not_found"))
+
+            new_active = not existing.is_active
+            await tp_repo.update(existing.id, {"is_active": new_active})
+            return success(data={"is_active": new_active})
+
+        @router.put("/{tenant_id}/plugins/{plugin_id}/config", summary="更新租户插件配置")
+        @action_update("action.tenant.update")
+        async def update_tenant_plugin_config(
+            request: Request,
+            db: DbSession,
+            tenant_id: int,
+            plugin_id: int,
+            current_admin: ActiveAdmin,
+            body: dict = None,
+        ):
+            """
+            更新租户的插件自定义配置
+
+            body: {"config": {...}}
+            权限: tenant:update
+            """
+            config = (body or {}).get("config", {})
+            from app.plugins.manager import get_plugin_manager
+            manager = get_plugin_manager()
+            result = await manager.configure_tenant(db, tenant_id, plugin_id, config)
+            return success(data={
+                "plugin_id": plugin_id,
+                "tenant_id": tenant_id,
+                "config": result.config,
+            })
 
 
 # 导出路由器

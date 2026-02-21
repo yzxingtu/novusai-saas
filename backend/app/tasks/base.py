@@ -276,7 +276,7 @@ class BaseTask(Task):
     def _record_task_log_failure(
         self, task_id: str, exc: Exception, einfo: Any, elapsed: float,
     ) -> None:
-        """Update TaskLog to FAILED."""
+        """Update or create TaskLog as FAILED."""
         session = None
         try:
             from app.models.system.task_log import TaskLog
@@ -287,13 +287,29 @@ class BaseTask(Task):
                 .filter(TaskLog.task_id == task_id)
                 .first()
             )
+            now = utc_now()
             if log:
                 log.status = "failed"
                 log.error_message = str(exc)[:2000]
                 log.traceback = str(einfo)[:5000] if einfo else None
-                log.finished_at = utc_now()
+                log.finished_at = now
                 log.duration_ms = int(elapsed * 1000)
-                session.commit()
+            else:
+                # before_start 未能创建日志时，直接新建一条失败记录
+                queue = getattr(self, "queue", "default") or "default"
+                log = TaskLog(
+                    task_id=task_id,
+                    task_name=self.name,
+                    queue=queue,
+                    status="failed",
+                    error_message=str(exc)[:2000],
+                    traceback=str(einfo)[:5000] if einfo else None,
+                    started_at=now,
+                    finished_at=now,
+                    duration_ms=int(elapsed * 1000),
+                )
+                session.add(log)
+            session.commit()
         except Exception as e:
             logger.warning(f"Failed to record task log failure: {e}")
             if session:

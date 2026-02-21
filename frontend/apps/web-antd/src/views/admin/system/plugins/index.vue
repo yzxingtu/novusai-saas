@@ -15,14 +15,11 @@ import { IconifyIcon } from '@vben/icons';
 
 import {
   Button,
-  Card,
   Dropdown,
-  Empty,
   Input,
   Menu,
   message,
   Modal,
-  Segmented,
   Spin,
   Switch,
   Tag,
@@ -45,7 +42,6 @@ import { $t } from '#/locales';
 import {
   getPluginTypeColor,
   getPluginTypeText,
-  getStatusColor,
   getStatusText,
 } from './data';
 import PluginConfigDrawer from './PluginConfigDrawer.vue';
@@ -65,21 +61,21 @@ const installEntryPoint = ref('');
 const processingIds = ref<Set<number>>(new Set());
 
 const statusFilters = computed(() => [
-  { value: 'all', label: $t('admin.plugin.filterAll') },
-  { value: 'enabled', label: $t('admin.plugin.status_options.enabled') },
-  { value: 'installed', label: $t('admin.plugin.status_options.installed') },
-  { value: 'disabled', label: $t('admin.plugin.status_options.disabled') },
-  { value: 'error', label: $t('admin.plugin.status_options.error') },
+  { value: 'all', label: $t('admin.plugin.filterAll'), icon: 'lucide:layers' },
+  { value: 'enabled', label: $t('admin.plugin.status_options.enabled'), icon: 'lucide:check-circle' },
+  { value: 'installed', label: $t('admin.plugin.status_options.installed'), icon: 'lucide:download' },
+  { value: 'disabled', label: $t('admin.plugin.status_options.disabled'), icon: 'lucide:pause-circle' },
+  { value: 'error', label: $t('admin.plugin.status_options.error'), icon: 'lucide:alert-circle' },
 ]);
 
 const typeFilters = computed(() => [
-  { value: 'all', label: $t('admin.plugin.filterAll') },
-  { value: 'adapter', label: $t('admin.plugin.type_options.adapter') },
-  { value: 'tool', label: $t('admin.plugin.type_options.tool') },
-  { value: 'hook', label: $t('admin.plugin.type_options.hook') },
-  { value: 'api', label: $t('admin.plugin.type_options.api') },
-  { value: 'skill', label: $t('admin.plugin.type_options.skill') },
-  { value: 'composite', label: $t('admin.plugin.type_options.composite') },
+  { value: 'all', label: $t('admin.plugin.filterAll'), icon: 'lucide:grid-2x2' },
+  { value: 'adapter', label: $t('admin.plugin.type_options.adapter'), icon: 'lucide:cpu' },
+  { value: 'tool', label: $t('admin.plugin.type_options.tool'), icon: 'lucide:wrench' },
+  { value: 'hook', label: $t('admin.plugin.type_options.hook'), icon: 'lucide:webhook' },
+  { value: 'api', label: $t('admin.plugin.type_options.api'), icon: 'lucide:route' },
+  { value: 'skill', label: $t('admin.plugin.type_options.skill'), icon: 'lucide:sparkles' },
+  { value: 'composite', label: $t('admin.plugin.type_options.composite'), icon: 'lucide:blocks' },
 ]);
 
 const filteredPlugins = computed(() => {
@@ -306,173 +302,202 @@ onMounted(loadPlugins);
 <template>
   <Page
     auto-content-height
-    :title="$t('admin.plugin.pageTitle')"
-    :description="$t('admin.plugin.pageDesc')"
-    content-class="flex flex-col gap-4"
+    content-class="flex flex-col gap-5"
   >
-    <!-- 统计摘要 -->
-    <Spin :spinning="loading">
-      <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Card
-          v-for="stat in summaryCards"
-          :key="stat.key"
-          :body-style="{ padding: '16px' }"
-        >
-          <div class="flex items-center gap-3">
-            <div
-              class="flex size-10 items-center justify-center rounded-lg"
-              :class="stat.bgClass"
-            >
-              <IconifyIcon
-                :icon="stat.icon"
-                class="size-5"
-                :class="stat.iconClass"
-              />
-            </div>
-            <div>
-              <div class="text-sm text-muted-foreground">{{ stat.label }}</div>
-              <div class="text-lg font-semibold text-foreground">
-                {{ stat.value }}
+    <!-- ===== 顶部 Hero 区域 ===== -->
+    <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/5 via-background to-primary/3 p-6">
+      <div class="relative z-10 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 class="text-xl font-bold text-foreground">{{ $t('admin.plugin.pageTitle') }}</h1>
+          <p class="mt-1 text-sm text-muted-foreground">{{ $t('admin.plugin.pageDesc') }}</p>
+          <!-- 统计摘要（内联） -->
+          <div class="mt-4 flex flex-wrap items-center gap-5">
+            <div v-for="stat in summaryCards" :key="stat.key" class="flex items-center gap-2">
+              <div class="flex size-8 items-center justify-center rounded-lg" :class="stat.bgClass">
+                <IconifyIcon :icon="stat.icon" class="size-4" :class="stat.iconClass" />
+              </div>
+              <div class="flex flex-col">
+                <span class="text-lg font-bold leading-tight text-foreground">{{ stat.value }}</span>
+                <span class="text-[11px] leading-tight text-muted-foreground">{{ stat.label }}</span>
               </div>
             </div>
           </div>
-        </Card>
-      </div>
-    </Spin>
-
-    <!-- 顶部工具栏 -->
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex flex-1 flex-wrap items-center gap-3">
-        <Input.Search
-          v-model:value="searchKeyword"
-          :placeholder="$t('admin.plugin.placeholder.searchName')"
-          allow-clear
-          class="w-64"
-        />
-        <Segmented
-          v-model:value="filterStatus"
-          :options="statusFilters"
-          size="small"
-        />
-        <Segmented
-          v-model:value="filterType"
-          :options="typeFilters"
-          size="small"
-        />
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="text-xs text-muted-foreground">
-          {{ $t('admin.plugin.totalPlugins', { count: filteredPlugins.length }) }}
-        </span>
+        </div>
+        <!-- 安装按钮 -->
         <Dropdown>
-          <Button type="primary">
-            <IconifyIcon icon="lucide:plus" class="mr-1 size-4" />
+          <Button type="primary" size="large" class="!rounded-xl !px-5 !shadow-lg !shadow-primary/20">
+            <IconifyIcon icon="lucide:plus" class="mr-1.5 size-4" />
             {{ $t('admin.plugin.install') }}
           </Button>
           <template #overlay>
             <Menu>
               <Menu.Item key="entry" @click="onInstallByEntryClick">
-                <div class="flex items-center gap-2">
-                  <IconifyIcon icon="lucide:terminal" class="size-4" />
-                  {{ $t('admin.plugin.installByEntry') }}
+                <div class="flex items-center gap-2.5 py-0.5">
+                  <IconifyIcon icon="lucide:terminal" class="size-4 text-muted-foreground" />
+                  <span>{{ $t('admin.plugin.installByEntry') }}</span>
                 </div>
               </Menu.Item>
               <Menu.Item key="upload" @click="onUploadClick">
-                <div class="flex items-center gap-2">
-                  <IconifyIcon icon="lucide:upload" class="size-4" />
-                  {{ $t('admin.plugin.uploadZip') }}
+                <div class="flex items-center gap-2.5 py-0.5">
+                  <IconifyIcon icon="lucide:upload" class="size-4 text-muted-foreground" />
+                  <span>{{ $t('admin.plugin.uploadZip') }}</span>
                 </div>
               </Menu.Item>
             </Menu>
           </template>
         </Dropdown>
       </div>
+      <!-- 装饰背景 -->
+      <div class="absolute -right-12 -top-12 size-48 rounded-full bg-primary/5 blur-3xl" />
+      <div class="absolute -bottom-8 -left-8 size-32 rounded-full bg-primary/3 blur-2xl" />
     </div>
 
-    <!-- 插件卡片网格 -->
+    <!-- ===== 筛选工具栏 ===== -->
+    <div class="flex flex-col gap-3">
+      <!-- 搜索 + 状态筛选 -->
+      <div class="flex flex-wrap items-center gap-3">
+        <Input.Search
+          v-model:value="searchKeyword"
+          :placeholder="$t('admin.plugin.placeholder.searchName')"
+          allow-clear
+          class="!w-56 !rounded-lg"
+        />
+        <div class="h-6 w-px bg-border/50" />
+        <div class="flex items-center gap-1 rounded-xl bg-muted/50 p-1">
+          <button
+            v-for="opt in statusFilters"
+            :key="opt.value"
+            class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200"
+            :class="filterStatus === opt.value
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'"
+            @click="filterStatus = opt.value"
+          >
+            <IconifyIcon :icon="opt.icon" class="size-3.5" />
+            <span>{{ opt.label }}</span>
+          </button>
+        </div>
+        <span class="ml-auto text-xs text-muted-foreground">
+          {{ $t('admin.plugin.totalPlugins', { count: filteredPlugins.length }) }}
+        </span>
+      </div>
+      <!-- 类型筛选 -->
+      <div class="flex items-center gap-1.5">
+        <button
+          v-for="opt in typeFilters"
+          :key="opt.value"
+          class="flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all duration-200"
+          :class="filterType === opt.value
+            ? 'border-primary/30 bg-primary/10 text-primary'
+            : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'"
+          @click="filterType = opt.value"
+        >
+          <IconifyIcon :icon="opt.icon" class="size-3" />
+          <span>{{ opt.label }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ===== 插件卡片网格 ===== -->
     <Spin :spinning="loading">
       <div
         v-if="filteredPlugins.length > 0"
-        class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+        class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
       >
         <div
           v-for="plugin in filteredPlugins"
           :key="plugin.id"
-          class="group relative cursor-pointer rounded-xl border border-border bg-card p-5 transition-all duration-200 hover:border-primary/40 hover:shadow-md"
-          :class="{ 'opacity-60': isProcessing(plugin.id) }"
+          class="plugin-card group relative cursor-pointer overflow-hidden rounded-2xl border border-border/60 bg-card transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5"
+          :class="{ 'pointer-events-none opacity-50': isProcessing(plugin.id) }"
           @click="onDetail(plugin)"
         >
-          <!-- 系统插件角标 -->
-          <Tooltip
-            v-if="plugin.is_system"
-            :title="$t('admin.plugin.messages.systemPluginTip')"
-          >
-            <div class="absolute right-3 top-3">
-              <IconifyIcon
-                icon="lucide:shield-check"
-                class="size-4 text-warning"
-              />
-            </div>
-          </Tooltip>
+          <!-- 顶部状态条 -->
+          <div
+            class="h-1 w-full"
+            :class="
+              plugin.status === 'enabled' ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+              : plugin.status === 'error' ? 'bg-gradient-to-r from-red-400 to-red-500'
+              : 'bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600'
+            "
+          />
 
-          <!-- 头部：图标 + 名称 + 版本 -->
-          <div class="mb-3 flex items-start gap-3">
-            <div
-              class="flex size-11 shrink-0 items-center justify-center rounded-xl transition-colors"
-              :class="plugin.status === 'enabled' ? 'bg-primary/10' : plugin.status === 'error' ? 'bg-destructive/10' : 'bg-muted'"
-            >
-              <IconifyIcon
-                :icon="plugin.icon || 'lucide:plug'"
-                class="size-5"
-                :class="plugin.status === 'enabled' ? 'text-primary' : plugin.status === 'error' ? 'text-destructive' : 'text-muted-foreground'"
-              />
-            </div>
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <span class="truncate text-sm font-semibold text-foreground">
-                  {{ plugin.display_name }}
-                </span>
-                <span class="shrink-0 text-xs text-muted-foreground">
-                  v{{ plugin.version }}
-                </span>
-              </div>
+          <div class="p-5">
+            <!-- 头部：图标 + 名称 + 版本 + 系统角标 -->
+            <div class="mb-3.5 flex items-start gap-3.5">
               <div
-                v-if="plugin.author"
-                class="mt-0.5 text-xs text-muted-foreground"
+                class="flex size-12 shrink-0 items-center justify-center rounded-xl shadow-sm transition-all duration-200 group-hover:shadow-md"
+                :class="
+                  plugin.status === 'enabled' ? 'bg-gradient-to-br from-primary/15 to-primary/5'
+                  : plugin.status === 'error' ? 'bg-gradient-to-br from-destructive/15 to-destructive/5'
+                  : 'bg-muted'
+                "
               >
-                {{ $t('admin.plugin.by') }} {{ plugin.author }}
+                <IconifyIcon
+                  :icon="plugin.icon || 'lucide:plug'"
+                  class="size-5.5"
+                  :class="
+                    plugin.status === 'enabled' ? 'text-primary'
+                    : plugin.status === 'error' ? 'text-destructive'
+                    : 'text-muted-foreground'
+                  "
+                />
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <span class="truncate text-[15px] font-semibold leading-snug text-foreground">
+                    {{ plugin.display_name }}
+                  </span>
+                  <Tooltip v-if="plugin.is_system" :title="$t('admin.plugin.messages.systemPluginTip')">
+                    <IconifyIcon icon="lucide:shield-check" class="size-3.5 shrink-0 text-warning" />
+                  </Tooltip>
+                </div>
+                <div class="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                  <span class="font-mono">v{{ plugin.version }}</span>
+                  <template v-if="plugin.author">
+                    <span class="text-border">·</span>
+                    <span>{{ plugin.author }}</span>
+                  </template>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- 描述 -->
-          <p
-            class="mb-3 line-clamp-2 min-h-[2.5rem] text-xs leading-relaxed text-muted-foreground"
-          >
-            {{ plugin.description || '-' }}
-          </p>
+            <!-- 描述 -->
+            <p class="mb-4 line-clamp-2 min-h-[2.25rem] text-[13px] leading-relaxed text-muted-foreground/80">
+              {{ plugin.description || '-' }}
+            </p>
 
-          <!-- 底部：标签 + 开关 + 操作 -->
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-1.5">
-              <Tag :color="getPluginTypeColor(plugin.plugin_type)" class="!m-0">
+            <!-- 标签行 -->
+            <div class="mb-4 flex flex-wrap items-center gap-1.5">
+              <Tag :color="getPluginTypeColor(plugin.plugin_type)" class="!m-0 !rounded-md !border-0 !text-[11px]">
                 {{ getPluginTypeText(plugin.plugin_type) }}
+              </Tag>
+              <Tag
+                v-if="plugin.scope && plugin.scope !== 'all_tenants'"
+                :color="plugin.scope === 'platform_only' ? 'orange' : plugin.scope === 'global' ? 'green' : 'purple'"
+                class="!m-0 !rounded-md !border-0 !text-[11px]"
+              >
+                {{ $t(`admin.plugin.scope_options.${plugin.scope}`) }}
               </Tag>
               <Tag
                 v-if="plugin.plugin_type === 'skill' || plugin.plugin_type === 'composite'"
                 color="cyan"
-                class="!m-0"
-                style="font-size: 10px; line-height: 14px; padding: 0 4px;"
+                class="!m-0 !rounded-md !border-0 !text-[11px]"
               >
                 <IconifyIcon icon="lucide:sparkles" class="mr-0.5 inline size-2.5" />
                 {{ $t('admin.plugin.providesSkill') }}
               </Tag>
-              <Tag v-if="plugin.status === 'error'" :color="getStatusColor(plugin.status)" class="!m-0">
+              <Tag
+                v-if="plugin.status === 'error'"
+                color="error"
+                class="!m-0 !rounded-md !border-0 !text-[11px]"
+              >
                 {{ getStatusText(plugin.status) }}
               </Tag>
             </div>
-            <div class="flex items-center gap-1" @click.stop>
-              <!-- 启用/禁用开关 -->
+
+            <!-- 底部操作栏 -->
+            <div class="flex items-center justify-between border-t border-border/40 pt-3.5" @click.stop>
+              <!-- 开关 -->
               <Tooltip v-if="plugin.is_system" :title="$t('admin.plugin.messages.systemPluginTip')">
                 <Switch
                   :checked="plugin.status === 'enabled'"
@@ -492,36 +517,26 @@ onMounted(loadPlugins);
                 size="small"
                 @change="() => plugin.status === 'enabled' ? onDisable(plugin) : onEnable(plugin)"
               />
-              <!-- 操作按钮 -->
-              <div class="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              <!-- 操作按钮组 -->
+              <div class="flex items-center gap-0.5 opacity-0 transition-all duration-200 group-hover:opacity-100">
                 <template v-if="!plugin.is_system">
                   <Tooltip :title="$t('admin.plugin.upgrade')">
-                    <Button
+                    <button
                       v-access:code="['plugin:upgrade']"
-                      type="text"
-                      size="small"
-                      :loading="isProcessing(plugin.id)"
-                      class="!size-7 !p-0"
+                      class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                       @click="onUpgrade(plugin)"
                     >
-                      <IconifyIcon
-                        icon="lucide:arrow-up-circle"
-                        class="size-3.5 text-primary"
-                      />
-                    </Button>
+                      <IconifyIcon icon="lucide:arrow-up-circle" class="size-4" />
+                    </button>
                   </Tooltip>
                   <Tooltip :title="$t('admin.plugin.uninstall')">
-                    <Button
+                    <button
                       v-access:code="['plugin:uninstall']"
-                      type="text"
-                      size="small"
-                      danger
-                      :loading="isProcessing(plugin.id)"
-                      class="!size-7 !p-0"
+                      class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                       @click="onUninstall(plugin)"
                     >
-                      <IconifyIcon icon="lucide:trash-2" class="size-3.5" />
-                    </Button>
+                      <IconifyIcon icon="lucide:trash-2" class="size-4" />
+                    </button>
                   </Tooltip>
                 </template>
               </div>
@@ -531,18 +546,26 @@ onMounted(loadPlugins);
       </div>
 
       <!-- 空状态 -->
-      <div v-else-if="!loading" class="flex items-center justify-center py-20">
-        <Empty
-          :description="
-            searchKeyword || filterType !== 'all' || filterStatus !== 'all'
-              ? $t('admin.plugin.noResults')
-              : $t('admin.plugin.noPlugins')
-          "
-        />
+      <div v-else-if="!loading" class="flex flex-col items-center justify-center gap-4 py-24">
+        <div class="flex size-20 items-center justify-center rounded-2xl bg-muted">
+          <IconifyIcon icon="lucide:puzzle" class="size-10 text-muted-foreground/50" />
+        </div>
+        <div class="text-center">
+          <p class="text-sm font-medium text-foreground">
+            {{
+              searchKeyword || filterType !== 'all' || filterStatus !== 'all'
+                ? $t('admin.plugin.noResults')
+                : $t('admin.plugin.noPlugins')
+            }}
+          </p>
+          <p v-if="!searchKeyword && filterType === 'all' && filterStatus === 'all'" class="mt-1 text-xs text-muted-foreground">
+            {{ $t('admin.plugin.noPluginsDesc') }}
+          </p>
+        </div>
       </div>
     </Spin>
 
-    <!-- 通过入口安装弹窗（替代 h() 渲染） -->
+    <!-- ===== 通过入口安装弹窗 ===== -->
     <Modal
       v-model:open="installEntryVisible"
       :title="$t('admin.plugin.installByEntry')"
@@ -560,7 +583,7 @@ onMounted(loadPlugins);
       </div>
     </Modal>
 
-    <!-- 上传插件弹窗 -->
+    <!-- ===== 上传插件弹窗 ===== -->
     <Modal
       v-model:open="uploadModalVisible"
       :title="$t('admin.plugin.uploadZip')"
@@ -576,7 +599,7 @@ onMounted(loadPlugins);
           :show-upload-list="false"
           :disabled="uploading"
         >
-          <div class="flex flex-col items-center gap-4 py-8">
+          <div class="flex flex-col items-center gap-4 py-10">
             <div
               class="flex size-16 items-center justify-center rounded-2xl shadow-lg"
               :style="{ background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 75%) 100%)' }"
@@ -587,7 +610,7 @@ onMounted(loadPlugins);
                 :class="{ 'animate-spin': uploading }"
               />
             </div>
-            <div class="flex flex-col items-center gap-1">
+            <div class="flex flex-col items-center gap-1.5">
               <span class="text-sm font-semibold text-foreground">
                 {{ uploading ? $t('admin.plugin.messages.uploading') : $t('admin.plugin.uploadDragText') }}
               </span>

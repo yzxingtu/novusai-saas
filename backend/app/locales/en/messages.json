@@ -1170,6 +1170,12 @@
       "disabled": "Disabled",
       "error": "Error"
     },
+    "plugin_scope": {
+      "platform_only": "Platform Only",
+      "all_tenants": "All Tenants",
+      "assigned_tenants": "Assigned Tenants",
+      "global": "Global"
+    },
     "table_policy": {
       "scope": {
         "platform": "Platform",
@@ -2102,6 +2108,8 @@
     "skill_type_conflict": "Skill type is already registered by another plugin",
     "storage_driver_conflict": "Storage driver name is already registered by another plugin",
     "downgrade_not_allowed": "Plugin version downgrade is not allowed",
+    "tenant_ids_required": "Please provide a list of tenant IDs to assign",
+    "tool_name_conflict": "Tool name is already registered by another plugin",
     "install_success": "Plugin installed successfully",
     "uninstall_success": "Plugin uninstalled successfully",
     "enable_success": "Plugin enabled successfully",

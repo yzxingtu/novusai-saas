@@ -54,23 +54,39 @@ class AuthService:
 
     # ==================== 密码策略验证 ====================
 
-    async def _validate_password_policy(self, password: str) -> None:
+    async def _validate_password_policy(
+        self, password: str, tenant_id: int | None = None,
+    ) -> None:
         """
-        验证密码是否符合平台安全策略
+        验证密码是否符合安全策略
 
         Args:
             password: 待验证的密码
+            tenant_id: 租户 ID（租户端优先使用租户配置，回退到平台配置）
 
         Raises:
             BusinessException: 密码不符合策略要求
         """
-        # 获取密码策略配置
-        min_length = await self._config_service.get_platform_config(
-            "password_min_length", default=8
-        )
-        complexity = await self._config_service.get_platform_config(
-            "password_complexity", default="medium"
-        )
+        # 获取密码策略配置（租户端优先使用租户配置）
+        if tenant_id:
+            min_length = await self._config_service.get_tenant_config(
+                tenant_id, "tenant_password_min_length", default=None
+            )
+            complexity = await self._config_service.get_tenant_config(
+                tenant_id, "tenant_password_complexity", default=None
+            )
+        else:
+            min_length = None
+            complexity = None
+        # 回退到平台配置
+        if not min_length:
+            min_length = await self._config_service.get_platform_config(
+                "password_min_length", default=8
+            )
+        if not complexity:
+            complexity = await self._config_service.get_platform_config(
+                "password_complexity", default="medium"
+            )
 
         # 验证密码长度
         if len(password) < min_length:
@@ -215,7 +231,10 @@ class AuthService:
 
     # ==================== 登录安全辅助方法 ====================
 
-    async def _record_login_failure(self, username: str, client_ip: str | None, user_type: str = "admin") -> None:
+    async def _record_login_failure(
+        self, username: str, client_ip: str | None,
+        user_type: str = "admin", tenant_id: int | None = None,
+    ) -> None:
         """
         记录登录失败
 
@@ -223,16 +242,25 @@ class AuthService:
             username: 登录用户名
             client_ip: 客户端IP
             user_type: 用户类型 (admin/tenant_admin/tenant_user)
+            tenant_id: 租户 ID（租户端使用租户配置）
         """
         from datetime import timedelta
 
-        # 获取登录失败配置
-        max_attempts = await self._config_service.get_platform_config(
-            "login_max_attempts", default=5
-        )
-        lockout_minutes = await self._config_service.get_platform_config(
-            "login_lockout_minutes", default=30
-        )
+        # 获取登录失败配置（租户端优先使用租户配置，回退到平台配置）
+        if tenant_id and user_type in ("tenant_admin", "tenant_user"):
+            max_attempts = await self._config_service.get_tenant_config(
+                tenant_id, "tenant_login_max_attempts", default=5
+            )
+            lockout_minutes = await self._config_service.get_tenant_config(
+                tenant_id, "tenant_login_lockout_minutes", default=30
+            )
+        else:
+            max_attempts = await self._config_service.get_platform_config(
+                "login_max_attempts", default=5
+            )
+            lockout_minutes = await self._config_service.get_platform_config(
+                "login_lockout_minutes", default=30
+            )
 
         now = utc_now()
 
@@ -492,7 +520,7 @@ class AuthService:
 
         # 检查账户是否存在
         if tenant_admin is None:
-            await self._record_login_failure(username, client_ip, "tenant_admin")
+            await self._record_login_failure(username, client_ip, "tenant_admin", tenant_id=None)
             raise AuthenticationException(
                 message=_("auth.credentials_invalid"),
                 data={"captcha_required": False},
@@ -524,7 +552,7 @@ class AuthService:
 
         # 验证密码
         if not verify_password(password, tenant_admin.password_hash):
-            await self._record_login_failure(username, client_ip, "tenant_admin")
+            await self._record_login_failure(username, client_ip, "tenant_admin", tenant_id=tenant_admin.tenant_id)
             next_fail_count = fail_count + 1
             captcha_required_after = captcha_enabled and (
                 threshold == 0 or next_fail_count >= threshold
@@ -550,10 +578,14 @@ class AuthService:
         tenant_admin.last_login_at = utc_now()
         tenant_admin.last_login_ip = client_ip
 
-        # 生成 Token（应用会话配置）
-        session_timeout = await self._config_service.get_platform_config(
-            "session_timeout_minutes", default=120
+        # 生成 Token（优先使用租户会话配置，回退到平台配置）
+        session_timeout = await self._config_service.get_tenant_config(
+            tenant_admin.tenant_id, "tenant_session_timeout", default=None
         )
+        if not session_timeout:
+            session_timeout = await self._config_service.get_platform_config(
+                "session_timeout_minutes", default=120
+            )
         tokens = create_token_pair(
             tenant_admin.id,
             scope=TOKEN_SCOPE_TENANT_ADMIN,
@@ -623,7 +655,7 @@ class AuthService:
             raise BusinessException(message=_("auth.password_mismatch"))
 
         # 验证新密码符合策略
-        await self._validate_password_policy(new_password)
+        await self._validate_password_policy(new_password, tenant_id=tenant_admin.tenant_id)
 
         tenant_admin.password_hash = get_password_hash(new_password)
     
@@ -759,7 +791,7 @@ class AuthService:
 
         # 检查账户是否存在
         if user is None:
-            await self._record_login_failure(username, client_ip, "tenant_user")
+            await self._record_login_failure(username, client_ip, "tenant_user", tenant_id=None)
             raise AuthenticationException(
                 message=_("auth.credentials_invalid"),
                 data={"captcha_required": False},
@@ -791,7 +823,7 @@ class AuthService:
 
         # 验证密码
         if not verify_password(password, user.password_hash):
-            await self._record_login_failure(username, client_ip, "tenant_user")
+            await self._record_login_failure(username, client_ip, "tenant_user", tenant_id=user.tenant_id)
             next_fail_count = fail_count + 1
             captcha_required_after = captcha_enabled and (
                 threshold == 0 or next_fail_count >= threshold
@@ -808,10 +840,14 @@ class AuthService:
         user.last_login_at = utc_now()
         user.last_login_ip = client_ip
 
-        # 生成 Token（应用会话配置）
-        session_timeout = await self._config_service.get_platform_config(
-            "session_timeout_minutes", default=120
+        # 生成 Token（优先使用租户会话配置，回退到平台配置）
+        session_timeout = await self._config_service.get_tenant_config(
+            user.tenant_id, "tenant_session_timeout", default=None
         )
+        if not session_timeout:
+            session_timeout = await self._config_service.get_platform_config(
+                "session_timeout_minutes", default=120
+            )
         tokens = create_token_pair(
             user.id,
             scope=TOKEN_SCOPE_TENANT_USER,
@@ -881,7 +917,7 @@ class AuthService:
             raise BusinessException(message=_("auth.password_mismatch"))
 
         # 验证新密码符合策略
-        await self._validate_password_policy(new_password)
+        await self._validate_password_policy(new_password, tenant_id=user.tenant_id)
 
         user.password_hash = get_password_hash(new_password)
 

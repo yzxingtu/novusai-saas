@@ -377,3 +377,32 @@ export async function unbindPackageApi(
     options,
   );
 }
+
+// ============================================================
+// 回收站
+// ============================================================
+
+/** 获取回收站计数 */
+export async function getAgentRecycleBinCountApi(): Promise<{ count: number }> {
+  return requestClient.get<{ count: number }>(`${PREFIX}/recycle-bin/count`);
+}
+
+/** 获取回收站列表 */
+export async function getAgentRecycleBinApi(
+  params?: Record<string, unknown>,
+): Promise<{ items: AgentListItem[]; total: number }> {
+  return requestClient.get<{ items: AgentListItem[]; total: number }>(
+    `${PREFIX}/recycle-bin`,
+    { params },
+  );
+}
+
+/** 恢复回收站项 */
+export async function restoreAgentApi(id: number): Promise<void> {
+  await requestClient.post(`${PREFIX}/recycle-bin/${id}/restore`);
+}
+
+/** 永久删除回收站项 */
+export async function permanentDeleteAgentApi(id: number): Promise<void> {
+  await requestClient.delete(`${PREFIX}/recycle-bin/${id}`);
+}

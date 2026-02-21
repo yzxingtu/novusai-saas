@@ -195,6 +195,13 @@
       "step4Desc": "Usage limits"
     },
     "publish": "Publish",
+    "noDescription": "No description",
+    "actions": {
+      "test": "Test Chat",
+      "publish": "Publish",
+      "versions": "Version History",
+      "access": "Access Config"
+    },
     "confirmDelete": "Are you sure to delete this agent?",
     "status_options": {
       "draft": "Draft",

@@ -125,19 +125,22 @@ class WebhookApiPlugin(ApiPlugin):
 
         return router
 
+    _runtime_config: dict[str, Any] = {}
+
     def _get_config_value(self, key: str) -> str | None:
-        """从插件配置中获取值"""
-        config = getattr(self, "_config", None) or {}
-        return config.get(key)
+        """从插件运行时配置中获取值"""
+        return self._runtime_config.get(key)
 
     async def on_enable(self, ctx: PluginContext) -> None:
-        """插件启用时的回调"""
+        """插件启用时的回调 — 缓存运行时配置供路由处理器使用"""
         self._received = []
+        self._runtime_config = dict(ctx.config) if ctx.config else {}
         if ctx.logger:
             ctx.logger.info("WebhookApiPlugin enabled — routes registered")
 
     async def on_disable(self, ctx: PluginContext) -> None:
         """插件禁用时的回调"""
         self._received = []
+        self._runtime_config = {}
         if ctx.logger:
             ctx.logger.info("WebhookApiPlugin disabled — routes removed")

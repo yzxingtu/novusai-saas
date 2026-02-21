@@ -21,6 +21,7 @@ export interface PluginInfo {
   author: string | null;
   plugin_type: string;
   status: string;
+  scope: string;
   entry_point: string;
   manifest: Record<string, unknown> | null;
   is_system: boolean;
@@ -142,6 +143,7 @@ export async function updatePluginApi(
 export interface PluginFrontendConfig {
   plugin_name: string;
   plugin_version: string;
+  scope: string;
   endpoint: 'admin' | 'tenant';
   menus: BackendMenuItemRaw[];
   routes: Record<string, unknown>[];

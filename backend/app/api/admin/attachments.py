@@ -7,6 +7,7 @@
 from fastapi import Query, Request, UploadFile, File, Form
 from fastapi.responses import RedirectResponse
 
+from app.configs.service import ConfigService
 from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
 from app.core.deps import DbSession, QueryParams, ActiveAdmin
@@ -105,7 +106,7 @@ class AdminAttachmentController(GlobalController):
             current_admin: ActiveAdmin,
             file: UploadFile = File(..., description="上传的文件"),
             tenant_id: int = Form(0, ge=0, description="目标租户 ID，0 表示平台附件"),
-            visibility: str = Form("private", description="可见性 (private/public)"),
+            visibility: str = Form("", description="可见性 (private/public)，空值使用平台默认"),
             business_type: str | None = Form(None, description="业务类型"),
             business_id: int | None = Form(None, description="业务 ID"),
         ):
@@ -119,6 +120,12 @@ class AdminAttachmentController(GlobalController):
             
             权限: attachment:upload
             """
+            # 未指定 visibility 时使用平台配置的默认值
+            if not visibility:
+                config_svc = ConfigService(db)
+                visibility = await config_svc.get_platform_config(
+                    "platform_storage_default_visibility", default="private"
+                )
             service = AdminAttachmentService(db)
             result = await service.upload_file(
                 tenant_id=tenant_id,

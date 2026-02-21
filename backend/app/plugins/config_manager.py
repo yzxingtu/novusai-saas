@@ -113,6 +113,7 @@ class PluginConfigManager:
             logger=plugin_logger,
             plugin_name=instance.name,
             plugin_version=instance.version,
+            plugin_scope=instance.scope,
             **ctx_kwargs,
         )
 

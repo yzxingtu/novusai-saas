@@ -170,7 +170,7 @@ async def run_migrations(
 
 async def rollback_migrations(
     db: AsyncSession, plugin_name: str,
-) -> list[str]:
+) -> dict[str, list[str]]:
     """回滚插件的所有已执行迁移
 
     按版本号倒序查找 ``.down.sql`` 文件并执行。如果 down 文件不存在则跳过。
@@ -181,7 +181,7 @@ async def rollback_migrations(
         plugin_name: 插件名称
 
     Returns:
-        已回滚的迁移版本列表
+        结构化结果：{"rolled_back": [...], "skipped": [...], "warnings": [...]}
     """
     from sqlalchemy import select, delete
     from app.models.system.plugin_migration import PluginMigration
@@ -198,15 +198,20 @@ async def rollback_migrations(
     records = list(result.scalars().all())
 
     if not records:
-        return []
+        return {"rolled_back": [], "skipped": [], "warnings": []}
 
     plugins_base = Path(__file__).resolve().parent.parent / "plugins"
     migrations_dir = plugins_base / plugin_name / "migrations"
     rolled_back: list[str] = []
+    skipped: list[str] = []
+    warnings: list[str] = []
 
     for record in records:
         down_file = migrations_dir / record.filename.replace(".sql", _DOWN_SUFFIX)
         if not down_file.exists():
+            skipped.append(record.filename)
+            warn_msg = f"No down migration for {record.filename} — tables/data may remain"
+            warnings.append(warn_msg)
             logger.warning(
                 "No down migration for %s/%s — skipping rollback",
                 plugin_name, record.filename,
@@ -228,6 +233,8 @@ async def rollback_migrations(
                 await db.execute(text(stmt_text))
             rolled_back.append(record.version)
         except Exception as exc:
+            warn_msg = f"Rollback failed for {record.filename}: {exc}"
+            warnings.append(warn_msg)
             logger.warning(
                 "Plugin migration rollback failed: %s/%s — %s (continuing)",
                 plugin_name, record.filename, exc, exc_info=True,
@@ -240,19 +247,25 @@ async def rollback_migrations(
         )
         await db.execute(del_stmt)
 
-    if rolled_back:
-        from app.plugins.security import log_plugin_action
-        log_plugin_action(
-            action="rollback_migrations",
-            plugin_name=plugin_name,
-            details={"rolled_back": rolled_back},
-        )
+    rollback_result = {
+        "rolled_back": rolled_back,
+        "skipped": skipped,
+        "warnings": warnings,
+    }
+
+    from app.plugins.security import log_plugin_action
+    log_plugin_action(
+        action="rollback_migrations",
+        plugin_name=plugin_name,
+        details=rollback_result,
+    )
+    if rolled_back or skipped:
         logger.info(
-            "Plugin migrations rolled back: %s — %s",
-            plugin_name, rolled_back,
+            "Plugin migrations rollback: %s — rolled_back=%s skipped=%s",
+            plugin_name, rolled_back, skipped,
         )
 
-    return rolled_back
+    return rollback_result
 
 
 def _split_sql(content: str) -> list[str]:

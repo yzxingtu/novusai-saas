@@ -172,7 +172,39 @@
   },
   "dashboard": {
     "title": "控制台",
-    "welcome": "欢迎回来"
+    "welcome": "欢迎回来",
+    "platformConsole": "平台控制台",
+    "greeting": "你好，{name}",
+    "admin": "管理员",
+    "description": "欢迎使用 NovusAI SaaS 管理平台，在这里您可以管理租户、配置系统和监控平台运行状态。",
+    "stats": {
+      "totalTenants": "租户总数",
+      "activeTenants": "活跃租户",
+      "totalUsers": "用户总数",
+      "todayLogin": "今日登录"
+    },
+    "quickActions": {
+      "title": "快捷操作",
+      "tenantManage": "租户管理",
+      "tenantManageDesc": "查看和管理平台租户",
+      "adminManage": "管理员",
+      "adminManageDesc": "管理平台管理员账号",
+      "systemConfig": "系统配置",
+      "systemConfigDesc": "平台参数与功能配置",
+      "aiProviders": "AI 供应商",
+      "aiProvidersDesc": "配置 AI 模型与供应商",
+      "periodicTasks": "定时任务",
+      "periodicTasksDesc": "查看和管理定时任务",
+      "operationLogs": "操作日志",
+      "operationLogsDesc": "查看平台操作审计日志"
+    },
+    "systemOverview": {
+      "title": "系统概览",
+      "version": "平台版本",
+      "environment": "运行环境",
+      "uptime": "运行时间",
+      "currentTime": "当前时间"
+    }
   },
   "common": {
     "operation": "操作",

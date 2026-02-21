@@ -3,6 +3,7 @@
  * 智能体管理列表页面（平台端）
  *
  * 卡片网格布局，替代传统表格，提供更好的视觉层次和交互体验。
+ * 包含：CRUD、状态管理、发布、版本历史、访问权限配置。
  */
 import type { AIAgentInfo } from '#/api/admin/ai';
 
@@ -10,11 +11,13 @@ defineOptions({ name: 'AIAgentList' });
 
 import { computed, onMounted, ref, watch } from 'vue';
 
-import { Page } from '@vben/common-ui';
+import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
 import {
+  Badge,
   Button,
+  Drawer,
   Dropdown,
   Empty,
   Input,
@@ -23,9 +26,12 @@ import {
   message,
   Modal,
   Pagination,
+  Popconfirm,
   Select,
   SelectOption,
+  Space,
   Spin,
+  Table,
   Tag,
   Tooltip,
 } from 'ant-design-vue';
@@ -33,11 +39,15 @@ import {
 import {
   deleteAIAgentApi,
   getAIAgentListApi,
+  getAIAgentRecycleBinApi,
+  getAIAgentRecycleBinCountApi,
+  permanentDeleteAIAgentApi,
+  publishAIAgentApi,
+  restoreAIAgentApi,
   updateAIAgentStatusApi,
 } from '#/api/admin/ai';
 import { $t } from '#/locales';
 import { formatRelativeTime } from '#/utils/common';
-
 import {
   getExecutionModeText,
   getScopeColor,
@@ -45,9 +55,10 @@ import {
   getStatusText,
 } from './data';
 import AgentForm from './modules/form.vue';
+import VersionHistoryDrawer from './modules/VersionHistory.vue';
 
 // ============================================================
-// Refs
+// Refs & Drawers
 // ============================================================
 
 const agentFormRef = ref<InstanceType<typeof AgentForm>>();
@@ -59,6 +70,23 @@ const pageSize = ref(12);
 const searchKeyword = ref('');
 const filterScope = ref<string>();
 const filterStatus = ref<string>();
+
+// 版本历史抽屉
+const [VersionDrawer, versionDrawerApi] = useVbenDrawer({
+  connectedComponent: VersionHistoryDrawer,
+});
+
+// 发布弹窗
+const publishModalOpen = ref(false);
+const publishChangeLog = ref('');
+const publishLoading = ref(false);
+let publishAgentId = 0;
+
+// 回收站
+const recycleBinVisible = ref(false);
+const recycleBinLoading = ref(false);
+const recycleBinItems = ref<AIAgentInfo[]>([]);
+const recycleBinCount = ref(0);
 
 // ============================================================
 // Data fetching
@@ -165,6 +193,44 @@ function onDelete(agent: AIAgentInfo) {
 }
 
 // ============================================================
+// Publish
+// ============================================================
+
+function onPublish(agent: AIAgentInfo) {
+  publishAgentId = agent.id;
+  publishChangeLog.value = '';
+  publishModalOpen.value = true;
+}
+
+async function onPublishConfirm() {
+  publishLoading.value = true;
+  try {
+    await publishAIAgentApi(publishAgentId, {
+      change_log: publishChangeLog.value || null,
+    });
+    message.success($t('admin.ai.agent.messages.publishSuccess'));
+    publishModalOpen.value = false;
+    await fetchAgents();
+  } catch {
+    // handled by interceptor
+  } finally {
+    publishLoading.value = false;
+  }
+}
+
+// ============================================================
+// Versions
+// ============================================================
+
+function onVersions(agent: AIAgentInfo) {
+  versionDrawerApi.setData({
+    id: agent.id,
+    publishedVersion: agent.published_version ?? null,
+  });
+  versionDrawerApi.open();
+}
+
+// ============================================================
 // Helpers
 // ============================================================
 
@@ -212,6 +278,70 @@ const stats = computed(() => {
     system: all.filter((a) => a.is_system).length,
   };
 });
+
+// ============================================================
+// Recycle Bin
+// ============================================================
+
+async function loadRecycleBinCount() {
+  try {
+    const res = await getAIAgentRecycleBinCountApi();
+    recycleBinCount.value = res.count;
+  } catch {
+    recycleBinCount.value = 0;
+  }
+}
+
+async function openRecycleBin() {
+  recycleBinVisible.value = true;
+  await loadRecycleBinItems();
+}
+
+async function loadRecycleBinItems() {
+  recycleBinLoading.value = true;
+  try {
+    const res = await getAIAgentRecycleBinApi({ 'page[size]': 100 });
+    recycleBinItems.value = res.items;
+  } catch {
+    recycleBinItems.value = [];
+  } finally {
+    recycleBinLoading.value = false;
+  }
+}
+
+async function onRestoreAgent(id: number) {
+  try {
+    await restoreAIAgentApi(id);
+    message.success($t('common.recycleBin.restoreSuccess'));
+    await loadRecycleBinItems();
+    await loadRecycleBinCount();
+    await fetchAgents();
+  } catch {
+    // handled by interceptor
+  }
+}
+
+async function onPermanentDeleteAgent(id: number) {
+  try {
+    await permanentDeleteAIAgentApi(id);
+    message.success($t('common.deleteSuccess'));
+    await loadRecycleBinItems();
+    await loadRecycleBinCount();
+  } catch {
+    // handled by interceptor
+  }
+}
+
+const recycleBinColumns = computed(() => [
+  { title: $t('admin.ai.agent.name'), dataIndex: 'name', key: 'name' },
+  { title: $t('admin.ai.agent.status'), dataIndex: 'status', key: 'status', width: 100 },
+  { title: $t('common.recycleBin.deletedAt'), dataIndex: 'deleted_at', key: 'deleted_at', width: 160 },
+  { title: $t('admin.common.operation'), key: 'action', width: 180, align: 'center' as const },
+]);
+
+onMounted(() => {
+  loadRecycleBinCount();
+});
 </script>
 
 <template>
@@ -221,6 +351,26 @@ const stats = computed(() => {
   >
     <!-- Form Drawer -->
     <AgentForm ref="agentFormRef" @success="fetchAgents" />
+    <!-- Version History Drawer -->
+    <VersionDrawer @success="fetchAgents" />
+    <!-- Publish Modal -->
+    <Modal
+      v-model:open="publishModalOpen"
+      :title="$t('admin.ai.agent.messages.publishTitle')"
+      :confirm-loading="publishLoading"
+      @ok="onPublishConfirm"
+    >
+      <p class="mb-2 text-muted-foreground">
+        {{ $t('admin.ai.agent.messages.publishDesc') }}
+      </p>
+      <Input.TextArea
+        v-model:value="publishChangeLog"
+        :placeholder="$t('admin.ai.agent.messages.changeLogPlaceholder')"
+        :rows="3"
+        :maxlength="2000"
+        show-count
+      />
+    </Modal>
 
     <!-- ==================== Top Bar ==================== -->
     <div class="flex flex-wrap items-center gap-3">
@@ -297,6 +447,17 @@ const stats = computed(() => {
           {{ stats.system }}
         </span>
       </div>
+
+      <!-- Recycle bin -->
+      <Tooltip :title="$t('common.recycleBin.title')">
+        <Badge :count="recycleBinCount" :offset="[-2, 2]" size="small">
+          <Button @click="openRecycleBin">
+            <template #icon>
+              <IconifyIcon icon="lucide:trash-2" class="size-4" />
+            </template>
+          </Button>
+        </Badge>
+      </Tooltip>
 
       <!-- Create button -->
       <Button
@@ -413,6 +574,25 @@ const stats = computed(() => {
                             : $t('admin.ai.agent.status_options.published')
                         }}
                       </span>
+                    </div>
+                  </MenuItem>
+                  <MenuItem
+                    v-if="!agent.is_system && agent.status === 'draft'"
+                    key="publish"
+                    @click="onPublish(agent)"
+                  >
+                    <div class="flex items-center gap-2">
+                      <IconifyIcon icon="lucide:rocket" class="size-4 text-success" />
+                      <span>{{ $t('admin.ai.agent.actions.publish') }}</span>
+                    </div>
+                  </MenuItem>
+                  <MenuItem
+                    key="versions"
+                    @click="onVersions(agent)"
+                  >
+                    <div class="flex items-center gap-2">
+                      <IconifyIcon icon="lucide:history" class="size-4" />
+                      <span>{{ $t('admin.ai.agent.actions.versions') }}</span>
                     </div>
                   </MenuItem>
                   <MenuItem
@@ -563,5 +743,52 @@ const stats = computed(() => {
         size="small"
       />
     </div>
+
+    <!-- ==================== Recycle Bin Drawer ==================== -->
+    <Drawer
+      v-model:open="recycleBinVisible"
+      :title="$t('common.recycleBin.title')"
+      width="600"
+      :destroy-on-close="true"
+    >
+      <Table
+        :columns="recycleBinColumns"
+        :data-source="recycleBinItems"
+        :loading="recycleBinLoading"
+        :pagination="false"
+        row-key="id"
+        size="small"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'deleted_at'">
+            <span class="text-xs text-muted-foreground">
+              {{ formatRelativeTime(record.deleted_at) }}
+            </span>
+          </template>
+          <template v-if="column.key === 'action'">
+            <Space>
+              <Button
+                type="link"
+                size="small"
+                @click="onRestoreAgent(record.id)"
+              >
+                {{ $t('common.recycleBin.restore') }}
+              </Button>
+              <Popconfirm
+                :title="$t('common.recycleBin.permanentDeleteConfirm')"
+                @confirm="onPermanentDeleteAgent(record.id)"
+              >
+                <Button type="link" size="small" danger>
+                  {{ $t('common.recycleBin.permanentDelete') }}
+                </Button>
+              </Popconfirm>
+            </Space>
+          </template>
+        </template>
+        <template #emptyText>
+          <Empty :description="$t('common.recycleBin.empty')" />
+        </template>
+      </Table>
+    </Drawer>
   </Page>
 </template>

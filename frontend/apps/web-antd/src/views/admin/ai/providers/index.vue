@@ -9,7 +9,7 @@ defineOptions({ name: 'AIProviderList' });
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Badge, Card, message, Modal, Switch, Tag, Tooltip } from 'ant-design-vue';
+import { Badge, message, Modal, Switch, Tag, Tooltip } from 'ant-design-vue';
 
 import { useAutoTableDragSort, useCrudPage } from '#/adapter/vxe-table';
 
@@ -87,16 +87,15 @@ useAutoTableDragSort(() => gridApi.grid, {
       i18n-prefix="admin.ai"
       :steps="[
         { key: 'step1', icon: 'lucide:plug', color: 'text-primary', bg: 'bg-primary/10', link: '/admin/ai/providers' },
-        { key: 'step2', icon: 'lucide:brain', color: 'text-purple-600', bg: 'bg-purple-500/10', link: '/admin/ai/models' },
-        { key: 'step3', icon: 'lucide:key', color: 'text-amber-600', bg: 'bg-amber-500/10', link: '/admin/ai/api-keys' },
+        { key: 'step2', icon: 'lucide:key', color: 'text-amber-600', bg: 'bg-amber-500/10', link: '/admin/ai/api-keys' },
+        { key: 'step3', icon: 'lucide:brain', color: 'text-purple-600', bg: 'bg-purple-500/10', link: '/admin/ai/models' },
         { key: 'step4', icon: 'lucide:activity', color: 'text-success', bg: 'bg-success/10', link: '/admin/ai/monitor/health' },
       ]"
     />
     <FormDrawer @success="onFormSuccess" />
 
     <!-- Data table -->
-    <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
-      <Grid>
+    <Grid>
         <!-- 名称列：图标 + 名称 + 代码 + base_url -->
         <template #name_cell="{ row }">
           <div class="flex items-center gap-2.5">
@@ -162,7 +161,6 @@ useAutoTableDragSort(() => gridApi.grid, {
           />
         </template>
 
-      </Grid>
-    </Card>
+    </Grid>
   </Page>
 </template>

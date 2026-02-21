@@ -48,6 +48,7 @@ class PluginContext:
     tool_registry: ToolRegistry | None = None
     plugin_name: str = ""
     plugin_version: str = ""
+    plugin_scope: str = "all_tenants"
     skill_config: dict[str, Any] = field(default_factory=dict)
 
     def get_config(self, key: str, default: Any = None) -> Any:

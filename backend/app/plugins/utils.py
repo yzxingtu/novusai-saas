@@ -16,6 +16,90 @@ logger = LogManager.get_logger("app")
 _PLUGINS_BASE_PREFIX = "app.plugins."
 
 
+def backup_plugin_directory(plugin_name: str, plugin_version: str, entry_point: str) -> str | None:
+    """卸载前自动备份插件目录为 .nap 文件
+
+    仅处理通过 .nap 上传安装的插件（entry_point 以 ``app.plugins.`` 开头）。
+    备份存储在 ``plugins/_backups/`` 目录下，每个插件最多保留 3 个备份。
+    失败不阻塞卸载流程。
+
+    Args:
+        plugin_name: 插件名称
+        plugin_version: 插件版本号
+        entry_point: 插件入口点路径
+
+    Returns:
+        备份文件路径（成功时），或 None（跳过/失败时）
+    """
+    if not entry_point.startswith(_PLUGINS_BASE_PREFIX):
+        return None
+
+    from pathlib import Path
+    from app.core.base_model import utc_now
+
+    plugins_base = Path(__file__).resolve().parent
+    module_name = plugin_name.replace("-", "_")
+    plugin_dir = plugins_base / module_name
+    if not plugin_dir.exists():
+        plugin_dir = plugins_base / plugin_name
+    if not plugin_dir.exists():
+        plugin_dir = plugins_base / "builtin" / module_name
+    if not plugin_dir.exists():
+        logger.debug("Plugin directory not found for backup: %s", plugin_name)
+        return None
+
+    backups_dir = plugins_base / "_backups"
+    backups_dir.mkdir(exist_ok=True)
+
+    timestamp = utc_now().strftime("%Y%m%d_%H%M%S")
+    nap_filename = f"{plugin_name}-{plugin_version}-{timestamp}.nap"
+    nap_path = backups_dir / nap_filename
+
+    try:
+        from app.plugins.packaging import pack_plugin
+        pack_plugin(plugin_dir, nap_path)
+
+        from app.plugins.security import log_plugin_action
+        log_plugin_action(
+            action="backup",
+            plugin_name=plugin_name,
+            details={
+                "version": plugin_version,
+                "backup_path": str(nap_path),
+            },
+        )
+        logger.info("Plugin backed up before uninstall: %s -> %s", plugin_name, nap_path)
+
+        # 清理旧备份：每个插件最多保留 3 个
+        _cleanup_old_backups(backups_dir, plugin_name, max_keep=3)
+
+        return str(nap_path)
+    except Exception as exc:
+        logger.warning(
+            "Failed to backup plugin %s before uninstall: %s — proceeding with uninstall",
+            plugin_name, str(exc),
+        )
+        return None
+
+
+def _cleanup_old_backups(backups_dir, plugin_name: str, max_keep: int = 3) -> None:
+    """清理旧备份，每个插件最多保留 max_keep 个"""
+    from pathlib import Path
+
+    prefix = f"{plugin_name}-"
+    backups = sorted(
+        [f for f in backups_dir.iterdir() if f.name.startswith(prefix) and f.suffix == ".nap"],
+        key=lambda f: f.stat().st_mtime,
+        reverse=True,
+    )
+    for old_backup in backups[max_keep:]:
+        try:
+            old_backup.unlink()
+            logger.debug("Removed old plugin backup: %s", old_backup.name)
+        except Exception:
+            pass
+
+
 def cleanup_plugin_directory(plugin_name: str, entry_point: str) -> None:
     """卸载后清理插件文件目录
 
@@ -45,6 +129,24 @@ def cleanup_plugin_directory(plugin_name: str, entry_point: str) -> None:
             plugin_dir,
         )
         return
+
+    # 检查是否有 pip 安装的依赖（提醒管理员可能需要手动清理）
+    req_file = plugin_dir / "requirements.txt"
+    if req_file.exists():
+        try:
+            deps = [
+                line.strip()
+                for line in req_file.read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.strip().startswith("#")
+            ]
+            if deps:
+                logger.warning(
+                    "Plugin %s had pip dependencies installed: %s — "
+                    "these packages remain in the Python environment and may need manual cleanup",
+                    plugin_name, deps,
+                )
+        except Exception:
+            pass
 
     try:
         shutil.rmtree(plugin_dir)

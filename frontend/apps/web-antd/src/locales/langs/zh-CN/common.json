@@ -24,6 +24,7 @@
   "submit": "提交",
   "save": "保存",
   "cancel": "取消",
+  "close": "关闭",
   "confirm": "确认",
   "delete": "删除",
   "edit": "编辑",
@@ -36,6 +37,7 @@
   "upload": "上传",
   "back": "返回",
   "loading": "加载中...",
+  "total": "总计",
   "noData": "暂无数据",
   "success": "成功",
   "failed": "失败",
@@ -243,6 +245,11 @@
       "tenant_plugin": "租户插件",
       "system_agent_assignment": "系统智能体绑定"
     }
+  },
+  "maintenance": {
+    "title": "系统维护中",
+    "defaultMessage": "系统正在维护中，请稍后再试。",
+    "refresh": "刷新页面"
   },
   "cronPicker": {
     "placeholder": "输入 Cron 表达式（如 0 2 * * *）",

@@ -117,6 +117,7 @@ class AdminPluginController(GlobalController):
                 configs.append({
                     "plugin_name": plugin.name,
                     "plugin_version": plugin.version,
+                    "scope": plugin.scope,
                     "endpoint": frontend.get("endpoint", "admin"),
                     "menus": frontend.get("menus", []),
                     "routes": frontend.get("routes", []),
@@ -340,15 +341,17 @@ class AdminPluginController(GlobalController):
 
                 if permanent_dir.exists():
                     if not overwrite:
-                        # 返回冲突信息，前端可选择覆盖
+                        # 返回冲突信息 + 文件级 diff，前端可选择覆盖
                         repo = PluginRepository(db)
                         existing = await repo.get_by_name(plugin_name)
+                        file_diff = _compute_file_diff(permanent_dir, plugin_dir)
                         return success(data={
                             "conflict": True,
                             "plugin_name": plugin_name,
                             "existing_version": existing.version if existing else None,
                             "new_version": manifest.get("version", ""),
                             "message": _("plugin.upload_conflict"),
+                            "file_diff": file_diff,
                         })
 
                     # 覆盖模式：备份旧目录 → 拷贝新文件
@@ -414,6 +417,181 @@ class AdminPluginController(GlobalController):
 
             return created(data=_mask_plugin_response(plugin))
 
+        @router.get("/{plugin_id}/assigned-tenants", summary="查看已分配租户列表")
+        @action_read("action.plugin.list")
+        async def get_assigned_tenants(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            plugin_id: int = Path(..., description="插件 ID"),
+        ):
+            """返回 scope=assigned_tenants 插件的已分配租户 ID 和名称"""
+            from app.repositories.system.plugin_tenant_assignment_repository import (
+                PluginTenantAssignmentRepository,
+            )
+            from app.models.tenant.tenant import Tenant
+            from sqlalchemy import select
+
+            service = self.get_service(db)
+            plugin = await service.get_by_id(plugin_id)
+            if not plugin:
+                from app.exceptions import NotFoundException
+                raise NotFoundException(message=_("plugin.not_found"))
+
+            repo = PluginTenantAssignmentRepository(db)
+            assignments = await repo.get_by_plugin(plugin_id)
+
+            tenant_ids = [a.tenant_id for a in assignments]
+            tenants_map: dict[int, str] = {}
+            if tenant_ids:
+                stmt = select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
+                result = await db.execute(stmt)
+                tenants_map = {row[0]: row[1] for row in result.all()}
+
+            return success(data=[
+                {
+                    "tenant_id": a.tenant_id,
+                    "tenant_name": tenants_map.get(a.tenant_id, ""),
+                    "assigned_by": a.assigned_by,
+                    "assigned_at": a.assigned_at.isoformat() if a.assigned_at else None,
+                }
+                for a in assignments
+            ])
+
+        @router.post("/{plugin_id}/assign-tenants", summary="批量分配插件给租户")
+        @action_update("action.plugin.update")
+        async def assign_tenants(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            plugin_id: int = Path(..., description="插件 ID"),
+            body: dict = None,
+        ):
+            """
+            为 scope=assigned_tenants 的插件分配租户。
+            同时自动创建 tenant_plugins 记录（is_active=True）。
+            body: {"tenant_ids": [1, 2, 3]}
+            """
+            from app.repositories.system.plugin_tenant_assignment_repository import (
+                PluginTenantAssignmentRepository,
+            )
+            from app.repositories.system.tenant_plugin_repository import TenantPluginRepository
+
+            tenant_ids = (body or {}).get("tenant_ids", [])
+            if not tenant_ids or not isinstance(tenant_ids, list):
+                from app.exceptions import ValidationException
+                raise ValidationException(message=_("plugin.tenant_ids_required"))
+
+            service = self.get_service(db)
+            plugin = await service.get_by_id(plugin_id)
+            if not plugin:
+                from app.exceptions import NotFoundException
+                raise NotFoundException(message=_("plugin.not_found"))
+
+            assign_repo = PluginTenantAssignmentRepository(db)
+            tp_repo = TenantPluginRepository(db)
+
+            created_assignments = await assign_repo.bulk_assign(
+                plugin_id, tenant_ids, assigned_by=current_admin.id,
+            )
+
+            # 同步创建/激活 tenant_plugins 记录
+            tp_count = 0
+            for tid in tenant_ids:
+                existing_tp = await tp_repo.get_by_tenant_and_plugin(tid, plugin_id)
+                if existing_tp:
+                    if not existing_tp.is_active:
+                        await tp_repo.update(existing_tp.id, {"is_active": True})
+                        tp_count += 1
+                else:
+                    await tp_repo.create({
+                        "tenant_id": tid,
+                        "plugin_id": plugin_id,
+                        "is_active": True,
+                        "config": None,
+                    })
+                    tp_count += 1
+
+            await db.flush()
+
+            from app.plugins.security import log_plugin_action
+            log_plugin_action(
+                action="assign_tenants",
+                plugin_name=plugin.name,
+                admin_id=current_admin.id,
+                details={
+                    "plugin_id": plugin_id,
+                    "tenant_ids": tenant_ids,
+                    "assignments_created": len(created_assignments),
+                    "tenant_plugins_created": tp_count,
+                },
+            )
+
+            return success(data={
+                "assigned": len(created_assignments),
+                "tenant_plugins_activated": tp_count,
+            })
+
+        @router.delete("/{plugin_id}/unassign-tenants", summary="批量取消分配租户")
+        @action_update("action.plugin.update")
+        async def unassign_tenants(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            plugin_id: int = Path(..., description="插件 ID"),
+            body: dict = None,
+        ):
+            """
+            取消插件对指定租户的分配。
+            同时禁用 tenant_plugins 记录。
+            body: {"tenant_ids": [1, 2, 3]}
+            """
+            from app.repositories.system.plugin_tenant_assignment_repository import (
+                PluginTenantAssignmentRepository,
+            )
+            from app.repositories.system.tenant_plugin_repository import TenantPluginRepository
+
+            tenant_ids = (body or {}).get("tenant_ids", [])
+            if not tenant_ids or not isinstance(tenant_ids, list):
+                from app.exceptions import ValidationException
+                raise ValidationException(message=_("plugin.tenant_ids_required"))
+
+            service = self.get_service(db)
+            plugin = await service.get_by_id(plugin_id)
+            if not plugin:
+                from app.exceptions import NotFoundException
+                raise NotFoundException(message=_("plugin.not_found"))
+
+            assign_repo = PluginTenantAssignmentRepository(db)
+            removed = await assign_repo.bulk_unassign(plugin_id, tenant_ids)
+
+            # 同步禁用 tenant_plugins 记录
+            tp_repo = TenantPluginRepository(db)
+            tp_disabled = 0
+            for tid in tenant_ids:
+                existing_tp = await tp_repo.get_by_tenant_and_plugin(tid, plugin_id)
+                if existing_tp and existing_tp.is_active:
+                    await tp_repo.update(existing_tp.id, {"is_active": False})
+                    tp_disabled += 1
+
+            from app.plugins.security import log_plugin_action
+            log_plugin_action(
+                action="unassign_tenants",
+                plugin_name=plugin.name,
+                admin_id=current_admin.id,
+                details={
+                    "plugin_id": plugin_id,
+                    "tenant_ids": tenant_ids,
+                    "assignments_removed": removed,
+                    "tenant_plugins_disabled": tp_disabled,
+                },
+            )
+
+            return success(data={
+                "unassigned": removed,
+                "tenant_plugins_disabled": tp_disabled,
+            })
+
         @router.get("/{plugin_id}/export", summary="导出插件为 .nap")
         @action_read("action.plugin.export")
         async def export_plugin_package(
@@ -463,6 +641,45 @@ class AdminPluginController(GlobalController):
                 media_type="application/zip",
                 background=BackgroundTask(shutil.rmtree, tmp_dir, True),
             )
+
+
+def _compute_file_diff(
+    existing_dir: FilePath, new_dir: FilePath
+) -> dict[str, list[str]]:
+    """
+    比较已安装插件目录与新上传插件目录的文件差异
+
+    Args:
+        existing_dir: 已安装的插件目录
+        new_dir: 新上传解压的插件目录
+
+    Returns:
+        {"added": [...], "modified": [...], "removed": [...]}
+    """
+    import hashlib
+
+    def _file_hash(path: FilePath) -> str:
+        return hashlib.md5(path.read_bytes()).hexdigest()
+
+    def _scan(base: FilePath) -> dict[str, str]:
+        result: dict[str, str] = {}
+        for f in base.rglob("*"):
+            if f.is_file() and "__pycache__" not in f.parts:
+                rel = f.relative_to(base).as_posix()
+                result[rel] = _file_hash(f)
+        return result
+
+    old_files = _scan(existing_dir)
+    new_files = _scan(new_dir)
+
+    added = sorted(f for f in new_files if f not in old_files)
+    removed = sorted(f for f in old_files if f not in new_files)
+    modified = sorted(
+        f for f in new_files
+        if f in old_files and new_files[f] != old_files[f]
+    )
+
+    return {"added": added, "modified": modified, "removed": removed}
 
 
 def _load_plugin_locales(plugin_name: str) -> dict[str, dict]:

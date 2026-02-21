@@ -64,6 +64,20 @@ class PluginSkillExecutor(BaseToolExecutor):
                     error=f"Plugin skill '{skill_type}' not loaded (plugin={plugin_name})",
                 )
 
+            # Scope 校验：platform_only 插件拒绝租户端调用
+            tenant_id = context.tenant_id if context else None
+            if tenant_id is not None:
+                scope_check = await self._check_scope(
+                    plugin_name, tenant_id, context.db if context else None,
+                )
+                if scope_check:
+                    return ToolResult(
+                        tool_call_id=tool_call_id,
+                        name=definition.name,
+                        success=False,
+                        error=scope_check,
+                    )
+
             skill_cfg = {
                 k: v for k, v in (definition.config or {}).items()
                 if not k.startswith("_")
@@ -111,12 +125,72 @@ class PluginSkillExecutor(BaseToolExecutor):
                 error=f"Plugin execution error: {str(exc)}",
             )
 
+    @staticmethod
+    async def _check_scope(
+        plugin_name: str,
+        tenant_id: int,
+        db: Any | None,
+    ) -> str | None:
+        """
+        检查插件 scope 是否允许该租户调用
+
+        Returns:
+            错误消息（拒绝时），或 None（允许时）
+        """
+        if not db:
+            return None
+
+        try:
+            from app.repositories.system.plugin_repository import PluginRepository
+            from app.enums.plugin import PluginScopeEnum
+
+            repo = PluginRepository(db)
+            plugin = await repo.get_by_name(plugin_name)
+            if not plugin:
+                return None
+
+            if plugin.scope == PluginScopeEnum.PLATFORM_ONLY.value:
+                return f"Plugin '{plugin_name}' is platform-only and cannot be used by tenants"
+
+            if plugin.scope == PluginScopeEnum.ASSIGNED_TENANTS.value:
+                from app.repositories.system.plugin_tenant_assignment_repository import (
+                    PluginTenantAssignmentRepository,
+                )
+                assign_repo = PluginTenantAssignmentRepository(db)
+                if not await assign_repo.is_assigned(plugin.id, tenant_id):
+                    return f"Plugin '{plugin_name}' is not assigned to tenant {tenant_id}"
+
+        except Exception as exc:
+            logger.warning(
+                "Scope check failed for plugin %s tenant %d: %s",
+                plugin_name, tenant_id, str(exc),
+            )
+
+        return None
+
     async def validate(
         self,
         definition: ToolDefinition,
         arguments: dict[str, Any],
     ) -> bool:
-        """插件工具参数校验（委托给 JSON Schema 校验，此处简单放行）"""
+        """插件工具参数校验
+
+        当 definition.parameters 为 dict 格式（JSON Schema）时，
+        使用 jsonschema 校验 arguments。ToolParameter 列表格式由
+        Sandbox 层 InputValidator 处理。
+        """
+        if isinstance(definition.parameters, dict) and definition.parameters:
+            try:
+                import jsonschema
+                jsonschema.validate(instance=arguments, schema=definition.parameters)
+            except jsonschema.ValidationError as exc:
+                logger.warning(
+                    "Plugin tool parameter validation failed: %s — %s",
+                    definition.name, exc.message,
+                )
+                return False
+            except Exception:
+                pass
         return True
 
 

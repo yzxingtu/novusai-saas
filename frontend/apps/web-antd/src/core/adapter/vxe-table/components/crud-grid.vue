@@ -88,20 +88,22 @@ function handleRefresh() {
     <template #toolbar-actions>
       <div class="flex items-center gap-2">
         <Tooltip v-if="props.onRefresh" :title="$t('common.refresh')">
-          <Button shape="circle" @click="handleRefresh">
-            <template #icon>
-              <IconifyIcon
-                icon="lucide:refresh-cw"
-                class="size-4"
-                :style="{ transform: `rotate(${refreshAngle}deg)`, transition: 'transform 0.5s ease' }"
-              />
-            </template>
-          </Button>
+          <button
+            class="flex size-8 items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground transition-all hover:border-primary/30 hover:text-primary"
+            @click="handleRefresh"
+          >
+            <IconifyIcon
+              icon="lucide:refresh-cw"
+              class="size-3.5"
+              :style="{ transform: `rotate(${refreshAngle}deg)`, transition: 'transform 0.5s ease' }"
+            />
+          </button>
         </Tooltip>
         <Button
           v-if="props.onCreate && props.createPermission"
           v-access:code="[props.createPermission]"
           type="primary"
+          class="!rounded-lg !shadow-sm !shadow-primary/20"
           @click="props.onCreate"
         >
           <template #icon>
@@ -112,6 +114,7 @@ function handleRefresh() {
         <Button
           v-else-if="props.onCreate && !props.createPermission"
           type="primary"
+          class="!rounded-lg !shadow-sm !shadow-primary/20"
           @click="props.onCreate"
         >
           <template #icon>
@@ -135,28 +138,21 @@ function handleRefresh() {
       ></slot>
       <Tooltip v-if="showRecycleBin" :title="$t('common.recycleBin.title')">
         <Badge :count="props.recycleBinCount" :offset="[-4, 4]" size="small">
-          <Button
-            shape="circle"
-            class="ml-2"
+          <button
+            class="ml-2 flex size-8 items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground transition-all hover:border-destructive/30 hover:text-destructive"
             @click="props.onRecycleBin"
           >
-            <template #icon>
-              <IconifyIcon icon="lucide:trash-2" class="size-4" />
-            </template>
-          </Button>
+            <IconifyIcon icon="lucide:trash-2" class="size-3.5" />
+          </button>
         </Badge>
       </Tooltip>
       <Tooltip v-if="showExport" :title="$t('common.export')">
-        <Button
-          type="primary"
-          shape="circle"
-          class="ml-2"
+        <button
+          class="ml-2 flex size-8 items-center justify-center rounded-lg bg-primary text-white shadow-sm shadow-primary/20 transition-all hover:bg-primary/90"
           @click="props.onExport"
         >
-          <template #icon>
-            <Download class="size-4" />
-          </template>
-        </Button>
+          <Download class="size-3.5" />
+        </button>
       </Tooltip>
     </template>
   </component>

@@ -99,7 +99,7 @@ def _build_api_key_response(key) -> dict:
         path="/ai/api-keys",
         component="ai/api-keys/index",
         parent="ai_infra",
-        sort_order=30,
+        sort_order=15,
     ),
 )
 class AdminAIApiKeyController(GlobalController):

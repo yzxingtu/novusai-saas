@@ -5,6 +5,7 @@
   "description": "Example HookPlugin that subscribes to system events and logs audit information",
   "author": "NovusAI",
   "plugin_type": "hook",
+  "scope": "all_tenants",
   "entry_point": "plugin.AuditHookPlugin",
   "icon": "lucide:scroll-text",
   "homepage": "",

@@ -138,7 +138,12 @@ class AttachmentDownloadService:
         attachment: Attachment,
         token: str | None,
     ) -> None:
-        """校验访问权限（公开文件放行，本地文件放行，私有远程文件需有效 Token）"""
+        """
+        校验访问权限
+        - 公开文件：直接放行
+        - 本地私有文件：放行（本地文件通过 API 端点提供，无法直接访问磁盘路径）
+        - 远程私有文件（S3 等）：需有效签名 Token
+        """
         if attachment.visibility == AttachmentVisibility.PUBLIC.value:
             return
         if attachment.driver == "local":

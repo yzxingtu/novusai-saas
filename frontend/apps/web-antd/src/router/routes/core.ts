@@ -20,8 +20,22 @@ const fallbackNotFoundRoute: RouteRecordRaw = {
   path: '/:path(.*)*',
 };
 
+/** 维护模式页面 */
+const maintenanceRoute: RouteRecordRaw = {
+  component: () => import('#/views/_core/fallback/maintenance.vue'),
+  meta: {
+    hideInBreadcrumb: true,
+    hideInMenu: true,
+    hideInTab: true,
+    title: 'Maintenance',
+  },
+  name: 'Maintenance',
+  path: '/maintenance',
+};
+
 /** 基本路由，这些路由是必须存在的 */
 const coreRoutes: RouteRecordRaw[] = [
+  maintenanceRoute,
   /**
    * 根路由
    * 使用基础布局，作为所有页面的父级容器，子级就不必配置BasicLayout。

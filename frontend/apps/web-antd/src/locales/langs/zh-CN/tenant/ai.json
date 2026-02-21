@@ -195,6 +195,13 @@
       "step4Desc": "用量限制"
     },
     "publish": "发布",
+    "noDescription": "暂无描述",
+    "actions": {
+      "test": "测试对话",
+      "publish": "发布",
+      "versions": "版本历史",
+      "access": "访问权限"
+    },
     "confirmDelete": "确认删除此智能体？",
     "status_options": {
       "draft": "草稿",

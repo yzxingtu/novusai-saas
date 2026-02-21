@@ -8,6 +8,7 @@
   "icon": "lucide:sparkles",
   "entry_point": "app.plugins.builtin.anthropic.plugin.AnthropicPlugin",
   "plugin_type": "adapter",
+  "scope": "all_tenants",
   "is_system": false,
   "platform_version": ">=1.0.0",
   "required_permissions": [

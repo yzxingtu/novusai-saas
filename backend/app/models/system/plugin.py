@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import BaseModel
-from app.enums.plugin import PluginStatusEnum, PluginTypeEnum
+from app.enums.plugin import PluginScopeEnum, PluginStatusEnum, PluginTypeEnum
 
 
 class Plugin(BaseModel):
@@ -28,6 +28,7 @@ class Plugin(BaseModel):
         "display_name": "display_name",
         "plugin_type": "plugin_type",
         "status": "status",
+        "scope": "scope",
         "is_system": "is_system",
         "author": "author",
         "category": "category",
@@ -70,6 +71,10 @@ class Plugin(BaseModel):
     status: Mapped[str] = mapped_column(
         default=PluginStatusEnum.INSTALLED.value,
         comment="插件状态（installed/enabled/disabled/error）",
+    )
+    scope: Mapped[str] = mapped_column(
+        default=PluginScopeEnum.ALL_TENANTS.value,
+        comment="作用域（platform_only/all_tenants/assigned_tenants/global）",
     )
     entry_point: Mapped[str] = mapped_column(
         comment="入口点（如 app.plugins.anthropic.main.AnthropicPlugin）",

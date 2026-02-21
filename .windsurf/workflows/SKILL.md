@@ -992,6 +992,26 @@ backend/app/plugins/my_plugin/
     └── api/
 ```
 
+### 插件作用域（Scope）
+
+插件通过 `scope` 字段控制在哪些端可见/可用。所有插件控制权归管理端，租户端无插件管理功能。
+
+| Scope | 含义 | 新租户自动绑定 | 租户可见 |
+|-------|------|---------------|---------|
+| `platform_only` | 仅管理端生效 | ❌ | ❌ |
+| `all_tenants` | 所有租户可用（默认） | ✅ | ✅ |
+| `assigned_tenants` | 仅管理员分配的租户 | ❌ | 仅白名单 |
+| `global` | 全局自动生效 | ✅ | ✅ |
+
+**管理端操作：**
+- 平台启用 `scope=global/all_tenants` 的插件 → 自动为所有现存租户创建 `tenant_plugins` 记录
+- 平台禁用插件 → 联动禁用所有租户的 `tenant_plugins` 记录
+- `scope=assigned_tenants` → 通过 `/admin/plugins/{id}/assign-tenants` API 手动分配
+
+**新租户创建时：** 自动绑定 `scope=global` 和 `scope=all_tenants` 的已启用插件。`assigned_tenants` 需管理员手动分配。
+
+**关联表：** `plugin_tenant_assignments`（scope=assigned_tenants 时记录分配关系，FK 级联删除）。
+
 ### manifest.json 示例
 
 ```json
@@ -1001,6 +1021,7 @@ backend/app/plugins/my_plugin/
   "version": "1.0.0",
   "description": "A plugin that does awesome things",
   "author": "NovusAI Team",
+  "scope": "all_tenants",
   "entry_point": "plugin.MyAwesomePlugin",
   "is_system": false,
   "required_permissions": ["db:read", "http:outbound"],

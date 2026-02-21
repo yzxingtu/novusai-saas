@@ -1,0 +1,223 @@
+/**
+ * VXE-Table 现代化全局样式覆盖
+ *
+ * 影响所有使用 useCrudPage / useVbenVxeGrid 的 CRUD 页面：
+ * - 表格圆角 + 细边框
+ * - 表头渐变背景 + 字重
+ * - 行 hover 高亮
+ * - 搜索表单紧凑 + 圆角输入框
+ * - 工具栏优化
+ * - 分页器精致化
+ */
+
+/* ============================================================
+ * 表格容器：圆角 + 边框
+ * ============================================================ */
+.vxe-grid {
+  --vxe-grid-border-color: hsl(var(--border) / 0.5);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.vxe-grid .vxe-table {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* ============================================================
+ * 表头：更强的视觉层次
+ * ============================================================ */
+.vxe-grid .vxe-header--column {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em;
+  color: hsl(var(--foreground) / 0.7);
+  text-transform: none;
+}
+
+.vxe-grid .vxe-table--header-wrapper {
+  background: hsl(var(--muted) / 0.35) !important;
+}
+
+.vxe-grid .vxe-header--row .vxe-header--column {
+  background: transparent !important;
+  border-bottom: 1px solid hsl(var(--border) / 0.4) !important;
+}
+
+/* ============================================================
+ * 表体行：hover 高亮 + 过渡动画
+ * ============================================================ */
+.vxe-grid .vxe-body--row {
+  transition: background-color 0.15s ease;
+}
+
+.vxe-grid .vxe-body--row:hover .vxe-body--column {
+  background: hsl(var(--primary) / 0.04) !important;
+}
+
+.vxe-grid .vxe-body--row:hover {
+  position: relative;
+}
+
+/* 斑马纹更柔和 */
+.vxe-grid .vxe-body--row.row--stripe .vxe-body--column {
+  background: hsl(var(--muted) / 0.15) !important;
+}
+
+.vxe-grid .vxe-body--row.row--stripe:hover .vxe-body--column {
+  background: hsl(var(--primary) / 0.04) !important;
+}
+
+/* 单元格文字 */
+.vxe-grid .vxe-body--column {
+  font-size: 13px;
+  color: hsl(var(--foreground));
+  border-bottom: 1px solid hsl(var(--border) / 0.25) !important;
+}
+
+/* ============================================================
+ * 搜索表单区域：更紧凑 + 现代化输入框
+ * ============================================================ */
+.vxe-grid--form-wrapper {
+  padding: 16px 16px 8px !important;
+  background: transparent !important;
+  border-bottom: 1px solid hsl(var(--border) / 0.3);
+}
+
+/* Vben 搜索表单内部间距 */
+.vxe-grid--form-wrapper .ant-form {
+  gap: 8px;
+}
+
+/* 搜索输入框圆角 */
+.vxe-grid--form-wrapper .ant-input,
+.vxe-grid--form-wrapper .ant-select-selector,
+.vxe-grid--form-wrapper .ant-picker {
+  border-radius: 8px !important;
+}
+
+/* 搜索下拉框圆角 */
+.vxe-grid--form-wrapper .ant-select-selector {
+  border-radius: 8px !important;
+}
+
+/* 重置按钮柔和化 */
+.vxe-grid--form-wrapper .ant-btn {
+  border-radius: 8px;
+}
+
+/* 收起/展开按钮 */
+.vxe-grid--form-wrapper .collapse-icon {
+  border-radius: 8px;
+}
+
+/* ============================================================
+ * 工具栏：更精致
+ * ============================================================ */
+.vxe-grid--toolbar-wrapper {
+  padding: 10px 16px !important;
+  border-bottom: 1px solid hsl(var(--border) / 0.3);
+  background: transparent !important;
+}
+
+.vxe-grid--toolbar-wrapper .vxe-toolbar {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+/* 工具栏按钮统一圆角 */
+.vxe-grid--toolbar-wrapper .ant-btn {
+  border-radius: 8px;
+}
+
+.vxe-grid--toolbar-wrapper .ant-btn-circle {
+  border-radius: 50%;
+}
+
+/* ============================================================
+ * 分页器：更精致紧凑
+ * ============================================================ */
+.vxe-grid .vxe-pager {
+  padding: 10px 16px !important;
+  border-top: 1px solid hsl(var(--border) / 0.3);
+  background: transparent !important;
+}
+
+.vxe-grid .vxe-pager .vxe-pager--btn-wrapper .vxe-pager--num-btn {
+  border-radius: 6px;
+  min-width: 28px;
+  height: 28px;
+  font-size: 12px;
+}
+
+.vxe-grid .vxe-pager .vxe-pager--btn-wrapper .vxe-pager--num-btn.is--active {
+  background: hsl(var(--primary));
+  color: white;
+  font-weight: 600;
+}
+
+.vxe-grid .vxe-pager .vxe-pager--sizes .vxe-select {
+  border-radius: 6px;
+}
+
+/* ============================================================
+ * 滚动条美化
+ * ============================================================ */
+.vxe-grid .vxe-table--body-wrapper::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.vxe-grid .vxe-table--body-wrapper::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.2);
+  border-radius: 3px;
+}
+
+.vxe-grid .vxe-table--body-wrapper::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.35);
+}
+
+.vxe-grid .vxe-table--body-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ============================================================
+ * 展开行
+ * ============================================================ */
+.vxe-grid .vxe-body--expanded-cell {
+  padding: 0 !important;
+  background: hsl(var(--muted) / 0.1);
+}
+
+/* ============================================================
+ * 空数据状态
+ * ============================================================ */
+.vxe-grid .vxe-table--empty-content {
+  padding: 48px 0;
+}
+
+/* ============================================================
+ * CrudGrid 包装层
+ * ============================================================ */
+.crud-page-grid {
+  border-radius: 12px;
+  border: 1px solid hsl(var(--border) / 0.4);
+  background: hsl(var(--card));
+  overflow: hidden;
+}
+
+/* ============================================================
+ * Vben Form 在 Grid 内的搜索表单样式
+ * ============================================================ */
+
+/* 表单项 label 更轻 */
+.vxe-grid--form-wrapper .vben-form-item label {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  font-weight: 500;
+}
+
+/* 表单紧凑布局 */
+.vxe-grid--form-wrapper .vben-form-item {
+  margin-bottom: 4px;
+}
