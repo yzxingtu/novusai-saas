@@ -155,6 +155,7 @@ class PluginLoader:
             key for key in sys.modules
             if f"plugins.{module_name}" in key
             or f"plugins.builtin.{module_name}" in key
+            or f"plugins.demoPlugins.{module_name}" in key
             or f"plugins.{plugin_name}" in key
         ]
         for key in keys_to_remove:

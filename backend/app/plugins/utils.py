@@ -121,12 +121,19 @@ def cleanup_plugin_directory(plugin_name: str, entry_point: str) -> None:
     from pathlib import Path
 
     plugins_base = Path(__file__).resolve().parent.parent / "plugins"
-    plugin_dir = plugins_base / plugin_name
+    module_name = plugin_name.replace("-", "_")
+    plugin_dir = plugins_base / module_name
+    if not plugin_dir.exists():
+        plugin_dir = plugins_base / plugin_name
+    if not plugin_dir.exists():
+        plugin_dir = plugins_base / "builtin" / module_name
+    if not plugin_dir.exists():
+        plugin_dir = plugins_base / "demoPlugins" / module_name
 
     if not plugin_dir.exists():
         logger.debug(
             "Plugin directory does not exist, nothing to clean: %s",
-            plugin_dir,
+            plugin_name,
         )
         return
 

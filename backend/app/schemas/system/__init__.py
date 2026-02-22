@@ -41,6 +41,7 @@ from app.schemas.system.tenant import (
 from app.schemas.system.operation_log import (
     OperationLogResponse,
     OperationLogListResponse,
+    OperatorSelectItem,
     OperationLogDeleteRequest,
     LogStatsItem,
     LogStatsResponse,
@@ -94,6 +95,7 @@ __all__ = [
     # OperationLog
     "OperationLogResponse",
     "OperationLogListResponse",
+    "OperatorSelectItem",
     "OperationLogDeleteRequest",
     "LogStatsItem",
     "LogStatsResponse",

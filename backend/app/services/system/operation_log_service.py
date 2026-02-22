@@ -8,7 +8,7 @@ import asyncio
 from datetime import datetime
 from typing import Any, TYPE_CHECKING
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_service import GlobalService
@@ -286,6 +286,119 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
             subordinate_user_ids=subordinate_ids,
         )
     
+    async def get_admin_operators(self) -> list[dict]:
+        """
+        获取平台端操作日志中的去重操作人列表（含头像）
+        
+        Returns:
+            操作人列表 [{user_id, user_type, username, nickname, avatar}]
+        """
+        from app.models.system.admin import Admin as AdminModel
+        
+        # 按 user_id + user_type 去重，取最新的 username/nickname
+        distinct_q = (
+            select(
+                OperationLog.user_id,
+                OperationLog.user_type,
+                func.max(OperationLog.username).label("username"),
+                func.max(OperationLog.nickname).label("nickname"),
+            )
+            .where(
+                OperationLog.is_deleted.is_(False),
+                OperationLog.user_id.isnot(None),
+                OperationLog.tenant_id.is_(None),
+            )
+            .group_by(
+                OperationLog.user_id,
+                OperationLog.user_type,
+            )
+        )
+        result = await self.db.execute(distinct_q)
+        rows = result.all()
+        
+        if not rows:
+            return []
+        
+        # 批量查询 admin 头像
+        admin_ids = [r[0] for r in rows if r[1] == "admin" and r[0]]
+        avatar_map: dict[int, str | None] = {}
+        if admin_ids:
+            avatar_q = select(AdminModel.id, AdminModel.avatar).where(
+                AdminModel.id.in_(admin_ids)
+            )
+            avatar_result = await self.db.execute(avatar_q)
+            for aid, avatar in avatar_result.all():
+                avatar_map[aid] = avatar
+        
+        operators = []
+        for user_id, user_type, username, nickname in rows:
+            operators.append({
+                "user_id": user_id,
+                "user_type": user_type,
+                "username": username or "",
+                "nickname": nickname,
+                "avatar": avatar_map.get(user_id),
+            })
+        return operators
+
+    async def get_tenant_operators(self, tenant_id: int) -> list[dict]:
+        """
+        获取租户端操作日志中的去重操作人列表（含头像）
+        
+        Args:
+            tenant_id: 租户 ID
+        
+        Returns:
+            操作人列表
+        """
+        from app.models.tenant.tenant_admin import TenantAdmin as TenantAdminModel
+        
+        # 按 user_id + user_type 去重，取最新的 username/nickname
+        distinct_q = (
+            select(
+                OperationLog.user_id,
+                OperationLog.user_type,
+                func.max(OperationLog.username).label("username"),
+                func.max(OperationLog.nickname).label("nickname"),
+            )
+            .where(
+                OperationLog.is_deleted.is_(False),
+                OperationLog.user_id.isnot(None),
+                OperationLog.tenant_id == tenant_id,
+            )
+            .group_by(
+                OperationLog.user_id,
+                OperationLog.user_type,
+            )
+        )
+        result = await self.db.execute(distinct_q)
+        rows = result.all()
+        
+        if not rows:
+            return []
+        
+        # 批量查询 tenant_admin 头像
+        ta_ids = [r[0] for r in rows if r[1] == "tenant_admin" and r[0]]
+        avatar_map: dict[int, str | None] = {}
+        if ta_ids:
+            avatar_q = select(TenantAdminModel.id, TenantAdminModel.avatar).where(
+                TenantAdminModel.id.in_(ta_ids)
+            )
+            avatar_result = await self.db.execute(avatar_q)
+            for aid, avatar in avatar_result.all():
+                avatar_map[aid] = avatar
+        
+        operators = []
+        for user_id, user_type, username, nickname in rows:
+            operators.append({
+                "user_id": user_id,
+                "user_type": user_type,
+                "username": username or "",
+                "nickname": nickname,
+                "avatar": avatar_map.get(user_id),
+            })
+        return operators
+
     async def _get_subordinate_admin_ids(self, admin: "Admin") -> list[int]:
         """
         获取平台管理员的下属用户 ID 列表

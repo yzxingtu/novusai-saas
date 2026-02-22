@@ -599,6 +599,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
         email: str | None = None,
         phone: str | None = None,
         nickname: str | None = None,
+        avatar: str | None = None,
         is_active: bool | None = None,
         new_role_id: int | None = None,
     ) -> TenantAdmin:
@@ -611,6 +612,7 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
             email: 邮箱
             phone: 手机号
             nickname: 昵称
+            avatar: 头像
             is_active: 是否激活
             new_role_id: 新角色 ID（调整所属角色）
         
@@ -664,6 +666,8 @@ class TenantAdminRoleService(TenantService[TenantAdminRole, TenantRoleRepository
             update_data["phone"] = phone
         if nickname is not None:
             update_data["nickname"] = nickname
+        if avatar is not None:
+            update_data["avatar"] = avatar
         if is_active is not None:
             update_data["is_active"] = is_active
         if new_role_id is not None:

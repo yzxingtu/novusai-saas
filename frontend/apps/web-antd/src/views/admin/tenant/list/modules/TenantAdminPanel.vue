@@ -32,6 +32,7 @@ import {
 import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
 import { formatRelativeTime } from '#/utils/common';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 import TenantAdminForm from './TenantAdminForm.vue';
 import TenantAdminResetPwdModal from './TenantAdminResetPwdModal.vue';
@@ -152,7 +153,7 @@ onMounted(() => {
           <div class="relative flex-shrink-0">
             <Avatar
               v-if="admin.avatar"
-              :src="admin.avatar"
+              :src="toAvatarDisplayUrl(admin.avatar)"
               :size="32"
             />
             <Avatar v-else :size="32" class="bg-primary text-white text-xs">

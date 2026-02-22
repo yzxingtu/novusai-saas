@@ -57,7 +57,7 @@ tenant_router.include_router(ai_call_logs_router)
 tenant_router.include_router(agents_router)
 # 对话管理
 tenant_router.include_router(conversations_router)
-# 智能体对话
+# AI 对话
 tenant_router.include_router(agent_chat_router)
 # AI 操作审计
 tenant_router.include_router(ai_action_logs_router)
@@ -100,7 +100,7 @@ __all__ = [
     "TenantAgentController",
     # 对话管理
     "TenantConversationController",
-    # 智能体对话
+    # AI 对话
     "TenantAgentChatController",
     # AI 操作审计
     "TenantAIActionLogController",

@@ -29,6 +29,7 @@ import {
 import { KbMentionSelector } from '#/components/business/kb-mention-selector';
 import { $t } from '#/locales';
 import { getFileIcon } from '#/utils/file';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 import ChatMessageItem from './ChatMessageItem.vue';
 import { useAIChat } from './use-ai-chat';
@@ -226,7 +227,7 @@ async function onCopyMessage(content: string) {
 // ============ Avatar helper ============
 
 function agentAvatar(agent: { avatar?: string | null; name: string }) {
-  return agent.avatar || null;
+  return agent.avatar ? toAvatarDisplayUrl(agent.avatar) : null;
 }
 
 function agentInitial(agent: { name: string }) {

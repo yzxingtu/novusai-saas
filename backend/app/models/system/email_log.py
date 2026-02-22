@@ -61,6 +61,16 @@ class EmailLog(BaseModel):
         default="manual",
         comment="触发来源（manual/task_failure/password_reset/test/welcome/ssl_expiry）",
     )
+    html_body: Mapped[str | None] = mapped_column(
+        Text,
+        default=None,
+        comment="HTML 正文内容",
+    )
+    text_body: Mapped[str | None] = mapped_column(
+        Text,
+        default=None,
+        comment="纯文本正文内容",
+    )
     error_message: Mapped[str | None] = mapped_column(
         Text,
         default=None,

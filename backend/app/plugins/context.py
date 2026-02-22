@@ -50,6 +50,7 @@ class PluginContext:
     plugin_version: str = ""
     plugin_scope: str = "all_tenants"
     skill_config: dict[str, Any] = field(default_factory=dict)
+    model_id: int | None = None
 
     def get_config(self, key: str, default: Any = None) -> Any:
         """

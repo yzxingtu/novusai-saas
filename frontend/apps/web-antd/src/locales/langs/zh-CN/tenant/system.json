@@ -363,6 +363,36 @@
       "failed": "失败",
       "retrying": "重试中"
     },
+    "taskNames": {
+      "cleanup_recycle_bin": "回收站清理",
+      "clean_expired_captchas": "清理过期验证码",
+      "system_health_check": "系统健康检查",
+      "reset_agent_daily_quotas": "重置智能体配额",
+      "reset_agent_daily_stats": "重置智能体统计",
+      "clean_expired_task_logs": "清理过期任务日志",
+      "ai_provider_health_check": "AI 供应商健康检查",
+      "run_agent_batch": "智能体批处理",
+      "issue_ssl_certificate": "SSL 证书签发",
+      "check_ssl_renewals": "SSL 证书续期检查",
+      "renew_ssl_certificate": "SSL 证书续期",
+      "cleanup_chunk_uploads": "清理分片上传",
+      "task_provision_ssl": "SSL 证书签发",
+      "task_check_ssl_renewals": "SSL 证书续期检查",
+      "task_renew_ssl": "SSL 证书续期",
+      "execute_batch_run": "智能体批处理",
+      "cleanup_expired_notifications": "清理过期通知",
+      "send_email_task": "发送邮件",
+      "send_notification_email": "通知邮件发送",
+      "log_ai_call": "AI 调用日志记录",
+      "process_document": "知识库文档处理"
+    },
+    "queueNames": {
+      "default": "默认队列",
+      "high_priority": "高优先级",
+      "ai_gateway": "AI 网关",
+      "scheduled": "定时任务",
+      "notification": "通知队列"
+    },
     "placeholder": {
       "searchTaskName": "搜索任务名称",
       "searchQueue": "搜索队列",

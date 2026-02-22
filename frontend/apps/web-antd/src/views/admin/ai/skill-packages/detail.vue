@@ -41,6 +41,7 @@ import {
   getSkillPackageValvesApi,
   updateSkillPackageValvesApi,
 } from '#/api/admin/skill-packages';
+import { requestClient } from '#/utils/request';
 import {
   deleteSkillApi,
   toggleSkillStatusApi,
@@ -66,6 +67,24 @@ const activeTab = ref('skills');
 const valvesSchema = ref<Record<string, unknown> | null>(null);
 const valvesConfig = ref<Record<string, unknown>>({});
 const valvesSaving = ref(false);
+
+// Resolved Tools
+interface ResolvedTool {
+  name: string;
+  description: string;
+  parameters: Array<{
+    name: string;
+    type: string;
+    description: string;
+    required: boolean;
+    default?: unknown;
+  }>;
+  timeout: number;
+  source_skill_id: number;
+  source_skill_name: string;
+}
+const resolvedTools = ref<ResolvedTool[]>([]);
+const toolsLoading = ref(false);
 
 // ==================== Load ====================
 async function loadPackage() {
@@ -106,9 +125,23 @@ async function loadValves() {
   }
 }
 
+async function loadResolvedTools() {
+  toolsLoading.value = true;
+  try {
+    const data = await requestClient.get<{ tools: ResolvedTool[]; tool_count: number }>(
+      `/admin/ai/skill-packages/${packageId.value}/resolved-tools`,
+    );
+    resolvedTools.value = data.tools || [];
+  } catch {
+    resolvedTools.value = [];
+  } finally {
+    toolsLoading.value = false;
+  }
+}
+
 onMounted(async () => {
   await loadPackage();
-  await Promise.all([loadSkills(), loadValves()]);
+  await Promise.all([loadSkills(), loadValves(), loadResolvedTools()]);
 });
 
 // ==================== Actions ====================
@@ -250,7 +283,7 @@ const valvesRequired = computed(() => {
           <div class="mb-3 flex justify-end">
             <Button
               type="primary"
-              @click="router.push({ name: 'AdminAISkillPackages' })"
+              @click="router.push('/admin/ai/skill-packages')"
             >
               <IconifyIcon icon="lucide:plus" class="mr-1" />
               {{ $t('admin.ai.skill.create') }}
@@ -323,6 +356,66 @@ const valvesRequired = computed(() => {
                       </Button>
                     </Popconfirm>
                   </Space>
+                </div>
+              </Card>
+            </div>
+          </Spin>
+        </TabPane>
+
+        <!-- Tools Tab -->
+        <TabPane
+          key="tools"
+          :tab="`${$t('admin.ai.skillPackage.detail.tools')} (${resolvedTools.length})`"
+        >
+          <Spin :spinning="toolsLoading">
+            <div v-if="resolvedTools.length === 0" class="py-8">
+              <Empty :description="$t('admin.ai.skillPackage.detail.noTools')" />
+            </div>
+            <div v-else class="flex flex-col gap-3">
+              <Card
+                v-for="tool in resolvedTools"
+                :key="tool.name"
+                size="small"
+                :body-style="{ padding: '12px 16px' }"
+                class="transition-shadow hover:shadow-sm"
+              >
+                <div class="flex items-start gap-3">
+                  <div class="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
+                    <IconifyIcon icon="lucide:wrench" class="size-4 text-primary" />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2">
+                      <span class="font-mono text-sm font-semibold text-foreground">{{ tool.name }}</span>
+                      <Tag v-if="tool.timeout" size="small" color="default">
+                        <IconifyIcon icon="lucide:clock" class="mr-0.5 inline size-3" />
+                        {{ tool.timeout }}s
+                      </Tag>
+                    </div>
+                    <p v-if="tool.description" class="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      {{ tool.description }}
+                    </p>
+                    <!-- 参数列表 -->
+                    <div v-if="tool.parameters?.length" class="mt-2">
+                      <div class="text-xs font-medium text-muted-foreground mb-1">
+                        {{ $t('admin.ai.skillPackage.detail.toolParams') }}
+                      </div>
+                      <div class="flex flex-col gap-1">
+                        <div
+                          v-for="param in tool.parameters"
+                          :key="param.name"
+                          class="flex items-center gap-2 rounded bg-muted/50 px-2 py-1 text-xs"
+                        >
+                          <span class="font-mono font-medium text-foreground">{{ param.name }}</span>
+                          <Tag size="small" :color="param.required ? 'red' : 'default'">
+                            {{ param.type }}{{ param.required ? ' *' : '' }}
+                          </Tag>
+                          <span v-if="param.description" class="truncate text-muted-foreground">
+                            {{ param.description }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </Card>
             </div>

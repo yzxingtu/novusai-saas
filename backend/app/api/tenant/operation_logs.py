@@ -14,6 +14,7 @@ from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import permission_resource, action_read, MenuConfig
 from app.schemas.system import OperationLogResponse, OperationLogListResponse
+from app.schemas.system.operation_log import OperatorSelectItem
 from app.services.system import OperationLogService
 
 
@@ -86,6 +87,25 @@ class TenantOperationLogController(TenantController):
                 message=_("common.success"),
             )
         
+        @router.get("/operators", summary="获取操作人下拉列表")
+        @action_read("action.operation_log.list")
+        async def list_operators(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+        ):
+            """
+            获取当前租户操作日志中的去重操作人列表（含头像）
+            
+            权限: operation_log:list
+            """
+            service = OperationLogService(db)
+            operators = await service.get_tenant_operators(current_admin.tenant_id)
+            return success(
+                data=[OperatorSelectItem(**op) for op in operators],
+                message=_("common.success"),
+            )
+
         @router.get("/{log_id}", summary="获取操作日志详情")
         @action_read("action.operation_log.detail")
         async def get_operation_log(

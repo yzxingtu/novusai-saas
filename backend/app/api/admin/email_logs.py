@@ -10,6 +10,7 @@ from app.core.base_controller import GlobalController
 from app.core.deps import DbSession, QueryParams, ActiveAdmin
 from app.core.i18n import _
 from app.core.response import success, paginated
+from app.exceptions import NotFoundException
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
     permission_resource,
@@ -68,6 +69,34 @@ class AdminEmailLogController(GlobalController):
                 page_size=query.size,
             )
 
+        @router.get("/{log_id}", summary="获取邮件日志详情")
+        @action_read("action.email_log.list")
+        async def get_email_log_detail(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            log_id: int,
+        ):
+            repo = EmailLogRepository(db)
+            log = await repo.get_by_id(log_id)
+            if not log:
+                raise NotFoundException(message=_("email_log.not_found"))
+            return success(data={
+                "id": log.id,
+                "to_address": log.to_address,
+                "cc": log.cc,
+                "bcc": log.bcc,
+                "subject": log.subject,
+                "status": log.status,
+                "triggered_by": log.triggered_by,
+                "html_body": log.html_body,
+                "text_body": log.text_body,
+                "error_message": log.error_message,
+                "sent_at": log.sent_at.isoformat() if log.sent_at else None,
+                "tenant_id": log.tenant_id,
+                "created_at": log.created_at.isoformat() if log.created_at else None,
+            })
+
         @router.post("/send", summary="手动发送邮件")
         @action_create("action.email_log.send")
         async def send_email(
@@ -97,6 +126,8 @@ class AdminEmailLogController(GlobalController):
                 subject=body.subject,
                 triggered_by="manual",
                 status="sent" if result.success else "failed",
+                html_body=body.html_body[:50000] if body.html_body else None,
+                text_body=body.text_body[:50000] if body.text_body else None,
                 error_message=result.error,
                 sent_at=utc_now() if result.success else None,
             )
@@ -141,6 +172,8 @@ class AdminEmailLogController(GlobalController):
                 subject=_("email.test.subject"),
                 triggered_by="test",
                 status="sent" if result.success else "failed",
+                html_body=message.html_body[:50000] if message.html_body else None,
+                text_body=message.text_body[:50000] if message.text_body else None,
                 error_message=result.error,
                 sent_at=utc_now() if result.success else None,
             )

@@ -3,7 +3,6 @@
  * 平台插件管理页面 — 卡片式布局
  */
 import type { PluginInfo } from '#/api/admin/plugins';
-import type { UploadRequestOption } from 'ant-design-vue/es/vc-upload/interface';
 
 defineOptions({ name: 'AdminPluginList' });
 
@@ -12,6 +11,8 @@ import { computed, onMounted, ref } from 'vue';
 import { Page } from '@vben/common-ui';
 import { useAccessStore } from '@vben/stores';
 import { IconifyIcon } from '@vben/icons';
+
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 import {
   Button,
@@ -24,7 +25,6 @@ import {
   Switch,
   Tag,
   Tooltip,
-  Upload,
 } from 'ant-design-vue';
 
 import {
@@ -34,8 +34,6 @@ import {
   installPluginApi,
   uninstallPluginApi,
   upgradePluginApi,
-  uploadPluginApi,
-  type UploadConflictResponse,
 } from '#/api/admin/plugins';
 import { $t } from '#/locales';
 
@@ -45,14 +43,14 @@ import {
   getStatusText,
 } from './data';
 import PluginConfigDrawer from './PluginConfigDrawer.vue';
+import PluginInstallWizard from './PluginInstallWizard.vue';
 
 const accessStore = useAccessStore();
 
 const configDrawerRef = ref<InstanceType<typeof PluginConfigDrawer>>();
+const installWizardRef = ref<InstanceType<typeof PluginInstallWizard>>();
 const plugins = ref<PluginInfo[]>([]);
 const loading = ref(false);
-const uploadModalVisible = ref(false);
-const uploading = ref(false);
 const searchKeyword = ref('');
 const filterType = ref('all');
 const filterStatus = ref('all');
@@ -251,49 +249,11 @@ async function onInstallByEntryConfirm() {
 }
 
 function onUploadClick() {
-  uploadModalVisible.value = true;
+  installWizardRef.value?.open();
 }
 
-async function handleCustomUpload(options: UploadRequestOption) {
-  const file = options.file as File;
-  uploading.value = true;
-  try {
-    const res = await uploadPluginApi(file);
-    if ('conflict' in res && (res as UploadConflictResponse).conflict) {
-      const conflictRes = res as UploadConflictResponse;
-      Modal.confirm({
-        title: $t('admin.plugin.messages.uploadConflict'),
-        content: $t('admin.plugin.messages.uploadConflictDesc', {
-          name: conflictRes.plugin_name,
-          oldVersion: conflictRes.existing_version ?? '-',
-          newVersion: conflictRes.new_version,
-        }),
-        okText: $t('admin.plugin.messages.overwrite'),
-        cancelText: $t('common.cancel'),
-        onOk: async () => {
-          uploading.value = true;
-          try {
-            await uploadPluginApi(file, true);
-            message.success($t('admin.plugin.messages.upgradeSuccess'));
-            uploadModalVisible.value = false;
-            await loadPlugins();
-          } finally {
-            uploading.value = false;
-          }
-        },
-      });
-      options.onSuccess?.({});
-      return;
-    }
-    message.success($t('admin.plugin.messages.installSuccess'));
-    uploadModalVisible.value = false;
-    await loadPlugins();
-    options.onSuccess?.({});
-  } catch {
-    options.onError?.(new Error('upload failed'));
-  } finally {
-    uploading.value = false;
-  }
+async function onWizardInstalled() {
+  await loadPlugins();
 }
 
 onMounted(loadPlugins);
@@ -439,16 +399,25 @@ onMounted(loadPlugins);
                 :class="
                   plugin.status === 'enabled' ? 'bg-gradient-to-br from-primary/15 to-primary/5'
                   : plugin.status === 'error' ? 'bg-gradient-to-br from-destructive/15 to-destructive/5'
-                  : 'bg-muted'
+                  : 'bg-gradient-to-br from-primary/10 to-primary/3'
                 "
               >
+                <!-- 图片图标（附件ID、URL、Base64） -->
+                <img
+                  v-if="plugin.icon && (/^\d+$/.test(plugin.icon) || plugin.icon.startsWith('http') || plugin.icon.startsWith('data:') || plugin.icon.startsWith('/'))"
+                  :src="/^\d+$/.test(plugin.icon) ? toAvatarDisplayUrl(plugin.icon) : plugin.icon"
+                  :alt="plugin.display_name"
+                  class="size-7 rounded object-contain"
+                />
+                <!-- Iconify 图标（默认） -->
                 <IconifyIcon
+                  v-else
                   :icon="plugin.icon || 'lucide:plug'"
                   class="size-5.5"
                   :class="
                     plugin.status === 'enabled' ? 'text-primary'
                     : plugin.status === 'error' ? 'text-destructive'
-                    : 'text-muted-foreground'
+                    : 'text-primary/60'
                   "
                 />
               </div>
@@ -530,7 +499,7 @@ onMounted(loadPlugins);
               <!-- 操作按钮组 -->
               <div class="flex items-center gap-0.5 opacity-0 transition-all duration-200 group-hover:opacity-100">
                 <template v-if="!plugin.is_system">
-                  <Tooltip :title="$t('admin.plugin.upgrade')">
+                  <Tooltip v-if="plugin.install_source === 'marketplace'" :title="$t('admin.plugin.upgrade')">
                     <button
                       v-access:code="['plugin:upgrade']"
                       class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
@@ -593,46 +562,7 @@ onMounted(loadPlugins);
       </div>
     </Modal>
 
-    <!-- ===== 上传插件弹窗 ===== -->
-    <Modal
-      v-model:open="uploadModalVisible"
-      :title="$t('admin.plugin.uploadZip')"
-      :footer="null"
-      :destroy-on-close="true"
-      width="520px"
-    >
-      <div class="py-2">
-        <Upload.Dragger
-          :custom-request="handleCustomUpload"
-          accept=".zip,.nap"
-          :multiple="false"
-          :show-upload-list="false"
-          :disabled="uploading"
-        >
-          <div class="flex flex-col items-center gap-4 py-10">
-            <div
-              class="flex size-16 items-center justify-center rounded-2xl shadow-lg"
-              :style="{ background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 75%) 100%)' }"
-            >
-              <IconifyIcon
-                :icon="uploading ? 'lucide:loader-2' : 'lucide:cloud-upload'"
-                class="size-8 text-white"
-                :class="{ 'animate-spin': uploading }"
-              />
-            </div>
-            <div class="flex flex-col items-center gap-1.5">
-              <span class="text-sm font-semibold text-foreground">
-                {{ uploading ? $t('admin.plugin.messages.uploading') : $t('admin.plugin.uploadDragText') }}
-              </span>
-              <span class="text-xs text-muted-foreground">
-                {{ $t('admin.plugin.uploadDesc') }}
-              </span>
-            </div>
-          </div>
-        </Upload.Dragger>
-      </div>
-    </Modal>
-
+    <PluginInstallWizard ref="installWizardRef" @installed="onWizardInstalled" />
     <PluginConfigDrawer ref="configDrawerRef" @saved="loadPlugins" />
   </Page>
 </template>

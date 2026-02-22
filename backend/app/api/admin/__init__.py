@@ -69,7 +69,7 @@ admin_router.include_router(ai_gateway_router)
 admin_router.include_router(ai_usage_router)
 admin_router.include_router(ai_health_router)
 admin_router.include_router(ai_quotas_router)
-# 对话监控
+# 对话管理
 admin_router.include_router(ai_conversations_router)
 # 智能体引擎
 admin_router.include_router(ai_agents_router)
@@ -134,7 +134,7 @@ __all__ = [
     "AdminAIUsageController",
     "AdminAIHealthController",
     "AdminAIQuotaController",
-    # 对话监控
+    # 对话管理
     "AdminAIConversationController",
     # 智能体引擎
     "AdminAgentController",

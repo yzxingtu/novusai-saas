@@ -22,14 +22,24 @@ import {
   useColumns,
   useGridFormSchema,
 } from './data';
+import EmailPreviewDrawer from './modules/EmailPreviewDrawer.vue';
 import SendEmailDrawer from './modules/SendEmailDrawer.vue';
 
 const [SendEmailDrawerComp, sendDrawerApi] = useVbenDrawer({
   connectedComponent: SendEmailDrawer,
 });
 
+const [PreviewDrawerComp, previewDrawerApi] = useVbenDrawer({
+  connectedComponent: EmailPreviewDrawer,
+});
+
 function onOpenSendDrawer() {
   sendDrawerApi.open();
+}
+
+function onPreview(row: EmailLogInfo) {
+  previewDrawerApi.setData({ id: row.id });
+  previewDrawerApi.open();
 }
 
 const { Grid, onRefresh } = useCrudPage<EmailLogInfo>({
@@ -42,12 +52,16 @@ const { Grid, onRefresh } = useCrudPage<EmailLogInfo>({
   i18nPrefix: 'admin.system.emailLog',
   nameField: 'subject',
   defaultSort: '-created_at',
+  customActions: {
+    detail: onPreview,
+  },
 });
 </script>
 
 <template>
   <Page auto-content-height content-class="flex flex-col gap-4">
     <SendEmailDrawerComp @success="onRefresh" />
+    <PreviewDrawerComp />
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>

@@ -31,7 +31,10 @@ from app.schemas.system.plugin import (
     PluginUpdateRequest,
     PluginToggleRequest,
 )
+from app.core.logging import LogManager
 from app.services.system.plugin_service import PluginService
+
+logger = LogManager.get_logger("app")
 
 
 def _mask_plugin_response(plugin) -> dict:
@@ -208,11 +211,15 @@ class AdminPluginController(GlobalController):
             db: DbSession,
             current_admin: ActiveAdmin,
             plugin_id: int = Path(..., description="插件 ID"),
+            body: dict | None = None,
         ):
             from app.plugins.manager import get_plugin_manager
 
+            model_id = (body or {}).get("model_id")
             manager = get_plugin_manager()
-            plugin = await manager.enable_platform(db, plugin_id, admin_id=current_admin.id)
+            plugin = await manager.enable_platform(
+                db, plugin_id, admin_id=current_admin.id, model_id=model_id,
+            )
             return success(data=_mask_plugin_response(plugin))
 
         @router.post("/{plugin_id}/disable", summary="禁用插件（平台级）")
@@ -290,6 +297,235 @@ class AdminPluginController(GlobalController):
                 **result,
             })
 
+        @router.post("/upload/preview", summary="预览插件包内容（不安装）")
+        @action_create("action.plugin.upload")
+        async def preview_plugin_package(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            file: UploadFile = File(..., description="Plugin package (.zip / .nap)"),
+            lang: str = Query("", description="Language code for README (e.g. zh-CN, en-US)"),
+        ):
+            """
+            解析 .nap/.zip 包的 manifest，返回插件结构预览：
+            - 基本信息（名称/版本/作者/描述/图标）
+            - 是否包含智能体（has_agent）
+            - 技能信息（skill_type）
+            - API 路由信息
+            - 是否已安装（is_installed）
+            """
+            from app.plugins.packaging import (
+                ALLOWED_PACKAGE_EXTENSIONS,
+                PackageError,
+                extract_package,
+            )
+            from app.exceptions import ValidationException
+            from app.repositories.system.plugin_repository import PluginRepository
+
+            if not file.filename:
+                raise ValidationException(message=_("plugin.file_required"))
+
+            ext = FilePath(file.filename).suffix.lower()
+            if ext not in ALLOWED_PACKAGE_EXTENSIONS:
+                raise ValidationException(message=_("plugin.file_must_be_zip_or_nap"))
+
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                nap_path = FilePath(tmp_dir) / file.filename
+                content = await file.read()
+                nap_path.write_bytes(content)
+
+                try:
+                    plugin_dir = FilePath(tmp_dir) / "extracted"
+                    manifest = extract_package(nap_path, plugin_dir)
+                except PackageError as e:
+                    raise ValidationException(message=str(e))
+
+                plugin_name = manifest.get("name", "")
+                plugin_type = manifest.get("plugin_type", "composite")
+
+                # 检查是否已安装
+                repo = PluginRepository(db)
+                existing = await repo.get_by_name(plugin_name)
+
+                # 检测插件结构
+                has_readme = any(
+                    f.name.lower().startswith("readme") and f.suffix.lower() == ".md"
+                    for f in plugin_dir.iterdir() if f.is_file()
+                )
+                import base64
+                has_icon = False
+                icon_data_url = ""
+                icon_mime_map = {
+                    "png": "image/png", "svg": "image/svg+xml",
+                    "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp",
+                }
+                for icon_ext, icon_mime in icon_mime_map.items():
+                    icon_path = plugin_dir / f"icon.{icon_ext}"
+                    if icon_path.exists() and icon_path.stat().st_size < 512 * 1024:
+                        icon_bytes = icon_path.read_bytes()
+                        icon_data_url = f"data:{icon_mime};base64,{base64.b64encode(icon_bytes).decode()}"
+                        has_icon = True
+                        break
+
+                # 检测迁移文件
+                migrations_dir = plugin_dir / "migrations"
+                migration_count = 0
+                migration_names: list[str] = []
+                if migrations_dir.is_dir():
+                    mig_files = sorted([
+                        f for f in migrations_dir.iterdir()
+                        if f.is_file() and f.suffix == ".sql" and not f.name.endswith(".down.sql")
+                    ], key=lambda f: f.name)
+                    migration_count = len(mig_files)
+                    migration_names = [f.stem for f in mig_files]
+
+                # 检测 locale 文件
+                locales_dir = plugin_dir / "locales"
+                locale_langs = []
+                if locales_dir.is_dir():
+                    locale_langs = [f.stem for f in locales_dir.glob("*.json")]
+
+                # 判断是否包含智能体/技能/API
+                provides = manifest.get("provides", [])
+                has_skill = plugin_type in ("skill", "composite") or "skill" in provides
+                has_api = plugin_type in ("api", "composite") or "api" in provides
+                has_hook = plugin_type in ("hook", "composite") or "hook" in provides
+                has_adapter = plugin_type in ("adapter", "composite") or "adapter" in provides
+
+                # 从 manifest 读取 agents 声明（插件可在 manifest 中声明其创建的 agents）
+                agents_decl = manifest.get("agents", [])
+                # 如果 manifest 没声明 agents 但是 skill/composite 类型，推断可能含 agent
+                has_agent = len(agents_decl) > 0 or plugin_type in ("skill", "composite")
+
+                # 从 manifest 读取 models 声明（数据库模型）
+                models_decl = manifest.get("models", [])
+
+                # 技能类型
+                skill_type = manifest.get("skill_type", "")
+
+                # 前端菜单/路由
+                frontend_config = manifest.get("frontend", {})
+                menus = frontend_config.get("menus", [])
+                routes = frontend_config.get("routes", [])
+
+                # 读取 README（多语言支持：README.zh-CN.md → README.md 回退）
+                readme_preview = ""
+                readme_candidates: list[str] = []
+                if lang:
+                    readme_candidates.append(f"README.{lang}.md")
+                    readme_candidates.append(f"readme.{lang}.md")
+                readme_candidates.extend(["README.md", "readme.md"])
+                for rname in readme_candidates:
+                    rpath = plugin_dir / rname
+                    if rpath.exists():
+                        readme_preview = rpath.read_text(encoding="utf-8")[:5000]
+                        break
+
+                # 构建结构摘要（含可展开的详情子项）
+                structure_summary: list[dict] = []
+                if has_agent:
+                    agent_count = max(len(agents_decl), 1)
+                    agent_details = [
+                        a.get("name", a.get("description", "Agent"))
+                        for a in agents_decl
+                    ] if agents_decl else []
+                    structure_summary.append({
+                        "type": "agent",
+                        "icon": "lucide:bot",
+                        "count": agent_count,
+                        "details": agent_details,
+                    })
+                if has_skill:
+                    structure_summary.append({
+                        "type": "skill_package",
+                        "icon": "lucide:sparkles",
+                        "count": 1,
+                        "details": [skill_type] if skill_type else [],
+                    })
+                if has_api:
+                    route_details = [
+                        r.get("path", "?") for r in routes
+                    ] if routes else []
+                    structure_summary.append({
+                        "type": "api_route",
+                        "icon": "lucide:route",
+                        "count": len(routes) or 1,
+                        "details": route_details,
+                    })
+                if has_adapter:
+                    structure_summary.append({
+                        "type": "adapter",
+                        "icon": "lucide:cpu",
+                        "count": 1,
+                        "details": [],
+                    })
+                if has_hook:
+                    structure_summary.append({
+                        "type": "hook",
+                        "icon": "lucide:webhook",
+                        "count": 1,
+                        "details": [],
+                    })
+                if migration_count > 0:
+                    structure_summary.append({
+                        "type": "migration",
+                        "icon": "lucide:database",
+                        "count": migration_count,
+                        "details": migration_names,
+                    })
+                if len(models_decl) > 0:
+                    structure_summary.append({
+                        "type": "model",
+                        "icon": "lucide:table",
+                        "count": len(models_decl),
+                        "details": models_decl,
+                    })
+                if len(menus) > 0:
+                    menu_detail = [
+                        m.get("name", m.get("code", "?")) for m in menus
+                    ]
+                    structure_summary.append({
+                        "type": "menu",
+                        "icon": "lucide:layout-grid",
+                        "count": len(menus),
+                        "details": menu_detail,
+                    })
+
+                return success(data={
+                    "name": plugin_name,
+                    "display_name": manifest.get("display_name", plugin_name),
+                    "version": manifest.get("version", "0.0.0"),
+                    "description": manifest.get("description", ""),
+                    "author": manifest.get("author", ""),
+                    "plugin_type": plugin_type,
+                    "icon": manifest.get("icon", ""),
+                    "scope": manifest.get("scope", "all_tenants"),
+                    # 结构信息
+                    "has_agent": has_agent,
+                    "has_skill": has_skill,
+                    "has_api": has_api,
+                    "has_readme": has_readme,
+                    "has_icon": has_icon,
+                    "icon_data_url": icon_data_url,
+                    "migration_count": migration_count,
+                    "locale_langs": locale_langs,
+                    "readme_preview": readme_preview,
+                    "skill_type": skill_type,
+                    "structure_summary": structure_summary,
+                    "agents": agents_decl,
+                    "models": models_decl,
+                    "frontend_menus": menus,
+                    "frontend_routes": routes,
+                    # 安装状态
+                    "is_installed": existing is not None,
+                    "existing_version": existing.version if existing else None,
+                    # 配置
+                    "config_schema": manifest.get("config_schema"),
+                    "default_config": manifest.get("default_config"),
+                    "required_permissions": manifest.get("required_permissions", []),
+                    "dependencies": manifest.get("dependencies", {}),
+                })
+
         @router.post("/upload", summary="上传插件包安装（.zip / .nap）")
         @action_create("action.plugin.upload")
         async def upload_plugin(
@@ -298,6 +534,7 @@ class AdminPluginController(GlobalController):
             current_admin: ActiveAdmin,
             file: UploadFile = File(..., description="Plugin package (.zip / .nap)"),
             overwrite: bool = Query(False, description="Overwrite existing plugin (upgrade)"),
+            model_id: int | None = Query(None, description="AI model ID for agent creation"),
         ):
             from app.plugins.packaging import (
                 ALLOWED_PACKAGE_EXTENSIONS,
@@ -339,11 +576,13 @@ class AdminPluginController(GlobalController):
                 plugins_base = FilePath(__file__).resolve().parent.parent.parent / "plugins"
                 permanent_dir = plugins_base / module_name
 
-                if permanent_dir.exists():
+                # 检查 DB 中是否已有安装记录
+                repo = PluginRepository(db)
+                existing = await repo.get_by_name(plugin_name)
+
+                if permanent_dir.exists() and existing:
+                    # 目录存在 + DB 有记录 → 真正的已安装插件，需要覆盖升级
                     if not overwrite:
-                        # 返回冲突信息 + 文件级 diff，前端可选择覆盖
-                        repo = PluginRepository(db)
-                        existing = await repo.get_by_name(plugin_name)
                         file_diff = _compute_file_diff(permanent_dir, plugin_dir)
                         return success(data={
                             "conflict": True,
@@ -362,11 +601,15 @@ class AdminPluginController(GlobalController):
                     try:
                         shutil.copytree(plugin_dir, permanent_dir)
                     except Exception:
-                        # 拷贝失败则回滚
                         shutil.rmtree(permanent_dir, ignore_errors=True)
                         shutil.move(str(backup_dir), str(permanent_dir))
                         raise
+                elif permanent_dir.exists() and not existing:
+                    # 目录存在但 DB 无记录 → 开发期间本地代码，视为首次安装
+                    # 跳过文件拷贝（使用已有目录中的代码）
+                    backup_dir = None
                 else:
+                    # 目录不存在 → 全新安装，拷贝文件
                     shutil.copytree(plugin_dir, permanent_dir)
                     backup_dir = None
 
@@ -407,12 +650,16 @@ class AdminPluginController(GlobalController):
                     raise
             else:
                 # 全新安装
+                # 标记是否为本地已有代码（目录已存在但 DB 无记录）
+                is_local_code = permanent_dir.exists()
                 try:
                     plugin = await manager.install(
                         db, entry_point=entry_point, is_system=False,
                     )
                 except Exception:
-                    shutil.rmtree(permanent_dir, ignore_errors=True)
+                    # 安装失败：仅清理上传拷贝的目录，不删除本地已有代码
+                    if not is_local_code:
+                        shutil.rmtree(permanent_dir, ignore_errors=True)
                     raise
 
             # 上传安装的插件标记来源为 local
@@ -423,7 +670,25 @@ class AdminPluginController(GlobalController):
             except Exception:
                 pass
 
-            return created(data=_mask_plugin_response(plugin))
+            # 自动启用插件（上传安装后自动启用，model_id 传递给 on_after_enable）
+            enable_error: str | None = None
+            try:
+                plugin = await manager.enable_platform(
+                    db, plugin.id,
+                    admin_id=current_admin.id,
+                    model_id=model_id,
+                )
+            except Exception as enable_exc:
+                enable_error = str(enable_exc)
+                logger.warning(
+                    "Auto-enable after upload failed (plugin installed but not enabled): %s — %s",
+                    plugin.name, enable_error,
+                )
+
+            resp = _mask_plugin_response(plugin)
+            if enable_error:
+                resp["enable_warning"] = enable_error
+            return created(data=resp)
 
         @router.get("/{plugin_id}/assigned-tenants", summary="查看已分配租户列表")
         @action_read("action.plugin.list")
@@ -600,6 +865,102 @@ class AdminPluginController(GlobalController):
                 "tenant_plugins_disabled": tp_disabled,
             })
 
+        @router.get("/{plugin_id}/icon", summary="获取插件图标")
+        async def get_plugin_icon(
+            request: Request,
+            db: DbSession,
+            plugin_id: int = Path(..., description="插件 ID"),
+        ):
+            """读取插件目录下的图标文件（icon.png/icon.svg/icon.jpg）"""
+            from app.exceptions import NotFoundException
+
+            service = self.get_service(db)
+            plugin = await service.get_by_id(plugin_id)
+            if not plugin:
+                raise NotFoundException(message=_("plugin.not_found"))
+
+            plugins_base = FilePath(__file__).resolve().parent.parent.parent / "plugins"
+            module_name = plugin.name.replace("-", "_")
+
+            icon_names = ["icon.png", "icon.svg", "icon.jpg", "icon.jpeg", "icon.webp"]
+            search_dirs = [
+                plugins_base / module_name,
+                plugins_base / plugin.name,
+            ]
+            media_types = {
+                ".png": "image/png",
+                ".svg": "image/svg+xml",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".webp": "image/webp",
+            }
+
+            for d in search_dirs:
+                if not d.is_dir():
+                    continue
+                for name in icon_names:
+                    icon_path = d / name
+                    if icon_path.exists():
+                        ext = icon_path.suffix.lower()
+                        return FileResponse(
+                            path=str(icon_path),
+                            media_type=media_types.get(ext, "image/png"),
+                            headers={"Cache-Control": "public, max-age=86400"},
+                        )
+
+            raise NotFoundException(message=_("plugin.not_found"))
+
+        @router.get("/{plugin_id}/readme", summary="获取插件文档")
+        @action_read("action.plugin.list")
+        async def get_plugin_readme(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            plugin_id: int = Path(..., description="插件 ID"),
+            lang: str = Query("", description="Language code (e.g. zh-CN, en-US)"),
+        ):
+            """读取插件目录下的 README 文件（支持多语言：README.zh-CN.md → README.md 回退）"""
+            from app.exceptions import NotFoundException
+
+            service = self.get_service(db)
+            plugin = await service.get_by_id(plugin_id)
+            if not plugin:
+                raise NotFoundException(message=_("plugin.not_found"))
+
+            plugins_base = FilePath(__file__).resolve().parent.parent.parent / "plugins"
+            module_name = plugin.name.replace("-", "_")
+
+            search_dirs = [
+                plugins_base / module_name,
+                plugins_base / plugin.name,
+                plugins_base / "builtin" / module_name,
+                plugins_base / "demoPlugins" / module_name,
+            ]
+
+            # 多语言 README 优先级：README.{lang}.md → README.md
+            readme_names: list[str] = []
+            if lang:
+                readme_names.extend([f"README.{lang}.md", f"readme.{lang}.md"])
+            readme_names.extend(["README.md", "readme.md"])
+
+            readme_content = None
+            for d in search_dirs:
+                if not d.is_dir():
+                    continue
+                for name in readme_names:
+                    readme_path = d / name
+                    if readme_path.exists():
+                        readme_content = readme_path.read_text(encoding="utf-8")
+                        break
+                if readme_content is not None:
+                    break
+
+            return success(data={
+                "plugin_name": plugin.name,
+                "has_readme": readme_content is not None,
+                "content": readme_content or "",
+            })
+
         @router.get("/{plugin_id}/export", summary="导出插件为 .nap")
         @action_read("action.plugin.export")
         async def export_plugin_package(
@@ -699,15 +1060,16 @@ def _load_plugin_locales(plugin_name: str) -> dict[str, dict]:
     import json
 
     plugins_base = FilePath(__file__).resolve().parent.parent.parent / "plugins"
+    module_name = plugin_name.replace("-", "_")
     locales_dir = plugins_base / plugin_name / "locales"
     if not locales_dir.is_dir():
-        # 尝试下划线目录名（Python 包命名）
-        locales_dir = plugins_base / plugin_name.replace("-", "_") / "locales"
+        locales_dir = plugins_base / module_name / "locales"
     if not locales_dir.is_dir():
-        # 尝试 builtin 目录
-        locales_dir = plugins_base / "builtin" / plugin_name / "locales"
-        if not locales_dir.is_dir():
-            return {}
+        locales_dir = plugins_base / "builtin" / module_name / "locales"
+    if not locales_dir.is_dir():
+        locales_dir = plugins_base / "demoPlugins" / module_name / "locales"
+    if not locales_dir.is_dir():
+        return {}
 
     result: dict[str, dict] = {}
     for locale_file in locales_dir.glob("*.json"):

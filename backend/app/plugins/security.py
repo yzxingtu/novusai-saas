@@ -312,7 +312,7 @@ def log_plugin_action(
         username=None,
         module="plugin",
         action=action,
-        resource=f"plugin:{action}",
+        resource=f"plugin:{plugin_name}",
         method="SYSTEM",
         path=f"/plugins/{plugin_name}",
         request_body=details,

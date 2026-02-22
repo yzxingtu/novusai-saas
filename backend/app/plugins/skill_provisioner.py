@@ -98,6 +98,8 @@ class SkillPluginProvisioner:
             pkg_scope = "admin"
         elif plugin_scope in (PluginScopeEnum.ALL_TENANTS.value, PluginScopeEnum.GLOBAL.value):
             pkg_scope = "global"
+        elif plugin_scope == PluginScopeEnum.TENANT_ONLY.value:
+            pkg_scope = "global"  # tenant_only 的技能包对租户可见
         else:
             pkg_scope = "admin"
 
@@ -113,14 +115,13 @@ class SkillPluginProvisioner:
         })
         await db.flush()
 
-        # 新建 Skill
+        # 新建 Skill（Skill 模型没有 scope 字段，作用域由所属 SkillPackage 决定）
         await skill_repo.create({
             "package_id": pkg.id,
             "name": display_name,
             "description": instance.description,
             "avatar": instance.get_skill_icon(),
             "type": skill_type,
-            "scope": pkg_scope,
             "is_system": True,
             "is_active": True,
             "config": default_config,

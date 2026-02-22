@@ -285,6 +285,14 @@ class PluginManager:
                 "Plugin migration failed during install: %s — %s",
                 instance.name, str(exc), exc_info=True,
             )
+            # 回滚 on_install 副作用（best-effort）
+            try:
+                await instance.on_uninstall(ctx)
+            except Exception as rollback_exc:
+                logger.warning(
+                    "on_uninstall rollback failed after migration error for %s: %s",
+                    instance.name, str(rollback_exc),
+                )
             await repo.permanent_delete(plugin.id)
             self.loader.pop_instance(instance.name)
             raise
@@ -296,6 +304,19 @@ class PluginManager:
             admin_id=admin_id,
             details={"version": instance.version, "entry_point": entry_point, "is_system": is_system},
         )
+
+        # 清除翻译缓存，加载插件的 locale 文件
+        from app.core.i18n import reload_translations
+        reload_translations()
+
+        # 自动上传插件图标到存储系统
+        try:
+            await self._upload_plugin_icon(db, plugin, instance)
+        except Exception as icon_exc:
+            logger.warning(
+                "Plugin icon upload failed (non-blocking): %s — %s",
+                instance.name, str(icon_exc),
+            )
 
         logger.info("Plugin installed: %s v%s", instance.name, instance.version)
         return plugin
@@ -421,6 +442,10 @@ class PluginManager:
             },
         )
 
+        # 清除翻译缓存（移除已卸载插件的翻译）
+        from app.core.i18n import reload_translations
+        reload_translations()
+
         logger.info("Plugin uninstalled: %s", plugin_name)
 
     # ========================================
@@ -428,13 +453,21 @@ class PluginManager:
     # ========================================
 
     @_write_locked
-    async def enable_platform(self, db: AsyncSession, plugin_id: int, admin_id: int | None = None) -> Plugin:
+    async def enable_platform(
+        self,
+        db: AsyncSession,
+        plugin_id: int,
+        admin_id: int | None = None,
+        model_id: int | None = None,
+    ) -> Plugin:
         """
         平台级启用插件
 
         Args:
             db: 数据库会话
             plugin_id: 插件 ID
+            admin_id: 操作管理员 ID
+            model_id: 用户选择的 AI 模型 ID（含智能体的插件需要）
 
         Returns:
             更新后的 Plugin 模型
@@ -446,8 +479,12 @@ class PluginManager:
         if not plugin:
             raise NotFoundException(_("plugin.not_found"))
 
+        # 状态保护：已启用的插件不能重复启用
+        if plugin.status == PluginStatusEnum.ENABLED.value:
+            raise BusinessException(_("plugin.already_enabled"))
+
         instance = self.get_or_load_instance(plugin.name, plugin.entry_point)
-        ctx = self.config_manager.build_context(instance, db=db)
+        ctx = self.config_manager.build_context(instance, db=db, model_id=model_id)
 
         # 创建 savepoint 以便在后续步骤失败时回滚 on_enable 的 DB 副作用
         savepoint = await db.begin_nested()
@@ -512,6 +549,16 @@ class PluginManager:
                     _("plugin.enable_hook_failed")
                 ) from exc
 
+        # 启用后回调（在 SkillPlugin provision 之后，此时 SkillPackage 已创建）
+        try:
+            if hasattr(instance, "on_after_enable"):
+                await instance.on_after_enable(ctx)
+        except Exception as exc:
+            logger.warning(
+                "Plugin on_after_enable failed (non-blocking): %s — %s",
+                plugin.name, str(exc), exc_info=True,
+            )
+
         # savepoint 成功，提交
         await savepoint.commit()
 
@@ -561,6 +608,10 @@ class PluginManager:
             raise NotFoundException(_("plugin.not_found"))
         if plugin.is_system:
             raise BusinessException(_("plugin.cannot_disable_system"))
+
+        # 状态保护：未启用的插件不需要禁用
+        if plugin.status != PluginStatusEnum.ENABLED.value:
+            raise BusinessException(_("plugin.not_enabled"))
 
         # 检查反向依赖：是否有其他已启用插件依赖当前插件
         from app.plugins.dependencies import check_reverse_dependencies_or_raise
@@ -767,29 +818,55 @@ class PluginManager:
         Returns:
             新创建的 tenant_plugins 记录数
         """
-        from sqlalchemy import select
+        from sqlalchemy import select, update as sa_update
         from app.models.tenant.tenant import Tenant
+        from app.models.system.tenant_plugin import TenantPlugin as TenantPluginModel
         from app.repositories.system.tenant_plugin_repository import TenantPluginRepository
 
         # 获取所有活跃租户 ID
         stmt = select(Tenant.id).where(Tenant.is_deleted.is_(False))
         result = await db.execute(stmt)
-        tenant_ids = [row[0] for row in result.all()]
+        tenant_ids = set(row[0] for row in result.all())
 
         if not tenant_ids:
             return 0
 
+        # 批量查询已有 tenant_plugins 记录（避免 N+1）
+        existing_stmt = select(
+            TenantPluginModel.id,
+            TenantPluginModel.tenant_id,
+            TenantPluginModel.is_active,
+        ).where(
+            TenantPluginModel.plugin_id == plugin.id,
+            TenantPluginModel.tenant_id.in_(tenant_ids),
+            TenantPluginModel.is_deleted.is_(False),
+        )
+        existing_result = await db.execute(existing_stmt)
+        existing_map: dict[int, tuple[int, bool]] = {
+            row.tenant_id: (row.id, row.is_active)
+            for row in existing_result.all()
+        }
+
         tp_repo = TenantPluginRepository(db)
         created_count = 0
 
-        for tid in tenant_ids:
-            existing = await tp_repo.get_by_tenant_and_plugin(tid, plugin.id)
-            if existing:
-                # 已有记录：如果是禁用状态则重新激活
-                if not existing.is_active:
-                    await tp_repo.update(existing.id, {"is_active": True})
-                    created_count += 1
-                continue
+        # 批量激活已有但未激活的记录
+        inactive_ids = [
+            rec_id for tid, (rec_id, is_active) in existing_map.items()
+            if not is_active
+        ]
+        if inactive_ids:
+            activate_stmt = (
+                sa_update(TenantPluginModel)
+                .where(TenantPluginModel.id.in_(inactive_ids))
+                .values(is_active=True)
+            )
+            await db.execute(activate_stmt)
+            created_count += len(inactive_ids)
+
+        # 批量创建新记录（不在 existing_map 中的租户）
+        new_tenant_ids = tenant_ids - set(existing_map.keys())
+        for tid in new_tenant_ids:
             await tp_repo.create({
                 "tenant_id": tid,
                 "plugin_id": plugin.id,
@@ -845,6 +922,23 @@ class PluginManager:
             raise NotFoundException(_("plugin.not_found"))
         if plugin.status != PluginStatusEnum.ENABLED.value:
             raise BusinessException(_("tenant_plugin.plugin_not_enabled"))
+
+        # 校验作用域：platform_only 插件不可被租户启用
+        from app.enums.plugin import PluginScopeEnum
+        if plugin.scope == PluginScopeEnum.PLATFORM_ONLY.value:
+            raise BusinessException(_("tenant_plugin.scope_not_allowed"))
+
+        # 校验作用域：assigned_tenants 需要租户已被分配
+        if plugin.scope == PluginScopeEnum.ASSIGNED_TENANTS.value:
+            from app.repositories.system.plugin_tenant_assignment_repository import (
+                PluginTenantAssignmentRepository,
+            )
+            assign_repo = PluginTenantAssignmentRepository(db)
+            assignment = await assign_repo.get_by_plugin_and_tenant(
+                plugin_id, tenant_id,
+            )
+            if not assignment:
+                raise BusinessException(_("tenant_plugin.not_assigned"))
 
         # 校验并合并配置
         merged_config = self.config_manager.merge_config(plugin.default_config, config)
@@ -1109,8 +1203,27 @@ class PluginManager:
         if plugin.status == PluginStatusEnum.ENABLED.value:
             try:
                 new_ctx = self.config_manager.build_context(instance, db=db)
-                self.extension_registry.unregister(old_instance or instance, new_ctx)
+                # 必须用 old_instance 来 unregister（它持有旧的路由/工具/技能注册信息）
+                # old_instance 在 L1036 pop 之前已保存，不会为 None（除非首次加载就 upgrade）
+                unregister_target = old_instance if old_instance is not None else instance
+                self.extension_registry.unregister(unregister_target, new_ctx)
                 self.extension_registry.register(instance, new_ctx)
+
+                # SkillPlugin：重新装配技能包以反映新版本的工具定义
+                if isinstance(instance, SkillPlugin):
+                    try:
+                        await SkillPluginProvisioner.deprovision(db, instance, permanent_delete=False)
+                        await SkillPluginProvisioner.provision(db, instance)
+                        logger.info(
+                            "Skill plugin re-provisioned after upgrade: %s",
+                            plugin.name,
+                        )
+                    except Exception as skill_exc:
+                        logger.error(
+                            "Skill plugin re-provision failed after upgrade: %s — %s",
+                            plugin.name, str(skill_exc), exc_info=True,
+                        )
+
                 logger.info(
                     "Plugin extensions re-registered after upgrade: %s",
                     plugin.name,
@@ -1293,6 +1406,76 @@ class PluginManager:
             ctx.skill_config = skill_config
         return ctx
 
+
+    @staticmethod
+    async def _upload_plugin_icon(
+        db: AsyncSession, plugin: "Plugin", instance: BasePlugin,
+    ) -> None:
+        """
+        检测插件目录下是否有图标文件，如果有则上传到平台存储系统，
+        并将附件 ID 存入 plugin.icon 字段。
+        """
+        from pathlib import Path as _Path
+        from app.repositories.system.plugin_repository import PluginRepository
+
+        plugins_base = _Path(__file__).resolve().parent
+        module_name = instance.name.replace("-", "_")
+        plugin_dir = plugins_base / module_name
+
+        if not plugin_dir.is_dir():
+            return
+
+        icon_names = ["icon.png", "icon.svg", "icon.jpg", "icon.jpeg", "icon.webp"]
+        icon_path = None
+        for name in icon_names:
+            candidate = plugin_dir / name
+            if candidate.exists():
+                icon_path = candidate
+                break
+
+        if not icon_path:
+            return
+
+        # 已有附件 ID 格式的图标（纯数字），跳过重复上传
+        current_icon = plugin.icon or ""
+        if current_icon.isdigit():
+            return
+
+        # 通过平台存储系统上传图标
+        from app.services.system.attachment_service import AdminAttachmentService
+        from app.enums.attachment import AttachmentSource, AttachmentVisibility
+
+        svc = AdminAttachmentService(db)
+        mime_map = {
+            ".png": "image/png",
+            ".svg": "image/svg+xml",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+        }
+        mime_type = mime_map.get(icon_path.suffix.lower(), "image/png")
+
+        with open(icon_path, "rb") as f:
+            result = await svc.upload_file(
+                tenant_id=0,
+                content=f,
+                filename=f"plugin-icon-{instance.name}{icon_path.suffix}",
+                file_size=icon_path.stat().st_size,
+                mime_type=mime_type,
+                visibility=AttachmentVisibility.PUBLIC,
+                source=AttachmentSource.PLATFORM_ADMIN,
+                business_type="plugin_icon",
+                business_id=plugin.id,
+            )
+
+        attachment = result.get("attachment")
+        if attachment:
+            repo = PluginRepository(db)
+            await repo.update(plugin.id, {"icon": str(attachment.id)})
+            logger.info(
+                "Plugin icon uploaded: %s → attachment_id=%d",
+                instance.name, attachment.id,
+            )
 
 
 # 全局便捷函数

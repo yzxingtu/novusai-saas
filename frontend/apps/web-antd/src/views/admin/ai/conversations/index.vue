@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 平台端 AI 对话监控列表页面
+ * 平台端 AI 对话管理列表页面
  */
 import type { AIConversationInfo } from '#/api/admin/ai';
 
@@ -17,6 +17,7 @@ import { getAIConversationDetailApi, getAIConversationListApi } from '#/api/admi
 import ConversationDetail from '#/components/business/conversation-detail/ConversationDetail.vue';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { formatCost, formatTokens, getStatusText, useColumns, useGridFormSchema } from './data';
 
@@ -62,7 +63,7 @@ const { Grid } = useCrudPage<AIConversationInfo>({
           <div v-if="detail.user_info" class="flex items-center gap-2">
             <Avatar
               v-if="detail.user_info.avatar"
-              :src="detail.user_info.avatar"
+              :src="toAvatarDisplayUrl(detail.user_info.avatar)"
               :size="24"
             />
             <Avatar v-else :size="24" class="bg-primary/10 text-primary text-xs">
@@ -88,7 +89,7 @@ const { Grid } = useCrudPage<AIConversationInfo>({
           <div v-if="row.user_info" class="flex items-center gap-2">
             <Avatar
               v-if="row.user_info.avatar"
-              :src="row.user_info.avatar"
+              :src="toAvatarDisplayUrl(row.user_info.avatar)"
               :size="28"
             />
             <Avatar v-else :size="28" class="bg-primary/10 text-primary flex-shrink-0 text-xs">

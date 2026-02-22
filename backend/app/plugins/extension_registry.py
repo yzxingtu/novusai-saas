@@ -171,8 +171,14 @@ class ExtensionRegistry:
                 driver_name, instance.name,
             )
 
-        if isinstance(instance, ApiPlugin) and self._route_manager.app is not None:
-            self._route_manager.unmount_plugin_routes(instance)
+        if isinstance(instance, ApiPlugin):
+            if self._route_manager.app is not None:
+                self._route_manager.unmount_plugin_routes(instance)
+            else:
+                logger.warning(
+                    "ApiPlugin route unmount skipped (app not set): %s",
+                    instance.name,
+                )
 
     # ========================================
     # 查询
@@ -214,6 +220,13 @@ class ExtensionRegistry:
     def is_plugin_skill_type(self, skill_type: str) -> bool:
         """判断给定的 Skill 类型是否由插件提供"""
         return skill_type in self._plugin_skills
+
+    def get_skill_instance_by_plugin(self, plugin_name: str) -> SkillPlugin | None:
+        """根据插件名获取对应的 SkillPlugin 实例"""
+        for skill_type, owner in self._plugin_skills.items():
+            if owner == plugin_name:
+                return self._skill_instances.get(skill_type)
+        return None
 
     # ========================================
     # 存储驱动配置动态注入

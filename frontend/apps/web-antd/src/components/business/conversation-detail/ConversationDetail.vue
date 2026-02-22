@@ -14,6 +14,7 @@ import { Avatar, Descriptions, Drawer, Empty, Spin, Tag, Timeline } from 'ant-de
 
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 export interface ConversationMessageItem {
   id: number;
@@ -183,7 +184,7 @@ defineExpose({ detail });
                 <template v-if="msg.role === 'user' && detail?.user_info">
                   <Avatar
                     v-if="detail.user_info.avatar"
-                    :src="detail.user_info.avatar"
+                    :src="toAvatarDisplayUrl(detail.user_info.avatar)"
                     :size="22"
                   />
                   <Avatar v-else :size="22" class="bg-primary/10 text-primary text-xs">
@@ -197,7 +198,7 @@ defineExpose({ detail });
                 <template v-else-if="msg.role === 'assistant' && detail?.agent_name">
                   <Avatar
                     v-if="detail.agent_avatar"
-                    :src="detail.agent_avatar"
+                    :src="toAvatarDisplayUrl(detail.agent_avatar)"
                     :size="22"
                   />
                   <Avatar v-else :size="22" class="bg-success/10 text-success text-xs">

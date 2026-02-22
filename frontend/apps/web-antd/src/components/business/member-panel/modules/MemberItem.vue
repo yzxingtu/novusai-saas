@@ -8,6 +8,7 @@ import { IconifyIcon } from '@vben/icons';
 import { Avatar, Button, Popconfirm, Tag, Tooltip } from 'ant-design-vue';
 
 import { formatDate } from '#/utils/common';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 const props = withDefaults(
   defineProps<{
@@ -85,7 +86,7 @@ function handleResetPassword() {
   >
     <!-- 头像 + 在线指示器 -->
     <div class="relative flex-shrink-0">
-      <Avatar v-if="member.avatar" :src="member.avatar" :size="40" />
+      <Avatar v-if="member.avatar" :src="toAvatarDisplayUrl(member.avatar)" :size="40" />
       <Avatar v-else :size="40" class="bg-primary text-white">
         {{ avatarText }}
       </Avatar>

@@ -152,7 +152,10 @@ class PluginSkillExecutor(BaseToolExecutor):
             if plugin.scope == PluginScopeEnum.PLATFORM_ONLY.value:
                 return f"Plugin '{plugin_name}' is platform-only and cannot be used by tenants"
 
-            if plugin.scope == PluginScopeEnum.ASSIGNED_TENANTS.value:
+            if plugin.scope in (
+                PluginScopeEnum.ASSIGNED_TENANTS.value,
+                PluginScopeEnum.TENANT_ONLY.value,
+            ):
                 from app.repositories.system.plugin_tenant_assignment_repository import (
                     PluginTenantAssignmentRepository,
                 )

@@ -24,13 +24,16 @@ export function getStatusColor(status: string | undefined): string {
  * 获取触发来源颜色
  */
 export function getTriggerColor(trigger: string | undefined): string {
-  switch (trigger) {
-    case 'manual': return 'blue';
-    case 'task_failure': return 'red';
-    case 'password_reset': return 'orange';
-    case 'test': return 'cyan';
-    case 'welcome': return 'green';
-    case 'ssl_expiry': return 'purple';
+  if (!trigger) return 'default';
+  if (trigger === 'manual') return 'blue';
+  if (trigger === 'test') return 'cyan';
+  const category = trigger.split('.')[0];
+  switch (category) {
+    case 'system': return 'orange';
+    case 'ai': return 'purple';
+    case 'task': return 'red';
+    case 'biz': return 'green';
+    case 'audit': return 'volcano';
     default: return 'default';
   }
 }
@@ -52,11 +55,16 @@ function getStatusOptions() {
 function getTriggerOptions() {
   return [
     { label: $t('admin.system.emailLog.trigger.manual'), value: 'manual' },
-    { label: $t('admin.system.emailLog.trigger.taskFailure'), value: 'task_failure' },
-    { label: $t('admin.system.emailLog.trigger.passwordReset'), value: 'password_reset' },
     { label: $t('admin.system.emailLog.trigger.test'), value: 'test' },
-    { label: $t('admin.system.emailLog.trigger.welcome'), value: 'welcome' },
-    { label: $t('admin.system.emailLog.trigger.sslExpiry'), value: 'ssl_expiry' },
+    { label: $t('admin.system.emailLog.trigger.system.security_alert'), value: 'system.security_alert' },
+    { label: $t('admin.system.emailLog.trigger.system.password_reset'), value: 'system.password_reset' },
+    { label: $t('admin.system.emailLog.trigger.system.tenant_welcome'), value: 'system.tenant_welcome' },
+    { label: $t('admin.system.emailLog.trigger.system.task_failure'), value: 'system.task_failure' },
+    { label: $t('admin.system.emailLog.trigger.system.ssl_expiry'), value: 'system.ssl_expiry' },
+    { label: $t('admin.system.emailLog.trigger.ai.quota_exhausted'), value: 'ai.quota_exhausted' },
+    { label: $t('admin.system.emailLog.trigger.ai.quota_warning'), value: 'ai.quota_warning' },
+    { label: $t('admin.system.emailLog.trigger.biz.tenant_expired'), value: 'biz.tenant_expired' },
+    { label: $t('admin.system.emailLog.trigger.audit.suspicious_login'), value: 'audit.suspicious_login' },
   ];
 }
 
@@ -115,12 +123,12 @@ export function useColumns<T = EmailLogInfo>(
           onClick: onActionClick,
         },
         name: 'CellOperation',
-        options: ['delete'],
+        options: ['detail', 'delete'],
       },
       field: 'operation',
       fixed: 'right',
       title: $t('admin.common.operation'),
-      width: 80,
+      width: 120,
     },
   ];
 }

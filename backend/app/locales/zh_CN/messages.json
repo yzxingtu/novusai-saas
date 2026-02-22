@@ -1206,8 +1206,9 @@
     },
     "plugin_scope": {
       "platform_only": "仅管理端",
-      "all_tenants": "所有租户",
-      "assigned_tenants": "指定租户",
+      "all_tenants": "管理端和所有租户",
+      "assigned_tenants": "管理端和部分租户",
+      "tenant_only": "仅部分租户",
       "global": "全局生效"
     },
     "plugin_category": {
@@ -2138,6 +2139,8 @@
     "migration_failed": "插件数据库迁移执行失败",
     "skill_type_conflict": "技能类型已被其他插件注册",
     "storage_driver_conflict": "存储驱动标识已被其他插件注册",
+    "already_enabled": "插件已处于启用状态",
+    "not_enabled": "插件未处于启用状态",
     "downgrade_not_allowed": "不允许降级插件版本",
     "tenant_ids_required": "请提供要分配的租户 ID 列表",
     "tool_name_conflict": "工具名称已被其他插件注册",
@@ -2164,6 +2167,8 @@
   "tenant_plugin": {
     "not_found": "租户插件记录不存在",
     "plugin_not_enabled": "该插件未在平台启用",
+    "scope_not_allowed": "该插件仅限平台管理端使用，租户无法启用",
+    "not_assigned": "该插件未分配给当前租户",
     "enable_success": "插件已为租户启用",
     "disable_success": "插件已为租户禁用",
     "field": {
@@ -2187,6 +2192,9 @@
       "feature_code_exists": "功能代码已存在",
       "override_not_found": "租户覆盖绑定不存在"
     }
+  },
+  "email_log": {
+    "not_found": "邮件记录不存在"
   },
   "email": {
     "test": {

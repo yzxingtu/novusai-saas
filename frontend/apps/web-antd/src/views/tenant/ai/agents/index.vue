@@ -47,6 +47,7 @@ import {
 } from '#/api/tenant/agents';
 import { $t } from '#/locales';
 import { formatRelativeTime } from '#/utils/common';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 import {
   getExecutionModeText,
@@ -412,7 +413,7 @@ onMounted(() => {
             >
               <img
                 v-if="agent.avatar"
-                :src="agent.avatar"
+                :src="toAvatarDisplayUrl(agent.avatar)"
                 :alt="agent.name"
                 class="size-full rounded-xl object-cover"
               />

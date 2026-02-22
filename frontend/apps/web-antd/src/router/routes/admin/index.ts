@@ -41,6 +41,7 @@ const mainRoutes: RouteRecordRaw = {
   path: '/admin',
   redirect: '/admin/dashboard',
   children: [
+    // Dashboard：固定标签页，必须静态注册
     {
       name: 'AdminDashboard',
       path: 'dashboard',
@@ -51,263 +52,19 @@ const mainRoutes: RouteRecordRaw = {
         title: $t('page.dashboard.title'),
       },
     },
-    // Fallback 静态注册：系统配置（后端菜单动态路由优先生效）
+    // 技能包详情页：带 :id 动态参数 + activePath，后端不注册此路由
     {
-      name: 'AdminSystemConfigs',
-      path: 'system/configs',
-      component: () => import('#/views/admin/system/configs/list.vue'),
-      meta: {
-        hideInMenu: true,
-        icon: 'lucide:settings',
-        title: $t('admin.system.configs.title'),
-      },
-    },
-    // Fallback 静态注册：附件管理（后端菜单动态路由优先生效）
-    {
-      name: 'AdminSystemAttachments',
-      path: 'system/attachments',
-      component: () => import('#/views/admin/system/attachments/index.vue'),
-      meta: {
-        hideInMenu: true,
-        icon: 'lucide:paperclip',
-        title: $t('admin.system.attachment.title'),
-      },
-    },
-    // Fallback 静态注册：任务日志（后端菜单动态路由优先生效）
-    {
-      name: 'AdminSystemTaskLogs',
-      path: 'system/task-logs',
-      component: () => import('#/views/admin/system/task-logs/index.vue'),
-      meta: {
-        hideInMenu: true,
-        icon: 'lucide:list-checks',
-        title: $t('admin.system.taskLog.title'),
-      },
-    },
-    // Fallback 静态注册：定时任务（后端菜单动态路由优先生效）
-    {
-      name: 'AdminSystemPeriodicTasks',
-      path: 'system/periodic-tasks',
+      name: 'AdminAISkillPackageDetail',
+      path: 'ai/skill-packages/:id',
       component: () =>
-        import('#/views/admin/system/periodic-tasks/index.vue'),
+        import('#/views/admin/ai/skill-packages/detail.vue'),
       meta: {
         hideInMenu: true,
-        icon: 'lucide:timer',
-        title: $t('admin.system.periodicTask.title'),
+        title: $t('admin.ai.skillPackage.detail.title'),
+        activePath: '/admin/ai/skill-packages',
       },
     },
-    // Fallback 静态注册：邮件日志（后端菜单动态路由优先生效）
-    {
-      name: 'AdminSystemEmailLogs',
-      path: 'system/email-logs',
-      component: () => import('#/views/admin/system/email-logs/index.vue'),
-      meta: {
-        hideInMenu: true,
-        icon: 'lucide:mail',
-        title: $t('admin.system.emailLog.title'),
-      },
-    },
-    // Fallback 静态注册：通知模板管理
-    {
-      name: 'AdminSystemNotificationTemplates',
-      path: 'system/notification-templates',
-      component: () => import('#/views/admin/system/notification-templates/index.vue'),
-      meta: {
-        hideInMenu: true,
-        icon: 'lucide:bell-ring',
-        title: $t('admin.system.notificationTemplate.title'),
-      },
-    },
-    // Fallback 静态注册：总回收站（后端菜单动态路由优先生效）
-    {
-      name: 'AdminSystemRecycleBin',
-      path: 'system/recycle-bin',
-      component: () =>
-        import('#/views/admin/system/recycle-bin/index.vue'),
-      meta: {
-        hideInMenu: true,
-        icon: 'lucide:trash-2',
-        title: $t('admin.system.recycleBin.title'),
-      },
-    },
-    // Fallback 静态注册：AI 网关管理（后端菜单动态路由优先生效）
-    {
-      name: 'AdminAIGateway',
-      path: 'ai',
-      meta: {
-        icon: 'lucide:bot',
-        title: $t('admin.ai.title'),
-      },
-      children: [
-        {
-          name: 'AdminAIProviders',
-          path: 'providers',
-          component: () => import('#/views/admin/ai/providers/index.vue'),
-          meta: {
-            icon: 'lucide:cpu',
-            title: $t('admin.ai.provider.title'),
-          },
-        },
-        {
-          name: 'AdminAIApiKeys',
-          path: 'api-keys',
-          component: () => import('#/views/admin/ai/api-keys/index.vue'),
-          meta: {
-            icon: 'lucide:key',
-            title: $t('admin.ai.apiKey.title'),
-          },
-        },
-        {
-          name: 'AdminAIModels',
-          path: 'models',
-          component: () => import('#/views/admin/ai/models/index.vue'),
-          meta: {
-            icon: 'lucide:brain',
-            title: $t('admin.ai.model.title'),
-          },
-        },
-        {
-          name: 'AdminAIQuotas',
-          path: 'quotas',
-          component: () => import('#/views/admin/ai/quotas/index.vue'),
-          meta: {
-            icon: 'lucide:gauge',
-            title: $t('admin.ai.quota.title'),
-          },
-        },
-        // 监控与分析（子目录）
-        {
-          name: 'AdminAIMonitor',
-          path: 'monitor',
-          meta: {
-            icon: 'lucide:activity',
-            title: $t('admin.ai.monitor.title'),
-          },
-          children: [
-            {
-              name: 'AdminAICallLogs',
-              path: 'call-logs',
-              component: () => import('#/views/admin/ai/call-logs/index.vue'),
-              meta: {
-                icon: 'lucide:scroll-text',
-                title: $t('admin.ai.callLog.title'),
-              },
-            },
-            {
-              name: 'AdminAIUsage',
-              path: 'usage',
-              component: () => import('#/views/admin/ai/usage/index.vue'),
-              meta: {
-                icon: 'lucide:bar-chart-3',
-                title: $t('admin.ai.usage.title'),
-              },
-            },
-            {
-              name: 'AdminAIHealth',
-              path: 'health',
-              component: () => import('#/views/admin/ai/health/index.vue'),
-              meta: {
-                icon: 'lucide:heart-pulse',
-                title: $t('admin.ai.health.title'),
-              },
-            },
-          ],
-        },
-        {
-          name: 'AdminAIKnowledgeBases',
-          path: 'knowledge-bases',
-          component: () =>
-            import('#/views/admin/ai/knowledge-bases/index.vue'),
-          meta: {
-            icon: 'lucide:book-open',
-            title: $t('admin.knowledgeBase.title'),
-          },
-        },
-        {
-          name: 'AdminAISkillPackages',
-          path: 'skill-packages',
-          component: () =>
-            import('#/views/admin/ai/skill-packages/index.vue'),
-          meta: {
-            icon: 'lucide:package',
-            title: $t('admin.ai.skillPackage.title'),
-          },
-        },
-        {
-          name: 'AdminAISkillPackageDetail',
-          path: 'skill-packages/:id',
-          component: () =>
-            import('#/views/admin/ai/skill-packages/detail.vue'),
-          meta: {
-            hideInMenu: true,
-            title: $t('admin.ai.skillPackage.detail.title'),
-            activePath: '/admin/ai/skill-packages',
-          },
-        },
-        {
-          name: 'AdminAIAgents',
-          path: 'agents',
-          component: () => import('#/views/admin/ai/agents/index.vue'),
-          meta: {
-            icon: 'lucide:bot',
-            title: $t('admin.ai.agent.title'),
-          },
-        },
-        {
-          name: 'AdminAIChat',
-          path: 'chat',
-          component: () => import('#/views/admin/ai/chat/index.vue'),
-          meta: {
-            icon: 'lucide:message-square',
-            title: $t('admin.ai.chat.title'),
-          },
-        },
-        {
-          name: 'AdminAIConversations',
-          path: 'conversations',
-          component: () =>
-            import('#/views/admin/ai/conversations/index.vue'),
-          meta: {
-            icon: 'lucide:messages-square',
-            title: $t('admin.ai.conversation.title'),
-          },
-        },
-        {
-          name: 'AdminAIActionLogs',
-          path: 'action-logs',
-          component: () =>
-            import('#/views/admin/ai/action-logs/index.vue'),
-          meta: {
-            icon: 'lucide:file-text',
-            title: $t('admin.ai.actionLog.title'),
-          },
-        },
-        {
-          name: 'AdminAITablePolicies',
-          path: 'table-policies',
-          component: () =>
-            import('#/views/admin/ai/table-policies/index.vue'),
-          meta: {
-            icon: 'lucide:shield',
-            title: $t('admin.ai.tablePolicy.title'),
-          },
-        },
-      ],
-    },
-    // Fallback 静态注册：插件市场（后端菜单动态路由优先生效）
-    {
-      name: 'AdminSystemMarketplace',
-      path: 'system/marketplace',
-      component: () =>
-        import('#/views/admin/system/marketplace/index.vue'),
-      meta: {
-        hideInMenu: true,
-        icon: 'lucide:store',
-        title: $t('admin.system.marketplace.title'),
-      },
-    },
-    // CRUD Generator routes removed — now provided by plugin
-    // 个人中心
+    // 个人中心：不在后端菜单中，必须静态注册
     {
       name: 'Profile',
       path: '/admin/profile',

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 租户端智能体对话页面
+ * 租户端 AI 对话页面
  *
  * Uses the shared AIChatPanel component in 'page' mode.
  * Welcome message and suggested questions are now handled internally

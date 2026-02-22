@@ -21,6 +21,7 @@ import {
 import ConversationDetail from '#/components/business/conversation-detail/ConversationDetail.vue';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { formatCost, formatTokenCount, getStatusText, useColumns, useGridFormSchema } from './data';
 
@@ -90,7 +91,7 @@ const { Grid } = useCrudPage<ConversationInfo>({
           <div v-if="row.user_info" class="flex items-center gap-2">
             <Avatar
               v-if="row.user_info.avatar"
-              :src="row.user_info.avatar"
+              :src="toAvatarDisplayUrl(row.user_info.avatar)"
               :size="28"
             />
             <Avatar v-else :size="28" class="bg-primary/10 text-primary flex-shrink-0 text-xs">

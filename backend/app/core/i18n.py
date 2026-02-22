@@ -27,16 +27,41 @@ DEFAULT_LOCALE = "zh_CN"
 LOCALES_DIR = Path(__file__).parent.parent / "locales"
 
 
+def _deep_merge(base: dict, override: dict) -> dict:
+    """深度合并字典"""
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+# locale 名称映射：插件可能使用 zh-CN / en-US，需映射到后端的 zh_CN / en
+_LOCALE_ALIASES: dict[str, list[str]] = {
+    "zh_CN": ["zh-CN", "zh_CN", "zh"],
+    "en": ["en-US", "en_US", "en"],
+}
+
+
+def _find_plugin_locale_file(plugin_locale_dir: Path, locale: str) -> Path | None:
+    """在插件 locales 目录中查找匹配当前 locale 的翻译文件"""
+    aliases = _LOCALE_ALIASES.get(locale, [locale])
+    for alias in aliases:
+        candidate = plugin_locale_dir / f"{alias}.json"
+        if candidate.exists():
+            return candidate
+    return None
+
+
 @lru_cache(maxsize=10)
 def _load_translations(locale: str) -> dict[str, Any]:
     """
     加载指定语言的翻译文件
     
     加载目录下所有 *.json 文件，深度合并到统一的翻译字典。
-    支持按模块拆分翻译文件，如：
-    - messages.json: 通用消息
-    - menu.json: 菜单翻译
-    - role.json: 角色模块翻译
+    同时扫描 app/plugins/*/locales/ 目录，自动合并插件的翻译文件。
     
     Args:
         locale: 语言代码，如 'zh_CN', 'en'
@@ -44,33 +69,50 @@ def _load_translations(locale: str) -> dict[str, Any]:
     Returns:
         翻译字典
     """
-    locale_dir = LOCALES_DIR / locale
     translations: dict[str, Any] = {}
-    
-    if not locale_dir.exists():
-        return translations
-    
-    def deep_merge(base: dict, override: dict) -> dict:
-        """深度合并字典"""
-        result = base.copy()
-        for key, value in override.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                result[key] = deep_merge(result[key], value)
-            else:
-                result[key] = value
-        return result
-    
-    # 加载所有 JSON 翻译文件，深度合并到根级别
-    for json_file in sorted(locale_dir.glob("*.json")):
-        try:
-            with open(json_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                # 所有文件都深度合并到根级别
-                translations = deep_merge(translations, data)
-        except (json.JSONDecodeError, IOError) as e:
-            logger.warning("Failed to load translation file %s: %s", json_file, e)
-    
+
+    # 1. 加载核心翻译文件（app/locales/{locale}/*.json）
+    locale_dir = LOCALES_DIR / locale
+    if locale_dir.exists():
+        for json_file in sorted(locale_dir.glob("*.json")):
+            try:
+                with open(json_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    translations = _deep_merge(translations, data)
+            except (json.JSONDecodeError, IOError) as e:
+                logger.warning("Failed to load translation file %s: %s", json_file, e)
+
+    # 2. 扫描插件翻译文件（app/plugins/*/locales/{locale_alias}.json）
+    plugins_dir = LOCALES_DIR.parent / "plugins"
+    if plugins_dir.is_dir():
+        for plugin_dir in sorted(plugins_dir.iterdir()):
+            if not plugin_dir.is_dir():
+                continue
+            plugin_locale_dir = plugin_dir / "locales"
+            if not plugin_locale_dir.is_dir():
+                continue
+            locale_file = _find_plugin_locale_file(plugin_locale_dir, locale)
+            if locale_file:
+                try:
+                    with open(locale_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        translations = _deep_merge(translations, data)
+                except (json.JSONDecodeError, IOError) as e:
+                    logger.warning(
+                        "Failed to load plugin translation %s: %s",
+                        locale_file, e,
+                    )
+
     return translations
+
+
+def reload_translations() -> None:
+    """
+    清除翻译缓存，强制重新加载所有翻译文件。
+    
+    在插件安装/卸载后调用，确保插件的翻译文件被加载。
+    """
+    _load_translations.cache_clear()
 
 
 def get_locale() -> str:

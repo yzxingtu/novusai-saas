@@ -93,6 +93,7 @@ class OperationLogListResponse(BaseSchema):
     id: int = Field(..., description="日志 ID")
     tenant_id: int | None = Field(None, description="租户 ID")
     user_type: str = Field(..., description="用户类型")
+    user_id: int | None = Field(None, description="用户 ID")
     username: str | None = Field(None, description="用户名")
     nickname: str | None = Field(None, description="用户昵称")
     module: str | None = Field(None, description="业务模块")
@@ -115,6 +116,7 @@ class OperationLogListResponse(BaseSchema):
             id=log.id,
             tenant_id=log.tenant_id,
             user_type=log.user_type,
+            user_id=log.user_id,
             username=log.username,
             nickname=getattr(log, "nickname", None),
             module=log.module,
@@ -130,6 +132,16 @@ class OperationLogListResponse(BaseSchema):
             duration_ms=log.duration_ms,
             created_at=log.created_at,
         )
+
+
+class OperatorSelectItem(BaseSchema):
+    """操作人下拉选项"""
+    
+    user_id: int = Field(..., description="用户 ID")
+    user_type: str = Field(..., description="用户类型")
+    username: str = Field(..., description="用户名")
+    nickname: str | None = Field(None, description="昵称")
+    avatar: str | None = Field(None, description="头像")
 
 
 class OperationLogDeleteRequest(BaseSchema):
@@ -156,6 +168,7 @@ class LogStatsResponse(BaseSchema):
 __all__ = [
     "OperationLogResponse",
     "OperationLogListResponse",
+    "OperatorSelectItem",
     "OperationLogDeleteRequest",
     "LogStatsItem",
     "LogStatsResponse",

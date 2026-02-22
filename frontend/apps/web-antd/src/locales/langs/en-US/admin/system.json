@@ -358,6 +358,13 @@
       "log_ai_call": "AI Call Logging",
       "process_document": "Knowledge Base Document Processing"
     },
+    "queueNames": {
+      "default": "Default",
+      "high_priority": "High Priority",
+      "ai_gateway": "AI Gateway",
+      "scheduled": "Scheduled",
+      "notification": "Notification"
+    },
     "resultKeys": {
       "cleaned": "Cleaned",
       "reset": "Reset"
@@ -475,14 +482,52 @@
     },
     "trigger": {
       "manual": "Manual",
-      "taskFailure": "Task Failure",
-      "task_failure": "Task Failure",
-      "passwordReset": "Password Reset",
-      "password_reset": "Password Reset",
-      "test": "Test",
-      "welcome": "Welcome",
-      "sslExpiry": "SSL Expiry",
-      "ssl_expiry": "SSL Expiry"
+      "test": "Test Email",
+      "notification": "Notification",
+      "system": {
+        "announcement": "Announcement",
+        "maintenance": "Maintenance",
+        "version_update": "Version Update",
+        "security_alert": "Security Alert",
+        "welcome": "Welcome",
+        "password_reset": "Password Reset",
+        "tenant_welcome": "Tenant Welcome",
+        "task_failure": "Task Failure",
+        "ssl_expiry": "SSL Expiry"
+      },
+      "ai": {
+        "chat_complete": "Chat Complete",
+        "image_ready": "Image Ready",
+        "batch_complete": "Batch Complete",
+        "batch_failed": "Batch Failed",
+        "kb_index_complete": "KB Index Complete",
+        "kb_index_failed": "KB Index Failed",
+        "quota_warning": "Quota Warning",
+        "quota_exhausted": "Quota Exhausted"
+      },
+      "task": {
+        "completed": "Task Complete",
+        "failed": "Task Failed",
+        "export_ready": "Export Ready",
+        "import_complete": "Import Complete",
+        "import_failed": "Import Failed"
+      },
+      "biz": {
+        "tenant_created": "Tenant Created",
+        "tenant_expired": "Plan Expiring",
+        "plan_changed": "Plan Changed",
+        "plugin_installed": "Plugin Installed",
+        "plugin_update_available": "Plugin Update",
+        "domain_ssl_expiring": "Domain SSL Expiring",
+        "storage_warning": "Storage Warning",
+        "sub_admin_created": "Admin Created"
+      },
+      "audit": {
+        "suspicious_login": "Suspicious Login",
+        "permission_changed": "Permission Changed",
+        "role_changed": "Role Changed",
+        "account_locked": "Account Locked"
+      }
     },
     "placeholder": {
       "searchTo": "Search recipient",
@@ -502,6 +547,11 @@
       "htmlPlaceholder": "Enter HTML email content",
       "textBody": "Plain Text Body",
       "textPlaceholder": "Enter plain text content (optional)"
+    },
+    "preview": {
+      "title": "Email Preview",
+      "content": "Email Content",
+      "noContent": "No email content available (body not saved for older records)"
     },
     "messages": {
       "deleteSuccess": "Deleted successfully",

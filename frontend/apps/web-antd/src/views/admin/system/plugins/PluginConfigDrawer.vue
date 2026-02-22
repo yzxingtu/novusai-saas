@@ -24,6 +24,7 @@ import {
 } from 'ant-design-vue';
 
 import { requestClient } from '#/utils/request';
+import { toAvatarDisplayUrl } from '#/utils/image';
 import { updatePluginApi } from '#/api/admin/plugins';
 import { SchemaForm } from '#/components';
 import { $t } from '#/locales';
@@ -39,10 +40,67 @@ const plugin = ref<PluginInfo | null>(null);
 const configValues = ref<Record<string, unknown>>({});
 const schemaFormRef = ref<InstanceType<typeof SchemaForm>>();
 
+// README 文档
+const readmeContent = ref('');
+const readmeLoading = ref(false);
+const readmeVisible = ref(false);
+
+/** HTML 实体转义（防 XSS） */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** 简易 Markdown → HTML 渲染（无外部依赖，XSS 安全） */
+function renderMarkdown(md: string): string {
+  // 先提取代码块/行内代码（防止内部内容被二次解析）
+  const codeBlocks: string[] = [];
+  let safe = md.replace(/```[\s\S]*?```/g, (m) => {
+    const content = m.replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
+    codeBlocks.push(`<pre class="bg-muted rounded p-2 text-xs mb-3 overflow-x-auto"><code>${escapeHtml(content)}</code></pre>`);
+    return `\x00CB${codeBlocks.length - 1}\x00`;
+  });
+  const inlineCodes: string[] = [];
+  safe = safe.replace(/`([^`]+)`/g, (_, code) => {
+    inlineCodes.push(`<code>${escapeHtml(code as string)}</code>`);
+    return `\x00IC${inlineCodes.length - 1}\x00`;
+  });
+
+  // 转义剩余 HTML
+  safe = escapeHtml(safe);
+
+  // Markdown → HTML
+  safe = safe
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^\- (.+)$/gm, '<li>$1</li>')
+    .replace(/^\| (.+) \|$/gm, (_, row: string) => {
+      const cells = row.split(' | ').map((c: string) => `<td class="px-2 py-1 border border-border">${c.trim()}</td>`).join('');
+      return `<tr>${cells}</tr>`;
+    })
+    .replace(/(<tr>.*<\/tr>\n?)+/g, (match) => `<table class="w-full border-collapse text-xs mb-3">${match}</table>`)
+    .replace(/(<li>.*<\/li>\n?)+/g, (match) => `<ul class="list-disc pl-5 mb-3">${match}</ul>`)
+    .replace(/\n\n/g, '</p><p class="mb-2">')
+    .replace(/^(?!<)/, '<p class="mb-2">')
+    .replace(/$/, '</p>');
+
+  // 还原代码块和行内代码
+  safe = safe.replace(/\x00CB(\d+)\x00/g, (_, i) => codeBlocks[Number(i)] ?? '');
+  safe = safe.replace(/\x00IC(\d+)\x00/g, (_, i) => inlineCodes[Number(i)] ?? '');
+
+  return safe;
+}
+
 const scopeOptions = computed(() => [
   { value: 'platform_only', label: $t('admin.plugin.scope_options.platform_only') },
   { value: 'all_tenants', label: $t('admin.plugin.scope_options.all_tenants') },
   { value: 'assigned_tenants', label: $t('admin.plugin.scope_options.assigned_tenants') },
+  { value: 'tenant_only', label: $t('admin.plugin.scope_options.tenant_only') },
   { value: 'global', label: $t('admin.plugin.scope_options.global') },
 ]);
 
@@ -55,6 +113,7 @@ function getScopeColor(scope: string | undefined): string {
     case 'platform_only': return 'orange';
     case 'all_tenants': return 'blue';
     case 'assigned_tenants': return 'purple';
+    case 'tenant_only': return 'cyan';
     case 'global': return 'green';
     default: return 'default';
   }
@@ -70,10 +129,29 @@ function open(row: PluginInfo) {
   plugin.value = row;
   configValues.value = { ...(row.default_config ?? {}) };
   editing.value = false;
+  readmeVisible.value = false;
+  readmeContent.value = '';
   assignedTenants.value = [];
   visible.value = true;
   if (row.scope === 'assigned_tenants') {
     loadAssignedTenants();
+  }
+}
+
+async function loadReadme() {
+  if (!plugin.value) return;
+  readmeLoading.value = true;
+  try {
+    const data = await requestClient.get<{ has_readme: boolean; content: string }>(
+      `/admin/plugins/${plugin.value.id}/readme`,
+    );
+    readmeContent.value = data.content || '';
+    readmeVisible.value = true;
+  } catch {
+    readmeContent.value = '';
+    readmeVisible.value = true;
+  } finally {
+    readmeLoading.value = false;
   }
 }
 
@@ -109,7 +187,10 @@ async function onScopeChange(newScope: string) {
       scopeSaving.value = true;
       try {
         const updated = await updatePluginApi(plugin.value!.id, { scope: newScope } as Record<string, unknown>);
-        plugin.value = updated;
+        // 只更新变化的字段，避免替换整个对象引发递归渲染
+        if (plugin.value) {
+          plugin.value.scope = updated.scope;
+        }
         message.success($t('common.saveSuccess'));
         emit('saved');
         if (newScope === 'assigned_tenants') {
@@ -164,7 +245,14 @@ defineExpose({ open, close });
       <!-- 头部信息 -->
       <div class="mb-6 flex items-center gap-3">
         <div class="flex size-12 items-center justify-center rounded-lg bg-primary/10">
+          <img
+            v-if="plugin.icon && (/^\d+$/.test(plugin.icon) || plugin.icon.startsWith('http') || plugin.icon.startsWith('data:') || plugin.icon.startsWith('/'))"
+            :src="/^\d+$/.test(plugin.icon) ? toAvatarDisplayUrl(plugin.icon) : plugin.icon"
+            :alt="plugin.display_name"
+            class="size-8 rounded object-contain"
+          />
           <IconifyIcon
+            v-else
             :icon="plugin.icon || 'lucide:plug'"
             class="size-6 text-primary"
           />
@@ -240,8 +328,8 @@ defineExpose({ open, close });
         </Descriptions.Item>
       </Descriptions>
 
-      <!-- 已分配租户（scope=assigned_tenants 时显示） -->
-      <template v-if="plugin.scope === 'assigned_tenants'">
+      <!-- 已分配租户（scope=assigned_tenants 或 tenant_only 时显示） -->
+      <template v-if="plugin.scope === 'assigned_tenants' || plugin.scope === 'tenant_only'">
         <div class="mb-3 flex items-center justify-between">
           <span class="text-base font-medium text-foreground">
             {{ $t('admin.plugin.assignedTenants') }}
@@ -349,6 +437,26 @@ defineExpose({ open, close });
           </Timeline.Item>
         </Timeline>
       </template>
+
+      <!-- 插件文档 -->
+      <div class="mb-6">
+        <Button
+          type="default"
+          block
+          :loading="readmeLoading"
+          @click="readmeVisible ? (readmeVisible = false) : loadReadme()"
+        >
+          <IconifyIcon :icon="readmeVisible ? 'lucide:chevron-up' : 'lucide:book-open'" class="mr-1.5 size-4" />
+          {{ readmeVisible ? $t('admin.plugin.hideReadme') : $t('admin.plugin.viewReadme') }}
+        </Button>
+        <div
+          v-if="readmeVisible"
+          class="mt-3 max-h-[400px] overflow-auto rounded-lg border border-border bg-muted/30 p-4"
+        >
+          <div v-if="readmeContent" class="prose prose-sm max-w-none dark:prose-invert" v-html="renderMarkdown(readmeContent)" />
+          <Empty v-else :description="$t('admin.plugin.noReadme')" :image="Empty.PRESENTED_IMAGE_SIMPLE" />
+        </div>
+      </div>
 
       <!-- 配置表单（如果有 config_schema） -->
       <template v-if="plugin.config_schema?.properties">

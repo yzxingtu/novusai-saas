@@ -103,9 +103,10 @@ export async function uninstallPluginApi(
 /** 启用插件 */
 export async function enablePluginApi(
   id: number,
+  data?: { model_id?: number },
   options?: ApiRequestOptions,
 ): Promise<PluginInfo> {
-  return requestClient.post<PluginInfo>(`${PREFIX}/${id}/enable`, {}, options);
+  return requestClient.post<PluginInfo>(`${PREFIX}/${id}/enable`, data || {}, options);
 }
 
 /** 禁用插件 */
@@ -148,7 +149,7 @@ export interface PluginFrontendConfig {
   scope: string;
   endpoint: 'admin' | 'tenant';
   menus: BackendMenuItemRaw[];
-  routes: Record<string, unknown>[];
+  routes: BackendMenuItemRaw[];
   locales: Record<string, Record<string, unknown>>;
 }
 
@@ -171,17 +172,81 @@ export interface UploadConflictResponse {
   message: string;
 }
 
+/** 插件结构摘要项 */
+export interface PluginStructureItem {
+  type: string;
+  icon: string;
+  count: number;
+  details: string[];
+}
+
+/** 插件预览信息（上传前解析） */
+export interface PluginPreviewInfo {
+  name: string;
+  display_name: string;
+  version: string;
+  description: string;
+  author: string;
+  plugin_type: string;
+  icon: string;
+  scope: string;
+  has_agent: boolean;
+  has_skill: boolean;
+  has_api: boolean;
+  has_readme: boolean;
+  has_icon: boolean;
+  icon_data_url: string;
+  migration_count: number;
+  locale_langs: string[];
+  readme_preview: string;
+  skill_type: string;
+  structure_summary: PluginStructureItem[];
+  agents: Array<Record<string, unknown>>;
+  models: string[];
+  frontend_menus: Array<Record<string, unknown>>;
+  frontend_routes: Array<Record<string, unknown>>;
+  is_installed: boolean;
+  existing_version: string | null;
+  config_schema: Record<string, unknown> | null;
+  default_config: Record<string, unknown> | null;
+  required_permissions: string[];
+  dependencies: Record<string, unknown>;
+}
+
+/** 预览插件包内容（不安装） */
+export async function previewPluginApi(
+  file: File,
+  lang?: string,
+  options?: ApiRequestOptions,
+): Promise<PluginPreviewInfo> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const queryStr = lang ? `?lang=${encodeURIComponent(lang)}` : '';
+  return requestClient.post<PluginPreviewInfo>(
+    `${PREFIX}/upload/preview${queryStr}`,
+    formData,
+    {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      ...options,
+    },
+  );
+}
+
 /** 上传插件包安装（.zip / .nap） */
 export async function uploadPluginApi(
   file: File,
   overwrite?: boolean,
+  modelId?: number,
   options?: ApiRequestOptions,
 ): Promise<PluginInfo | UploadConflictResponse> {
   const formData = new FormData();
   formData.append('file', file);
-  const params = overwrite ? '?overwrite=true' : '';
+  const queryParts: string[] = [];
+  if (overwrite) queryParts.push('overwrite=true');
+  if (modelId) queryParts.push(`model_id=${modelId}`);
+  const queryStr = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
   return requestClient.post<PluginInfo | UploadConflictResponse>(
-    `${PREFIX}/upload${params}`,
+    `${PREFIX}/upload${queryStr}`,
     formData,
     {
       headers: { 'Content-Type': 'multipart/form-data' },

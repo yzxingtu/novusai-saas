@@ -78,8 +78,8 @@ async def start_plugin_watcher(app: FastAPI) -> None:
                         relative = path.relative_to(_PLUGINS_DIR)
                         parts = relative.parts
                         if len(parts) >= 2:
-                            # 跳过 examples/, extensions/ 等非插件目录
-                            if parts[0] in ("examples", "extensions", "__pycache__"):
+                            # 跳过非插件目录
+                            if parts[0] in ("examples", "extensions", "__pycache__", "demoPlugins", "marketplace"):
                                 continue
                             if parts[0] == "builtin" and len(parts) >= 3:
                                 plugin_names.add(parts[1])

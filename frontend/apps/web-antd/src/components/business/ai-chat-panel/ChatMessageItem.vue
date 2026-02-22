@@ -15,6 +15,7 @@ import { Button, Spin, Tag, Tooltip } from 'ant-design-vue';
 import { MarkdownRender } from '#/components/business/markdown-render';
 import { $t } from '#/locales';
 import { getFileIcon } from '#/utils/file';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 const props = withDefaults(
   defineProps<{
@@ -39,7 +40,7 @@ const emit = defineEmits<{
 }>();
 
 function agentAvatar(agent: { avatar?: string | null }) {
-  return agent.avatar || null;
+  return agent.avatar ? toAvatarDisplayUrl(agent.avatar) : null;
 }
 
 function agentInitial(agent: { name: string }) {

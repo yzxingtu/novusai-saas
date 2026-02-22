@@ -100,18 +100,16 @@ celery_app.conf.task_ignore_result = False
 # ========================================
 # Beat 调度（由数据库 periodic_tasks 表驱动）
 # ========================================
-# 所有定时任务通过 periodic_tasks 表管理，
-# 不再硬编码任何调度条目。
-celery_app.conf.beat_schedule = {}
-
-
-# ========================================
-# Beat 启动时从数据库加载调度
-# ========================================
-from celery.signals import beat_init
-
-
-@beat_init.connect
-def _on_beat_init(sender, **kwargs):
-    from app.tasks.scheduler import setup_periodic_tasks
-    setup_periodic_tasks()
+# 所有定时任务通过 periodic_tasks 表管理，不再硬编码任何调度条目。
+#
+# 重要：必须在模块级别加载调度，不能用 beat_init 信号。
+# 原因：Celery 5.x beat.Service.start() 中，self.scheduler 在
+# beat_init.send() 之前就被访问（debug 日志行），触发
+# PersistentScheduler 初始化并读取 conf.beat_schedule。
+# 如果此时 beat_schedule 为空，调度器不会安装任何条目。
+# beat_init 信号中再更新 conf.beat_schedule 已经太晚。
+try:
+    from app.tasks.scheduler import load_periodic_tasks_from_db
+    celery_app.conf.beat_schedule = load_periodic_tasks_from_db()
+except Exception:
+    celery_app.conf.beat_schedule = {}

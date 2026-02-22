@@ -80,6 +80,7 @@ class PluginConfigManager:
         db: AsyncSession | None = None,
         tenant_id: int | None = None,
         config: dict[str, Any] | None = None,
+        model_id: int | None = None,
     ) -> PluginContext:
         """构建权限感知的插件运行时上下文"""
         from app.ai.events.bus import get_event_bus
@@ -114,6 +115,7 @@ class PluginConfigManager:
             plugin_name=instance.name,
             plugin_version=instance.version,
             plugin_scope=instance.scope,
+            model_id=model_id,
             **ctx_kwargs,
         )
 

@@ -1,6 +1,6 @@
 /**
  * 平台管理端插件市场 API
- * 对接后端 /admin/plugins/marketplace/* 接口
+ * 对接后端 /admin/marketplace/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
 

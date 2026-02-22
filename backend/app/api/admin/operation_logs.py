@@ -22,6 +22,7 @@ from app.schemas.system.operation_log import (
     OperationLogResponse,
     OperationLogListResponse,
     OperationLogDeleteRequest,
+    OperatorSelectItem,
 )
 from app.services.system.operation_log_service import OperationLogService
 
@@ -96,6 +97,27 @@ class AdminOperationLogController(GlobalController):
                 message=_("common.success"),
             )
         
+        @router.get("/operators", summary="获取操作人下拉列表")
+        @action_read("action.operation_log.list")
+        async def list_operators(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            获取平台端操作日志中的去重操作人列表（含头像）
+            
+            用于搜索下拉选择和列表头像显示
+            
+            权限: operation_log:list
+            """
+            service = OperationLogService(db)
+            operators = await service.get_admin_operators()
+            return success(
+                data=[OperatorSelectItem(**op) for op in operators],
+                message=_("common.success"),
+            )
+
         @router.get("/{log_id}", summary="获取操作日志详情")
         @action_read("action.operation_log.detail")
         async def get_log(

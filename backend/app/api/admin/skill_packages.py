@@ -385,6 +385,114 @@ class AdminSkillPackageController(GlobalController):
                 page_size=query.size,
             )
 
+        @router.get("/{package_id}/resolved-tools", summary="获取技能包解析出的工具列表")
+        @action_read("action.ai_skill_package.detail")
+        async def get_resolved_tools(
+            request: Request,
+            db: DbSession,
+            package_id: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            获取技能包内所有技能通过 resolve() 解析出的工具定义列表。
+
+            仅对插件类型技能（source_plugin 不为空）有效。
+            Toolkit 类型技能的工具由 ToolkitResolver 解析。
+            """
+            service = AdminSkillPackageService(db)
+            pkg = await service.get_by_id(package_id)
+            if not pkg:
+                raise NotFoundException(message=_("skill_package.error.not_found"))
+
+            tools: list[dict] = []
+
+            # 插件类型技能包：通过 ExtensionRegistry 获取插件实例并调用 resolve()
+            if pkg.source_plugin:
+                try:
+                    from app.plugins.manager import get_plugin_manager
+                    mgr = get_plugin_manager()
+                    skill_instance = mgr.extension_registry.get_skill_instance_by_plugin(
+                        pkg.source_plugin,
+                    )
+                    if skill_instance:
+                        # 获取包内的技能记录以获取 config
+                        from app.services.ai.skill_service import AdminSkillService
+                        skill_svc = AdminSkillService(db)
+                        from app.schemas.common.query import FilterRule
+                        skill_items, _ = await skill_svc.query_list(
+                            None,
+                            forced_filters=[FilterRule(field="package_id", value=package_id)],
+                        )
+                        for skill_item in skill_items:
+                            try:
+                                tool_defs = skill_instance.resolve(
+                                    skill_item.config or {},
+                                )
+                                for td in tool_defs:
+                                    tools.append({
+                                        "name": td.name,
+                                        "description": td.description,
+                                        "parameters": [
+                                            {
+                                                "name": p.name,
+                                                "type": p.type,
+                                                "description": p.description,
+                                                "required": p.required,
+                                                "default": getattr(p, "default", None),
+                                            }
+                                            for p in (td.parameters or [])
+                                        ],
+                                        "timeout": getattr(td, "timeout", 30),
+                                        "source_skill_id": skill_item.id,
+                                        "source_skill_name": skill_item.name,
+                                    })
+                            except Exception as resolve_exc:
+                                logger.warning(
+                                    "Failed to resolve tools for skill %d: %s",
+                                    skill_item.id, str(resolve_exc),
+                                )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to resolve plugin tools for package %d: %s",
+                        package_id, str(exc),
+                    )
+
+            # Toolkit 类型技能：从 toolkit_content 解析
+            if not tools and not pkg.source_plugin:
+                from app.services.ai.skill_service import AdminSkillService
+                from app.schemas.common.query import FilterRule
+                skill_svc = AdminSkillService(db)
+                skill_items, _ = await skill_svc.query_list(
+                    None,
+                    forced_filters=[FilterRule(field="package_id", value=package_id)],
+                )
+                for skill_item in skill_items:
+                    if skill_item.type == "toolkit" and skill_item.toolkit_content:
+                        try:
+                            from app.ai.tools.toolkit_resolver import ToolkitResolver
+                            resolver = ToolkitResolver()
+                            tool_defs = resolver.resolve_from_source(
+                                skill_item.toolkit_content,
+                            )
+                            for td in tool_defs:
+                                tools.append({
+                                    "name": td.name,
+                                    "description": td.description,
+                                    "parameters": getattr(td, "parameters", []),
+                                    "source_skill_id": skill_item.id,
+                                    "source_skill_name": skill_item.name,
+                                })
+                        except Exception:
+                            pass
+
+            return success(data={
+                "package_id": package_id,
+                "package_name": pkg.name,
+                "source_plugin": pkg.source_plugin,
+                "tool_count": len(tools),
+                "tools": tools,
+            })
+
         # ==================== 导入 / 导出 ====================
 
         @router.get("/{package_id}/export", summary="导出技能包")

@@ -42,10 +42,15 @@ def _parse_version(filename: str) -> str:
     return filename
 
 
+def _to_module_name(plugin_name: str) -> str:
+    """将插件名（如 rich-editor）转为模块目录名（如 rich_editor）"""
+    return plugin_name.replace("-", "_")
+
+
 def discover_migrations(plugin_name: str) -> list[Path]:
     """发现插件迁移文件
 
-    扫描 ``app/plugins/{name}/migrations/`` 目录中匹配
+    扫描 ``app/plugins/{module_name}/migrations/`` 目录中匹配
     ``NNN_description.sql`` 格式的文件（排除 ``.down.sql``），按名称排序。
 
     Args:
@@ -55,7 +60,7 @@ def discover_migrations(plugin_name: str) -> list[Path]:
         升级迁移文件路径列表（已排序）
     """
     plugins_base = Path(__file__).resolve().parent.parent / "plugins"
-    migrations_dir = plugins_base / plugin_name / "migrations"
+    migrations_dir = plugins_base / _to_module_name(plugin_name) / "migrations"
 
     if not migrations_dir.is_dir():
         return []
@@ -201,7 +206,7 @@ async def rollback_migrations(
         return {"rolled_back": [], "skipped": [], "warnings": []}
 
     plugins_base = Path(__file__).resolve().parent.parent / "plugins"
-    migrations_dir = plugins_base / plugin_name / "migrations"
+    migrations_dir = plugins_base / _to_module_name(plugin_name) / "migrations"
     rolled_back: list[str] = []
     skipped: list[str] = []
     warnings: list[str] = []
@@ -269,10 +274,57 @@ async def rollback_migrations(
 
 
 def _split_sql(content: str) -> list[str]:
-    """将 SQL 文本按分号拆分为独立语句，忽略空语句"""
-    statements = []
-    for part in content.split(";"):
-        stripped = part.strip()
-        if stripped:
-            statements.append(stripped)
+    """将 SQL 文本按分号拆分为独立语句
+
+    正确处理：
+    - 单引号字符串内的分号（如 ``'a;b'``）
+    - ``$$`` 引用的函数体（PostgreSQL 函数/匿名块）
+    - 空语句跳过
+    """
+    statements: list[str] = []
+    current: list[str] = []
+    in_single_quote = False
+    in_dollar_quote = False
+    i = 0
+    chars = content
+
+    while i < len(chars):
+        ch = chars[i]
+
+        # $$ 引用块（PostgreSQL 函数体/匿名块）
+        if chars[i:i + 2] == "$$" and not in_single_quote:
+            in_dollar_quote = not in_dollar_quote
+            current.append("$$")
+            i += 2
+            continue
+
+        # 单引号字符串
+        if ch == "'" and not in_dollar_quote:
+            # 处理转义的单引号 ''
+            if i + 1 < len(chars) and chars[i + 1] == "'":
+                current.append("''")
+                i += 2
+                continue
+            in_single_quote = not in_single_quote
+            current.append(ch)
+            i += 1
+            continue
+
+        # 分号分隔符（仅在引用外）
+        if ch == ";" and not in_single_quote and not in_dollar_quote:
+            stmt = "".join(current).strip()
+            if stmt:
+                statements.append(stmt)
+            current = []
+            i += 1
+            continue
+
+        current.append(ch)
+        i += 1
+
+    # 最后一条语句（可能没有尾部分号）
+    stmt = "".join(current).strip()
+    if stmt:
+        statements.append(stmt)
+
     return statements

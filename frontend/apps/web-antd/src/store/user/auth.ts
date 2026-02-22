@@ -18,6 +18,7 @@ import { userApi } from '#/api';
 import { USER_HOME_PATH, USER_LOGIN_PATH } from '#/constants/endpoints';
 import { $t } from '#/locales';
 import { EndpointType } from '#/types/endpoint';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { TokenStorage } from '../shared/token-storage';
 
@@ -66,7 +67,7 @@ export const useUserAuthStore = defineStore('user-auth', () => {
 
         // 转换为vben UserInfo格式
         const vbenUserInfo: UserInfo = {
-          avatar: info?.avatar || '',
+          avatar: toAvatarDisplayUrl(info?.avatar),
           desc: '',
           homePath: info?.homePath || USER_HOME_PATH,
           realName: info?.realName || '',

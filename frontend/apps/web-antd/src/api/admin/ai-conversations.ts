@@ -1,5 +1,5 @@
 /**
- * AI 对话监控 API
+ * AI 对话管理 API
  * 对接后端 /admin/ai/conversations 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
@@ -7,7 +7,7 @@ import type { ApiRequestOptions } from '#/utils/request';
 import { requestClient } from '#/utils/request';
 
 // ============================================================
-// 类型定义 - 对话监控
+// 类型定义 - 对话管理
 // ============================================================
 
 /** 用户简要信息 */
@@ -48,7 +48,7 @@ interface PageResponse<T> {
 }
 
 // ============================================================
-// API 接口 - 对话监控
+// API 接口 - 对话管理
 // ============================================================
 
 const CONV_PREFIX = '/admin/ai/conversations';

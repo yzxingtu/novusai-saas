@@ -51,7 +51,9 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
             </Tag>
           </DescriptionsItem>
           <DescriptionsItem :label="$t('tenant.system.taskLog.queue')">
-            <Tag :color="getQueueColor(detail.queue)">{{ detail.queue }}</Tag>
+            <Tag :color="getQueueColor(detail.queue)">
+              {{ $t(`tenant.system.taskLog.queueNames.${detail.queue}`, detail.queue) }}
+            </Tag>
           </DescriptionsItem>
           <DescriptionsItem :label="$t('tenant.system.taskLog.retryCount')">
             {{ detail.retryCount }}

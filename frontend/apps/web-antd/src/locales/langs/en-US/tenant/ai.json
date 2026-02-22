@@ -449,7 +449,7 @@
     }
   },
   "chat": {
-    "title": "Agent Chat",
+    "title": "AI Chat",
     "pageDesc": "Chat with agents. Select one from the left to start a new or continue an existing conversation.",
     "selectAgent": "Select Agent",
     "noAgents": "No agents available",

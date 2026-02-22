@@ -38,6 +38,9 @@
   "detail": "Plugin Detail",
   "configure": "Configuration",
   "versionHistory": "Version History",
+  "viewReadme": "View Documentation",
+  "hideReadme": "Hide Documentation",
+  "noReadme": "No documentation available for this plugin",
   "noPlugins": "No Plugins",
   "noPluginsDesc": "No plugins installed yet. Click the button above to install.",
   "noResults": "No matching plugins found",
@@ -85,17 +88,41 @@
     "uploadConflict": "Plugin Already Exists",
     "uploadConflictDesc": "Plugin {name} is already installed (current version {oldVersion}). Upload version is {newVersion}. Overwrite and upgrade?",
     "overwrite": "Overwrite & Upgrade",
-    "confirmScopeChange": "Are you sure you want to change the plugin scope? This will affect plugin visibility for tenants."
+    "confirmScopeChange": "Are you sure you want to change the plugin scope? This will affect plugin visibility for tenants.",
+    "fileTooLarge": "File size exceeds 50MB limit"
   },
   "providesSkill": "Provides Skill",
   "scope": "Scope",
   "scope_options": {
-    "platform_only": "Platform Only",
-    "all_tenants": "All Tenants",
-    "assigned_tenants": "Assigned Tenants",
+    "platform_only": "Admin Only",
+    "all_tenants": "Admin + All Tenants",
+    "assigned_tenants": "Admin + Selected Tenants",
+    "tenant_only": "Selected Tenants Only",
     "global": "Global"
   },
   "assignedTenants": "Assigned Tenants",
   "assignedCount": "{count} tenants",
-  "noAssignedTenants": "No tenants assigned yet"
+  "noAssignedTenants": "No tenants assigned yet",
+  "installWizard": {
+    "previewTitle": "Confirm Plugin Installation",
+    "analyzing": "Analyzing plugin package…",
+    "structureTitle": "This plugin includes",
+    "structureType": {
+      "agent": "Agent",
+      "skillPackage": "Skill Package",
+      "apiRoute": "API Route",
+      "adapter": "Adapter",
+      "hook": "Hook",
+      "migration": "DB Migration",
+      "model": "Data Model",
+      "menu": "Menu Item"
+    },
+    "modelSelectTitle": "Select AI Model",
+    "modelSelectDesc": "This plugin includes an agent that requires an AI model. Choose a model that supports function calling for best results.",
+    "modelSelectPlaceholder": "Select AI model",
+    "selectModelRequired": "Please select an AI model first",
+    "confirmInstall": "Confirm Install",
+    "alreadyInstalled": "This plugin is already installed (version {version}). Proceeding will overwrite and upgrade.",
+    "readmeTitle": "Plugin Documentation"
+  }
 }

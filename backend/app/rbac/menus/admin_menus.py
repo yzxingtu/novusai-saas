@@ -130,7 +130,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:admin.ai_api_key (API Key 管理)
     # - menu:admin.ai_health (健康状态)
 
-    # ---- 智能应用（子目录） ----
+    # ---- 智能应用（子目录，与租户端统一名称） ----
     PermissionMeta(
         code="menu:admin.ai_app",
         name="menu.admin.ai_app",  # i18n key
@@ -149,7 +149,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:admin.ai_knowledge_base (知识库)
     # - menu:admin.admin_agent_chat (AI 对话)
 
-    # ---- 运营监控（子目录） ----
+    # ---- 数据分析（子目录，与租户端统一名称） ----
     PermissionMeta(
         code="menu:admin.ai_ops",
         name="menu.admin.ai_ops",  # i18n key
@@ -166,7 +166,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:admin.ai_quota (配额管理)
     # - menu:admin.ai_usage (用量统计)
     # - menu:admin.ai_call_log (调用日志)
-    # - menu:admin.ai_conversation (对话监控)
+    # - menu:admin.ai_conversation (对话管理)
     # - menu:admin.ai_action_log (操作审计)
     # - menu:admin.ai_platform_tool (平台工具)
 

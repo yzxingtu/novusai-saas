@@ -426,7 +426,7 @@
     }
   },
   "conversation": {
-    "title": "对话监控",
+    "title": "对话管理",
     "pageDesc": "监控所有租户的 AI 对话记录，查看对话详情和费用统计。",
     "agentName": "智能体",
     "tenantId": "租户",
@@ -690,7 +690,10 @@
       "skillTimeout": "超时时间",
       "skillStatus": "启用状态",
       "skillDescription": "技能描述",
-      "backToList": "返回列表"
+      "backToList": "返回列表",
+      "tools": "工具定义",
+      "noTools": "暂无工具定义",
+      "toolParams": "参数"
     },
     "valves": {
       "configBtn": "环境配置",
@@ -725,7 +728,8 @@
       "builtin": "内置",
       "http": "HTTP 请求",
       "email": "邮件发送",
-      "code_execution": "代码执行"
+      "code_execution": "代码执行",
+      "rich_editor": "富文本编辑器"
     },
     "scope_options": {
       "tenant": "指定租户",
@@ -743,7 +747,8 @@
       "builtin": "内置工具：系统预定义的基础能力，如网页搜索、图片生成等。创建后可查看工具列表。\n提示：内置工具由平台维护，配置项不可编辑。",
       "http": "HTTP 请求：声明式集成外部 REST API。只需填写 URL、请求方法和参数模板，无需编码即可让智能体调用。\n适用场景：调用企业内部 API、集成 SaaS 服务（CRM/ERP）、Webhook 触发等。\n提示：URL 支持 {变量名} 模板语法；Headers 中可配置认证信息。",
       "email": "邮件发送：让智能体在对话中代用户发送邮件。基于平台 SMTP 配置，支持域名白名单和收件人限制。\n适用场景：客服自动回复、会议邀请、通知发送等。\n提示：需先在系统设置中配置 SMTP 服务器。",
-      "code_execution": "代码执行：让智能体在安全沙箱中运行 Python 代码并返回结果。\n适用场景：数学计算、数据处理、文本格式转换、CSV/JSON 解析等。\n提示：代码在隔离环境中执行，可用模块受白名单限制。"
+      "code_execution": "代码执行：让智能体在安全沙箱中运行 Python 代码并返回结果。\n适用场景：数学计算、数据处理、文本格式转换、CSV/JSON 解析等。\n提示：代码在隔离环境中执行，可用模块受白名单限制。",
+      "rich_editor": "富文本编辑器 AI 助手：为编辑器提供 AI 续写、优化、校对、翻译、代码注释、代码解释、摘要、扩写等智能编辑能力。\n适用场景：文档编写辅助、内容优化、多语言翻译、代码文档生成等。\n提示：该技能由富文本编辑器插件自动创建，绑定到编辑器专属智能体后即可在编辑器中使用 AI 功能。"
     },
     "knowledgeBaseConfig": {
       "title": "知识库配置",

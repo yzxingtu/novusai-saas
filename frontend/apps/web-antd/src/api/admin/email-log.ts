@@ -60,6 +60,23 @@ export interface EmailSendResult {
   error: string | null;
 }
 
+/** 邮件日志详情（含 body） */
+export interface EmailLogDetail {
+  id: number;
+  toAddress: string;
+  cc: string | null;
+  bcc: string | null;
+  subject: string;
+  status: string;
+  triggeredBy: string;
+  htmlBody: string | null;
+  textBody: string | null;
+  errorMessage: string | null;
+  sentAt: string | null;
+  tenantId: number | null;
+  createdAt: string | null;
+}
+
 /** 分页响应 */
 export interface EmailLogListResponse {
   items: EmailLogInfo[];
@@ -103,6 +120,34 @@ export async function getEmailLogListApi(
     total: response.total,
     page: response.page,
     page_size: response.page_size,
+  };
+}
+
+/**
+ * 获取邮件日志详情（含 body）
+ */
+export async function getEmailLogDetailApi(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<EmailLogDetail> {
+  const raw = await requestClient.get<Record<string, unknown>>(
+    `${API_PREFIX}/${id}`,
+    options,
+  );
+  return {
+    id: raw.id as number,
+    toAddress: raw.to_address as string,
+    cc: raw.cc as string | null,
+    bcc: raw.bcc as string | null,
+    subject: raw.subject as string,
+    status: raw.status as string,
+    triggeredBy: raw.triggered_by as string,
+    htmlBody: raw.html_body as string | null,
+    textBody: raw.text_body as string | null,
+    errorMessage: raw.error_message as string | null,
+    sentAt: raw.sent_at as string | null,
+    tenantId: raw.tenant_id as number | null,
+    createdAt: raw.created_at as string | null,
   };
 }
 

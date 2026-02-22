@@ -16,9 +16,11 @@ type TaskLogInfo = adminApi.TaskLogInfo;
  */
 export function getTaskShortName(taskName: string): string {
   const funcName = taskName.split('.').at(-1) ?? taskName;
-  const key = `admin.system.taskLog.taskNames.${funcName}`;
-  const translated = $t(key);
-  if (translated !== key) return translated;
+  for (const prefix of ['admin', 'tenant']) {
+    const key = `${prefix}.system.taskLog.taskNames.${funcName}`;
+    const translated = $t(key);
+    if (translated !== key) return translated;
+  }
   return funcName;
 }
 
@@ -106,14 +108,20 @@ export function getQueueColor(queue: string | undefined): string {
     case 'default': {
       return 'blue';
     }
-    case 'high': {
+    case 'high_priority': {
       return 'red';
     }
-    case 'low': {
+    case 'ai_gateway': {
+      return 'purple';
+    }
+    case 'scheduled': {
+      return 'cyan';
+    }
+    case 'notification': {
       return 'green';
     }
     default: {
-      return 'purple';
+      return 'default';
     }
   }
 }

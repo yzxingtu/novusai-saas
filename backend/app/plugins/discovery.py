@@ -38,7 +38,7 @@ def discover_local_plugins() -> list[dict[str, Any]]:
     if not PLUGINS_DIR.is_dir():
         return discovered
 
-    skip_dirs = {"__pycache__", "extensions", "builtin", "examples"}
+    skip_dirs = {"__pycache__", "extensions", "builtin", "examples", "marketplace", "demoPlugins", "_backups"}
 
     for child in sorted(PLUGINS_DIR.iterdir()):
         if not child.is_dir():
@@ -170,7 +170,13 @@ async def auto_install_local_plugins(db: AsyncSession) -> dict[str, Any]:
         if existing:
             # 开发模式：同步磁盘 manifest 到 DB（确保路由/菜单等配置最新）
             if existing.manifest != manifest:
-                await repo.update(existing.id, {"manifest": manifest})
+                sync_data: dict[str, Any] = {"manifest": manifest}
+                # 同步关键元数据字段（避免 DB 与磁盘不一致）
+                for field in ("version", "display_name", "description", "author"):
+                    manifest_val = manifest.get(field)
+                    if manifest_val and manifest_val != getattr(existing, field, None):
+                        sync_data[field] = manifest_val
+                await repo.update(existing.id, sync_data)
                 await db.commit()
                 logger.info("Synced manifest for plugin: %s", name)
             skipped += 1

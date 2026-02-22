@@ -38,6 +38,9 @@
   "detail": "插件详情",
   "configure": "配置",
   "versionHistory": "版本历史",
+  "viewReadme": "查看插件文档",
+  "hideReadme": "收起文档",
+  "noReadme": "该插件暂无文档",
   "noPlugins": "暂无插件",
   "noPluginsDesc": "还没有安装任何插件，点击上方按钮安装",
   "noResults": "没有找到匹配的插件",
@@ -85,17 +88,41 @@
     "uploadConflict": "插件已存在",
     "uploadConflictDesc": "插件 {name} 已安装（当前版本 {oldVersion}），上传版本为 {newVersion}。是否覆盖升级？",
     "overwrite": "覆盖升级",
-    "confirmScopeChange": "确定要修改插件作用域吗？这会影响插件对租户的可见性。"
+    "confirmScopeChange": "确定要修改插件作用域吗？这会影响插件对租户的可见性。",
+    "fileTooLarge": "文件大小超过 50MB 限制"
   },
   "providesSkill": "提供技能",
   "scope": "作用域",
   "scope_options": {
     "platform_only": "仅管理端",
-    "all_tenants": "所有租户",
-    "assigned_tenants": "指定租户",
+    "all_tenants": "管理端和所有租户",
+    "assigned_tenants": "管理端和部分租户",
+    "tenant_only": "仅部分租户",
     "global": "全局生效"
   },
   "assignedTenants": "已分配租户",
   "assignedCount": "共 {count} 个租户",
-  "noAssignedTenants": "暂无已分配的租户"
+  "noAssignedTenants": "暂无已分配的租户",
+  "installWizard": {
+    "previewTitle": "确认安装插件",
+    "analyzing": "正在解析插件包…",
+    "structureTitle": "插件包含以下内容",
+    "structureType": {
+      "agent": "智能体",
+      "skillPackage": "技能包",
+      "apiRoute": "API 路由",
+      "adapter": "适配器",
+      "hook": "钩子",
+      "migration": "数据库迁移",
+      "model": "数据模型",
+      "menu": "菜单项"
+    },
+    "modelSelectTitle": "选择 AI 模型",
+    "modelSelectDesc": "此插件包含智能体，需要选择一个 AI 模型供智能体使用。推荐选择支持工具调用的模型。",
+    "modelSelectPlaceholder": "请选择 AI 模型",
+    "selectModelRequired": "请先选择一个 AI 模型",
+    "confirmInstall": "确认安装",
+    "alreadyInstalled": "此插件已安装（当前版本 {version}），继续将覆盖升级",
+    "readmeTitle": "插件文档"
+  }
 }

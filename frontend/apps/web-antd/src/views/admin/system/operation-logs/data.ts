@@ -60,7 +60,7 @@ export function useColumns<T = OperationLogInfo>(
     {
       field: 'username',
       title: $t('admin.system.operationLog.username'),
-      width: 120,
+      width: 180,
       slots: {
         default: 'username_cell',
       },
@@ -165,9 +165,19 @@ export function useColumns<T = OperationLogInfo>(
  */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
-    searchInput('username', $t('admin.system.operationLog.username'), {
-      placeholder: $t('admin.system.operationLog.placeholder.searchUsername'),
-    }),
+    {
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        class: 'w-full',
+        options: [],
+        placeholder: $t('admin.system.operationLog.placeholder.searchUsername'),
+        showSearch: true,
+        optionFilterProp: 'label',
+      },
+      fieldName: 'filter[username]',
+      label: $t('admin.system.operationLog.username'),
+    },
     searchInput('module', $t('admin.system.operationLog.module'), {
       placeholder: $t('admin.system.operationLog.placeholder.searchModule'),
     }),

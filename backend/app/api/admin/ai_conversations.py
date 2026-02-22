@@ -1,5 +1,5 @@
 """
-平台端对话监控 API
+平台端对话管理 API
 
 提供全租户对话列表和只读详情，用于审计和监控
 """
@@ -183,7 +183,7 @@ async def _load_single_user_info(
 )
 class AdminAIConversationController(GlobalController):
     """
-    平台端对话监控控制器
+    平台端对话管理控制器
 
     全租户只读审计
     """

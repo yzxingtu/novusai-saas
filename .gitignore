@@ -63,6 +63,7 @@ pytest_cache/
 
 # Celery stuff
 celerybeat-schedule
+celerybeat-schedule.*
 celerybeat.pid
 
 # SageMath parsed files
@@ -260,6 +261,12 @@ migrations/versions/__pycache__/
 *.bak
 *.backup
 
+# Plugin backups (runtime generated .nap archives)
+_backups/
+
+# Plugin development directory (demo/template source, not for deployment)
+backend/app/plugins/demoPlugins/
+
 # Static files (generated)
 staticfiles/
 static_collected/
@@ -273,3 +280,6 @@ site/
 
 # Local scripts
 scripts/local/
+
+# Test / scratch files
+test_doc.txt

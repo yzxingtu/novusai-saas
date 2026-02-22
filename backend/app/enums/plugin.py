@@ -18,11 +18,21 @@ class PluginTypeEnum(LabeledStrEnum):
 
 
 class PluginScopeEnum(LabeledStrEnum):
-    """插件作用域枚举"""
+    """
+    插件作用域枚举
+
+    控制插件在管理端和租户端的可见性：
+    - platform_only: 仅管理端可用
+    - all_tenants: 管理端 + 所有租户
+    - assigned_tenants: 管理端 + 指定租户
+    - tenant_only: 仅指定租户（管理端不可用）
+    - global: 全局共享（管理端 + 所有租户，自动同步）
+    """
 
     PLATFORM_ONLY = ("platform_only", "enum.plugin_scope.platform_only")
     ALL_TENANTS = ("all_tenants", "enum.plugin_scope.all_tenants")
     ASSIGNED_TENANTS = ("assigned_tenants", "enum.plugin_scope.assigned_tenants")
+    TENANT_ONLY = ("tenant_only", "enum.plugin_scope.tenant_only")
     GLOBAL = ("global", "enum.plugin_scope.global")
 
 

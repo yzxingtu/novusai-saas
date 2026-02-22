@@ -181,45 +181,58 @@ interface TenantPublicConfigRaw {
   tenant_code: string;
   tenant_name: string;
 
-  // Brand
-  site_name?: string;
-  site_description?: string;
-  site_logo?: string;
-  site_favicon?: string;
-  site_copyright?: string;
-  site_icp?: string;
+  // Brand (backend returns these field names from TenantPublicConfig schema)
+  logo_url?: string;
+  favicon_url?: string;
+  theme_color?: string;
+  login_bg?: string;
   primary_color?: string;
-  logo_dark?: string;
+  accent_color?: string;
+  login_title?: string;
+  login_subtitle?: string;
+  footer_copyright?: string;
 
   // Domain
-  tenant_domain_suffix?: string;
-  domain_verification_prefix?: string;
+  subdomain?: string;
+  subdomain_url?: string;
 
-  // Maintenance
+  // Maintenance (from platform fallback)
   maintenance_mode?: boolean;
   maintenance_message?: string;
 
   // Login / Captcha
-  login_captcha_enabled?: boolean;
-  captcha_type?: string;
-  captcha_difficulty?: string;
-  captcha_enable_threshold_admin?: number;
+  captcha_enabled?: boolean;
   captcha_provider?: string;
+  captcha_difficulty?: string;
+  captcha_enable_threshold?: number;
+  login_methods?: string[];
   login_max_attempts?: number;
   login_lockout_minutes?: number;
-  allowed_methods?: string[];
 
   // Password
   password_min_length?: number;
   password_complexity?: string;
-  password_expiry_days?: number;
 
   // Session
-  session_timeout_minutes?: number;
-  session_max_devices?: number;
+  session_timeout?: number;
 
   // Features
-  features?: Record<string, boolean>;
+  allow_registration?: boolean;
+  registration_approval?: boolean;
+  allow_profile_edit?: boolean;
+  email_notification?: boolean;
+  sms_notification?: boolean;
+  api_access?: boolean;
+  file_upload?: boolean;
+
+  // Storage
+  storage?: {
+    driver?: string;
+    base_url?: string;
+    chunk_size_mb?: number;
+    max_file_size_mb?: number;
+    allowed_extensions?: string;
+  };
 }
 
 // ============================================================
@@ -280,24 +293,22 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
     tenantCode: raw.tenant_code,
     tenantName: raw.tenant_name,
     brand: {
-      siteName: raw.site_name,
-      siteDescription: raw.site_description,
-      logo: attachmentIdToUrl(raw.site_logo),
-      logoDark: attachmentIdToUrl(raw.logo_dark),
-      favicon: attachmentIdToUrl(raw.site_favicon),
+      siteName: raw.login_title || raw.tenant_name,
+      siteDescription: raw.login_subtitle,
+      logo: attachmentIdToUrl(raw.logo_url),
+      favicon: attachmentIdToUrl(raw.favicon_url),
       primaryColor: raw.primary_color,
-      copyright: raw.site_copyright,
-      icp: raw.site_icp,
+      copyright: raw.footer_copyright,
     },
     login: {
       captcha: {
-        enabled: raw.login_captcha_enabled ?? false,
-        type: raw.captcha_type ?? 'image',
+        enabled: raw.captcha_enabled ?? false,
+        type: raw.captcha_provider ?? 'image',
         difficulty: raw.captcha_difficulty ?? 'medium',
-        failedThreshold: raw.captcha_enable_threshold_admin ?? 0,
+        failedThreshold: raw.captcha_enable_threshold ?? 0,
         provider: raw.captcha_provider ?? 'image',
       },
-      allowedMethods: raw.allowed_methods ?? [],
+      allowedMethods: raw.login_methods ?? ['password'],
       maxAttempts: raw.login_max_attempts,
       lockoutMinutes: raw.login_lockout_minutes,
     },
@@ -305,11 +316,9 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
       password: {
         minLength: raw.password_min_length,
         complexity: raw.password_complexity,
-        expiryDays: raw.password_expiry_days,
       },
       session: {
-        timeoutMinutes: raw.session_timeout_minutes,
-        maxDevices: raw.session_max_devices,
+        timeoutMinutes: raw.session_timeout,
       },
     },
     maintenance: {
@@ -317,10 +326,14 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
       message: raw.maintenance_message,
     },
     domain: {
-      suffix: raw.tenant_domain_suffix ?? '',
-      verificationPrefix: raw.domain_verification_prefix ?? '',
+      suffix: '',
+      verificationPrefix: '',
     },
-    features: raw.features,
+    features: {
+      ...(raw.allow_registration != null ? { allow_registration: raw.allow_registration } : {}),
+      ...(raw.api_access != null ? { api_access: raw.api_access } : {}),
+      ...(raw.file_upload != null ? { file_upload: raw.file_upload } : {}),
+    },
   };
 }
 

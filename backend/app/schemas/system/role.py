@@ -126,6 +126,7 @@ class AdminRoleUpdateMemberRequest(BaseSchema):
     email: str | None = Field(None, description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
+    avatar: str | None = Field(None, description="头像")
     is_active: bool | None = Field(None, description="是否激活")
     role_id: int | None = Field(None, description="新角色 ID（调整所属角色）")
 

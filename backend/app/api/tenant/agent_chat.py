@@ -1,7 +1,7 @@
 """
-租户端智能体对话 API
+租户端 AI 对话 API
 
-提供智能体对话（非流式/流式）、对话列表、删除等接口
+提供 AI 对话（非流式/流式）、对话列表、删除等接口
 """
 
 from fastapi import Request
@@ -43,9 +43,9 @@ from app.services.ai.conversation_service import ConversationService
 )
 class TenantAgentChatController(TenantController):
     """
-    租户智能体对话控制器
+    租户 AI 对话控制器
 
-    提供智能体对话交互和对话管理
+    提供 AI 对话交互和对话管理
     """
 
     prefix = "/ai/agent-chat"
@@ -197,7 +197,7 @@ class TenantAgentChatController(TenantController):
         # 对话管理
         # ========================================
 
-        @router.get("/{agent_id}/conversations", summary="获取智能体对话列表")
+        @router.get("/{agent_id}/conversations", summary="获取 AI 对话列表")
         @action_read("action.agent_chat.conversations")
         async def list_conversations(
             request: Request,

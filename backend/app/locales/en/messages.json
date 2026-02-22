@@ -1181,9 +1181,10 @@
       "error": "Error"
     },
     "plugin_scope": {
-      "platform_only": "Platform Only",
-      "all_tenants": "All Tenants",
-      "assigned_tenants": "Assigned Tenants",
+      "platform_only": "Admin Only",
+      "all_tenants": "Admin + All Tenants",
+      "assigned_tenants": "Admin + Selected Tenants",
+      "tenant_only": "Selected Tenants Only",
       "global": "Global"
     },
     "plugin_category": {
@@ -2135,6 +2136,8 @@
     "migration_failed": "Plugin database migration execution failed",
     "skill_type_conflict": "Skill type is already registered by another plugin",
     "storage_driver_conflict": "Storage driver name is already registered by another plugin",
+    "already_enabled": "Plugin is already enabled",
+    "not_enabled": "Plugin is not currently enabled",
     "downgrade_not_allowed": "Plugin version downgrade is not allowed",
     "tenant_ids_required": "Please provide a list of tenant IDs to assign",
     "tool_name_conflict": "Tool name is already registered by another plugin",
@@ -2161,6 +2164,8 @@
   "tenant_plugin": {
     "not_found": "Tenant plugin record not found",
     "plugin_not_enabled": "This plugin is not enabled on the platform",
+    "scope_not_allowed": "This plugin is platform-only and cannot be enabled by tenants",
+    "not_assigned": "This plugin has not been assigned to your tenant",
     "enable_success": "Plugin enabled for tenant",
     "disable_success": "Plugin disabled for tenant",
     "field": {
@@ -2184,6 +2189,9 @@
       "feature_code_exists": "Feature code already exists",
       "override_not_found": "Tenant override binding not found"
     }
+  },
+  "email_log": {
+    "not_found": "Email log not found"
   },
   "email": {
     "test": {

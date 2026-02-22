@@ -15,6 +15,8 @@ import { tenantApi as tenant } from '#/api';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
+import { getTaskShortName } from '#/views/admin/system/task-logs/data';
+
 import { getQueueColor, getStatusColor, useColumns, useGridFormSchema } from './data';
 import TaskLogDetail from './modules/TaskLogDetail.vue';
 
@@ -51,11 +53,16 @@ const { Grid } = useCrudPage<TaskLogInfo>({
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
         <template #taskName_cell="{ row }">
-          <Tooltip :title="row.taskId">
-            <code class="max-w-[300px] truncate rounded bg-accent px-1 py-0.5 text-xs">
-              {{ row.taskName }}
-            </code>
-          </Tooltip>
+          <div class="flex flex-col gap-0.5">
+            <span class="font-medium text-foreground">
+              {{ getTaskShortName(row.taskName) }}
+            </span>
+            <Tooltip :title="row.taskId">
+              <span class="truncate text-xs text-muted-foreground">
+                {{ row.taskName }}
+              </span>
+            </Tooltip>
+          </div>
         </template>
 
         <template #status_cell="{ row }">
@@ -66,7 +73,9 @@ const { Grid } = useCrudPage<TaskLogInfo>({
         </template>
 
         <template #queue_cell="{ row }">
-          <Tag :color="getQueueColor(row.queue)">{{ row.queue }}</Tag>
+          <Tag :color="getQueueColor(row.queue)">
+            {{ $t(`tenant.system.taskLog.queueNames.${row.queue}`, row.queue) }}
+          </Tag>
         </template>
 
         <template #durationMs_cell="{ row }">

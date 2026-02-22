@@ -127,9 +127,18 @@ async function loadPluginMenus(
       if (config.scope === 'platform_only' && endpoint !== 'admin') continue;
 
       for (const menu of config.menus) {
-        // 将插件菜单的 component 路径重写为 plugins/{name}/ 前缀
         allMenus.push(
           rewritePluginMenuComponent(menu, config.plugin_name),
+        );
+      }
+
+      // 插件隐藏路由（如 editor/:id 等非菜单页面）
+      for (const route of config.routes || []) {
+        allMenus.push(
+          rewritePluginMenuComponent(
+            { ...route, hidden: true },
+            config.plugin_name,
+          ),
         );
       }
     }

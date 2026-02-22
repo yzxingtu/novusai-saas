@@ -13,11 +13,21 @@ import { requestClient } from '#/utils/request';
 /** 操作日志列表查询参数 */
 export type OperationLogListParams = Record<string, unknown>;
 
+/** 操作人下拉选项 */
+export interface OperatorItem {
+  user_id: number;
+  user_type: string;
+  username: string;
+  nickname?: null | string;
+  avatar?: null | string;
+}
+
 /** 操作日志信息（后端原始格式 snake_case） */
 export interface OperationLogInfoRaw {
   id: number;
   tenant_id: null | number;
   user_type: string;
+  user_id: null | number;
   username: null | string;
   nickname?: null | string;
   module: string;
@@ -41,6 +51,7 @@ export interface OperationLogInfo {
   id: number;
   tenantId: null | number;
   userType: string;
+  userId: null | number;
   username: null | string;
   nickname?: null | string;
   module: string;
@@ -77,6 +88,7 @@ function transformOperationLogInfo(raw: OperationLogInfoRaw): OperationLogInfo {
     id: raw.id,
     tenantId: raw.tenant_id,
     userType: raw.user_type,
+    userId: raw.user_id,
     username: raw.username,
     nickname: raw.nickname,
     module: raw.module,
@@ -138,6 +150,14 @@ export async function getOperationLogDetailApi(
     options,
   );
   return transformOperationLogInfo(raw);
+}
+
+/**
+ * 获取操作人下拉列表（含头像）
+ * GET /admin/operation-logs/operators
+ */
+export async function getOperatorsApi(): Promise<OperatorItem[]> {
+  return requestClient.get<OperatorItem[]>(`${API_PREFIX}/operators`);
 }
 
 /**

@@ -359,6 +359,13 @@
       "log_ai_call": "AI 调用日志记录",
       "process_document": "知识库文档处理"
     },
+    "queueNames": {
+      "default": "默认队列",
+      "high_priority": "高优先级",
+      "ai_gateway": "AI 网关",
+      "scheduled": "定时任务",
+      "notification": "通知队列"
+    },
     "resultKeys": {
       "cleaned": "已清理",
       "reset": "已重置"
@@ -476,14 +483,52 @@
     },
     "trigger": {
       "manual": "手动发送",
-      "taskFailure": "任务失败",
-      "task_failure": "任务失败",
-      "passwordReset": "密码重置",
-      "password_reset": "密码重置",
-      "test": "测试",
-      "welcome": "欢迎邮件",
-      "sslExpiry": "SSL到期",
-      "ssl_expiry": "SSL到期"
+      "test": "测试邮件",
+      "notification": "系统通知",
+      "system": {
+        "announcement": "系统公告",
+        "maintenance": "维护通知",
+        "version_update": "版本更新",
+        "security_alert": "安全警告",
+        "welcome": "欢迎邮件",
+        "password_reset": "密码重置",
+        "tenant_welcome": "租户创建",
+        "task_failure": "任务失败",
+        "ssl_expiry": "SSL到期"
+      },
+      "ai": {
+        "chat_complete": "AI对话完成",
+        "image_ready": "图片生成完成",
+        "batch_complete": "批处理完成",
+        "batch_failed": "批处理失败",
+        "kb_index_complete": "知识库索引完成",
+        "kb_index_failed": "知识库索引失败",
+        "quota_warning": "配额预警",
+        "quota_exhausted": "配额耗尽"
+      },
+      "task": {
+        "completed": "任务完成",
+        "failed": "任务失败",
+        "export_ready": "导出完成",
+        "import_complete": "导入完成",
+        "import_failed": "导入失败"
+      },
+      "biz": {
+        "tenant_created": "租户创建",
+        "tenant_expired": "套餐到期",
+        "plan_changed": "套餐变更",
+        "plugin_installed": "插件安装",
+        "plugin_update_available": "插件更新",
+        "domain_ssl_expiring": "域名SSL到期",
+        "storage_warning": "存储预警",
+        "sub_admin_created": "管理员创建"
+      },
+      "audit": {
+        "suspicious_login": "异常登录",
+        "permission_changed": "权限变更",
+        "role_changed": "角色变更",
+        "account_locked": "账号锁定"
+      }
     },
     "placeholder": {
       "searchTo": "搜索收件人",
@@ -503,6 +548,11 @@
       "htmlPlaceholder": "输入 HTML 格式邮件内容",
       "textBody": "纯文本正文",
       "textPlaceholder": "输入纯文本邮件内容（可选）"
+    },
+    "preview": {
+      "title": "邮件预览",
+      "content": "邮件内容",
+      "noContent": "暂无邮件内容（历史记录未保存正文）"
     },
     "messages": {
       "deleteSuccess": "删除成功",

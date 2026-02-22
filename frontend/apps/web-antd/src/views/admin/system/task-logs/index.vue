@@ -97,7 +97,7 @@ const { Grid, onRefresh } = useCrudPage<TaskLogInfo>({
         <!-- 队列列 -->
         <template #queue_cell="{ row }">
           <Tag :color="getQueueColor(row.queue)">
-            {{ row.queue }}
+            {{ $t(`admin.system.taskLog.queueNames.${row.queue}`, row.queue) }}
           </Tag>
         </template>
 

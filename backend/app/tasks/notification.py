@@ -59,6 +59,8 @@ def send_notification_email(
             tenant_id=tenant_id,
             success=result.success,
             error=result.error,
+            html_body=html_body,
+            text_body=text_body,
         )
 
         if result.success:
@@ -100,6 +102,8 @@ def send_notification_email(
             tenant_id=tenant_id,
             success=False,
             error=str(e),
+            html_body=html_body,
+            text_body=text_body,
         )
         raise self.retry(
             exc=e,
@@ -114,6 +118,8 @@ def _record_notification_email_log(
     tenant_id: int | None,
     success: bool,
     error: str | None,
+    html_body: str | None = None,
+    text_body: str | None = None,
 ) -> None:
     """记录通知邮件日志"""
     from app.core.database import sync_session_factory
@@ -130,6 +136,8 @@ def _record_notification_email_log(
             triggered_by=triggered_by,
             tenant_id=tenant_id,
             status="sent" if success else "failed",
+            html_body=html_body[:50000] if html_body else None,
+            text_body=text_body[:50000] if text_body else None,
             error_message=error[:2000] if error else None,
             sent_at=utc_now() if success else None,
         )

@@ -936,6 +936,7 @@ class TenantRoleController(TenantController):
                     email=data.email,
                     phone=data.phone,
                     nickname=data.nickname,
+                    avatar=data.avatar,
                     is_active=data.is_active,
                     new_role_id=data.role_id,
                 )

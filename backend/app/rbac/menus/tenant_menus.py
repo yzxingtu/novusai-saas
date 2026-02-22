@@ -94,7 +94,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=25,
     ),
 
-    # ---- 工作空间（子目录） ----
+    # ---- 智能应用（子目录，与管理端统一名称） ----
     PermissionMeta(
         code="menu:tenant.ai_workspace",
         name="menu.tenant.ai_workspace",  # i18n key
@@ -109,7 +109,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     ),
     # 子菜单由控制器声明:
     # - menu:tenant.agent (智能体管理)
-    # - menu:tenant.agent_chat (智能体对话)
+    # - menu:tenant.agent_chat (AI 对话)
     # - menu:tenant.knowledge_base (知识库)
     # - menu:tenant.agent_tool (工具管理)
 
@@ -130,7 +130,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:tenant.ai_config (AI 配置)
     # - menu:tenant.ai_quota (配额管理)
 
-    # ---- 数据分析（子目录） ----
+    # ---- 数据分析（子目录，与管理端统一名称） ----
     PermissionMeta(
         code="menu:tenant.ai_analytics",
         name="menu.tenant.ai_analytics",  # i18n key
