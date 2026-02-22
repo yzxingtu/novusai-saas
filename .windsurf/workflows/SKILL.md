@@ -187,6 +187,15 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 
 系统启动时自动执行 `alembic upgrade head`，开发者只需生成迁移文件。新 Model 必须注册到 `models/__init__.py` 和 `migrations/env.py`。
 
+### 迁移文件卫生规则
+
+1. **禁止残留垃圾迁移** — 创建种子数据（seed）迁移前，先确认该数据确实被代码引用（如 `resolve('feature_code')`）。未被引用的占位数据不要写入迁移。
+2. **禁止删除链中的迁移文件** — Alembic 依赖 `revision → down_revision` 链，删除中间文件会导致 `alembic history` / `upgrade` 报错。如果迁移已失效，将其转为 **no-op**（`upgrade`/`downgrade` 改为 `pass`），并在 docstring 中标注 `[NO-OP]` 及原因。
+3. **纯数据迁移要评估生命周期** — 如果插入的种子数据后续可能被删除，优先使用应用层初始化（如 `on_startup` seed 函数）而非迁移文件。迁移文件一旦写入链就无法干净移除。
+4. **autogenerate 后必须检查** — `alembic revision --autogenerate` 生成的文件可能是空的（`pass`），必须检查并补充实际逻辑，或删除空文件（未执行前可删）。
+5. **合并分支及时处理** — 出现多 head 时立即 `alembic merge`，不要留多个 head 长期共存。
+6. **命名规范** — 文件名格式：`YYYYMMDD_<revision_id>_<description>.py`。描述用英文 snake_case，清晰表达迁移目的。
+
 → 完整最佳实践：`database-migration-best-practices.md`
 
 ---
