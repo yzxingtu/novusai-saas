@@ -96,6 +96,14 @@ class NotificationService:
         # force_all_channels 模式：绕过偏好和渠道开关（用于测试发送）
         force = kwargs.pop("force_all_channels", False)
 
+        # 预缓存渠道启用状态（避免在 recipients 循环内重复查询 DB）
+        channel_enabled_cache: dict[str, bool] = {}
+        if not force:
+            for channel_code in template_channels:
+                ch = get_channel(channel_code)
+                if ch:
+                    channel_enabled_cache[channel_code] = await ch.is_enabled()
+
         sent = 0
         for user_type, user_id in recipients:
             # 查询用户偏好（force 模式跳过）
@@ -118,8 +126,8 @@ class NotificationService:
                 if not channel:
                     continue
 
-                # 渠道全局启用检查（force 模式跳过）
-                if not force and not await channel.is_enabled():
+                # 渠道全局启用检查（force 模式跳过，使用预缓存结果）
+                if not force and not channel_enabled_cache.get(channel_code, False):
                     continue
 
                 # 投递

@@ -405,8 +405,8 @@ def _load_smtp_config_sync(session: Any) -> SmtpConfig:
 
     return SmtpConfig(
         host=_get("email_smtp_host", ""),
-        port=_get("email_smtp_port", 587),
-        encryption=_get("email_smtp_encryption", "tls"),
+        port=_get("email_smtp_port", 465),
+        encryption=_get("email_smtp_encryption", "ssl"),
         username=_get("email_smtp_username", ""),
         password=_get("email_smtp_password", ""),
         from_address=_get("email_from_address", ""),

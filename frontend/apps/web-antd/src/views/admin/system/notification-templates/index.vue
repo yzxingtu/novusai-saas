@@ -48,10 +48,10 @@ const editForm = ref<{
 });
 
 const CHANNEL_OPTIONS = [
-  { label: 'WebSocket', value: 'ws' },
+  { label: $t('admin.system.notificationTemplate.channelWs'), value: 'ws' },
   { label: $t('admin.system.notificationTemplate.channelInbox'), value: 'inbox' },
   { label: $t('admin.system.notificationTemplate.channelEmail'), value: 'email' },
-  { label: 'Webhook', value: 'webhook' },
+  { label: $t('admin.system.notificationTemplate.channelWebhook'), value: 'webhook' },
 ];
 
 const PRIORITY_OPTIONS = [

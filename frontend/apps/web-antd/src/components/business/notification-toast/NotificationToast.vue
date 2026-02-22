@@ -9,7 +9,7 @@ import { useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { useNotificationToast } from './useNotificationToast';
+import { useNotificationToast } from '#/composables/use-notification-toast';
 
 const router = useRouter();
 const { toasts, removeToast } = useNotificationToast();
@@ -35,7 +35,11 @@ function getPriorityClass(priority: string): string {
 
 function handleClick(toast: { id: number; link?: string | null }) {
   if (toast.link) {
-    router.push(toast.link);
+    if (toast.link.startsWith('http://') || toast.link.startsWith('https://')) {
+      window.open(toast.link, '_blank');
+    } else {
+      router.push(toast.link);
+    }
   }
   removeToast(toast.id);
 }
@@ -43,7 +47,7 @@ function handleClick(toast: { id: number; link?: string | null }) {
 
 <template>
   <Teleport to="body">
-    <div class="fixed right-4 bottom-4 z-[9999] flex flex-col-reverse gap-3">
+    <div role="status" aria-live="polite" class="fixed right-4 bottom-4 z-[9999] flex flex-col-reverse gap-3">
       <TransitionGroup
         name="toast"
         tag="div"
@@ -52,7 +56,7 @@ function handleClick(toast: { id: number; link?: string | null }) {
         <div
           v-for="toast in toasts"
           :key="toast.id"
-          class="w-[360px] cursor-pointer rounded-xl border p-4 shadow-lg backdrop-blur-sm transition-all hover:shadow-xl"
+          class="w-[360px] max-w-[calc(100vw-2rem)] cursor-pointer rounded-xl border p-4 shadow-lg backdrop-blur-sm transition-all hover:shadow-xl"
           :class="[
             getPriorityClass(toast.priority),
             toast.priority === 'urgent' ? 'animate-shake' : '',
@@ -87,6 +91,7 @@ function handleClick(toast: { id: number; link?: string | null }) {
 
             <!-- 关闭按钮 -->
             <button
+              :aria-label="$t('common.close')"
               class="text-muted-foreground hover:text-foreground flex-shrink-0 transition-colors"
               @click.stop="removeToast(toast.id)"
             >

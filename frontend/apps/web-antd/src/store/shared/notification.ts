@@ -8,7 +8,7 @@ import { ref } from 'vue';
 
 import { defineStore } from 'pinia';
 
-import { useNotificationToast } from '#/components/business/notification-toast/useNotificationToast';
+import { useNotificationToast } from '#/composables/use-notification-toast';
 import { requestClient } from '#/utils/request';
 
 import { useSocketIOStore } from './socketio';
@@ -248,6 +248,7 @@ export const useNotificationStore = defineStore('notification', () => {
 
     sioStore.registerHandler('notification', (raw: unknown) => {
       const data = raw as NotificationPushData;
+      if (!data?.title) return;
 
       // 增加未读计数
       unreadCount.value++;
@@ -293,6 +294,11 @@ export const useNotificationStore = defineStore('notification', () => {
     loading.value = false;
     initialized.value = false;
     localStorage.removeItem(LOCAL_NOTIF_KEY);
+    try {
+      useNotificationToast().clearAll();
+    } catch {
+      // 静默
+    }
   }
 
   return {

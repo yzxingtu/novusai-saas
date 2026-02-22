@@ -42,7 +42,13 @@ class EmailChannel(NotificationChannel):
                     .filter(SystemConfig.key == "email_enabled", SystemConfigValue.tenant_id == 0)
                     .first()
                 )
-                return row[0] == "true" if row else False
+                if not row:
+                    return False
+                val = row[0]
+                # 处理 JSON 编码的值（如 '"true"'）
+                if isinstance(val, str) and val.startswith('"') and val.endswith('"'):
+                    val = val.strip('"')
+                return val == "true" or val is True
             finally:
                 session.close()
         except Exception:
@@ -92,7 +98,7 @@ class EmailChannel(NotificationChannel):
                         priority=priority,
                         link=link,
                     )
-                    logger.info("EmailChannel: rendered HTML template OK, len=%d", len(email_html))
+                    logger.debug("EmailChannel: rendered HTML template OK, len=%d", len(email_html))
                 except Exception as tpl_err:
                     logger.error("EmailChannel: render_notification_html failed: %s", tpl_err, exc_info=True)
                     # 降级为纯文本

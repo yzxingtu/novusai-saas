@@ -21,9 +21,9 @@ import { $t } from '#/locales';
 import { generateAccess } from '#/router/access';
 import { accessRoutes } from '#/router/routes';
 import NotificationPanel from '#/components/business/notification-panel/NotificationPanel.vue';
+import NotificationToast from '#/components/business/notification-toast/NotificationToast.vue';
 import { useGlobalAIChatStore, useMultiAuthStore, useNotificationStore, usePresenceStore, useSocketIOStore } from '#/store';
 import LoginForm from '#/views/_core/authentication/login.vue';
-import NotificationToast from '#/components/business/notification-toast/NotificationToast.vue';
 import GlobalAIChat from '#/views/_core/global-ai-chat/GlobalAIChat.vue';
 
 
