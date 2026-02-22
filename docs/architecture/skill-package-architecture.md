@@ -138,9 +138,6 @@ WHERE is_active AND NOT is_deleted AND (
 ├───────────────────┼───────────────┼──────────────────────────────────┤
 │  code_execution   │  1 个工具     │ 在安全沙箱中执行代码              │
 │  代码执行          │               │                                  │
-├───────────────────┼───────────────┼──────────────────────────────────┤
-│  (未知类型)        │  N 个工具     │ 委托给 SkillPlugin 通过           │
-│  插件扩展          │               │ PluginManager 动态解析            │
 └───────────────────┴───────────────┴──────────────────────────────────┘
 ```
 
@@ -187,7 +184,6 @@ WHERE is_active AND NOT is_deleted AND (
 │  │    │   ├─ http → 1个 ToolDef（含HTTP配置）         │   │ │
 │  │    │   ├─ email → 1个 ToolDef（send_email）        │   │ │
 │  │    │   ├─ code_execution → 1个 ToolDef             │   │ │
-│  │    │   └─ 未知类型 → PluginManager.resolve()       │   │ │
 │  │    │                                                │   │ │
 │  │    │ 返回 SkillResolveResult {                      │   │ │
 │  │    │   tools: [ToolDefinition, ...],    工具列表    │   │ │
@@ -234,7 +230,6 @@ WHERE is_active AND NOT is_deleted AND (
 │  │      │ http          → HTTP 执行器                 │  │ │
 │  │      │ email         → 邮件执行器                  │  │ │
 │  │      │ code_execution→ 代码执行器                  │  │ │
-│  │      │ plugin        → PluginSkillExecutor         │  │ │
 │  │      └─────────────────────────────────────────────┘  │ │
 │  │    → 将 ToolResult 作为 tool 消息追加                  │ │
 │  │    → 继续循环（LLM 看到工具结果后继续推理）             │ │
@@ -270,8 +265,8 @@ WHERE is_active AND NOT is_deleted AND (
            │   consent_mode="ask"        │
            │   sort_order=1              │
            ├─────────────────────────────┤
-           │ agent_id=42, package_id=12  │──► 技能包「CRUD 生成器」(is_system)
-           │   enabled=false ← 已禁用    │       └─ 技能: crud_generator (builtin)
+           │ agent_id=42, package_id=12  │──► 技能包「数据分析」
+           │   enabled=true              │       └─ 技能: data_analysis
            │   sort_order=2              │
            └─────────────────────────────┘
 
@@ -419,7 +414,6 @@ is_system = True（系统技能包标记）
     ├─ 前端：显示紫色「系统」徽章
     │
     └─ 典型示例：
-       ├─ CRUD Generator 技能包（source_plugin='crud_generator'）
        ├─ 系统预置智能体绑定的技能包
        └─ 通过迁移脚本种子数据创建的技能包
 ```
@@ -436,7 +430,6 @@ is_system = True（系统技能包标记）
 │  创建                                                         │
 │  ├─ 管理端：API 创建 + ZIP 上传 + JSON 导入 + 克隆           │
 │  ├─ 租户端：API 创建 + ZIP 上传 + 从模板克隆                  │
-│  └─ 插件：PluginManager.enable() → _provision_skill_plugin() │
 │                                                               │
 │  绑定到智能体                                                  │
 │  ├─ 创建 AgentSkillBinding(agent_id, package_id)              │
@@ -496,7 +489,6 @@ is_system = True（系统技能包标记）
 | `backend/app/ai/tools/executors/builtin_executor.py` | builtin（内置工具） |
 | `backend/app/ai/tools/executors/text_to_sql_executor.py` | text_to_sql（自然语言转SQL） |
 | `backend/app/ai/tools/executors/crud_executor.py` | data_create/update/delete（数据增删改） |
-| `backend/app/ai/tools/executors/plugin_executor.py` | plugin（插件工具） |
 
 ### 服务层 / 仓库层
 | 文件 | 说明 |
@@ -523,4 +515,3 @@ is_system = True（系统技能包标记）
 7. **租户可查看并绑定 admin/global 技能包**，但不能修改 — 只能通过"从模板克隆"复制为自有。
 8. **删除级联规则**：删除技能包 → 软删除所有子技能 + 物理删除所有 AgentSkillBinding。
 9. **Valves 环境配置**存储在技能包级别，解析时注入到每个工具的 config 中（键名 `_valves_config`）。
-10. **插件注册的自定义技能类型**通过 `_resolve_plugin_skill()` → `PluginManager.get_skill_plugin()` → `instance.resolve()` 链路解析。
