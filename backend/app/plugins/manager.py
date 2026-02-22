@@ -248,6 +248,7 @@ class PluginManager:
             "default_config": default_config or None,
             "icon": instance.icon or None,
             "homepage": instance.homepage or None,
+            "install_source": "builtin" if is_system else "entry_point",
         })
         await db.flush()
 

@@ -194,7 +194,10 @@
     "viewResult": "查看结果",
     "searchHistory": "\u641c\u7d22\u5bf9\u8bdd",
     "minimize": "最小化",
-    "messages": "消息"
+    "messages": "消息",
+    "today": "今天",
+    "yesterday": "昨天",
+    "earlier": "更早"
   },
   "recycleBin": {
     "title": "回收站",

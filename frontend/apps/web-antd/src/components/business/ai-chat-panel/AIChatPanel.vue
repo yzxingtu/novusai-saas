@@ -143,6 +143,37 @@ const filteredConversations = computed(() => {
   );
 });
 
+interface ConversationGroup {
+  label: string;
+  items: typeof conversations.value;
+}
+
+const groupedConversations = computed<ConversationGroup[]>(() => {
+  const list = filteredConversations.value;
+  if (list.length === 0) return [];
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const yesterdayStart = todayStart - 86400000;
+
+  const today: typeof list = [];
+  const yesterday: typeof list = [];
+  const earlier: typeof list = [];
+
+  for (const c of list) {
+    const t = new Date(c.created_at).getTime();
+    if (t >= todayStart) today.push(c);
+    else if (t >= yesterdayStart) yesterday.push(c);
+    else earlier.push(c);
+  }
+
+  const groups: ConversationGroup[] = [];
+  if (today.length) groups.push({ label: $t('common.globalAiChat.today'), items: today });
+  if (yesterday.length) groups.push({ label: $t('common.globalAiChat.yesterday'), items: yesterday });
+  if (earlier.length) groups.push({ label: $t('common.globalAiChat.earlier'), items: earlier });
+  return groups;
+});
+
 // ============ Image preview lightbox ============
 
 const previewImageUrl = ref('');
@@ -318,36 +349,41 @@ onUnmounted(() => {
 
           <Spin :spinning="conversationsLoading">
             <div
-              v-if="filteredConversations.length === 0 && !conversationsLoading"
+              v-if="groupedConversations.length === 0 && !conversationsLoading"
               class="py-6 text-center text-sm text-muted-foreground"
             >
               {{ $t('common.globalAiChat.noHistory') }}
             </div>
-            <div class="space-y-0.5">
-              <div
-                v-for="conv in filteredConversations"
-                :key="conv.id"
-                class="group flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm transition-all duration-150"
-                :class="
-                  activeConversationId === conv.id
-                    ? 'bg-accent text-foreground font-medium'
-                    : 'text-muted-foreground hover:bg-accent/50'
-                "
-                @click="loadConversationMessages(conv.id)"
-              >
-                <div class="flex min-w-0 items-center gap-2">
-                  <IconifyIcon icon="lucide:message-square" class="size-3.5 shrink-0 opacity-50" />
-                  <span class="truncate">
-                    {{ conv.title || `#${conv.id}` }}
-                  </span>
+            <div v-for="group in groupedConversations" :key="group.label" class="mb-2">
+              <div class="mb-1 px-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
+                {{ group.label }}
+              </div>
+              <div class="space-y-0.5">
+                <div
+                  v-for="conv in group.items"
+                  :key="conv.id"
+                  class="group flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm transition-all duration-150"
+                  :class="
+                    activeConversationId === conv.id
+                      ? 'bg-accent text-foreground font-medium'
+                      : 'text-muted-foreground hover:bg-accent/50'
+                  "
+                  @click="loadConversationMessages(conv.id)"
+                >
+                  <div class="flex min-w-0 items-center gap-2">
+                    <IconifyIcon icon="lucide:message-square" class="size-3.5 shrink-0 opacity-50" />
+                    <span class="truncate">
+                      {{ conv.title || `#${conv.id}` }}
+                    </span>
+                  </div>
+                  <Tooltip :title="$t('common.globalAiChat.deleteConversation')">
+                    <IconifyIcon
+                      icon="lucide:trash-2"
+                      class="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                      @click.stop="onDeleteConversation(conv.id)"
+                    />
+                  </Tooltip>
                 </div>
-                <Tooltip :title="$t('common.globalAiChat.deleteConversation')">
-                  <IconifyIcon
-                    icon="lucide:trash-2"
-                    class="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
-                    @click.stop="onDeleteConversation(conv.id)"
-                  />
-                </Tooltip>
               </div>
             </div>
           </Spin>
@@ -410,39 +446,41 @@ onUnmounted(() => {
           >
             <div class="max-w-lg text-center">
               <div
-                class="mx-auto mb-5 flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 text-lg font-semibold text-primary shadow-lg shadow-primary/10"
+                class="mx-auto mb-5 flex size-20 animate-float items-center justify-center rounded-3xl bg-gradient-to-br from-primary/20 to-primary/5 text-xl font-semibold text-primary shadow-xl shadow-primary/10 ring-1 ring-primary/10"
               >
                 <img
                   v-if="selectedAgent && agentAvatar(selectedAgent)"
                   :src="agentAvatar(selectedAgent)!"
                   :alt="selectedAgent.name"
-                  class="size-full rounded-2xl object-cover"
+                  class="size-full rounded-3xl object-cover"
                 />
                 <span v-else-if="selectedAgent">{{ agentInitial(selectedAgent) }}</span>
                 <IconifyIcon
                   v-else
                   icon="lucide:sparkles"
-                  class="size-7 text-primary"
+                  class="size-8 text-primary"
                 />
               </div>
-              <div class="text-lg font-semibold text-foreground">
+              <div class="text-xl font-semibold text-foreground">
                 {{ effectiveWelcomeMessage || $t('common.globalAiChat.welcomeTitle') }}
               </div>
-              <div v-if="!effectiveWelcomeMessage" class="mt-1.5 text-sm text-muted-foreground">
+              <div v-if="!effectiveWelcomeMessage" class="mt-2 text-sm text-muted-foreground">
                 {{ $t('common.globalAiChat.welcomeDesc') }}
               </div>
               <!-- Suggested questions -->
               <div
                 v-if="effectiveSuggestedQuestions.length > 0"
-                class="mt-6 flex flex-wrap justify-center gap-2"
+                class="mt-8 grid gap-2"
+                :class="effectiveSuggestedQuestions.length <= 2 ? 'grid-cols-1 mx-auto max-w-sm' : 'grid-cols-2'"
               >
                 <button
                   v-for="(q, qi) in effectiveSuggestedQuestions"
                   :key="qi"
-                  class="max-w-[240px] truncate rounded-full border border-border/60 px-4 py-2 text-sm text-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md hover:shadow-primary/5"
+                  class="flex items-center gap-2.5 rounded-xl border border-border/50 bg-card px-4 py-3 text-left text-sm text-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
                   @click="askSuggested(q)"
                 >
-                  {{ q }}
+                  <IconifyIcon icon="lucide:message-circle" class="size-4 shrink-0 text-primary/60" />
+                  <span class="line-clamp-2">{{ q }}</span>
                 </button>
               </div>
             </div>
@@ -484,14 +522,14 @@ onUnmounted(() => {
 
         <!-- Input area -->
         <div
-          class="border-t border-border/40 px-5 py-3"
+          class="border-t border-border/30 px-5 py-3"
           @dragover="handleDragOver"
           @drop="handleDrop"
         >
           <!-- Stop button -->
           <div v-if="streaming" class="mb-2 flex justify-center">
             <button
-              class="flex items-center gap-1.5 rounded-full bg-destructive/10 px-4 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
+              class="flex items-center gap-1.5 rounded-full border border-destructive/30 bg-destructive/5 px-4 py-1.5 text-xs font-medium text-destructive shadow-sm transition-all hover:bg-destructive/15 hover:shadow-md"
               @click="stopGeneration"
             >
               <IconifyIcon icon="lucide:square" class="size-3" />
@@ -565,19 +603,18 @@ onUnmounted(() => {
           />
 
           <!-- Input row -->
-          <div class="flex gap-2">
+          <div class="flex items-end gap-2 rounded-2xl border border-border/40 bg-muted/20 px-3 py-2 transition-colors focus-within:border-primary/40 focus-within:bg-background">
             <Tooltip
               v-if="props.showAttachments"
               :title="$t('common.globalAiChat.addAttachment')"
             >
-              <Button
+              <button
+                class="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
                 :disabled="!selectedAgentId || sending"
                 @click="fileInput?.click()"
               >
-                <template #icon>
-                  <IconifyIcon icon="lucide:paperclip" class="size-4" />
-                </template>
-              </Button>
+                <IconifyIcon icon="lucide:paperclip" class="size-4" />
+              </button>
             </Tooltip>
             <input
               ref="fileInput"
@@ -592,24 +629,22 @@ onUnmounted(() => {
               :placeholder="$t('common.globalAiChat.inputPlaceholder')"
               :auto-size="{ minRows: 1, maxRows: 4 }"
               :disabled="!selectedAgentId || sending"
-              class="flex-1"
+              class="flex-1 !border-0 !bg-transparent !shadow-none !outline-none !ring-0"
               @keydown="handleInputKeyDown"
               @paste="handlePaste"
             />
-            <Button
-              type="primary"
+            <button
+              class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-all hover:shadow-md disabled:opacity-40"
               :disabled="
                 (!inputMessage.trim() && pendingAttachments.length === 0) ||
                 !selectedAgentId ||
                 sending
               "
-              :loading="sending"
               @click="() => sendMessage()"
             >
-              <template #icon>
-                <IconifyIcon icon="lucide:send" class="size-3.5" />
-              </template>
-            </Button>
+              <Spin v-if="sending" size="small" />
+              <IconifyIcon v-else icon="lucide:arrow-up" class="size-4" />
+            </button>
           </div>
         </div>
       </div>
@@ -726,7 +761,7 @@ onUnmounted(() => {
             <div class="max-w-xs text-center">
               <div
                 v-if="selectedAgent"
-                class="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 text-sm font-medium text-primary shadow-md shadow-primary/10"
+                class="mx-auto mb-3 flex size-12 animate-float items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 text-sm font-medium text-primary shadow-md shadow-primary/10"
               >
                 <img
                   v-if="agentAvatar(selectedAgent)"
@@ -860,20 +895,18 @@ onUnmounted(() => {
             class="mb-1.5"
           />
 
-          <div class="flex gap-2">
+          <div class="flex items-end gap-1.5 rounded-xl border border-border/40 bg-muted/20 px-2 py-1.5 transition-colors focus-within:border-primary/40 focus-within:bg-background">
             <Tooltip
               v-if="props.showAttachments"
               :title="$t('common.globalAiChat.addAttachment')"
             >
-              <Button
-                size="small"
+              <button
+                class="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
                 :disabled="!selectedAgentId || sending"
                 @click="fileInput?.click()"
               >
-                <template #icon>
-                  <IconifyIcon icon="lucide:paperclip" class="size-3.5" />
-                </template>
-              </Button>
+                <IconifyIcon icon="lucide:paperclip" class="size-3.5" />
+              </button>
             </Tooltip>
             <input
               ref="fileInput"
@@ -888,25 +921,22 @@ onUnmounted(() => {
               :placeholder="$t('common.globalAiChat.inputPlaceholder')"
               :auto-size="{ minRows: 1, maxRows: 3 }"
               :disabled="!selectedAgentId || sending"
-              class="flex-1 !text-sm"
+              class="flex-1 !border-0 !bg-transparent !text-sm !shadow-none !outline-none !ring-0"
               @keydown="handleInputKeyDown"
               @paste="handlePaste"
             />
-            <Button
-              type="primary"
-              size="small"
+            <button
+              class="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-all hover:shadow-md disabled:opacity-40"
               :disabled="
                 (!inputMessage.trim() && pendingAttachments.length === 0) ||
                 !selectedAgentId ||
                 sending
               "
-              :loading="sending"
               @click="() => sendMessage()"
             >
-              <template #icon>
-                <IconifyIcon icon="lucide:send" class="size-3.5" />
-              </template>
-            </Button>
+              <Spin v-if="sending" size="small" />
+              <IconifyIcon v-else icon="lucide:arrow-up" class="size-3.5" />
+            </button>
           </div>
         </div>
       </template>
@@ -946,5 +976,18 @@ onUnmounted(() => {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
 }
 </style>

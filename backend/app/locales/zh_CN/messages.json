@@ -1210,6 +1210,24 @@
       "assigned_tenants": "指定租户",
       "global": "全局生效"
     },
+    "plugin_category": {
+      "ai_model": "AI 模型适配器",
+      "ai_skill": "AI 技能扩展",
+      "storage": "存储驱动",
+      "notification": "通知渠道",
+      "integration": "第三方集成",
+      "devtool": "开发者工具",
+      "analytics": "数据分析",
+      "security": "安全增强",
+      "theme": "主题与 UI",
+      "other": "其他"
+    },
+    "plugin_install_source": {
+      "local": "本地安装",
+      "marketplace": "插件市场",
+      "builtin": "系统内置",
+      "entry_point": "入口点安装"
+    },
     "knowledge_base": {
       "status": {
         "active": "启用",
@@ -2218,5 +2236,18 @@
     "domains_exceeded": "自定义域名数已达上限 {limit}",
     "api_calls_exceeded": "本月 API 调用次数已达上限 {limit}",
     "file_size_exceeded": "文件大小超出限制 {limit}MB"
+  },
+  "marketplace": {
+    "plugin_not_found": "市场中未找到该插件",
+    "plugin_already_installed": "该插件已安装",
+    "plugin_not_installed": "该插件未安装",
+    "plugin_directory_exists": "插件目录已存在，请先卸载旧版本",
+    "platform_version_incompatible": "当前平台版本不满足该插件的最低版本要求",
+    "already_latest_version": "已是最新版本，无需更新",
+    "package_invalid": "插件包校验失败",
+    "no_repository_configured": "该插件未配置仓库地址",
+    "release_not_found": "未找到指定版本的 Release",
+    "no_downloadable_asset": "Release 中未找到可下载的插件包",
+    "download_failed": "插件包下载失败"
   }
 }

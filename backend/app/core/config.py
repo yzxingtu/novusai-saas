@@ -177,6 +177,17 @@ class Settings(BaseSettings):
     # 自动续期提前天数
     SSL_AUTO_RENEW_DAYS: int = 30
     
+    # ========================================
+    # 插件市场配置
+    # ========================================
+    PLUGIN_REGISTRY_URL: str = ""
+    PLUGIN_REGISTRY_MIRROR: str = "github"  # github / gitee
+    GITHUB_PROXY: str = ""
+    GITHUB_TOKEN: str = ""
+    GITEE_TOKEN: str = ""
+    PLUGIN_REGISTRY_CACHE_TTL: int = 3600
+    PLUGIN_MAX_PACKAGE_SIZE: int = 50 * 1024 * 1024
+
     @property
     def tz(self) -> ZoneInfo:
         """获取时区对象"""

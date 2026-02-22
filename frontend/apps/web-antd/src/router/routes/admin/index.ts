@@ -294,6 +294,18 @@ const mainRoutes: RouteRecordRaw = {
         },
       ],
     },
+    // Fallback 静态注册：插件市场（后端菜单动态路由优先生效）
+    {
+      name: 'AdminSystemMarketplace',
+      path: 'system/marketplace',
+      component: () =>
+        import('#/views/admin/system/marketplace/index.vue'),
+      meta: {
+        hideInMenu: true,
+        icon: 'lucide:store',
+        title: $t('admin.system.marketplace.title'),
+      },
+    },
     // CRUD Generator routes removed — now provided by plugin
     // 个人中心
     {

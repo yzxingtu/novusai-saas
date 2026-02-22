@@ -1186,6 +1186,24 @@
       "assigned_tenants": "Assigned Tenants",
       "global": "Global"
     },
+    "plugin_category": {
+      "ai_model": "AI Model Adapter",
+      "ai_skill": "AI Skill Extension",
+      "storage": "Storage Driver",
+      "notification": "Notification Channel",
+      "integration": "Third-party Integration",
+      "devtool": "Developer Tool",
+      "analytics": "Data Analytics",
+      "security": "Security Enhancement",
+      "theme": "Theme & UI",
+      "other": "Other"
+    },
+    "plugin_install_source": {
+      "local": "Local Install",
+      "marketplace": "Marketplace",
+      "builtin": "Built-in",
+      "entry_point": "Entry Point Install"
+    },
     "table_policy": {
       "scope": {
         "platform": "Platform",
@@ -2215,5 +2233,18 @@
     "domains_exceeded": "Custom domain limit reached: {limit}",
     "api_calls_exceeded": "Monthly API call limit reached: {limit}",
     "file_size_exceeded": "File size exceeds limit: {limit}MB"
+  },
+  "marketplace": {
+    "plugin_not_found": "Plugin not found in marketplace",
+    "plugin_already_installed": "Plugin is already installed",
+    "plugin_not_installed": "Plugin is not installed",
+    "plugin_directory_exists": "Plugin directory already exists, please uninstall the old version first",
+    "platform_version_incompatible": "Current platform version does not meet the minimum requirement",
+    "already_latest_version": "Already at the latest version",
+    "package_invalid": "Plugin package validation failed",
+    "no_repository_configured": "No repository configured for this plugin",
+    "release_not_found": "Release not found for the specified version",
+    "no_downloadable_asset": "No downloadable plugin package found in release",
+    "download_failed": "Plugin package download failed"
   }
 }

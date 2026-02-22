@@ -39,7 +39,7 @@ onMounted(() => {
   <div class="p-5">
     <Card :title="$t('tenant.dashboard.title')" class="mb-4">
       <template #extra>
-        <span class="text-gray-500">{{ $t('tenant.dashboard.welcome') }}</span>
+        <span class="text-muted-foreground">{{ $t('tenant.dashboard.welcome') }}</span>
       </template>
       <div class="text-lg">
         {{
@@ -48,7 +48,7 @@ onMounted(() => {
           })
         }}
       </div>
-      <p class="mt-2 text-gray-500">
+      <p class="mt-2 text-muted-foreground">
         {{ $t('tenant.dashboard.description') }}
       </p>
     </Card>

@@ -312,6 +312,8 @@ class AgentChatService:
             conversation_id=conversation.id,
             knowledge_base_ids=knowledge_base_ids,
             consented_actions=consented_actions,
+            user_role=user_role,
+            permissions=permissions,
         )
 
         # 5. 配额/并发/钩子前置检查（与 dispatcher.dispatch 对等）

@@ -42,6 +42,8 @@ export interface PluginInfo {
   screenshots: string[] | null;
   source_url: string | null;
   license: string | null;
+  install_source: string | null;
+  marketplace_slug: string | null;
   created_at: string;
   updated_at: string;
 }

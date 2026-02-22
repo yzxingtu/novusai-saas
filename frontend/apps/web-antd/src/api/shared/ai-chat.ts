@@ -75,10 +75,11 @@ export async function getChatAgentsApi<T = Record<string, unknown>>(
 export async function getChatConversationsApi<T = Record<string, unknown>>(
   apiPrefix: string,
   agentId: number,
+  pageSize = 50,
 ): Promise<PaginatedResponse<T>> {
   return requestClient.get<PaginatedResponse<T>>(
     `${chatBaseUrl(apiPrefix)}/${agentId}/conversations`,
-    { params: { 'page[size]': 50, sort: '-created_at' } },
+    { params: { 'page[size]': pageSize, sort: '-created_at' } },
   );
 }
 

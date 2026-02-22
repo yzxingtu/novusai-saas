@@ -44,6 +44,8 @@ class PluginResponse(BaseSchema):
     screenshots: list[str] | None = Field(None, description="截图")
     source_url: str | None = Field(None, description="源码地址")
     license: str | None = Field(None, description="许可证")
+    install_source: str | None = Field(None, description="安装来源（local/marketplace/builtin/entry_point）")
+    marketplace_slug: str | None = Field(None, description="插件市场 slug")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
 

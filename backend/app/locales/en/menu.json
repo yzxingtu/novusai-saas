@@ -46,7 +46,8 @@
       "agent_assignment": "Agent Assignment",
       "email_log": "Email Logs",
       "recycle_bin": "Recycle Bin",
-      "notification_template": "Notification Templates"
+      "notification_template": "Notification Templates",
+      "marketplace": "Plugin Marketplace"
     },
     "tags": {
       "admin_agent_mgmt": "Agent Management (Platform)",

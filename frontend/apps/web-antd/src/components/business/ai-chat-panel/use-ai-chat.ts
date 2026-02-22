@@ -728,7 +728,6 @@ export function useAIChat(options: UseAIChatOptions) {
             });
           },
           onEnd() {
-            finalizeMessage();
             loadConversations();
           },
           onError(error: Error) {
@@ -814,8 +813,20 @@ export function useAIChat(options: UseAIChatOptions) {
       lines.push('');
       if (msg.content) lines.push(msg.content);
       if (msg.toolCalls?.length) {
+        lines.push('');
         for (const tc of msg.toolCalls) {
-          lines.push(`> 🔧 ${tc.displayName || tc.name} — ${tc.status}`);
+          const duration = tc.durationMs ? ` (${(tc.durationMs / 1000).toFixed(1)}s)` : '';
+          const skill = tc.skillName ? `${tc.skillName} › ` : '';
+          lines.push(`> 🔧 ${skill}${tc.displayName || tc.name} — ${tc.status}${duration}`);
+          if (tc.arguments && Object.keys(tc.arguments).length > 0) {
+            lines.push(`> **Args:** \`${JSON.stringify(tc.arguments)}\``);
+          }
+          if (tc.output) {
+            lines.push(`> **Output:** ${tc.output.slice(0, 500)}${tc.output.length > 500 ? '...' : ''}`);
+          }
+          if (tc.error) {
+            lines.push(`> **Error:** ${tc.error}`);
+          }
         }
       }
       lines.push('');

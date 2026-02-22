@@ -143,7 +143,11 @@ onBeforeUnmount(() => {
 
 const renderedHtml = computed(() => {
   if (!props.content) return '';
-  return md.render(props.content);
+  try {
+    return md.render(props.content);
+  } catch {
+    return `<pre style="white-space:pre-wrap;word-break:break-word">${md.utils.escapeHtml(props.content)}</pre>`;
+  }
 });
 
 </script>

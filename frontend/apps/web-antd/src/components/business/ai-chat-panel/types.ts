@@ -107,8 +107,6 @@ export interface ChatMessage {
   ragSources?: RagSource[];
   attachments?: ChatAttachment[];
   toolCalls?: ToolCallEvent[];
-  /** Extended thinking/reasoning content from the model */
-  thinkingContent?: string;
   /** Pending CRUD confirmation request from tool */
   pendingConfirmation?: PendingConfirmation;
   /** Pending tool consent request (consent_mode=ask) */

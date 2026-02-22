@@ -415,6 +415,14 @@ class AdminPluginController(GlobalController):
                     shutil.rmtree(permanent_dir, ignore_errors=True)
                     raise
 
+            # 上传安装的插件标记来源为 local
+            from app.repositories.system.plugin_repository import PluginRepository as _PluginRepo
+            try:
+                _pr = _PluginRepo(db)
+                await _pr.update(plugin.id, {"install_source": "local"})
+            except Exception:
+                pass
+
             return created(data=_mask_plugin_response(plugin))
 
         @router.get("/{plugin_id}/assigned-tenants", summary="查看已分配租户列表")

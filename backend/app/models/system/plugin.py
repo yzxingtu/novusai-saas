@@ -32,6 +32,7 @@ class Plugin(BaseModel):
         "is_system": "is_system",
         "author": "author",
         "category": "category",
+        "install_source": "install_source",
         "created_at": "created_at",
     }
 
@@ -168,4 +169,12 @@ class Plugin(BaseModel):
     license: Mapped[str | None] = mapped_column(
         default=None,
         comment="开源许可证（如 MIT, Apache-2.0）",
+    )
+    install_source: Mapped[str | None] = mapped_column(
+        default=None,
+        comment="安装来源（local/marketplace/builtin/entry_point）",
+    )
+    marketplace_slug: Mapped[str | None] = mapped_column(
+        default=None,
+        comment="插件市场 slug（市场安装时填写，用于后续升级匹配）",
     )

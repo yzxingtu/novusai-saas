@@ -6,7 +6,7 @@
  */
 defineOptions({ name: 'NotificationSettings' });
 
-import { onMounted, ref } from 'vue';
+import { ref } from 'vue';
 
 import { Button, Drawer, Spin, Switch, message } from 'ant-design-vue';
 
@@ -75,20 +75,6 @@ async function loadPreferences() {
   }
 }
 
-/** 确保所有分类都有行 */
-function ensureAllCategories() {
-  for (const cat of CATEGORIES) {
-    if (!preferences.value.find((p) => p.category === cat)) {
-      preferences.value.push({
-        category: cat,
-        channel_ws: true,
-        channel_email: false,
-        channel_inbox: true,
-      });
-    }
-  }
-}
-
 /** 保存偏好 */
 async function handleSave() {
   saving.value = true;
@@ -106,21 +92,15 @@ async function handleSave() {
   }
 }
 
-/** 获取分类对应的偏好行 */
+/** 获取分类对应的偏好行（保证返回 preferences 数组中的引用） */
 function getPref(category: string): PrefRow {
-  return (
-    preferences.value.find((p) => p.category === category) || {
-      category,
-      channel_ws: true,
-      channel_email: false,
-      channel_inbox: true,
-    }
-  );
+  let row = preferences.value.find((p) => p.category === category);
+  if (!row) {
+    row = { category, channel_ws: true, channel_email: false, channel_inbox: true };
+    preferences.value.push(row);
+  }
+  return row;
 }
-
-onMounted(() => {
-  ensureAllCategories();
-});
 
 defineExpose({ open });
 </script>

@@ -199,7 +199,10 @@
     "viewResult": "View Result",
     "searchHistory": "Search conversations",
     "minimize": "Minimize",
-    "messages": "messages"
+    "messages": "messages",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "earlier": "Earlier"
   },
   "recycleBin": {
     "title": "Recycle Bin",

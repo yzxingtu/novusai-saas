@@ -108,8 +108,8 @@ function agentInitial(agent: { name: string }) {
           <details
             v-for="(tc, tcIdx) in msg.toolCalls"
             :key="tcIdx"
-            class="group/tc bg-accent/50 [&>summary]:list-none [&>summary::-webkit-details-marker]:hidden"
-            :class="compact ? 'rounded' : 'rounded-md'"
+            class="group/tc overflow-hidden border border-border/30 bg-accent/30 backdrop-blur-sm [&>summary]:list-none [&>summary::-webkit-details-marker]:hidden"
+            :class="compact ? 'rounded-lg' : 'rounded-xl'"
           >
             <summary
               class="flex cursor-pointer items-center select-none"
@@ -201,7 +201,7 @@ function agentInitial(agent: { name: string }) {
         <!-- Markdown content -->
         <div
           v-if="msg.content"
-          class="rounded-2xl border border-border/40 bg-muted/30"
+          class="rounded-2xl border border-border/30 bg-gradient-to-br from-muted/40 to-muted/20 shadow-sm"
           :class="compact ? 'px-3 py-2 text-sm' : 'px-4 py-3'"
         >
           <MarkdownRender :content="msg.content" :streaming="!!msg.streaming" />
@@ -393,8 +393,8 @@ function agentInitial(agent: { name: string }) {
         <!-- Stats + Copy + Regenerate -->
         <div
           v-if="msg.content && !msg.streaming"
-          class="flex items-center text-muted-foreground"
-          :class="compact ? 'mt-1 gap-1.5 text-[11px]' : 'mt-1.5 gap-1 text-xs'"
+          class="flex items-center text-muted-foreground/70"
+          :class="compact ? 'mt-1 gap-1.5 text-[11px]' : 'mt-2 gap-1.5 text-xs'"
         >
           <span v-if="msg.tokenUsage" class="mr-1">{{ msg.tokenUsage }} {{ $t('common.globalAiChat.tokens') }}</span>
           <span v-if="!compact && msg.durationMs" class="mr-1">{{ (msg.durationMs / 1000).toFixed(1) }}s</span>
@@ -459,7 +459,7 @@ function agentInitial(agent: { name: string }) {
       </div>
       <div
         v-if="msg.content"
-        class="whitespace-pre-wrap rounded-2xl bg-gradient-to-br from-primary to-primary/90 px-4 py-2.5 text-sm text-primary-foreground shadow-sm shadow-primary/20"
+        class="whitespace-pre-wrap rounded-2xl rounded-br-md bg-gradient-to-br from-primary to-primary/85 px-4 py-2.5 text-sm text-primary-foreground shadow-md shadow-primary/15"
       >
         {{ msg.content }}
       </div>

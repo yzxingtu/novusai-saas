@@ -1,0 +1,143 @@
+{
+  "schema_version": "1.0",
+  "updated_at": "2026-02-22T12:00:00+08:00",
+  "categories": [
+    {
+      "code": "ai_model",
+      "name": "enum.plugin_category.ai_model",
+      "icon": "lucide:brain",
+      "sort_order": 1
+    },
+    {
+      "code": "ai_skill",
+      "name": "enum.plugin_category.ai_skill",
+      "icon": "lucide:sparkles",
+      "sort_order": 2
+    },
+    {
+      "code": "storage",
+      "name": "enum.plugin_category.storage",
+      "icon": "lucide:hard-drive",
+      "sort_order": 3
+    },
+    {
+      "code": "notification",
+      "name": "enum.plugin_category.notification",
+      "icon": "lucide:bell",
+      "sort_order": 4
+    },
+    {
+      "code": "integration",
+      "name": "enum.plugin_category.integration",
+      "icon": "lucide:plug",
+      "sort_order": 5
+    },
+    {
+      "code": "devtool",
+      "name": "enum.plugin_category.devtool",
+      "icon": "lucide:wrench",
+      "sort_order": 6
+    },
+    {
+      "code": "analytics",
+      "name": "enum.plugin_category.analytics",
+      "icon": "lucide:bar-chart-3",
+      "sort_order": 7
+    },
+    {
+      "code": "security",
+      "name": "enum.plugin_category.security",
+      "icon": "lucide:shield",
+      "sort_order": 8
+    },
+    {
+      "code": "theme",
+      "name": "enum.plugin_category.theme",
+      "icon": "lucide:palette",
+      "sort_order": 9
+    },
+    {
+      "code": "other",
+      "name": "enum.plugin_category.other",
+      "icon": "lucide:puzzle",
+      "sort_order": 99
+    }
+  ],
+  "plugins": [
+    {
+      "name": "novusai-crud-generator",
+      "slug": "crud-generator",
+      "display_name": "CRUD Code Generator",
+      "version": "1.0.0",
+      "description": "AI-powered CRUD code generator. Automatically generates Model, Schema, Repository, Service, Controller, and frontend pages from natural language or field definitions.",
+      "author": "NovusAI",
+      "plugin_type": "composite",
+      "category": "devtool",
+      "tags": ["code-generation", "crud", "ai", "developer-tool"],
+      "repo": {
+        "github": "novusai-plugins/crud-generator",
+        "gitee": "novusai-plugins/crud-generator"
+      },
+      "official": true,
+      "icon": "lucide:code-2",
+      "screenshots": [],
+      "min_platform_version": "0.1.0",
+      "license": "MIT",
+      "homepage": null,
+      "changelog_url": null,
+      "readme_url": "README.md",
+      "checksum_sha256": null,
+      "file_size_bytes": null
+    },
+    {
+      "name": "novusai-slack-skill",
+      "slug": "slack-skill",
+      "display_name": "Slack Integration Skill",
+      "version": "0.1.0",
+      "description": "Enables AI agents to send messages and interact with Slack channels. Supports channel messaging, user notifications, and file sharing.",
+      "author": "NovusAI",
+      "plugin_type": "skill",
+      "category": "integration",
+      "tags": ["slack", "messaging", "notification", "skill"],
+      "repo": {
+        "github": "novusai-plugins/slack-skill",
+        "gitee": "novusai-plugins/slack-skill"
+      },
+      "official": true,
+      "icon": "lucide:message-square",
+      "screenshots": [],
+      "min_platform_version": "0.1.0",
+      "license": "MIT",
+      "homepage": null,
+      "changelog_url": null,
+      "readme_url": "README.md",
+      "checksum_sha256": null,
+      "file_size_bytes": null
+    },
+    {
+      "name": "novusai-s3-storage",
+      "slug": "s3-storage",
+      "display_name": "AWS S3 Storage Driver",
+      "version": "1.0.0",
+      "description": "Amazon S3 compatible storage driver. Supports AWS S3, MinIO, Cloudflare R2, and other S3-compatible object storage services.",
+      "author": "NovusAI",
+      "plugin_type": "storage",
+      "category": "storage",
+      "tags": ["s3", "aws", "minio", "storage", "object-storage"],
+      "repo": {
+        "github": "novusai-plugins/s3-storage",
+        "gitee": "novusai-plugins/s3-storage"
+      },
+      "official": true,
+      "icon": "lucide:cloud",
+      "screenshots": [],
+      "min_platform_version": "0.1.0",
+      "license": "MIT",
+      "homepage": null,
+      "changelog_url": null,
+      "readme_url": "README.md",
+      "checksum_sha256": null,
+      "file_size_bytes": null
+    }
+  ]
+}

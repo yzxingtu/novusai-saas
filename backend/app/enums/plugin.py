@@ -35,8 +35,34 @@ class PluginStatusEnum(LabeledStrEnum):
     ERROR = ("error", "enum.plugin_status.error")
 
 
+class PluginCategoryEnum(LabeledStrEnum):
+    """插件分类枚举"""
+
+    AI_MODEL = ("ai_model", "enum.plugin_category.ai_model")
+    AI_SKILL = ("ai_skill", "enum.plugin_category.ai_skill")
+    STORAGE = ("storage", "enum.plugin_category.storage")
+    NOTIFICATION = ("notification", "enum.plugin_category.notification")
+    INTEGRATION = ("integration", "enum.plugin_category.integration")
+    DEVTOOL = ("devtool", "enum.plugin_category.devtool")
+    ANALYTICS = ("analytics", "enum.plugin_category.analytics")
+    SECURITY = ("security", "enum.plugin_category.security")
+    THEME = ("theme", "enum.plugin_category.theme")
+    OTHER = ("other", "enum.plugin_category.other")
+
+
+class PluginInstallSourceEnum(LabeledStrEnum):
+    """插件安装来源枚举"""
+
+    LOCAL = ("local", "enum.plugin_install_source.local")
+    MARKETPLACE = ("marketplace", "enum.plugin_install_source.marketplace")
+    BUILTIN = ("builtin", "enum.plugin_install_source.builtin")
+    ENTRY_POINT = ("entry_point", "enum.plugin_install_source.entry_point")
+
+
 __all__ = [
     "PluginTypeEnum",
     "PluginScopeEnum",
     "PluginStatusEnum",
+    "PluginCategoryEnum",
+    "PluginInstallSourceEnum",
 ]

@@ -215,7 +215,10 @@ class TenantAgentChatController(TenantController):
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             from app.schemas.common.query import FilterRule
-            forced = [FilterRule(field="agent_id", operator="eq", value=agent_id)]
+            forced = [
+                FilterRule(field="agent_id", operator="eq", value=agent_id),
+                FilterRule(field="user_id", operator="eq", value=tenant_admin.id),
+            ]
             items, total = await service.query_list(
                 spec=query,
                 forced_filters=forced,
@@ -247,7 +250,11 @@ class TenantAgentChatController(TenantController):
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             conversation = await service.get_by_id(conversation_id)
-            if not conversation or conversation.agent_id != agent_id:
+            if (
+                not conversation
+                or conversation.agent_id != agent_id
+                or conversation.user_id != tenant_admin.id
+            ):
                 raise NotFoundException(
                     message=_("agent_chat.error.conversation_not_found"),
                 )
@@ -275,7 +282,11 @@ class TenantAgentChatController(TenantController):
             service = ConversationService(db, tenant_admin.tenant_id)
 
             conversation = await service.get_by_id(conversation_id)
-            if not conversation or conversation.agent_id != agent_id:
+            if (
+                not conversation
+                or conversation.agent_id != agent_id
+                or conversation.user_id != tenant_admin.id
+            ):
                 raise NotFoundException(
                     message=_("agent_chat.error.conversation_not_found"),
                 )

@@ -6,6 +6,7 @@ for testing and support purposes.
 """
 
 from fastapi import Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_controller import GlobalController
 from app.core.deps import DbSession, ActiveAdmin, QueryParams
@@ -29,7 +30,7 @@ from app.services.ai.agent_service import AdminAgentService
 from app.services.ai.conversation_service import ConversationService
 
 
-async def _get_agent_tenant_id(db: "AsyncSession", agent_id: int) -> int:
+async def _get_agent_tenant_id(db: AsyncSession, agent_id: int) -> int:
     """Load agent via AdminAgentService and return its tenant_id.
 
     For global/admin agents where tenant_id is NULL, returns 0

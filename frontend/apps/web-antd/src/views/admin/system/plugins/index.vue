@@ -323,8 +323,17 @@ onMounted(loadPlugins);
             </div>
           </div>
         </div>
-        <!-- 安装按钮 -->
-        <Dropdown>
+        <!-- 操作按钮组 -->
+        <div class="flex items-center gap-2">
+          <Button
+            size="large"
+            class="!rounded-xl"
+            @click="$router.push('/admin/system/marketplace')"
+          >
+            <IconifyIcon icon="lucide:store" class="mr-1.5 size-4" />
+            {{ $t('admin.system.marketplace.goToMarketplace') }}
+          </Button>
+          <Dropdown>
           <Button type="primary" size="large" class="!rounded-xl !px-5 !shadow-lg !shadow-primary/20">
             <IconifyIcon icon="lucide:plus" class="mr-1.5 size-4" />
             {{ $t('admin.plugin.install') }}
@@ -346,6 +355,7 @@ onMounted(loadPlugins);
             </Menu>
           </template>
         </Dropdown>
+        </div>
       </div>
       <!-- 装饰背景 -->
       <div class="absolute -right-12 -top-12 size-48 rounded-full bg-primary/5 blur-3xl" />
