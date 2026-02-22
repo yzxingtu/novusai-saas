@@ -14,6 +14,7 @@ import { Button, Result, Spin } from 'ant-design-vue';
 
 import { tenantApi } from '#/api';
 import { $t } from '#/locales';
+import { toAvatarDisplayUrl } from '#/utils/image';
 import { HOME_PATHS } from '#/store/shared/multi-auth';
 import { TokenStorage } from '#/store/shared/token-storage';
 
@@ -68,7 +69,7 @@ async function doImpersonateLogin() {
 
     // 转换为 vben 需要的 UserInfo 格式
     const vbenUserInfo: UserInfo = {
-      avatar: userInfo?.avatar || '',
+      avatar: toAvatarDisplayUrl(userInfo?.avatar),
       desc: '',
       homePath: HOME_PATHS.tenant,
       realName: userInfo?.realName || '',

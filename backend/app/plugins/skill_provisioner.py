@@ -7,14 +7,13 @@ SkillPlugin 自动装配器
 
 from __future__ import annotations
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import LogManager
 from app.models.ai.skill import Skill
 from app.plugins.config_manager import PluginConfigManager
 from app.plugins.extensions.skill_plugin import SkillPlugin
-from app.core.base_model import utc_now
 
 logger = LogManager.get_logger("app")
 
@@ -26,7 +25,7 @@ class SkillPluginProvisioner:
     职责：
     - 启用 SkillPlugin 时自动创建 SkillPackage + Skill 记录
     - 禁用时停用记录
-    - 卸载时软删除记录
+    - 卸载时永久删除记录
     - 幂等操作：已有记录时恢复激活
     """
 
@@ -98,7 +97,7 @@ class SkillPluginProvisioner:
         if plugin_scope == PluginScopeEnum.PLATFORM_ONLY.value:
             pkg_scope = "admin"
         elif plugin_scope in (PluginScopeEnum.ALL_TENANTS.value, PluginScopeEnum.GLOBAL.value):
-            pkg_scope = "system"
+            pkg_scope = "global"
         else:
             pkg_scope = "admin"
 
@@ -140,60 +139,61 @@ class SkillPluginProvisioner:
         db: AsyncSession,
         instance: SkillPlugin,
         *,
-        soft_delete: bool = False,
+        permanent_delete: bool = False,
     ) -> None:
         """
-        SkillPlugin 禁用/卸载时停用或软删除 SkillPackage + Skill
+        SkillPlugin 禁用/卸载时停用或永久删除 SkillPackage + Skill
 
         Args:
             db: 数据库会话
             instance: SkillPlugin 实例
-            soft_delete: True=软删除（卸载时），False=仅停用（禁用时）
+            permanent_delete: True=永久删除（卸载时），False=仅停用（禁用时）
         """
+        from app.models.ai.agent_skill_binding import AgentSkillBinding
+        from app.models.ai.skill_package import SkillPackage
         from app.repositories.ai.skill_package_repository import (
             AdminSkillPackageRepository,
         )
-        from app.repositories.ai.skill_repository import AdminSkillRepository
 
         pkg_repo = AdminSkillPackageRepository(db)
-        skill_repo = AdminSkillRepository(db)
         plugin_name = instance.name
 
         existing_pkg = await pkg_repo.get_by_source_plugin(plugin_name)
         if not existing_pkg:
             return
 
-        # 处理技能包下的所有技能
-        stmt = select(Skill).where(Skill.package_id == existing_pkg.id)
-        result = await db.execute(stmt)
-        skills = list(result.scalars().all())
+        pkg_id = existing_pkg.id
 
-        if soft_delete:
-            now = utc_now()
-            for s in skills:
-                await skill_repo.update(s.id, {
-                    "is_active": False,
-                    "is_deleted": True,
-                    "deleted_at": now,
-                    "delete_level": "admin",
-                })
-            await pkg_repo.update(existing_pkg.id, {
-                "is_active": False,
-                "is_deleted": True,
-                "deleted_at": now,
-                "delete_level": "admin",
-            })
+        if permanent_delete:
+            # 卸载：永久删除（插件创建的 is_system 包无法从 UI 删除）
+            await db.execute(
+                delete(AgentSkillBinding).where(
+                    AgentSkillBinding.package_id == pkg_id,
+                )
+            )
+            await db.execute(
+                delete(Skill).where(Skill.package_id == pkg_id)
+            )
+            await db.execute(
+                delete(SkillPackage).where(SkillPackage.id == pkg_id)
+            )
             logger.info(
-                "Skill plugin soft-deleted: plugin=%s package_id=%d",
-                plugin_name, existing_pkg.id,
+                "Skill plugin permanently deleted: plugin=%s package_id=%d",
+                plugin_name, pkg_id,
             )
         else:
+            # 禁用：仅停用
+            from app.repositories.ai.skill_repository import AdminSkillRepository
+            skill_repo = AdminSkillRepository(db)
+            stmt = select(Skill).where(Skill.package_id == pkg_id)
+            result = await db.execute(stmt)
+            skills = list(result.scalars().all())
             for s in skills:
                 await skill_repo.update(s.id, {"is_active": False})
-            await pkg_repo.update(existing_pkg.id, {"is_active": False})
+            await pkg_repo.update(pkg_id, {"is_active": False})
             logger.info(
                 "Skill plugin deactivated: plugin=%s package_id=%d",
-                plugin_name, existing_pkg.id,
+                plugin_name, pkg_id,
             )
 
 

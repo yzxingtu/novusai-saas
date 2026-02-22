@@ -133,19 +133,26 @@ async def import_skill_package(
     package_info = export_data.get("package_info")
     skills_data = export_data.get("skills", [])
 
-    if not package_info or not package_info.get("name"):
+    if not isinstance(package_info, dict) or not package_info.get("name"):
         raise BusinessException(
             message=_("skill_package.error.invalid_export_format"),
         )
 
     pkg_name = package_info["name"]
 
-    # 检查同名技能包
+    # 检查同名技能包（按 scope + tenant_id 隔离，避免跨租户干扰）
+    name_conditions = [
+        SkillPackage.name == pkg_name,
+        SkillPackage.scope == target_scope,
+        SkillPackage.is_deleted.is_(False),
+    ]
+    if target_scope == "tenant" and target_tenant_id is not None:
+        name_conditions.append(SkillPackage.tenant_id == target_tenant_id)
+    elif target_scope in ("admin", "global"):
+        name_conditions.append(SkillPackage.tenant_id.is_(None))
+
     existing = await db.execute(
-        select(SkillPackage).where(
-            SkillPackage.name == pkg_name,
-            SkillPackage.is_deleted.is_(False),
-        ),
+        select(SkillPackage).where(*name_conditions),
     )
     existing_pkg = existing.scalar_one_or_none()
 
@@ -183,15 +190,26 @@ async def import_skill_package(
     await db.flush()  # 获取 new_pkg.id
 
     # 创建技能
+    from app.enums.agent import SkillTypeEnum
+    valid_skill_types = SkillTypeEnum.values()
+
     skills_created = 0
     for skill_data in skills_data:
+        skill_type = skill_data.get("type", "toolkit")
+        if skill_type not in valid_skill_types:
+            logger.warning(
+                "Skipping skill with invalid type '%s' during import of '%s'",
+                skill_type, pkg_name,
+            )
+            continue
+
         new_skill = Skill(
             package_id=new_pkg.id,
             tenant_id=target_tenant_id,
             name=skill_data.get("name", "Unnamed Skill"),
             description=skill_data.get("description"),
             avatar=skill_data.get("avatar"),
-            type=skill_data.get("type", "toolkit"),
+            type=skill_type,
             config=skill_data.get("config"),
             toolkit_content=skill_data.get("toolkit_content"),
             toolkit_meta=skill_data.get("toolkit_meta"),

@@ -18,6 +18,10 @@ import { $t } from '#/locales';
 import { useNotificationStore } from '#/store';
 import { formatRelativeTime } from '#/utils/common';
 
+import NotificationSettings from './NotificationSettings.vue';
+
+const settingsRef = ref<InstanceType<typeof NotificationSettings>>();
+
 const notifStore = useNotificationStore();
 
 const activeTab = ref('all');
@@ -170,7 +174,15 @@ onMounted(() => {
       <Button type="link" size="small" @click="handleMarkAllRead">
         {{ $t('common.notification.markAllRead') }}
       </Button>
+      <Button type="text" size="small" @click="settingsRef?.open()">
+        <template #icon>
+          <IconifyIcon icon="lucide:settings" class="size-3.5" />
+        </template>
+      </Button>
     </div>
+
+    <!-- 通知偏好设置抽屉 -->
+    <NotificationSettings ref="settingsRef" />
   </div>
 </template>
 

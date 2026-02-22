@@ -115,6 +115,15 @@ async function open() {
   }
 }
 
+function onResetDefaults() {
+  if (!schema.value?.properties) return;
+  const defaults: Record<string, unknown> = {};
+  for (const [key, prop] of Object.entries(schema.value.properties)) {
+    defaults[key] = prop.default !== undefined ? prop.default : '';
+  }
+  formValues.value = defaults;
+}
+
 async function onSave() {
   if (!props.packageId) return;
   saving.value = true;
@@ -141,6 +150,10 @@ function getInputType(type: string) {
     case 'boolean': {
       return 'switch';
     }
+    case 'array':
+    case 'object': {
+      return 'json';
+    }
     default: {
       return 'string';
     }
@@ -148,8 +161,7 @@ function getInputType(type: string) {
 }
 
 function isSecret(key: string): boolean {
-  const lower = key.toLowerCase();
-  return lower.includes('secret') || lower.includes('password') || lower.includes('token') || lower.includes('api_key') || lower.includes('apikey');
+  return /\b(api_?key|secret|password|access_?token|auth_?token|apikey|private_?key)\b/i.test(key);
 }
 
 defineExpose({ open });
@@ -226,12 +238,32 @@ defineExpose({ open });
               :placeholder="field.default !== undefined ? String(field.default) : ''"
             />
 
-            <!-- String → Input / Password -->
-            <Input.Password
-              v-else-if="isSecret(field.key)"
-              v-model:value="(formValues[field.key] as string)"
-              :placeholder="field.default !== undefined ? String(field.default) : ''"
+            <!-- Array/Object → JSON Textarea -->
+            <Input.TextArea
+              v-else-if="getInputType(field.type) === 'json'"
+              :value="typeof formValues[field.key] === 'string' ? (formValues[field.key] as string) : JSON.stringify(formValues[field.key], null, 2)"
+              :rows="4"
+              :placeholder="field.default !== undefined ? JSON.stringify(field.default) : '[]'"
+              class="font-mono text-xs"
+              @update:value="(val: string) => { try { formValues[field.key] = JSON.parse(val); } catch { formValues[field.key] = val; } }"
             />
+
+            <!-- String → Input / Password (secret) -->
+            <div v-else-if="isSecret(field.key)" class="flex items-center gap-2">
+              <Input.Password
+                v-model:value="(formValues[field.key] as string)"
+                :placeholder="field.default !== undefined ? String(field.default) : ''"
+                class="flex-1"
+              />
+              <Tag
+                v-if="formValues[field.key] === '******'"
+                color="green"
+                style="font-size: 10px; line-height: 14px; padding: 0 4px; margin: 0; cursor: pointer;"
+                @click="formValues[field.key] = ''"
+              >
+                {{ $t(`${i18nPrefix}.valves.secretConfigured`) }}
+              </Tag>
+            </div>
             <Input
               v-else
               v-model:value="(formValues[field.key] as string)"
@@ -248,17 +280,30 @@ defineExpose({ open });
     </Spin>
 
     <template #footer>
-      <Button class="mr-2" @click="visible = false">
-        {{ $t('common.cancel') }}
-      </Button>
-      <Button
-        type="primary"
-        :loading="saving"
-        :disabled="!schema || loading"
-        @click="onSave"
-      >
-        {{ $t('common.save') }}
-      </Button>
+      <div class="flex items-center justify-between">
+        <Button
+          v-if="schema"
+          size="small"
+          @click="onResetDefaults"
+        >
+          <IconifyIcon icon="lucide:rotate-ccw" class="mr-1 size-3.5" />
+          {{ $t(`${i18nPrefix}.valves.resetDefaults`) }}
+        </Button>
+        <span v-else />
+        <div>
+          <Button class="mr-2" @click="visible = false">
+            {{ $t('common.cancel') }}
+          </Button>
+          <Button
+            type="primary"
+            :loading="saving"
+            :disabled="!schema || loading"
+            @click="onSave"
+          >
+            {{ $t('common.save') }}
+          </Button>
+        </div>
+      </div>
     </template>
   </Drawer>
 </template>

@@ -147,6 +147,42 @@ export function updateSkillPackageValvesApi(
   );
 }
 
+/** 获取回收站数量 */
+export function getSkillPackageRecycleBinCountApi() {
+  return requestClient.get<{ count: number }>(`${BASE_URL}/recycle-bin/count`);
+}
+
+/** 获取回收站列表 */
+export function getSkillPackageRecycleBinApi(params?: Record<string, unknown>) {
+  return requestClient.get<{ items: TenantSkillPackageInfo[]; total: number }>(
+    `${BASE_URL}/recycle-bin`,
+    { params },
+  );
+}
+
+/** 恢复技能包 */
+export function restoreSkillPackageApi(id: number) {
+  return requestClient.post(`${BASE_URL}/recycle-bin/${id}/restore`);
+}
+
+/** 永久删除技能包 */
+export function permanentDeleteSkillPackageApi(id: number) {
+  return requestClient.delete(`${BASE_URL}/recycle-bin/${id}`);
+}
+
+/** 从模板克隆技能包 */
+export function cloneFromTemplateApi(
+  packageId: number,
+  data?: { new_name?: string },
+) {
+  return requestClient.post<{
+    status: string;
+    package_id: number;
+    package_name: string;
+    skills_created: number;
+  }>(`${BASE_URL}/from-template/${packageId}`, data ?? {});
+}
+
 /** 获取技能包内的技能列表 */
 export function getSkillPackageSkillsApi(
   packageId: number,

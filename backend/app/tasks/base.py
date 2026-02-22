@@ -174,30 +174,29 @@ class BaseTask(Task):
         except Exception as ws_err:
             logger.warning("Failed to send WS task failure notification: %s", str(ws_err))
 
-        # 3. 邮件通知
+        # 3. 邮件通知（通过统一通知系统）
         if notify_emails:
-            emails = [e.strip() for e in notify_emails.split(",") if e.strip()]
-            if emails:
-                try:
-                    from app.services.common.email_templates import render_task_failure_email
-                    from app.tasks.email import send_email_task
+            try:
+                from app.services.common.email_templates import render_task_failure_email
+                from app.services.common.notification_service import notify_sync
 
-                    subject, html_body, text_body = render_task_failure_email(
-                        task_name=task_name,
-                        task_id=task_id,
-                        error=str(exc)[:1000],
-                    )
-                    send_email_task.delay(
-                        to=emails,
-                        subject=subject,
-                        html_body=html_body,
-                        text_body=text_body,
-                        triggered_by="task_failure",
-                    )
-                except Exception as mail_err:
-                    logger.warning(
-                        "Failed to send task failure email: %s", str(mail_err),
-                    )
+                subject, html_body, text_body = render_task_failure_email(
+                    task_name=task_name,
+                    task_id=task_id,
+                    error=str(exc)[:1000],
+                )
+                notify_sync(
+                    template_code="system.task_failure",
+                    recipients=[("admin", 1)],
+                    data={"task_name": task_name, "task_id": task_id, "error": str(exc)[:500]},
+                    email_html=html_body,
+                    email_subject=subject,
+                    email_text=text_body,
+                )
+            except Exception as mail_err:
+                logger.warning(
+                    "Failed to send task failure notification: %s", str(mail_err),
+                )
 
     def _get_elapsed(self) -> float:
         if self._start_time is not None:

@@ -72,7 +72,9 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<SkillInfo>({
         : null;
     } else if (type === 'http') {
       let headers: Record<string, string> = {};
+      let queryParams: Record<string, string> = {};
       try { headers = JSON.parse((values.http_headers as string) || '{}'); } catch { /* empty */ }
+      try { queryParams = JSON.parse((values.http_query_params as string) || '{}'); } catch { /* empty */ }
       const authConfig: Record<string, string> = {};
       const authType = (values.http_auth_type as string) || 'none';
       if (authType === 'bearer') authConfig.token = (values.http_auth_token as string) || '';
@@ -89,6 +91,7 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<SkillInfo>({
         method: values.http_method || 'GET',
         headers,
         body_template: values.http_body_template || '',
+        query_params: queryParams,
         auth_type: authType,
         auth_config: authConfig,
         response_path: values.http_response_path || '',
@@ -169,6 +172,7 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<SkillInfo>({
       http_method: (cfg.method as string) || 'GET',
       http_headers: cfg.headers ? JSON.stringify(cfg.headers, null, 2) : '',
       http_body_template: (cfg.body_template as string) || '',
+      http_query_params: cfg.query_params ? JSON.stringify(cfg.query_params, null, 2) : '',
       http_auth_type: (cfg.auth_type as string) || 'none',
       http_auth_token: ((cfg.auth_config as Record<string, string>)?.token) || '',
       http_auth_key_name: ((cfg.auth_config as Record<string, string>)?.key_name) || 'X-API-Key',

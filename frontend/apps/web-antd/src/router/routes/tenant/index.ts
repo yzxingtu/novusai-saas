@@ -243,7 +243,7 @@ const mainRoutes: RouteRecordRaw = {
     {
       name: 'TenantProfile',
       path: '/tenant/profile',
-      component: () => import('#/views/_core/profile/index.vue'),
+      component: () => import('#/views/tenant/profile/index.vue'),
       meta: {
         hideInMenu: true,
         title: $t('page.auth.profile'),

@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.ai.tools.types import ToolParameter
+from app.core.i18n import _
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.skill.toolkit")
@@ -139,14 +140,14 @@ def parse_toolkit(source: str) -> ToolkitMeta:
         ToolkitParseError: 解析失败（语法错误、缺少 Tools 类等）
     """
     if not source or not source.strip():
-        raise ToolkitParseError("Toolkit source code is empty")
+        raise ToolkitParseError(_("toolkit.error.source_empty"))
 
     # 1. 解析 AST
     try:
         tree = ast.parse(source)
     except SyntaxError as exc:
         raise ToolkitParseError(
-            f"Python syntax error at line {exc.lineno}: {exc.msg}"
+            _("toolkit.error.syntax_error").format(line=exc.lineno, msg=exc.msg)
         ) from exc
 
     # 2. 提取模块 docstring 元数据
@@ -155,10 +156,7 @@ def parse_toolkit(source: str) -> ToolkitMeta:
     # 3. 查找 Tools 类
     tools_class = _find_class(tree, "Tools")
     if tools_class is None:
-        raise ToolkitParseError(
-            "Missing 'Tools' class in toolkit source. "
-            "A toolkit must define a class named 'Tools' with public methods."
-        )
+        raise ToolkitParseError(_("toolkit.error.missing_tools_class"))
 
     # 4. 提取 Tools 类的公开方法
     meta.tools = _extract_tools_methods(tools_class, source)
@@ -390,13 +388,25 @@ def _annotation_to_json_type(annotation: ast.expr) -> str:
     if isinstance(annotation, ast.Constant):
         return _TYPE_MAP.get(str(annotation.value), "string")
 
-    # Optional[X] = Union[X, None]
+    # Optional[X] = Union[X, None], List[X], Dict[K, V], Union[X, Y, ...]
     if isinstance(annotation, ast.Subscript):
         if isinstance(annotation.value, ast.Name):
             outer = annotation.value.id
             if outer == "Optional":
                 # 提取内部类型
                 if isinstance(annotation.slice, ast.Name):
+                    return _TYPE_MAP.get(annotation.slice.id, "string")
+                return "string"
+            if outer == "Union":
+                # Union[X, Y, ...] → 取第一个非 None 的类型
+                if isinstance(annotation.slice, ast.Tuple):
+                    for elt in annotation.slice.elts:
+                        if isinstance(elt, ast.Constant) and elt.value is None:
+                            continue
+                        if isinstance(elt, ast.Name) and elt.id == "None":
+                            continue
+                        return _annotation_to_json_type(elt)
+                elif isinstance(annotation.slice, ast.Name):
                     return _TYPE_MAP.get(annotation.slice.id, "string")
                 return "string"
             if outer in ("list", "List"):
@@ -444,6 +454,34 @@ def _ast_value_to_python(node: ast.expr) -> Any:
     return None
 
 
+def _extract_literal_values(annotation: ast.expr) -> list[str] | None:
+    """
+    从 Literal['a', 'b', 'c'] 类型注解提取枚举值列表。
+
+    Returns:
+        字面量值列表，或 None（非 Literal 类型）
+    """
+    if not isinstance(annotation, ast.Subscript):
+        return None
+    if not isinstance(annotation.value, ast.Name):
+        return None
+    if annotation.value.id != "Literal":
+        return None
+
+    values: list[str] = []
+    # Literal['a', 'b'] → slice 是 Tuple
+    if isinstance(annotation.slice, ast.Tuple):
+        for elt in annotation.slice.elts:
+            if isinstance(elt, ast.Constant) and elt.value is not None:
+                values.append(str(elt.value))
+    # Literal['a'] → slice 是单个 Constant
+    elif isinstance(annotation.slice, ast.Constant):
+        if annotation.slice.value is not None:
+            values.append(str(annotation.slice.value))
+
+    return values if values else None
+
+
 # --------------------------------------------------------------------------- #
 # 内部：Valves schema 提取
 # --------------------------------------------------------------------------- #
@@ -475,12 +513,16 @@ def _extract_valves_schema(
         if field_name.startswith("_"):
             continue
 
-        # 类型
+        # 类型 + Literal 枚举检测
         json_type = "string"
+        enum_values: list[str] | None = None
         if node.annotation:
             json_type = _annotation_to_json_type(node.annotation)
+            enum_values = _extract_literal_values(node.annotation)
 
         prop: dict[str, Any] = {"type": json_type}
+        if enum_values:
+            prop["enum"] = enum_values
 
         # 默认值
         if node.value is not None:
@@ -578,20 +620,20 @@ def validate_toolkit_source(source: str) -> list[str]:
     errors: list[str] = []
 
     if not source or not source.strip():
-        errors.append("Toolkit source code is empty")
+        errors.append(_("toolkit.error.source_empty"))
         return errors
 
     # 语法检查
     try:
         tree = ast.parse(source)
     except SyntaxError as exc:
-        errors.append(f"Python syntax error at line {exc.lineno}: {exc.msg}")
+        errors.append(_("toolkit.error.syntax_error").format(line=exc.lineno, msg=exc.msg))
         return errors
 
     # 必须有 Tools 类
     tools_class = _find_class(tree, "Tools")
     if tools_class is None:
-        errors.append("Missing 'Tools' class")
+        errors.append(_("toolkit.error.missing_tools_class"))
         return errors
 
     # Tools 类至少有一个公开方法
@@ -603,9 +645,82 @@ def validate_toolkit_source(source: str) -> list[str]:
                 break
 
     if not has_public_method:
-        errors.append("'Tools' class has no public methods")
+        errors.append(_("toolkit.error.no_public_methods"))
+
+    # 危险模式扫描（警告，不阻断）
+    warnings = scan_dangerous_patterns(tree)
+    errors.extend(warnings)
 
     return errors
+
+
+# 危险导入模块黑名单
+_DANGEROUS_MODULES = {"os", "subprocess", "sys", "shutil", "ctypes", "signal"}
+
+# 危险函数调用黑名单
+_DANGEROUS_CALLS = {"exec", "eval", "compile", "__import__", "execfile", "globals"}
+
+# 危险属性调用模式（module.func）
+_DANGEROUS_ATTR_CALLS = {
+    ("os", "system"), ("os", "popen"), ("os", "exec"),
+    ("os", "execvp"), ("os", "remove"), ("os", "rmdir"),
+    ("subprocess", "call"), ("subprocess", "run"),
+    ("subprocess", "Popen"), ("subprocess", "check_output"),
+    ("shutil", "rmtree"),
+}
+
+
+def scan_dangerous_patterns(tree: ast.Module) -> list[str]:
+    """
+    扫描 AST 中的危险模式，返回警告列表（不阻断上传）。
+
+    检查项：
+    - 危险模块导入（os, subprocess, sys, shutil 等）
+    - 危险函数调用（exec, eval, compile, __import__ 等）
+    - 危险属性调用（os.system, subprocess.run 等）
+    """
+    warnings: list[str] = []
+
+    for node in ast.walk(tree):
+        # 检查 import 语句
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                mod = alias.name.split(".")[0]
+                if mod in _DANGEROUS_MODULES:
+                    warnings.append(
+                        f"[WARNING] Line {node.lineno}: import of '{alias.name}' "
+                        f"— may pose security risks in sandbox"
+                    )
+
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                mod = node.module.split(".")[0]
+                if mod in _DANGEROUS_MODULES:
+                    warnings.append(
+                        f"[WARNING] Line {node.lineno}: import from '{node.module}' "
+                        f"— may pose security risks in sandbox"
+                    )
+
+        # 检查函数调用
+        elif isinstance(node, ast.Call):
+            # 直接调用: exec(...), eval(...)
+            if isinstance(node.func, ast.Name):
+                if node.func.id in _DANGEROUS_CALLS:
+                    warnings.append(
+                        f"[WARNING] Line {node.lineno}: call to '{node.func.id}()' "
+                        f"— potential code execution risk"
+                    )
+            # 属性调用: os.system(...), subprocess.run(...)
+            elif isinstance(node.func, ast.Attribute):
+                if isinstance(node.func.value, ast.Name):
+                    pair = (node.func.value.id, node.func.attr)
+                    if pair in _DANGEROUS_ATTR_CALLS:
+                        warnings.append(
+                            f"[WARNING] Line {node.lineno}: call to "
+                            f"'{pair[0]}.{pair[1]}()' — potential security risk"
+                        )
+
+    return warnings
 
 
 __all__ = [

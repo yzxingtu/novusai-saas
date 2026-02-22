@@ -18,6 +18,7 @@ import { tenantApi } from '#/api';
 import { TENANT_HOME_PATH, TENANT_LOGIN_PATH } from '#/constants/endpoints';
 import { $t } from '#/locales';
 import { EndpointType } from '#/types/endpoint';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { TokenStorage } from '../shared/token-storage';
 
@@ -66,8 +67,8 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
 
         // 转换为vben UserInfo格式
         const vbenUserInfo: UserInfo = {
-          avatar: userInfo?.avatar || '',
-          desc: userInfo?.tenantName || '租户管理员',
+          avatar: toAvatarDisplayUrl(userInfo?.avatar),
+          desc: userInfo?.tenantName || $t('tenant.common.tenantAdmin'),
           homePath: userInfo?.homePath || TENANT_HOME_PATH,
           realName: userInfo?.realName || '',
           roles: userInfo?.roles || [],

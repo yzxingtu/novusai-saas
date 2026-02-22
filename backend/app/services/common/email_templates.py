@@ -18,6 +18,15 @@ from app.core.logging import LogManager
 
 logger = LogManager.get_logger("email")
 
+
+def _default_platform_name() -> str:
+    """从配置定义获取站点名称默认值，避免硬编码"""
+    try:
+        from app.configs.definitions.platform.general import SITE_NAME
+        return SITE_NAME.default_value or "NovusAI SaaS"
+    except Exception:
+        return "NovusAI SaaS"
+
 # 模板目录
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent / "templates" / "email"
 
@@ -101,7 +110,7 @@ def render_email(
 
 def render_test_email(
     admin_name: str = "Admin",
-    platform_name: str = "NovusAI SaaS",
+    platform_name: str | None = None,
     lang: str = "zh-CN",
 ) -> tuple[str, str, str]:
     """
@@ -110,6 +119,7 @@ def render_test_email(
     Returns:
         (subject, html_body, text_body)
     """
+    platform_name = platform_name or _default_platform_name()
     t = _get_translations(lang)
     subject = t["test_email"]["subject"].format(platform_name=platform_name)
     html, text = render_email("test_email", {
@@ -123,7 +133,7 @@ def render_task_failure_email(
     task_name: str,
     task_id: str,
     error: str,
-    platform_name: str = "NovusAI SaaS",
+    platform_name: str | None = None,
     lang: str = "zh-CN",
 ) -> tuple[str, str, str]:
     """
@@ -132,6 +142,7 @@ def render_task_failure_email(
     Returns:
         (subject, html_body, text_body)
     """
+    platform_name = platform_name or _default_platform_name()
     t = _get_translations(lang)
     subject = t["task_failure"]["subject"].format(task_name=task_name)
     html, text = render_email("task_failure", {
@@ -147,7 +158,7 @@ def render_password_reset_email(
     user_name: str,
     reset_url: str,
     expire_minutes: int = 30,
-    platform_name: str = "NovusAI SaaS",
+    platform_name: str | None = None,
     lang: str = "zh-CN",
 ) -> tuple[str, str, str]:
     """
@@ -156,6 +167,7 @@ def render_password_reset_email(
     Returns:
         (subject, html_body, text_body)
     """
+    platform_name = platform_name or _default_platform_name()
     t = _get_translations(lang)
     subject = t["password_reset"]["subject"].format(platform_name=platform_name)
     html, text = render_email("password_reset", {
@@ -171,7 +183,7 @@ def render_welcome_email(
     tenant_name: str,
     admin_name: str,
     login_url: str,
-    platform_name: str = "NovusAI SaaS",
+    platform_name: str | None = None,
     lang: str = "zh-CN",
 ) -> tuple[str, str, str]:
     """
@@ -180,6 +192,7 @@ def render_welcome_email(
     Returns:
         (subject, html_body, text_body)
     """
+    platform_name = platform_name or _default_platform_name()
     t = _get_translations(lang)
     subject = t["welcome"]["subject"].format(platform_name=platform_name)
     html, text = render_email("welcome", {
@@ -195,7 +208,7 @@ def render_ssl_expiry_email(
     domain: str,
     expires_at: str,
     days_remaining: int,
-    platform_name: str = "NovusAI SaaS",
+    platform_name: str | None = None,
     lang: str = "zh-CN",
 ) -> tuple[str, str, str]:
     """
@@ -204,6 +217,7 @@ def render_ssl_expiry_email(
     Returns:
         (subject, html_body, text_body)
     """
+    platform_name = platform_name or _default_platform_name()
     t = _get_translations(lang)
     subject = t["ssl_expiry"]["subject"].format(domain=domain)
     html, text = render_email("ssl_expiry", {
@@ -213,6 +227,37 @@ def render_ssl_expiry_email(
         "platform_name": platform_name,
     }, lang=lang)
     return subject, html, text
+
+
+def render_notification_html(
+    title: str,
+    body: str | None = None,
+    priority: str = "normal",
+    link: str | None = None,
+    lang: str = "zh-CN",
+) -> tuple[str, str]:
+    """
+    渲染通知邮件 HTML（通用模板）
+
+    所有通知系统触发的邮件都使用此模板，确保统一的品牌风格。
+
+    Args:
+        title: 通知标题
+        body: 通知正文
+        priority: 优先级 (low/normal/high/urgent)
+        link: 点击查看详情的链接
+        lang: 语言
+
+    Returns:
+        (html_body, text_body)
+    """
+    return render_email("notification", {
+        "title": title,
+        "body": body,
+        "priority": priority,
+        "link": link,
+        "platform_name": _default_platform_name(),
+    }, lang=lang)
 
 
 # ============================================
@@ -316,6 +361,11 @@ _TRANSLATIONS: dict[str, dict[str, Any]] = {
             "expires_label": "Expiry Date",
             "days_label": "Days Remaining",
             "action_hint": "Please log in to the admin panel to renew manually or ensure auto-renewal is enabled.",
+        },
+        "notification": {
+            "urgent_notice": "This notification is marked as urgent, please handle it immediately.",
+            "high_notice": "This notification has a high priority, please pay attention to it as soon as possible.",
+            "view_detail": "View Details",
         },
     },
 }

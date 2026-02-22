@@ -20,6 +20,7 @@ import { defineStore } from 'pinia';
 
 import { adminApi, getApiEndpoint, tenantApi, userApi } from '#/api';
 import { $t } from '#/locales';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { TokenStorage } from './token-storage';
 
@@ -146,7 +147,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
 
         // 转换为 vben 需要的 UserInfo 格式
         const vbenUserInfo: UserInfo = {
-          avatar: userInfo?.avatar || '',
+          avatar: toAvatarDisplayUrl(userInfo?.avatar),
           desc: '',
           homePath: userInfo?.homePath || homePath,
           realName: userInfo?.realName || '',
@@ -268,7 +269,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
 
     // 转换为 vben 需要的 UserInfo 格式
     const vbenUserInfo: UserInfo = {
-      avatar: userInfo?.avatar || '',
+      avatar: toAvatarDisplayUrl(userInfo?.avatar),
       desc: '',
       homePath: userInfo?.homePath || currentHomePath.value,
       realName: userInfo?.realName || '',

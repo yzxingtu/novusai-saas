@@ -8,12 +8,37 @@ from __future__ import annotations
 
 from typing import Any, TYPE_CHECKING
 
+import re
+
 from app.core.i18n import _
 from app.exceptions import BusinessException, ValidationException
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
     from app.core.base_service import BaseService
+
+SECRET_MASK = "******"
+_SECRET_RE = re.compile(
+    r"\b(api_?key|secret|password|access_?token|auth_?token|apikey|private_?key)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_secret_key(key: str) -> bool:
+    return bool(_SECRET_RE.search(key))
+
+
+def mask_secret_values(
+    valves_config: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """对 valves_config 中的 secret 字段值替换为掩码，用于 GET 响应。"""
+    if not valves_config:
+        return valves_config
+    result = dict(valves_config)
+    for key, value in result.items():
+        if _is_secret_key(key) and value and value != SECRET_MASK:
+            result[key] = SECRET_MASK
+    return result
 
 
 async def validate_and_update_valves(
@@ -55,6 +80,12 @@ async def validate_and_update_valves(
             message=_("skill_package.error.invalid_valves_config"),
             code=4001,
         )
+
+    # 保留掩码字段的原值（用户未修改的 secret 字段不覆盖）
+    existing_config = pkg.valves_config or {}
+    for key, value in list(valves_config.items()):
+        if value == SECRET_MASK and key in existing_config:
+            valves_config[key] = existing_config[key]
 
     # 校验 required 字段是否存在
     schema = pkg.valves_schema or {}

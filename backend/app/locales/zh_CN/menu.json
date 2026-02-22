@@ -45,7 +45,8 @@
       "crud_generator": "CRUD 生成器",
       "agent_assignment": "功能分配",
       "email_log": "邮件日志",
-      "recycle_bin": "回收站"
+      "recycle_bin": "回收站",
+      "notification_template": "通知模板"
     },
     "tags": {
       "admin_agent_mgmt": "智能体管理（平台）",
@@ -72,7 +73,8 @@
       "tenant_ai_usage": "AI 用量统计",
       "tenant_knowledge_base": "知识库",
       "tenant_ai_table_policy": "数据访问策略",
-      "admin_agent_assignment_mgmt": "功能分配管理"
+      "admin_agent_assignment_mgmt": "功能分配管理",
+      "notification_template": "通知模板管理"
     },
     "tenant": {
       "dashboard": "仪表板",

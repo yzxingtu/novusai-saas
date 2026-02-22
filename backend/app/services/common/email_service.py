@@ -364,14 +364,15 @@ def send_email_sync(
 
 def _load_smtp_config_sync(session: Any) -> SmtpConfig:
     """同步加载 SMTP 配置"""
-    from app.models.system.config import SystemConfigValue
+    from app.models.system.config import SystemConfig, SystemConfigValue
     from app.configs.service import PLATFORM_TENANT_ID
 
     def _get(key: str, default: Any = None) -> Any:
         row = (
             session.query(SystemConfigValue)
+            .join(SystemConfig, SystemConfigValue.config_id == SystemConfig.id)
             .filter(
-                SystemConfigValue.config_key == key,
+                SystemConfig.key == key,
                 SystemConfigValue.tenant_id == PLATFORM_TENANT_ID,
             )
             .first()
@@ -380,12 +381,26 @@ def _load_smtp_config_sync(session: Any) -> SmtpConfig:
             return default
         val = row.value
         if isinstance(val, str):
-            if val.lower() in ("true", "false"):
-                return val.lower() == "true"
+            # 配置值以 JSON 格式存储，字符串会带引号如 '"smtp.example.com"'
+            # 先尝试 JSON 反序列化
+            import json
             try:
-                return int(val)
-            except (ValueError, TypeError):
+                val = json.loads(val)
+            except (json.JSONDecodeError, TypeError):
                 pass
+            # 布尔值处理
+            if isinstance(val, bool):
+                return val
+            if isinstance(val, str) and val.lower() in ("true", "false"):
+                return val.lower() == "true"
+            # 数字处理
+            if isinstance(val, (int, float)):
+                return val
+            if isinstance(val, str):
+                try:
+                    return int(val)
+                except (ValueError, TypeError):
+                    pass
         return val
 
     return SmtpConfig(

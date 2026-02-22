@@ -6,6 +6,8 @@
 
 from fastapi import Query, Request
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_controller import TenantController
 from app.core.deps import DbSession, ActiveTenantAdmin, QueryParams
@@ -13,6 +15,7 @@ from app.core.i18n import _
 from app.core.response import success, deleted, paginated
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
+from app.models.tenant.tenant_admin import TenantAdmin
 from app.rbac.decorators import (
     permission_resource,
     MenuConfig,
@@ -37,15 +40,24 @@ class BatchArchiveRequest(BaseModel):
 # 列表项辅助函数
 # ============================================
 
-def _build_conversation_list_item(conv) -> dict:
+def _build_conversation_list_item(
+    conv,
+    user_map: dict[int, dict] | None = None,
+) -> dict:
     """从 ORM 对象构建列表项字典"""
     agent_name = None
+    agent_avatar = None
     try:
         agent_obj = getattr(conv, "agent", None)
         if agent_obj is not None:
             agent_name = agent_obj.name
+            agent_avatar = agent_obj.avatar
     except AttributeError:
         pass
+
+    user_info = None
+    if user_map and conv.user_id is not None:
+        user_info = user_map.get(conv.user_id)
 
     return {
         "id": conv.id,
@@ -57,8 +69,35 @@ def _build_conversation_list_item(conv) -> dict:
         "token_count": conv.token_count,
         "cost": float(conv.cost) if conv.cost else 0,
         "agent_name": agent_name,
+        "agent_avatar": agent_avatar,
+        "user_info": user_info,
         "created_at": conv.created_at,
         "updated_at": conv.updated_at,
+    }
+
+
+async def _batch_load_tenant_users(
+    db: AsyncSession, user_ids: set[int],
+) -> dict[int, dict]:
+    """批量加载租户管理员信息"""
+    if not user_ids:
+        return {}
+    stmt = select(
+        TenantAdmin.id, TenantAdmin.username,
+        TenantAdmin.nickname, TenantAdmin.avatar,
+    ).where(
+        TenantAdmin.id.in_(user_ids),
+        TenantAdmin.is_deleted.is_(False),
+    )
+    result = await db.execute(stmt)
+    return {
+        row.id: {
+            "id": row.id,
+            "username": row.username,
+            "nickname": row.nickname,
+            "avatar": row.avatar,
+        }
+        for row in result.all()
     }
 
 
@@ -108,7 +147,15 @@ class TenantConversationController(TenantController):
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             items, total = await service.query_list(spec=query)
-            result = [_build_conversation_list_item(item) for item in items]
+
+            # 批量加载用户信息
+            user_ids = {c.user_id for c in items if c.user_id is not None}
+            user_map = await _batch_load_tenant_users(db, user_ids)
+
+            result = [
+                _build_conversation_list_item(item, user_map)
+                for item in items
+            ]
 
             return paginated(
                 items=result,
@@ -162,6 +209,21 @@ class TenantConversationController(TenantController):
                 message_skip=message_skip,
                 message_limit=message_limit,
             )
+
+            # 补充 agent avatar
+            conv = await service.get_by_id(conversation_id)
+            if conv:
+                agent_obj = getattr(conv, "agent", None)
+                result["agent_avatar"] = agent_obj.avatar if agent_obj else None
+
+                # 补充 user info
+                if conv.user_id is not None:
+                    u_map = await _batch_load_tenant_users(
+                        db, {conv.user_id},
+                    )
+                    result["user_info"] = u_map.get(conv.user_id)
+                else:
+                    result["user_info"] = None
 
             return success(data=result)
 

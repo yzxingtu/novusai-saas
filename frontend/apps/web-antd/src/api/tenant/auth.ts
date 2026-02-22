@@ -173,6 +173,29 @@ export async function tenantChangePasswordApi(
 }
 
 // ============================================================
+// 个人信息修改
+// ============================================================
+
+/** 修改个人信息参数 */
+export interface UpdateProfileParams {
+  nickname?: string | null;
+  avatar?: string | null;
+  email?: string | null;
+  phone?: string | null;
+}
+
+/**
+ * 修改当前租户管理员个人信息
+ * PUT /tenant/auth/profile
+ */
+export async function updateTenantProfileApi(
+  data: UpdateProfileParams,
+  options?: ApiRequestOptions,
+) {
+  return requestClient.put(`${API_PREFIX}/profile`, data, options);
+}
+
+// ============================================================
 // 平台管理员一键登录
 // ============================================================
 

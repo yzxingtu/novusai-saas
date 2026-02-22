@@ -158,3 +158,22 @@ export async function adminChangePasswordApi(
     options,
   );
 }
+
+/** 修改个人信息参数 */
+export interface UpdateAdminProfileParams {
+  nickname?: string | null;
+  avatar?: string | null;
+  email?: string | null;
+  phone?: string | null;
+}
+
+/**
+ * 修改当前管理员个人信息
+ * PUT /admin/auth/profile
+ */
+export async function updateAdminProfileApi(
+  data: UpdateAdminProfileParams,
+  options?: ApiRequestOptions,
+) {
+  return requestClient.put(`${API_PREFIX}/profile`, data, options);
+}

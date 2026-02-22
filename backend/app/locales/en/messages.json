@@ -36,7 +36,9 @@
     "captcha_required": "CAPTCHA is required",
     "captcha_invalid": "Invalid CAPTCHA",
     "impersonate_token_invalid": "Impersonate token is invalid or expired",
-    "impersonate_success": "Impersonate login successful"
+    "impersonate_success": "Impersonate login successful",
+    "profile_updated": "Profile updated successfully",
+    "email_already_exists": "This email is already in use by another user"
   },
   "user": {
     "not_found": "User not found",
@@ -311,6 +313,14 @@
       "invalid_export_format": "Invalid skill package export format or incompatible version",
       "scope_tenant_id_required": "Tenant must be specified when scope is 'Tenant'",
       "valves_missing_required": "Missing required configuration fields: {fields}"
+    }
+  },
+  "toolkit": {
+    "error": {
+      "source_empty": "Toolkit source code is empty",
+      "syntax_error": "Python syntax error at line {line}: {msg}",
+      "missing_tools_class": "Missing 'Tools' class. A toolkit must define a class named 'Tools' with public methods.",
+      "no_public_methods": "'Tools' class has no public methods"
     }
   },
   "skill": {

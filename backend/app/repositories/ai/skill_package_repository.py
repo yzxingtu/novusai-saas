@@ -14,7 +14,104 @@ from app.schemas.common.query import QuerySpec, FilterRule
 from app.core.base_model import utc_now
 
 
-class SkillPackageRepository(TenantRepository[SkillPackage]):
+class _SkillPackageCascadeMixin:
+    """技能包级联操作 Mixin（admin/tenant 共用）"""
+
+    async def cascade_soft_delete_skills(
+        self, package_id: int, delete_level: str,
+    ) -> None:
+        """级联软删除技能包下的技能"""
+        now = utc_now()
+        await self.db.execute(
+            update(Skill)
+            .where(
+                Skill.package_id == package_id,
+                Skill.is_deleted.is_(False),
+            )
+            .values(is_deleted=True, deleted_at=now, delete_level=delete_level, updated_at=now)
+        )
+
+    async def cascade_escalate_skills(self, package_id: int) -> None:
+        """级联升级技能的删除层级"""
+        now = utc_now()
+        await self.db.execute(
+            update(Skill)
+            .where(
+                Skill.package_id == package_id,
+                Skill.is_deleted.is_(True),
+            )
+            .values(delete_level=DeleteLevelEnum.ADMIN.value, deleted_at=now, updated_at=now)
+        )
+
+    async def cascade_restore_skills(self, package_id: int) -> None:
+        """级联恢复技能"""
+        now = utc_now()
+        await self.db.execute(
+            update(Skill)
+            .where(
+                Skill.package_id == package_id,
+                Skill.is_deleted.is_(True),
+            )
+            .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
+        )
+
+    async def delete_skill_bindings(self, package_id: int) -> None:
+        """物理删除技能包的 AgentSkillBinding 记录"""
+        await self.db.execute(
+            sa_delete(AgentSkillBinding).where(
+                AgentSkillBinding.package_id == package_id,
+            )
+        )
+
+    async def get_with_skill_count(
+        self,
+        package_id: int,
+    ) -> dict | None:
+        """获取技能包详情及其包含的技能数量"""
+        pkg = await self.get_by_id(package_id)
+        if not pkg:
+            return None
+
+        count_stmt = select(func.count()).where(
+            Skill.package_id == package_id,
+            Skill.is_deleted.is_(False),
+        )
+        count_result = await self.db.execute(count_stmt)
+        skill_count = count_result.scalar() or 0
+
+        data = pkg.to_dict()
+        data["skill_count"] = skill_count
+        return data
+
+    async def get_skill_counts_batch(
+        self,
+        package_ids: list[int],
+    ) -> dict[int, int]:
+        """
+        批量获取技能包的技能数量
+
+        Args:
+            package_ids: 技能包 ID 列表
+
+        Returns:
+            {package_id: skill_count} 映射
+        """
+        if not package_ids:
+            return {}
+
+        stmt = (
+            select(Skill.package_id, func.count().label("cnt"))
+            .where(
+                Skill.package_id.in_(package_ids),
+                Skill.is_deleted.is_(False),
+            )
+            .group_by(Skill.package_id)
+        )
+        result = await self.db.execute(stmt)
+        return {row.package_id: row.cnt for row in result.all()}
+
+
+class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPackage]):
     """
     租户级技能包 Repository
 
@@ -103,112 +200,20 @@ class SkillPackageRepository(TenantRepository[SkillPackage]):
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_with_skill_count(
-        self,
-        package_id: int,
-    ) -> dict | None:
-        """
-        获取技能包详情及其包含的技能数量
-        """
-        pkg = await self.get_by_id(package_id)
-        if not pkg:
-            return None
-
-        count_stmt = select(func.count()).where(
-            Skill.package_id == package_id,
-            Skill.is_deleted.is_(False),
-        )
-        count_result = await self.db.execute(count_stmt)
-        skill_count = count_result.scalar() or 0
-
-        data = pkg.to_dict()
-        data["skill_count"] = skill_count
-        return data
-
-    async def get_skill_counts_batch(
-        self,
-        package_ids: list[int],
-    ) -> dict[int, int]:
-        """
-        批量获取技能包的技能数量
-
-        Args:
-            package_ids: 技能包 ID 列表
-
-        Returns:
-            {package_id: skill_count} 映射
-        """
-        if not package_ids:
-            return {}
-
-        stmt = (
-            select(Skill.package_id, func.count().label("cnt"))
-            .where(
-                Skill.package_id.in_(package_ids),
-                Skill.is_deleted.is_(False),
-            )
-            .group_by(Skill.package_id)
-        )
-        result = await self.db.execute(stmt)
-        return {row.package_id: row.cnt for row in result.all()}
-
-    async def cascade_soft_delete_skills(
-        self, package_id: int, delete_level: str,
-    ) -> None:
-        """级联软删除技能包下的技能"""
-        now = utc_now()
-        await self.db.execute(
-            update(Skill)
-            .where(
-                Skill.package_id == package_id,
-                Skill.is_deleted.is_(False),
-            )
-            .values(is_deleted=True, deleted_at=now, delete_level=delete_level, updated_at=now)
-        )
-
-    async def cascade_escalate_skills(self, package_id: int) -> None:
-        """级联升级技能的删除层级"""
-        now = utc_now()
-        await self.db.execute(
-            update(Skill)
-            .where(
-                Skill.package_id == package_id,
-                Skill.is_deleted.is_(True),
-            )
-            .values(delete_level=DeleteLevelEnum.ADMIN.value, deleted_at=now, updated_at=now)
-        )
-
-    async def cascade_restore_skills(self, package_id: int) -> None:
-        """级联恢复技能"""
-        now = utc_now()
-        await self.db.execute(
-            update(Skill)
-            .where(
-                Skill.package_id == package_id,
-                Skill.is_deleted.is_(True),
-            )
-            .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
-        )
-
-    async def delete_skill_bindings(self, package_id: int) -> None:
-        """物理删除技能包的 AgentSkillBinding 记录"""
-        await self.db.execute(
-            sa_delete(AgentSkillBinding).where(
-                AgentSkillBinding.package_id == package_id,
-            )
-        )
-
     async def get_active_packages(self) -> list[SkillPackage]:
         """
-        获取当前租户所有已激活的技能包
+        获取当前租户所有已激活的技能包（含 global scope 包）
         """
         stmt = (
             select(SkillPackage)
             .where(
                 and_(
-                    SkillPackage.tenant_id == self.tenant_id,
                     SkillPackage.is_active.is_(True),
                     SkillPackage.is_deleted.is_(False),
+                    or_(
+                        SkillPackage.tenant_id == self.tenant_id,
+                        SkillPackage.scope == ResourceScopeEnum.GLOBAL.value,
+                    ),
                 )
             )
             .order_by(SkillPackage.sort_order, SkillPackage.created_at.desc())
@@ -223,6 +228,7 @@ class SkillPackageRepository(TenantRepository[SkillPackage]):
         包括：
           - 同租户的 tenant 包
           - admin 共享包（tenant_id IS NULL, scope='admin'）
+          - global 共享包（scope='global'）
         """
         stmt = (
             select(SkillPackage)
@@ -234,7 +240,10 @@ class SkillPackageRepository(TenantRepository[SkillPackage]):
                         SkillPackage.tenant_id == self.tenant_id,
                         and_(
                             SkillPackage.tenant_id.is_(None),
-                            SkillPackage.scope == ResourceScopeEnum.ADMIN.value,
+                            SkillPackage.scope.in_([
+                                ResourceScopeEnum.ADMIN.value,
+                                ResourceScopeEnum.GLOBAL.value,
+                            ]),
                         ),
                     ),
                 )
@@ -245,7 +254,7 @@ class SkillPackageRepository(TenantRepository[SkillPackage]):
         return list(result.scalars().all())
 
 
-class AdminSkillPackageRepository(BaseRepository[SkillPackage]):
+class AdminSkillPackageRepository(_SkillPackageCascadeMixin, BaseRepository[SkillPackage]):
     """
     管理端技能包 Repository
 
@@ -253,44 +262,6 @@ class AdminSkillPackageRepository(BaseRepository[SkillPackage]):
     """
 
     model = SkillPackage
-
-    async def cascade_soft_delete_skills(
-        self, package_id: int, delete_level: str,
-    ) -> None:
-        """级联软删除技能包下的技能"""
-        now = utc_now()
-        await self.db.execute(
-            update(Skill)
-            .where(
-                Skill.package_id == package_id,
-                Skill.is_deleted.is_(False),
-            )
-            .values(is_deleted=True, deleted_at=now, delete_level=delete_level, updated_at=now)
-        )
-
-    async def cascade_escalate_skills(self, package_id: int) -> None:
-        """级联升级技能的删除层级"""
-        now = utc_now()
-        await self.db.execute(
-            update(Skill)
-            .where(
-                Skill.package_id == package_id,
-                Skill.is_deleted.is_(True),
-            )
-            .values(delete_level=DeleteLevelEnum.ADMIN.value, deleted_at=now, updated_at=now)
-        )
-
-    async def cascade_restore_skills(self, package_id: int) -> None:
-        """级联恢复技能"""
-        now = utc_now()
-        await self.db.execute(
-            update(Skill)
-            .where(
-                Skill.package_id == package_id,
-                Skill.is_deleted.is_(True),
-            )
-            .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
-        )
 
     async def cascade_update_skill_tenant_id(
         self, package_id: int, new_tenant_id: int | None,
@@ -303,63 +274,6 @@ class AdminSkillPackageRepository(BaseRepository[SkillPackage]):
             .values(tenant_id=new_tenant_id, updated_at=now)
         )
 
-    async def delete_skill_bindings(self, package_id: int) -> None:
-        """物理删除技能包的 AgentSkillBinding 记录"""
-        await self.db.execute(
-            sa_delete(AgentSkillBinding).where(
-                AgentSkillBinding.package_id == package_id,
-            )
-        )
-
-    async def get_with_skill_count(
-        self,
-        package_id: int,
-    ) -> dict | None:
-        """
-        获取技能包详情及其包含的技能数量（管理端，无租户隔离）
-        """
-        pkg = await self.get_by_id(package_id)
-        if not pkg:
-            return None
-
-        count_stmt = select(func.count()).where(
-            Skill.package_id == package_id,
-            Skill.is_deleted.is_(False),
-        )
-        count_result = await self.db.execute(count_stmt)
-        skill_count = count_result.scalar() or 0
-
-        data = pkg.to_dict()
-        data["skill_count"] = skill_count
-        return data
-
-    async def get_skill_counts_batch(
-        self,
-        package_ids: list[int],
-    ) -> dict[int, int]:
-        """
-        批量获取技能包的技能数量
-
-        Args:
-            package_ids: 技能包 ID 列表
-
-        Returns:
-            {package_id: skill_count} 映射
-        """
-        if not package_ids:
-            return {}
-
-        stmt = (
-            select(Skill.package_id, func.count().label("cnt"))
-            .where(
-                Skill.package_id.in_(package_ids),
-                Skill.is_deleted.is_(False),
-            )
-            .group_by(Skill.package_id)
-        )
-        result = await self.db.execute(stmt)
-        return {row.package_id: row.cnt for row in result.all()}
-
     async def get_by_source_plugin(
         self,
         plugin_name: str,
@@ -368,12 +282,10 @@ class AdminSkillPackageRepository(BaseRepository[SkillPackage]):
         按来源插件名查找技能包（含已软删除的）
 
         用于插件启用时幂等检查和禁用/卸载时定位记录。
+        不过滤 scope，因为 source_plugin 已唯一标识插件创建的技能包。
         """
         stmt = select(SkillPackage).where(
-            and_(
-                SkillPackage.source_plugin == plugin_name,
-                SkillPackage.scope == "admin",
-            )
+            SkillPackage.source_plugin == plugin_name,
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()

@@ -45,7 +45,8 @@
       "crud_generator": "CRUD Generator",
       "agent_assignment": "Agent Assignment",
       "email_log": "Email Logs",
-      "recycle_bin": "Recycle Bin"
+      "recycle_bin": "Recycle Bin",
+      "notification_template": "Notification Templates"
     },
     "tags": {
       "admin_agent_mgmt": "Agent Management (Platform)",
@@ -72,7 +73,8 @@
       "tenant_ai_usage": "AI Usage Statistics",
       "tenant_knowledge_base": "Knowledge Bases",
       "tenant_ai_table_policy": "Data Access Policies",
-      "admin_agent_assignment_mgmt": "Agent Assignment Management"
+      "admin_agent_assignment_mgmt": "Agent Assignment Management",
+      "notification_template": "Notification Template Management"
     },
     "tenant": {
       "dashboard": "Dashboard",

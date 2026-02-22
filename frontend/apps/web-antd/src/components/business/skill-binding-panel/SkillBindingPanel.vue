@@ -81,6 +81,11 @@ const selectedPackages = computed(() => {
     .filter(Boolean) as PackageOption[];
 });
 
+const orphanedIds = computed(() => {
+  const availableSet = new Set(allPackages.value.map((p) => p.value));
+  return props.modelValue.filter((id) => !availableSet.has(id));
+});
+
 const consentModeOptions = computed(() => [
   { label: $t('tenant.ai.agent.consentModeOptions.auto'), value: 'auto' },
   { label: $t('tenant.ai.agent.consentModeOptions.ask'), value: 'ask' },
@@ -190,6 +195,30 @@ function getConsentMode(pkgId: number): string {
       :title="`${$t('tenant.ai.agent.skillPackageBindings')} (${selectedPackages.length})`"
     >
       <div class="flex flex-col gap-2">
+        <!-- 不可用的已绑定包（已停用/已删除） -->
+        <div
+          v-for="orphanId in orphanedIds"
+          :key="`orphan-${orphanId}`"
+          class="flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2"
+        >
+          <div class="flex items-center gap-2">
+            <IconifyIcon icon="lucide:alert-triangle" class="text-destructive" />
+            <span class="text-sm text-muted-foreground">
+              {{ $t('tenant.ai.agent.packageUnavailable', { id: orphanId }) }}
+            </span>
+          </div>
+          <Tooltip :title="$t('shared.common.delete')">
+            <Button
+              size="small"
+              type="text"
+              danger
+              @click="removePackage(orphanId)"
+            >
+              <IconifyIcon icon="lucide:x" />
+            </Button>
+          </Tooltip>
+        </div>
+        <!-- 正常的已绑定包 -->
         <div
           v-for="pkg in selectedPackages"
           :key="pkg.value"

@@ -88,10 +88,20 @@ class AdminChangePasswordRequest(BaseSchema):
     new_password: str = Field(..., min_length=6, max_length=50, description="新密码")
 
 
+class AdminUpdateProfileRequest(BaseSchema):
+    """管理员自助修改个人信息请求"""
+
+    nickname: str | None = Field(None, max_length=50, description="昵称")
+    avatar: str | None = Field(None, max_length=500, description="头像 URL")
+    email: str | None = Field(None, max_length=100, description="邮箱")
+    phone: str | None = Field(None, max_length=20, description="手机号")
+
+
 __all__ = [
     "AdminLoginRequest",
     "AdminResponse",
     "AdminCreateRequest",
     "AdminUpdateRequest",
     "AdminChangePasswordRequest",
+    "AdminUpdateProfileRequest",
 ]

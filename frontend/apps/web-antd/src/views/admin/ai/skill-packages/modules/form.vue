@@ -34,6 +34,22 @@ function getScopeOptions() {
 
 function useFormSchema() {
   return [
+    {
+      component: 'Alert',
+      fieldName: '_create_guide',
+      label: '',
+      hideLabel: true,
+      componentProps: {
+        type: 'info',
+        showIcon: true,
+        banner: true,
+        message: $t('admin.ai.skillPackage.createGuide'),
+      },
+      dependencies: {
+        triggerFields: ['_mode'],
+        if: (values: Record<string, unknown>) => values._mode !== 'edit',
+      },
+    },
     inputField('name', $t('admin.ai.skillPackage.name'), {
       required: true,
       placeholder: $t('admin.ai.skillPackage.placeholder.inputName'),
@@ -45,6 +61,10 @@ function useFormSchema() {
         placeholder: $t('admin.ai.skillPackage.placeholder.selectScope'),
       }),
       help: $t('admin.ai.skillPackage.help.scope'),
+      dependencies: {
+        triggerFields: ['_mode'],
+        disabled: (values: Record<string, unknown>) => values._mode === 'edit',
+      },
     },
     textareaField('description', $t('admin.ai.skillPackage.description'), {
       placeholder: $t('admin.ai.skillPackage.placeholder.inputDescription'),

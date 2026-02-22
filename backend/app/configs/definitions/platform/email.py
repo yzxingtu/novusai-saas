@@ -49,7 +49,7 @@ EMAIL_SMTP_ENCRYPTION = ConfigMeta(
     description_key="config.platform.email_smtp_encryption.desc",
     scope=ConfigScope.PLATFORM,
     value_type=ConfigValueType.SELECT,
-    default_value="tls",
+    default_value="ssl",
     options=[
         option("none", "config.platform.email_smtp_encryption.none"),
         option("ssl", "config.platform.email_smtp_encryption.ssl"),

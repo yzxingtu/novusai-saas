@@ -30,6 +30,7 @@ const siteName = computed(() => {
   return (
     publicConfigStore.platformConfig?.brand?.siteName ||
     publicConfigStore.tenantConfig?.brand?.siteName ||
+    import.meta.env.VITE_APP_TITLE ||
     'NovusAI'
   );
 });

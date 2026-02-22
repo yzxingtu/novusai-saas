@@ -82,10 +82,10 @@ export async function loadSkillTypes(): Promise<SkillTypeOption[]> {
     return data;
   } catch {
     return [
-      { value: 'toolkit', label: 'Toolkit' },
-      { value: 'knowledge_base', label: 'Knowledge Base' },
-      { value: 'data_intelligence', label: 'Data Intelligence' },
-      { value: 'builtin', label: 'Builtin' },
+      { value: 'toolkit', label: $t('tenant.ai.skill.type_options.toolkit') },
+      { value: 'knowledge_base', label: $t('tenant.ai.skill.type_options.knowledge_base') },
+      { value: 'data_intelligence', label: $t('tenant.ai.skill.type_options.data_intelligence') },
+      { value: 'builtin', label: $t('tenant.ai.skill.type_options.builtin') },
     ];
   }
 }
@@ -227,6 +227,10 @@ export function useFormSchema(): VbenFormSchema[] {
         showIcon: true,
         banner: true,
         message: $t('tenant.ai.skill.createGuide'),
+      },
+      dependencies: {
+        triggerFields: ['_mode'],
+        if: (values: Record<string, unknown>) => values._mode !== 'edit',
       },
     },
     {
@@ -434,6 +438,13 @@ export function useFormSchema(): VbenFormSchema[] {
         rows: 4,
       }),
       help: $t('tenant.ai.skill.httpConfig.bodyTemplateHelp'),
+      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
+    },
+    {
+      ...textareaField('http_query_params', $t('tenant.ai.skill.httpConfig.queryParams'), {
+        placeholder: $t('tenant.ai.skill.httpConfig.queryParamsPlaceholder'),
+        rows: 2,
+      }),
       dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
     },
     {
@@ -675,6 +686,7 @@ export function getFormDefaults(): Record<string, unknown> {
     http_method: 'GET',
     http_headers: '',
     http_body_template: '',
+    http_query_params: '',
     http_auth_type: 'none',
     http_auth_token: '',
     http_auth_key_name: 'X-API-Key',

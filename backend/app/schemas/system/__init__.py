@@ -10,6 +10,7 @@ from app.schemas.system.admin import (
     AdminCreateRequest,
     AdminUpdateRequest,
     AdminChangePasswordRequest,
+    AdminUpdateProfileRequest,
 )
 from app.schemas.system.role import (
     AdminRoleResponse,
@@ -65,6 +66,7 @@ __all__ = [
     "AdminCreateRequest",
     "AdminUpdateRequest",
     "AdminChangePasswordRequest",
+    "AdminUpdateProfileRequest",
     # Role
     "AdminRoleResponse",
     "AdminRoleDetailResponse",

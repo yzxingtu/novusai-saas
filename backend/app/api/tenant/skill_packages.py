@@ -33,8 +33,8 @@ from app.services.ai.skill_package_service import SkillPackageService
 
 
 def _build_package_item(pkg: SkillPackage, skill_count: int = 0) -> dict[str, Any]:
-    """从 ORM 对象构建列表项字典"""
-    data = pkg.to_dict()
+    """从 ORM 对象构建列表项字典（不含 valves_config 敏感值）"""
+    data = pkg.to_dict(exclude={"valves_config"})
     data["skill_count"] = skill_count
     return data
 
@@ -266,6 +266,7 @@ class TenantSkillPackageController(TenantController):
                 tenant_id=tenant_id,
                 is_system=False,
             )
+            await db.commit()
 
             logger = LogManager.get_logger("ai")
             logger.info(
@@ -287,8 +288,10 @@ class TenantSkillPackageController(TenantController):
             tenant_admin: ActiveTenantAdmin,
         ):
             """
-            获取技能包的 valves 配置（schema + 当前值）
+            获取技能包的 valves 配置（schema + 当前值，secret 字段脱敏）
             """
+            from app.api.shared._toolkit_helpers import mask_secret_values
+
             service = SkillPackageService(db, tenant_admin.tenant_id)
             pkg = await service.get_by_id(package_id)
             if not pkg:
@@ -296,7 +299,7 @@ class TenantSkillPackageController(TenantController):
 
             return success(data={
                 "valves_schema": pkg.valves_schema,
-                "valves_config": pkg.valves_config,
+                "valves_config": mask_secret_values(pkg.valves_config),
             })
 
         @router.put("/{package_id}/valves", summary="更新技能包配置项")

@@ -10,6 +10,14 @@ import { requestClient } from '#/utils/request';
 // 类型定义
 // ============================================================
 
+/** 用户简要信息 */
+export interface ConversationUserInfo {
+  id: number;
+  username: string;
+  nickname: string | null;
+  avatar: string | null;
+}
+
 /** 对话列表项 */
 export interface ConversationInfo {
   id: number;
@@ -21,6 +29,8 @@ export interface ConversationInfo {
   token_count: number;
   cost: number;
   agent_name: string | null;
+  agent_avatar: string | null;
+  user_info: ConversationUserInfo | null;
   created_at: string;
   updated_at: string;
 }

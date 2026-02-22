@@ -23,6 +23,7 @@ class SkillPackageCreate(BaseCreateSchema):
     description: str | None = Field(None, description=_("skill_package.field.description"))
     avatar: str | None = Field(None, max_length=255, description=_("skill_package.field.avatar"))
     scope: str = Field("tenant", description=_("skill_package.field.scope"))
+    tenant_id: int | None = Field(None, description="租户ID（scope=tenant 时必填）")
     is_active: bool = Field(True, description=_("skill_package.field.is_active"))
     sort_order: int = Field(0, ge=0, description=_("skill_package.field.sort_order"))
 

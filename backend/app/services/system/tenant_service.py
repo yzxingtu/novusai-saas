@@ -165,31 +165,31 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         tenant_id: int,
     ) -> None:
         """
-        异步发送租户欢迎邮件
-        
-        通过 Celery 任务异步发送，失败不影响租户创建流程。
+        发送租户欢迎邮件（通过统一通知系统）
+
+        走 notification 队列异步发送，失败不影响租户创建流程。
         """
         try:
             from app.services.common.email_templates import render_welcome_email
-            from app.tasks.email import send_email_task
+            from app.services.common.notification_service import notify_sync
 
-            # TODO: 生产环境替换为真实登录 URL
             login_url = "/tenant/login"
             subject, html_body, text_body = render_welcome_email(
                 tenant_name=tenant_name,
                 admin_name=admin_name,
                 login_url=login_url,
             )
-            send_email_task.delay(
-                to=[admin_email],
-                subject=subject,
-                html_body=html_body,
-                text_body=text_body,
-                triggered_by="welcome",
+            notify_sync(
+                template_code="system.tenant_welcome",
+                recipients=[("tenant_admin", 0)],
+                data={"tenant_name": tenant_name, "admin_name": admin_name},
                 tenant_id=tenant_id,
+                email_html=html_body,
+                email_subject=subject,
+                email_text=text_body,
             )
         except Exception as e:
-            logger.warning("Failed to queue welcome email: %s", str(e))
+            logger.warning("Failed to send welcome notification: %s", str(e))
 
     async def _create_tenant_root_node(self, tenant_id: int, tenant_name: str) -> TenantAdminRole:
         """
@@ -385,13 +385,13 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         tenant_id: int,
     ) -> None:
         """
-        异步发送密码重置通知邮件
-        
-        通知用户密码已被管理员重置，引导其登录后修改密码。
+        发送密码重置通知（通过统一通知系统）
+
+        走 notification 队列异步发送。
         """
         try:
             from app.services.common.email_templates import render_password_reset_email
-            from app.tasks.email import send_email_task
+            from app.services.common.notification_service import notify_sync
 
             login_url = "/tenant/login"
             subject, html_body, text_body = render_password_reset_email(
@@ -399,16 +399,17 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
                 reset_url=login_url,
                 expire_minutes=0,
             )
-            send_email_task.delay(
-                to=[user_email],
-                subject=subject,
-                html_body=html_body,
-                text_body=text_body,
-                triggered_by="password_reset",
+            notify_sync(
+                template_code="system.password_reset",
+                recipients=[("tenant_admin", 0)],
+                data={"user_name": user_name},
                 tenant_id=tenant_id,
+                email_html=html_body,
+                email_subject=subject,
+                email_text=text_body,
             )
         except Exception as e:
-            logger.warning("Failed to queue password reset email: %s", str(e))
+            logger.warning("Failed to send password reset notification: %s", str(e))
 
     async def update_tenant(
         self,

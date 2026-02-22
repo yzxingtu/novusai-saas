@@ -352,7 +352,11 @@
       "task_check_ssl_renewals": "SSL Renewal Check",
       "task_renew_ssl": "SSL Certificate Renew",
       "execute_batch_run": "Agent Batch Run",
-      "cleanup_expired_notifications": "Cleanup Expired Notifications"
+      "cleanup_expired_notifications": "Cleanup Expired Notifications",
+      "send_email_task": "Send Email",
+      "send_notification_email": "Notification Email",
+      "log_ai_call": "AI Call Logging",
+      "process_document": "Knowledge Base Document Processing"
     },
     "resultKeys": {
       "cleaned": "Cleaned",
@@ -472,10 +476,13 @@
     "trigger": {
       "manual": "Manual",
       "taskFailure": "Task Failure",
+      "task_failure": "Task Failure",
       "passwordReset": "Password Reset",
+      "password_reset": "Password Reset",
       "test": "Test",
       "welcome": "Welcome",
-      "sslExpiry": "SSL Expiry"
+      "sslExpiry": "SSL Expiry",
+      "ssl_expiry": "SSL Expiry"
     },
     "placeholder": {
       "searchTo": "Search recipient",
@@ -499,6 +506,48 @@
     "messages": {
       "deleteSuccess": "Deleted successfully",
       "deleteConfirm": "Are you sure you want to delete this email record?"
+    }
+  },
+  "notificationTemplate": {
+    "title": "Notification Templates",
+    "pageDesc": "Manage system notification templates. Configure delivery channels and priority for each notification type.",
+    "code": "Template Code",
+    "category": "Category",
+    "channels": "Channels",
+    "priority": "Priority",
+    "isSystem": "Type",
+    "titleTemplate": "Title Template",
+    "bodyTemplate": "Body Template",
+    "editTitle": "Edit Notification Template",
+    "systemBuiltin": "System",
+    "custom": "Custom",
+    "channelWs": "Push",
+    "channelInbox": "Inbox",
+    "channelEmail": "Email",
+    "channelWebhook": "Webhook",
+    "category_options": {
+      "system": "System",
+      "ai": "AI",
+      "task": "Task",
+      "biz": "Business",
+      "audit": "Audit"
+    },
+    "priority_options": {
+      "low": "Low",
+      "normal": "Normal",
+      "high": "High",
+      "urgent": "Urgent"
+    },
+    "placeholder": {
+      "allCategories": "All Categories",
+      "allPriorities": "All Priorities"
+    },
+    "test": "Test",
+    "messages": {
+      "updateSuccess": "Notification template updated",
+      "updateFailed": "Update failed",
+      "testSuccess": "Test notification sent, check the notification panel",
+      "testFailed": "Failed to send test notification"
     }
   },
   "recycleBin": {

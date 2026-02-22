@@ -7,8 +7,9 @@
  */
 import type { ToolkitParseResult, ToolkitToolInfo } from './types';
 
-import { computed, ref, shallowRef, watch } from 'vue';
+import { computed, defineAsyncComponent, ref, watch } from 'vue';
 
+import { usePreferences } from '@vben/preferences';
 import { IconifyIcon } from '@vben/icons';
 import { useDebounceFn } from '@vueuse/core';
 import {
@@ -58,12 +59,14 @@ function t(key: string): string {
   return $t(`${props.localePrefix}.toolkitEditor.${key}`);
 }
 
-// ── Monaco Editor (lazy-loaded) ──
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const MonacoEditor = shallowRef<any>(null);
+// ── Dark mode ──
+const { isDark } = usePreferences();
+const monacoTheme = computed(() => (isDark.value ? 'vs-dark' : 'vs'));
 
-import('@guolao/vue-monaco-editor').then((mod) => {
-  MonacoEditor.value = mod.default;
+// ── Monaco Editor (lazy-loaded via defineAsyncComponent) ──
+const MonacoEditor = defineAsyncComponent({
+  loader: () => import('@guolao/vue-monaco-editor'),
+  loadingComponent: { render: () => null },
 });
 
 const editorOptions = {
@@ -91,7 +94,7 @@ async function doParse(source: string) {
   try {
     parseResult.value = await props.parseApi(source);
   } catch {
-    parseResult.value = { tools: [], valves_schema: {}, errors: ['Network error'] };
+    parseResult.value = { tools: [], valves_schema: {}, errors: [t('networkError')] };
   } finally {
     isParsing.value = false;
     emit('parseComplete', parseResult.value?.valves_schema ?? null);
@@ -106,11 +109,14 @@ function handleEditorChange(val: string | undefined) {
   debouncedParse(v);
 }
 
-// Parse on initial value
+// Auto-fill blank template when value is empty (new skill)
 watch(
   () => props.value,
   (v) => {
-    if (v && !parseResult.value) {
+    if (!v || !v.trim()) {
+      emit('update:value', BLANK_TEMPLATE);
+      debouncedParse(BLANK_TEMPLATE);
+    } else if (!parseResult.value) {
       debouncedParse(v);
     }
   },
@@ -280,18 +286,20 @@ const activeKeys = ref<string[]>(['tools']);
       </div>
       <!-- Monaco -->
       <div class="border-border flex-1 overflow-hidden rounded border">
-        <component
-          :is="MonacoEditor"
-          v-if="MonacoEditor"
-          :value="props.value"
-          language="python"
-          theme="vs"
-          :options="editorOptions"
-          @change="handleEditorChange"
-        />
-        <div v-else class="flex h-full items-center justify-center text-muted-foreground">
-          <Spin />
-        </div>
+        <Suspense>
+          <MonacoEditor
+            :value="props.value"
+            language="python"
+            :theme="monacoTheme"
+            :options="editorOptions"
+            @change="handleEditorChange"
+          />
+          <template #fallback>
+            <div class="flex h-full items-center justify-center text-muted-foreground">
+              <Spin />
+            </div>
+          </template>
+        </Suspense>
       </div>
     </div>
 

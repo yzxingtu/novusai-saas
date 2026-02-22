@@ -173,5 +173,5 @@ async def process_skill_package_upload(
             shutil.rmtree(storage_dir)
         shutil.copytree(extract_dir, storage_dir)
 
-    await db.commit()
+    await db.flush()
     return pkg, skill_name, skill_version

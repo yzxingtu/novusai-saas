@@ -10,6 +10,7 @@ from app.schemas.tenant.admin import (
     TenantAdminCreateRequest,
     TenantAdminUpdateRequest,
     TenantAdminChangePasswordRequest,
+    TenantAdminUpdateProfileRequest,
 )
 from app.schemas.tenant.user import (
     TenantUserLoginRequest,
@@ -69,6 +70,7 @@ __all__ = [
     "TenantAdminCreateRequest",
     "TenantAdminUpdateRequest",
     "TenantAdminChangePasswordRequest",
+    "TenantAdminUpdateProfileRequest",
     # TenantUser
     "TenantUserLoginRequest",
     "TenantUserResponse",

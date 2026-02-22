@@ -107,6 +107,17 @@ const mainRoutes: RouteRecordRaw = {
         title: $t('admin.system.emailLog.title'),
       },
     },
+    // Fallback 静态注册：通知模板管理
+    {
+      name: 'AdminSystemNotificationTemplates',
+      path: 'system/notification-templates',
+      component: () => import('#/views/admin/system/notification-templates/index.vue'),
+      meta: {
+        hideInMenu: true,
+        icon: 'lucide:bell-ring',
+        title: $t('admin.system.notificationTemplate.title'),
+      },
+    },
     // Fallback 静态注册：总回收站（后端菜单动态路由优先生效）
     {
       name: 'AdminSystemRecycleBin',
@@ -288,7 +299,7 @@ const mainRoutes: RouteRecordRaw = {
     {
       name: 'Profile',
       path: '/admin/profile',
-      component: () => import('#/views/_core/profile/index.vue'),
+      component: () => import('#/views/admin/profile/index.vue'),
       meta: {
         hideInMenu: true,
         title: $t('page.auth.profile'),

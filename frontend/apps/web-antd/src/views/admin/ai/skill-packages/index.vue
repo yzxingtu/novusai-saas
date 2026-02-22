@@ -22,11 +22,15 @@ import {
   Button,
   Card,
   Drawer,
+  Dropdown,
   Empty,
   Input,
+  Menu,
+  MenuItem,
   message,
   Modal,
   Popconfirm,
+  Select,
   Space,
   Spin,
   Table,
@@ -36,6 +40,7 @@ import {
 } from 'ant-design-vue';
 
 import {
+  cloneSkillPackageApi,
   deleteSkillPackageApi,
   getSkillPackageListApi,
   getSkillPackageRecycleBinApi,
@@ -136,8 +141,12 @@ async function onExportPackage(pkg: AdminSkillPackageInfo) {
 
 const importModalVisible = ref(false);
 const importing = ref(false);
+const importConflictMode = ref<'rename' | 'skip'>('rename');
+const importTargetScope = ref('admin');
 
 function onImportClick() {
+  importConflictMode.value = 'rename';
+  importTargetScope.value = 'admin';
   importModalVisible.value = true;
 }
 
@@ -148,8 +157,8 @@ async function handleImportFile(file: File) {
     const exportData = JSON.parse(text);
     const result = await importSkillPackageApi({
       export_data: exportData,
-      conflict_mode: 'rename',
-      target_scope: 'admin',
+      conflict_mode: importConflictMode.value,
+      target_scope: importTargetScope.value,
     });
     if (result.status === 'skipped') {
       message.info($t('admin.ai.skillPackage.messages.importSkipped'));
@@ -249,6 +258,28 @@ async function onTogglePackageStatus(pkg: AdminSkillPackageInfo) {
       }
     },
   });
+}
+
+function handlePkgMenuClick(key: string | number, pkg: AdminSkillPackageInfo) {
+  switch (String(key)) {
+    case 'detail': { goToDetail(pkg); break; }
+    case 'export': { onExportPackage(pkg); break; }
+    case 'clone': { onClonePackage(pkg); break; }
+    case 'edit': { onEditPackage(pkg); break; }
+    case 'delete': { onDeletePackage(pkg); break; }
+  }
+}
+
+async function onClonePackage(pkg: AdminSkillPackageInfo) {
+  try {
+    const result = await cloneSkillPackageApi(pkg.id);
+    message.success(
+      $t('admin.ai.skillPackage.messages.cloneSuccess', { name: result.package_name }),
+    );
+    await loadPackages();
+  } catch {
+    // handled by interceptor
+  }
 }
 
 function onPackageFormSuccess() {
@@ -365,9 +396,13 @@ async function onDeleteSkill(row: AdminSkillInfo) {
 async function onTestSkill(row: AdminSkillInfo) {
   try {
     const res = await testSkillApi(row.id);
+    const detailStr = res.details
+      ? `\n\n${JSON.stringify(res.details, null, 2)}`
+      : '';
     Modal[res.success ? 'success' : 'error']({
-      title: row.name,
-      content: res.message,
+      title: `${row.name} — ${res.success ? $t('admin.ai.skill.messages.testSuccess') : $t('admin.ai.skill.messages.testFailed')}`,
+      content: res.message + detailStr,
+      width: 520,
     });
   } catch {
     Modal.error({
@@ -548,7 +583,35 @@ onMounted(() => {
       :destroy-on-close="true"
       width="520px"
     >
-      <div class="py-2">
+      <div class="flex flex-col gap-3 py-2">
+        <div class="flex gap-4">
+          <div class="flex flex-1 flex-col gap-1">
+            <span class="text-xs font-medium text-muted-foreground">
+              {{ $t('admin.ai.skillPackage.importConflictMode') }}
+            </span>
+            <Select
+              v-model:value="importConflictMode"
+              size="small"
+              :options="[
+                { label: $t('admin.ai.skillPackage.importConflictRename'), value: 'rename' },
+                { label: $t('admin.ai.skillPackage.importConflictSkip'), value: 'skip' },
+              ]"
+            />
+          </div>
+          <div class="flex flex-1 flex-col gap-1">
+            <span class="text-xs font-medium text-muted-foreground">
+              {{ $t('admin.ai.skillPackage.scope') }}
+            </span>
+            <Select
+              v-model:value="importTargetScope"
+              size="small"
+              :options="[
+                { label: $t('admin.ai.skillPackage.scope_options.admin'), value: 'admin' },
+                { label: $t('admin.ai.skillPackage.scope_options.global'), value: 'global' },
+              ]"
+            />
+          </div>
+        </div>
         <Upload.Dragger
           :before-upload="handleImportFile"
           accept=".json"
@@ -707,59 +770,60 @@ onMounted(() => {
                   >
                     {{ getScopeText(pkg.scope) }}
                   </Tag>
-                  <span class="text-xs text-muted-foreground">
+                  <span class="whitespace-nowrap text-xs text-muted-foreground">
                     {{ pkg.skill_count }} {{ $t('admin.ai.skillPackage.detail.skills') }}
                   </span>
                 </div>
               </div>
-              <!-- hover 操作按钮 -->
-              <div class="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                <Tooltip :title="$t('shared.common.viewDetail')">
-                  <Button
-                    type="text"
-                    size="small"
-                    class="!size-6 !min-w-0 !p-0"
-                    @click.stop="goToDetail(pkg)"
-                  >
-                    <IconifyIcon icon="lucide:external-link" class="size-3 text-muted-foreground" />
-                  </Button>
-                </Tooltip>
-                <Tooltip :title="$t('admin.ai.skillPackage.exportBtn')">
-                  <Button
-                    type="text"
-                    size="small"
-                    class="!size-6 !min-w-0 !p-0"
-                    @click.stop="onExportPackage(pkg)"
-                  >
-                    <IconifyIcon icon="lucide:download" class="size-3 text-muted-foreground" />
-                  </Button>
-                </Tooltip>
-                <Tooltip :title="$t('admin.common.edit')">
-                  <Button
-                    v-if="!pkg.is_system"
-                    v-access:code="['ai_skill_package:update']"
-                    type="text"
-                    size="small"
-                    class="!size-6 !min-w-0 !p-0"
-                    @click.stop="onEditPackage(pkg)"
-                  >
-                    <IconifyIcon icon="lucide:pencil" class="size-3 text-muted-foreground" />
-                  </Button>
-                </Tooltip>
-                <Tooltip :title="$t('admin.common.delete')">
-                  <Button
-                    v-if="!pkg.is_system"
-                    v-access:code="['ai_skill_package:delete']"
-                    type="text"
-                    size="small"
-                    danger
-                    class="!size-6 !min-w-0 !p-0"
-                    @click.stop="onDeletePackage(pkg)"
-                  >
-                    <IconifyIcon icon="lucide:trash-2" class="size-3" />
-                  </Button>
-                </Tooltip>
-              </div>
+              <!-- hover 操作：单个下拉菜单按钮 -->
+              <Dropdown
+                :trigger="['click']"
+                placement="bottomRight"
+                @click.stop
+              >
+                <Button
+                  type="text"
+                  size="small"
+                  class="!size-6 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100"
+                  @click.stop
+                >
+                  <IconifyIcon icon="lucide:ellipsis-vertical" class="size-3.5 text-muted-foreground" />
+                </Button>
+                <template #overlay>
+                  <Menu @click="(info: { key: string | number }) => handlePkgMenuClick(info.key, pkg)">
+                    <MenuItem key="detail">
+                      <div class="flex items-center gap-2">
+                        <IconifyIcon icon="lucide:external-link" class="size-3.5" />
+                        <span>{{ $t('shared.common.viewDetail') }}</span>
+                      </div>
+                    </MenuItem>
+                    <MenuItem key="export">
+                      <div class="flex items-center gap-2">
+                        <IconifyIcon icon="lucide:download" class="size-3.5" />
+                        <span>{{ $t('admin.ai.skillPackage.exportBtn') }}</span>
+                      </div>
+                    </MenuItem>
+                    <MenuItem key="clone">
+                      <div class="flex items-center gap-2">
+                        <IconifyIcon icon="lucide:copy" class="size-3.5" />
+                        <span>{{ $t('admin.ai.skillPackage.cloneBtn') }}</span>
+                      </div>
+                    </MenuItem>
+                    <MenuItem v-if="!pkg.is_system" key="edit">
+                      <div class="flex items-center gap-2">
+                        <IconifyIcon icon="lucide:pencil" class="size-3.5" />
+                        <span>{{ $t('admin.common.edit') }}</span>
+                      </div>
+                    </MenuItem>
+                    <MenuItem v-if="!pkg.is_system" key="delete" class="!text-destructive">
+                      <div class="flex items-center gap-2">
+                        <IconifyIcon icon="lucide:trash-2" class="size-3.5" />
+                        <span>{{ $t('admin.common.delete') }}</span>
+                      </div>
+                    </MenuItem>
+                  </Menu>
+                </template>
+              </Dropdown>
             </div>
             <p
               v-if="pkg.description"

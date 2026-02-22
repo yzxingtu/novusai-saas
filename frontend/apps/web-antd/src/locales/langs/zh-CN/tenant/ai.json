@@ -173,6 +173,7 @@
     "skillBindings": "技能绑定",
     "skillPackageBindings": "技能包绑定",
     "availablePackages": "可用技能包",
+    "packageUnavailable": "技能包 #{id} 已停用或不可用",
     "consentMode": "工具授权模式",
     "consentModeOptions": {
       "auto": "自动执行",
@@ -408,6 +409,7 @@
     "pageDesc": "管理智能体对话记录。支持查看详情、归档和批量操作。",
     "pageTitle": "对话管理",
     "agentName": "智能体",
+    "user": "用户",
     "status": "状态",
     "tokenCount": "Token 数量",
     "cost": "费用",
@@ -701,10 +703,12 @@
     "uploadZip": "上传技能包",
     "uploadDragText": "点击或拖拽 ZIP 文件到此处上传",
     "uploadDesc": "支持包含 SKILL.md 的标准技能包 ZIP 文件",
+    "cloneToMine": "克隆到我的技能包",
     "messages": {
       "toggleSuccess": "技能包状态已更新",
       "uploadSuccess": "技能包上传成功",
-      "uploading": "正在上传..."
+      "uploading": "正在上传...",
+      "cloneSuccess": "已克隆为 {name}"
     },
     "detail": {
       "title": "技能包详情",
@@ -731,7 +735,9 @@
       "required": "必填",
       "sensitiveHint": "敏感信息，请妥善保管",
       "noSchema": "该技能包没有可配置的环境变量",
-      "saveSuccess": "环境变量配置已保存"
+      "saveSuccess": "环境变量配置已保存",
+      "resetDefaults": "重置为默认值",
+      "secretConfigured": "已配置（点击清除）"
     }
   },
   "skill": {
@@ -763,13 +769,13 @@
       "code_execution": "代码执行"
     },
     "typeDesc": {
-      "toolkit": "Python 工具包：在下方编辑器中编写 Tools 类，每个方法自动注册为 LLM 可调用的工具。支持 Valves 配置和 ZIP 上传。",
-      "knowledge_base": "RAG 文档问答：关联一个或多个知识库，智能体对话时自动进行语义检索并注入上下文。请在下方选择知识库并调整检索参数。",
-      "data_intelligence": "数据智能：通过 Text-to-SQL 实现自然语言查询数据库，支持 CRUD 操作。请在下方选择可访问的表策略来控制数据范围。",
-      "builtin": "内置工具：由系统预定义的基础工具（如日期计算、数学运算等），不可编辑。创建后可在下方查看工具列表。",
-      "http": "HTTP 请求：声明式集成外部 API。填写 URL、请求方法和参数模板，无需编码即可让智能体调用任意 HTTP 接口。",
-      "email": "邮件发送：让智能体通过对话发送邮件。基于平台已配置的 SMTP 服务，支持域名白名单和收件人限制。",
-      "code_execution": "代码执行：让智能体在安全沙箱中运行代码。适用于计算、数据处理、文本操作等场景，支持模块白名单控制。"
+      "toolkit": "Python 工具包：在下方编辑器中编写 Tools 类，每个公开方法自动注册为 LLM 可调用的工具。支持 Valves 环境变量配置和 .zip 包上传。\n适用场景：调用第三方 API（天气/搜索/翻译）、自定义业务逻辑、数据转换等。\n提示：方法的 docstring 和 :param 注释会展示给 LLM，请写清楚描述和参数说明。",
+      "knowledge_base": "RAG 文档问答：关联一个或多个知识库，对话时自动进行语义检索并将相关文档片段注入上下文。\n适用场景：产品文档问答、内部知识库搜索、合同/政策咨询等。\n提示：可调整检索数量(Top K)和得分阈值来平衡召回率和精确度。",
+      "data_intelligence": "数据智能：通过 Text-to-SQL 让智能体用自然语言查询数据库，支持查询、创建、更新、删除操作。\n适用场景：业务数据统计、报表查询、数据录入辅助等。\n提示：在下方选择可访问的表策略，CRUD 权限由表策略的 allow_create/update/delete 控制。",
+      "builtin": "内置工具：系统预定义的基础能力，如网页搜索、图片生成等。创建后可查看工具列表。\n提示：内置工具由平台维护，配置项不可编辑。",
+      "http": "HTTP 请求：声明式集成外部 REST API。只需填写 URL、请求方法和参数模板，无需编码即可让智能体调用。\n适用场景：调用企业内部 API、集成 SaaS 服务（CRM/ERP）、Webhook 触发等。\n提示：URL 支持 {变量名} 模板语法；Headers 中可配置认证信息。",
+      "email": "邮件发送：让智能体在对话中代用户发送邮件。基于平台 SMTP 配置，支持域名白名单和收件人限制。\n适用场景：客服自动回复、会议邀请、通知发送等。\n提示：需先在系统设置中配置 SMTP 服务器。",
+      "code_execution": "代码执行：让智能体在安全沙箱中运行 Python 代码并返回结果。\n适用场景：数学计算、数据处理、文本格式转换、CSV/JSON 解析等。\n提示：代码在隔离环境中执行，可用模块受白名单限制。"
     },
     "httpConfig": {
       "title": "HTTP 请求配置",
@@ -877,7 +883,8 @@
       "uploadFile": "上传文件",
       "properties": "属性",
       "requiredFields": "必填字段",
-      "onlyPyFiles": "仅支持 .py 文件"
+      "onlyPyFiles": "仅支持 .py 文件",
+      "networkError": "网络请求失败"
     },
     "dataIntelligenceConfig": {
       "title": "数据智能配置",
@@ -913,6 +920,8 @@
       "timeout": "技能执行的最大等待时间，超时后自动终止"
     },
     "messages": {
+      "testSuccess": "测试通过",
+      "testFailed": "测试请求失败，请稍后重试",
       "createSuccess": "技能创建成功",
       "updateSuccess": "技能更新成功",
       "deleteSuccess": "技能已删除"

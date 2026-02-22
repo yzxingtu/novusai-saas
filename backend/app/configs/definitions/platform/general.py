@@ -72,7 +72,7 @@ SITE_COPYRIGHT = ConfigMeta(
     description_key="config.platform.site_copyright.desc",
     scope=ConfigScope.PLATFORM,
     value_type=ConfigValueType.STRING,
-    default_value="© 2024 NovusAI. All rights reserved.",
+    default_value="\u00a9 2025 NovusAI. All rights reserved.",
     validation_rules=[
         max_length(200, "validation.max_length"),
     ],

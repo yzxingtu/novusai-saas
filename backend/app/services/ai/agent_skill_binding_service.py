@@ -23,12 +23,19 @@ class AgentSkillBindingService:
     管理 Agent 与 SkillPackage 的 M:N 关系
     """
 
-    def __init__(self, db, tenant_id: int):
+    def __init__(self, db, tenant_id: int | None):
         self.db = db
         self.tenant_id = tenant_id
-        self.binding_repo = AgentSkillBindingRepository(db, tenant_id)
-        self.package_repo = SkillPackageRepository(db, tenant_id)
-        self.agent_repo = AgentRepository(db, tenant_id)
+        if tenant_id is not None:
+            self.binding_repo = AgentSkillBindingRepository(db, tenant_id)
+            self.package_repo = SkillPackageRepository(db, tenant_id)
+            self.agent_repo = AgentRepository(db, tenant_id)
+        else:
+            from app.repositories.ai.skill_package_repository import AdminSkillPackageRepository
+            from app.repositories.ai.agent_repository import AdminAgentRepository
+            self.binding_repo = AgentSkillBindingRepository(db, 0)
+            self.package_repo = AdminSkillPackageRepository(db)  # type: ignore[assignment]
+            self.agent_repo = AdminAgentRepository(db)  # type: ignore[assignment]
 
     async def get_agent_packages(self, agent_id: int) -> list[dict[str, Any]]:
         """
@@ -161,7 +168,7 @@ class AgentSkillBindingService:
         })
 
         logger.info(
-            "SkillPackage %d bound to agent %d (tenant=%d)",
+            "SkillPackage %d bound to agent %d (tenant=%s)",
             package_id, agent_id, self.tenant_id,
         )
 
@@ -182,7 +189,7 @@ class AgentSkillBindingService:
         await self.binding_repo.permanent_delete(binding.id)
 
         logger.info(
-            "SkillPackage %d unbound from agent %d (tenant=%d)",
+            "SkillPackage %d unbound from agent %d (tenant=%s)",
             package_id, agent_id, self.tenant_id,
         )
 
@@ -206,9 +213,13 @@ class AgentSkillBindingService:
         if not agent:
             raise NotFoundException(message=_("agent_skill_binding.error.agent_not_found"))
 
-        # 校验所有 package_id 存在且 scope 兼容（在事务操作前完成校验）
+        # 批量查询所有 package_id（避免 N+1）
+        packages = await self.package_repo.get_by_ids(package_ids)
+        pkg_map = {pkg.id: pkg for pkg in packages}
+
+        # 校验所有 package_id 存在且 scope 兼容
         for pid in package_ids:
-            package = await self.package_repo.get_by_id(pid)
+            package = pkg_map.get(pid)
             if not package:
                 raise NotFoundException(
                     message=_("agent_skill_binding.error.package_not_found")
@@ -241,7 +252,7 @@ class AgentSkillBindingService:
                 bindings.append(binding)
 
         logger.info(
-            "Batch bound %d skill packages to agent %d (tenant=%d)",
+            "Batch bound %d skill packages to agent %d (tenant=%s)",
             len(package_ids), agent_id, self.tenant_id,
         )
 

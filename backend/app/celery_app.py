@@ -50,6 +50,7 @@ celery_app.conf.task_queues = (
     Queue("high_priority", high_priority_exchange, routing_key="high_priority"),
     Queue("ai_gateway", default_exchange, routing_key="ai_gateway"),
     Queue("scheduled", default_exchange, routing_key="scheduled"),
+    Queue("notification", default_exchange, routing_key="notification"),
 )
 
 celery_app.conf.task_default_queue = "default"
@@ -60,6 +61,7 @@ celery_app.conf.task_routes = {
     "app.tasks.ai.*": {"queue": "ai_gateway"},
     "app.tasks.scheduled.*": {"queue": "scheduled"},
     "app.tasks.high_priority.*": {"queue": "high_priority"},
+    "app.tasks.notification.*": {"queue": "notification"},
 }
 
 # ========================================
@@ -73,6 +75,7 @@ celery_app.conf.include = [
     "app.tasks.agent_batch",
     "app.tasks.ssl_tasks",
     "app.tasks.email",
+    "app.tasks.notification",
     "app.tasks.ai",
     "app.tasks.notification_cleanup",
     "app.ai.rag.processor",

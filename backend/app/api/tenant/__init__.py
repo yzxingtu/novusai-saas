@@ -74,6 +74,9 @@ tenant_router.include_router(ws_router)
 # 通知
 from app.api.tenant.notifications import router as notifications_router
 tenant_router.include_router(notifications_router)
+# 通知偏好
+from app.api.tenant.notification_preferences import router as notification_preferences_router
+tenant_router.include_router(notification_preferences_router)
 
 
 __all__ = [

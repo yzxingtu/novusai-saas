@@ -427,13 +427,13 @@ def _send_ssl_expiry_email(
     tenant_id: int,
 ) -> None:
     """
-    发送 SSL 证书到期提醒邮件（接收纯值，不依赖 ORM 对象）
+    发送 SSL 证书到期提醒（通过统一通知系统）
 
-    静默失败，不影响巡检主流程。
+    走 notification 队列异步发送，静默失败不影响巡检主流程。
     """
     try:
         from app.services.common.email_templates import render_ssl_expiry_email
-        from app.tasks.email import send_email_task
+        from app.services.common.notification_service import notify_sync
 
         days_remaining = (expires_at - utc_now()).days if expires_at else 0
         subject, html_body, text_body = render_ssl_expiry_email(
@@ -441,16 +441,17 @@ def _send_ssl_expiry_email(
             expires_at=str(expires_at.date()) if expires_at else "-",
             days_remaining=max(days_remaining, 0),
         )
-        send_email_task.delay(
-            to=[contact_email],
-            subject=subject,
-            html_body=html_body,
-            text_body=text_body,
-            triggered_by="ssl_expiry",
+        notify_sync(
+            template_code="system.ssl_expiry",
+            recipients=[("admin", 1)],
+            data={"domain": domain_name, "days_remaining": max(days_remaining, 0)},
             tenant_id=tenant_id,
+            email_html=html_body,
+            email_subject=subject,
+            email_text=text_body,
         )
     except Exception as e:
-        logger.warning("Failed to send SSL expiry email: %s", str(e))
+        logger.warning("Failed to send SSL expiry notification: %s", str(e))
 
 
 __all__ = ["task_provision_ssl", "task_check_ssl_renewals", "task_renew_ssl"]

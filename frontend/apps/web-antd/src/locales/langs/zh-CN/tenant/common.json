@@ -26,6 +26,7 @@
   "failed": "操作失败",
   "noData": "暂无数据",
   "createdAt": "创建时间",
+  "tenantAdmin": "租户管理员",
   "noPlan": "当前租户未分配套餐",
   "noPlanDesc": "无法使用任何功能，请联系平台管理员分配套餐。"
 }

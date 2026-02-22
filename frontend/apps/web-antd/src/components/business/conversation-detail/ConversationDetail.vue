@@ -10,7 +10,7 @@ import { computed, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Descriptions, Drawer, Empty, Spin, Tag, Timeline } from 'ant-design-vue';
+import { Avatar, Descriptions, Drawer, Empty, Spin, Tag, Timeline } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
@@ -25,6 +25,13 @@ export interface ConversationMessageItem {
   created_at: string;
 }
 
+export interface ConversationUserInfo {
+  id: number;
+  username: string;
+  nickname: string | null;
+  avatar: string | null;
+}
+
 export interface ConversationDetailData {
   id: number;
   title: string | null;
@@ -32,6 +39,9 @@ export interface ConversationDetailData {
   token_count: number;
   cost: number;
   agent_name: string | null;
+  agent_avatar?: string | null;
+  tenant_name?: string | null;
+  user_info?: ConversationUserInfo | null;
   message_count: number;
   message_list: ConversationMessageItem[];
   created_at: string;
@@ -169,10 +179,41 @@ defineExpose({ detail });
               :color="getRoleColor(msg.role)"
             >
               <div class="mb-1 flex items-center gap-2">
-                <Tag :color="getRoleColor(msg.role)" size="small">
-                  <IconifyIcon :icon="getRoleIcon(msg.role)" class="mr-0.5 inline size-3" />
-                  {{ msg.role }}
-                </Tag>
+                <!-- user message: show user avatar + name -->
+                <template v-if="msg.role === 'user' && detail?.user_info">
+                  <Avatar
+                    v-if="detail.user_info.avatar"
+                    :src="detail.user_info.avatar"
+                    :size="22"
+                  />
+                  <Avatar v-else :size="22" class="bg-primary/10 text-primary text-xs">
+                    {{ (detail.user_info.nickname || detail.user_info.username || '?').charAt(0) }}
+                  </Avatar>
+                  <span class="text-sm font-medium text-foreground">
+                    {{ detail.user_info.nickname || detail.user_info.username }}
+                  </span>
+                </template>
+                <!-- assistant message: show agent avatar + name -->
+                <template v-else-if="msg.role === 'assistant' && detail?.agent_name">
+                  <Avatar
+                    v-if="detail.agent_avatar"
+                    :src="detail.agent_avatar"
+                    :size="22"
+                  />
+                  <Avatar v-else :size="22" class="bg-success/10 text-success text-xs">
+                    {{ (detail.agent_name || '?').charAt(0) }}
+                  </Avatar>
+                  <span class="text-sm font-medium text-foreground">
+                    {{ detail.agent_name }}
+                  </span>
+                </template>
+                <!-- other roles: fallback to tag -->
+                <template v-else>
+                  <Tag :color="getRoleColor(msg.role)" size="small">
+                    <IconifyIcon :icon="getRoleIcon(msg.role)" class="mr-0.5 inline size-3" />
+                    {{ msg.role }}
+                  </Tag>
+                </template>
                 <span class="text-xs text-muted-foreground">
                   #{{ msg.sequence }} · {{ formatDate(msg.created_at) }}
                 </span>

@@ -5,7 +5,7 @@ defineOptions({ name: 'AdminSkillForm' });
  */
 import type { AdminSkillInfo } from '#/api/admin/skills';
 
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import {
   inputField,
@@ -149,6 +149,10 @@ function useFormSchema() {
         showIcon: true,
         banner: true,
         message: $t('admin.ai.skill.createGuide'),
+      },
+      dependencies: {
+        triggerFields: ['_mode'],
+        if: (values: Record<string, unknown>) => values._mode !== 'edit',
       },
     },
     {
@@ -812,10 +816,20 @@ const title = computed(() =>
     : $t('admin.ai.skill.create'),
 );
 
+const currentSkillType = ref('');
+watch(
+  () => formApi.form?.values?.type,
+  (v) => { currentSkillType.value = (v as string) || ''; },
+  { immediate: true },
+);
+const drawerWidthClass = computed(() =>
+  currentSkillType.value === 'toolkit' ? 'w-[900px]' : 'w-[600px]',
+);
+
 </script>
 
 <template>
-  <Drawer :title="title" class="w-[800px]">
+  <Drawer :title="title" :class="drawerWidthClass">
     <Form />
 
     <!-- data_intelligence 工具列表只读展示 -->

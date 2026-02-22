@@ -343,7 +343,7 @@ class PluginManager:
             # 注销扩展点（防止已启用插件直接卸载时注册泄漏）
             self.extension_registry.unregister(instance, ctx)
 
-            # SkillPlugin：检查技能是否被 Agent 引用，然后软删除技能包
+            # SkillPlugin：检查技能是否被 Agent 引用，然后永久删除技能包
             if isinstance(instance, SkillPlugin):
                 affected_agents = await self._check_skill_references(db, instance)
                 if affected_agents:
@@ -353,19 +353,18 @@ class PluginManager:
                     )
                 try:
                     await SkillPluginProvisioner.deprovision(
-                        db, instance, soft_delete=True,
+                        db, instance, permanent_delete=True,
                     )
+                    await db.flush()
                 except Exception as deprov_exc:
-                    await db.rollback()
                     logger.error(
-                        "Skill plugin soft-delete failed: %s — %s",
+                        "Skill plugin permanent delete failed: %s — %s",
                         plugin_name, str(deprov_exc), exc_info=True,
                     )
 
             try:
                 await instance.on_uninstall(ctx)
             except Exception as hook_exc:
-                await db.rollback()
                 logger.error(
                     "Plugin on_uninstall hook error (proceeding): %s — %s",
                     plugin_name, str(hook_exc), exc_info=True,
@@ -387,7 +386,6 @@ class PluginManager:
                     plugin_name, rollback_result,
                 )
         except Exception as mig_exc:
-            await db.rollback()
             logger.warning(
                 "Plugin migration rollback error (proceeding): %s — %s",
                 plugin_name, str(mig_exc), exc_info=True,
@@ -602,7 +600,7 @@ class PluginManager:
         # SkillPlugin 停用技能包
         if isinstance(instance, SkillPlugin):
             try:
-                await SkillPluginProvisioner.deprovision(db, instance, soft_delete=False)
+                await SkillPluginProvisioner.deprovision(db, instance, permanent_delete=False)
             except Exception as exc:
                 logger.error(
                     "Skill plugin deprovisioning failed: %s — %s",
@@ -632,40 +630,37 @@ class PluginManager:
         db: AsyncSession, instance: SkillPlugin,
     ) -> list[str]:
         """
-        检查是否有 Agent 引用了该 SkillPlugin 提供的技能
+        检查是否有 Agent 引用了该 SkillPlugin 提供的技能包
 
         Args:
             db: 数据库会话
             instance: SkillPlugin 实例
 
         Returns:
-            引用该技能的 Agent 名称列表（空列表表示无引用）
+            引用该技能包的 Agent 名称列表（空列表表示无引用）
         """
         try:
             from sqlalchemy import select
-            from app.models.ai.skill import Skill
+            from app.models.ai.skill_package import SkillPackage
             from app.models.ai.agent_skill_binding import AgentSkillBinding
             from app.models.ai.agent import Agent
 
-            skill_type = instance.get_skill_type()
-
-            # 查找该插件创建的技能 ID
-            stmt = select(Skill.id).where(
-                Skill.type == skill_type,
-                Skill.is_deleted.is_(False),
+            # 查找该插件创建的技能包
+            pkg_stmt = select(SkillPackage.id).where(
+                SkillPackage.source_plugin == instance.name,
             )
-            result = await db.execute(stmt)
-            skill_ids = [row[0] for row in result.all()]
+            result = await db.execute(pkg_stmt)
+            pkg_ids = [row[0] for row in result.all()]
 
-            if not skill_ids:
+            if not pkg_ids:
                 return []
 
-            # 查找绑定了这些技能的 Agent
+            # 查找绑定了该技能包的 Agent
             stmt = (
                 select(Agent.name)
                 .join(AgentSkillBinding, AgentSkillBinding.agent_id == Agent.id)
                 .where(
-                    AgentSkillBinding.skill_id.in_(skill_ids),
+                    AgentSkillBinding.package_id.in_(pkg_ids),
                     Agent.is_deleted.is_(False),
                 )
                 .distinct()

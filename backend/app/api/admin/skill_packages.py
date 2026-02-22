@@ -36,7 +36,7 @@ logger = LogManager.get_logger("ai")
 
 
 def _build_admin_package_item(pkg: SkillPackage, skill_count: int = 0) -> dict[str, Any]:
-    """从 ORM 对象构建管理端列表项字典"""
+    """从 ORM 对象构建管理端列表项字典（不含 valves_config 敏感值）"""
     return {
         "id": pkg.id,
         "tenant_id": pkg.tenant_id,
@@ -50,7 +50,6 @@ def _build_admin_package_item(pkg: SkillPackage, skill_count: int = 0) -> dict[s
         "skill_count": skill_count,
         "source_plugin": pkg.source_plugin,
         "valves_schema": pkg.valves_schema,
-        "valves_config": pkg.valves_config,
         "created_at": pkg.created_at,
         "updated_at": pkg.updated_at,
     }
@@ -206,11 +205,7 @@ class AdminSkillPackageController(GlobalController):
 
             update_data = data.model_dump(exclude_unset=True)
 
-            # 不允许修改 scope
-            if "scope" in update_data and update_data["scope"] != pkg.scope:
-                raise BusinessException(message=_("skill_package.error.invalid_scope"))
-
-            # 名称唯一性等校验由 Service._before_update 处理
+            # scope 不可变 + 名称唯一性等校验统一由 Service._before_update 处理
             updated = await service.update(package_id, update_data)
             await db.commit()
 
@@ -258,7 +253,7 @@ class AdminSkillPackageController(GlobalController):
             if not pkg:
                 raise NotFoundException(message=_("skill_package.error.not_found"))
 
-            if pkg.is_system and pkg.is_active:
+            if pkg.is_system:
                 raise BusinessException(message=_("skill_package.error.system_protected"))
 
             updated = await service.update(package_id, {"is_active": not pkg.is_active})
@@ -301,6 +296,7 @@ class AdminSkillPackageController(GlobalController):
                 is_system=is_system,
                 source_plugin=True,
             )
+            await db.commit()
 
             logger.info(
                 "Skill package uploaded (admin): name=%s version=%s package_id=%d",
@@ -321,8 +317,10 @@ class AdminSkillPackageController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            获取技能包的 valves 配置（schema + 当前值）
+            获取技能包的 valves 配置（schema + 当前值，secret 字段脱敏）
             """
+            from app.api.shared._toolkit_helpers import mask_secret_values
+
             service = AdminSkillPackageService(db)
             pkg = await service.get_by_id(package_id)
             if not pkg:
@@ -330,7 +328,7 @@ class AdminSkillPackageController(GlobalController):
 
             return success(data={
                 "valves_schema": pkg.valves_schema,
-                "valves_config": pkg.valves_config,
+                "valves_config": mask_secret_values(pkg.valves_config),
             })
 
         @router.put("/{package_id}/valves", summary="更新技能包配置项")

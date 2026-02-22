@@ -3,9 +3,8 @@ import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { AuthenticationLoginExpiredModal } from '@vben/common-ui';
-import { VBEN_DOC_URL, VBEN_GITHUB_URL } from '@vben/constants';
 import { useWatermark } from '@vben/hooks';
-import { BookOpenText, CircleHelp, IconifyIcon, SvgGithubIcon } from '@vben/icons';
+import { IconifyIcon } from '@vben/icons';
 import {
   BasicLayout,
   LockScreen,
@@ -13,7 +12,6 @@ import {
 } from '@vben/layouts';
 import { preferences } from '@vben/preferences';
 import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
-import { openWindow } from '@vben/utils';
 
 import { Popover, Tooltip } from 'ant-design-vue';
 import { message } from 'ant-design-vue';
@@ -25,6 +23,7 @@ import { accessRoutes } from '#/router/routes';
 import NotificationPanel from '#/components/business/notification-panel/NotificationPanel.vue';
 import { useGlobalAIChatStore, useMultiAuthStore, useNotificationStore, usePresenceStore, useSocketIOStore } from '#/store';
 import LoginForm from '#/views/_core/authentication/login.vue';
+import NotificationToast from '#/components/business/notification-toast/NotificationToast.vue';
 import GlobalAIChat from '#/views/_core/global-ai-chat/GlobalAIChat.vue';
 
 
@@ -92,33 +91,6 @@ const menus = computed(() => [
     },
     icon: 'lucide:user',
     text: $t('page.auth.profile'),
-  },
-  {
-    handler: () => {
-      openWindow(VBEN_DOC_URL, {
-        target: '_blank',
-      });
-    },
-    icon: BookOpenText,
-    text: $t('ui.widgets.document'),
-  },
-  {
-    handler: () => {
-      openWindow(VBEN_GITHUB_URL, {
-        target: '_blank',
-      });
-    },
-    icon: SvgGithubIcon,
-    text: 'GitHub',
-  },
-  {
-    handler: () => {
-      openWindow(`${VBEN_GITHUB_URL}/issues`, {
-        target: '_blank',
-      });
-    },
-    icon: CircleHelp,
-    text: $t('ui.widgets.qa'),
   },
 ]);
 
@@ -297,6 +269,7 @@ watch(
         <LoginForm />
       </AuthenticationLoginExpiredModal>
       <GlobalAIChat />
+      <NotificationToast />
     </template>
     <template #lock-screen>
       <LockScreen :avatar @to-login="handleLogout" />

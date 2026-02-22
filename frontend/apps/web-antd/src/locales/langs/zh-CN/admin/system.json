@@ -353,7 +353,11 @@
       "task_check_ssl_renewals": "SSL 证书续期检查",
       "task_renew_ssl": "SSL 证书续期",
       "execute_batch_run": "智能体批处理",
-      "cleanup_expired_notifications": "清理过期通知"
+      "cleanup_expired_notifications": "清理过期通知",
+      "send_email_task": "发送邮件",
+      "send_notification_email": "通知邮件发送",
+      "log_ai_call": "AI 调用日志记录",
+      "process_document": "知识库文档处理"
     },
     "resultKeys": {
       "cleaned": "已清理",
@@ -473,10 +477,13 @@
     "trigger": {
       "manual": "手动发送",
       "taskFailure": "任务失败",
+      "task_failure": "任务失败",
       "passwordReset": "密码重置",
+      "password_reset": "密码重置",
       "test": "测试",
       "welcome": "欢迎邮件",
-      "sslExpiry": "SSL到期"
+      "sslExpiry": "SSL到期",
+      "ssl_expiry": "SSL到期"
     },
     "placeholder": {
       "searchTo": "搜索收件人",
@@ -500,6 +507,48 @@
     "messages": {
       "deleteSuccess": "删除成功",
       "deleteConfirm": "确定要删除此邮件记录吗？"
+    }
+  },
+  "notificationTemplate": {
+    "title": "通知模板",
+    "pageDesc": "管理系统通知模板，配置各类通知类型的发送渠道和优先级。",
+    "code": "模板代码",
+    "category": "分类",
+    "channels": "发送渠道",
+    "priority": "优先级",
+    "isSystem": "类型",
+    "titleTemplate": "标题模板",
+    "bodyTemplate": "正文模板",
+    "editTitle": "编辑通知模板",
+    "systemBuiltin": "系统内置",
+    "custom": "自定义",
+    "channelWs": "实时推送",
+    "channelInbox": "站内信",
+    "channelEmail": "邮件",
+    "channelWebhook": "外部推送",
+    "category_options": {
+      "system": "系统",
+      "ai": "AI",
+      "task": "任务",
+      "biz": "业务",
+      "audit": "审计"
+    },
+    "priority_options": {
+      "low": "低",
+      "normal": "正常",
+      "high": "高",
+      "urgent": "紧急"
+    },
+    "placeholder": {
+      "allCategories": "全部分类",
+      "allPriorities": "全部优先级"
+    },
+    "test": "\u6d4b\u8bd5",
+    "messages": {
+      "updateSuccess": "\u901a\u77e5\u6a21\u677f\u5df2\u66f4\u65b0",
+      "updateFailed": "\u66f4\u65b0\u5931\u8d25",
+      "testSuccess": "\u6d4b\u8bd5\u901a\u77e5\u5df2\u53d1\u9001\uff0c\u8bf7\u68c0\u67e5\u901a\u77e5\u9762\u677f",
+      "testFailed": "\u6d4b\u8bd5\u901a\u77e5\u53d1\u9001\u5931\u8d25"
     }
   },
   "recycleBin": {

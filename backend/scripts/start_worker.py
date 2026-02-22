@@ -27,6 +27,9 @@ os.environ.setdefault("PYTHONPATH", BACKEND_DIR)
 
 CELERY_APP = "app.celery_app:celery_app"
 
+# 所有队列（与 celery_app.py 中定义的保持一致）
+ALL_QUEUES = "default,high_priority,ai_gateway,scheduled,notification"
+
 
 def start_worker(queues: str | None = None, concurrency: int | None = None, loglevel: str = "info") -> None:
     cmd = [
@@ -63,6 +66,7 @@ def start_dev(loglevel: str = "info") -> None:
                 sys.executable, "-m", "celery",
                 "-A", CELERY_APP,
                 "worker",
+                "-Q", ALL_QUEUES,
                 f"--loglevel={loglevel}",
                 "--pool=solo",
             ], cwd=BACKEND_DIR)
@@ -91,6 +95,7 @@ def start_dev(loglevel: str = "info") -> None:
             "-A", CELERY_APP,
             "worker",
             "--beat",
+            "-Q", ALL_QUEUES,
             f"--loglevel={loglevel}",
             "-c", "2",
         ]

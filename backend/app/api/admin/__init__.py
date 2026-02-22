@@ -100,6 +100,12 @@ admin_router.include_router(tenant_admins_router)
 # 通知
 from app.api.admin.notifications import router as notifications_router
 admin_router.include_router(notifications_router)
+# 通知偏好
+from app.api.admin.notification_preferences import router as notification_preferences_router
+admin_router.include_router(notification_preferences_router)
+# 通知模板管理
+from app.api.admin.notification_templates import router as notification_templates_router, AdminNotificationTemplateController
+admin_router.include_router(notification_templates_router)
 
 
 __all__ = [
@@ -146,4 +152,6 @@ __all__ = [
     "AdminAgentAssignmentController",
     # 总回收站
     "AdminRecycleBinController",
+    # 通知模板
+    "AdminNotificationTemplateController",
 ]

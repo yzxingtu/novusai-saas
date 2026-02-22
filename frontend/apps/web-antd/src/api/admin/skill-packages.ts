@@ -171,6 +171,19 @@ export function getSkillPackageSkillsApi(
   );
 }
 
+/** 克隆技能包 */
+export function cloneSkillPackageApi(
+  packageId: number,
+  data?: { new_name?: string; target_scope?: string; target_tenant_id?: number | null },
+) {
+  return requestClient.post<{
+    status: string;
+    package_id: number;
+    package_name: string;
+    skills_created: number;
+  }>(`${BASE_URL}/${packageId}/clone`, data ?? {});
+}
+
 /** 导出技能包 JSON */
 export function exportSkillPackageApi(packageId: number) {
   return requestClient.get<Record<string, unknown>>(

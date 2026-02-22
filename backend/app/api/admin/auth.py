@@ -15,6 +15,7 @@ from app.schemas.system import (
     AdminLoginRequest,
     AdminResponse,
     AdminChangePasswordRequest,
+    AdminUpdateProfileRequest,
 )
 from app.services.common import AuthService
 
@@ -120,6 +121,40 @@ async def change_password(
     return success(
         message=_("auth.password_changed"),
     )
+
+
+@router.put("/profile", summary="修改个人信息")
+@auth_only
+async def update_profile(
+    db: DbSession,
+    current_admin: ActiveAdmin,
+    profile_data: AdminUpdateProfileRequest,
+):
+    """
+    修改当前管理员的个人信息
+
+    允许修改: nickname, avatar, email, phone
+    """
+    update_fields = profile_data.model_dump(exclude_unset=True)
+    if not update_fields:
+        return success(message=_("common.success"))
+
+    for field, value in update_fields.items():
+        setattr(current_admin, field, value)
+
+    try:
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        if "unique" in str(e).lower() and "email" in str(e).lower():
+            from app.exceptions import BusinessException
+            raise BusinessException(message=_("auth.email_already_exists"))
+        raise
+
+    await db.refresh(current_admin)
+
+    resp = AdminResponse.model_validate(current_admin, from_attributes=True)
+    return success(data=resp, message=_("auth.profile_updated"))
 
 
 __all__ = ["router"]

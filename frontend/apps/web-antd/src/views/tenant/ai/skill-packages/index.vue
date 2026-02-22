@@ -21,10 +21,15 @@ import {
   Badge,
   Button,
   Card,
+  Drawer,
+  Dropdown,
   Empty,
   Input,
+  Menu,
+  MenuItem,
   message,
   Modal,
+  Popconfirm,
   Space,
   Spin,
   Table,
@@ -34,10 +39,15 @@ import {
 } from 'ant-design-vue';
 
 import {
+  cloneFromTemplateApi,
   deleteSkillPackageApi,
   getSkillPackageListApi,
+  getSkillPackageRecycleBinApi,
+  getSkillPackageRecycleBinCountApi,
   getSkillPackageSkillsApi,
   getSkillPackageValvesApi,
+  permanentDeleteSkillPackageApi,
+  restoreSkillPackageApi,
   updateSkillPackageValvesApi,
   uploadSkillPackageApi,
 } from '#/api/tenant/skill-packages';
@@ -49,6 +59,8 @@ import PackageForm from './modules/form.vue';
 import ValvesConfigPanel from '#/components/business/valves-config-panel/ValvesConfigPanel.vue';
 import SkillForm from '../skills/modules/SkillForm.vue';
 import { getSkillTypeColor, getSkillTypeText } from '../skills/data';
+
+const SCOPE_GLOBAL = 'global';
 
 // ==================== 技能包列表（左侧） ====================
 const packages = ref<TenantSkillPackageInfo[]>([]);
@@ -155,6 +167,7 @@ async function onDeletePackage(pkg: TenantSkillPackageInfo) {
         await deleteSkillPackageApi(pkg.id);
         message.success($t('common.deleteSuccess'));
         await loadPackages();
+        await loadRecycleBinCount();
       } catch {
         // handled by interceptor
       }
@@ -162,8 +175,86 @@ async function onDeletePackage(pkg: TenantSkillPackageInfo) {
   });
 }
 
+function handlePkgMenuClick(key: string | number, pkg: TenantSkillPackageInfo) {
+  switch (String(key)) {
+    case 'detail': { goToDetail(pkg); break; }
+    case 'clone': { onCloneFromTemplate(pkg); break; }
+    case 'edit': { onEditPackage(pkg); break; }
+    case 'delete': { onDeletePackage(pkg); break; }
+  }
+}
+
+async function onCloneFromTemplate(pkg: TenantSkillPackageInfo) {
+  try {
+    const result = await cloneFromTemplateApi(pkg.id);
+    message.success(
+      $t('tenant.ai.skillPackage.messages.cloneSuccess', { name: result.package_name }),
+    );
+    await loadPackages();
+  } catch {
+    // handled by interceptor
+  }
+}
+
 function onPackageFormSuccess() {
   loadPackages();
+}
+
+// ==================== 回收站 ====================
+const recycleBinVisible = ref(false);
+const recycleBinItems = ref<TenantSkillPackageInfo[]>([]);
+const recycleBinLoading = ref(false);
+const recycleBinCount = ref(0);
+
+const recycleBinColumns = [
+  { title: $t('tenant.ai.skillPackage.name'), dataIndex: 'name', key: 'name' },
+  { title: $t('tenant.common.deletedAt'), dataIndex: 'deleted_at', key: 'deleted_at', width: 140 },
+  { title: $t('tenant.common.operation'), key: 'action', width: 160, align: 'center' as const },
+];
+
+async function loadRecycleBinCount() {
+  try {
+    const res = await getSkillPackageRecycleBinCountApi();
+    recycleBinCount.value = res.count;
+  } catch {
+    recycleBinCount.value = 0;
+  }
+}
+
+async function openRecycleBin() {
+  recycleBinVisible.value = true;
+  recycleBinLoading.value = true;
+  try {
+    const res = await getSkillPackageRecycleBinApi({ 'page[size]': 50 });
+    recycleBinItems.value = res.items;
+  } catch {
+    recycleBinItems.value = [];
+  } finally {
+    recycleBinLoading.value = false;
+  }
+}
+
+async function onRestorePackage(id: number) {
+  try {
+    await restoreSkillPackageApi(id);
+    message.success($t('common.recycleBin.restoreSuccess'));
+    await openRecycleBin();
+    await loadPackages();
+    await loadRecycleBinCount();
+  } catch {
+    // handled by interceptor
+  }
+}
+
+async function onPermanentDelete(id: number) {
+  try {
+    await permanentDeleteSkillPackageApi(id);
+    message.success($t('common.recycleBin.permanentDeleteSuccess'));
+    await openRecycleBin();
+    await loadRecycleBinCount();
+  } catch {
+    // handled by interceptor
+  }
 }
 
 // ==================== Valves 配置 ====================
@@ -264,14 +355,18 @@ async function onDeleteSkill(row: SkillInfo) {
 async function onTestSkill(row: SkillInfo) {
   try {
     const res = await testSkillApi(row.id);
+    const detailStr = res.details
+      ? `\n\n${JSON.stringify(res.details, null, 2)}`
+      : '';
     Modal[res.success ? 'success' : 'error']({
-      title: row.name,
-      content: res.message,
+      title: `${row.name} — ${res.success ? $t('tenant.ai.skill.messages.testSuccess') : $t('tenant.ai.skill.messages.testFailed')}`,
+      content: res.message + detailStr,
+      width: 520,
     });
   } catch {
     Modal.error({
       title: row.name,
-      content: $t('tenant.ai.skill.testFailed'),
+      content: $t('tenant.ai.skill.messages.testFailed'),
     });
   }
 }
@@ -322,6 +417,7 @@ const skillColumns = computed(() => [
 // ==================== 初始化 ====================
 onMounted(() => {
   loadPackages();
+  loadRecycleBinCount();
 });
 </script>
 
@@ -386,6 +482,18 @@ onMounted(() => {
       </template>
       <template #extra>
         <Space :size="4">
+          <Tooltip :title="$t('common.recycleBin.title')">
+            <Badge :count="recycleBinCount" :offset="[-2, 2]" size="small">
+              <Button
+                v-access:code="['skill_package:delete']"
+                type="text"
+                size="small"
+                @click="openRecycleBin"
+              >
+                <IconifyIcon icon="lucide:trash-2" class="size-4 text-muted-foreground" />
+              </Button>
+            </Badge>
+          </Tooltip>
           <Tooltip :title="$t('tenant.ai.skillPackage.uploadZip')">
             <Button
               v-access:code="['skill_package:create']"
@@ -464,7 +572,7 @@ onMounted(() => {
                     {{ $t('tenant.ai.skillPackage.system') }}
                   </Tag>
                   <Tag
-                    v-if="pkg.scope === 'global'"
+                    v-if="pkg.scope === SCOPE_GLOBAL"
                     color="purple"
                     class="shrink-0"
                     style="font-size: 10px; line-height: 14px; padding: 0 3px; margin: 0;"
@@ -473,7 +581,7 @@ onMounted(() => {
                   </Tag>
                 </div>
                 <div class="mt-0.5 flex items-center gap-1.5">
-                  <span class="text-xs text-muted-foreground">
+                  <span class="whitespace-nowrap text-xs text-muted-foreground">
                     {{ pkg.skill_count }} {{ $t('tenant.ai.skillPackage.detail.skills') }}
                   </span>
                   <Tag
@@ -484,44 +592,49 @@ onMounted(() => {
                   </Tag>
                 </div>
               </div>
-              <!-- hover 操作按钮 -->
-              <div class="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                <Tooltip :title="$t('shared.common.viewDetail')">
-                  <Button
-                    type="text"
-                    size="small"
-                    class="!size-6 !min-w-0 !p-0"
-                    @click.stop="goToDetail(pkg)"
-                  >
-                    <IconifyIcon icon="lucide:external-link" class="size-3 text-muted-foreground" />
-                  </Button>
-                </Tooltip>
-                <Tooltip :title="$t('tenant.common.edit')">
-                  <Button
-                    v-if="!pkg.is_system && pkg.scope !== 'global'"
-                    v-access:code="['skill_package:update']"
-                    type="text"
-                    size="small"
-                    class="!size-6 !min-w-0 !p-0"
-                    @click.stop="onEditPackage(pkg)"
-                  >
-                    <IconifyIcon icon="lucide:pencil" class="size-3 text-muted-foreground" />
-                  </Button>
-                </Tooltip>
-                <Tooltip :title="$t('tenant.common.delete')">
-                  <Button
-                    v-if="!pkg.is_system && pkg.scope !== 'global'"
-                    v-access:code="['skill_package:delete']"
-                    type="text"
-                    size="small"
-                    danger
-                    class="!size-6 !min-w-0 !p-0"
-                    @click.stop="onDeletePackage(pkg)"
-                  >
-                    <IconifyIcon icon="lucide:trash-2" class="size-3" />
-                  </Button>
-                </Tooltip>
-              </div>
+              <!-- hover 操作：单个下拉菜单按钮 -->
+              <Dropdown
+                :trigger="['click']"
+                placement="bottomRight"
+                @click.stop
+              >
+                <Button
+                  type="text"
+                  size="small"
+                  class="!size-6 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100"
+                  @click.stop
+                >
+                  <IconifyIcon icon="lucide:ellipsis-vertical" class="size-3.5 text-muted-foreground" />
+                </Button>
+                <template #overlay>
+                  <Menu @click="(info: { key: string | number }) => handlePkgMenuClick(info.key, pkg)">
+                    <MenuItem key="detail">
+                      <div class="flex items-center gap-2">
+                        <IconifyIcon icon="lucide:external-link" class="size-3.5" />
+                        <span>{{ $t('shared.common.viewDetail') }}</span>
+                      </div>
+                    </MenuItem>
+                    <MenuItem v-if="pkg.is_system || pkg.scope === SCOPE_GLOBAL" key="clone">
+                      <div class="flex items-center gap-2">
+                        <IconifyIcon icon="lucide:copy" class="size-3.5" />
+                        <span>{{ $t('tenant.ai.skillPackage.cloneToMine') }}</span>
+                      </div>
+                    </MenuItem>
+                    <MenuItem v-if="!pkg.is_system && pkg.scope !== SCOPE_GLOBAL" key="edit">
+                      <div class="flex items-center gap-2">
+                        <IconifyIcon icon="lucide:pencil" class="size-3.5" />
+                        <span>{{ $t('tenant.common.edit') }}</span>
+                      </div>
+                    </MenuItem>
+                    <MenuItem v-if="!pkg.is_system && pkg.scope !== SCOPE_GLOBAL" key="delete" class="!text-destructive">
+                      <div class="flex items-center gap-2">
+                        <IconifyIcon icon="lucide:trash-2" class="size-3.5" />
+                        <span>{{ $t('tenant.common.delete') }}</span>
+                      </div>
+                    </MenuItem>
+                  </Menu>
+                </template>
+              </Dropdown>
             </div>
             <p
               v-if="pkg.description"
@@ -578,7 +691,7 @@ onMounted(() => {
             {{ $t('tenant.ai.skillPackage.valves.configBtn') }}
           </Button>
           <Button
-            v-if="selectedPackage?.scope !== 'global'"
+            v-if="selectedPackage?.scope !== SCOPE_GLOBAL"
             v-access:code="['skill:create']"
             type="primary"
             size="small"
@@ -686,7 +799,7 @@ onMounted(() => {
                   </Button>
                 </Tooltip>
                 <Button
-                  v-if="selectedPackage?.scope !== 'global'"
+                  v-if="selectedPackage?.scope !== SCOPE_GLOBAL"
                   v-access:code="['skill:update']"
                   type="link"
                   size="small"
@@ -695,7 +808,7 @@ onMounted(() => {
                   {{ $t('common.edit') }}
                 </Button>
                 <Button
-                  v-if="!record.is_system && selectedPackage?.scope !== 'global'"
+                  v-if="!record.is_system && selectedPackage?.scope !== SCOPE_GLOBAL"
                   v-access:code="['skill:delete']"
                   type="link"
                   size="small"
@@ -738,5 +851,53 @@ onMounted(() => {
       :update-valves-api="updateSkillPackageValvesApi"
       @success="loadPackages"
     />
+    <!-- 回收站抽屉 -->
+    <Drawer
+      v-model:open="recycleBinVisible"
+      :title="$t('common.recycleBin.title')"
+      width="600"
+      :destroy-on-close="true"
+    >
+      <Table
+        :columns="recycleBinColumns"
+        :data-source="recycleBinItems"
+        :loading="recycleBinLoading"
+        :pagination="false"
+        row-key="id"
+        size="small"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'deleted_at'">
+            <Tooltip :title="formatDate(record.deleted_at)">
+              <span class="text-muted-foreground">
+                {{ formatRelativeTime(record.deleted_at) }}
+              </span>
+            </Tooltip>
+          </template>
+          <template v-else-if="column.key === 'action'">
+            <Space>
+              <Button
+                type="link"
+                size="small"
+                @click="onRestorePackage(record.id)"
+              >
+                {{ $t('common.recycleBin.restore') }}
+              </Button>
+              <Popconfirm
+                :title="$t('common.recycleBin.permanentDeleteConfirm')"
+                @confirm="onPermanentDelete(record.id)"
+              >
+                <Button type="link" size="small" danger>
+                  {{ $t('common.recycleBin.permanentDelete') }}
+                </Button>
+              </Popconfirm>
+            </Space>
+          </template>
+        </template>
+        <template #emptyText>
+          <Empty :description="$t('common.recycleBin.empty')" />
+        </template>
+      </Table>
+    </Drawer>
   </Page>
 </template>

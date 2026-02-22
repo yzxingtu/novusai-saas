@@ -8,6 +8,7 @@ import { ref } from 'vue';
 
 import { defineStore } from 'pinia';
 
+import { useNotificationToast } from '#/components/business/notification-toast/useNotificationToast';
 import { requestClient } from '#/utils/request';
 
 import { useSocketIOStore } from './socketio';
@@ -159,6 +160,20 @@ export const useNotificationStore = defineStore('notification', () => {
     notifications.value.unshift(notif);
     unreadCount.value++;
     _saveLocalNotifications(notifications.value);
+
+    // 触发 Toast 弹窗
+    try {
+      const { pushToast } = useNotificationToast();
+      pushToast({
+        category: item.category,
+        title: item.title,
+        body: item.body,
+        link: item.link,
+        priority: item.priority,
+      });
+    } catch {
+      // 静默
+    }
   }
 
   // ============================================================
@@ -251,7 +266,20 @@ export const useNotificationStore = defineStore('notification', () => {
       });
 
       _saveLocalNotifications(notifications.value);
-      // 高优先级通知弹窗处理由 layout 层负责
+
+      // 触发 Toast 弹窗
+      try {
+        const { pushToast } = useNotificationToast();
+        pushToast({
+          category: data.category,
+          title: data.title,
+          body: data.body,
+          link: data.link,
+          priority: data.priority,
+        });
+      } catch {
+        // toast 未初始化时静默
+      }
     });
   }
 

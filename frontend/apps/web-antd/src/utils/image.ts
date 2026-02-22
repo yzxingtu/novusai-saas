@@ -79,10 +79,23 @@ interface AttachmentLike {
 }
 
 /**
- * 根据附件的存储驱动构建可访问的 URL
+ * 将头像值（附件 ID 或旧格式 URL）转为可显示的图片 URL
  *
- * - local driver: 使用图片处理端点 /api/public/attachments/{id}/image
- * - 远程 driver (s3 等): 使用 base_url + path 拼接完整外部 URL
+ * - 纯数字 → 附件 ID → 通过图片处理端点生成 URL
+ * - 已是 URL → 直接返回
+ * - 空值 → 返回空字符串
+ */
+export function toAvatarDisplayUrl(val: null | string | undefined): string {
+  if (!val) return '';
+  const id = Number(val);
+  if (Number.isFinite(id) && id > 0) {
+    return getProcessedImageUrl(id, { preset: 'avatar' });
+  }
+  return val;
+}
+
+/**
+ * 根据附件的存储驱动构建可访问的 URL
  *
  * @param attachment 附件对象（支持 camelCase 和 snake_case 格式）
  * @param options 图片处理选项（仅对 local driver 或无 baseUrl 的附件生效）

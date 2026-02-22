@@ -10,7 +10,7 @@ import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
-import { Card, Descriptions, Tag } from 'ant-design-vue';
+import { Avatar, Card, Descriptions, Tag } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { getAIConversationDetailApi, getAIConversationListApi } from '#/api/admin/ai';
@@ -55,17 +55,57 @@ const { Grid } = useCrudPage<AIConversationInfo>({
       :get-status-text="getStatusText"
     >
       <template #extra-descriptions="{ detail }">
-        <Descriptions.Item :label="$t('admin.ai.conversation.tenantId')" :span="1">
-          {{ detail.tenant_id }}
+        <Descriptions.Item :label="$t('admin.ai.conversation.tenantName')" :span="1">
+          {{ detail.tenant_name || '-' }}
         </Descriptions.Item>
-        <Descriptions.Item :label="$t('admin.ai.conversation.userId')" :span="1">
-          {{ detail.user_id ?? '-' }}
+        <Descriptions.Item :label="$t('admin.ai.conversation.user')" :span="1">
+          <div v-if="detail.user_info" class="flex items-center gap-2">
+            <Avatar
+              v-if="detail.user_info.avatar"
+              :src="detail.user_info.avatar"
+              :size="24"
+            />
+            <Avatar v-else :size="24" class="bg-primary/10 text-primary text-xs">
+              {{ (detail.user_info.nickname || detail.user_info.username || '?').charAt(0) }}
+            </Avatar>
+            <span>{{ detail.user_info.nickname || detail.user_info.username }}</span>
+          </div>
+          <span v-else class="text-muted-foreground">-</span>
         </Descriptions.Item>
       </template>
     </ConversationDetail>
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
+        <!-- 租户列 -->
+        <template #tenant_cell="{ row }">
+          <span v-if="row.tenant_name" class="text-foreground">{{ row.tenant_name }}</span>
+          <span v-else class="text-muted-foreground">-</span>
+        </template>
+
+        <!-- 用户列 -->
+        <template #user_cell="{ row }">
+          <div v-if="row.user_info" class="flex items-center gap-2">
+            <Avatar
+              v-if="row.user_info.avatar"
+              :src="row.user_info.avatar"
+              :size="28"
+            />
+            <Avatar v-else :size="28" class="bg-primary/10 text-primary flex-shrink-0 text-xs">
+              {{ (row.user_info.nickname || row.user_info.username || '?').charAt(0) }}
+            </Avatar>
+            <div class="min-w-0 flex-1">
+              <div class="truncate text-sm text-foreground">
+                {{ row.user_info.nickname || row.user_info.username }}
+              </div>
+              <div v-if="row.user_info.nickname" class="truncate text-xs text-muted-foreground">
+                {{ row.user_info.username }}
+              </div>
+            </div>
+          </div>
+          <span v-else class="text-muted-foreground">-</span>
+        </template>
+
         <!-- 标题列 -->
         <template #title_cell="{ row }">
           <span v-if="row.title" class="text-foreground">{{ row.title }}</span>

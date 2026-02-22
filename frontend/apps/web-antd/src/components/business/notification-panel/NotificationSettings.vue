@@ -34,7 +34,8 @@ interface PrefRow {
 const preferences = ref<PrefRow[]>([]);
 
 function getApiBase(): string {
-  return props.apiPrefix || '/admin';
+  if (props.apiPrefix) return props.apiPrefix;
+  return window.location.pathname.startsWith('/tenant') ? '/tenant' : '/admin';
 }
 
 /** 打开设置面板 */

@@ -59,6 +59,12 @@ export function useColumns<T = ConversationInfo>(
       slots: { default: 'agentName_cell' },
     },
     {
+      field: 'user_info',
+      title: $t('tenant.ai.conversation.user'),
+      width: 150,
+      slots: { default: 'user_cell' },
+    },
+    {
       field: 'status',
       title: $t('tenant.ai.conversation.status'),
       width: 100,
@@ -101,32 +107,14 @@ export function useColumns<T = ConversationInfo>(
             code: 'detail',
             text: $t('tenant.ai.conversation.viewDetail'),
             icon: 'lucide:eye',
-            accessCodes: ['agent_conversation:read'],
-          },
-          {
-            code: 'archive',
-            text: $t('tenant.ai.conversation.archive'),
-            icon: 'lucide:archive',
-            accessCodes: ['agent_conversation:update'],
-          },
-          {
-            code: 'export',
-            text: $t('tenant.ai.conversation.export'),
-            icon: 'lucide:download',
-            accessCodes: ['agent_conversation:read'],
-          },
-          {
-            code: 'delete',
-            text: $t('tenant.common.delete'),
-            icon: 'lucide:trash-2',
-            accessCodes: ['agent_conversation:delete'],
+            accessCodes: ['agent_conversation:detail'],
           },
         ],
       },
       field: 'operation',
       fixed: 'right',
       title: $t('tenant.common.operation'),
-      width: 200,
+      width: 100,
     },
   ];
 }

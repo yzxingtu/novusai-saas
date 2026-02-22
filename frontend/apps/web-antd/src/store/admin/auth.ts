@@ -18,6 +18,7 @@ import { adminApi } from '#/api';
 import { ADMIN_HOME_PATH, ADMIN_LOGIN_PATH } from '#/constants/endpoints';
 import { $t } from '#/locales';
 import { EndpointType } from '#/types/endpoint';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { TokenStorage } from '../shared/token-storage';
 
@@ -66,8 +67,8 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
 
         // 转换为vben UserInfo格式
         const vbenUserInfo: UserInfo = {
-          avatar: userInfo?.avatar || '',
-          desc: userInfo?.isSuperAdmin ? '超级管理员' : '普通管理员',
+          avatar: toAvatarDisplayUrl(userInfo?.avatar),
+          desc: userInfo?.isSuperAdmin ? $t('admin.system.admin.superAdmin') : $t('admin.system.admin.normalAdmin'),
           homePath: userInfo?.homePath || ADMIN_HOME_PATH,
           realName: userInfo?.realName || '',
           roles: userInfo?.roles || [],

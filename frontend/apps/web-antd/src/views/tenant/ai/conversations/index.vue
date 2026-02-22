@@ -11,13 +11,10 @@ import { ref } from 'vue';
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Card, message, Modal, Tag, Tooltip } from 'ant-design-vue';
+import { Avatar, Card, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import {
-  archiveConversationApi,
-  deleteConversationApi,
-  exportConversationApi,
   getConversationDetailApi,
   getConversationListApi,
 } from '#/api/tenant/conversations';
@@ -26,60 +23,18 @@ import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
 import { formatCost, formatTokenCount, getStatusText, useColumns, useGridFormSchema } from './data';
-import BatchArchiveModal from './modules/BatchArchiveModal.vue';
 
 const detailOpen = ref(false);
 const detailId = ref<null | number>(null);
-const batchArchiveOpen = ref(false);
 
 function onViewDetail(row: ConversationInfo) {
   detailId.value = row.id;
   detailOpen.value = true;
 }
 
-async function onArchive(row: ConversationInfo) {
-  if (row.status === 'archived') return;
-  Modal.confirm({
-    title: $t('tenant.ai.conversation.confirmArchive'),
-    async onOk() {
-      await archiveConversationApi(row.id);
-      message.success($t('tenant.ai.conversation.messages.archiveSuccess'));
-      gridReload();
-    },
-  });
-}
-
-async function onExport(row: ConversationInfo) {
-  try {
-    const result = await exportConversationApi(row.id, 'json');
-    const blob = new Blob([result.content], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = result.filename;
-    a.click();
-    URL.revokeObjectURL(url);
-    message.success($t('tenant.ai.conversation.messages.exportSuccess'));
-  } catch {
-    message.error($t('tenant.common.failed'));
-  }
-}
-
-async function onDelete(row: ConversationInfo) {
-  Modal.confirm({
-    title: $t('tenant.ai.conversation.confirmDelete'),
-    async onOk() {
-      await deleteConversationApi(row.id);
-      message.success($t('tenant.ai.conversation.messages.deleteSuccess'));
-      gridReload();
-    },
-  });
-}
-
-const { Grid, onRefresh: gridReload } = useCrudPage<ConversationInfo>({
+const { Grid } = useCrudPage<ConversationInfo>({
   api: {
     list: getConversationListApi,
-    delete: deleteConversationApi,
     resource: '/tenant/ai/conversations',
   },
   columns: useColumns,
@@ -88,15 +43,8 @@ const { Grid, onRefresh: gridReload } = useCrudPage<ConversationInfo>({
   defaultSort: '-created_at',
   customActions: {
     detail: onViewDetail,
-    archive: onArchive,
-    export: onExport,
-    delete: onDelete,
   },
 });
-
-function onBatchArchiveSuccess() {
-  gridReload();
-}
 </script>
 
 <template>
@@ -112,27 +60,8 @@ function onBatchArchiveSuccess() {
       :get-status-text="getStatusText"
     />
 
-    <!-- 批量归档弹窗 -->
-    <BatchArchiveModal
-      v-model:open="batchArchiveOpen"
-      @success="onBatchArchiveSuccess"
-    />
-
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
-        <!-- 左侧工具栏：批量归档 -->
-        <template #toolbar-actions>
-          <Button
-            v-access:code="['agent_conversation:update']"
-            @click="batchArchiveOpen = true"
-          >
-            <template #icon>
-              <IconifyIcon icon="lucide:archive" class="size-4" />
-            </template>
-            {{ $t('tenant.ai.conversation.batchArchive') }}
-          </Button>
-        </template>
-
         <!-- 标题列 -->
         <template #title_cell="{ row }">
           <div class="flex items-center gap-1.5">
@@ -152,6 +81,29 @@ function onBatchArchiveSuccess() {
               class="size-3.5 text-muted-foreground"
             />
             <span>{{ row.agent_name }}</span>
+          </div>
+          <span v-else class="text-muted-foreground">-</span>
+        </template>
+
+        <!-- 用户列 -->
+        <template #user_cell="{ row }">
+          <div v-if="row.user_info" class="flex items-center gap-2">
+            <Avatar
+              v-if="row.user_info.avatar"
+              :src="row.user_info.avatar"
+              :size="28"
+            />
+            <Avatar v-else :size="28" class="bg-primary/10 text-primary flex-shrink-0 text-xs">
+              {{ (row.user_info.nickname || row.user_info.username || '?').charAt(0) }}
+            </Avatar>
+            <div class="min-w-0 flex-1">
+              <div class="truncate text-sm text-foreground">
+                {{ row.user_info.nickname || row.user_info.username }}
+              </div>
+              <div v-if="row.user_info.nickname" class="truncate text-xs text-muted-foreground">
+                {{ row.user_info.username }}
+              </div>
+            </div>
           </div>
           <span v-else class="text-muted-foreground">-</span>
         </template>

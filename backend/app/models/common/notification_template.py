@@ -28,6 +28,18 @@ class NotificationTemplate(BaseModel):
 
     __tablename__ = "notification_templates"
 
+    __filterable__ = {
+        "id": "id",
+        "code": "code",
+        "category": "category",
+        "priority": "priority",
+        "is_system": "is_system",
+        "tenant_id": "tenant_id",
+        "created_at": "created_at",
+    }
+
+    __sortable__ = {"id", "code", "category", "priority", "created_at"}
+
     code: Mapped[str] = mapped_column(
         String(100), unique=True, nullable=False, comment="模板编码",
     )

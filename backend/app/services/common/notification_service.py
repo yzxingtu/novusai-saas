@@ -48,9 +48,10 @@ class NotificationService:
         data: dict[str, Any] | None = None,
         link: str | None = None,
         tenant_id: int | None = None,
+        **kwargs: Any,
     ) -> int:
         """
-        投递通知
+        投递通知（统一入口）
 
         注意：收件箱通知通过 db.add() 写入 session，但不会自动 commit。
         调用方需要在合适的时机执行 await db.commit() 来持久化收件箱记录。
@@ -62,10 +63,16 @@ class NotificationService:
             data: 业务数据（用于模板渲染和前端展示）
             link: 点击跳转链接
             tenant_id: 租户 ID（平台级通知为 None）
+            **kwargs: 渠道扩展参数
+                - email_html: 自定义 HTML 邮件正文
+                - email_subject: 自定义邮件主题
+                - email_text: 自定义纯文本邮件正文
 
         Returns:
             成功投递数量
         """
+        from app.services.common.channels import get_channel
+
         # 检查通知系统总开关
         try:
             from app.sio.ws_config import get_ws_config
@@ -73,7 +80,7 @@ class NotificationService:
             if not notification_enabled:
                 return 0
         except Exception:
-            pass  # 配置读取失败时不阻塞通知投递
+            pass
 
         # 查询模板
         template = await self._get_template(template_code)
@@ -84,57 +91,58 @@ class NotificationService:
         # 渲染标题和正文
         title = self._render_template(template.title_template, data)
         body = self._render_template(template.body_template, data) if template.body_template else None
+        template_channels = template.channels or ["ws", "inbox"]
+
+        # force_all_channels 模式：绕过偏好和渠道开关（用于测试发送）
+        force = kwargs.pop("force_all_channels", False)
 
         sent = 0
         for user_type, user_id in recipients:
-            # 查询用户偏好
-            pref = await self._get_preference(user_type, user_id, template.category)
+            # 查询用户偏好（force 模式跳过）
+            if not force:
+                pref = await self._get_preference(user_type, user_id, template.category)
+            else:
+                pref = {}
 
-            # 渠道：收件箱
-            if pref.get("channel_inbox", True):
-                channels = template.channels or ["ws", "inbox"]
-                if "inbox" in channels:
-                    await self._deliver_inbox(
-                        tenant_id=tenant_id,
-                        recipient_type=user_type,
-                        recipient_id=user_id,
-                        template_code=template_code,
-                        category=template.category,
-                        title=title,
-                        body=body,
-                        data=data,
-                        link=link,
-                        priority=template.priority,
-                    )
+            # 遍历模板定义的渠道
+            for channel_code in template_channels:
+                # 用户偏好检查（force 模式全部允许）
+                if not force:
+                    default_enabled = channel_code in ("ws", "inbox")
+                    pref_key = f"channel_{channel_code}"
+                    if not pref.get(pref_key, default_enabled):
+                        continue
 
-            # 渠道：WS（Socket.IO）
-            if pref.get("channel_ws", True):
-                channels = template.channels or ["ws", "inbox"]
-                if "ws" in channels:
-                    await self._deliver_ws(
-                        user_type=user_type,
-                        user_id=user_id,
-                        category=template.category,
-                        title=title,
-                        body=body,
-                        data=data,
-                        link=link,
-                        priority=template.priority,
-                        template_code=template_code,
-                    )
+                # 获取渠道实例
+                channel = get_channel(channel_code)
+                if not channel:
+                    continue
 
-            # 渠道：邮件
-            if pref.get("channel_email", False):
-                channels = template.channels or ["ws", "inbox"]
-                if "email" in channels:
-                    await self._deliver_email(
-                        user_type=user_type,
-                        user_id=user_id,
-                        title=title,
-                        body=body,
-                    )
+                # 渠道全局启用检查（force 模式跳过）
+                if not force and not await channel.is_enabled():
+                    continue
+
+                # 投递
+                await channel.deliver(
+                    db=self.db,
+                    user_type=user_type,
+                    user_id=user_id,
+                    title=title,
+                    body=body,
+                    data=data,
+                    link=link,
+                    priority=template.priority,
+                    template_code=template_code,
+                    tenant_id=tenant_id,
+                    **kwargs,
+                )
 
             sent += 1
+
+        # inbox 渠道的数量限制
+        for user_type, user_id in recipients:
+            if "inbox" in template_channels:
+                await self._enforce_max_per_user(user_type, user_id)
 
         logger.info(
             "Notification sent: template=%s recipients=%d sent=%d",
@@ -305,122 +313,6 @@ class NotificationService:
         # 默认：WS + 收件箱开，邮件关
         return {"channel_ws": True, "channel_email": False, "channel_inbox": True}
 
-    async def _deliver_inbox(
-        self,
-        tenant_id: int | None,
-        recipient_type: str,
-        recipient_id: int,
-        template_code: str,
-        category: str,
-        title: str,
-        body: str | None,
-        data: dict[str, Any] | None,
-        link: str | None,
-        priority: str,
-    ) -> None:
-        """写入收件箱（不 commit，事务由调用方 send() 控制）"""
-        notification = Notification(
-            tenant_id=tenant_id,
-            recipient_type=recipient_type,
-            recipient_id=recipient_id,
-            template_code=template_code,
-            category=category,
-            title=title,
-            body=body,
-            data=data,
-            link=link,
-            priority=priority,
-        )
-        self.db.add(notification)
-
-        # 每用户最大通知数限制：超出时自动清理最早的通知
-        await self._enforce_max_per_user(recipient_type, recipient_id)
-
-    async def _deliver_ws(
-        self,
-        user_type: str,
-        user_id: int,
-        category: str,
-        title: str,
-        body: str | None,
-        data: dict[str, Any] | None,
-        link: str | None,
-        priority: str,
-        template_code: str,
-    ) -> None:
-        """通过 Socket.IO 推送"""
-        try:
-            from app.core.socketio_server import sio
-
-            ns_map = {
-                "admin": "/admin",
-                "tenant_admin": "/tenant",
-                "tenant_user": "/user",
-            }
-            namespace = ns_map.get(user_type, "/admin")
-
-            await sio.emit(
-                "notification",
-                {
-                    "type": template_code,
-                    "category": category,
-                    "title": title,
-                    "body": body,
-                    "data": data,
-                    "link": link,
-                    "priority": priority,
-                },
-                room=f"user:{user_id}",
-                namespace=namespace,
-            )
-        except Exception as e:
-            logger.warning("Failed to deliver WS notification: %s", str(e))
-
-    async def _deliver_email(
-        self,
-        user_type: str,
-        user_id: int,
-        title: str,
-        body: str | None,
-    ) -> None:
-        """通过邮件发送（异步 Celery 任务）"""
-        try:
-            # 查询用户邮箱
-            email = await self._get_user_email(user_type, user_id)
-            if not email:
-                return
-
-            from app.tasks.email import send_email_task
-            send_email_task.delay(
-                to=[email],
-                subject=title,
-                html_body=body or title,
-                triggered_by="notification",
-            )
-        except Exception as e:
-            logger.warning("Failed to deliver email notification: %s", str(e))
-
-    async def _get_user_email(self, user_type: str, user_id: int) -> str | None:
-        """获取用户邮箱"""
-        if user_type == "admin":
-            from app.models import Admin
-            result = await self.db.execute(
-                select(Admin.email).where(Admin.id == user_id)
-            )
-        elif user_type == "tenant_admin":
-            from app.models import TenantAdmin
-            result = await self.db.execute(
-                select(TenantAdmin.email).where(TenantAdmin.id == user_id)
-            )
-        elif user_type == "tenant_user":
-            from app.models import TenantUser
-            result = await self.db.execute(
-                select(TenantUser.email).where(TenantUser.id == user_id)
-            )
-        else:
-            return None
-        return result.scalar_one_or_none()
-
     async def _enforce_max_per_user(
         self,
         recipient_type: str,
@@ -491,4 +383,85 @@ class NotificationService:
             return template
 
 
-__all__ = ["NotificationService"]
+# ============================================
+# 便捷函数
+# ============================================
+
+async def notify(
+    db,
+    template_code: str,
+    recipients: list[tuple[str, int]],
+    data: dict[str, Any] | None = None,
+    link: str | None = None,
+    tenant_id: int | None = None,
+    **kwargs: Any,
+) -> int:
+    """
+    异步便捷函数 — 一行投递通知
+
+    用于 Controller / Service 等异步上下文。
+    调用方仍需 await db.commit() 来持久化收件箱记录。
+
+    示例::
+
+        await notify(db, "ai.batch_complete", [("tenant_admin", 5)], {"total": 500})
+    """
+    service = NotificationService(db)
+    return await service.send(
+        template_code=template_code,
+        recipients=recipients,
+        data=data,
+        link=link,
+        tenant_id=tenant_id,
+        **kwargs,
+    )
+
+
+def notify_sync(
+    template_code: str,
+    recipients: list[tuple[str, int]],
+    data: dict[str, Any] | None = None,
+    link: str | None = None,
+    tenant_id: int | None = None,
+    **kwargs: Any,
+) -> int:
+    """
+    同步便捷函数 — 用于 Celery 任务等同步上下文
+
+    内部创建同步事件循环和 DB session。
+
+    示例::
+
+        notify_sync("system.task_failure", [("admin", 1)], {"error": "timeout"})
+    """
+    import asyncio
+
+    from app.core.database import async_session_factory
+
+    async def _run() -> int:
+        async with async_session_factory() as db:
+            service = NotificationService(db)
+            count = await service.send(
+                template_code=template_code,
+                recipients=recipients,
+                data=data,
+                link=link,
+                tenant_id=tenant_id,
+                **kwargs,
+            )
+            await db.commit()
+            return count
+
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(asyncio.run, _run())
+                return future.result(timeout=30)
+        return loop.run_until_complete(_run())
+    except RuntimeError:
+        return asyncio.run(_run())
+
+
+__all__ = ["NotificationService", "notify", "notify_sync"]

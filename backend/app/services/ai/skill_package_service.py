@@ -159,7 +159,7 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
                 raise BusinessException(message=_("skill_package.error.name_exists"))
 
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
-        """更新前校验：系统技能包关键属性保护"""
+        """更新前校验：系统技能包关键属性保护、scope 不可变"""
         await super()._before_update(id, data)
 
         pkg = await self.repo.get_by_id(id)
@@ -170,6 +170,10 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
             protected = {"scope", "is_system", "is_active"}
             if protected & set(data.keys()):
                 raise BusinessException(message=_("skill_package.error.system_protected"))
+
+        # 不允许修改 scope
+        if "scope" in data and data["scope"] != pkg.scope:
+            raise BusinessException(message=_("skill_package.error.invalid_scope"))
 
         name = data.get("name")
         if name:
