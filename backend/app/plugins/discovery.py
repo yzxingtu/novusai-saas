@@ -60,6 +60,9 @@ def discover_local_plugins() -> list[dict[str, Any]]:
                 )
                 continue
 
+            # 校验 manifest frontend 字段（防止 component 双重前缀等常见错误）
+            _validate_manifest_frontend(manifest, manifest_path)
+
             discovered.append(manifest)
             logger.debug("Discovered local plugin: %s", manifest.get("name"))
         except (json.JSONDecodeError, OSError) as exc:
@@ -68,6 +71,42 @@ def discover_local_plugins() -> list[dict[str, Any]]:
             )
 
     return discovered
+
+
+def _validate_manifest_frontend(manifest: dict[str, Any], manifest_path: Path) -> None:
+    """校验 manifest 的 frontend 字段，输出警告但不阻塞安装"""
+    frontend = manifest.get("frontend")
+    if not frontend:
+        return
+
+    plugin_name = manifest.get("name", "unknown")
+    _BAD_PREFIXES = ("admin/", "tenant/", "user/")
+
+    for menu in frontend.get("menus", []):
+        comp = menu.get("component", "")
+        if comp and any(comp.startswith(p) for p in _BAD_PREFIXES):
+            logger.warning(
+                "Plugin %s manifest: menu component '%s' should NOT contain "
+                "admin/tenant prefix (rewritePluginMenuComponent adds it automatically). "
+                "Use short path like 'index' or 'editor'. File: %s",
+                plugin_name, comp, manifest_path,
+            )
+        endpoint = menu.get("endpoint", "")
+        if endpoint and endpoint not in ("admin", "tenant", "user"):
+            logger.warning(
+                "Plugin %s manifest: menu endpoint '%s' is invalid "
+                "(must be admin/tenant/user). File: %s",
+                plugin_name, endpoint, manifest_path,
+            )
+
+    for route in frontend.get("routes", []):
+        comp = route.get("component", "")
+        if comp and any(comp.startswith(p) for p in _BAD_PREFIXES):
+            logger.warning(
+                "Plugin %s manifest: route component '%s' should NOT contain "
+                "admin/tenant prefix. Use short path like 'editor'. File: %s",
+                plugin_name, comp, manifest_path,
+            )
 
 
 async def load_enabled_plugins(db: AsyncSession) -> dict[str, Any]:

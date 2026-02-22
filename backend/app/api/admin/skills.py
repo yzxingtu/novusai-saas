@@ -244,6 +244,64 @@ class AdminSkillController(GlobalController):
             stats = await get_all_skills_stats(db)
             return success(data=stats)
 
+        @router.get("/{skill_id}/tools", summary="获取技能工具定义列表")
+        @action_read("action.ai_skill.detail")
+        async def get_skill_tools(
+            request: Request,
+            db: DbSession,
+            skill_id: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            获取技能关联的工具定义列表。
+            对于插件创建的技能，通过插件实例的 resolve() 获取运行时工具定义。
+            """
+            service = AdminSkillService(db)
+            skill = await service.get_by_id(skill_id)
+            if not skill:
+                raise NotFoundException(message=_("skill.error.not_found"))
+
+            tools_data: list[dict] = []
+
+            # 检查是否为插件创建的技能（通过技能包的 source_plugin 字段）
+            if skill.package_id:
+                from app.models.ai.skill_package import SkillPackage
+                pkg = await db.get(SkillPackage, skill.package_id)
+                if pkg and pkg.source_plugin:
+                    try:
+                        from app.plugins.manager import get_plugin_manager
+                        manager = get_plugin_manager()
+                        instance = manager.loader.get_instance(pkg.source_plugin)
+                        if instance and hasattr(instance, 'resolve'):
+                            from app.plugins.extensions.skill_plugin import SkillPlugin
+                            if isinstance(instance, SkillPlugin):
+                                tool_defs = instance.resolve(skill.config or {})
+                                tools_data = [
+                                    {
+                                        "name": t.name,
+                                        "description": t.description,
+                                        "parameters": [
+                                            {
+                                                "name": p.name,
+                                                "type": p.type,
+                                                "description": p.description,
+                                                "required": p.required,
+                                                "default": p.default,
+                                            }
+                                            for p in (t.parameters or [])
+                                        ],
+                                        "timeout": t.timeout,
+                                    }
+                                    for t in tool_defs
+                                ]
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to resolve plugin tools for skill %d: %s",
+                            skill_id, exc,
+                        )
+
+            return success(data=tools_data)
+
         @router.post("/{skill_id}/test", summary="测试技能配置")
         @action_read("action.ai_skill.detail")
         async def test_skill_config(

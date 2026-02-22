@@ -38,14 +38,37 @@ logger = LogManager.get_logger("app")
 
 
 def _mask_plugin_response(plugin) -> dict:
-    """序列化 Plugin 并对敏感配置字段脱敏"""
+    """序列化 Plugin 并对敏感配置字段脱敏 + 实时翻译 config_schema title/description"""
     from app.plugins.security import mask_sensitive_config
     resp = PluginResponse.model_validate(plugin, from_attributes=True).model_dump()
     if resp.get("default_config") and resp.get("config_schema"):
         resp["default_config"] = mask_sensitive_config(
             resp["default_config"], resp["config_schema"]
         )
+    # 实时翻译 config_schema 中的 title/description（DB 中可能存储了 raw i18n key）
+    if resp.get("config_schema"):
+        resp["config_schema"] = _translate_config_schema(resp["config_schema"])
     return resp
+
+
+def _translate_config_schema(schema: dict) -> dict:
+    """实时翻译 config_schema properties 中的 title 和 description 字段"""
+    from app.core.i18n import translate
+    if not schema or "properties" not in schema:
+        return schema
+    result = dict(schema)
+    props = dict(result.get("properties", {}))
+    for field_name, field_schema in props.items():
+        field_schema = dict(field_schema)
+        for key in ("title", "description"):
+            val = field_schema.get(key)
+            if val and isinstance(val, str) and "." in val:
+                translated = translate(val)
+                if translated != val:
+                    field_schema[key] = translated
+        props[field_name] = field_schema
+    result["properties"] = props
+    return result
 
 
 @permission_resource(
@@ -1053,7 +1076,11 @@ def _compute_file_diff(
 
 def _load_plugin_locales(plugin_name: str) -> dict[str, dict]:
     """
-    从插件目录读取 locales/{lang}.json 文件
+    从插件目录读取 locales/{lang}.json 和 frontend/locales/{lang}.json
+
+    后端 locales/ 提供插件级 i18n（如 plugin.{name}.menu.*），
+    前端 frontend/locales/ 提供组件级 i18n（如 {pluginName}.toolbar.*）。
+    两者深度合并后返回。
 
     返回格式: {"zh-CN": {...}, "en-US": {...}}
     """
@@ -1061,24 +1088,59 @@ def _load_plugin_locales(plugin_name: str) -> dict[str, dict]:
 
     plugins_base = FilePath(__file__).resolve().parent.parent.parent / "plugins"
     module_name = plugin_name.replace("-", "_")
-    locales_dir = plugins_base / plugin_name / "locales"
-    if not locales_dir.is_dir():
-        locales_dir = plugins_base / module_name / "locales"
-    if not locales_dir.is_dir():
-        locales_dir = plugins_base / "builtin" / module_name / "locales"
-    if not locales_dir.is_dir():
-        locales_dir = plugins_base / "demoPlugins" / module_name / "locales"
-    if not locales_dir.is_dir():
+
+    # 查找插件根目录
+    plugin_root = None
+    for candidate in [
+        plugins_base / plugin_name,
+        plugins_base / module_name,
+        plugins_base / "builtin" / module_name,
+        plugins_base / "demoPlugins" / module_name,
+    ]:
+        if candidate.is_dir():
+            plugin_root = candidate
+            break
+
+    if not plugin_root:
         return {}
 
+    def _deep_merge(base: dict, override: dict) -> dict:
+        result = base.copy()
+        for key, value in override.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = _deep_merge(result[key], value)
+            else:
+                result[key] = value
+        return result
+
     result: dict[str, dict] = {}
-    for locale_file in locales_dir.glob("*.json"):
-        lang = locale_file.stem  # e.g. "zh-CN", "en-US"
-        try:
-            with open(locale_file, encoding="utf-8") as f:
-                result[lang] = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            pass
+
+    # 1. 加载后端 locales（plugin.xxx.* 格式，用于菜单名等）
+    backend_locales_dir = plugin_root / "locales"
+    if backend_locales_dir.is_dir():
+        for locale_file in backend_locales_dir.glob("*.json"):
+            lang = locale_file.stem
+            try:
+                with open(locale_file, encoding="utf-8") as f:
+                    result[lang] = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+    # 2. 加载前端 locales（{pluginName}.* 格式，用于 Vue 组件）
+    frontend_locales_dir = plugin_root / "frontend" / "locales"
+    if frontend_locales_dir.is_dir():
+        for locale_file in frontend_locales_dir.glob("*.json"):
+            lang = locale_file.stem
+            try:
+                with open(locale_file, encoding="utf-8") as f:
+                    data = json.load(f)
+                    if lang in result:
+                        result[lang] = _deep_merge(result[lang], data)
+                    else:
+                        result[lang] = data
+            except (json.JSONDecodeError, OSError):
+                pass
+
     return result
 
 

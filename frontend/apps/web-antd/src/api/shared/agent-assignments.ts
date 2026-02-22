@@ -38,7 +38,7 @@ export interface AgentAssignmentItem {
  * Resolve 智能体绑定
  *
  * @param apiPrefix - '/admin' 或 '/tenant'
- * @param featureCode - 功能代码，如 'crud_generator'
+ * @param featureCode - 功能代码，如 'general_chat'
  */
 export async function resolveAgentAssignmentApi(
   apiPrefix: string,

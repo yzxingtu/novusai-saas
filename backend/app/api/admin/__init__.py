@@ -83,9 +83,6 @@ admin_router.include_router(ai_knowledge_bases_router)
 admin_router.include_router(ai_table_policies_router)
 # 插件系统
 admin_router.include_router(plugins_router)
-# 插件市场
-from app.api.admin.marketplace import router as marketplace_router, AdminMarketplaceController
-admin_router.include_router(marketplace_router)
 # 技能包 & 技能管理
 admin_router.include_router(ai_skill_packages_router)
 admin_router.include_router(ai_skills_router)
@@ -157,6 +154,4 @@ __all__ = [
     "AdminRecycleBinController",
     # 通知模板
     "AdminNotificationTemplateController",
-    # 插件市场
-    "AdminMarketplaceController",
 ]

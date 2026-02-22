@@ -412,10 +412,15 @@ onMounted(() => {
                 : 'bg-primary/10 text-primary'"
             >
               <img
-                v-if="agent.avatar"
+                v-if="agent.avatar && !String(agent.avatar).includes(':')"
                 :src="toAvatarDisplayUrl(agent.avatar)"
                 :alt="agent.name"
                 class="size-full rounded-xl object-cover"
+              />
+              <IconifyIcon
+                v-else-if="agent.avatar && String(agent.avatar).includes(':')"
+                :icon="String(agent.avatar)"
+                class="size-5"
               />
               <IconifyIcon
                 v-else-if="agent.is_system"

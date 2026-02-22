@@ -155,6 +155,31 @@ export interface AdminSkillTestResult {
   details: Record<string, unknown> | null;
 }
 
+/** 插件技能工具定义 */
+export interface PluginToolDefinition {
+  name: string;
+  description: string;
+  parameters: Array<{
+    name: string;
+    type: string;
+    description: string;
+    required: boolean;
+    default?: unknown;
+  }>;
+  timeout?: number;
+}
+
+/** 获取技能工具定义列表（插件技能） */
+export async function getSkillToolsApi(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<PluginToolDefinition[]> {
+  return requestClient.get<PluginToolDefinition[]>(
+    `${PREFIX}/${id}/tools`,
+    options,
+  );
+}
+
 /** 测试技能配置 */
 export async function testSkillApi(
   id: number,

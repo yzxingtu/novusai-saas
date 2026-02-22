@@ -264,7 +264,7 @@ migrations/versions/__pycache__/
 # Plugin backups (runtime generated .nap archives)
 _backups/
 
-# Plugin development directory (demo/template source, not for deployment)
+# Plugin development directories (demo/template/test plugins, not for deployment)
 backend/app/plugins/demoPlugins/
 
 # Static files (generated)

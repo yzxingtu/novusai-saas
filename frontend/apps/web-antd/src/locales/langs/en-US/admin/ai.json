@@ -728,8 +728,7 @@
       "builtin": "Built-in",
       "http": "HTTP Request",
       "email": "Email",
-      "code_execution": "Code Execution",
-      "rich_editor": "Rich Editor"
+      "code_execution": "Code Execution"
     },
     "scope_options": {
       "tenant": "Specific Tenant",
@@ -747,8 +746,7 @@
       "builtin": "Built-in Tools: System-predefined capabilities like web search, image generation, etc. View the tool list after creation.\nTip: Built-in tools are maintained by the platform and cannot be edited.",
       "http": "HTTP Request: Declarative REST API integration. Just fill in URL, method and parameter templates — no coding needed.\nUse cases: Call internal APIs, integrate SaaS services (CRM/ERP), trigger webhooks, etc.\nTip: URL supports {variable} template syntax; configure auth info in Headers.",
       "email": "Email: Let the agent send emails on behalf of users during conversations. Uses platform SMTP config with domain allowlist and recipient limits.\nUse cases: Auto customer replies, meeting invitations, notification sending, etc.\nTip: SMTP server must be configured in System Settings first.",
-      "code_execution": "Code Execution: Let the agent run Python code in a secure sandbox and return results.\nUse cases: Math calculations, data processing, text format conversion, CSV/JSON parsing, etc.\nTip: Code runs in an isolated environment with module allowlist restrictions.",
-      "rich_editor": "Rich Editor AI Assistant: Provides AI continuation, optimization, proofreading, translation, code annotation, code explanation, summarization, and expansion for the editor.\nUse cases: Document writing assistance, content optimization, multilingual translation, code documentation, etc.\nTip: This skill is auto-created by the Rich Editor plugin. Bind it to the editor's dedicated agent to enable AI features in the editor."
+      "code_execution": "Code Execution: Let the agent run Python code in a secure sandbox and return results.\nUse cases: Math calculations, data processing, text format conversion, CSV/JSON parsing, etc.\nTip: Code runs in an isolated environment with module allowlist restrictions."
     },
     "httpConfig": {
       "title": "HTTP Request Config",
@@ -836,6 +834,9 @@
       "title": "Built-in Tools",
       "hint": "Built-in tools are system-defined and read-only. Tool list is shown below.",
       "toolList": "Tool List"
+    },
+    "pluginTools": {
+      "toolList": "Plugin Tools"
     },
     "toolkitEditor": {
       "title": "Toolkit Editor",
@@ -968,10 +969,6 @@
       "status": "Status"
     },
     "features": {
-      "crud_generator": {
-        "name": "CRUD Code Generator",
-        "description": "Dev Tool \u2014 AI-assisted CRUD module field, enum, and relation configuration"
-      },
       "data_analysis": {
         "name": "Data Analysis",
         "description": "AI-driven data querying and visual analytics"

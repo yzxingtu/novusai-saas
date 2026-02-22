@@ -101,9 +101,14 @@ function initModel() {
   }
 }
 
+let _syncing = false;
+
 watch(
   [() => props.schema, () => props.modelValue],
-  () => initModel(),
+  () => {
+    if (_syncing) return;
+    initModel();
+  },
   { immediate: true, deep: true },
 );
 
@@ -111,7 +116,10 @@ watch(
 watch(
   formModel,
   (val) => {
+    _syncing = true;
     emit('update:modelValue', { ...val });
+    // Reset flag after microtask to allow future external updates
+    Promise.resolve().then(() => { _syncing = false; });
   },
   { deep: true },
 );

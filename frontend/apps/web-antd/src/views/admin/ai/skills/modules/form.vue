@@ -20,8 +20,10 @@ import { getAdminKnowledgeBaseListApi } from '#/api/admin/knowledge-bases';
 import { getSkillPackageSelectApi } from '#/api/admin/skill-packages';
 import {
   getSkillDetailApi,
+  getSkillToolsApi,
   parseToolkitApi,
 } from '#/api/admin/skills';
+import type { PluginToolDefinition } from '#/api/admin/skills';
 import { useCrudDrawer } from '#/composables';
 import { Divider, Tag } from 'ant-design-vue';
 
@@ -68,8 +70,8 @@ function getRewriteStrategyOptions() {
 
 const emits = defineEmits<{ success: [] }>();
 
-function getSkillTypeOptions() {
-  return [
+function getSkillTypeOptions(currentType?: string) {
+  const predefined = [
     { label: $t('admin.ai.skill.type_options.toolkit'), value: 'toolkit' },
     { label: $t('admin.ai.skill.type_options.knowledge_base'), value: 'knowledge_base' },
     { label: $t('admin.ai.skill.type_options.data_intelligence'), value: 'data_intelligence' },
@@ -78,6 +80,12 @@ function getSkillTypeOptions() {
     { label: $t('admin.ai.skill.type_options.email'), value: 'email' },
     { label: $t('admin.ai.skill.type_options.code_execution'), value: 'code_execution' },
   ];
+  if (currentType && !predefined.some((o) => o.value === currentType)) {
+    const key = `admin.ai.skill.type_options.${currentType}`;
+    const text = $t(key);
+    predefined.push({ label: text === key ? currentType : text, value: currentType });
+  }
+  return predefined;
 }
 
 async function getSkillPackageSelectOptions(params?: Record<string, unknown>) {
@@ -96,6 +104,7 @@ interface BuiltinToolInfo {
   parameters?: { properties?: Record<string, { type?: string; description?: string }> };
 }
 const builtinTools = ref<BuiltinToolInfo[]>([]);
+const pluginTools = ref<PluginToolDefinition[]>([]);
 
 const isToolkit = (v: Record<string, unknown>) => v.type === 'toolkit';
 const isKb = (v: Record<string, unknown>) => v.type === 'knowledge_base';
@@ -701,6 +710,14 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
       diTools.value = [];
     }
 
+    // 加载插件技能的工具定义
+    const standardTypes = new Set(['toolkit', 'builtin', 'knowledge_base', 'data_intelligence', 'http', 'email', 'code_execution']);
+    if (data.id && !standardTypes.has(data.type)) {
+      loadPluginTools(data.id);
+    } else {
+      pluginTools.value = [];
+    }
+
     return {
       package_id: data.package_id,
       name: data.name,
@@ -810,6 +827,14 @@ async function loadDiTools(
   }
 }
 
+async function loadPluginTools(skillId: number) {
+  try {
+    pluginTools.value = await getSkillToolsApi(skillId);
+  } catch {
+    pluginTools.value = [];
+  }
+}
+
 const title = computed(() =>
   isEdit.value
     ? $t('admin.common.edit')
@@ -889,6 +914,44 @@ const drawerWidthClass = computed(() =>
               class="!text-[10px]"
             >
               {{ pName }}: {{ pInfo.type || 'string' }}
+            </Tag>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- 插件技能工具列表只读展示 -->
+    <template v-if="pluginTools.length > 0">
+      <Divider orientation="left" dashed>
+        {{ $t('admin.ai.skill.pluginTools.toolList') }}
+        <Tag color="blue" class="ml-2">{{ pluginTools.length }}</Tag>
+      </Divider>
+      <div class="flex flex-col gap-2">
+        <div
+          v-for="tool in pluginTools"
+          :key="tool.name"
+          class="rounded-lg border border-border/60 p-3"
+        >
+          <div class="mb-1 flex items-center gap-2">
+            <Tag color="processing">{{ tool.name }}</Tag>
+            <span v-if="tool.timeout" class="text-[10px] text-muted-foreground">
+              {{ tool.timeout }}s
+            </span>
+          </div>
+          <p class="mb-0 text-xs text-muted-foreground">
+            {{ tool.description }}
+          </p>
+          <div
+            v-if="tool.parameters?.length"
+            class="mt-2 flex flex-wrap gap-1"
+          >
+            <Tag
+              v-for="param in tool.parameters"
+              :key="param.name"
+              :color="param.required ? 'orange' : 'default'"
+              class="!text-[10px]"
+            >
+              {{ param.name }}: {{ param.type }}
             </Tag>
           </div>
         </div>

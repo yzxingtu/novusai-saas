@@ -32,6 +32,7 @@ from app.api.tenant.ai_table_policies import router as ai_table_policies_router,
 from app.api.tenant.skill_packages import router as skill_packages_router, TenantSkillPackageController
 from app.api.tenant.skills import router as skills_router, TenantSkillController
 from app.api.tenant.dashboard import router as dashboard_router
+from app.api.tenant.plugins import router as plugins_router, TenantPluginController
 
 # 创建租户管理后台路由器
 tenant_router = APIRouter()
@@ -68,6 +69,8 @@ tenant_router.include_router(ai_table_policies_router)
 # 技能包 & 技能管理
 tenant_router.include_router(skill_packages_router)
 tenant_router.include_router(skills_router)
+# 插件管理
+tenant_router.include_router(plugins_router)
 # WebSocket 在线状态
 from app.api.tenant.ws import router as ws_router
 tenant_router.include_router(ws_router)
@@ -111,4 +114,6 @@ __all__ = [
     # 技能包 & 技能管理
     "TenantSkillPackageController",
     "TenantSkillController",
+    # 插件
+    "TenantPluginController",
 ]

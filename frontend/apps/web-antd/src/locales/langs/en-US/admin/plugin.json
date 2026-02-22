@@ -89,7 +89,9 @@
     "uploadConflictDesc": "Plugin {name} is already installed (current version {oldVersion}). Upload version is {newVersion}. Overwrite and upgrade?",
     "overwrite": "Overwrite & Upgrade",
     "confirmScopeChange": "Are you sure you want to change the plugin scope? This will affect plugin visibility for tenants.",
-    "fileTooLarge": "File size exceeds 50MB limit"
+    "fileTooLarge": "File size exceeds 50MB limit",
+    "assignSuccess": "Tenants assigned successfully",
+    "unassignSuccess": "Tenant unassigned successfully"
   },
   "providesSkill": "Provides Skill",
   "scope": "Scope",
@@ -103,6 +105,9 @@
   "assignedTenants": "Assigned Tenants",
   "assignedCount": "{count} tenants",
   "noAssignedTenants": "No tenants assigned yet",
+  "assignTenantPlaceholder": "Select tenants to assign…",
+  "assignBtn": "Assign",
+  "frontendEntry": "Frontend Entry",
   "installWizard": {
     "previewTitle": "Confirm Plugin Installation",
     "analyzing": "Analyzing plugin package…",

@@ -120,19 +120,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 
 ---
 
-## 七、插件开发
-
-6 种扩展点：`AdapterPlugin` / `SkillPlugin` / `StoragePlugin` / `ApiPlugin` / `HookPlugin` / `ToolPlugin`（已废弃）
-
-- 生命周期：install → enable → disable → uninstall
-- 插件目录：`backend/app/plugins/{name}/`，含 `plugin.py` + `manifest.json`
-- 作用域：`platform_only` / `all_tenants` / `assigned_tenants` / `global`
-
-→ 完整指南：`references/plugin-guide.md`
-
----
-
-## 八、异步任务与定时任务
+## 七、异步任务与定时任务
 
 - 必须用 `@register_task` 装饰器，禁止 `@celery_app.task`
 - Celery Worker 是同步进程，用 `sync_session_factory()` 获取 DB，`redis.from_url()` 获取 Redis
@@ -143,7 +131,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 
 ---
 
-## 九、删除依赖保护
+## 八、删除依赖保护
 
 任何 Model 被 FK 引用时，必须声明 `__delete_deps__`。五种策略：`BLOCK` / `CASCADE_SOFT` / `CASCADE_DELETE` / `NULLIFY` / `IGNORE`。`useCrudPage` 已集成 `DependencyBlockModal`（错误码 4221）。
 
@@ -151,7 +139,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 
 ---
 
-## 十、邮件发送
+## 九、邮件发送
 
 所有邮件必须通过 `send_email_task.delay()` 异步发送，禁止 Controller/Service 直接调用 `EmailService.send()`。
 
@@ -159,7 +147,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 
 ---
 
-## 十一、通知系统
+## 十、通知系统
 
 所有业务通知统一走 `NotificationService.send()` → 渠道驱动（WS / Inbox / Email）。模板编码格式：`{category}.{event_name}`。
 
@@ -167,7 +155,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 
 ---
 
-## 十二、WebSocket 实时通信
+## 十一、WebSocket 实时通信
 
 三端 namespace 隔离：`/admin` / `/tenant` / `/user`。后端用 `sio.emit()`，Celery 用 `sio_bridge.*_sync()`。
 
@@ -175,7 +163,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 
 ---
 
-## 十三、时间存储与显示
+## 十二、时间存储与显示
 
 - **后端**：统一 `utc_now()`（`app.core.base_model`），禁止 `datetime.now()` / `datetime.utcnow()`
 - **序列化**：ISO 8601 + `+00:00` 后缀
@@ -183,7 +171,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 
 ---
 
-## 十四、数据库迁移
+## 十三、数据库迁移
 
 系统启动时自动执行 `alembic upgrade head`，开发者只需生成迁移文件。新 Model 必须注册到 `models/__init__.py` 和 `migrations/env.py`。
 
@@ -200,7 +188,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 
 ---
 
-## 十五、DevGenius MCP 工作流
+## 十四、DevGenius MCP 工作流
 
 核心流程：认领任务 → 查文档 → 开发 → 写文档 → 更新状态
 
@@ -250,7 +238,6 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 | `references/async-tasks.md` | 异步任务与定时任务开发规范（Celery/Redis/队列/定时任务） |
 | `references/devgenius-workflow.md` | DevGenius MCP 工作流详解（工具速查、流程图、文档管理） |
 | `references/ai-module.md` | AI 模块开发规范（引擎/网关/工具/RAG/数据智能/事件/安全） |
-| `references/plugin-guide.md` | 插件开发指南（6 种扩展点/生命周期/manifest/权限/示例） |
 | `references/email-spec.md` | 邮件发送规范（架构/触发来源/配置/规则） |
 | `references/deletion-deps.md` | 删除依赖保护规范（5 种策略/声明语法/前端弹窗/回收站） |
 | `references/notification-spec.md` | 通知系统规范（渠道驱动/模板编码/队列/扩展） |

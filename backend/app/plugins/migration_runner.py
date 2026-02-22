@@ -43,7 +43,7 @@ def _parse_version(filename: str) -> str:
 
 
 def _to_module_name(plugin_name: str) -> str:
-    """将插件名（如 rich-editor）转为模块目录名（如 rich_editor）"""
+    """将插件名（如 my-plugin）转为模块目录名（如 my_plugin）"""
     return plugin_name.replace("-", "_")
 
 
@@ -134,22 +134,50 @@ async def run_migrations(
         )
 
         try:
-            # 逐条执行 SQL 语句（以分号分隔）
-            for stmt_text in _split_sql(sql_content):
-                await db.execute(text(stmt_text))
+            # 使用 savepoint（嵌套事务）包裹每个迁移，防止单条失败污染整个事务
+            async with db.begin_nested():
+                for stmt_text in _split_sql(sql_content):
+                    await db.execute(text(stmt_text))
 
-            record = PluginMigration(
-                plugin_name=plugin_name,
-                version=version,
-                filename=mf.name,
-                checksum=_sha256(sql_content),
-                description=mf.stem.split("_", 1)[1] if "_" in mf.stem else None,
-                applied_at=utc_now(),
-            )
-            db.add(record)
+                record = PluginMigration(
+                    plugin_name=plugin_name,
+                    version=version,
+                    filename=mf.name,
+                    checksum=_sha256(sql_content),
+                    description=mf.stem.split("_", 1)[1] if "_" in mf.stem else None,
+                    applied_at=utc_now(),
+                )
+                db.add(record)
             await db.flush()
             executed.append(mf.name)
         except Exception as exc:
+            exc_msg = str(exc).lower()
+            # 如果是"已存在"类错误（表/索引/约束重复），标记为已执行并继续
+            if "already exists" in exc_msg or "duplicate" in exc_msg:
+                logger.warning(
+                    "Plugin migration %s/%s skipped (object already exists): %s",
+                    plugin_name, mf.name, exc,
+                )
+                # 记录为已执行，避免下次重复尝试
+                try:
+                    async with db.begin_nested():
+                        skip_record = PluginMigration(
+                            plugin_name=plugin_name,
+                            version=version,
+                            filename=mf.name,
+                            checksum=_sha256(sql_content),
+                            description=mf.stem.split("_", 1)[1] if "_" in mf.stem else None,
+                            applied_at=utc_now(),
+                        )
+                        db.add(skip_record)
+                    await db.flush()
+                    executed.append(mf.name)
+                except Exception as record_exc:
+                    logger.warning(
+                        "Failed to record skipped migration %s/%s: %s",
+                        plugin_name, mf.name, record_exc,
+                    )
+                continue
             logger.error(
                 "Plugin migration failed: %s/%s — %s",
                 plugin_name, mf.name, exc, exc_info=True,

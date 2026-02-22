@@ -104,6 +104,61 @@ class TenantPluginController(TenantController):
                 page_size=query.size,
             )
 
+        @router.get("/frontend-config", summary="获取已启用插件的前端配置")
+        @action_read("action.tenant_plugin.list")
+        async def get_plugin_frontend_config(
+            request: Request,
+            db: DbSession,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """返回当前租户可用的已启用插件前端配置（路由+菜单+i18n）"""
+            from app.enums.plugin import PluginStatusEnum, PluginScopeEnum
+            from app.services.system.plugin_service import PluginService
+            from app.schemas.common.query import QuerySpec
+
+            service = PluginService(db)
+            items, _ = await service.query_list(QuerySpec(page=1, size=100))
+
+            tenant_id = tenant_admin.tenant_id
+            configs = []
+            for plugin in items:
+                if plugin.status != PluginStatusEnum.ENABLED.value:
+                    continue
+                manifest = plugin.manifest or {}
+                frontend = manifest.get("frontend")
+                if not frontend:
+                    continue
+
+                # 检查插件 scope 对当前租户是否可见
+                scope = plugin.scope
+                if scope == PluginScopeEnum.PLATFORM_ONLY.value:
+                    continue
+                if scope == PluginScopeEnum.ASSIGNED_TENANTS.value:
+                    from app.repositories.system.plugin_tenant_assignment_repository import (
+                        PluginTenantAssignmentRepository,
+                    )
+                    assign_repo = PluginTenantAssignmentRepository(db)
+                    assignments = await assign_repo.get_by_plugin(plugin.id)
+                    assigned_ids = {a.tenant_id for a in assignments}
+                    if tenant_id not in assigned_ids:
+                        continue
+
+                locales = frontend.get("locales", {})
+                if not locales:
+                    from app.api.admin.plugins import _load_plugin_locales
+                    locales = _load_plugin_locales(plugin.name)
+
+                configs.append({
+                    "plugin_name": plugin.name,
+                    "plugin_version": plugin.version,
+                    "scope": plugin.scope,
+                    "endpoint": frontend.get("endpoint", "tenant"),
+                    "menus": frontend.get("menus", []),
+                    "routes": frontend.get("routes", []),
+                    "locales": locales,
+                })
+            return success(data=configs)
+
         @router.get("/enabled", summary="获取租户已启用插件")
         @action_read("action.tenant_plugin.list_enabled")
         async def list_enabled_plugins(

@@ -264,8 +264,10 @@ class PluginManager:
                 "Plugin on_install failed: %s — %s", instance.name, str(exc),
                 exc_info=True,
             )
-            # 回滚：删除刚插入的记录
+            # 回滚事务后再清理（PostgreSQL 在语句失败后拒绝同事务内的后续命令）
+            await db.rollback()
             await repo.permanent_delete(plugin.id)
+            await db.commit()
             self.loader.pop_instance(instance.name)
             raise BusinessException(
                 _("plugin.install_hook_failed")
@@ -285,6 +287,8 @@ class PluginManager:
                 "Plugin migration failed during install: %s — %s",
                 instance.name, str(exc), exc_info=True,
             )
+            # 回滚事务后再清理（PostgreSQL 在语句失败后拒绝同事务内的后续命令）
+            await db.rollback()
             # 回滚 on_install 副作用（best-effort）
             try:
                 await instance.on_uninstall(ctx)
@@ -294,6 +298,7 @@ class PluginManager:
                     instance.name, str(rollback_exc),
                 )
             await repo.permanent_delete(plugin.id)
+            await db.commit()
             self.loader.pop_instance(instance.name)
             raise
 

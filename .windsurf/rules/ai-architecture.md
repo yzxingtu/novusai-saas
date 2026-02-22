@@ -128,8 +128,6 @@ LLM tool_call → Executor 生成预览（requires_confirmation=true）→ SSE c
 | `data_intelligence` | 数据智能（Text-to-SQL + CRUD） | TextToSQLExecutor + CrudExecutor | 1~4 |
 | `builtin` | 内置函数 | BuiltinToolExecutor | 1~N |
 
-未知类型走插件解析路径（PluginExecutor）。
-
 ### Toolkit 技能（toolkit 类型）
 
 - 编写 Python 源码，定义 `Tools` 类，每个公开方法自动映射为一个 LLM 可调用工具
@@ -163,12 +161,6 @@ LLM tool_call → Executor 生成预览（requires_confirmation=true）→ SSE c
 - **多工具模式**：`config.tools` 为工具列表，每项含 `name` / `description` / `parameters`
 - 默认内置函数：`get_current_time` / `calculate` / `format_json`
 
-### Plugin 技能（未知类型）
-
-- 通过 `PluginManager.get_skill_plugin(skill_type)` 获取插件实例
-- 插件实现 `SkillPlugin.resolve(config)` 返回 `ToolDefinition` 列表
-- 执行时 `tool_type` 强制设为 `plugin`，由 `PluginSkillExecutor` 执行
-
 ## 五、Skill 解析链路（SkillResolver）
 
 ```
@@ -181,7 +173,7 @@ Agent 对话请求
 ```
 
 - `SkillResolver`（`app.ai.skills.resolver`）是唯一合法的 Skill→ToolDefinition 转换器
-- `ToolRegistry`（`app.ai.tools.registry`）**已废弃**，仅保留供旧插件兼容，将在后续版本移除
+- `ToolRegistry`（`app.ai.tools.registry`）**已废弃**，将在后续版本移除
 - 新代码**禁止**使用 `get_tool_registry()` / `ToolRegistry.register()`
 
 ## 六、系统 Agent 与系统 Skill
@@ -279,7 +271,6 @@ POST /tenant/ai/agent-chat/{agent_id}/chat/stream
 | `backend/app/ai/tools/executors/builtin_executor.py` | BuiltinToolExecutor（进程内安全函数） |
 | `backend/app/ai/tools/executors/crud_executor.py` | CrudExecutor（数据智能 CRUD） |
 | `backend/app/ai/tools/executors/text_to_sql_executor.py` | TextToSQLExecutor（数据智能查询） |
-| `backend/app/ai/tools/executors/plugin_executor.py` | PluginExecutor（插件技能执行） |
 | `backend/app/ai/tools/types.py` | ToolDefinition / ToolParameter / ToolResult / ExecutionContext |
 | `backend/app/ai/tools/registry.py` | ToolRegistry（**已废弃**，勿用） |
 | `backend/app/ai/engine/conversation.py` | Agent 对话引擎（允许内部 LLM 调用） |
@@ -289,18 +280,7 @@ POST /tenant/ai/agent-chat/{agent_id}/chat/stream
 | `backend/app/ai/gateway.py` | AI 网关（仅由 SystemAgentService/Executor/Engine 调用） |
 | `backend/migrations/versions/20260214_seed_system_agents_skills.py` | 系统 Agent/Skill 种子数据迁移 |
 
-## 十、CRUD 生成器迁移规则
-
-**禁止 CRUD Generator（可视化向导 / CLI / AI 智能体）通过任何途径直接 CREATE TABLE。**
-所有建表必须生成 Alembic 迁移脚本（`migrations/versions/`），由启动时 `alembic upgrade head` 自动执行。
-
-- 直接建表会断裂迁移链，导致后续字段变更无法通过迁移管理
-- AI Toolkit Skill 输出必须是迁移脚本，禁止输出 DDL 预览
-- CLI `generate` 命令必须生成迁移文件，禁止直接建表
-
-> 当前状态（待重构 — 里程碑 M119/#389）：`generator.py` 仅生成 DDL 预览虚拟文件，无 migration 模板
-
-## 十一、上传与存储系统规则（强制）
+## 十、上传与存储系统规则（强制）
 
 ### 核心原则
 
@@ -319,7 +299,7 @@ Controller (UploadFile) → AttachmentService.upload_file() → FileValidator �
 | Service | `services/system/attachment_service.py` | 平台端上传（跨租户，无配额限制） |
 | Validator | `services/common/file_validator.py` | 文件类型/大小验证（平台+租户两级配置） |
 | Quota | `services/common/storage_quota_service.py` | 存储配额查询（租户套餐驱动） |
-| Storage | `app/storage/` | 存储驱动抽象层（local / s3 / 插件扩展） |
+| Storage | `app/storage/` | 存储驱动抽象层（local / s3） |
 | Model | `models/tenant/attachment.py` | Attachment ORM（TenantModel，含 hash/driver/base_url） |
 | Task | `tasks/upload_cleanup.py` | 分片上传临时文件清理（Celery Beat，每 6h） |
 
@@ -401,21 +381,9 @@ upload_result = await attachment_service.upload_file(
 )
 ```
 
-### 存储驱动与插件扩展
+### 存储驱动
 
 当前内置驱动：`LocalDriver`（本地文件系统）、`S3Driver`（兼容 S3 协议）。
-
-**对象存储通过插件扩展**：继承 `StoragePlugin`（`app/plugins/extensions/storage_plugin.py`），实现：
-
-| 方法 | 说明 |
-|------|------|
-| `get_driver_name()` | 驱动标识（如 `"oss"` / `"cos"` / `"qiniu"`） |
-| `get_driver_class()` | 驱动类（实现 `put/get/delete/exists/get_url/get_size`） |
-| `get_config_schema()` | 配置项 Schema（前端动态渲染配置表单） |
-| `validate_config()` | 配置验证 |
-| `test_connection()` | 连接测试 |
-
-PluginManager 启用 StoragePlugin 时自动注册驱动到 StorageManager。
 
 ### 关键文件索引
 
@@ -431,7 +399,6 @@ PluginManager 启用 StoragePlugin 时自动注册驱动到 StorageManager。
 | `backend/app/schemas/tenant/attachment.py` | 上传/配额响应 Schema |
 | `backend/app/enums/attachment.py` | AttachmentVisibility / AttachmentStatus / AttachmentSource |
 | `backend/app/tasks/upload_cleanup.py` | 分片上传临时文件清理 Celery 任务 |
-| `backend/app/plugins/extensions/storage_plugin.py` | 存储驱动插件扩展点 |
 | `frontend/.../api/tenant/attachment.ts` | 租户端上传 API（含 smartUploadFile） |
 | `frontend/.../api/admin/attachment.ts` | 平台端上传 API |
 | `frontend/.../components/business/file-picker/FilePicker.vue` | 通用文件选择+上传组件 |

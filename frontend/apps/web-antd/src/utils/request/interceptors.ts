@@ -66,6 +66,11 @@ export interface MessageHandler {
 export function getEndpointByUrl(url: string): ApiEndpoint {
   if (url.startsWith('/admin')) return 'admin';
   if (url.startsWith('/tenant')) return 'tenant';
+  // 双端插件路由：/plugins/{name}/admin/* 或 /plugins/{name}/tenant/*
+  if (url.startsWith('/plugins/')) {
+    if (/^\/plugins\/[^/]+\/admin(\/|$)/.test(url)) return 'admin';
+    if (/^\/plugins\/[^/]+\/tenant(\/|$)/.test(url)) return 'tenant';
+  }
   return 'user';
 }
 

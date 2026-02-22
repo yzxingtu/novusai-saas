@@ -89,7 +89,9 @@
     "uploadConflictDesc": "插件 {name} 已安装（当前版本 {oldVersion}），上传版本为 {newVersion}。是否覆盖升级？",
     "overwrite": "覆盖升级",
     "confirmScopeChange": "确定要修改插件作用域吗？这会影响插件对租户的可见性。",
-    "fileTooLarge": "文件大小超过 50MB 限制"
+    "fileTooLarge": "文件大小超过 50MB 限制",
+    "assignSuccess": "租户分配成功",
+    "unassignSuccess": "已取消租户分配"
   },
   "providesSkill": "提供技能",
   "scope": "作用域",
@@ -103,6 +105,9 @@
   "assignedTenants": "已分配租户",
   "assignedCount": "共 {count} 个租户",
   "noAssignedTenants": "暂无已分配的租户",
+  "assignTenantPlaceholder": "选择要分配的租户…",
+  "assignBtn": "分配",
+  "frontendEntry": "前端入口",
   "installWizard": {
     "previewTitle": "确认安装插件",
     "analyzing": "正在解析插件包…",

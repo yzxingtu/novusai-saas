@@ -66,7 +66,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         
         # 同步配置到数据库（将代码定义的配置项同步到 DB）
         # 导入配置定义模块（触发配置注册到 registry）
-        import app.configs.definitions  # noqa: F401
+        # NOTE: 使用 from...import 而非 import app.xxx，避免遮蔽 lifespan 的 app 参数
+        from app.configs import definitions as _configs_definitions  # noqa: F401
         from app.configs.sync import sync_configs_on_startup
         
         async with async_session_factory() as db:
@@ -388,9 +389,6 @@ def create_application() -> FastAPI:
     
     # 注册平台管理后台路由 (/admin/*)
     from app.api.admin import admin_router
-
-    # CRUD Generator routes removed — now provided by plugin (novusai-crud-generator)
-
     app.include_router(admin_router, prefix="/admin")
     
     # 注册租户管理后台路由 (/tenant/*)

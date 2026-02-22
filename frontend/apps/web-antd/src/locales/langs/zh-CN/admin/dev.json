@@ -1,9 +1,0 @@
-{
-  "title": "开发工具",
-  "crudGenerator": {
-    "title": "CRUD 代码生成器",
-    "records": {
-      "title": "生成记录"
-    }
-  }
-}

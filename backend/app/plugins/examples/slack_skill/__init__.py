@@ -1,1 +1,0 @@
-"""Slack Notification Skill Plugin"""

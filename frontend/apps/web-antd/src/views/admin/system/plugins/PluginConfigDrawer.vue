@@ -26,6 +26,7 @@ import {
 import { requestClient } from '#/utils/request';
 import { toAvatarDisplayUrl } from '#/utils/image';
 import { updatePluginApi } from '#/api/admin/plugins';
+import { getTenantSelectApi } from '#/api/admin/tenant';
 import { SchemaForm } from '#/components';
 import { $t } from '#/locales';
 
@@ -96,6 +97,18 @@ function renderMarkdown(md: string): string {
   return safe;
 }
 
+const pluginFrontendMenus = computed(() => {
+  const manifest = plugin.value?.manifest as Record<string, unknown> | null;
+  const frontend = (manifest?.frontend ?? {}) as Record<string, unknown>;
+  return (frontend.menus ?? []) as Array<{ icon?: string; name: string; path: string }>;
+});
+
+const pluginFrontendEndpoint = computed(() => {
+  const manifest = plugin.value?.manifest as Record<string, unknown> | null;
+  const frontend = (manifest?.frontend ?? {}) as Record<string, unknown>;
+  return (frontend.endpoint as string) || 'tenant';
+});
+
 const scopeOptions = computed(() => [
   { value: 'platform_only', label: $t('admin.plugin.scope_options.platform_only') },
   { value: 'all_tenants', label: $t('admin.plugin.scope_options.all_tenants') },
@@ -107,6 +120,12 @@ const scopeOptions = computed(() => [
 const scopeSaving = ref(false);
 const assignedTenants = ref<Array<{ tenant_id: number; tenant_name: string }>>([]);
 const assignedLoading = ref(false);
+
+// 租户分配
+const allTenants = ref<Array<{ label: string; value: number }>>([]);
+const tenantsLoaded = ref(false);
+const selectedTenantIds = ref<number[]>([]);
+const assigning = ref(false);
 
 function getScopeColor(scope: string | undefined): string {
   switch (scope) {
@@ -132,9 +151,11 @@ function open(row: PluginInfo) {
   readmeVisible.value = false;
   readmeContent.value = '';
   assignedTenants.value = [];
+  selectedTenantIds.value = [];
   visible.value = true;
-  if (row.scope === 'assigned_tenants') {
+  if (row.scope === 'assigned_tenants' || row.scope === 'tenant_only') {
     loadAssignedTenants();
+    loadAllTenants();
   }
 }
 
@@ -173,6 +194,56 @@ async function loadAssignedTenants() {
     // handled by interceptor
   } finally {
     assignedLoading.value = false;
+  }
+}
+
+async function loadAllTenants() {
+  if (tenantsLoaded.value) return;
+  try {
+    const res = await getTenantSelectApi({ 'page[size]': 500 });
+    allTenants.value = res.items || [];
+    tenantsLoaded.value = true;
+  } catch {
+    // handled by interceptor
+  }
+}
+
+const availableTenants = computed(() => {
+  const assignedIds = new Set(assignedTenants.value.map((t) => t.tenant_id));
+  return allTenants.value.filter((t) => !assignedIds.has(t.value));
+});
+
+async function assignSelectedTenants() {
+  if (!plugin.value || selectedTenantIds.value.length === 0) return;
+  assigning.value = true;
+  try {
+    await requestClient.post(
+      `/admin/plugins/${plugin.value.id}/assign-tenants`,
+      { tenant_ids: selectedTenantIds.value },
+    );
+    message.success($t('admin.plugin.messages.assignSuccess'));
+    selectedTenantIds.value = [];
+    await loadAssignedTenants();
+    emit('saved');
+  } catch {
+    // handled by interceptor
+  } finally {
+    assigning.value = false;
+  }
+}
+
+async function unassignTenant(tenantId: number) {
+  if (!plugin.value) return;
+  try {
+    await requestClient.delete(
+      `/admin/plugins/${plugin.value.id}/unassign-tenants`,
+      { data: { tenant_ids: [tenantId] } },
+    );
+    message.success($t('admin.plugin.messages.unassignSuccess'));
+    await loadAssignedTenants();
+    emit('saved');
+  } catch {
+    // handled by interceptor
   }
 }
 
@@ -328,6 +399,26 @@ defineExpose({ open, close });
         </Descriptions.Item>
       </Descriptions>
 
+      <!-- 插件前端入口（如果 manifest 声明了 frontend menus/routes） -->
+      <template v-if="pluginFrontendMenus.length > 0">
+        <div class="mb-3 text-base font-medium text-foreground">
+          {{ $t('admin.plugin.frontendEntry') }}
+        </div>
+        <div class="mb-6 flex flex-col gap-1.5">
+          <div
+            v-for="menu in pluginFrontendMenus"
+            :key="menu.path"
+            class="flex items-center gap-2 rounded-lg border border-border/40 bg-muted/30 px-3 py-2"
+          >
+            <IconifyIcon :icon="menu.icon || 'lucide:layout-grid'" class="size-4 text-primary" />
+            <span class="text-sm text-foreground">{{ menu.name }}</span>
+            <Typography.Text code class="!ml-auto !text-[11px]">
+              /{{ pluginFrontendEndpoint }}{{ menu.path }}
+            </Typography.Text>
+          </div>
+        </div>
+      </template>
+
       <!-- 已分配租户（scope=assigned_tenants 或 tenant_only 时显示） -->
       <template v-if="plugin.scope === 'assigned_tenants' || plugin.scope === 'tenant_only'">
         <div class="mb-3 flex items-center justify-between">
@@ -340,24 +431,57 @@ defineExpose({ open, close });
         </div>
         <div
           v-if="assignedLoading"
-          class="mb-6 flex items-center justify-center py-4"
+          class="mb-4 flex items-center justify-center py-4"
         >
           <IconifyIcon icon="lucide:loader-2" class="size-5 animate-spin text-muted-foreground" />
         </div>
-        <div v-else-if="assignedTenants.length > 0" class="mb-6">
-          <div class="flex flex-wrap gap-2">
-            <Tag
-              v-for="t in assignedTenants"
-              :key="t.tenant_id"
-              color="purple"
-            >
-              {{ t.tenant_name || `#${t.tenant_id}` }}
-            </Tag>
+        <template v-else>
+          <div v-if="assignedTenants.length > 0" class="mb-3">
+            <div class="flex flex-wrap gap-2">
+              <Tag
+                v-for="t in assignedTenants"
+                :key="t.tenant_id"
+                color="purple"
+                closable
+                @close="unassignTenant(t.tenant_id)"
+              >
+                {{ t.tenant_name || `#${t.tenant_id}` }}
+              </Tag>
+            </div>
           </div>
-        </div>
-        <div v-else class="mb-6 text-center text-sm text-muted-foreground">
-          {{ $t('admin.plugin.noAssignedTenants') }}
-        </div>
+          <div v-else class="mb-3 text-center text-sm text-muted-foreground">
+            {{ $t('admin.plugin.noAssignedTenants') }}
+          </div>
+          <!-- 分配租户操作 -->
+          <div class="mb-6 flex items-center gap-2">
+            <Select
+              v-model:value="selectedTenantIds"
+              mode="multiple"
+              :placeholder="$t('admin.plugin.assignTenantPlaceholder')"
+              :options="availableTenants"
+              :loading="!tenantsLoaded"
+              class="flex-1"
+              size="small"
+              show-search
+              :filter-option="
+                (input: string, option?: { label?: string }) =>
+                  String(option?.label ?? '')
+                    .toLowerCase()
+                    .includes(String(input).toLowerCase())
+              "
+            />
+            <Button
+              type="primary"
+              size="small"
+              :loading="assigning"
+              :disabled="selectedTenantIds.length === 0"
+              @click="assignSelectedTenants"
+            >
+              <IconifyIcon icon="lucide:plus" class="mr-1 size-3.5" />
+              {{ $t('admin.plugin.assignBtn') }}
+            </Button>
+          </div>
+        </template>
       </template>
 
       <!-- 市场信息 -->

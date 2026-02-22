@@ -33,7 +33,6 @@ import {
   getPluginListApi,
   installPluginApi,
   uninstallPluginApi,
-  upgradePluginApi,
 } from '#/api/admin/plugins';
 import { $t } from '#/locales';
 
@@ -219,17 +218,6 @@ function onUninstall(row: PluginInfo) {
   });
 }
 
-function onUpgrade(row: PluginInfo) {
-  Modal.confirm({
-    title: $t('admin.plugin.messages.confirmUpgrade'),
-    onOk: () => withProcessing(row.id, async () => {
-      await upgradePluginApi(row.id);
-      message.success($t('admin.plugin.messages.upgradeSuccess'));
-      await loadPlugins();
-    }),
-  });
-}
-
 function onInstallByEntryClick() {
   installEntryPoint.value = '';
   installEntryVisible.value = true;
@@ -285,14 +273,6 @@ onMounted(loadPlugins);
         </div>
         <!-- 操作按钮组 -->
         <div class="flex items-center gap-2">
-          <Button
-            size="large"
-            class="!rounded-xl"
-            @click="$router.push('/admin/system/marketplace')"
-          >
-            <IconifyIcon icon="lucide:store" class="mr-1.5 size-4" />
-            {{ $t('admin.system.marketplace.goToMarketplace') }}
-          </Button>
           <Dropdown>
           <Button type="primary" size="large" class="!rounded-xl !px-5 !shadow-lg !shadow-primary/20">
             <IconifyIcon icon="lucide:plus" class="mr-1.5 size-4" />
@@ -499,15 +479,6 @@ onMounted(loadPlugins);
               <!-- 操作按钮组 -->
               <div class="flex items-center gap-0.5 opacity-0 transition-all duration-200 group-hover:opacity-100">
                 <template v-if="!plugin.is_system">
-                  <Tooltip v-if="plugin.install_source === 'marketplace'" :title="$t('admin.plugin.upgrade')">
-                    <button
-                      v-access:code="['plugin:upgrade']"
-                      class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-                      @click="onUpgrade(plugin)"
-                    >
-                      <IconifyIcon icon="lucide:arrow-up-circle" class="size-4" />
-                    </button>
-                  </Tooltip>
                   <Tooltip :title="$t('admin.plugin.uninstall')">
                     <button
                       v-access:code="['plugin:uninstall']"

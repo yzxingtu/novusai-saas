@@ -9,8 +9,8 @@ import { searchInput, select } from '#/adapter/form';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 
-function getSkillTypeOptions() {
-  return [
+function getSkillTypeOptions(currentType?: string) {
+  const predefined = [
     { label: $t('admin.ai.skill.type_options.toolkit'), value: 'toolkit' },
     { label: $t('admin.ai.skill.type_options.knowledge_base'), value: 'knowledge_base' },
     { label: $t('admin.ai.skill.type_options.data_intelligence'), value: 'data_intelligence' },
@@ -19,6 +19,12 @@ function getSkillTypeOptions() {
     { label: $t('admin.ai.skill.type_options.email'), value: 'email' },
     { label: $t('admin.ai.skill.type_options.code_execution'), value: 'code_execution' },
   ];
+  if (currentType && !predefined.some((o) => o.value === currentType)) {
+    const key = `admin.ai.skill.type_options.${currentType}`;
+    const text = $t(key);
+    predefined.push({ label: text === key ? currentType : text, value: currentType });
+  }
+  return predefined;
 }
 
 

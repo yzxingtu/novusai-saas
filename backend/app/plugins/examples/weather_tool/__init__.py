@@ -1,1 +1,0 @@
-"""Example Weather Tool Plugin"""

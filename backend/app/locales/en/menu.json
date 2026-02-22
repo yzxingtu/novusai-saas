@@ -41,13 +41,10 @@
       "ai_skill": "Skill Management",
       "ai_skill_package": "Skill Packages",
       "plugin": "Plugin Management",
-      "dev_tools": "Dev Tools",
-      "crud_generator": "CRUD Generator",
       "agent_assignment": "Agent Assignment",
       "email_log": "Email Logs",
       "recycle_bin": "Recycle Bin",
-      "notification_template": "Notification Templates",
-      "marketplace": "Plugin Marketplace"
+      "notification_template": "Notification Templates"
     },
     "tags": {
       "admin_agent_mgmt": "Agent Management (Platform)",

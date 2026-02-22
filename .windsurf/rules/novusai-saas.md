@@ -211,7 +211,6 @@ alembic upgrade head
 | `builtin` | 内置函数 |
 
 - **Toolkit 类型**：通过 `toolkit_content` 存储 Python 源码，`toolkit_meta` 存储解析结果，支持 Valves 配置，非系统 Toolkit 有安全扫描
-- 未知类型走插件解析路径（PluginExecutor）
 - 新增技能类型必须同时：创建 Executor、注册到 SkillResolver、添加枚举值、添加 i18n
 - `SkillResolver` 是唯一合法的 Skill→ToolDefinition 转换器，禁止使用 `ToolRegistry`
 

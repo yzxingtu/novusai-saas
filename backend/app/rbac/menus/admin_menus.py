@@ -190,10 +190,6 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:admin.task_log (任务日志)
     # - menu:admin.periodic_task (定时任务)
 
-    # ========================================
-    # 开发工具（目录） — 已移至插件 (novusai-crud-generator)
-    # 插件菜单通过 GET /admin/plugins/frontend-config 动态加载
-    # ========================================
 ]
 
 

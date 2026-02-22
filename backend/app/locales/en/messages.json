@@ -1083,7 +1083,6 @@
         "data_update": "Data Update",
         "data_delete": "Data Delete",
         "plugin": "Plugin",
-        "crud_generator": "CRUD Code Generator",
         "http": "HTTP Request",
         "email": "Email Send",
         "code_execution": "Code Execution"
@@ -2098,10 +2097,6 @@
     }
   },
   "plugin": {
-    "crud_generator": {
-      "display_name": "CRUD Code Generator",
-      "description": "Visual CRUD code generator with CLI, AI assistant, and Alembic migration support."
-    },
     "slack_skill": {
       "display_name": "Slack Notification"
     },

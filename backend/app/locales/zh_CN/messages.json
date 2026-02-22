@@ -1085,7 +1085,6 @@
         "data_update": "数据更新",
         "data_delete": "数据删除",
         "plugin": "插件",
-        "crud_generator": "CRUD 代码生成器",
         "http": "HTTP 请求",
         "email": "邮件发送",
         "code_execution": "代码执行"
@@ -2101,10 +2100,6 @@
     }
   },
   "plugin": {
-    "crud_generator": {
-      "display_name": "CRUD 代码生成器",
-      "description": "可视化 CRUD 代码生成器，支持 CLI、AI 助手和 Alembic 迁移。"
-    },
     "slack_skill": {
       "display_name": "Slack 通知"
     },
