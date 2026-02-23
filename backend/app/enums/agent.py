@@ -33,7 +33,6 @@ class ToolTypeEnum(LabeledStrEnum):
     DATA_CREATE = ("data_create", "enum.agent.tool_type.data_create")
     DATA_UPDATE = ("data_update", "enum.agent.tool_type.data_update")
     DATA_DELETE = ("data_delete", "enum.agent.tool_type.data_delete")
-    PLUGIN = ("plugin", "enum.agent.tool_type.plugin")
     HTTP = ("http", "enum.agent.tool_type.http")
     EMAIL = ("email", "enum.agent.tool_type.email")
     CODE_EXECUTION = ("code_execution", "enum.agent.tool_type.code_execution")

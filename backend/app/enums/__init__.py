@@ -102,9 +102,6 @@ __all__ = [
     "BatchRunStatusEnum",
     # AI
     "ToolParameterTypeEnum",
-    # 插件
-    "PluginTypeEnum",
-    "PluginStatusEnum",
     # 域名
     "DomainSslStatus",
     "DomainType",

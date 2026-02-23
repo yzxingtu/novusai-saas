@@ -1082,7 +1082,6 @@
         "data_create": "Data Create",
         "data_update": "Data Update",
         "data_delete": "Data Delete",
-        "plugin": "Plugin",
         "http": "HTTP Request",
         "email": "Email Send",
         "code_execution": "Code Execution"
@@ -1163,53 +1162,6 @@
       "boolean": "Boolean",
       "array": "Array",
       "object": "Object"
-    },
-    "plugin_type": {
-      "adapter": "AI Adapter",
-      "tool": "Tool Executor",
-      "hook": "Event Hook",
-      "api": "API Endpoint",
-      "skill": "Skill Extension",
-      "storage": "Storage Driver",
-      "composite": "Composite"
-    },
-    "plugin_status": {
-      "installed": "Installed",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
-      "error": "Error"
-    },
-    "plugin_scope": {
-      "platform_only": "Admin Only",
-      "all_tenants": "Admin + All Tenants",
-      "assigned_tenants": "Admin + Selected Tenants",
-      "tenant_only": "Selected Tenants Only",
-      "global": "Global"
-    },
-    "plugin_category": {
-      "ai_model": "AI Model Adapter",
-      "ai_skill": "AI Skill Extension",
-      "storage": "Storage Driver",
-      "notification": "Notification Channel",
-      "integration": "Third-party Integration",
-      "devtool": "Developer Tool",
-      "analytics": "Data Analytics",
-      "security": "Security Enhancement",
-      "theme": "Theme & UI",
-      "other": "Other"
-    },
-    "plugin_install_source": {
-      "local": "Local Install",
-      "marketplace": "Marketplace",
-      "builtin": "Built-in",
-      "entry_point": "Entry Point Install"
-    },
-    "table_policy": {
-      "scope": {
-        "platform": "Platform",
-        "tenant": "Tenant",
-        "all": "All"
-      }
     },
     "skill": {
       "type": {
@@ -2096,79 +2048,6 @@
       "is_active": "Override Active Status"
     }
   },
-  "plugin": {
-    "slack_skill": {
-      "display_name": "Slack Notification"
-    },
-    "not_found": "Plugin not found",
-    "already_exists": "Plugin name already exists",
-    "is_system": "System built-in plugin cannot perform this action",
-    "cannot_uninstall_system": "System built-in plugin cannot be uninstalled",
-    "cannot_disable_system": "System built-in plugin cannot be disabled",
-    "dependency_missing": "Missing dependency plugin: {name}",
-    "dependency_conflict": "Conflicts with installed plugin: {name}",
-    "has_dependents": "Other plugins depend on this plugin: {names}",
-    "invalid_manifest": "Invalid plugin manifest",
-    "entry_point_not_found": "Failed to load entry point: {entry_point}",
-    "install_hook_failed": "Plugin install hook execution failed",
-    "enable_hook_failed": "Plugin enable hook execution failed",
-    "already_at_version": "Plugin is already at version: {version}",
-    "has_conflicts": "Conflicts with installed plugin",
-    "unmet_dependencies": "Missing dependency plugins",
-    "platform_version_mismatch": "Platform version requirement not met",
-    "file_must_be_nap": "File must be in .nap format",
-    "file_must_be_zip_or_nap": "File must be in .zip or .nap format",
-    "file_required": "Please select a file to upload",
-    "plugin_dir_not_found": "Plugin source directory not found",
-    "dependency_not_installed": "not installed",
-    "dependency_version_mismatch": "installed version {version} does not match",
-    "config_validation_failed": "Plugin config validation failed",
-    "upgrade_hook_failed": "Plugin upgrade hook execution failed",
-    "upload_conflict": "A plugin with the same name already exists. Overwrite and upgrade?",
-    "dependency_install_failed": "Failed to install plugin Python dependencies",
-    "dependency_install_timeout": "Plugin Python dependency installation timed out",
-    "packages_not_whitelisted": "The following packages are not in the security whitelist, please contact admin for approval: {packages}",
-    "migration_failed": "Plugin database migration execution failed",
-    "skill_type_conflict": "Skill type is already registered by another plugin",
-    "storage_driver_conflict": "Storage driver name is already registered by another plugin",
-    "already_enabled": "Plugin is already enabled",
-    "not_enabled": "Plugin is not currently enabled",
-    "downgrade_not_allowed": "Plugin version downgrade is not allowed",
-    "tenant_ids_required": "Please provide a list of tenant IDs to assign",
-    "tool_name_conflict": "Tool name is already registered by another plugin",
-    "install_success": "Plugin installed successfully",
-    "uninstall_success": "Plugin uninstalled successfully",
-    "enable_success": "Plugin enabled successfully",
-    "disable_success": "Plugin disabled successfully",
-    "field": {
-      "name": "Plugin ID",
-      "display_name": "Display Name",
-      "version": "Version",
-      "description": "Description",
-      "author": "Author",
-      "plugin_type": "Plugin Type",
-      "status": "Status",
-      "entry_point": "Entry Point",
-      "is_system": "System Built-in",
-      "config_schema": "Config Schema",
-      "default_config": "Default Config",
-      "icon": "Icon",
-      "homepage": "Homepage"
-    }
-  },
-  "tenant_plugin": {
-    "not_found": "Tenant plugin record not found",
-    "plugin_not_enabled": "This plugin is not enabled on the platform",
-    "scope_not_allowed": "This plugin is platform-only and cannot be enabled by tenants",
-    "not_assigned": "This plugin has not been assigned to your tenant",
-    "enable_success": "Plugin enabled for tenant",
-    "disable_success": "Plugin disabled for tenant",
-    "field": {
-      "plugin_id": "Plugin ID",
-      "is_active": "Active",
-      "config": "Custom Config"
-    }
-  },
   "system_agent_assignment": {
     "field": {
       "feature_code": "Feature Code",
@@ -2223,7 +2102,6 @@
       "tenant_plan": "Tenant Plan",
       "tenant": "Tenant",
       "tenant_domain": "Domain",
-      "tenant_plugin": "Tenant Plugin",
       "system_agent_assignment": "System Agent Assignment"
     }
   },
@@ -2236,18 +2114,5 @@
     "domains_exceeded": "Custom domain limit reached: {limit}",
     "api_calls_exceeded": "Monthly API call limit reached: {limit}",
     "file_size_exceeded": "File size exceeds limit: {limit}MB"
-  },
-  "marketplace": {
-    "plugin_not_found": "Plugin not found in marketplace",
-    "plugin_already_installed": "Plugin is already installed",
-    "plugin_not_installed": "Plugin is not installed",
-    "plugin_directory_exists": "Plugin directory already exists, please uninstall the old version first",
-    "platform_version_incompatible": "Current platform version does not meet the minimum requirement",
-    "already_latest_version": "Already at the latest version",
-    "package_invalid": "Plugin package validation failed",
-    "no_repository_configured": "No repository configured for this plugin",
-    "release_not_found": "Release not found for the specified version",
-    "no_downloadable_asset": "No downloadable plugin package found in release",
-    "download_failed": "Plugin package download failed"
   }
 }

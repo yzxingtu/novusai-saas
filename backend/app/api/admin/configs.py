@@ -317,9 +317,6 @@ class AdminConfigController(GlobalController):
             """
             测试存储驱动连接是否可用
             
-            支持内置驱动和插件驱动。
-            插件驱动会调用 StoragePlugin.test_connection()。
-            
             权限: platform_config:update
             """
             from app.storage import storage_manager

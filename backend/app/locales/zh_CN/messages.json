@@ -1084,7 +1084,6 @@
         "data_create": "数据创建",
         "data_update": "数据更新",
         "data_delete": "数据删除",
-        "plugin": "插件",
         "http": "HTTP 请求",
         "email": "邮件发送",
         "code_execution": "代码执行"
@@ -1187,46 +1186,6 @@
         "tenant": "租户技能",
         "admin": "管理技能"
       }
-    },
-    "plugin_type": {
-      "adapter": "AI 适配器",
-      "tool": "工具执行器",
-      "hook": "事件钩子",
-      "api": "API 端点",
-      "skill": "技能扩展",
-      "storage": "存储驱动",
-      "composite": "复合插件"
-    },
-    "plugin_status": {
-      "installed": "已安装",
-      "enabled": "已启用",
-      "disabled": "已禁用",
-      "error": "异常"
-    },
-    "plugin_scope": {
-      "platform_only": "仅管理端",
-      "all_tenants": "管理端和所有租户",
-      "assigned_tenants": "管理端和部分租户",
-      "tenant_only": "仅部分租户",
-      "global": "全局生效"
-    },
-    "plugin_category": {
-      "ai_model": "AI 模型适配器",
-      "ai_skill": "AI 技能扩展",
-      "storage": "存储驱动",
-      "notification": "通知渠道",
-      "integration": "第三方集成",
-      "devtool": "开发者工具",
-      "analytics": "数据分析",
-      "security": "安全增强",
-      "theme": "主题与 UI",
-      "other": "其他"
-    },
-    "plugin_install_source": {
-      "local": "本地安装",
-      "marketplace": "插件市场",
-      "builtin": "系统内置",
-      "entry_point": "入口点安装"
     },
     "knowledge_base": {
       "status": {
@@ -2099,79 +2058,6 @@
       "is_active": "覆盖启用状态"
     }
   },
-  "plugin": {
-    "slack_skill": {
-      "display_name": "Slack 通知"
-    },
-    "not_found": "插件不存在",
-    "already_exists": "插件名称已存在",
-    "is_system": "系统内置插件不可执行此操作",
-    "cannot_uninstall_system": "系统内置插件不可卸载",
-    "cannot_disable_system": "系统内置插件不可禁用",
-    "dependency_missing": "缺少依赖插件: {name}",
-    "dependency_conflict": "与已安装插件冲突: {name}",
-    "has_dependents": "其他插件依赖此插件: {names}",
-    "invalid_manifest": "插件 manifest 不合法",
-    "entry_point_not_found": "入口点加载失败: {entry_point}",
-    "install_hook_failed": "插件安装钩子执行失败",
-    "enable_hook_failed": "插件启用钩子执行失败",
-    "already_at_version": "插件已是当前版本: {version}",
-    "has_conflicts": "与已安装插件冲突",
-    "unmet_dependencies": "缺少依赖插件",
-    "platform_version_mismatch": "不满足平台版本要求",
-    "file_must_be_nap": "文件必须为 .nap 格式",
-    "file_must_be_zip_or_nap": "文件必须为 .zip 或 .nap 格式",
-    "file_required": "请选择要上传的文件",
-    "plugin_dir_not_found": "插件源码目录未找到",
-    "dependency_not_installed": "未安装",
-    "dependency_version_mismatch": "已安装版本 {version} 不匹配",
-    "config_validation_failed": "插件配置校验失败",
-    "upgrade_hook_failed": "插件升级钩子执行失败",
-    "upload_conflict": "同名插件已存在，是否覆盖升级？",
-    "dependency_install_failed": "插件 Python 依赖安装失败",
-    "dependency_install_timeout": "插件 Python 依赖安装超时",
-    "packages_not_whitelisted": "以下依赖包不在安全白名单中，请联系管理员审批: {packages}",
-    "migration_failed": "插件数据库迁移执行失败",
-    "skill_type_conflict": "技能类型已被其他插件注册",
-    "storage_driver_conflict": "存储驱动标识已被其他插件注册",
-    "already_enabled": "插件已处于启用状态",
-    "not_enabled": "插件未处于启用状态",
-    "downgrade_not_allowed": "不允许降级插件版本",
-    "tenant_ids_required": "请提供要分配的租户 ID 列表",
-    "tool_name_conflict": "工具名称已被其他插件注册",
-    "install_success": "插件安装成功",
-    "uninstall_success": "插件卸载成功",
-    "enable_success": "插件启用成功",
-    "disable_success": "插件禁用成功",
-    "field": {
-      "name": "插件标识",
-      "display_name": "显示名称",
-      "version": "版本号",
-      "description": "描述",
-      "author": "作者",
-      "plugin_type": "插件类型",
-      "status": "状态",
-      "entry_point": "入口点",
-      "is_system": "系统内置",
-      "config_schema": "配置 Schema",
-      "default_config": "默认配置",
-      "icon": "图标",
-      "homepage": "主页"
-    }
-  },
-  "tenant_plugin": {
-    "not_found": "租户插件记录不存在",
-    "plugin_not_enabled": "该插件未在平台启用",
-    "scope_not_allowed": "该插件仅限平台管理端使用，租户无法启用",
-    "not_assigned": "该插件未分配给当前租户",
-    "enable_success": "插件已为租户启用",
-    "disable_success": "插件已为租户禁用",
-    "field": {
-      "plugin_id": "插件 ID",
-      "is_active": "启用状态",
-      "config": "自定义配置"
-    }
-  },
   "system_agent_assignment": {
     "field": {
       "feature_code": "功能代码",
@@ -2226,7 +2112,6 @@
       "tenant_plan": "租户套餐",
       "tenant": "租户",
       "tenant_domain": "域名",
-      "tenant_plugin": "租户插件",
       "system_agent_assignment": "系统智能体绑定"
     }
   },
@@ -2239,18 +2124,5 @@
     "domains_exceeded": "自定义域名数已达上限 {limit}",
     "api_calls_exceeded": "本月 API 调用次数已达上限 {limit}",
     "file_size_exceeded": "文件大小超出限制 {limit}MB"
-  },
-  "marketplace": {
-    "plugin_not_found": "市场中未找到该插件",
-    "plugin_already_installed": "该插件已安装",
-    "plugin_not_installed": "该插件未安装",
-    "plugin_directory_exists": "插件目录已存在，请先卸载旧版本",
-    "platform_version_incompatible": "当前平台版本不满足该插件的最低版本要求",
-    "already_latest_version": "已是最新版本，无需更新",
-    "package_invalid": "插件包校验失败",
-    "no_repository_configured": "该插件未配置仓库地址",
-    "release_not_found": "未找到指定版本的 Release",
-    "no_downloadable_asset": "Release 中未找到可下载的插件包",
-    "download_failed": "插件包下载失败"
   }
 }
