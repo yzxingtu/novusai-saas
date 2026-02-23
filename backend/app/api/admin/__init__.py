@@ -103,6 +103,9 @@ admin_router.include_router(notification_preferences_router)
 # 通知模板管理
 from app.api.admin.notification_templates import router as notification_templates_router, AdminNotificationTemplateController
 admin_router.include_router(notification_templates_router)
+# 插件管理
+from app.api.admin.plugins import router as plugins_router, AdminPluginController
+admin_router.include_router(plugins_router)
 
 
 __all__ = [
@@ -149,4 +152,6 @@ __all__ = [
     "AdminRecycleBinController",
     # 通知模板
     "AdminNotificationTemplateController",
+    # 插件
+    "AdminPluginController",
 ]

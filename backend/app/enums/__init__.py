@@ -49,6 +49,15 @@ from app.enums.knowledge_base import (
     SearchModeEnum,
     RewriteStrategyEnum,
 )
+from app.enums.plugin import (
+    PluginStatusEnum,
+    PluginScopeEnum,
+    PluginTierEnum,
+    PluginInstallSourceEnum,
+    PluginPricingTypeEnum,
+    PluginLicenseTypeEnum,
+    PluginVersionStatusEnum,
+)
 
 __all__ = [
     # 基类
@@ -114,4 +123,12 @@ __all__ = [
     "ChunkStrategyEnum",
     "SearchModeEnum",
     "RewriteStrategyEnum",
+    # 插件
+    "PluginStatusEnum",
+    "PluginScopeEnum",
+    "PluginTierEnum",
+    "PluginInstallSourceEnum",
+    "PluginPricingTypeEnum",
+    "PluginLicenseTypeEnum",
+    "PluginVersionStatusEnum",
 ]

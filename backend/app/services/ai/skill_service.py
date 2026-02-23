@@ -40,8 +40,20 @@ class SkillService(TenantService[Skill, SkillRepository]):
         return str(level)
 
     async def _before_create(self, data: dict[str, Any]) -> None:
-        """创建前校验：名称唯一性、类型合法性"""
+        """创建前校验：名称唯一性、类型合法性 + 插件钩子"""
         await super()._before_create(data)
+
+        from app.ai.events.hooks import HookPoint, get_hook_registry
+        hook_registry = get_hook_registry()
+        if hook_registry.has_hooks(HookPoint.BEFORE_SKILL_CREATE):
+            ctx = await hook_registry.trigger(
+                HookPoint.BEFORE_SKILL_CREATE,
+                tenant_id=self.repo.tenant_id,
+                skill_data=data,
+            )
+            if ctx.get("blocked"):
+                raise BusinessException(message=ctx.get("block_reason", _("skill.error.blocked_by_hook")))
+            data.update(ctx.get("skill_data", data))
 
         name = data.get("name")
         if name:
@@ -57,9 +69,35 @@ class SkillService(TenantService[Skill, SkillRepository]):
         security_level = await self._get_toolkit_security_level()
         self._parse_toolkit_meta(data, skill_type, security_level)
 
+    async def _after_create(self, instance: Skill) -> None:
+        """创建后：触发插件钩子"""
+        await super()._after_create(instance)
+        from app.ai.events.hooks import HookPoint, get_hook_registry
+        hook_registry = get_hook_registry()
+        if hook_registry.has_hooks(HookPoint.AFTER_SKILL_CREATE):
+            await hook_registry.trigger(
+                HookPoint.AFTER_SKILL_CREATE,
+                tenant_id=self.repo.tenant_id,
+                skill_id=instance.id,
+                skill_data=instance.to_dict() if hasattr(instance, "to_dict") else {},
+            )
+
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
-        """更新前校验：名称唯一性、系统技能保护"""
+        """更新前校验：名称唯一性、系统技能保护 + 插件钩子"""
         await super()._before_update(id, data)
+
+        from app.ai.events.hooks import HookPoint, get_hook_registry
+        hook_registry = get_hook_registry()
+        if hook_registry.has_hooks(HookPoint.BEFORE_SKILL_UPDATE):
+            ctx = await hook_registry.trigger(
+                HookPoint.BEFORE_SKILL_UPDATE,
+                tenant_id=self.repo.tenant_id,
+                skill_id=id,
+                updates=data,
+            )
+            if ctx.get("blocked"):
+                raise BusinessException(message=ctx.get("block_reason", _("skill.error.blocked_by_hook")))
+            data.update(ctx.get("updates", data))
 
         skill = await self.repo.get_by_id(id)
         if not skill:
@@ -81,9 +119,33 @@ class SkillService(TenantService[Skill, SkillRepository]):
         security_level = await self._get_toolkit_security_level()
         self._parse_toolkit_meta(data, skill_type, security_level)
 
+    async def _after_update(self, instance: Skill) -> None:
+        """更新后：触发插件钩子"""
+        await super()._after_update(instance)
+        from app.ai.events.hooks import HookPoint, get_hook_registry
+        hook_registry = get_hook_registry()
+        if hook_registry.has_hooks(HookPoint.AFTER_SKILL_UPDATE):
+            await hook_registry.trigger(
+                HookPoint.AFTER_SKILL_UPDATE,
+                tenant_id=self.repo.tenant_id,
+                skill_id=instance.id,
+                updates=instance.to_dict() if hasattr(instance, "to_dict") else {},
+            )
+
     async def _before_delete(self, id: int) -> None:
-        """删除前校验：系统技能不可删除"""
+        """删除前校验：系统技能不可删除 + 插件钩子"""
         await super()._before_delete(id)
+
+        from app.ai.events.hooks import HookPoint, get_hook_registry
+        hook_registry = get_hook_registry()
+        if hook_registry.has_hooks(HookPoint.BEFORE_SKILL_DELETE):
+            ctx = await hook_registry.trigger(
+                HookPoint.BEFORE_SKILL_DELETE,
+                tenant_id=self.repo.tenant_id,
+                skill_id=id,
+            )
+            if ctx.get("blocked"):
+                raise BusinessException(message=ctx.get("block_reason", _("skill.error.blocked_by_hook")))
 
         skill = await self.repo.get_by_id(id)
         if not skill:
@@ -91,6 +153,18 @@ class SkillService(TenantService[Skill, SkillRepository]):
 
         if skill.is_system:
             raise BusinessException(message=_("skill.error.system_protected"))
+
+    async def _after_delete(self, instance: Skill) -> None:
+        """删除后：触发插件钩子"""
+        await super()._after_delete(instance)
+        from app.ai.events.hooks import HookPoint, get_hook_registry
+        hook_registry = get_hook_registry()
+        if hook_registry.has_hooks(HookPoint.AFTER_SKILL_DELETE):
+            await hook_registry.trigger(
+                HookPoint.AFTER_SKILL_DELETE,
+                tenant_id=self.repo.tenant_id,
+                skill_id=instance.id,
+            )
 
     @staticmethod
     def _parse_toolkit_meta(

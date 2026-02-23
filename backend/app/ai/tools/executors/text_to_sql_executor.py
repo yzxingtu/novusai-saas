@@ -189,8 +189,40 @@ class TextToSQLExecutor(BaseToolExecutor):
             final_sql = SQLSafetyValidator.inject_limit(isolated_sql)
             _final_sql = final_sql
 
+            # 4.5 BEFORE_SQL_EXECUTE 钩子（插件可审计/修改 SQL、可阻止执行）
+            from app.ai.events.hooks import HookPoint, get_hook_registry
+            hook_registry = get_hook_registry()
+            if hook_registry.has_hooks(HookPoint.BEFORE_SQL_EXECUTE):
+                hook_ctx = await hook_registry.trigger(
+                    HookPoint.BEFORE_SQL_EXECUTE,
+                    tenant_id=tenant_id,
+                    sql=final_sql,
+                    datasource_id=None,
+                )
+                if hook_ctx.get("blocked"):
+                    reason = hook_ctx.get("block_reason", _("data_intelligence.executor.blocked_by_hook"))
+                    return ToolResult(
+                        tool_call_id=tool_call_id,
+                        name=definition.name,
+                        success=False,
+                        error=reason,
+                    )
+                final_sql = hook_ctx.get("sql", final_sql)
+                _final_sql = final_sql
+
             # 5. 只读执行
             query_result = await self._readonly_executor.execute(final_sql)
+
+            # 5.5 AFTER_SQL_EXECUTE 钩子（插件可过滤/脱敏结果）
+            if hook_registry.has_hooks(HookPoint.AFTER_SQL_EXECUTE):
+                hook_ctx = await hook_registry.trigger(
+                    HookPoint.AFTER_SQL_EXECUTE,
+                    tenant_id=tenant_id,
+                    sql=final_sql,
+                    rows=query_result.rows,
+                    columns=query_result.columns,
+                )
+                query_result.rows = hook_ctx.get("rows", query_result.rows)
 
             # 6. 结果格式化
             formatted = self._formatter.format(query_result, generated)

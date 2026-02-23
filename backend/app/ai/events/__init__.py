@@ -9,8 +9,15 @@ from app.ai.events.types import (
     AgentCreated,
     AgentPublished,
     AgentDisabled,
+    AgentUpdated,
+    AgentDeleted,
+    SkillCreated,
+    SkillUpdated,
+    SkillDeleted,
     ConversationStarted,
+    ConversationCreated,
     MessageAdded,
+    MessageCreated,
     ConversationCompleted,
     ToolCallRequested,
     ToolCallCompleted,
@@ -20,6 +27,13 @@ from app.ai.events.types import (
     ExecutionStarted,
     ExecutionCompleted,
     ExecutionFailed,
+    PluginInstalled,
+    PluginEnabled,
+    PluginDisabled,
+    PluginUninstalled,
+    KnowledgeBaseUpdated,
+    DocumentUploaded,
+    ModelCallCompleted,
 )
 from app.ai.events.bus import EventBus, EventHandler, get_event_bus
 from app.ai.events.hooks import (
@@ -30,29 +44,30 @@ from app.ai.events.hooks import (
 )
 
 __all__ = [
-    # 事件基类与具体事件
+    # 事件基类
     "BaseEvent",
-    "AgentCreated",
-    "AgentPublished",
-    "AgentDisabled",
-    "ConversationStarted",
-    "MessageAdded",
-    "ConversationCompleted",
-    "ToolCallRequested",
-    "ToolCallCompleted",
-    "ToolCallFailed",
-    "QuotaWarning",
-    "QuotaExceeded",
-    "ExecutionStarted",
-    "ExecutionCompleted",
-    "ExecutionFailed",
+    # 智能体
+    "AgentCreated", "AgentPublished", "AgentDisabled",
+    "AgentUpdated", "AgentDeleted",
+    # 技能
+    "SkillCreated", "SkillUpdated", "SkillDeleted",
+    # 对话
+    "ConversationStarted", "ConversationCreated",
+    "MessageAdded", "MessageCreated", "ConversationCompleted",
+    # 工具
+    "ToolCallRequested", "ToolCallCompleted", "ToolCallFailed",
+    # 配额
+    "QuotaWarning", "QuotaExceeded",
+    # 执行
+    "ExecutionStarted", "ExecutionCompleted", "ExecutionFailed",
+    # 插件
+    "PluginInstalled", "PluginEnabled", "PluginDisabled", "PluginUninstalled",
+    # 知识库
+    "KnowledgeBaseUpdated", "DocumentUploaded",
+    # 模型
+    "ModelCallCompleted",
     # 事件总线
-    "EventBus",
-    "EventHandler",
-    "get_event_bus",
+    "EventBus", "EventHandler", "get_event_bus",
     # 钩子系统
-    "HookPoint",
-    "HookHandler",
-    "HookRegistry",
-    "get_hook_registry",
+    "HookPoint", "HookHandler", "HookRegistry", "get_hook_registry",
 ]

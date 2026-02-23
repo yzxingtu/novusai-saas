@@ -37,6 +37,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 - **禁止裸返回**：后端必须用 `success()` / `created()` / `paginated()` 等统一响应
 - **禁止手写重复 Schema**：前端用 `searchInput()` / `inputField()` 等辅助函数
 - **禁止敏感信息入代码**：密钥、密码、Token 通过环境变量
+- **禁止在主系统中写入插件代码**：插件组件/逻辑/locale 只能在 `backend/plugins/{name}/` 内，前端通过 UMD 动态加载
 
 ---
 
@@ -226,6 +227,252 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 
 ---
 
+## 十五、插件开发
+
+插件系统采用**零侵入架构**：plugin.yaml 声明式清单 + PluginBase 生命周期钩子 + PluginContext 沙箱 API + UMD 前端动态加载。
+
+**核心原则：插件代码（后端逻辑、前端组件、国际化文件）只能存在于 `backend/plugins/{name}/` 内，严禁写入主系统代码中。**
+
+### 核心文件
+
+| 框架文件 | 职责 |
+|----------|------|
+| `app/plugins/base.py` | PluginBase 抽象基类（5 个生命周期钩子） |
+| `app/plugins/manifest.py` | plugin.yaml Pydantic Schema（30+ 子 Schema） |
+| `app/plugins/loader.py` | 插件发现 / 清单解析 / 主类加载 / README / i18n |
+| `app/plugins/lifecycle.py` | install(10 步) / enable / disable / uninstall(14 步) |
+| `app/plugins/context.py` | PluginContext 沙箱 + PluginDbProxy 表前缀隔离 |
+| `app/plugins/registry.py` | ExtensionRegistry 单例（9 种扩展类型注册 + 反注册） |
+| `app/plugins/exceptions.py` | 7 个异常类（4230-4236 错误码） |
+
+### 插件目录结构
+
+```
+backend/plugins/{name}/
+├── plugin.yaml              # 清单（必须）
+├── README.md
+├── backend/
+│   ├── __init__.py          # 空文件（必须）
+│   ├── main.py              # PluginBase 子类（必须）
+│   ├── skills/              # Skill Resolver（按需）
+│   ├── executors/           # Tool Executor（按需）
+│   ├── api/                 # API handler（按需）
+│   └── migrations/versions/ # Alembic 迁移（按需）
+├── frontend/                # 前端 UMD 包（按需）
+│   ├── package.json         # 构建依赖
+│   ├── vite.config.ts       # UMD 构建配置
+│   ├── src/                 # Vue SFC 源码
+│   │   ├── index.ts         # 入口：export 组件 + setup()
+│   │   └── *.vue            # 组件文件
+│   └── dist/                # 构建产物（index.js + *.css）
+└── locales/                 # zh-CN.json + en.json
+```
+
+### plugin.yaml 最小模板
+
+```yaml
+name: my-plugin                    # 小写 kebab-case（正则: ^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$）
+version: "1.0.0"
+display_name:
+  zh-CN: "我的插件"
+  en: "My Plugin"
+scope: all_tenants                 # admin_only|all_tenants|assigned_tenants|admin_and_all|admin_and_assigned
+capabilities:
+  - db:own_tables                  # 按需声明: db:own_tables / http:outbound / storage:read / storage:write / ai:call / config:write / notifications:send
+extensions:
+  skills: []                       # 9 种扩展点: skills/adapters/storage_drivers/api/hooks/tasks/notifications/permissions/webhooks/events/frontend
+```
+
+### config_schema（插件配置表单）
+
+在 `plugin.yaml` 中声明 `config_schema`，前端配置抽屉会自动渲染表单。格式为简化版 JSON Schema：
+
+```yaml
+config_schema:
+  type: object
+  properties:
+    default_city:
+      type: string           # string / integer / boolean
+      title: "默认城市"       # 表单标签
+      description: "..."     # 说明文字（可选）
+      default: "Shanghai"    # 默认值
+    temperature_unit:
+      type: string
+      title: "温度单位"
+      enum: ["celsius", "fahrenheit"]  # 枚举 → 下拉框
+      default: "celsius"
+    forecast_days:
+      type: integer
+      title: "预报天数"
+      minimum: 1             # 数字最小值
+      maximum: 7             # 数字最大值
+      default: 3
+    auto_refresh:
+      type: boolean
+      title: "自动刷新"
+      default: true
+```
+
+**支持的字段类型：**
+- `string` → 文本输入框（有 `enum` 时渲染为下拉框）
+- `integer` / `number` → 数字输入框（支持 `minimum`/`maximum`）
+- `boolean` → 复选框
+
+**读取配置：** 在 handler/executor 中通过 `ctx.get_config()` 或 `config` 参数获取。
+
+### PluginBase 生命周期
+
+```python
+from app.plugins.base import PluginBase
+
+class MyPlugin(PluginBase):
+    async def on_install(self, ctx):   ...  # 首次安装 → 初始化种子数据
+    async def on_enable(self, ctx):    ...  # 启用 → 启动后台任务
+    async def on_disable(self, ctx):   ...  # 禁用 → 清理后台任务
+    async def on_uninstall(self, ctx): ...  # 卸载前 → 清理自定义数据
+    async def on_upgrade(self, ctx, old_version): ...  # 升级后 → 数据迁移
+```
+
+### PluginContext 核心 API
+
+```python
+await ctx.get_config()                        # 读取配置（自动解密 x-encrypted 字段）
+db = ctx.get_db()                             # PluginDbProxy（仅 px_{name}_* 表）→ 需 db:own_tables
+storage = await ctx.get_storage()             # 命名空间限定 plugins/{name}/ → 需 storage:read|write
+result = await ctx.http_request("GET", url)   # 自动 30s 超时 → 需 http:outbound
+text = await ctx.call_ai_feature("ai_writer", messages)  # 查 SystemAgentAssignment → 需 ai:call
+logger = ctx.get_logger()                     # Logger 名称: plugin.{name}
+```
+
+### 命名规范
+
+| 项目 | 格式 | 示例 |
+|------|------|------|
+| DB 表 | `px_{name_underscored}_*` | `px_novusdoc_documents` |
+| Alembic 分支 | `plugin_{name_underscored}` | `plugin_novusdoc` |
+| i18n Key | `plugin.{name}.*` | `plugin.novusdoc.title` |
+| API 路径 | `/admin/plugins/{name}/api/*` | `/admin/plugins/novusdoc/api/docs` |
+| AI feature_code | `plugin.{name}.{code}` | `plugin.novusdoc.ai_writer` |
+| 前端全局变量 | `NovusPlugin_{name_underscored}` | `NovusPlugin_novusdoc` |
+
+### CLI 工具
+
+```bash
+# 创建插件骨架（3 种模板）
+python scripts/plugin_cli.py create my-plugin --template=minimal      # 纯后端
+python scripts/plugin_cli.py create my-plugin --template=skill        # + Skill/Executor
+python scripts/plugin_cli.py create my-plugin --template=full-module  # + 前端骨架 + API + 迁移
+
+# 校验（yaml + main.py + 前端 dist + scoped CSS 扫描 + 安全扫描）
+python scripts/plugin_cli.py validate plugins/my-plugin
+
+# 打包（自动排除 node_modules/__pycache__/.git）
+python scripts/plugin_cli.py pack plugins/my-plugin
+```
+
+### 插件前端双模式加载
+
+插件前端采用 **双模式加载**架构：
+
+| 模式 | 场景 | 加载方式 |
+|------|------|----------|
+| **dev 模式** | `pnpm dev` 开发调试 | Vite 直接编译插件 SFC（HMR 热更新） |
+| **build 内置** | `pnpm build` 生产构建 | 有源码的插件编入主 bundle（code split） |
+| **UMD 动态** | 生产环境运行时安装 | `<script>` 加载 `/plugin-assets/{name}/index.js` |
+
+**加载优先级**：`BUILTIN_PLUGINS`（Vite 编译）→ UMD `<script>` → 跳过
+
+**dev 模式开发体验**：
+1. 把插件目录放到 `backend/plugins/`
+2. 启动 `pnpm dev` → Vite 自动发现并编译插件 SFC
+3. 修改 `.vue` 文件 → 浏览器自动刷新（不需要 `npm install` 或 `vite build`）
+
+**发布前编译**（仅一次）：
+```bash
+cd backend/plugins/my-plugin/frontend
+npm install && npx vite build    # → dist/index.js (UMD)
+```
+
+**样式规范**：
+- ✅ 样式放 `styles.ts`，通过 `setup()` JS 注入到 `<head>`
+- ✅ CSS 类名以插件缩写前缀（如 `.wx-`、`.mp-`）
+- ❌ 禁止 `<style scoped>` — Popover/Modal portal 中失效
+- ❌ 禁止 `<style>` 块 — UMD 构建时提取为 CSS 文件需额外加载
+
+**插件 SFC 导入规则**：
+- `import { ref, computed } from 'vue'` — dev 模式由主项目 node_modules 解析，UMD 模式 external → `window.Vue`
+- `import { Popover } from 'ant-design-vue'` — 同上，UMD → `window.AntDesignVue`
+- `import { IconifyIcon, $t, requestClient } from '@novus/plugin-shared'` — dev 模式由 Vite alias 解析为 `plugin-shared.ts` 的 ES export，UMD 模式 external → `window.NovusPluginShared`
+- **禁止** `import { $t } from '#/locales'` — 这是宿主路径别名，插件不可用
+- **禁止** `export default` — 插件 `index.ts` 只使用命名导出（`export function setup`、`export { MyWidget }`），Vite 虚拟模块通过 `export *` 转发
+
+**宿主 `plugin-shared.ts` 双模式支持**：
+- UMD 模式：`exposePluginShared()` 将 `$t`/`IconifyIcon`/`requestClient` 等挂载到 `window.NovusPluginShared`
+- dev 模式：同一文件通过 `export { $t, IconifyIcon, requestClient, usePluginSlotsStore }` 提供 ES module 导出，Vite alias `@novus/plugin-shared` 指向此文件
+- **新增共享 API 时必须同时添加 `window` 挂载和 ES export**，否则 dev 或 UMD 模式之一会 break
+
+### 可用 HookPoint（28 个）
+
+插件可通过 `plugin.yaml` 的 `hooks` 声明注册任意钩子。BEFORE_* 可修改参数/阻止操作，AFTER_* 可修改结果。
+
+| 分组 | 钩子点 |
+|------|--------|
+| 执行 | `before_execute` / `after_execute` |
+| 消息 | `before_message_save` / `after_message_save` |
+| 工具 | `before_tool_call` / `after_tool_call` |
+| LLM | `before_llm_call` / `after_llm_call` |
+| 上下文 | `before_context_build` / `after_context_build` |
+| 技能解析 | `before_skill_resolve` / `after_skill_resolve` |
+| 技能 CRUD | `before/after_skill_create` / `update` / `delete` |
+| 智能体 CRUD | `before/after_agent_create` / `update` / `delete` |
+| 对话 | `before/after_agent_chat` / `before/after_conversation_create` |
+| 模型调用 | `before_model_call` / `after_model_call` |
+| 知识库 | `before_kb_search` / `after_kb_search` |
+| 数据智能 | `before_sql_execute` / `after_sql_execute` |
+
+### 可用 EventBus 事件（26 个）
+
+插件可通过 `plugin.yaml` 的 `events` 声明订阅事件（异步通知，只读不可修改）。
+
+- **智能体**: `AgentCreated` / `AgentPublished` / `AgentDisabled` / `AgentUpdated` / `AgentDeleted`
+- **技能**: `SkillCreated` / `SkillUpdated` / `SkillDeleted`
+- **对话**: `ConversationStarted` / `ConversationCreated` / `MessageAdded` / `MessageCreated` / `ConversationCompleted`
+- **工具**: `ToolCallRequested` / `ToolCallCompleted` / `ToolCallFailed`
+- **执行**: `ExecutionStarted` / `ExecutionCompleted` / `ExecutionFailed`
+- **插件**: `PluginInstalled` / `PluginEnabled` / `PluginDisabled` / `PluginUninstalled`
+- **知识库**: `KnowledgeBaseUpdated` / `DocumentUploaded`
+- **模型**: `ModelCallCompleted`
+
+### 关键禁令
+
+- **禁止在主系统代码中写入插件组件/逻辑/国际化** — 插件所有代码必须在 `backend/plugins/{name}/` 内
+- **禁止硬编码插件组件映射** — 不允许在宿主代码中 `import` 或 `import.meta.glob` 插件组件
+- **禁止在主系统 `locales/` 中放插件翻译** — 插件 i18n 通过 `setup()` 的 `registerLocale()` 动态注册
+- **禁止操作非 `px_{name}_*` 前缀的表** — PluginDbProxy 会拦截并抛出 `PluginSecurityError`
+- **禁止不声明 capability 就调用受限 API** — `_require()` 检查失败抛 `PluginSecurityError`
+- **禁止 `eval/exec/subprocess`** — 安全扫描 `security_scan.py` 会警告
+- **禁止直接 import 其他插件内部模块** — 通过 EventBus 或公开 API 通信
+- **Executor 文件名必须匹配** — `{skill_type}_executor.py`（type 中 `-` 替换为 `_`）
+- **Alembic 迁移必须声明 branch_labels** — `branch_labels = ('plugin_{name_underscored}',)`
+
+### 关键文件索引
+
+| 宿主文件 | 职责 |
+|----------|------|
+| `frontend/.../utils/plugin-shared.ts` | 暴露 `window.Vue` / `NovusPluginShared` 共享依赖 |
+| `frontend/.../utils/plugin-loader.ts` | UMD `<script>` 加载 + CSS 加载 + `setup()` 调用 |
+| `frontend/.../composables/use-plugin-frontend-init.ts` | 获取已启用插件 → 动态加载 UMD → 注册到 slots store |
+| `frontend/.../stores/plugin-slots.ts` | Pinia 插槽 Store（5 种插槽类型） |
+| `frontend/.../layouts/basic.vue` | `#header-right-89` 渲染 `headerWidgets` |
+| `backend/app/main.py` | `/plugin-assets/{name}/` 静态资源路由 |
+| `backend/app/middleware/access_control.py` | `/plugin-assets` 在豁免路径列表中 |
+
+→ 完整规范 + 代码示例：`references/plugin-spec.md`
+→ 插件开发者指南：`docs/guides/plugin-developer-guide.md`
+→ 示例插件：`backend/plugins/weather-widget/`
+
+---
+
 ## 参考文件索引
 
 | 文件 | 内容 |
@@ -241,3 +488,4 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 | `references/email-spec.md` | 邮件发送规范（架构/触发来源/配置/规则） |
 | `references/deletion-deps.md` | 删除依赖保护规范（5 种策略/声明语法/前端弹窗/回收站） |
 | `references/notification-spec.md` | 通知系统规范（渠道驱动/模板编码/队列/扩展） |
+| `references/plugin-spec.md` | **插件系统开发规范（manifest/生命周期/Context/扩展点/迁移/安全）** |

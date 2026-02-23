@@ -14,9 +14,11 @@ Skill 解析器
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any, TYPE_CHECKING
 
+from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
 from app.enums.agent import SkillTypeEnum, ToolTypeEnum
@@ -707,12 +709,40 @@ class SkillResolver:
         result: SkillResolveResult,
     ) -> None:
         """
-        未知技能类型的 fallback 处理（插件系统待重建）
+        插件技能类型解析 — 查询 ExtensionRegistry 获取插件提供的 resolver
+
+        插件在 enable 时通过 ExtensionRegistry.register_skill() 注册了
+        resolver 函数，此处查找并调用它将 Skill → ToolDefinition。
         """
-        logger.warning(
-            "Unknown skill type: %s (skill=%d), skipping",
-            skill.type, skill.id,
-        )
+        from app.plugins.registry import ExtensionRegistry
+
+        registry = ExtensionRegistry.get_instance()
+        resolver_func = registry.get_plugin_skill_resolver(skill.type)
+
+        if resolver_func is None:
+            logger.warning(
+                "Unknown skill type: %s (skill=%d), no plugin resolver registered",
+                skill.type, skill.id,
+            )
+            return
+
+        try:
+            tool_defs = await resolver_func(skill, config) if asyncio.iscoroutinefunction(resolver_func) else resolver_func(skill, config)
+            if isinstance(tool_defs, list):
+                for td in tool_defs:
+                    td.source_skill_id = skill.id
+                    td.source_skill_name = skill.name
+                    td.source_skill_type = skill.type
+                    result.tools.append(td)
+                logger.info(
+                    "Plugin skill '%s' (type=%s) resolved %d tools",
+                    skill.name, skill.type, len(tool_defs),
+                )
+        except Exception as exc:
+            logger.error(
+                "Plugin skill resolver failed for '%s' (type=%s): %s",
+                skill.name, skill.type, exc,
+            )
 
     # ========================================
     # 辅助方法
@@ -867,6 +897,18 @@ async def resolve_for_agent(
     if not skills:
         return None
 
+    # ── Hook: BEFORE_SKILL_RESOLVE — 插件可注入/修改 skills 列表 ──
+    hook_registry = get_hook_registry()
+    if hook_registry.has_hooks(HookPoint.BEFORE_SKILL_RESOLVE):
+        hook_ctx = await hook_registry.trigger(
+            HookPoint.BEFORE_SKILL_RESOLVE,
+            tenant_id=agent_tenant_id,
+            agent_id=agent.id,
+            skills=skills,
+            skill_packages=package_ids,
+        )
+        skills = hook_ctx.get("skills", skills)
+
     # ── Phase 2: 解析 Skill → ToolDefinition（单个失败降级） ──
     skill_config_overrides: dict[int, dict[str, Any]] = {}
     pkg_valves: dict[int, dict[str, Any]] = {}
@@ -920,6 +962,16 @@ async def resolve_for_agent(
             ]
         if tool.source_skill_id and tool.source_skill_id in package_name_by_skill:
             tool.source_package_name = package_name_by_skill[tool.source_skill_id]
+
+    # ── Hook: AFTER_SKILL_RESOLVE — 插件可修改 tool_definitions ──
+    if hook_registry.has_hooks(HookPoint.AFTER_SKILL_RESOLVE):
+        hook_ctx = await hook_registry.trigger(
+            HookPoint.AFTER_SKILL_RESOLVE,
+            tenant_id=agent_tenant_id,
+            agent_id=agent.id,
+            tool_definitions=resolve_result.tools,
+        )
+        resolve_result.tools = hook_ctx.get("tool_definitions", resolve_result.tools)
 
     logger.info(
         "Resolved skills for agent=%s: packages=%s, tools=%s, kb_ids=%s, warnings=%d",

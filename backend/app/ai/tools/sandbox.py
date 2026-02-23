@@ -249,8 +249,17 @@ class ToolSandbox:
                 error=reason,
             )
 
-        # 4. 获取执行器
+        # 4. 获取执行器（内置 → 插件 fallback）
         executor = self._executors.get(definition.tool_type)
+        if not executor:
+            # 查询插件注册的执行器
+            try:
+                from app.plugins.registry import ExtensionRegistry
+                plugin_executor_factory = ExtensionRegistry.get_instance().get_plugin_executor(definition.tool_type)
+                if plugin_executor_factory:
+                    executor = plugin_executor_factory() if callable(plugin_executor_factory) else plugin_executor_factory
+            except Exception as pe:
+                logger.warning("Plugin executor lookup failed for %s: %s", definition.tool_type, pe)
         if not executor:
             return ToolResult(
                 tool_call_id=tool_call_id,

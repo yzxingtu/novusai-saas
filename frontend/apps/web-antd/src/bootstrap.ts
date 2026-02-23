@@ -86,6 +86,10 @@ async function bootstrap(namespace: string) {
     }
   });
 
+  // 暴露插件共享依赖到 window（供插件 UMD 包引用）
+  const { exposePluginShared } = await import('#/utils/plugin-shared');
+  exposePluginShared();
+
   app.mount('#app');
 }
 

@@ -20,28 +20,108 @@ class HookPoint:
     """
     钩子点枚举
 
-    定义执行流水线中可注入钩子的位置
+    定义执行流水线中可注入钩子的位置。
+    钩子与事件不同：BEFORE_* 钩子可修改参数或阻止操作（blocked=True），
+    AFTER_* 钩子可修改返回结果或触发后续操作。
+
+    参数约定：
+      - 所有钩子均接收 tenant_id
+      - BEFORE_* 钩子可返回 {"blocked": True, "block_reason": "..."} 阻止操作
+      - BEFORE_* 钩子可返回修改后的参数字段来覆盖原始值
+      - AFTER_* 钩子可返回修改后的 result 字段
     """
 
-    # 执行前后
+    # ── 执行前后（Dispatcher 层） ──
+    # params: tenant_id, agent_id, execution_mode, request
     BEFORE_EXECUTE = "before_execute"
+    # params: tenant_id, agent_id, result
     AFTER_EXECUTE = "after_execute"
 
-    # 消息处理前后
+    # ── 消息处理 ──
+    # params: tenant_id, conversation_id, role, content | 可修改 content
     BEFORE_MESSAGE_SAVE = "before_message_save"
+    # params: tenant_id, conversation_id, message_id, role, content
     AFTER_MESSAGE_SAVE = "after_message_save"
 
-    # 工具调用前后
+    # ── 工具调用（Sandbox 层） ──
+    # params: tenant_id, agent_id, tool_name, arguments, definition | 可修改 arguments
     BEFORE_TOOL_CALL = "before_tool_call"
+    # params: tenant_id, agent_id, tool_name, result
     AFTER_TOOL_CALL = "after_tool_call"
 
-    # LLM 调用前后
+    # ── LLM 调用 ──
+    # params: tenant_id, agent_id, model, messages, config | 可修改 messages, config
     BEFORE_LLM_CALL = "before_llm_call"
+    # params: tenant_id, agent_id, model, response, usage
     AFTER_LLM_CALL = "after_llm_call"
 
-    # 上下文构建
+    # ── 上下文构建 ──
+    # params: tenant_id, agent_id, messages | 可修改 messages
     BEFORE_CONTEXT_BUILD = "before_context_build"
+    # params: tenant_id, agent_id, messages, system_prompt | 可修改 system_prompt
     AFTER_CONTEXT_BUILD = "after_context_build"
+
+    # ── 技能解析（Skill Resolver） ──
+    # params: tenant_id, agent_id, skill_packages | 可修改 skill_packages（注入额外技能）
+    BEFORE_SKILL_RESOLVE = "before_skill_resolve"
+    # params: tenant_id, agent_id, tool_definitions | 可修改 tool_definitions
+    AFTER_SKILL_RESOLVE = "after_skill_resolve"
+
+    # ── 技能 CRUD ──
+    # params: tenant_id, skill_data | 可修改 skill_data, 可阻止
+    BEFORE_SKILL_CREATE = "before_skill_create"
+    # params: tenant_id, skill_id, skill_data
+    AFTER_SKILL_CREATE = "after_skill_create"
+    # params: tenant_id, skill_id, updates | 可修改 updates, 可阻止
+    BEFORE_SKILL_UPDATE = "before_skill_update"
+    # params: tenant_id, skill_id, updates
+    AFTER_SKILL_UPDATE = "after_skill_update"
+    # params: tenant_id, skill_id | 可阻止
+    BEFORE_SKILL_DELETE = "before_skill_delete"
+    # params: tenant_id, skill_id
+    AFTER_SKILL_DELETE = "after_skill_delete"
+
+    # ── 智能体 CRUD ──
+    # params: tenant_id, agent_data | 可修改 agent_data, 可阻止
+    BEFORE_AGENT_CREATE = "before_agent_create"
+    # params: tenant_id, agent_id, agent_data
+    AFTER_AGENT_CREATE = "after_agent_create"
+    # params: tenant_id, agent_id, updates | 可修改 updates, 可阻止
+    BEFORE_AGENT_UPDATE = "before_agent_update"
+    # params: tenant_id, agent_id, updates
+    AFTER_AGENT_UPDATE = "after_agent_update"
+    # params: tenant_id, agent_id | 可阻止
+    BEFORE_AGENT_DELETE = "before_agent_delete"
+    # params: tenant_id, agent_id
+    AFTER_AGENT_DELETE = "after_agent_delete"
+
+    # ── 对话（Chat） ──
+    # params: tenant_id, agent_id, messages, config | 可修改 messages, config（注入 system prompt 等）
+    BEFORE_AGENT_CHAT = "before_agent_chat"
+    # params: tenant_id, agent_id, response | 可修改 response
+    AFTER_AGENT_CHAT = "after_agent_chat"
+    # params: tenant_id, agent_id, title | 可修改 title
+    BEFORE_CONVERSATION_CREATE = "before_conversation_create"
+    # params: tenant_id, agent_id, conversation_id
+    AFTER_CONVERSATION_CREATE = "after_conversation_create"
+
+    # ── 模型调用（Gateway 层） ──
+    # params: tenant_id, provider, model, prompt, parameters | 可修改 prompt, parameters
+    BEFORE_MODEL_CALL = "before_model_call"
+    # params: tenant_id, provider, model, response, token_usage | 可修改 response
+    AFTER_MODEL_CALL = "after_model_call"
+
+    # ── 知识库 ──
+    # params: tenant_id, query, kb_ids, top_k | 可修改 query, top_k
+    BEFORE_KB_SEARCH = "before_kb_search"
+    # params: tenant_id, query, results | 可修改 results（过滤/重排）
+    AFTER_KB_SEARCH = "after_kb_search"
+
+    # ── 数据智能（SQL） ──
+    # params: tenant_id, sql, datasource_id | 可修改 sql, 可阻止
+    BEFORE_SQL_EXECUTE = "before_sql_execute"
+    # params: tenant_id, sql, rows, columns | 可修改 rows（脱敏/过滤）
+    AFTER_SQL_EXECUTE = "after_sql_execute"
 
 
 class _HookEntry:

@@ -269,6 +269,21 @@ class HybridRetriever:
         mode = search_mode or knowledge_base.search_mode or "hybrid"
         target_kb_ids = kb_ids or [knowledge_base.id]
 
+        # ── Hook: BEFORE_KB_SEARCH — 插件可修改 query/top_k/kb_ids ──
+        from app.ai.events.hooks import HookPoint, get_hook_registry
+        hook_registry = get_hook_registry()
+        if hook_registry.has_hooks(HookPoint.BEFORE_KB_SEARCH):
+            hook_ctx = await hook_registry.trigger(
+                HookPoint.BEFORE_KB_SEARCH,
+                tenant_id=self.tenant_id,
+                query=query,
+                kb_ids=target_kb_ids,
+                top_k=top_k,
+            )
+            query = hook_ctx.get("query", query)
+            target_kb_ids = hook_ctx.get("kb_ids", target_kb_ids)
+            top_k = hook_ctx.get("top_k", top_k)
+
         # 尝试从 Redis 缓存读取
         cache_key = self._build_cache_key(
             target_kb_ids, query, mode, top_k, score_threshold,
@@ -277,6 +292,15 @@ class HybridRetriever:
         cached = await self._get_cache(cache_key)
         if cached is not None:
             logger.info("Search cache hit: %s", cache_key)
+            # 缓存命中也需过 AFTER hook（插件可能做权限过滤/脱敏）
+            if hook_registry.has_hooks(HookPoint.AFTER_KB_SEARCH):
+                hook_ctx = await hook_registry.trigger(
+                    HookPoint.AFTER_KB_SEARCH,
+                    tenant_id=self.tenant_id,
+                    query=query,
+                    results=cached,
+                )
+                cached = hook_ctx.get("results", cached)
             return cached
 
         # 1. 查询改写
@@ -317,6 +341,16 @@ class HybridRetriever:
             from app.ai.rag.reranker import LLMReranker
             reranker = LLMReranker(self.db, self.tenant_id, llm_model)
             results = await reranker.rerank(query, results, top_k=top_k)
+
+        # ── Hook: AFTER_KB_SEARCH — 插件可过滤/重排结果 ──
+        if hook_registry.has_hooks(HookPoint.AFTER_KB_SEARCH):
+            hook_ctx = await hook_registry.trigger(
+                HookPoint.AFTER_KB_SEARCH,
+                tenant_id=self.tenant_id,
+                query=query,
+                results=results,
+            )
+            results = hook_ctx.get("results", results)
 
         # 写入 Redis 缓存
         await self._set_cache(cache_key, results)

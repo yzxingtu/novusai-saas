@@ -140,7 +140,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("Celery broker connected")
         except Exception as celery_err:
             logger.warning(f"Celery broker connection failed: {celery_err}")
-        
+
+        # 恢复已启用的插件扩展点注册
+        try:
+            from app.plugins.startup import restore_enabled_plugins
+            async with async_session_factory() as db:
+                plugin_result = await restore_enabled_plugins(db)
+                if plugin_result["total"] > 0:
+                    logger.info(
+                        f"Plugin restore: "
+                        f"restored={plugin_result['restored']}, "
+                        f"failed={plugin_result['failed']}, "
+                        f"total={plugin_result['total']}"
+                    )
+        except Exception as plugin_err:
+            logger.warning(f"Plugin restore failed: {plugin_err}")
+
     except Exception as e:
         # 确保启动阶段的错误能够被记录和显示
         import traceback
@@ -355,6 +370,15 @@ def create_application() -> FastAPI:
     # 注册平台管理后台路由 (/admin/*)
     from app.api.admin import admin_router
     app.include_router(admin_router, prefix="/admin")
+
+    # 注册插件 API 分发器
+    from app.plugins.api_dispatcher import plugin_api_router, plugin_tenant_api_router
+    app.include_router(plugin_api_router, prefix="/admin")          # /admin/plugins/{name}/api/*
+    app.include_router(plugin_tenant_api_router, prefix="/tenant")  # /tenant/plugins/{name}/api/*
+
+    # 注册插件 Webhook 分发器 (/webhooks/plugins/{name}/{path}) — 不走认证中间件
+    from app.plugins.webhook_dispatcher import webhook_router
+    app.include_router(webhook_router)
     
     # 注册租户管理后台路由 (/tenant/*)
     from app.api.tenant import tenant_router
@@ -369,9 +393,58 @@ def create_application() -> FastAPI:
     app.include_router(public_router, prefix="/api/public")
 
     # ========================================
-    # 挂载本地存储静态文件目录
+    # 挂载插件前端静态资源目录
     # ========================================
     from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import Response as FastAPIResponse
+    from pathlib import Path as _Path
+
+    PLUGINS_ROOT = _Path(__file__).resolve().parent.parent / "plugins"
+
+    @app.get("/plugin-assets/{plugin_name}/{file_path:path}")
+    async def serve_plugin_asset(plugin_name: str, file_path: str):
+        """
+        插件前端静态资源服务
+        
+        URL: /plugin-assets/{plugin_name}/{file_path}
+        文件系统: plugins/{plugin_name}/frontend/dist/{file_path}
+        """
+        safe_name = plugin_name.replace("..", "").replace("/", "").replace("\\", "")
+        safe_path = file_path.replace("..", "")
+
+        # 优先从 frontend/dist/ 加载（JS/CSS 等前端产物）
+        asset_file = PLUGINS_ROOT / safe_name / "frontend" / "dist" / safe_path
+        # 回退到插件根目录（icon.png 等静态文件）
+        if not asset_file.is_file():
+            asset_file = PLUGINS_ROOT / safe_name / safe_path
+
+        if not asset_file.is_file():
+            return JSONResponse(
+                status_code=404,
+                content={"code": 4040, "message": f"Plugin asset not found: {file_path}"},
+            )
+
+        content = asset_file.read_bytes()
+        content_type = "application/javascript"
+        if safe_path.endswith(".css"):
+            content_type = "text/css"
+        elif safe_path.endswith(".json"):
+            content_type = "application/json"
+        elif safe_path.endswith(".svg"):
+            content_type = "image/svg+xml"
+        elif safe_path.endswith(".png"):
+            content_type = "image/png"
+
+        cache_header = "no-cache" if settings.DEBUG else "public, max-age=3600"
+        return FastAPIResponse(
+            content=content,
+            media_type=content_type,
+            headers={"Cache-Control": cache_header},
+        )
+
+    # ========================================
+    # 挂载本地存储静态文件目录
+    # ========================================
     from app.storage import LOCAL_STORAGE_ROOT
     
     # 确保存储目录存在
@@ -417,4 +490,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=settings.DEBUG,
+        reload_dirs=["app"],
     )

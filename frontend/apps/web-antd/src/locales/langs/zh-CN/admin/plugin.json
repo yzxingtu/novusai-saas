@@ -1,0 +1,188 @@
+{
+  "title": "插件管理",
+  "name": "插件名称",
+  "displayName": "显示名称",
+  "versionLabel": "版本",
+  "description": "描述",
+  "author": "作者",
+  "icon": "图标",
+  "scope": "作用域",
+  "status": "状态",
+  "tier": "信任等级",
+  "installSource": "安装来源",
+  "installedAt": "安装时间",
+  "enabledAt": "启用时间",
+  "tags": "标签",
+  "homepage": "主页",
+  "pricingType": "定价",
+  "errorCount": "错误次数",
+  "capabilitiesLabel": "能力授权",
+  "create": "安装插件",
+  "upload": "上传安装",
+  "marketplaceBtn": "插件市场",
+  "allTypes": "全部类型",
+  "pluginType": "插件类型",
+  "type_options": {
+    "all": "全部",
+    "skill": "技能插件",
+    "hook": "钩子插件",
+    "api": "API 插件",
+    "webhook": "Webhook",
+    "event": "事件插件",
+    "composite": "组合插件",
+    "basic": "基础插件"
+  },
+  "overview": {
+    "total": "全部插件",
+    "enabled": "运行中",
+    "disabled": "已禁用",
+    "error": "异常"
+  },
+  "placeholder": {
+    "searchName": "搜索插件名称",
+    "selectTenants": "选择租户",
+    "selectStatus": "筛选状态",
+    "selectScope": "筛选作用域",
+    "selectType": "筛选类型"
+  },
+  "status_options": {
+    "installed": "已安装",
+    "enabled": "已启用",
+    "disabled": "已禁用",
+    "error": "异常"
+  },
+  "scope_options": {
+    "admin_only": "仅管理端",
+    "all_tenants": "全部租户",
+    "assigned_tenants": "指定租户",
+    "admin_and_all": "管理端+全部租户",
+    "admin_and_assigned": "管理端+指定租户"
+  },
+  "tier_options": {
+    "official": "官方",
+    "verified": "已认证",
+    "community": "社区"
+  },
+  "action": {
+    "enable": "启用",
+    "disable": "禁用",
+    "uninstall": "卸载",
+    "repair": "修复",
+    "configure": "配置",
+    "settings": "设置",
+    "assignTenant": "分配租户",
+    "upgrade": "升级",
+    "rollback": "回退",
+    "detail": "详情"
+  },
+  "confirm": {
+    "enable": "确认启用插件「{name}」？",
+    "disable": "确认禁用插件「{name}」？禁用后所有扩展点将被反注册。",
+    "uninstall": "确认卸载插件「{name}」？此操作不可撤销。",
+    "uninstallWithData": "同时删除插件数据表"
+  },
+  "tab": {
+    "overview": "概览",
+    "config": "配置",
+    "versions": "版本历史",
+    "tenants": "租户分配",
+    "aiFeatures": "AI 功能",
+    "health": "健康状态",
+    "logs": "运行日志"
+  },
+  "detail": {
+    "basicInfo": "基本信息",
+    "capabilities": "能力声明",
+    "readme": "说明文档",
+    "noReadme": "暂无说明文档",
+    "noCapabilities": "无能力声明"
+  },
+  "tenantAssignment": "租户分配",
+  "tenantAssignmentEmpty": "未分配任何租户，此插件在租户端不可用",
+  "config": {
+    "save": "保存配置",
+    "saveSuccess": "配置已保存",
+    "noSchema": "该插件没有配置项"
+  },
+  "version": {
+    "current": "当前版本",
+    "archived": "已归档",
+    "noHistory": "暂无版本历史"
+  },
+  "tenant": {
+    "assign": "分配租户",
+    "unassign": "取消分配",
+    "noAssignment": "无需分配（作用域为全部租户）"
+  },
+  "ai": {
+    "bindAgent": "绑定智能体",
+    "unbind": "取消绑定",
+    "notBound": "未绑定",
+    "noFeatures": "该插件没有 AI 功能"
+  },
+  "health": {
+    "healthy": "健康",
+    "errorCount": "连续错误次数",
+    "lastError": "最近错误",
+    "noError": "运行正常，无错误",
+    "repair": "重置错误计数"
+  },
+  "preview": {
+    "title": "安装预览",
+    "pluginInfo": "插件信息",
+    "extensions": "将注入的扩展",
+    "dependencies": "依赖",
+    "conflicts": "冲突",
+    "warnings": "警告",
+    "capabilities": "请求的能力",
+    "confirmInstall": "全部授权并安装",
+    "cancel": "取消",
+    "noConflicts": "无冲突",
+    "noWarnings": "无警告",
+    "noDependencies": "无额外依赖"
+  },
+  "structureType": {
+    "skills": "技能",
+    "api_routes": "API",
+    "hooks": "钩子",
+    "events": "事件",
+    "webhooks": "Webhook",
+    "tasks": "定时任务",
+    "adapters": "适配器",
+    "storage_drivers": "存储驱动",
+    "notifications": "通知模板",
+    "permissions": "权限",
+    "frontend_menus": "前端菜单"
+  },
+  "marketplace": {
+    "title": "插件市场",
+    "searchPlaceholder": "搜索插件...",
+    "sortDownloads": "按下载量",
+    "sortRating": "按评分",
+    "sortUpdated": "最近更新",
+    "empty": "暂无可用插件",
+    "installed": "已安装",
+    "install": "安装",
+    "confirmInstall": "确认安装此插件？",
+    "downloads": "次安装",
+    "viewDetail": "查看详情",
+    "buyNow": "购买",
+    "settings": "市场设置",
+    "mirrorSource": "镜像源",
+    "sourceAuto": "自动选择",
+    "sourceAutoDesc": "自动 ping 选择更快的源",
+    "cacheTtl": "缓存时间",
+    "testConnection": "测试连接"
+  },
+  "messages": {
+    "enableSuccess": "插件已启用",
+    "disableSuccess": "插件已禁用",
+    "uninstallSuccess": "插件已卸载",
+    "installSuccess": "插件安装成功",
+    "repairSuccess": "插件已修复",
+    "upgradeSuccess": "插件已升级",
+    "rollbackSuccess": "插件已回退",
+    "fileTooLarge": "文件过大，请上传 50MB 以内的 ZIP 文件",
+    "assignSuccess": "租户分配成功"
+  }
+}

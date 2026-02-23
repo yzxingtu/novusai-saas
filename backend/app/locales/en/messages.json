@@ -1248,6 +1248,53 @@
       "cascade_delete": "Cascade hard delete",
       "nullify": "Clear reference",
       "ignore": "Ignore"
+    },
+    "plugin_status": {
+      "installed": "Installed",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "error": "Error"
+    },
+    "plugin_scope": {
+      "admin_only": "Admin Only",
+      "all_tenants": "All Tenants",
+      "assigned_tenants": "Assigned Tenants",
+      "admin_and_all": "Admin + All Tenants",
+      "admin_and_assigned": "Admin + Assigned Tenants"
+    },
+    "plugin_tier": {
+      "official": "Official",
+      "verified": "Verified",
+      "community": "Community"
+    },
+    "plugin_install_source": {
+      "local": "Local Install",
+      "marketplace": "Marketplace",
+      "git": "Git Install"
+    },
+    "plugin_pricing": {
+      "free": "Free",
+      "paid": "Paid"
+    },
+    "plugin_license": {
+      "trial": "Trial",
+      "perpetual": "Perpetual"
+    },
+    "plugin_version_status": {
+      "active": "Active",
+      "archived": "Archived"
+    }
+  },
+  "plugin": {
+    "error": {
+      "general": "Plugin operation failed",
+      "not_found": "Plugin not found",
+      "manifest_invalid": "Invalid plugin manifest",
+      "dependency_failed": "Plugin dependency installation failed",
+      "security_violation": "Plugin security check failed",
+      "license_invalid": "Invalid plugin license",
+      "conflict": "Plugin conflicts with existing extensions",
+      "install_failed": "Plugin installation failed"
     }
   },
   "crud_generation_record": {

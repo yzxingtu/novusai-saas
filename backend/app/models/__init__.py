@@ -20,6 +20,10 @@ from app.models.system import (
     TaskLog,
     PeriodicTask,
     SystemAgentAssignment,
+    Plugin,
+    PluginVersion,
+    PluginTenantAssignment,
+    PluginLicense,
 )
 
 # 租户级模型
@@ -124,6 +128,11 @@ __all__ = [
     "AgentSkillBinding",
     # 系统智能体绑定
     "SystemAgentAssignment",
+    # 插件
+    "Plugin",
+    "PluginVersion",
+    "PluginTenantAssignment",
+    "PluginLicense",
     # 通知
     "NotificationTemplate",
     "Notification",

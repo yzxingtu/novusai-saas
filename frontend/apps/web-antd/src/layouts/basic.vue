@@ -23,6 +23,9 @@ import { accessRoutes } from '#/router/routes';
 import NotificationPanel from '#/components/business/notification-panel/NotificationPanel.vue';
 import NotificationToast from '#/components/business/notification-toast/NotificationToast.vue';
 import { useGlobalAIChatStore, useMultiAuthStore, useNotificationStore, usePresenceStore, useSocketIOStore } from '#/store';
+import { usePluginSlotsStore } from '#/stores/plugin-slots';
+import { usePluginFrontendInit } from '#/composables/use-plugin-frontend-init';
+
 import LoginForm from '#/views/_core/authentication/login.vue';
 import GlobalAIChat from '#/views/_core/global-ai-chat/GlobalAIChat.vue';
 
@@ -36,7 +39,15 @@ const notificationStore = useNotificationStore();
 const presenceStore = usePresenceStore();
 const accessStore = useAccessStore();
 const tabbarStore = useTabbarStore();
+const pluginSlotsStore = usePluginSlotsStore();
 const { destroyWatermark, updateWatermark } = useWatermark();
+
+// 初始化插件前端（动态加载已启用插件的 UMD 包并注册到插槽 Store）
+const currentEndpointPrefix = computed(() => {
+  const path = router.currentRoute.value.path;
+  return path.startsWith('/tenant') ? '/tenant' : '/admin';
+});
+usePluginFrontendInit(currentEndpointPrefix.value);
 function handleGlobalKeydown(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.key === '\\') {
     e.preventDefault();
@@ -246,6 +257,12 @@ watch(
           </span>
         </div>
       </Popover>
+    </template>
+    <!-- 插件 headerWidgets 动态注入（sort_order 映射到 header-right-{n} 槽位） -->
+    <template #header-right-89>
+      <template v-for="widget in pluginSlotsStore.headerWidgets" :key="widget.pluginName + '-' + widget.name">
+        <component :is="widget.component" />
+      </template>
     </template>
     <template #header-right-51>
       <Tooltip :title="`${$t('common.globalAiChat.title')} (Ctrl+\\)`" placement="bottom">

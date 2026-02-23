@@ -1,0 +1,173 @@
+name: crm-module
+version: "1.0.0"
+display_name:
+  zh-CN: "CRM 客户管理"
+  en: "CRM Customer Management"
+description:
+  zh-CN: "提供客户关系管理功能，包括客户档案、跟进记录、销售漏斗等"
+  en: "Customer relationship management with profiles, follow-ups, and sales funnels"
+author: "NovusAI Team"
+icon: "lucide:users"
+icon_color: "#4F46E5"
+homepage: "https://github.com/novusai/crm-module"
+repository_url: "https://github.com/novusai/crm-module"
+license: "MIT"
+tags:
+  - crm
+  - sales
+  - customer
+
+scope: admin_and_assigned
+
+developer:
+  name: "NovusAI"
+  email: "dev@novusai.com"
+  url: "https://novusai.com"
+
+capabilities:
+  - db:read
+  - db:write
+  - http:outbound
+  - storage:read
+
+api_version: "1"
+
+extensions:
+  skills:
+    - name: crm-query
+      type: toolkit
+      display_name:
+        zh-CN: "CRM 数据查询"
+        en: "CRM Data Query"
+      description:
+        zh-CN: "查询客户信息、跟进记录等 CRM 数据"
+        en: "Query customer info, follow-up records and other CRM data"
+      entry_point: "skills.crm_query.CRMQueryTools"
+
+  hooks:
+    - point: "before_tenant_delete"
+      handler: "hooks.cleanup.on_tenant_delete"
+      priority: 30
+      description: "Clean up CRM data when tenant is deleted"
+
+  tasks:
+    - name: crm-daily-report
+      handler: "tasks.reports.generate_daily_report"
+      schedule_type: cron
+      cron_expression: "0 8 * * *"
+      queue: scheduled
+      description: "Generate daily CRM report"
+
+  webhooks:
+    - path: /webhook/lead
+      handler: "webhooks.lead.handle_lead_webhook"
+      method: POST
+      auth:
+        type: hmac
+        secret_config_key: webhook_secret
+        header_name: X-CRM-Signature
+      description: "Receive lead data from external CRM"
+
+  events:
+    - event: "ConversationCompleted"
+      handler: "events.on_conversation.sync_to_crm"
+
+  notifications:
+    - code: "biz.crm_lead_assigned"
+      title:
+        zh-CN: "新线索分配"
+        en: "New Lead Assigned"
+      channels:
+        - ws
+        - inbox
+      category: biz
+
+  api:
+    tenant_routes:
+      - method: GET
+        path: /customers
+        handler: "api.customers.list_customers"
+        summary: "List customers"
+        auth: required
+      - method: POST
+        path: /customers
+        handler: "api.customers.create_customer"
+        summary: "Create customer"
+        auth: required
+
+  frontend:
+    menus:
+      - name: crm
+        path: /crm
+        icon: "lucide:users"
+        sort_order: 50
+        scope: tenant
+      - name: crm-customers
+        path: /crm/customers
+        icon: "lucide:contact"
+        parent: crm
+        sort_order: 10
+        scope: tenant
+        component: "plugins/crm-module/views/customers/index"
+
+ai_requirements:
+  features:
+    - feature_code: crm_query
+      display_name:
+        zh-CN: "CRM 数据查询"
+        en: "CRM Data Query"
+      description:
+        zh-CN: "允许 AI 查询 CRM 客户数据"
+        en: "Allow AI to query CRM customer data"
+  required_model_types:
+    - chat
+  min_context_window: 8000
+
+config_schema:
+  type: object
+  properties:
+    webhook_secret:
+      type: string
+      format: password
+      x-encrypted: true
+    default_currency:
+      type: string
+      default: CNY
+    max_customers_per_tenant:
+      type: integer
+      default: 10000
+
+dependencies:
+  python:
+    - "phonenumbers>=8.0"
+  plugins: []
+  system: []
+
+pricing:
+  type: free
+
+resources:
+  readme:
+    zh-CN: "# CRM 插件\n\n提供完整的客户关系管理功能。"
+    en: "# CRM Plugin\n\nFull customer relationship management."
+  changelog: "## 1.0.0\n- Initial release"
+  screenshots: []
+
+features:
+  - code: sales_funnel
+    name:
+      zh-CN: "销售漏斗"
+      en: "Sales Funnel"
+    default: true
+    description:
+      zh-CN: "启用销售漏斗功能"
+      en: "Enable sales funnel feature"
+
+compatibility:
+  platform_version: ">=2.0.0"
+  conflicts:
+    - plugin: old-crm
+      reason:
+        zh-CN: "与旧版 CRM 插件冲突"
+        en: "Conflicts with legacy CRM plugin"
+  requires: []

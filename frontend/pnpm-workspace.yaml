@@ -109,7 +109,6 @@ catalog:
   eslint-plugin-vue: ^10.5.1
   execa: ^9.6.0
   find-up: ^7.0.0
-  get-port: ^7.1.0
   globals: ^16.3.0
   h3: ^1.15.3
   happy-dom: ^17.6.3
@@ -127,7 +126,6 @@ catalog:
   lucide-vue-next: ^0.553.0
   medium-zoom: ^1.1.0
   naive-ui: ^2.42.0
-  nitropack: ^2.11.13
   nprogress: ^0.2.0
   ora: ^8.2.0
   pinia: ^3.0.3

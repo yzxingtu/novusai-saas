@@ -1,0 +1,188 @@
+{
+  "title": "Plugin Management",
+  "name": "Plugin Name",
+  "displayName": "Display Name",
+  "versionLabel": "Version",
+  "description": "Description",
+  "author": "Author",
+  "icon": "Icon",
+  "scope": "Scope",
+  "status": "Status",
+  "tier": "Trust Tier",
+  "installSource": "Install Source",
+  "installedAt": "Installed At",
+  "enabledAt": "Enabled At",
+  "tags": "Tags",
+  "homepage": "Homepage",
+  "pricingType": "Pricing",
+  "errorCount": "Error Count",
+  "capabilitiesLabel": "Capabilities",
+  "create": "Install Plugin",
+  "upload": "Upload & Install",
+  "marketplaceBtn": "Marketplace",
+  "allTypes": "All Types",
+  "pluginType": "Plugin Type",
+  "type_options": {
+    "all": "All",
+    "skill": "Skill",
+    "hook": "Hook",
+    "api": "API",
+    "webhook": "Webhook",
+    "event": "Event",
+    "composite": "Composite",
+    "basic": "Basic"
+  },
+  "overview": {
+    "total": "Total",
+    "enabled": "Running",
+    "disabled": "Disabled",
+    "error": "Error"
+  },
+  "placeholder": {
+    "searchName": "Search plugin name",
+    "selectTenants": "Select tenants",
+    "selectStatus": "Filter by status",
+    "selectScope": "Filter by scope",
+    "selectType": "Filter by type"
+  },
+  "status_options": {
+    "installed": "Installed",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "error": "Error"
+  },
+  "scope_options": {
+    "admin_only": "Admin Only",
+    "all_tenants": "All Tenants",
+    "assigned_tenants": "Assigned Tenants",
+    "admin_and_all": "Admin + All Tenants",
+    "admin_and_assigned": "Admin + Assigned"
+  },
+  "tier_options": {
+    "official": "Official",
+    "verified": "Verified",
+    "community": "Community"
+  },
+  "action": {
+    "enable": "Enable",
+    "disable": "Disable",
+    "uninstall": "Uninstall",
+    "repair": "Repair",
+    "configure": "Configure",
+    "settings": "Settings",
+    "assignTenant": "Assign Tenants",
+    "upgrade": "Upgrade",
+    "rollback": "Rollback",
+    "detail": "Details"
+  },
+  "confirm": {
+    "enable": "Confirm enable plugin \"{name}\"?",
+    "disable": "Confirm disable plugin \"{name}\"? All extensions will be unregistered.",
+    "uninstall": "Confirm uninstall plugin \"{name}\"? This cannot be undone.",
+    "uninstallWithData": "Also delete plugin data tables"
+  },
+  "tab": {
+    "overview": "Overview",
+    "config": "Configuration",
+    "versions": "Version History",
+    "tenants": "Tenant Assignment",
+    "aiFeatures": "AI Features",
+    "health": "Health",
+    "logs": "Logs"
+  },
+  "detail": {
+    "basicInfo": "Basic Info",
+    "capabilities": "Capabilities",
+    "readme": "README",
+    "noReadme": "No README available",
+    "noCapabilities": "No capabilities declared"
+  },
+  "tenantAssignment": "Tenant Assignment",
+  "tenantAssignmentEmpty": "No tenants assigned. This plugin is not available on tenant side.",
+  "config": {
+    "save": "Save Config",
+    "saveSuccess": "Configuration saved",
+    "noSchema": "This plugin has no configuration"
+  },
+  "version": {
+    "current": "Current",
+    "archived": "Archived",
+    "noHistory": "No version history"
+  },
+  "tenant": {
+    "assign": "Assign Tenants",
+    "unassign": "Remove Assignment",
+    "noAssignment": "No assignment needed (scope is all tenants)"
+  },
+  "ai": {
+    "bindAgent": "Bind Agent",
+    "unbind": "Unbind",
+    "notBound": "Not Bound",
+    "noFeatures": "This plugin has no AI features"
+  },
+  "health": {
+    "healthy": "Healthy",
+    "errorCount": "Consecutive Errors",
+    "lastError": "Last Error",
+    "noError": "Running normally, no errors",
+    "repair": "Reset Error Count"
+  },
+  "preview": {
+    "title": "Install Preview",
+    "pluginInfo": "Plugin Info",
+    "extensions": "Extensions to Install",
+    "dependencies": "Dependencies",
+    "conflicts": "Conflicts",
+    "warnings": "Warnings",
+    "capabilities": "Requested Capabilities",
+    "confirmInstall": "Authorize & Install",
+    "cancel": "Cancel",
+    "noConflicts": "No conflicts",
+    "noWarnings": "No warnings",
+    "noDependencies": "No additional dependencies"
+  },
+  "structureType": {
+    "skills": "Skills",
+    "api_routes": "API",
+    "hooks": "Hooks",
+    "events": "Events",
+    "webhooks": "Webhook",
+    "tasks": "Scheduled Tasks",
+    "adapters": "Adapters",
+    "storage_drivers": "Storage Drivers",
+    "notifications": "Notifications",
+    "permissions": "Permissions",
+    "frontend_menus": "Frontend Menus"
+  },
+  "marketplace": {
+    "title": "Plugin Marketplace",
+    "searchPlaceholder": "Search plugins...",
+    "sortDownloads": "By Downloads",
+    "sortRating": "By Rating",
+    "sortUpdated": "Recently Updated",
+    "empty": "No plugins available",
+    "installed": "Installed",
+    "install": "Install",
+    "confirmInstall": "Confirm install this plugin?",
+    "downloads": "installs",
+    "viewDetail": "View Details",
+    "buyNow": "Buy",
+    "settings": "Marketplace Settings",
+    "mirrorSource": "Mirror Source",
+    "sourceAuto": "Auto Select",
+    "sourceAutoDesc": "Auto ping and select the faster source",
+    "cacheTtl": "Cache TTL",
+    "testConnection": "Test Connection"
+  },
+  "messages": {
+    "enableSuccess": "Plugin enabled",
+    "disableSuccess": "Plugin disabled",
+    "uninstallSuccess": "Plugin uninstalled",
+    "installSuccess": "Plugin installed successfully",
+    "repairSuccess": "Plugin repaired",
+    "upgradeSuccess": "Plugin upgraded",
+    "rollbackSuccess": "Plugin rolled back",
+    "fileTooLarge": "File too large. Please upload a ZIP file under 50MB",
+    "assignSuccess": "Tenants assigned successfully"
+  }
+}

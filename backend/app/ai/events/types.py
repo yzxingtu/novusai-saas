@@ -166,15 +166,148 @@ class ExecutionFailed(BaseEvent):
     error_type: str = ""
 
 
+# ============================================
+# 智能体扩展事件
+# ============================================
+
+@dataclass
+class AgentUpdated(BaseEvent):
+    """智能体更新事件"""
+    agent_id: int = 0
+    updated_fields: list[str] = field(default_factory=list)
+
+
+@dataclass
+class AgentDeleted(BaseEvent):
+    """智能体删除事件"""
+    agent_id: int = 0
+
+
+# ============================================
+# 技能事件
+# ============================================
+
+@dataclass
+class SkillCreated(BaseEvent):
+    """技能创建事件"""
+    skill_id: int = 0
+    skill_name: str = ""
+    skill_type: str = ""
+
+
+@dataclass
+class SkillUpdated(BaseEvent):
+    """技能更新事件"""
+    skill_id: int = 0
+    updated_fields: list[str] = field(default_factory=list)
+
+
+@dataclass
+class SkillDeleted(BaseEvent):
+    """技能删除事件"""
+    skill_id: int = 0
+
+
+# ============================================
+# 对话扩展事件
+# ============================================
+
+@dataclass
+class ConversationCreated(BaseEvent):
+    """对话创建事件"""
+    conversation_id: int = 0
+    agent_id: int = 0
+    user_id: int | None = None
+
+
+@dataclass
+class MessageCreated(BaseEvent):
+    """消息创建事件"""
+    conversation_id: int = 0
+    message_id: int = 0
+    role: str = ""
+    content_length: int = 0
+
+
+# ============================================
+# 插件生命周期事件
+# ============================================
+
+@dataclass
+class PluginInstalled(BaseEvent):
+    """插件安装事件"""
+    plugin_name: str = ""
+    plugin_version: str = ""
+
+
+@dataclass
+class PluginEnabled(BaseEvent):
+    """插件启用事件"""
+    plugin_name: str = ""
+
+
+@dataclass
+class PluginDisabled(BaseEvent):
+    """插件禁用事件"""
+    plugin_name: str = ""
+
+
+@dataclass
+class PluginUninstalled(BaseEvent):
+    """插件卸载事件"""
+    plugin_name: str = ""
+
+
+# ============================================
+# 知识库事件
+# ============================================
+
+@dataclass
+class KnowledgeBaseUpdated(BaseEvent):
+    """知识库更新事件"""
+    knowledge_base_id: int = 0
+    action: str = ""  # created / updated / deleted
+
+
+@dataclass
+class DocumentUploaded(BaseEvent):
+    """文档上传事件"""
+    knowledge_base_id: int = 0
+    document_id: int = 0
+    file_name: str = ""
+
+
+# ============================================
+# 模型调用事件
+# ============================================
+
+@dataclass
+class ModelCallCompleted(BaseEvent):
+    """模型调用完成事件"""
+    provider: str = ""
+    model: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    duration_ms: int = 0
+
+
 __all__ = [
     "BaseEvent",
     # 智能体
     "AgentCreated",
     "AgentPublished",
     "AgentDisabled",
+    "AgentUpdated",
+    "AgentDeleted",
+    # 技能
+    "SkillCreated",
+    "SkillUpdated",
+    "SkillDeleted",
     # 对话
     "ConversationStarted",
+    "ConversationCreated",
     "MessageAdded",
+    "MessageCreated",
     "ConversationCompleted",
     # 工具
     "ToolCallRequested",
@@ -187,4 +320,14 @@ __all__ = [
     "ExecutionStarted",
     "ExecutionCompleted",
     "ExecutionFailed",
+    # 插件
+    "PluginInstalled",
+    "PluginEnabled",
+    "PluginDisabled",
+    "PluginUninstalled",
+    # 知识库
+    "KnowledgeBaseUpdated",
+    "DocumentUploaded",
+    # 模型
+    "ModelCallCompleted",
 ]

@@ -62,6 +62,11 @@ from app.models import (
     NotificationTemplate,
     Notification,
     NotificationPreference,
+    # 插件
+    Plugin,
+    PluginVersion,
+    PluginTenantAssignment,
+    PluginLicense,
 )
 
 # Alembic 配置对象
@@ -74,9 +79,18 @@ config.set_main_option("sqlalchemy.url", settings.DATABASE_URL_SYNC)
 _migrations_dir = Path(__file__).parent / "versions"
 _crud_dir = _migrations_dir / "crud"
 _crud_dir.mkdir(exist_ok=True)
+# 动态扫描已安装插件的迁移目录
+_version_paths = [str(_migrations_dir), str(_crud_dir)]
+_plugins_dir = Path(__file__).parent.parent / "plugins"
+if _plugins_dir.exists():
+    for _plugin_dir in _plugins_dir.iterdir():
+        _plugin_migrations = _plugin_dir / "backend" / "migrations" / "versions"
+        if _plugin_migrations.is_dir():
+            _version_paths.append(str(_plugin_migrations))
+
 config.set_main_option(
     "version_locations",
-    f"{_migrations_dir} {_crud_dir}",
+    " ".join(_version_paths),
 )
 
 # 配置日志

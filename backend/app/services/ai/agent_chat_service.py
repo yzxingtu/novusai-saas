@@ -171,6 +171,21 @@ class AgentChatService:
         )
         all_messages = [*history_messages, user_msg]
 
+        # 3.5 BEFORE_AGENT_CHAT 钩子（插件可修改 messages/注入 system prompt/阻止对话）
+        from app.ai.events.hooks import HookPoint, get_hook_registry
+        hook_registry = get_hook_registry()
+        if hook_registry.has_hooks(HookPoint.BEFORE_AGENT_CHAT):
+            hook_ctx = await hook_registry.trigger(
+                HookPoint.BEFORE_AGENT_CHAT,
+                tenant_id=self.tenant_id,
+                agent_id=agent_id,
+                messages=all_messages,
+                config={"variables": variables, "knowledge_base_ids": knowledge_base_ids},
+            )
+            if hook_ctx.get("blocked"):
+                raise BusinessException(message=hook_ctx.get("block_reason", _("agent_chat.error.blocked_by_hook")))
+            all_messages = hook_ctx.get("messages", all_messages)
+
         # 4. 构建执行请求
         request = ExecutionRequest(
             agent_id=agent_id,
@@ -192,6 +207,18 @@ class AgentChatService:
 
         if not result.success:
             raise BusinessException(message=result.error or _("agent_chat.error.execution_failed"))
+
+        # 5.5 AFTER_AGENT_CHAT 钩子（插件可修改响应/触发后续动作）
+        if hook_registry.has_hooks(HookPoint.AFTER_AGENT_CHAT):
+            hook_ctx = await hook_registry.trigger(
+                HookPoint.AFTER_AGENT_CHAT,
+                tenant_id=self.tenant_id,
+                agent_id=agent_id,
+                response=result.output,
+                total_tokens=result.total_tokens,
+            )
+            if "response" in hook_ctx and hook_ctx["response"] != result.output:
+                result.output = hook_ctx["response"]
 
         # 6. 持久化新消息（用户消息 + 引擎生成的消息）
         tool_calls_collected = await self.conversation_svc.persist_chat_messages(
@@ -300,6 +327,21 @@ class AgentChatService:
         )
         all_messages = [*history_messages, user_msg]
 
+        # 3.5 BEFORE_AGENT_CHAT 钩子（插件可修改 messages/注入 system prompt/阻止对话）
+        from app.ai.events.hooks import HookPoint, get_hook_registry
+        hook_registry = get_hook_registry()
+        if hook_registry.has_hooks(HookPoint.BEFORE_AGENT_CHAT):
+            hook_ctx = await hook_registry.trigger(
+                HookPoint.BEFORE_AGENT_CHAT,
+                tenant_id=self.tenant_id,
+                agent_id=agent_id,
+                messages=all_messages,
+                config={"variables": variables, "knowledge_base_ids": knowledge_base_ids},
+            )
+            if hook_ctx.get("blocked"):
+                raise BusinessException(message=hook_ctx.get("block_reason", _("agent_chat.error.blocked_by_hook")))
+            all_messages = hook_ctx.get("messages", all_messages)
+
         # 4. 构建执行请求（标记为流式）
         request = ExecutionRequest(
             agent_id=agent_id,
@@ -351,8 +393,7 @@ class AgentChatService:
                     config=quota_config,
                 )
 
-            # BEFORE_EXECUTE 钩子
-            hook_registry = get_hook_registry()
+            # BEFORE_EXECUTE 钩子（hook_registry 已在 step 3.5 获取）
             hook_context = await hook_registry.trigger(
                 HookPoint.BEFORE_EXECUTE,
                 tenant_id=self.tenant_id,
@@ -494,6 +535,18 @@ class AgentChatService:
                         user_id=user_id,
                         tokens=actual_tokens,
                     )
+
+                # AFTER_AGENT_CHAT 钩子（插件可修改响应/触发后续动作）
+                if hook_registry.has_hooks(HookPoint.AFTER_AGENT_CHAT):
+                    hook_ctx = await hook_registry.trigger(
+                        HookPoint.AFTER_AGENT_CHAT,
+                        tenant_id=self.tenant_id,
+                        agent_id=agent_id,
+                        response=result.output,
+                        total_tokens=result.total_tokens,
+                    )
+                    if "response" in hook_ctx and hook_ctx["response"] != result.output:
+                        result.output = hook_ctx["response"]
 
                 # AFTER_EXECUTE 钩子
                 await hook_registry.trigger(

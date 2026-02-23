@@ -29,6 +29,7 @@ EXEMPT_PATH_PREFIXES = (
     "/redoc",
     "/openapi.json",
     "/health",
+    "/plugin-assets",
     "/",  # 根路径健康检查
 )
 

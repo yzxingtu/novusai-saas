@@ -1257,6 +1257,53 @@
       "cascade_delete": "级联物理删除",
       "nullify": "清除引用",
       "ignore": "忽略"
+    },
+    "plugin_status": {
+      "installed": "已安装",
+      "enabled": "已启用",
+      "disabled": "已禁用",
+      "error": "异常"
+    },
+    "plugin_scope": {
+      "admin_only": "仅管理端",
+      "all_tenants": "全部租户",
+      "assigned_tenants": "指定租户",
+      "admin_and_all": "管理端 + 全部租户",
+      "admin_and_assigned": "管理端 + 指定租户"
+    },
+    "plugin_tier": {
+      "official": "官方",
+      "verified": "已认证",
+      "community": "社区"
+    },
+    "plugin_install_source": {
+      "local": "本地安装",
+      "marketplace": "市场安装",
+      "git": "Git 安装"
+    },
+    "plugin_pricing": {
+      "free": "免费",
+      "paid": "付费"
+    },
+    "plugin_license": {
+      "trial": "试用",
+      "perpetual": "永久"
+    },
+    "plugin_version_status": {
+      "active": "当前版本",
+      "archived": "已归档"
+    }
+  },
+  "plugin": {
+    "error": {
+      "general": "插件操作失败",
+      "not_found": "插件不存在",
+      "manifest_invalid": "插件清单格式无效",
+      "dependency_failed": "插件依赖安装失败",
+      "security_violation": "插件安全检查未通过",
+      "license_invalid": "插件许可证无效",
+      "conflict": "插件与已有扩展冲突",
+      "install_failed": "插件安装失败"
     }
   },
   "crud_generation_record": {

@@ -77,6 +77,9 @@ tenant_router.include_router(notifications_router)
 # 通知偏好
 from app.api.tenant.notification_preferences import router as notification_preferences_router
 tenant_router.include_router(notification_preferences_router)
+# 插件（租户端只读列表，按 scope + 分配过滤）
+from app.api.tenant.plugins import router as plugins_router
+tenant_router.include_router(plugins_router)
 
 
 __all__ = [

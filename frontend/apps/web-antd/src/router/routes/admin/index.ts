@@ -64,6 +64,18 @@ const mainRoutes: RouteRecordRaw = {
         activePath: '/admin/ai/skill-packages',
       },
     },
+    // 插件市场页：后端不注册此路由
+    {
+      name: 'AdminPluginMarketplace',
+      path: 'plugins/marketplace',
+      component: () => import('#/views/admin/plugins/marketplace/index.vue'),
+      meta: {
+        hideInMenu: true,
+        title: $t('admin.plugin.marketplace.title'),
+        activePath: '/admin/plugins',
+      },
+    },
+    // 插件详情改为抽屉形式，不再需要独立路由
     // 个人中心：不在后端菜单中，必须静态注册
     {
       name: 'Profile',

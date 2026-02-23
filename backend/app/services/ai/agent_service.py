@@ -127,8 +127,20 @@ class AgentService(TenantService[Agent, AgentRepository]):
         return AgentAccessRepository(self.db, self.tenant_id)
 
     async def _before_create(self, data: dict[str, Any]) -> None:
-        """创建前校验：名称唯一性"""
+        """创建前校验：名称唯一性 + 插件钩子"""
         await super()._before_create(data)
+
+        from app.ai.events.hooks import HookPoint, get_hook_registry
+        hook_registry = get_hook_registry()
+        if hook_registry.has_hooks(HookPoint.BEFORE_AGENT_CREATE):
+            ctx = await hook_registry.trigger(
+                HookPoint.BEFORE_AGENT_CREATE,
+                tenant_id=self.tenant_id,
+                agent_data=data,
+            )
+            if ctx.get("blocked"):
+                raise BusinessException(message=ctx.get("block_reason", _("agent.error.blocked_by_hook")))
+            data.update(ctx.get("agent_data", data))
 
         name = data.get("name")
         if name:
@@ -136,9 +148,35 @@ class AgentService(TenantService[Agent, AgentRepository]):
             if existing:
                 raise BusinessException(message=_("agent.error.name_exists"))
 
+    async def _after_create(self, instance: Agent) -> None:
+        """创建后：触发插件钩子"""
+        await super()._after_create(instance)
+        from app.ai.events.hooks import HookPoint, get_hook_registry
+        hook_registry = get_hook_registry()
+        if hook_registry.has_hooks(HookPoint.AFTER_AGENT_CREATE):
+            await hook_registry.trigger(
+                HookPoint.AFTER_AGENT_CREATE,
+                tenant_id=self.tenant_id,
+                agent_id=instance.id,
+                agent_data=instance.to_dict() if hasattr(instance, "to_dict") else {},
+            )
+
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
-        """更新前校验：名称唯一性、系统智能体保护"""
+        """更新前校验：名称唯一性、系统智能体保护 + 插件钩子"""
         await super()._before_update(id, data)
+
+        from app.ai.events.hooks import HookPoint, get_hook_registry
+        hook_registry = get_hook_registry()
+        if hook_registry.has_hooks(HookPoint.BEFORE_AGENT_UPDATE):
+            ctx = await hook_registry.trigger(
+                HookPoint.BEFORE_AGENT_UPDATE,
+                tenant_id=self.tenant_id,
+                agent_id=id,
+                updates=data,
+            )
+            if ctx.get("blocked"):
+                raise BusinessException(message=ctx.get("block_reason", _("agent.error.blocked_by_hook")))
+            data.update(ctx.get("updates", data))
 
         agent = await self.repo.get_by_id(id)
         if agent and agent.is_system:
@@ -152,9 +190,34 @@ class AgentService(TenantService[Agent, AgentRepository]):
             if existing:
                 raise BusinessException(message=_("agent.error.name_exists"))
 
+    async def _after_update(self, instance: Agent) -> None:
+        """更新后：触发插件钩子"""
+        await super()._after_update(instance)
+        from app.ai.events.hooks import HookPoint, get_hook_registry
+        hook_registry = get_hook_registry()
+        if hook_registry.has_hooks(HookPoint.AFTER_AGENT_UPDATE):
+            await hook_registry.trigger(
+                HookPoint.AFTER_AGENT_UPDATE,
+                tenant_id=self.tenant_id,
+                agent_id=instance.id,
+                updates=instance.to_dict() if hasattr(instance, "to_dict") else {},
+            )
+
     async def _before_delete(self, id: int) -> None:
-        """删除前校验：系统智能体不可删除，级联软删除对话"""
+        """删除前校验：系统智能体不可删除，级联软删除对话 + 插件钩子"""
         await super()._before_delete(id)
+
+        from app.ai.events.hooks import HookPoint, get_hook_registry
+        hook_registry = get_hook_registry()
+        if hook_registry.has_hooks(HookPoint.BEFORE_AGENT_DELETE):
+            ctx = await hook_registry.trigger(
+                HookPoint.BEFORE_AGENT_DELETE,
+                tenant_id=self.tenant_id,
+                agent_id=id,
+            )
+            if ctx.get("blocked"):
+                raise BusinessException(message=ctx.get("block_reason", _("agent.error.blocked_by_hook")))
+
         agent = await self.repo.get_by_id(id)
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
@@ -163,6 +226,18 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
         # 级联软删除智能体的对话记录
         await self.repo.cascade_soft_delete_conversations(id, self._default_delete_level)
+
+    async def _after_delete(self, instance: Agent) -> None:
+        """删除后：触发插件钩子"""
+        await super()._after_delete(instance)
+        from app.ai.events.hooks import HookPoint, get_hook_registry
+        hook_registry = get_hook_registry()
+        if hook_registry.has_hooks(HookPoint.AFTER_AGENT_DELETE):
+            await hook_registry.trigger(
+                HookPoint.AFTER_AGENT_DELETE,
+                tenant_id=self.tenant_id,
+                agent_id=instance.id,
+            )
 
     async def escalate_delete(self, id: int) -> Agent | None:
         """升级删除层级，级联升级对话记录"""

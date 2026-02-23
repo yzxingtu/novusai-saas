@@ -34,4 +34,5 @@ fi
 
 # 启动 uvicorn
 echo "🔧 启动 uvicorn 开发服务器..."
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 \
+    --reload-dir app
