@@ -1,14 +1,11 @@
 import type {
   ComponentRecordType,
   GenerateMenuAndRoutesOptions,
-  RouteRecordStringComponent,
 } from '@vben/types';
 
 import type { ApiEndpoint } from '#/api';
-import type { BackendMenuItemRaw } from '#/api/shared/menu-transformer';
 
 import { generateAccessible } from '@vben/access';
-import { i18n } from '@vben/locales';
 import { preferences } from '@vben/preferences';
 import { useAccessStore } from '@vben/stores';
 
@@ -21,8 +18,6 @@ import {
   tenantApi,
   userApi,
 } from '#/api';
-import { getTenantPluginFrontendConfigApi } from '#/api/tenant/plugins';
-import { transformMenuData } from '#/api/shared/menu-transformer';
 import { BasicLayout, IFrameView } from '#/layouts';
 import { $t } from '#/locales';
 
@@ -85,10 +80,7 @@ async function generateAccess(
       // 设置权限码到 accessStore
       accessStore.setAccessCodes(permissions);
 
-      // 加载插件前端菜单，转换后合并
-      const pluginMenuRoutes = await loadPluginMenuRoutes(currentEndpoint);
-
-      return [...menus, ...pluginMenuRoutes];
+      return menus;
     },
     // 可以指定没有权限跳转403页面
     forbiddenComponent,
@@ -105,129 +97,6 @@ async function generateAccess(
 function getCurrentEndpoint(): ApiEndpoint {
   const path = window.location.pathname;
   return getApiEndpoint(path);
-}
-
-/**
- * 加载已启用插件的前端菜单，转换为 RouteRecordStringComponent 格式
- *
- * 流程：
- * 1. 从 frontend-config API 获取插件配置
- * 2. 合并 i18n 资源
- * 3. 收集插件菜单和隐藏路由（BackendMenuItemRaw 格式）
- * 4. 有 parent 字段的菜单：包装为 parent-children 结构（确保 BasicLayout 包裹）
- * 5. 通过 transformMenuData 统一转换为 RouteRecordStringComponent
- */
-async function loadPluginMenuRoutes(
-  endpoint: ApiEndpoint,
-): Promise<RouteRecordStringComponent[]> {
-  try {
-    const configs = endpoint === 'admin'
-      ? await adminApi.getPluginFrontendConfigApi()
-      : await getTenantPluginFrontendConfigApi();
-    const allMenus: BackendMenuItemRaw[] = [];
-
-    for (const config of configs) {
-      // 合并插件 i18n 资源（不区分 endpoint，所有语言都合并）
-      mergePluginLocales(config.locales);
-
-      if (config.endpoint !== endpoint) continue;
-
-      // scope 过滤：platform_only 插件仅在 admin 端显示
-      if (config.scope === 'platform_only' && endpoint !== 'admin') continue;
-
-      for (const menu of config.menus) {
-        const rewritten = rewritePluginMenuComponent(menu, config.plugin_name);
-        // 有 parent 字段的叶子菜单 → 包装为 parent-children 结构
-        const parentCode = 'parent' in menu
-          ? String((menu as unknown as Record<string, unknown>).parent)
-          : '';
-        if (parentCode && !rewritten.children) {
-          allMenus.push(wrapMenuWithParent(rewritten, parentCode));
-        } else {
-          allMenus.push(rewritten);
-        }
-      }
-
-      // 插件隐藏路由（如 editor/:id 等非菜单页面）
-      for (const route of config.routes || []) {
-        allMenus.push(
-          rewritePluginMenuComponent(
-            { ...route, hidden: true },
-            config.plugin_name,
-          ),
-        );
-      }
-    }
-
-    if (allMenus.length === 0) return [];
-    return transformMenuData(allMenus, endpoint);
-  } catch {
-    // 插件菜单加载失败不阻塞核心菜单
-    return [];
-  }
-}
-
-/**
- * 将叶子菜单包装为 parent-children 结构
- *
- * 确保 transformMenuData 会给父菜单包裹 BasicLayout，
- * 使叶子菜单能正确显示在侧边栏中。
- *
- * parent 值会被用作路由路径的一部分（如 parent="workspace" → path="/workspace"）。
- *
- * @param menu 叶子菜单项
- * @param parentCode parent 标识符
- */
-function wrapMenuWithParent(
-  menu: BackendMenuItemRaw,
-  parentCode: string,
-): BackendMenuItemRaw {
-  const parentPath = `/${parentCode.replace(/_/g, '-')}`;
-  return {
-    name: menu.name,
-    code: `plugin_parent_${parentCode}`,
-    path: parentPath,
-    icon: menu.icon,
-    sort_order: menu.sort_order,
-    children: [menu],
-  };
-}
-
-/**
- * 合并插件 i18n 翻译资源到全局 i18n 实例
- * @param locales 插件 locale 数据 {"zh-CN": {...}, "en-US": {...}}
- */
-function mergePluginLocales(
-  locales: Record<string, Record<string, unknown>> | undefined,
-): void {
-  if (!locales) return;
-  for (const [lang, messages] of Object.entries(locales)) {
-    if (messages && typeof messages === 'object') {
-      i18n.global.mergeLocaleMessage(lang, messages);
-    }
-  }
-}
-
-/**
- * 重写插件菜单项的 component 路径
- * 将相对路径（如 "index.vue"）转为 "/plugins/{name}/index" 格式
- */
-function rewritePluginMenuComponent(
-  menu: BackendMenuItemRaw,
-  pluginName: string,
-): BackendMenuItemRaw {
-  const result = { ...menu };
-  if (result.component) {
-    // 去掉 .vue 后缀，加上 /plugins/{name}/ 前缀
-    const comp = result.component.replace(/\.vue$/, '');
-    result.component = `/plugins/${pluginName}/${comp}`;
-  }
-  if (result.children) {
-    result.children = result.children.map((child) =>
-      rewritePluginMenuComponent(child, pluginName),
-    );
-  }
-  return result;
 }
 
 export { generateAccess, getCurrentEndpoint, getMenuWithPermissionsApi };

@@ -322,30 +322,6 @@ class AdminConfigController(GlobalController):
             
             权限: platform_config:update
             """
-            from app.plugins.manager import get_plugin_manager
-            pm = get_plugin_manager()
-
-            # 检查是否为插件驱动
-            if pm.extension_registry.is_plugin_storage_driver(driver):
-                plugin_name = pm.extension_registry.get_plugin_storage_drivers().get(driver)
-                if not plugin_name:
-                    raise NotFoundException(_("config.storage_driver_not_found"))
-                from app.plugins.extensions.storage_plugin import StoragePlugin
-                instance = pm.loader.get_instance(plugin_name)
-                if not instance or not isinstance(instance, StoragePlugin):
-                    raise BusinessException(
-                        _("config.storage_plugin_not_available"),
-                        error_code=ErrorCode.BUSINESS_ERROR,
-                    )
-                # 验证配置
-                errors = instance.validate_config(config)
-                if errors:
-                    return success(data={"success": False, "errors": errors})
-                # 测试连接
-                ok = await instance.test_connection(config)
-                return success(data={"success": ok})
-
-            # 内置驱动：尝试实例化
             from app.storage import storage_manager
             from app.storage.base import StorageConfig
             try:
@@ -368,18 +344,10 @@ class AdminConfigController(GlobalController):
             权限: platform_config:read
             """
             from app.storage import storage_manager
-            from app.plugins.manager import get_plugin_manager
-            pm = get_plugin_manager()
-            plugin_drivers = pm.extension_registry.get_plugin_storage_drivers()
 
             drivers = []
             for name in storage_manager.get_available_drivers():
-                is_plugin = name in plugin_drivers
-                drivers.append({
-                    "name": name,
-                    "is_plugin": is_plugin,
-                    "plugin_name": plugin_drivers.get(name),
-                })
+                drivers.append({"name": name})
             return success(data=drivers)
 
         @router.get("/storage/drivers/{driver_name}/schema", summary="获取存储驱动配置 Schema")
@@ -390,29 +358,11 @@ class AdminConfigController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             """
-            获取指定存储驱动的配置 Schema（仅插件驱动支持）
+            获取指定存储驱动的配置 Schema
             
             权限: platform_config:read
             """
-            from app.plugins.manager import get_plugin_manager
-            pm = get_plugin_manager()
-
-            if not pm.extension_registry.is_plugin_storage_driver(driver_name):
-                return success(data={"schema": {}, "defaults": {}})
-
-            plugin_name = pm.extension_registry.get_plugin_storage_drivers().get(driver_name)
-            if not plugin_name:
-                raise NotFoundException(_("config.storage_driver_not_found"))
-
-            from app.plugins.extensions.storage_plugin import StoragePlugin
-            instance = pm.loader.get_instance(plugin_name)
-            if not instance or not isinstance(instance, StoragePlugin):
-                raise NotFoundException(_("config.storage_plugin_not_available"))
-
-            return success(data={
-                "schema": instance.get_config_schema(),
-                "defaults": instance.get_default_config(),
-            })
+            return success(data={"schema": {}, "defaults": {}})
 
 
 # 导出路由

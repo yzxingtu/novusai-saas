@@ -155,32 +155,20 @@ class BatchRunStatusEnum(LabeledStrEnum):
 
 def get_all_skill_types() -> set[str]:
     """
-    获取所有有效的技能类型（内置枚举 + 插件注册的类型）
+    获取所有有效的技能类型
 
     Returns:
         技能类型值的集合
     """
-    builtin = {e.value for e in SkillTypeEnum}
-    try:
-        from app.plugins.manager import get_plugin_manager
-        manager = get_plugin_manager()
-        if hasattr(manager, "get_plugin_skills"):
-            plugin_skills = manager.get_plugin_skills()
-            for skill_name, plugin_name in plugin_skills.items():
-                instance = manager._instances.get(plugin_name)
-                if instance and hasattr(instance, "get_skill_type"):
-                    builtin.add(instance.get_skill_type())
-    except Exception:
-        pass
-    return builtin
+    return {e.value for e in SkillTypeEnum}
 
 
 def get_skill_type_options() -> list[dict[str, str]]:
     """
-    获取技能类型选项列表（含内置 + 插件类型，供 API 返回）
+    获取技能类型选项列表（供 API 返回）
 
     Returns:
-        [{"value": "http", "label": "...", "source": "builtin|plugin"}]
+        [{"value": "http", "label": "...", "source": "builtin"}]
     """
     options: list[dict[str, str]] = []
     for e in SkillTypeEnum:
@@ -189,26 +177,6 @@ def get_skill_type_options() -> list[dict[str, str]]:
             "label": e.label,
             "source": "builtin",
         })
-    try:
-        from app.plugins.manager import get_plugin_manager
-        manager = get_plugin_manager()
-        if hasattr(manager, "get_plugin_skills"):
-            plugin_skills = manager.get_plugin_skills()
-            seen_types: set[str] = set()
-            for skill_name, plugin_name in plugin_skills.items():
-                instance = manager._instances.get(plugin_name)
-                if instance and hasattr(instance, "get_skill_type"):
-                    skill_type = instance.get_skill_type()
-                    if skill_type not in {e.value for e in SkillTypeEnum} and skill_type not in seen_types:
-                        seen_types.add(skill_type)
-                        options.append({
-                            "value": skill_type,
-                            "label": getattr(instance, "display_name", skill_type),
-                            "source": "plugin",
-                            "plugin_name": plugin_name,
-                        })
-    except Exception:
-        pass
     return options
 
 

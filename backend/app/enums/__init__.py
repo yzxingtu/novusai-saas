@@ -40,7 +40,6 @@ from app.enums.agent import (
     BatchRunStatusEnum,
 )
 from app.enums.ai import ToolParameterTypeEnum
-from app.enums.plugin import PluginTypeEnum, PluginStatusEnum
 from app.enums.domain import DomainSslStatus, DomainType, SslCertType, SslCertStatus
 from app.enums.knowledge_base import (
     KBStatusEnum,

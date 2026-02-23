@@ -35,7 +35,6 @@ from app.api.admin.ai_action_logs import router as ai_action_logs_router, AdminA
 from app.api.admin.ai_agent_chat import router as ai_agent_chat_router, AdminAgentChatController
 from app.api.admin.knowledge_bases import router as ai_knowledge_bases_router, AdminKnowledgeBaseController
 from app.api.admin.ai_table_policies import router as ai_table_policies_router, AdminAITablePolicyController
-from app.api.admin.plugins import router as plugins_router, AdminPluginController
 from app.api.admin.skill_packages import router as ai_skill_packages_router, AdminSkillPackageController
 from app.api.admin.skills import router as ai_skills_router, AdminSkillController
 from app.api.admin.agent_assignments import router as agent_assignments_router, AdminAgentAssignmentController
@@ -81,8 +80,6 @@ admin_router.include_router(ai_agent_chat_router)
 admin_router.include_router(ai_knowledge_bases_router)
 # AI 表策略
 admin_router.include_router(ai_table_policies_router)
-# 插件系统
-admin_router.include_router(plugins_router)
 # 技能包 & 技能管理
 admin_router.include_router(ai_skill_packages_router)
 admin_router.include_router(ai_skills_router)
@@ -143,8 +140,6 @@ __all__ = [
     "AdminKnowledgeBaseController",
     # AI 表策略
     "AdminAITablePolicyController",
-    # 插件系统
-    "AdminPluginController",
     # 技能包 & 技能管理
     "AdminSkillPackageController",
     "AdminSkillController",

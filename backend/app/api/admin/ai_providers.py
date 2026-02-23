@@ -78,28 +78,16 @@ class AdminAIProviderController(GlobalController):
             前端用于供应商类型下拉列表。
             """
             from app.ai.adapters import AdapterRegistry
-            from app.plugins.manager import get_plugin_manager
 
-            manager = get_plugin_manager()
-            plugin_adapters = manager.get_plugin_adapters()
             all_types = AdapterRegistry.list_adapters()
 
             result = []
             for adapter_type in all_types:
-                plugin_name = plugin_adapters.get(adapter_type)
-                info = manager.get_adapter_plugin_info(adapter_type)
                 entry = {
                     "type": adapter_type,
-                    "source": "plugin" if plugin_name else "builtin",
-                    "plugin_name": plugin_name,
+                    "source": "builtin",
+                    "display_name": adapter_type,
                 }
-                if info:
-                    entry["display_name"] = info.get("display_name", adapter_type)
-                    entry["icon"] = info.get("icon")
-                    entry["supports"] = info.get("supports")
-                    entry["models"] = info.get("models")
-                else:
-                    entry["display_name"] = adapter_type
                 result.append(entry)
 
             return success(data=result)

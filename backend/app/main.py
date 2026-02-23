@@ -103,41 +103,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         from app.ai.adapters.openai_adapter import OpenAIAdapter
         AdapterRegistry.register("openai_compatible", OpenAIAdapter)
 
-        # 加载插件系统
-        from app.plugins.discovery import (
-            register_builtin_plugins,
-            load_enabled_plugins,
-            auto_install_local_plugins,
-        )
-        from app.plugins.manager import get_plugin_manager
-        get_plugin_manager().set_app(app)
-        try:
-            async with async_session_factory() as db:
-                # 注册内置插件（首次启动时自动安装并启用）
-                await register_builtin_plugins(db)
-
-                # 开发模式：自动安装本地发现的插件
-                if settings.APP_ENV == "development":
-                    auto_result = await auto_install_local_plugins(db)
-                    if auto_result["installed"] or auto_result["errors"]:
-                        logger.info(
-                            f"Auto-install local plugins: "
-                            f"installed={auto_result['installed']}, "
-                            f"skipped={auto_result['skipped']}, "
-                            f"errors={len(auto_result['errors'])}"
-                        )
-
-                # 加载所有已启用的插件
-                plugin_result = await load_enabled_plugins(db)
-                if plugin_result["loaded"] or plugin_result["failed"]:
-                    logger.info(
-                        f"Plugins loaded: "
-                        f"loaded={plugin_result['loaded']}, "
-                        f"failed={plugin_result['failed']}"
-                    )
-        except Exception as plugin_err:
-            logger.warning(f"Plugin loading failed: {plugin_err}")
-
         # 清理残留的在线状态数据（服务器重启后旧连接已断开）
         try:
             from app.sio.presence import PresenceManager

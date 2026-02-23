@@ -707,52 +707,12 @@ class SkillResolver:
         result: SkillResolveResult,
     ) -> None:
         """
-        插件注册的 Skill 类型 → 委托给 SkillPlugin.resolve()
-
-        PluginManager 中已启用的 SkillPlugin 通过 get_skill_type() 注册了
-        自定义 skill_type。此方法将 Skill 配置传给插件的 resolve() 方法，
-        获取 ToolDefinition 列表，并强制设置 tool_type="plugin" 以便
-        Sandbox 通过 PluginSkillExecutor 执行。
+        未知技能类型的 fallback 处理（插件系统待重建）
         """
-        try:
-            from app.plugins.manager import get_plugin_manager
-
-            manager = get_plugin_manager()
-
-            instance = manager.get_skill_plugin(skill.type)
-            if not instance:
-                logger.warning(
-                    "Unknown skill type: %s (skill=%d)", skill.type, skill.id,
-                )
-                return
-
-            tool_defs = instance.resolve(config)
-            if not tool_defs:
-                return
-
-            from app.enums.agent import ToolTypeEnum
-
-            for td in tool_defs:
-                if isinstance(td.parameters, dict):
-                    td.parameters = self._build_params_from_schema(td.parameters)
-                td.tool_type = ToolTypeEnum.PLUGIN.value
-                td.config = dict(td.config) if td.config else {}
-                td.config["_plugin_name"] = instance.name
-                td.config["_skill_type"] = skill.type
-                td.source_skill_id = skill.id
-                td.source_skill_name = skill.name
-                td.source_skill_type = skill.type
-                result.tools.append(td)
-
-            logger.debug(
-                "Plugin skill '%s' resolved %d tools via %s",
-                skill.type, len(tool_defs), instance.name,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Failed to resolve plugin skill %s (skill=%d): %s",
-                skill.type, skill.id, str(exc),
-            )
+        logger.warning(
+            "Unknown skill type: %s (skill=%d), skipping",
+            skill.type, skill.id,
+        )
 
     # ========================================
     # 辅助方法

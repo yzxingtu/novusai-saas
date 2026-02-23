@@ -30,7 +30,6 @@ from app.ai.tools.executors.crud_executor import (
     DeleteRecordExecutor,
     UpdateRecordExecutor,
 )
-from app.ai.tools.executors.plugin_executor import PluginSkillExecutor
 from app.ai.tools.executors.toolkit_executor import ToolkitExecutor
 from app.ai.tools.types import ExecutionContext, ToolDefinition, ToolResult
 from app.core.i18n import _
@@ -149,8 +148,6 @@ class ToolSandbox:
         self._executors[ToolTypeEnum.DATA_CREATE.value] = CreateRecordExecutor()
         self._executors[ToolTypeEnum.DATA_UPDATE.value] = UpdateRecordExecutor()
         self._executors[ToolTypeEnum.DATA_DELETE.value] = DeleteRecordExecutor()
-        # 插件 Skill 执行器
-        self._executors[ToolTypeEnum.PLUGIN.value] = PluginSkillExecutor()
         # HTTP/Webhook 执行器
         from app.ai.tools.executors.http_executor import HttpToolExecutor
         self._executors[ToolTypeEnum.HTTP.value] = HttpToolExecutor()

@@ -35,7 +35,6 @@ import {
 import { useColumns, useGridFormSchema } from './data';
 import DomainsModal from './modules/DomainsModal.vue';
 import TenantAdminPanel from './modules/TenantAdminPanel.vue';
-import TenantPluginsDrawer from './modules/TenantPluginsDrawer.vue';
 import Form from './modules/TenantForm.vue';
 import ResetPasswordModal from './modules/ResetPasswordModal.vue';
 
@@ -64,8 +63,6 @@ const domainsModalRef = ref<InstanceType<typeof DomainsModal>>();
 // 重置密码弹窗引用
 const resetPasswordModalRef = ref<InstanceType<typeof ResetPasswordModal>>();
 
-// 插件管理抽屉引用
-const pluginsDrawerRef = ref<InstanceType<typeof TenantPluginsDrawer>>();
 
 /**
  * 复制域名到剪贴板
@@ -97,16 +94,6 @@ function onResetPassword(row: TenantInfo) {
   resetPasswordModalRef.value?.open({
     id: row.id,
     name: row.name,
-  });
-}
-
-/**
- * 打开插件管理抽屉
- */
-function onManagePlugins(row: TenantInfo) {
-  pluginsDrawerRef.value?.open({
-    tenantId: row.id,
-    tenantName: row.name,
   });
 }
 
@@ -202,7 +189,6 @@ const {
     impersonateInCurrentTab: onImpersonateInCurrentTab,
     manageDomains: onManageDomains,
     resetPassword: onResetPassword,
-    managePlugins: onManagePlugins,
   },
 });
 </script>
@@ -212,7 +198,6 @@ const {
     <FormDrawer @success="onRefresh" />
     <DomainsModal ref="domainsModalRef" @success="onRefresh" />
     <ResetPasswordModal ref="resetPasswordModalRef" @success="onRefresh" />
-    <TenantPluginsDrawer ref="pluginsDrawerRef" />
     <ExportModal />
 
     <!-- 表格 -->
@@ -456,12 +441,6 @@ const {
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:key-round" class="size-4" />
                       <span>{{ $t('admin.tenant.resetPassword') }}</span>
-                    </div>
-                  </MenuItem>
-                  <MenuItem @click="onManagePlugins(row)">
-                    <div class="flex items-center gap-2">
-                      <IconifyIcon icon="lucide:plug" class="size-4" />
-                      <span>{{ $t('admin.tenant.managePlugins') }}</span>
                     </div>
                   </MenuItem>
                   <MenuItem @click="onImpersonate(row)">

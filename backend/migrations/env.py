@@ -56,9 +56,6 @@ from app.models import (
     SkillPackage,
     Skill,
     AgentSkillBinding,
-    # 插件系统
-    Plugin,
-    TenantPlugin,
     # 域名 SSL 证书
     DomainSslCertificate,
     # 通知

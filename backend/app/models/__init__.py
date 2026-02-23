@@ -19,8 +19,6 @@ from app.models.system import (
     OperationLog,
     TaskLog,
     PeriodicTask,
-    Plugin,
-    TenantPlugin,
     SystemAgentAssignment,
 )
 
@@ -82,8 +80,6 @@ __all__ = [
     "OperationLog",
     "TaskLog",
     "PeriodicTask",
-    "Plugin",
-    "TenantPlugin",
     # 租户级
     "Tenant",
     "TenantAdmin",
