@@ -139,33 +139,36 @@ class ExtensionRegistry:
         executor: Callable | None = None,
     ) -> None:
         """
-        注册插件技能类型
+        注册插件技能
+
+        以 plugin_name 为 key 注册 resolver 和 executor，
+        使插件技能可以使用标准类型（如 toolkit）而不与内置 resolver 冲突。
 
         Args:
-            plugin_name: 插件名
-            skill_type: 技能类型标识
+            plugin_name: 插件名（注册 key）
+            skill_type: 技能类型标识（仅用于日志）
             resolver: 技能解析函数 (skill, config) -> list[ToolDefinition]
             executor: 工具执行器函数 (tool_name, arguments, context) -> ToolResult
         """
-        self._plugin_skill_resolvers[skill_type] = resolver
+        self._plugin_skill_resolvers[plugin_name] = resolver
         if executor:
-            self._plugin_executors[skill_type] = executor
-        self._track(plugin_name, "skill", skill_type)
+            self._plugin_executors[plugin_name] = executor
+        self._track(plugin_name, "skill", plugin_name)
         logger.info(
-            "Plugin %s registered skill type: %s", plugin_name, skill_type
+            "Plugin %s registered skill resolver (type=%s)", plugin_name, skill_type
         )
 
     def _unregister_skill(self, ext: RegisteredExtension) -> None:
         self._plugin_skill_resolvers.pop(ext.key, None)
         self._plugin_executors.pop(ext.key, None)
 
-    def get_plugin_skill_resolver(self, skill_type: str) -> Callable | None:
-        """获取插件技能解析器（供 SkillResolver 调用）"""
-        return self._plugin_skill_resolvers.get(skill_type)
+    def get_plugin_skill_resolver(self, plugin_name: str) -> Callable | None:
+        """获取插件技能解析器（按插件名查找）"""
+        return self._plugin_skill_resolvers.get(plugin_name)
 
-    def get_plugin_executor(self, skill_type: str) -> Callable | None:
-        """获取插件工具执行器（供 ToolSandbox 调用）"""
-        return self._plugin_executors.get(skill_type)
+    def get_plugin_executor(self, plugin_name: str) -> Callable | None:
+        """获取插件工具执行器（按插件名查找）"""
+        return self._plugin_executors.get(plugin_name)
 
     # ── 5. Event ──
 

@@ -877,6 +877,10 @@
       "hint": "内置工具由系统定义，不可编辑。工具列表显示在下方。",
       "toolList": "工具列表"
     },
+    "pluginTools": {
+      "toolList": "插件工具",
+      "managedBy": "此技能由插件「{plugin}」管理，工具定义在插件代码中，不可在此编辑。"
+    },
     "toolkitEditor": {
       "title": "Toolkit 编辑器",
       "sourceCode": "源码",

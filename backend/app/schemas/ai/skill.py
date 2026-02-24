@@ -11,6 +11,7 @@ from pydantic import Field
 from app.core.base_schema import (
     BaseCreateSchema,
     BaseResponseSchema,
+    BaseSchema,
     BaseUpdateSchema,
 )
 from app.core.i18n import _
@@ -51,6 +52,14 @@ class SkillUpdate(BaseUpdateSchema):
     toolkit_meta: dict[str, Any] | None = Field(None, description=_("skill.field.toolkit_meta"))
 
 
+class PluginToolInfo(BaseSchema):
+    """插件工具信息（只读展示）"""
+
+    name: str = Field(..., description="Tool name")
+    description: str | None = Field(None, description="Tool description")
+    parameters: list[dict[str, Any]] = Field(default_factory=list, description="Tool parameters")
+
+
 class SkillResponse(BaseResponseSchema):
     """技能响应"""
 
@@ -69,6 +78,10 @@ class SkillResponse(BaseResponseSchema):
     timeout: int = Field(..., description=_("skill.field.timeout"))
     toolkit_content: str | None = Field(None, description=_("skill.field.toolkit_content"))
     toolkit_meta: dict[str, Any] | None = Field(None, description=_("skill.field.toolkit_meta"))
+
+    # ---- 插件来源信息（仅插件注册的技能有值） ----
+    source_plugin: str | None = Field(None, description="Source plugin name (null for manual skills)")
+    plugin_tools: list[PluginToolInfo] | None = Field(None, description="Plugin-resolved tool list (null for manual skills)")
 
 
 __all__ = [

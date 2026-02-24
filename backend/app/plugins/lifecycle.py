@@ -852,16 +852,25 @@ class PluginLifecycle:
             package.name = display_name
             await self._db.flush()
 
+        # 预加载包内所有已有的系统技能（用于匹配更新）
+        existing_skills_result = await self._db.execute(
+            select(Skill).where(
+                Skill.package_id == package.id,
+                Skill.is_system.is_(True),
+                Skill.is_deleted.is_(False),
+            )
+        )
+        existing_skills = list(existing_skills_result.scalars().all())
+
         # 对每个 skill extension 创建或更新 Skill 记录
         for skill_ext in skill_extensions:
-            existing_skill_result = await self._db.execute(
-                select(Skill).where(
-                    Skill.package_id == package.id,
-                    Skill.type == skill_ext.type,
-                    Skill.is_deleted.is_(False),
-                )
+            # 先按 name 匹配，再按 type 匹配，最后取第一个
+            existing_skill = next(
+                (s for s in existing_skills if s.name == (resolve_i18n(skill_ext.display_name) if skill_ext.display_name else skill_ext.name)),
+                next((s for s in existing_skills if s.type == skill_ext.type), None),
             )
-            existing_skill = existing_skill_result.scalar_one_or_none()
+            if existing_skill is None and len(existing_skills) == 1 and len(skill_extensions) == 1:
+                existing_skill = existing_skills[0]
 
             skill_display = resolve_i18n(skill_ext.display_name) if skill_ext.display_name else skill_ext.name
             skill_desc = resolve_i18n(skill_ext.description) if skill_ext.description else None
@@ -886,6 +895,7 @@ class PluginLifecycle:
                 existing_skill.is_active = active
                 existing_skill.name = skill_display
                 existing_skill.description = skill_desc
+                existing_skill.type = skill_ext.type
 
         await self._db.flush()
 

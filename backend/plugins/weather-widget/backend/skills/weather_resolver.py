@@ -30,7 +30,7 @@ def resolve(skill, config: dict) -> list[ToolDefinition]:
                 "wind speed and UV index. "
                 "Supports both Chinese and English city names."
             ),
-            tool_type="weather_widget",
+            tool_type="toolkit",
             parameters=[
                 ToolParameter(
                     name="city",
@@ -53,7 +53,7 @@ def resolve(skill, config: dict) -> list[ToolDefinition]:
                 "Returns daily high/low temperature and weather condition. "
                 "Supports 1-7 days forecast."
             ),
-            tool_type="weather_widget",
+            tool_type="toolkit",
             parameters=[
                 ToolParameter(
                     name="city",

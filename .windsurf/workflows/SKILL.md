@@ -445,13 +445,19 @@ npm install && npx vite build    # → dist/index.js (UMD)
 
 ### 插件技能类型规范
 
-插件声明 `extensions.skills` 时，`type` 字段**必须使用系统内置类型**，不得自定义新类型。
+插件声明 `extensions.skills` 时，`type` 字段**必须使用系统内置类型**（如 `toolkit`），**禁止自定义新类型**。
+
+**调度机制：** `SkillResolver._resolve_one()` 先检查 `SkillPackage.source_plugin`：
+- 有值 → 按 `plugin_name` 查找插件 resolver（`ExtensionRegistry._plugin_skill_resolvers[plugin_name]`）
+- 无值 → 按 `skill.type` 走内置 resolver（toolkit / knowledge_base / ...）
+
+因此插件技能可以安全使用 `toolkit` 等标准类型，不会与内置 resolver 冲突。系统通过 `source_plugin` 区分插件技能和手动创建的技能。
 
 **内置技能类型：**
 
 | type | 说明 |
 |------|------|
-| `toolkit` | Python 工具包（最常用，调用外部 API、自定义逻辑） |
+| `toolkit` | Python 工具包（**插件推荐使用**） |
 | `knowledge_base` | RAG 知识库检索 |
 | `data_intelligence` | Text-to-SQL 数据库查询 |
 | `builtin` | 系统内置工具 |
@@ -459,33 +465,26 @@ npm install && npx vite build    # → dist/index.js (UMD)
 | `email` | 邮件发送 |
 | `code_execution` | 代码沙箱执行 |
 
-**禁止自定义类型**（如 `weather_widget`、`my_custom_type`）：
-- 系统 i18n 只维护内置类型的翻译，自定义类型会显示 fallback 文本而非正式翻译
-- 系统 UI 的类型颜色/图标映射只覆盖内置类型，自定义类型统一显示默认样式
-- Executor 文件名查找规则 `{type}_executor.py` 对自定义类型可能无法正确匹配
-
-**正确做法：** 绝大多数插件技能应使用 `toolkit` 类型。通过 `display_name` 和 `description` 区分具体用途，而非发明新 type。
-
 ```yaml
-# ✅ 正确
+# ✅ 正确 — 使用标准类型
 extensions:
   skills:
-    - name: weather-query
-      type: toolkit                    # 使用内置类型
+    - name: weather-realtime
+      type: toolkit                    # 标准类型，UI 显示正常
       display_name:
         zh-CN: "天气查询"
-      entry_point: "skills.resolver"
+      entry_point: "skills.weather_resolver"
 
-# ❌ 错误
+# ❌ 错误 — 自定义类型
 extensions:
   skills:
-    - name: weather-query
-      type: weather_widget             # 禁止自定义类型
+    - name: weather-realtime
+      type: weather_widget             # 自定义类型会在 UI 中显示为异类
 ```
 
 ### 关键禁令
 
-- **禁止自定义技能类型** — 必须使用上述 7 种内置 type，通过 `display_name` 区分用途
+- **禁止自定义技能类型** — 必须使用上述 7 种内置 type，系统通过 `source_plugin` 区分插件技能
 - **禁止在主系统代码中写入插件组件/逻辑/国际化** — 插件所有代码必须在 `backend/plugins/{name}/` 内
 - **禁止硬编码插件组件映射** — 不允许在宿主代码中 `import` 或 `import.meta.glob` 插件组件
 - **禁止在主系统 `locales/` 中放插件翻译** — 插件 i18n 通过 `setup()` 的 `registerLocale()` 动态注册

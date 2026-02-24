@@ -160,13 +160,21 @@ class TenantSkillController(TenantController):
         ):
             """
             获取技能详情
+
+            插件注册的技能额外返回 source_plugin 和 plugin_tools 字段
             """
             service = SkillService(db, tenant_admin.tenant_id)
             skill = await service.get_by_id(skill_id)
             if not skill:
                 raise NotFoundException(message=_("skill.error.not_found"))
 
-            return success(data=skill.to_dict())
+            from app.api.admin.skills import _enrich_plugin_skill_info
+            from app.schemas.ai.skill import SkillResponse
+
+            data = SkillResponse.model_validate(skill, from_attributes=True)
+            await _enrich_plugin_skill_info(db, skill, data)
+
+            return success(data=data)
 
         @router.post("", summary="创建技能")
         @action_create("action.skill.create")

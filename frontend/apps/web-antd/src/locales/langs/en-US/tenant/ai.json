@@ -878,6 +878,10 @@
       "hint": "Built-in tools are system-defined and read-only. Tool list is shown below.",
       "toolList": "Tool List"
     },
+    "pluginTools": {
+      "toolList": "Plugin Tools",
+      "managedBy": "This skill is managed by plugin \"{plugin}\". Tool definitions are in the plugin code and cannot be edited here."
+    },
     "toolkitEditor": {
       "title": "Toolkit Editor",
       "sourceCode": "Source",

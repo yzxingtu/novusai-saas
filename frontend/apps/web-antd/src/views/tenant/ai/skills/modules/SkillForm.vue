@@ -3,7 +3,7 @@ defineOptions({ name: 'TenantSkillForm' });
 /**
  * 租户端技能新建/编辑表单抽屉
  */
-import type { SkillInfo } from '#/api/tenant/skills';
+import type { PluginToolDefinition, SkillInfo } from '#/api/tenant/skills';
 
 import { computed, ref } from 'vue';
 
@@ -23,6 +23,9 @@ interface BuiltinToolInfo {
   parameters?: { properties?: Record<string, { type?: string; description?: string }> };
 }
 const builtinTools = ref<BuiltinToolInfo[]>([]);
+const pluginTools = ref<PluginToolDefinition[]>([]);
+const isPluginSkill = ref(false);
+const pluginSourceName = ref('');
 
 interface DiToolInfo {
   name: string;
@@ -134,6 +137,10 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<SkillInfo>({
     const cfg = (data.config ?? {}) as Record<string, unknown>;
     const ragCfg = (cfg.rag_config ?? {}) as Record<string, unknown>;
 
+    // 插件技能检测
+    isPluginSkill.value = !!data.source_plugin;
+    pluginSourceName.value = data.source_plugin || '';
+
     if (data.type === 'builtin' && Array.isArray(cfg.tools)) {
       builtinTools.value = cfg.tools as BuiltinToolInfo[];
     } else {
@@ -144,6 +151,13 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<SkillInfo>({
       loadDiTools(cfg.table_policy_ids as number[] | undefined);
     } else {
       diTools.value = [];
+    }
+
+    // 插件技能工具列表
+    if (data.source_plugin && Array.isArray(data.plugin_tools)) {
+      pluginTools.value = data.plugin_tools;
+    } else {
+      pluginTools.value = [];
     }
 
     return {
@@ -291,6 +305,41 @@ const title = computed(() =>
               class="!text-[10px]"
             >
               {{ pName }}: {{ pInfo.type || 'string' }}
+            </Tag>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- 插件技能工具列表只读展示 -->
+    <template v-if="pluginTools.length > 0">
+      <Divider orientation="left" dashed>
+        {{ $t('tenant.ai.skill.pluginTools.toolList') }}
+        <Tag color="blue" class="ml-2">{{ pluginTools.length }}</Tag>
+      </Divider>
+      <div class="flex flex-col gap-2">
+        <div
+          v-for="tool in pluginTools"
+          :key="tool.name"
+          class="rounded-lg border border-border/60 p-3"
+        >
+          <div class="mb-1 flex items-center gap-2">
+            <Tag color="processing">{{ tool.name }}</Tag>
+          </div>
+          <p class="mb-0 text-xs text-muted-foreground">
+            {{ tool.description }}
+          </p>
+          <div
+            v-if="tool.parameters?.length"
+            class="mt-2 flex flex-wrap gap-1"
+          >
+            <Tag
+              v-for="param in tool.parameters"
+              :key="param.name"
+              :color="param.required ? 'orange' : 'default'"
+              class="!text-[10px]"
+            >
+              {{ param.name }}: {{ param.type }}
             </Tag>
           </div>
         </div>

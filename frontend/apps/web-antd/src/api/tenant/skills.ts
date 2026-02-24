@@ -11,6 +11,19 @@ import { requestClient } from '#/utils/request';
 // ============================================================
 
 /** 技能信息 */
+/** 插件技能工具定义 */
+export interface PluginToolDefinition {
+  name: string;
+  description: string;
+  parameters: Array<{
+    name: string;
+    type: string;
+    description: string;
+    required: boolean;
+  }>;
+}
+
+/** 技能信息 */
 export interface SkillInfo {
   id: number;
   tenant_id: number | null;
@@ -30,6 +43,8 @@ export interface SkillInfo {
   toolkit_meta: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
+  source_plugin: string | null;
+  plugin_tools: PluginToolDefinition[] | null;
 }
 
 /** 创建技能请求 */

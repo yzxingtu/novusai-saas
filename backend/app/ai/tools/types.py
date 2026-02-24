@@ -83,6 +83,7 @@ class ToolDefinition:
     source_skill_name: str | None = None
     source_skill_type: str | None = None
     source_package_name: str | None = None
+    source_plugin: str | None = None
 
     @property
     def input_schema(self) -> dict[str, Any]:

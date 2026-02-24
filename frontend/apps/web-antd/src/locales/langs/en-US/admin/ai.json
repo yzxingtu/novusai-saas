@@ -836,7 +836,8 @@
       "toolList": "Tool List"
     },
     "pluginTools": {
-      "toolList": "Plugin Tools"
+      "toolList": "Plugin Tools",
+      "managedBy": "This skill is managed by plugin \"{plugin}\". Tool definitions are in the plugin code and cannot be edited here."
     },
     "toolkitEditor": {
       "title": "Toolkit Editor",

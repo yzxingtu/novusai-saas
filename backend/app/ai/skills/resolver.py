@@ -77,6 +77,9 @@ class SkillResolver:
         result = SkillResolveResult()
         overrides = config_overrides or {}
 
+        # 预加载所有技能所属技能包的 source_plugin（批量查询）
+        plugin_map = await self._load_source_plugins(skills)
+
         for skill in skills:
             if not skill.is_active:
                 continue
@@ -86,8 +89,10 @@ class SkillResolver:
             if skill.id in overrides and overrides[skill.id]:
                 merged_config.update(overrides[skill.id])
 
+            source_plugin = plugin_map.get(skill.package_id)
+
             try:
-                await self._resolve_one(skill, merged_config, result)
+                await self._resolve_one(skill, merged_config, result, source_plugin)
             except Exception as exc:
                 warning_msg = f"Skill '{skill.name}' (id={skill.id}) failed to load: {str(exc)}"
                 result.warnings.append(warning_msg)
@@ -102,13 +107,52 @@ class SkillResolver:
         )
         return result
 
+    async def _load_source_plugins(
+        self, skills: list[Skill],
+    ) -> dict[int, str]:
+        """
+        批量查询技能包的 source_plugin 字段
+
+        Returns:
+            {package_id: source_plugin_name} 仅包含有 source_plugin 的记录
+        """
+        if not self.db or not skills:
+            return {}
+
+        package_ids = list({s.package_id for s in skills if s.package_id})
+        if not package_ids:
+            return {}
+
+        from sqlalchemy import select
+        from app.models.ai.skill_package import SkillPackage
+
+        stmt = select(
+            SkillPackage.id, SkillPackage.source_plugin,
+        ).where(
+            SkillPackage.id.in_(package_ids),
+            SkillPackage.source_plugin.isnot(None),
+        )
+        rows = await self.db.execute(stmt)
+        return {row.id: row.source_plugin for row in rows}
+
     async def _resolve_one(
         self,
         skill: Skill,
         config: dict[str, Any],
         result: SkillResolveResult,
+        source_plugin: str | None = None,
     ) -> None:
-        """按类型分发到对应的转换方法"""
+        """
+        按类型分发到对应的转换方法
+
+        插件技能（source_plugin 有值）优先走插件 resolver，
+        不论其 type 是什么（可以是 toolkit 等标准类型）。
+        """
+        # 插件技能优先走插件 resolver
+        if source_plugin:
+            await self._resolve_plugin_skill(skill, config, result, source_plugin)
+            return
+
         skill_type = skill.type
 
         if skill_type == SkillTypeEnum.KNOWLEDGE_BASE.value:
@@ -126,7 +170,10 @@ class SkillResolver:
         elif skill_type == SkillTypeEnum.CODE_EXECUTION.value:
             self._resolve_code_execution(skill, config, result)
         else:
-            await self._resolve_plugin_skill(skill, config, result)
+            logger.warning(
+                "Unknown skill type: %s (skill=%d), no resolver available",
+                skill_type, skill.id,
+            )
 
     # ========================================
     # 知识库 Skill
@@ -707,22 +754,23 @@ class SkillResolver:
         skill: Skill,
         config: dict[str, Any],
         result: SkillResolveResult,
+        source_plugin: str = "",
     ) -> None:
         """
-        插件技能类型解析 — 查询 ExtensionRegistry 获取插件提供的 resolver
+        插件技能解析 — 按 plugin_name 查询 ExtensionRegistry 获取插件 resolver
 
-        插件在 enable 时通过 ExtensionRegistry.register_skill() 注册了
-        resolver 函数，此处查找并调用它将 Skill → ToolDefinition。
+        插件在 enable 时通过 ExtensionRegistry.register_skill(plugin_name, ...)
+        注册了 resolver 函数，此处按 source_plugin（插件名）查找并调用。
         """
         from app.plugins.registry import ExtensionRegistry
 
         registry = ExtensionRegistry.get_instance()
-        resolver_func = registry.get_plugin_skill_resolver(skill.type)
+        resolver_func = registry.get_plugin_skill_resolver(source_plugin)
 
         if resolver_func is None:
             logger.warning(
-                "Unknown skill type: %s (skill=%d), no plugin resolver registered",
-                skill.type, skill.id,
+                "No plugin resolver for plugin '%s' (skill=%d, type=%s)",
+                source_plugin, skill.id, skill.type,
             )
             return
 
@@ -733,15 +781,16 @@ class SkillResolver:
                     td.source_skill_id = skill.id
                     td.source_skill_name = skill.name
                     td.source_skill_type = skill.type
+                    td.source_plugin = source_plugin
                     result.tools.append(td)
                 logger.info(
-                    "Plugin skill '%s' (type=%s) resolved %d tools",
-                    skill.name, skill.type, len(tool_defs),
+                    "Plugin '%s' skill '%s' resolved %d tools",
+                    source_plugin, skill.name, len(tool_defs),
                 )
         except Exception as exc:
             logger.error(
-                "Plugin skill resolver failed for '%s' (type=%s): %s",
-                skill.name, skill.type, exc,
+                "Plugin skill resolver failed for '%s' (plugin=%s): %s",
+                skill.name, source_plugin, exc,
             )
 
     # ========================================

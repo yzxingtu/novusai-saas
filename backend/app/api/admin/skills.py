@@ -34,6 +34,68 @@ from app.services.ai.skill_service import AdminSkillService
 logger = LogManager.get_logger("ai")
 
 
+async def _enrich_plugin_skill_info(db, skill, data: SkillResponse) -> None:
+    """
+    为插件注册的技能补充 source_plugin 和 plugin_tools 信息
+
+    通过 SkillPackage.source_plugin 判断是否为插件技能，
+    若是则从 ExtensionRegistry 调用 resolver 获取工具列表。
+    """
+    from sqlalchemy import select
+    from app.models.ai.skill_package import SkillPackage
+    from app.schemas.ai.skill import PluginToolInfo
+
+    # 查询所属技能包的 source_plugin
+    result = await db.execute(
+        select(SkillPackage.source_plugin).where(
+            SkillPackage.id == skill.package_id,
+        )
+    )
+    source_plugin = result.scalar_one_or_none()
+
+    if not source_plugin:
+        return
+
+    data.source_plugin = source_plugin
+
+    # 从插件 registry 获取 resolver 并调用
+    try:
+        import asyncio
+        from app.plugins.registry import ExtensionRegistry
+
+        registry = ExtensionRegistry.get_instance()
+        resolver_func = registry.get_plugin_skill_resolver(source_plugin)
+        if resolver_func is None:
+            return
+
+        config = skill.config or {}
+        tool_defs = (
+            await resolver_func(skill, config)
+            if asyncio.iscoroutinefunction(resolver_func)
+            else resolver_func(skill, config)
+        )
+
+        if isinstance(tool_defs, list):
+            data.plugin_tools = [
+                PluginToolInfo(
+                    name=td.name,
+                    description=td.description,
+                    parameters=[
+                        {
+                            "name": p.name,
+                            "type": p.type,
+                            "description": p.description,
+                            "required": p.required,
+                        }
+                        for p in (td.parameters or [])
+                    ],
+                )
+                for td in tool_defs
+            ]
+    except Exception as exc:
+        logger.warning("Failed to resolve plugin tools for skill %d: %s", skill.id, exc)
+
+
 def _build_admin_skill_item(skill) -> dict:
     """从 ORM 对象构建管理端列表项字典"""
     return {
@@ -126,6 +188,8 @@ class AdminSkillController(GlobalController):
         ):
             """
             获取技能详情（跨租户）
+
+            插件注册的技能额外返回 source_plugin 和 plugin_tools 字段
             """
             service = AdminSkillService(db)
             skill = await service.get_by_id(skill_id)
@@ -133,9 +197,12 @@ class AdminSkillController(GlobalController):
             if not skill:
                 raise NotFoundException(message=_("skill.error.not_found"))
 
-            return success(
-                data=SkillResponse.model_validate(skill, from_attributes=True),
-            )
+            data = SkillResponse.model_validate(skill, from_attributes=True)
+
+            # 补充插件来源信息
+            await _enrich_plugin_skill_info(db, skill, data)
+
+            return success(data=data)
 
         @router.post("", summary="创建技能")
         @action_create("action.ai_skill.create")

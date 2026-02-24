@@ -83,7 +83,8 @@ function getSkillTypeOptions(currentType?: string) {
   if (currentType && !predefined.some((o) => o.value === currentType)) {
     const key = `admin.ai.skill.type_options.${currentType}`;
     const text = $t(key);
-    predefined.push({ label: text === key ? currentType : text, value: currentType });
+    const fallbackLabel = currentType.replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    predefined.push({ label: text === key ? fallbackLabel : text, value: currentType });
   }
   return predefined;
 }
@@ -106,7 +107,7 @@ interface BuiltinToolInfo {
 const builtinTools = ref<BuiltinToolInfo[]>([]);
 const pluginTools = ref<PluginToolDefinition[]>([]);
 
-const isToolkit = (v: Record<string, unknown>) => v.type === 'toolkit';
+const isToolkit = (v: Record<string, unknown>) => v.type === 'toolkit' && !isPluginSkill.value;
 const isKb = (v: Record<string, unknown>) => v.type === 'knowledge_base';
 const isDi = (v: Record<string, unknown>) => v.type === 'data_intelligence';
 const isDiNonSystem = (v: Record<string, unknown>) =>
@@ -138,6 +139,8 @@ function getAuthTypeOptions() {
 }
 
 const isSystemSkill = ref(false);
+const isPluginSkill = ref(false);
+const pluginSourceName = ref('');
 
 interface DiToolInfo {
   name: string;
@@ -189,6 +192,13 @@ function useFormSchema() {
         placeholder: $t('admin.ai.skill.placeholder.selectType'),
       }),
       help: $t('admin.ai.skill.help.type'),
+      dependencies: {
+        triggerFields: ['type'],
+        componentProps: (values: Record<string, unknown>) => ({
+          disabled: isPluginSkill.value,
+          options: getSkillTypeOptions(values.type as string),
+        }),
+      },
     },
     {
       component: 'Alert',
@@ -201,11 +211,35 @@ function useFormSchema() {
       },
       dependencies: {
         triggerFields: ['type'],
-        if: (values: Record<string, unknown>) => !!values.type,
-        componentProps: (values: Record<string, unknown>) => ({
-          type: 'info',
+        if: (values: Record<string, unknown>) => !!values.type && !isPluginSkill.value,
+        componentProps: (values: Record<string, unknown>) => {
+          const key = `admin.ai.skill.typeDesc.${values.type as string}`;
+          const text = $t(key);
+          return {
+            type: 'info',
+            showIcon: true,
+            message: text === key ? '' : text,
+          };
+        },
+      },
+    },
+    {
+      component: 'Alert',
+      fieldName: '_plugin_source',
+      label: '',
+      hideLabel: true,
+      componentProps: {
+        type: 'warning',
+        showIcon: true,
+        message: '',
+      },
+      dependencies: {
+        triggerFields: ['type'],
+        if: () => isPluginSkill.value,
+        componentProps: () => ({
+          type: 'warning',
           showIcon: true,
-          message: $t(`admin.ai.skill.typeDesc.${values.type as string}`),
+          message: $t('admin.ai.skill.pluginTools.managedBy', { plugin: pluginSourceName.value }),
         }),
       },
     },
@@ -552,6 +586,12 @@ function useFormSchema() {
 }
 
 function getFormDefaults(): Record<string, unknown> {
+  // 重置插件技能状态
+  isPluginSkill.value = false;
+  pluginSourceName.value = '';
+  pluginTools.value = [];
+  builtinTools.value = [];
+  diTools.value = [];
   return {
     type: 'toolkit',
     timeout: 30,
@@ -697,6 +737,10 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
 
     isSystemSkill.value = !!data.is_system;
 
+    // 插件技能检测：使用 API 返回的 source_plugin 字段
+    isPluginSkill.value = !!data.source_plugin;
+    pluginSourceName.value = data.source_plugin || '';
+
     if (data.type === 'builtin' && Array.isArray(cfg.tools)) {
       builtinTools.value = cfg.tools as BuiltinToolInfo[];
     } else {
@@ -710,12 +754,16 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
       diTools.value = [];
     }
 
-    // 加载插件技能的工具定义
-    const standardTypes = new Set(['toolkit', 'builtin', 'knowledge_base', 'data_intelligence', 'http', 'email', 'code_execution']);
-    if (data.id && !standardTypes.has(data.type)) {
-      loadPluginTools(data.id);
+    // 插件技能工具列表：优先使用 API 返回的 plugin_tools，fallback 到单独 API
+    if (data.source_plugin && Array.isArray(data.plugin_tools)) {
+      pluginTools.value = data.plugin_tools;
     } else {
-      pluginTools.value = [];
+      const standardTypes = new Set(['toolkit', 'builtin', 'knowledge_base', 'data_intelligence', 'http', 'email', 'code_execution']);
+      if (data.id && !standardTypes.has(data.type)) {
+        loadPluginTools(data.id);
+      } else {
+        pluginTools.value = [];
+      }
     }
 
     return {
@@ -848,7 +896,7 @@ watch(
   { immediate: true },
 );
 const drawerWidthClass = computed(() =>
-  currentSkillType.value === 'toolkit' ? 'w-[900px]' : 'w-[600px]',
+  currentSkillType.value === 'toolkit' && !isPluginSkill.value ? 'w-[900px]' : 'w-[600px]',
 );
 
 </script>

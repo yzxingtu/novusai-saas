@@ -30,6 +30,8 @@ export interface AdminSkillInfo {
   toolkit_meta: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
+  source_plugin: string | null;
+  plugin_tools: PluginToolDefinition[] | null;
 }
 
 /** 创建技能请求 */
