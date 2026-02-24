@@ -10,7 +10,7 @@ interface AgentDetailWithBindings extends AgentInfo {
   _package_options?: { label: string; value: number }[];
 }
 
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { useVbenForm } from '#/adapter/form';
 import {
@@ -21,18 +21,19 @@ import {
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
-import { Button as AButton, Select as ASelect, Steps as ASteps } from 'ant-design-vue';
+import { Button as AButton, Select as ASelect, Steps as ASteps, Tag as ATag } from 'ant-design-vue';
 
 const AStep = ASteps.Step;
 
 import {
   getFormDefaults,
+  getPackageSelectOptions,
   getWizardSteps,
   useFormSchema,
   useWizardFormSchema,
 } from '../data';
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 2;
 
 const emits = defineEmits<{ success: [] }>();
 
@@ -42,21 +43,18 @@ const pendingPackageIds = ref<number[]>([]);
 const consentModes = ref<Record<string, string>>({});
 const selectedPackages = ref<Array<{ label: string; value: number }>>([]);
 
+interface TenantPkgOption {
+  label: string;
+  value: number;
+  scope?: string;
+  source_plugin?: string;
+}
+const tenantPackageOptions = ref<TenantPkgOption[]>([]);
+const tenantPackageLoading = ref(false);
+
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(),
   showDefaultActions: false,
-  handleValuesChange: (values, changedFields) => {
-    if (changedFields.includes('package_ids')) {
-      const rawPkgIds = values.package_ids as Array<number | { label: string; value: number }>;
-      if (rawPkgIds) {
-        selectedPackages.value = rawPkgIds.map((p: number | { label: string; value: number }) =>
-          typeof p === 'object' && p !== null ? p : { label: `#${p}`, value: p as number },
-        );
-      } else {
-        selectedPackages.value = [];
-      }
-    }
-  },
 });
 
 function goStep(step: number) {
@@ -101,14 +99,6 @@ const { Drawer, isEdit, recordId, openNew: _openNew, openEdit: _openEdit } = use
   defaults: getFormDefaults,
   apiPath: '/tenant/ai/agents',
   transform: (values) => {
-    const rawPkgIds = values.package_ids as Array<number | { label: string; value: number }>;
-    const resolved = (rawPkgIds || []).map((p) =>
-      typeof p === 'object' && p !== null ? p.value : p,
-    );
-    pendingPackageIds.value = resolved;
-    selectedPackages.value = (rawPkgIds || []).map((p) =>
-      typeof p === 'object' && p !== null ? p : { label: `#${p}`, value: p as number },
-    );
     return {
       name: values.name,
       avatar: values.avatar || null,
@@ -121,24 +111,9 @@ const { Drawer, isEdit, recordId, openNew: _openNew, openEdit: _openEdit } = use
       top_p: values.top_p ?? null,
       welcome_message: values.welcome_message || null,
       suggested_questions: safeJsonArrayParse(values.suggested_questions_str),
-      input_variables: safeJsonArrayParse(values.input_variables_str),
-      context_config: {
-        max_history_messages: values.context_max_history_messages ?? 20,
-        max_history_tokens: values.context_max_history_tokens ?? 0,
-      },
-      quota_config: {
-        conversations_per_day: values.quota_conversations_per_day ?? 0,
-        daily_token_limit: values.quota_tokens_per_day ?? 0,
-        monthly_token_limit: values.quota_tokens_per_month ?? 0,
-        max_turns_per_conversation: values.quota_max_turns ?? 50,
-        max_concurrent: values.quota_max_concurrent ?? 10,
-        user_conversations_per_day: values.quota_user_conversations_per_day ?? 0,
-      },
     };
   },
   toFormValues: (data) => {
-    const qc = (data.quota_config ?? {}) as Record<string, number>;
-    const cc = (data.context_config ?? {}) as Record<string, number>;
     return {
       name: data.name,
       avatar: data.avatar || '',
@@ -151,16 +126,6 @@ const { Drawer, isEdit, recordId, openNew: _openNew, openEdit: _openEdit } = use
       top_p: data.top_p,
       welcome_message: data.welcome_message,
       suggested_questions_str: toJsonArrayString(data.suggested_questions as unknown[] | null),
-      input_variables_str: toJsonArrayString(data.input_variables as unknown[] | null),
-      context_max_history_messages: cc.max_history_messages ?? 20,
-      context_max_history_tokens: cc.max_history_tokens ?? 0,
-      package_ids: (data as AgentDetailWithBindings)._package_options || [],
-      quota_conversations_per_day: qc.conversations_per_day ?? 0,
-      quota_tokens_per_day: qc.daily_token_limit ?? 0,
-      quota_tokens_per_month: qc.monthly_token_limit ?? 0,
-      quota_max_turns: qc.max_turns_per_conversation ?? 50,
-      quota_max_concurrent: qc.max_concurrent ?? 10,
-      quota_user_conversations_per_day: qc.user_conversations_per_day ?? 0,
     };
   },
   onSuccess: async () => {
@@ -195,7 +160,9 @@ const { Drawer, isEdit, recordId, openNew: _openNew, openEdit: _openEdit } = use
         }
       }
       consentModes.value = modes;
-      selectedPackages.value = (agent as AgentDetailWithBindings)._package_options!;
+      const pkgOpts = (agent as AgentDetailWithBindings)._package_options!;
+      selectedPackages.value = pkgOpts;
+      pendingPackageIds.value = pkgOpts.map((p) => p.value);
     } catch {
       (agent as AgentDetailWithBindings)._package_options = [];
     }
@@ -247,6 +214,42 @@ const title = computed(() =>
 
 const isLastStep = computed(() => currentStep.value === TOTAL_STEPS - 1);
 const isFirstStep = computed(() => currentStep.value === 0);
+
+async function loadTenantPackageOptions() {
+  tenantPackageLoading.value = true;
+  try {
+    tenantPackageOptions.value = await getPackageSelectOptions() as TenantPkgOption[];
+  } finally {
+    tenantPackageLoading.value = false;
+  }
+}
+
+onMounted(loadTenantPackageOptions);
+
+function getTenantScopeTagByValue(value: number): { text: string; color: string } | null {
+  const opt = tenantPackageOptions.value.find((o) => o.value === value);
+  if (!opt) return null;
+  if (opt.source_plugin) return { text: $t('tenant.ai.skillPackage.scopeTag.plugin'), color: 'purple' };
+  switch (opt.scope) {
+    case 'global': return { text: $t('tenant.ai.skillPackage.scope_options.global'), color: 'blue' };
+    case 'admin': return { text: $t('tenant.ai.skillPackage.scope_options.admin'), color: 'orange' };
+    default: return null;
+  }
+}
+
+function onTenantPackageChange(val: unknown) {
+  const raw = (val || []) as Array<unknown>;
+  const items = raw.map((item) => {
+    if (typeof item === 'object' && item !== null) {
+      const obj = item as Record<string, unknown>;
+      return { label: String(obj.label || ''), value: Number(obj.value || obj.key || 0) };
+    }
+    return { label: `#${item}`, value: Number(item) };
+  });
+  selectedPackages.value = items;
+  pendingPackageIds.value = items.map((p) => p.value);
+  formApi.setValues({ package_ids: items });
+}
 </script>
 
 <template>
@@ -262,6 +265,38 @@ const isFirstStep = computed(() => currentStep.value === 0);
       </ASteps>
     </div>
     <Form />
+
+    <!-- Skill package binding with Tag badges -->
+    <div class="mb-5">
+      <div class="mb-2 text-sm font-medium text-foreground">
+        {{ $t('tenant.ai.agent.skillPackageBindings') }}
+      </div>
+      <ASelect
+        :value="selectedPackages"
+        mode="multiple"
+        label-in-value
+        :loading="tenantPackageLoading"
+        :options="tenantPackageOptions"
+        :placeholder="$t('tenant.ai.agent.placeholder.selectSkillPackages')"
+        show-search
+        option-filter-prop="label"
+        class="w-full"
+        @change="onTenantPackageChange"
+      >
+        <template #option="{ label: optLabel, value: optValue }">
+          <div class="flex items-center justify-between gap-2">
+            <span class="truncate">{{ optLabel }}</span>
+            <ATag
+              v-if="getTenantScopeTagByValue(optValue as number)"
+              :color="getTenantScopeTagByValue(optValue as number)!.color"
+              class="mr-0 shrink-0 text-xs leading-tight"
+            >
+              {{ getTenantScopeTagByValue(optValue as number)!.text }}
+            </ATag>
+          </div>
+        </template>
+      </ASelect>
+    </div>
 
     <!-- Consent mode per skill package -->
     <div v-if="selectedPackages.length > 0" class="mt-4">

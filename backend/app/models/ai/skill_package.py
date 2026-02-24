@@ -67,6 +67,7 @@ class SkillPackage(TenantModel):
         "label": "name",
         "value": "id",
         "search": ["name"],
+        "extra": ["scope", "is_system", "source_plugin"],
     }
 
     # ==================== 基本信息 ====================

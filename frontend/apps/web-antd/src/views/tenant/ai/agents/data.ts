@@ -155,12 +155,11 @@ export async function getModelSelectOptions() {
 export async function getPackageSelectOptions() {
   try {
     const data = await getAvailablePackagesApi();
-    return data.map((p) => ({
-      label:
-        p.scope === 'admin'
-          ? `${p.label} (${$t('tenant.ai.agent.sharedPackageTag')})`
-          : p.label,
+    return data.map((p: { label: string; value: number; scope?: string; source_plugin?: string }) => ({
+      label: p.label,
       value: p.value,
+      scope: p.scope,
+      source_plugin: p.source_plugin,
     }));
   } catch {
     return [];
@@ -366,112 +365,6 @@ export function useFormSchema(): VbenFormSchema[] {
       }),
       help: $t('tenant.ai.agent.help.suggestedQuestions'),
     },
-    {
-      component: 'ApiSelect',
-      componentProps: {
-        allowClear: true,
-        api: getPackageSelectOptions,
-        class: 'w-full',
-        labelInValue: true,
-        mode: 'multiple',
-        placeholder: $t('tenant.ai.agent.placeholder.selectSkillPackages'),
-        showSearch: true,
-        optionFilterProp: 'label',
-      },
-      fieldName: 'package_ids',
-      label: $t('tenant.ai.agent.skillPackageBindings'),
-      help: $t('tenant.ai.agent.help.skillPackageBindings'),
-    },
-    // ============ 输入变量 ============
-    {
-      component: 'Divider',
-      fieldName: '_input_variables_divider',
-      label: '',
-      hideLabel: true,
-      componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('tenant.ai.agent.inputVariables.title') }),
-    },
-    {
-      ...textareaField('input_variables_str', $t('tenant.ai.agent.inputVariables.label'), {
-        placeholder: $t('tenant.ai.agent.inputVariables.placeholder'),
-        rows: 5,
-      }),
-      help: $t('tenant.ai.agent.help.inputVariables'),
-    },
-    // ============ 上下文窗口 ============
-    {
-      component: 'Divider',
-      fieldName: '_context_divider',
-      label: '',
-      hideLabel: true,
-      componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('tenant.ai.agent.contextConfig.title') }),
-    },
-    {
-      ...numberField('context_max_history_messages', $t('tenant.ai.agent.contextConfig.maxHistoryMessages'), {
-        min: 0,
-        placeholder: $t('tenant.ai.agent.contextConfig.placeholder.maxHistoryMessages'),
-      }),
-      help: $t('tenant.ai.agent.help.contextMaxHistoryMessages'),
-    },
-    {
-      ...numberField('context_max_history_tokens', $t('tenant.ai.agent.contextConfig.maxHistoryTokens'), {
-        min: 0,
-        placeholder: $t('tenant.ai.agent.contextConfig.placeholder.maxHistoryTokens'),
-      }),
-      help: $t('tenant.ai.agent.help.contextMaxHistoryTokens'),
-    },
-    // ============ 配额设置 ============
-    {
-      component: 'Divider',
-      fieldName: '_quota_divider',
-      label: '',
-      hideLabel: true,
-      componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('tenant.ai.agent.quotaConfig.title') }),
-    },
-    {
-      ...numberField('quota_conversations_per_day', $t('tenant.ai.agent.quotaConfig.conversationsPerDay'), {
-        min: 0,
-        placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.conversationsPerDay'),
-      }),
-      help: $t('tenant.ai.agent.help.quotaConversationsPerDay'),
-    },
-    {
-      ...numberField('quota_tokens_per_day', $t('tenant.ai.agent.quotaConfig.tokensPerDay'), {
-        min: 0,
-        placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.tokensPerDay'),
-      }),
-      help: $t('tenant.ai.agent.help.quotaTokensPerDay'),
-    },
-    {
-      ...numberField('quota_tokens_per_month', $t('tenant.ai.agent.quotaConfig.tokensPerMonth'), {
-        min: 0,
-        placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.tokensPerMonth'),
-      }),
-      help: $t('tenant.ai.agent.help.quotaTokensPerMonth'),
-    },
-    {
-      ...numberField('quota_max_turns', $t('tenant.ai.agent.quotaConfig.maxTurnsPerConversation'), {
-        min: 0,
-        placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.maxTurnsPerConversation'),
-      }),
-      help: $t('tenant.ai.agent.help.quotaMaxTurns'),
-    },
-    {
-      ...numberField('quota_max_concurrent', $t('tenant.ai.agent.quotaConfig.maxConcurrent'), {
-        min: 0,
-        placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.maxConcurrent'),
-      }),
-      help: $t('tenant.ai.agent.help.quotaMaxConcurrent'),
-    },
-    {
-      ...numberField('quota_user_conversations_per_day', $t('tenant.ai.agent.quotaConfig.userConversationsPerDay'), {
-        min: 0,
-        placeholder: $t('tenant.ai.agent.quotaConfig.placeholder.userConversationsPerDay'),
-      }),
-      help: $t('tenant.ai.agent.help.quotaUserConversationsPerDay'),
-    },
   ];
 }
 
@@ -484,8 +377,6 @@ export function getWizardSteps() {
   return [
     { title: $t('tenant.ai.agent.wizard.step1'), description: $t('tenant.ai.agent.wizard.step1Desc') },
     { title: $t('tenant.ai.agent.wizard.step2'), description: $t('tenant.ai.agent.wizard.step2Desc') },
-    { title: $t('tenant.ai.agent.wizard.step3'), description: $t('tenant.ai.agent.wizard.step3Desc') },
-    { title: $t('tenant.ai.agent.wizard.step4'), description: $t('tenant.ai.agent.wizard.step4Desc') },
   ];
 }
 
@@ -495,12 +386,7 @@ export function getWizardSteps() {
 const FIELD_STEP_MAP: Record<string, number> = {
   name: 0, avatar: 0, model_id: 0, execution_mode: 0, system_prompt: 0, description: 0,
   temperature: 1, max_tokens: 1, top_p: 1, welcome_message: 1,
-  suggested_questions_str: 1, package_ids: 1,
-  _input_variables_divider: 2, input_variables_str: 2,
-  _context_divider: 2, context_max_history_messages: 2, context_max_history_tokens: 2,
-  _quota_divider: 3, quota_conversations_per_day: 3, quota_tokens_per_day: 3,
-  quota_tokens_per_month: 3, quota_max_turns: 3, quota_max_concurrent: 3,
-  quota_user_conversations_per_day: 3,
+  suggested_questions_str: 1,
 };
 
 /**
@@ -539,14 +425,5 @@ export function getFormDefaults(): Record<string, unknown> {
     temperature: 0.7,
     suggested_questions_str: '[]',
     package_ids: [],
-    input_variables_str: '[]',
-    context_max_history_messages: 20,
-    context_max_history_tokens: 0,
-    quota_conversations_per_day: 0,
-    quota_tokens_per_day: 0,
-    quota_tokens_per_month: 0,
-    quota_max_turns: 50,
-    quota_max_concurrent: 10,
-    quota_user_conversations_per_day: 0,
   };
 }

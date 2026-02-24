@@ -18,7 +18,7 @@ capabilities:
 extensions:
   skills:
     - name: weather-realtime
-      type: weather_widget
+      type: toolkit
       display_name:
         zh-CN: "实时天气查询"
         en: "Real-time Weather Query"

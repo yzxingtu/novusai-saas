@@ -64,6 +64,18 @@ const mainRoutes: RouteRecordRaw = {
         activePath: '/admin/ai/skill-packages',
       },
     },
+    // 智能体详情页
+    {
+      name: 'AdminAIAgentDetail',
+      path: 'ai/agents/:id',
+      component: () =>
+        import('#/views/admin/ai/agents/detail.vue'),
+      meta: {
+        hideInMenu: true,
+        title: $t('admin.ai.agent.detail.title'),
+        activePath: '/admin/ai/agents',
+      },
+    },
     // 插件市场页：后端不注册此路由
     {
       name: 'AdminPluginMarketplace',

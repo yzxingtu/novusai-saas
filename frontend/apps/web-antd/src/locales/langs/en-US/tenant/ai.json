@@ -156,6 +156,17 @@
   "agent": {
     "title": "Agent Management",
     "pageDesc": "Create and manage agents. Configure model, tools, and knowledge base, then publish. Supports versioning and rollback.",
+    "detail": {
+      "title": "Agent Detail",
+      "overview": "Overview",
+      "modelParams": "Model Parameters",
+      "chatConfig": "Chat Config",
+      "skillBindings": "Skill Bindings",
+      "quota": "Quota",
+      "basicInfo": "Basic Info",
+      "saveSuccess": "Saved successfully",
+      "noQuotaLimit": "0 means no limit"
+    },
     "system": "System",
     "name": "Agent Name",
     "avatar": "Avatar",
@@ -694,7 +705,11 @@
     "create": "New Skill Package",
     "scope_options": {
       "tenant": "Tenant",
-      "global": "Global"
+      "global": "Global",
+      "admin": "Platform"
+    },
+    "scopeTag": {
+      "plugin": "Plugin"
     },
     "placeholder": {
       "searchName": "Search package name",

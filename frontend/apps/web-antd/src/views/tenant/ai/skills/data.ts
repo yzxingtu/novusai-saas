@@ -121,7 +121,11 @@ export function getSkillTypeText(type: string | undefined): string {
   if (cached) return cached.label;
   const key = `tenant.ai.skill.type_options.${type}`;
   const text = $t(key);
-  return text === key ? type : text;
+  // fallback: 插件注册的 type 没有系统 i18n key，显示人类可读的格式
+  if (text === key) {
+    return type.replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return text;
 }
 
 export { getSkillTypeColor, getSkillTypeIcon } from '#/utils/ai-helpers';

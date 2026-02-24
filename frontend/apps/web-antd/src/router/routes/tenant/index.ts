@@ -72,6 +72,18 @@ const mainRoutes: RouteRecordRaw = {
         activePath: '/tenant/ai/skill-packages',
       },
     },
+    // 智能体详情页
+    {
+      name: 'TenantAIAgentDetail',
+      path: 'ai/agents/:id',
+      component: () =>
+        import('#/views/tenant/ai/agents/detail.vue'),
+      meta: {
+        hideInMenu: true,
+        title: $t('tenant.ai.agent.detail.title'),
+        activePath: '/tenant/ai/agents',
+      },
+    },
     // 个人中心：不在后端菜单中，必须静态注册
     {
       name: 'TenantProfile',

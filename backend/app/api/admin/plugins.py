@@ -53,8 +53,8 @@ class PluginRollbackBody(PydanticBaseModel):
         icon="lucide:puzzle",
         path="/plugins",
         component="admin/plugins/index",
-        parent="system",
-        sort_order=80,
+        parent="system_maintenance",
+        sort_order=90,
     ),
 )
 class AdminPluginController(GlobalController):

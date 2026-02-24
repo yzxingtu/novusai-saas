@@ -122,10 +122,8 @@ def log_ai_call_task(
     db = sync_session_factory()
     try:
         logger.info(
-            _("ai.log.async_log_start"),
-            task_id=self.request.id,
-            tenant_id=tenant_id,
-            model_id=model_id,
+            "AI call log start: task=%s tenant=%s model=%s",
+            self.request.id, tenant_id, model_id,
         )
 
         # 脱敏和截断处理
@@ -165,19 +163,15 @@ def log_ai_call_task(
         db.commit()
 
         logger.info(
-            _("ai.log.async_log_complete"),
-            task_id=self.request.id,
-            tenant_id=tenant_id,
-            model_id=model_id,
-            call_log_id=call_log.id,
+            "AI call log saved: task=%s tenant=%s model=%s log_id=%s",
+            self.request.id, tenant_id, model_id, call_log.id,
         )
 
     except Exception as e:
         db.rollback()
         logger.error(
-            _("ai.error.async_log_failed"),
-            task_id=self.request.id,
-            error=str(e),
+            "AI call log failed: task=%s error=%s",
+            self.request.id, str(e),
             exc_info=True,
         )
         raise

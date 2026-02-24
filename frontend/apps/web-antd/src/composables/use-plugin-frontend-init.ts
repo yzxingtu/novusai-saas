@@ -55,7 +55,6 @@ function getPluginScope(plugin: PluginListItem): string | undefined {
   return plugin.scope || plugin.manifest?.scope;
 }
 
-let _currentSide: EndpointSide = 'admin';
 
 /**
  * 将插件模块注册到插槽 Store
@@ -95,7 +94,6 @@ function registerPluginSlots(
  */
 export async function refreshPluginSlots(endpoint: string = '/admin') {
   const side: EndpointSide = endpoint.includes('tenant') ? 'tenant' : 'admin';
-  _currentSide = side;
   const slotsStore = usePluginSlotsStore();
 
   slotsStore.clearAll();
@@ -137,7 +135,6 @@ export async function refreshPluginSlots(endpoint: string = '/admin') {
 
 export function usePluginFrontendInit(endpoint: string = '/admin') {
   const side: EndpointSide = endpoint.includes('tenant') ? 'tenant' : 'admin';
-  _currentSide = side;
   const slotsStore = usePluginSlotsStore();
 
   async function initPluginSlots() {

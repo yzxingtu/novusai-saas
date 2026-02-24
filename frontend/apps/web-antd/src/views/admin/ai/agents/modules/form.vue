@@ -8,7 +8,9 @@ defineOptions({ name: 'AdminAgentForm' });
  */
 import type { AIAgentInfo } from '#/api/admin/ai';
 
-import { computed, ref } from 'vue';
+import type { PkgOption } from '../data';
+
+import { computed, onMounted, ref } from 'vue';
 
 import { useVbenForm } from '#/adapter/form';
 import {
@@ -19,32 +21,22 @@ import {
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
-import { Alert, Select as ASelect } from 'ant-design-vue';
+import { Alert, Select as ASelect, Tag as ATag } from 'ant-design-vue';
 
-import { getFormDefaults, useFormSchema } from '../data';
+import { getFormDefaults, getPackageSelectOptions, useFormSchema } from '../data';
 
 const emits = defineEmits<{ success: [] }>();
 
 const isSystemAgent = ref(false);
 const pendingPackageIds = ref<number[]>([]);
 const consentModes = ref<Record<string, string>>({});
-const selectedPackages = ref<Array<{ label: string; value: number }>>([]);
+const selectedPackages = ref<Array<{ label: string; value: number }>>([])
+const packageOptions = ref<PkgOption[]>([]);
+const packageLoading = ref(false);;
 
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(),
   showDefaultActions: false,
-  handleValuesChange: (values, changedFields) => {
-    if (changedFields.includes('package_ids')) {
-      const rawPkgIds = values.package_ids as Array<number | { label: string; value: number }>;
-      if (rawPkgIds) {
-        selectedPackages.value = rawPkgIds.map((p: number | { label: string; value: number }) =>
-          typeof p === 'object' && p !== null ? p : { label: `#${p}`, value: p as number },
-        );
-      } else {
-        selectedPackages.value = [];
-      }
-    }
-  },
 });
 
 const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<AIAgentInfo>({
@@ -53,14 +45,6 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<A
   schema: (edit) => useFormSchema(edit, isSystemAgent.value),
   defaults: getFormDefaults,
   transform: (values, edit) => {
-    const rawPkgIds = values.package_ids as Array<number | { label: string; value: number }>;
-    const resolved = (rawPkgIds || []).map((p) =>
-      typeof p === 'object' && p !== null ? p.value : p,
-    );
-    pendingPackageIds.value = resolved;
-    selectedPackages.value = (rawPkgIds || []).map((p) =>
-      typeof p === 'object' && p !== null ? p : { label: `#${p}`, value: p as number },
-    );
     // suggested_questions: newline-separated text → JSON array
     const sqText = (values.suggested_questions as string) || '';
     const sqArray = sqText
@@ -75,6 +59,7 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<A
       system_prompt: values.system_prompt || null,
       temperature: values.temperature,
       max_tokens: values.max_tokens,
+      top_p: values.top_p ?? null,
       welcome_message: values.welcome_message || null,
       suggested_questions: sqArray.length > 0 ? sqArray : null,
     };
@@ -87,7 +72,6 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<A
     return result;
   },
   toFormValues: (data) => {
-    const ext = data as AIAgentInfo & { _package_options?: { label: string; value: number }[] };
     return {
       name: data.name,
       avatar: data.avatar || '',
@@ -99,11 +83,11 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<A
       system_prompt: data.system_prompt,
       temperature: data.temperature,
       max_tokens: data.max_tokens,
+      top_p: data.top_p,
       welcome_message: data.welcome_message || '',
       suggested_questions: Array.isArray(data.suggested_questions)
         ? data.suggested_questions.join('\n')
         : '',
-      package_ids: ext._package_options || [],
     };
   },
   afterOpen: () => {
@@ -146,6 +130,7 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<A
       }
       consentModes.value = modes;
       selectedPackages.value = ext._package_options;
+      pendingPackageIds.value = ext._package_options.map((p) => p.value);
     } catch {
       (agent as AIAgentInfo & { _package_options?: { label: string; value: number }[] })._package_options = [];
     }
@@ -183,6 +168,43 @@ const title = computed(() => {
     ? $t('admin.common.edit')
     : $t('admin.ai.agent.create');
 });
+
+async function loadPackageOptions() {
+  packageLoading.value = true;
+  try {
+    packageOptions.value = await getPackageSelectOptions();
+  } finally {
+    packageLoading.value = false;
+  }
+}
+
+onMounted(loadPackageOptions);
+
+function getScopeTagByValue(value: number): { text: string; color: string } | null {
+  const opt = packageOptions.value.find((o) => o.value === value);
+  if (!opt) return null;
+  if (opt.sourcePlugin) return { text: $t('admin.ai.skillPackage.sourcePlugin'), color: 'purple' };
+  switch (opt.scope) {
+    case 'global': return { text: $t('admin.ai.agent.scope.global'), color: 'blue' };
+    case 'admin': return { text: $t('admin.ai.agent.scope.admin'), color: 'orange' };
+    case 'tenant': return { text: $t('admin.ai.agent.scope.tenant'), color: 'green' };
+    default: return null;
+  }
+}
+
+function onPackageChange(val: unknown) {
+  const raw = (val || []) as Array<unknown>;
+  const items = raw.map((item) => {
+    if (typeof item === 'object' && item !== null) {
+      const obj = item as Record<string, unknown>;
+      return { label: String(obj.label || ''), value: Number(obj.value || obj.key || 0) };
+    }
+    return { label: `#${item}`, value: Number(item) };
+  });
+  selectedPackages.value = items;
+  pendingPackageIds.value = items.map((p) => p.value);
+  formApi.setValues({ package_ids: items });
+}
 </script>
 
 <template>
@@ -195,6 +217,38 @@ const title = computed(() => {
       class="mb-4"
     />
     <Form />
+
+    <!-- Skill package binding with Tag badges -->
+    <div class="mb-5">
+      <div class="mb-2 text-sm font-medium text-foreground">
+        {{ $t('admin.ai.agent.skillPackageBindings') }}
+      </div>
+      <ASelect
+        :value="selectedPackages"
+        mode="multiple"
+        label-in-value
+        :loading="packageLoading"
+        :options="packageOptions"
+        :placeholder="$t('admin.ai.agent.placeholder.selectSkillPackages')"
+        show-search
+        option-filter-prop="label"
+        class="w-full"
+        @change="onPackageChange"
+      >
+        <template #option="{ label: optLabel, value: optValue }">
+          <div class="flex items-center justify-between gap-2">
+            <span class="truncate">{{ optLabel }}</span>
+            <ATag
+              v-if="getScopeTagByValue(optValue as number)"
+              :color="getScopeTagByValue(optValue as number)!.color"
+              class="mr-0 shrink-0 text-xs leading-tight"
+            >
+              {{ getScopeTagByValue(optValue as number)!.text }}
+            </ATag>
+          </div>
+        </template>
+      </ASelect>
+    </div>
 
     <!-- Consent mode per skill package -->
     <div v-if="selectedPackages.length > 0" class="mt-4">

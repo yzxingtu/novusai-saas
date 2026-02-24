@@ -10,6 +10,7 @@ import type { AgentListItem } from '#/api/tenant/agents';
 defineOptions({ name: 'TenantAgentList' });
 
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -60,6 +61,7 @@ import VersionHistory from './modules/VersionHistory.vue';
 // Refs & Drawers
 // ============================================================
 
+const router = useRouter();
 const agentFormRef = ref<InstanceType<typeof AgentForm>>();
 const agents = ref<AgentListItem[]>([]);
 const loading = ref(false);
@@ -432,7 +434,10 @@ onMounted(() => {
 
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
-                <h3 class="truncate text-sm font-semibold text-foreground">
+                <h3
+                  class="cursor-pointer truncate text-sm font-semibold text-foreground hover:text-primary"
+                  @click="router.push(`/tenant/ai/agents/${agent.id}`)"
+                >
                   {{ agent.name }}
                 </h3>
                 <Tag

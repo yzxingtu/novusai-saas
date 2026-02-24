@@ -315,6 +315,17 @@
   "agent": {
     "title": "智能体管理",
     "pageDesc": "管理全平台智能体，支持创建全局/租户/管理端专属智能体。可发布、禁用或删除。",
+    "detail": {
+      "title": "智能体详情",
+      "overview": "概览",
+      "modelParams": "模型参数",
+      "chatConfig": "对话配置",
+      "skillBindings": "技能绑定",
+      "quota": "配额管理",
+      "basicInfo": "基本信息",
+      "saveSuccess": "保存成功",
+      "noQuotaLimit": "0 表示不限制"
+    },
     "system": "系统",
     "systemAgent": "系统智能体",
     "systemAgentDesc": "系统智能体由平台内置，核心字段不可修改，不可删除或禁用。",
@@ -332,6 +343,7 @@
     "systemPrompt": "系统提示词",
     "temperature": "温度",
     "maxTokens": "最大 Tokens",
+    "topP": "Top P",
     "welcomeMessage": "欢迎语",
     "suggestedQuestions": "推荐问题",
     "skillPackageBindings": "技能包绑定",
@@ -372,6 +384,7 @@
       "inputSuggestedQuestions": "每行一个推荐问题"
     },
     "help": {
+      "topP": "0-1，与 temperature 配合使用",
       "skillPackageBindings": "选择此智能体可调用的技能包",
       "welcomeMessage": "用户首次打开对话时自动显示的欢迎语，留空则不显示",
       "suggestedQuestions": "用户初次进入对话时显示的推荐问题，每行一个，帮助用户快速开始"

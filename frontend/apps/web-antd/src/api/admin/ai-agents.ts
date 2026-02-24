@@ -30,6 +30,7 @@ export interface AIAgentInfo {
   system_prompt: null | string;
   temperature: number;
   max_tokens: number;
+  top_p: number | null;
   knowledge_base_ids: number[] | null;
   created_at: string;
   updated_at: string;

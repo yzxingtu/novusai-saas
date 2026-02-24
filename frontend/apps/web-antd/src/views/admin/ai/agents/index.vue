@@ -517,7 +517,10 @@ onMounted(() => {
             <!-- Name + badges -->
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
-                <h3 class="truncate text-sm font-semibold text-foreground">
+                <h3
+                  class="cursor-pointer truncate text-sm font-semibold text-foreground hover:text-primary"
+                  @click="$router.push(`/admin/ai/agents/${agent.id}`)"
+                >
                   {{ agent.name }}
                 </h3>
                 <Tag

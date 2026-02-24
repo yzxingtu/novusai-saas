@@ -227,8 +227,10 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
 
         包括：
           - 同租户的 tenant 包
-          - admin 共享包（tenant_id IS NULL, scope='admin'）
-          - global 共享包（scope='global'）
+          - global 共享包（scope='global'，tenant_id IS NULL）
+
+        不包括：
+          - admin scope 包（仅管理端智能体可用）
         """
         stmt = (
             select(SkillPackage)
@@ -240,10 +242,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
                         SkillPackage.tenant_id == self.tenant_id,
                         and_(
                             SkillPackage.tenant_id.is_(None),
-                            SkillPackage.scope.in_([
-                                ResourceScopeEnum.ADMIN.value,
-                                ResourceScopeEnum.GLOBAL.value,
-                            ]),
+                            SkillPackage.scope == ResourceScopeEnum.GLOBAL.value,
                         ),
                     ),
                 )

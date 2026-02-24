@@ -88,12 +88,34 @@ export function getFormDefaults() {
 /**
  * 获取技能包下拉选项（admin 端所有技能包）
  */
-export async function getPackageSelectOptions() {
+interface PkgSelectItem {
+  label: string;
+  value: number;
+  extra?: {
+    scope?: string;
+    is_system?: boolean;
+    source_plugin?: string;
+  } | null;
+}
+
+export interface PkgOption {
+  label: string;
+  value: number;
+  scope?: string;
+  sourcePlugin?: string;
+}
+
+export async function getPackageSelectOptions(): Promise<PkgOption[]> {
   try {
-    const data = await getSkillPackageSelectApi();
-    return data.map((p) => ({
+    const resp = await getSkillPackageSelectApi() as unknown as
+      | { items: PkgSelectItem[] }
+      | PkgSelectItem[];
+    const items: PkgSelectItem[] = Array.isArray(resp) ? resp : (resp?.items ?? []);
+    return items.map((p) => ({
       label: p.label,
       value: p.value,
+      scope: p.extra?.scope,
+      sourcePlugin: p.extra?.source_plugin,
     }));
   } catch {
     return [];
@@ -217,6 +239,13 @@ export function useFormSchema(_isEdit = false, isSystem = false): VbenFormSchema
       max: 128000,
     }),
     {
+      ...numberField('top_p', $t('admin.ai.agent.topP'), {
+        min: 0,
+        max: 1,
+      }),
+      help: $t('admin.ai.agent.help.topP'),
+    },
+    {
       ...textareaField('welcome_message', $t('admin.ai.agent.welcomeMessage'), {
         rows: 3,
         placeholder: $t('admin.ai.agent.placeholder.inputWelcomeMessage'),
@@ -229,22 +258,6 @@ export function useFormSchema(_isEdit = false, isSystem = false): VbenFormSchema
         placeholder: $t('admin.ai.agent.placeholder.inputSuggestedQuestions'),
       }),
       help: $t('admin.ai.agent.help.suggestedQuestions'),
-    },
-    {
-      component: 'ApiSelect',
-      componentProps: {
-        allowClear: true,
-        api: getPackageSelectOptions,
-        class: 'w-full',
-        labelInValue: true,
-        mode: 'multiple',
-        placeholder: $t('admin.ai.agent.placeholder.selectSkillPackages'),
-        showSearch: true,
-        optionFilterProp: 'label',
-      },
-      fieldName: 'package_ids',
-      label: $t('admin.ai.agent.skillPackageBindings'),
-      help: $t('admin.ai.agent.help.skillPackageBindings'),
     },
   ];
 }
