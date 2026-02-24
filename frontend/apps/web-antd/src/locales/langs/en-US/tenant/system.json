@@ -191,6 +191,8 @@
       "step3Hint2": "After activation, return to the list page and click the \"Verify Domain\" button",
       "step3Hint3": "Recommend setting TTL to 600 seconds or less for faster activation",
       "verifyHint": "After configuration, click the button below to verify",
+      "verifyAfterConfig": "DNS records usually take {time} to take effect. Click \"Verify Domain\" after propagation",
+      "timeRange": "a few minutes to 48 hours",
       "recordType": "Record Type",
       "hostRecord": "Host Record",
       "recordValue": "Record Value",

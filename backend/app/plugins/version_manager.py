@@ -143,9 +143,9 @@ class VersionManager:
             # 6. 调用 on_upgrade
             try:
                 plugin_cls = loader.load_plugin_class(plugin_name)
-                from app.plugins.context import PluginContext
+                from app.plugins.context_factory import create_plugin_context
 
-                ctx = PluginContext(
+                ctx = create_plugin_context(
                     plugin_name=plugin_name,
                     manifest=new_manifest,
                     db=self._db,

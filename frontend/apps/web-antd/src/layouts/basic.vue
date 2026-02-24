@@ -287,6 +287,10 @@ watch(
       </AuthenticationLoginExpiredModal>
       <GlobalAIChat />
       <NotificationToast />
+      <!-- 插件 floatingPanels 动态注入（全局浮动面板） -->
+      <template v-for="panel in pluginSlotsStore.floatingPanels" :key="panel.pluginName + '-' + panel.name">
+        <component :is="panel.component" />
+      </template>
     </template>
     <template #lock-screen>
       <LockScreen :avatar @to-login="handleLogout" />

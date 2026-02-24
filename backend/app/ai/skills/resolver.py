@@ -101,6 +101,9 @@ class SkillResolver:
                     skill.id, skill.name, str(exc),
                 )
 
+        # 避免工具重名导致执行与 consent 归因错配
+        self._ensure_unique_tool_names(result.tools)
+
         logger.info(
             "Resolved %d skills → %d tools, %d knowledge_bases",
             len(skills), len(result.tools), len(result.knowledge_base_ids),
@@ -796,6 +799,59 @@ class SkillResolver:
     # ========================================
     # 辅助方法
     # ========================================
+
+    @staticmethod
+    def _build_unique_tool_name(
+        base_name: str,
+        suffix: str,
+        used_names: set[str],
+    ) -> str:
+        """构建唯一且长度可控（OpenAI function name <= 64）的工具名。"""
+        max_len = 64
+        available = max_len - len(suffix)
+        short_base = base_name[:available] if available > 0 else ""
+        candidate = f"{short_base}{suffix}" if short_base else suffix.strip("_")
+        if not candidate:
+            candidate = "tool"
+
+        unique_name = candidate
+        idx = 1
+        while unique_name in used_names:
+            extra = f"_{idx}"
+            keep = max_len - len(extra)
+            unique_name = f"{candidate[:keep]}{extra}" if keep > 0 else candidate
+            idx += 1
+        return unique_name
+
+    @classmethod
+    def _ensure_unique_tool_names(cls, tools: list[ToolDefinition]) -> None:
+        """去重工具名，避免同名工具导致解析/授权/归因冲突。"""
+        used_names: set[str] = set()
+        duplicate_counts: dict[str, int] = {}
+
+        for td in tools:
+            name = td.name
+            if name not in used_names:
+                used_names.add(name)
+                duplicate_counts.setdefault(name, 1)
+                continue
+
+            duplicate_counts[name] = duplicate_counts.get(name, 1) + 1
+            serial = duplicate_counts[name]
+            suffix = (
+                f"__s{td.source_skill_id}"
+                if td.source_skill_id is not None
+                else f"__dup{serial}"
+            )
+            unique_name = cls._build_unique_tool_name(name, suffix, used_names)
+            logger.warning(
+                "Duplicate tool name '%s' detected, renamed to '%s' (skill_id=%s)",
+                name,
+                unique_name,
+                td.source_skill_id,
+            )
+            td.name = unique_name
+            used_names.add(unique_name)
 
     @staticmethod
     def _build_params_from_schema(

@@ -26,6 +26,7 @@
   "failed": "Failed",
   "noData": "No data",
   "createdAt": "Created At",
+  "deletedAt": "Deleted At",
   "tenantAdmin": "Tenant Admin",
   "noPlan": "No Plan Assigned",
   "noPlanDesc": "All features are disabled. Please contact the platform administrator to assign a plan."

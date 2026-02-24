@@ -21,12 +21,28 @@ import { requestClient } from '#/utils/request';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
 import { loadPluginComponents, getBuiltinPluginNames } from '#/utils/plugin-loader';
 
+interface PluginSlotDeclaration {
+  name: string;
+  component: string;
+  sort_order?: number;
+  icon?: string;
+  title?: string | Record<string, string>;
+  position?: string;
+  scope?: string;
+  grid?: Record<string, number>;
+  path?: string;
+  event?: string;
+  [key: string]: unknown;
+}
+
 interface PluginManifestFrontend {
-  header_widgets?: Array<{
-    name: string;
-    component: string;
-    sort_order?: number;
-  }>;
+  header_widgets?: PluginSlotDeclaration[];
+  floating_panels?: PluginSlotDeclaration[];
+  dashboard_widgets?: PluginSlotDeclaration[];
+  settings_tabs?: PluginSlotDeclaration[];
+  standalone_pages?: PluginSlotDeclaration[];
+  notification_ui?: PluginSlotDeclaration[];
+  menus?: PluginSlotDeclaration[];
 }
 
 interface PluginListItem {
@@ -59,27 +75,46 @@ function getPluginScope(plugin: PluginListItem): string | undefined {
 /**
  * 将插件模块注册到插槽 Store
  */
+/**
+ * manifest key → store slot type 映射
+ */
+const SLOT_TYPE_MAP: Record<string, string> = {
+  header_widgets: 'headerWidgets',
+  floating_panels: 'floatingPanels',
+  dashboard_widgets: 'dashboardWidgets',
+  settings_tabs: 'settingsTabs',
+  menus: 'sidebarMenus',
+};
+
 function registerPluginSlots(
   pluginName: string,
   frontend: PluginManifestFrontend,
   pluginMod: Record<string, unknown>,
   slotsStore: ReturnType<typeof usePluginSlotsStore>,
 ) {
-  if (frontend.header_widgets) {
-    for (const widget of frontend.header_widgets) {
-      const comp = pluginMod[widget.component] as Component | undefined;
+  for (const [manifestKey, storeSlotType] of Object.entries(SLOT_TYPE_MAP)) {
+    const items = frontend[manifestKey as keyof PluginManifestFrontend] as PluginSlotDeclaration[] | undefined;
+    if (!items) continue;
+
+    for (const item of items) {
+      const comp = pluginMod[item.component] as Component | undefined;
       if (!comp) {
         console.error(
-          `[PluginFrontendInit] Component '${widget.component}' not exported by plugin '${pluginName}'`,
+          `[PluginFrontendInit] Component '${item.component}' not exported by plugin '${pluginName}' (slot: ${storeSlotType})`,
         );
         continue;
       }
 
-      slotsStore.registerSlot('headerWidgets', {
+      slotsStore.registerSlot(storeSlotType, {
         pluginName,
-        name: widget.name,
+        name: item.name,
         component: markRaw(comp),
-        sortOrder: widget.sort_order ?? 100,
+        icon: item.icon,
+        title: typeof item.title === 'string' ? item.title : item.title?.['zh-CN'] ?? item.title?.['en'],
+        sortOrder: item.sort_order ?? 100,
+        scope: item.scope,
+        position: item.position,
+        grid: item.grid,
       });
     }
   }

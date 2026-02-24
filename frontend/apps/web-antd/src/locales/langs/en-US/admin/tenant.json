@@ -44,7 +44,10 @@
     "noPrimaryDomain": "This tenant has no primary domain. Please configure one in domain management first",
     "impersonating": "Entering \"{name}\" backend...",
     "impersonateSuccess": "Opening tenant backend",
-    "impersonateFailed": "Login failed, please try again"
+    "impersonateFailed": "Login failed, please try again",
+    "resetPasswordFor": "Resetting admin password for tenant \"{name}\"",
+    "resetPasswordSuccess": "Password reset successfully",
+    "passwordMismatch": "Passwords do not match"
   },
   "placeholder": {
     "searchCode": "Search tenant code",
@@ -61,7 +64,12 @@
     "selectPlan": "Select plan",
     "selectPlanId": "Select associated plan",
     "selectExpiresAt": "Select expiration date",
-    "inputRemark": "Enter remark"
+    "inputRemark": "Enter remark",
+    "inputAdminUsername": "Enter admin username",
+    "inputAdminEmail": "Enter admin email",
+    "inputAdminPassword": "Enter admin password",
+    "inputNewPassword": "Enter new password",
+    "confirmPassword": "Please confirm new password"
   },
   "help": {
     "codeFormat": "Start with lowercase letter, only lowercase letters, numbers, underscores, and hyphens allowed"
@@ -72,9 +80,19 @@
     "codeMaxLength": "Tenant code must be at most 50 characters",
     "codePattern": "Tenant code must start with lowercase letter, only lowercase letters, numbers, underscores, hyphens allowed",
     "nameRequired": "Please enter tenant name",
-    "nameMaxLength": "Tenant name must be at most 100 characters"
+    "nameMaxLength": "Tenant name must be at most 100 characters",
+    "usernameMin": "Username must be at least 2 characters",
+    "usernameMax": "Username must be at most 50 characters",
+    "emailInvalid": "Please enter a valid email address",
+    "passwordMin": "Password must be at least 6 characters",
+    "passwordMax": "Password must be at most 100 characters",
+    "confirmRequired": "Please confirm password"
   },
   "tip": "Manage platform tenants, configure tenant plans and expiration",
+  "adminInfo": "Admin Info",
+  "adminUsername": "Admin Username",
+  "adminEmail": "Admin Email",
+  "adminPassword": "Admin Password",
   "adminPanel": {
     "title": "Admin List",
     "createAdmin": "Create Sub-Admin",
@@ -96,6 +114,9 @@
     "nicknamePlaceholder": "Enter nickname (optional)",
     "formRequired": "Username, email and password are required"
   },
+  "resetPassword": "Reset Password",
+  "newPassword": "New Password",
+  "confirmPassword": "Confirm Password",
   "domain": {
     "title": "Domain Management",
     "domain": "Domain",

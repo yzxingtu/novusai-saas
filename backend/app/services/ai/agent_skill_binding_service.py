@@ -33,7 +33,8 @@ class AgentSkillBindingService:
         else:
             from app.repositories.ai.skill_package_repository import AdminSkillPackageRepository
             from app.repositories.ai.agent_repository import AdminAgentRepository
-            self.binding_repo = AgentSkillBindingRepository(db, 0)
+            # admin/global agent 的绑定记录 tenant_id 存储为 NULL
+            self.binding_repo = AgentSkillBindingRepository(db, None)
             self.package_repo = AdminSkillPackageRepository(db)  # type: ignore[assignment]
             self.agent_repo = AdminAgentRepository(db)  # type: ignore[assignment]
 
@@ -82,7 +83,7 @@ class AgentSkillBindingService:
         校验 Agent scope 与 SkillPackage scope 的兼容性。
 
         Rules:
-          - tenant agent → 同租户 tenant 包 + global 包 + admin 包
+          - tenant agent → 同租户 tenant 包 + global 包
           - admin agent  → admin 包 + global 包
           - global agent → global 包 + admin 包 + 任意 tenant 包
         """
@@ -95,10 +96,7 @@ class AgentSkillBindingService:
                     raise BusinessException(
                         message=_("agent_skill_binding.error.scope_mismatch")
                     )
-            elif p not in (
-                ResourceScopeEnum.ADMIN.value,
-                ResourceScopeEnum.GLOBAL.value,
-            ):
+            elif p != ResourceScopeEnum.GLOBAL.value:
                 raise BusinessException(
                     message=_("agent_skill_binding.error.scope_mismatch")
                 )

@@ -315,6 +315,17 @@
   "agent": {
     "title": "Agent Management",
     "pageDesc": "Manage all agents. Create global, tenant-specific, or admin-only agents. Publish, disable, or delete.",
+    "detail": {
+      "title": "Agent Detail",
+      "overview": "Overview",
+      "modelParams": "Model Parameters",
+      "chatConfig": "Chat Config",
+      "skillBindings": "Skill Bindings",
+      "quota": "Quota",
+      "basicInfo": "Basic Info",
+      "saveSuccess": "Saved successfully",
+      "noQuotaLimit": "0 means no limit"
+    },
     "system": "System",
     "systemAgent": "System Agent",
     "systemAgentDesc": "System agents are platform built-in. Core fields cannot be modified, and they cannot be deleted or disabled.",
@@ -332,6 +343,7 @@
     "systemPrompt": "System Prompt",
     "temperature": "Temperature",
     "maxTokens": "Max Tokens",
+    "topP": "Top P",
     "welcomeMessage": "Welcome Message",
     "suggestedQuestions": "Suggested Questions",
     "skillPackageBindings": "Skill Package Bindings",
@@ -372,6 +384,7 @@
       "inputSuggestedQuestions": "One suggested question per line"
     },
     "help": {
+      "topP": "0-1, used together with temperature",
       "skillPackageBindings": "Select skill packages this agent can invoke",
       "welcomeMessage": "Automatically shown when user first opens a conversation. Leave empty to hide",
       "suggestedQuestions": "Shown when user first enters a conversation, one per line, to help them get started"

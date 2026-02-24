@@ -286,7 +286,7 @@ class PluginContext:
 
         Args:
             feature_code: 功能代码（不含 plugin.{name}. 前缀）
-            messages: 对话消息列表
+            messages: 对话消息列表（[{"role": "user", "content": "..."}]）
 
         Returns:
             AI 响应文本
@@ -300,15 +300,30 @@ class PluginContext:
         # 构建完整的 feature_code
         full_code = f"plugin.{self.plugin_name}.{feature_code}"
 
-        # 查找绑定的 Agent
-        result = await self._db.execute(
-            select(SystemAgentAssignment.agent_id).where(
-                SystemAgentAssignment.feature_code == full_code,
-                SystemAgentAssignment.is_active.is_(True),
-                SystemAgentAssignment.is_deleted.is_(False),
-            )
+        # 查找绑定的 Agent（优先租户覆盖 → 全局默认）
+        tenant_id = self.get_current_tenant_id()
+        query = select(
+            SystemAgentAssignment.agent_id,
+            SystemAgentAssignment.tenant_id,
+        ).where(
+            SystemAgentAssignment.feature_code == full_code,
+            SystemAgentAssignment.is_active.is_(True),
+            SystemAgentAssignment.is_deleted.is_(False),
+        ).order_by(
+            # tenant_id IS NOT NULL 优先（租户覆盖 > 全局默认）
+            SystemAgentAssignment.tenant_id.is_(None).asc(),
         )
-        agent_id = result.scalar_one_or_none()
+        result = await self._db.execute(query)
+        rows = result.all()
+
+        agent_id = None
+        resolved_tenant_id = tenant_id
+        for row in rows:
+            if tenant_id and row[1] == tenant_id:
+                agent_id = row[0]
+                break
+            if row[1] is None:
+                agent_id = row[0]
 
         if not agent_id:
             from app.plugins.exceptions import PluginError
@@ -317,25 +332,45 @@ class PluginContext:
                 f"Please configure it in plugin management.",
             )
 
-        # 调用 AgentChatService
-        from app.services.tenant.agent_chat_service import AgentChatService
-
-        chat_service = AgentChatService(self._db)
-        response = await chat_service.simple_chat(
-            agent_id=agent_id,
-            messages=messages,
+        # 查找 Agent 的 tenant_id（Agent 可能是全局的 tenant_id=NULL）
+        from app.models.ai.agent import Agent
+        agent_result = await self._db.execute(
+            select(Agent.tenant_id).where(Agent.id == agent_id)
         )
-        return response
+        agent_tenant_id = agent_result.scalar_one_or_none()
+        # 使用 Agent 所属租户，若全局则用插件上下文的租户
+        effective_tenant_id = agent_tenant_id or resolved_tenant_id or 0
+
+        # 调用 AgentChatService
+        from app.services.ai.agent_chat_service import AgentChatService
+
+        chat_service = AgentChatService(self._db, effective_tenant_id)
+        # 取最后一条 user message 作为输入
+        user_message = ""
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                user_message = msg.get("content", "")
+                break
+        if not user_message and messages:
+            user_message = messages[-1].get("content", "")
+
+        response = await chat_service.chat(
+            agent_id=agent_id,
+            message=user_message,
+        )
+        return response.message
 
     async def is_ai_feature_configured(self, feature_code: str) -> bool:
-        """检查 AI 功能是否已配置"""
+        """检查 AI 功能是否已配置（自动添加 plugin.{name}. 前缀）"""
         from sqlalchemy import select
 
         from app.models.system.agent_assignment import SystemAgentAssignment
 
+        full_code = f"plugin.{self.plugin_name}.{feature_code}"
         result = await self._db.execute(
             select(SystemAgentAssignment.id).where(
-                SystemAgentAssignment.feature_code == feature_code,
+                SystemAgentAssignment.feature_code == full_code,
+                SystemAgentAssignment.is_active.is_(True),
                 SystemAgentAssignment.is_deleted.is_(False),
             )
         )
@@ -359,12 +394,42 @@ class PluginContext:
 
     # ── 事件 ──
 
-    def emit_event(self, event_name: str, data: dict | None = None) -> None:
-        """触发自定义钩子点 plugin.{name}.{event_name}"""
+    async def emit_event(self, event_name: str, data: dict | None = None) -> dict:
+        """
+        触发自定义钩子点 plugin.{name}.{event_name}
+
+        通过 HookRegistry 触发已注册的钩子处理器，传递 data 作为上下文。
+
+        Args:
+            event_name: 事件名称（不含 plugin.{name}. 前缀）
+            data: 传递给钩子处理器的上下文数据
+
+        Returns:
+            钩子处理后的上下文字典
+        """
+        from app.ai.events.hooks import HookRegistry
+
         hook_point = f"plugin.{self.plugin_name}.{event_name}"
-        logger.info("Plugin %s emitting event: %s", self.plugin_name, hook_point)
-        # HookRegistry 集成将在 Phase 2 完善
-        # 此处预留接口，当前仅记录日志
+        registry = HookRegistry.get_instance()
+
+        context = dict(data or {})
+        context["plugin_name"] = self.plugin_name
+        context["event_name"] = event_name
+
+        if registry.has_hooks(hook_point):
+            context = await registry.trigger(hook_point, **context)
+            logger.info(
+                "Plugin %s emitted event '%s' (%d hooks triggered)",
+                self.plugin_name, event_name,
+                len(registry._hooks.get(hook_point, [])),
+            )
+        else:
+            logger.debug(
+                "Plugin %s emitted event '%s' (no hooks registered)",
+                self.plugin_name, event_name,
+            )
+
+        return context
 
     # ── 系统 ──
 

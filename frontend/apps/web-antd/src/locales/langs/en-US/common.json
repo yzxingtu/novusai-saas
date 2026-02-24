@@ -211,6 +211,7 @@
     "restore": "Restore",
     "permanentDelete": "Permanently Delete",
     "confirmPermanentDelete": "This action cannot be undone. Are you sure you want to permanently delete \"{name}\"?",
+    "permanentDeleteConfirm": "This action cannot be undone. Are you sure you want to permanently delete?",
     "confirmBatchPermanentDelete": "This action cannot be undone. Are you sure you want to permanently delete {count} selected records?",
     "restoreSuccess": "Restored successfully",
     "deleteSuccess": "Permanently deleted",

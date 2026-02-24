@@ -10,10 +10,23 @@ from app.core.base_repository import TenantRepository
 
 class AgentSkillBindingRepository(TenantRepository[AgentSkillBinding]):
     """
-    租户级智能体技能绑定 Repository
+    智能体技能绑定 Repository
+
+    - tenant 场景: tenant_id = 指定租户
+    - admin/global 场景: tenant_id IS NULL
     """
 
     model = AgentSkillBinding
+
+    def __init__(self, db, tenant_id: int | None):
+        # TenantRepository 支持传入 None（用于 admin/global agent 绑定记录）
+        super().__init__(db, tenant_id)  # type: ignore[arg-type]
+
+    def _tenant_filter(self):
+        """构建 tenant_id 过滤条件（支持 NULL）。"""
+        if self.tenant_id is None:
+            return AgentSkillBinding.tenant_id.is_(None)
+        return AgentSkillBinding.tenant_id == self.tenant_id
 
     async def get_by_agent_id(self, agent_id: int) -> list[AgentSkillBinding]:
         """
@@ -30,7 +43,7 @@ class AgentSkillBindingRepository(TenantRepository[AgentSkillBinding]):
             .where(
                 and_(
                     AgentSkillBinding.agent_id == agent_id,
-                    AgentSkillBinding.tenant_id == self.tenant_id,
+                    self._tenant_filter(),
                     AgentSkillBinding.is_deleted.is_(False),
                 )
             )
@@ -54,7 +67,7 @@ class AgentSkillBindingRepository(TenantRepository[AgentSkillBinding]):
             .where(
                 and_(
                     AgentSkillBinding.agent_id == agent_id,
-                    AgentSkillBinding.tenant_id == self.tenant_id,
+                    self._tenant_filter(),
                     AgentSkillBinding.enabled.is_(True),
                     AgentSkillBinding.is_deleted.is_(False),
                 )
@@ -81,7 +94,7 @@ class AgentSkillBindingRepository(TenantRepository[AgentSkillBinding]):
             and_(
                 AgentSkillBinding.agent_id == agent_id,
                 AgentSkillBinding.package_id == package_id,
-                AgentSkillBinding.tenant_id == self.tenant_id,
+                self._tenant_filter(),
                 AgentSkillBinding.is_deleted.is_(False),
             )
         )
@@ -103,7 +116,7 @@ class AgentSkillBindingRepository(TenantRepository[AgentSkillBinding]):
             .where(
                 and_(
                     AgentSkillBinding.agent_id == agent_id,
-                    AgentSkillBinding.tenant_id == self.tenant_id,
+                    self._tenant_filter(),
                 )
             )
         )

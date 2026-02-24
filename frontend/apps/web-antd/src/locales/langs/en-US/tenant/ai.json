@@ -804,6 +804,8 @@
       "bodyTemplate": "Body Template",
       "bodyTemplatePlaceholder": "JSON format request body",
       "bodyTemplateHelp": "Use double-brace variable names as placeholders — LLM extracts them as tool parameters",
+      "queryParams": "Query Params",
+      "queryParamsPlaceholder": "JSON format query parameters",
       "authType": "Auth Type",
       "authTypeOptions": {
         "none": "None",

@@ -330,6 +330,31 @@ class AdminSkillController(GlobalController):
 
             tools_data: list[dict] = []
 
+            # 尝试通过 SkillResolver 解析出工具定义
+            try:
+                from app.ai.skills.resolver import SkillResolver
+                resolver = SkillResolver(db=db)
+                resolve_result = await resolver.resolve([skill])
+                for td in resolve_result.tools:
+                    tools_data.append({
+                        "name": td.name,
+                        "description": td.description,
+                        "tool_type": td.tool_type,
+                        "parameters": [
+                            {
+                                "name": p.name,
+                                "type": p.type,
+                                "description": p.description,
+                                "required": p.required,
+                            }
+                            for p in (td.parameters or [])
+                        ],
+                        "source_skill_id": td.source_skill_id,
+                        "source_plugin": td.source_plugin,
+                    })
+            except Exception as exc:
+                logger.warning("Failed to resolve tools for skill %d: %s", skill_id, exc)
+
             return success(data=tools_data)
 
         @router.post("/{skill_id}/test", summary="测试技能配置")

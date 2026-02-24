@@ -254,20 +254,86 @@ class ExtensionRegistry:
         interval_seconds: int | None = None,
         queue: str = "default",
     ) -> None:
-        """注册定时任务（预留，Phase 2 完善 Celery Beat 集成）"""
-        self._track(plugin_name, "task", task_name, {
+        """
+        注册定时任务到 Celery Beat。
+
+        将插件声明的定时任务包装为 Celery task 并注入 beat_schedule。
+        任务名约定: plugin.{plugin_name}.{task_name}
+        """
+        from app.celery_app import celery_app
+
+        celery_task_name = f"plugin.{plugin_name}.{task_name}"
+
+        # 将 handler 包装为 Celery task（如果尚未注册）
+        if celery_task_name not in celery_app.tasks:
+            import asyncio
+            import functools
+
+            if asyncio.iscoroutinefunction(handler):
+                @functools.wraps(handler)
+                def _sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+                    loop = asyncio.new_event_loop()
+                    try:
+                        return loop.run_until_complete(handler(*args, **kwargs))
+                    finally:
+                        loop.close()
+                celery_app.task(name=celery_task_name, queue=queue)(_sync_wrapper)
+            else:
+                celery_app.task(name=celery_task_name, queue=queue)(handler)
+
+        # 注入 beat_schedule
+        beat_key = f"plugin_{plugin_name}_{task_name}"
+        schedule_entry: dict[str, Any] = {
+            "task": celery_task_name,
+            "options": {"queue": queue},
+        }
+
+        if schedule_type == "cron" and cron_expression:
+            from celery.schedules import crontab
+            parts = cron_expression.strip().split()
+            if len(parts) == 5:
+                schedule_entry["schedule"] = crontab(
+                    minute=parts[0], hour=parts[1],
+                    day_of_month=parts[2], month_of_year=parts[3],
+                    day_of_week=parts[4],
+                )
+            else:
+                logger.warning(
+                    "Plugin %s task %s: invalid cron '%s', skipping schedule",
+                    plugin_name, task_name, cron_expression,
+                )
+        elif interval_seconds and interval_seconds > 0:
+            schedule_entry["schedule"] = float(interval_seconds)
+        else:
+            logger.warning(
+                "Plugin %s task %s: no valid schedule, task registered but not scheduled",
+                plugin_name, task_name,
+            )
+
+        if "schedule" in schedule_entry:
+            if not celery_app.conf.beat_schedule:
+                celery_app.conf.beat_schedule = {}
+            celery_app.conf.beat_schedule[beat_key] = schedule_entry
+
+        self._track(plugin_name, "task", beat_key, {
+            "celery_task_name": celery_task_name,
             "handler": handler,
-            "schedule_type": schedule_type,
-            "cron_expression": cron_expression,
-            "interval_seconds": interval_seconds,
-            "queue": queue,
         })
         logger.info(
-            "Plugin %s registered task: %s", plugin_name, task_name
+            "Plugin %s registered task: %s (%s)",
+            plugin_name, task_name, schedule_type,
         )
 
     def _unregister_task(self, ext: RegisteredExtension) -> None:
-        pass  # Phase 2 完善 Celery Beat 移除
+        """从 Celery Beat 移除插件定时任务"""
+        try:
+            from app.celery_app import celery_app
+            beat_key = ext.key  # plugin_{name}_{task_name}
+            if celery_app.conf.beat_schedule and beat_key in celery_app.conf.beat_schedule:
+                del celery_app.conf.beat_schedule[beat_key]
+                logger.info("Removed beat schedule: %s", beat_key)
+        except Exception as exc:
+            logger.warning("Failed to unregister task %s: %s", ext.key, exc)
 
     # ── 8. Notification ──
 
@@ -279,19 +345,42 @@ class ExtensionRegistry:
         channels: list[str] | None = None,
         category: str = "biz",
     ) -> None:
-        """注册通知模板（预留，Phase 2 完善 DB 写入）"""
-        self._track(plugin_name, "notification", template_code, {
+        """
+        注册通知模板。
+
+        将插件声明的通知模板写入内存注册表，供通知服务在运行时查询。
+        DB 持久化在 lifecycle.enable() 中通过独立逻辑处理（如有需要）。
+        """
+        full_code = f"plugin.{plugin_name}.{template_code}" if not template_code.startswith("plugin.") else template_code
+        if not hasattr(self, "_plugin_notifications"):
+            self._plugin_notifications: dict[str, dict[str, Any]] = {}
+        self._plugin_notifications[full_code] = {
+            "plugin_name": plugin_name,
+            "code": full_code,
+            "title": title or {},
+            "channels": channels or ["ws", "inbox"],
+            "category": category,
+        }
+        self._track(plugin_name, "notification", full_code, {
             "title": title or {},
             "channels": channels or ["ws", "inbox"],
             "category": category,
         })
         logger.info(
             "Plugin %s registered notification: %s",
-            plugin_name, template_code,
+            plugin_name, full_code,
         )
 
     def _unregister_notification(self, ext: RegisteredExtension) -> None:
-        pass  # Phase 2 完善 DB 删除
+        """移除插件通知模板注册"""
+        if hasattr(self, "_plugin_notifications"):
+            self._plugin_notifications.pop(ext.key, None)
+
+    def get_plugin_notification(self, code: str) -> dict | None:
+        """获取插件注册的通知模板（供通知服务查询）"""
+        if hasattr(self, "_plugin_notifications"):
+            return self._plugin_notifications.get(code)
+        return None
 
     # ── 9. Permission ──
 
@@ -303,18 +392,45 @@ class ExtensionRegistry:
         scope: str = "tenant",
         actions: list[str] | None = None,
     ) -> None:
-        """注册权限（预留，Phase 2 完善 DB 写入）"""
-        self._track(plugin_name, "permission", code, {
+        """
+        注册插件权限。
+
+        将插件声明的权限写入内存注册表，供 RBAC 中间件在运行时查询。
+        """
+        full_code = f"plugin.{plugin_name}.{code}" if not code.startswith("plugin.") else code
+        if not hasattr(self, "_plugin_permissions"):
+            self._plugin_permissions: dict[str, dict[str, Any]] = {}
+        self._plugin_permissions[full_code] = {
+            "plugin_name": plugin_name,
+            "code": full_code,
+            "name": name or {},
+            "scope": scope,
+            "actions": actions or [],
+        }
+        self._track(plugin_name, "permission", full_code, {
             "name": name or {},
             "scope": scope,
             "actions": actions or [],
         })
         logger.info(
-            "Plugin %s registered permission: %s", plugin_name, code
+            "Plugin %s registered permission: %s", plugin_name, full_code
         )
 
     def _unregister_permission(self, ext: RegisteredExtension) -> None:
-        pass  # Phase 2 完善 DB 删除
+        """移除插件权限注册"""
+        if hasattr(self, "_plugin_permissions"):
+            self._plugin_permissions.pop(ext.key, None)
+
+    def get_plugin_permissions(self, plugin_name: str | None = None) -> list[dict]:
+        """获取插件注册的权限列表（供 RBAC 查询）"""
+        if not hasattr(self, "_plugin_permissions"):
+            return []
+        if plugin_name:
+            return [
+                v for v in self._plugin_permissions.values()
+                if v["plugin_name"] == plugin_name
+            ]
+        return list(self._plugin_permissions.values())
 
     # ── 通用 ──
 
@@ -384,14 +500,15 @@ class ExtensionRegistry:
                     "owner": owner or "system",
                 })
 
-        # 检查技能类型冲突
-        for skill in getattr(extensions, "skills", []):
-            if skill.type in self._plugin_skill_resolvers:
-                owner = self._find_owner("skill", skill.type)
+        # 检查技能冲突（按 plugin_name 匹配，与 register_skill key 一致）
+        plugin_name = getattr(manifest, "name", "")
+        if plugin_name and plugin_name in self._plugin_skill_resolvers:
+            owner = self._find_owner("skill", plugin_name)
+            if owner and owner != plugin_name:
                 conflicts.append({
                     "type": "skill",
-                    "key": skill.type,
-                    "owner": owner or "system",
+                    "key": plugin_name,
+                    "owner": owner,
                 })
 
         # 检查存储驱动冲突

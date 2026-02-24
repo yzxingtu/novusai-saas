@@ -140,6 +140,7 @@
     "clientInfo": "Client Info",
     "queryParams": "Query Params",
     "requestBody": "Request Body",
+    "userAgent": "User Agent",
     "batchDelete": "Batch Delete",
     "messages": {
       "deleteSuccess": "Deleted successfully",

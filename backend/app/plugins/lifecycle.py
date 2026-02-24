@@ -62,7 +62,7 @@ class PluginLifecycle:
 
         from app.models.system.plugin import Plugin as PluginModel
         from app.models.system.plugin_version import PluginVersion
-        from app.plugins.context import PluginContext
+        from app.plugins.context_factory import create_plugin_context
         from app.plugins.crypto import encrypt_plugin_config
 
         # 1. 复制到 plugins 目录（如果 source 已在 plugins/ 中则跳过）
@@ -195,7 +195,7 @@ class PluginLifecycle:
             try:
                 plugin_cls = self._loader.load_plugin_class(plugin_name)
                 plugin_instance = plugin_cls()
-                ctx = PluginContext(
+                ctx = create_plugin_context(
                     plugin_name=plugin_name,
                     manifest=manifest,
                     db=self._db,
@@ -284,7 +284,7 @@ class PluginLifecycle:
 
         from app.enums.plugin import PluginStatusEnum
         from app.models.system.plugin import Plugin as PluginModel
-        from app.plugins.context import PluginContext
+        from app.plugins.context_factory import create_plugin_context
         from app.plugins.registry import ExtensionRegistry
 
         plugin = await self._db.execute(
@@ -417,7 +417,7 @@ class PluginLifecycle:
         # 调用 on_enable
         try:
             plugin_cls = self._loader.load_plugin_class(plugin_name)
-            ctx = PluginContext(
+            ctx = create_plugin_context(
                 plugin_name=plugin_name,
                 manifest=manifest,
                 db=self._db,
@@ -446,7 +446,7 @@ class PluginLifecycle:
 
         from app.enums.plugin import PluginStatusEnum
         from app.models.system.plugin import Plugin as PluginModel
-        from app.plugins.context import PluginContext
+        from app.plugins.context_factory import create_plugin_context
         from app.plugins.registry import ExtensionRegistry
 
         plugin = await self._db.execute(
@@ -482,7 +482,7 @@ class PluginLifecycle:
         try:
             manifest = self._loader.load_manifest(plugin_name)
             plugin_cls = self._loader.load_plugin_class(plugin_name)
-            ctx = PluginContext(
+            ctx = create_plugin_context(
                 plugin_name=plugin_name,
                 manifest=manifest,
                 db=self._db,
@@ -513,7 +513,7 @@ class PluginLifecycle:
         from app.models.system.plugin_license import PluginLicense
         from app.models.system.plugin_tenant_assignment import PluginTenantAssignment
         from app.models.system.plugin_version import PluginVersion
-        from app.plugins.context import PluginContext
+        from app.plugins.context_factory import create_plugin_context
         from app.plugins.registry import ExtensionRegistry
 
         plugin = await self._db.execute(
@@ -544,7 +544,7 @@ class PluginLifecycle:
         try:
             manifest = self._loader.load_manifest(plugin_name)
             plugin_cls = self._loader.load_plugin_class(plugin_name)
-            ctx = PluginContext(
+            ctx = create_plugin_context(
                 plugin_name=plugin_name,
                 manifest=manifest,
                 db=self._db,

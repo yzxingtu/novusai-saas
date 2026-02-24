@@ -76,14 +76,15 @@ async def _dispatch_plugin_api(
     else:
         side = "admin"
 
-    # 查找匹配的路由（优先当前 side，再 fallback 其他 side）
+    # 查找匹配的路由
+    # 安全规则：tenant 端只匹配 tenant_routes + public_routes，不回退到 admin_routes
+    #          admin 端匹配 admin_routes + public_routes（admin 有更高权限）
     method = request.method.upper()
     matched_route = None
     primary_routes = api_config.get(f"{side}_routes", [])
-    fallback_side = "tenant" if side == "admin" else "admin"
-    fallback_routes = api_config.get(f"{fallback_side}_routes", [])
+    public_routes = api_config.get("public_routes", [])
 
-    for route in [*primary_routes, *fallback_routes]:
+    for route in [*primary_routes, *public_routes]:
         route_path = route.get("path", "").strip("/")
         route_method = route.get("method", "GET").upper()
         if route_path == path and route_method == method:

@@ -206,6 +206,7 @@
     "restore": "恢复",
     "permanentDelete": "永久删除",
     "confirmPermanentDelete": "此操作不可恢复，确定要永久删除「{name}」吗？",
+    "permanentDeleteConfirm": "此操作不可恢复，确定要永久删除吗？",
     "confirmBatchPermanentDelete": "此操作不可恢复，确定要永久删除选中的 {count} 条记录吗？",
     "restoreSuccess": "已恢复",
     "deleteSuccess": "已永久删除",
