@@ -59,10 +59,31 @@ async def restore_enabled_plugins(db: AsyncSession) -> dict:
     failed = 0
 
     from app.plugins._extension_registrar import register_all_extensions
+    from app.plugins.lifecycle import PluginLifecycle
+
+    lifecycle = PluginLifecycle(db)
 
     for plugin in enabled_plugins:
         try:
             manifest = loader.load_manifest(plugin.name)
+
+            # 同步磁盘 manifest → DB（plugin.yaml 变更后无需重装即可生效）
+            disk_manifest = manifest.model_dump()
+            if plugin.manifest != disk_manifest:
+                plugin.manifest = disk_manifest
+                logger.info(
+                    "Synced manifest from disk for plugin: %s", plugin.name,
+                )
+
+            # 确保 Python 依赖已安装（防止克隆/拉取后 venv 缺失）
+            if manifest.dependencies.python:
+                await lifecycle._install_python_deps(plugin.name, manifest.dependencies.python)
+
+            # 确保前端 npm 依赖已安装（dev 模式，防止克隆/拉取后依赖缺失）
+            frontend_ext = manifest.extensions.frontend if manifest.extensions else None
+            npm_deps = frontend_ext.npm_dependencies if frontend_ext else []
+            if npm_deps:
+                await lifecycle._install_npm_deps(plugin.name, npm_deps)
 
             # 注册所有扩展点（公共函数，与 lifecycle.enable 共用）
             register_all_extensions(registry, manifest, plugin.name)

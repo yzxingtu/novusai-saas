@@ -60,6 +60,16 @@ const mainRoutes: RouteRecordRaw = {
         title: $t('page.dashboard.title'),
       },
     },
+    // Analytics：数据分析页面
+    {
+      name: 'TenantAnalytics',
+      path: 'analytics',
+      component: () => import('#/views/tenant/analytics/index.vue'),
+      meta: {
+        icon: 'lucide:bar-chart-3',
+        title: $t('tenant.analytics.title'),
+      },
+    },
     // 技能包详情页：带 :id 动态参数 + activePath，后端不注册此路由
     {
       name: 'TenantAISkillPackageDetail',

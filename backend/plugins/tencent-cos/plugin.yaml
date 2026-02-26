@@ -1,0 +1,40 @@
+name: tencent-cos
+version: "1.0.0"
+display_name:
+  zh-CN: "腾讯云 COS 存储"
+  en: "Tencent Cloud COS Storage"
+description:
+  zh-CN: "腾讯云对象存储（COS）驱动，支持 imageMogr2 原生图片处理"
+  en: "Tencent Cloud Object Storage driver with imageMogr2 native image processing"
+author: "NovusAI"
+icon: "lucide:cloud"
+icon_color: "#006eff"
+scope: admin_and_all
+tags: ["storage", "cos", "tencent", "cloud"]
+
+capabilities:
+  - storage:read
+  - storage:write
+
+extensions:
+  storage_drivers:
+    - code: tencent-cos
+      display_name:
+        zh-CN: "腾讯云 COS"
+        en: "Tencent Cloud COS"
+      entry_point: "driver.CosStorageDriver"
+
+# Storage credentials are managed by the platform Storage Settings (SystemConfig),
+# NOT here. The driver's config_schema (driver.py) describes required fields.
+# See: M12 Tenant Storage Multi-Mode Architecture (doc #427)
+config_schema:
+  type: object
+  properties: {}
+
+dependencies:
+  python:
+    - "cos-python-sdk-v5>=1.9"
+  plugins: []
+
+pricing:
+  type: free

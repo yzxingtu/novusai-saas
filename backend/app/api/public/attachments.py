@@ -1,7 +1,9 @@
+import time
+from collections import defaultdict
 from typing import Literal
 
-from fastapi import APIRouter, Query
-from fastapi.responses import RedirectResponse, Response
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 
 from app.core.deps import DbSession
 from app.rbac.decorators import public
@@ -9,6 +11,31 @@ from app.services.common import ImageProcessService
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
 
 router = APIRouter(prefix="/attachments", tags=["公开附件"])
+
+# In-memory IP rate limiter for image processing
+_image_rate_buckets: dict[str, list[float]] = defaultdict(list)
+_IMAGE_RATE_WINDOW = 60  # seconds
+_last_eviction = 0.0
+
+
+def _check_image_rate_limit(client_ip: str, limit: int = 60) -> bool:
+    global _last_eviction
+    now = time.monotonic()
+    cutoff = now - _IMAGE_RATE_WINDOW
+
+    # Periodic eviction of stale IPs (every 5 minutes)
+    if now - _last_eviction > 300:
+        stale = [ip for ip, ts in _image_rate_buckets.items() if not ts or ts[-1] < cutoff]
+        for ip in stale:
+            del _image_rate_buckets[ip]
+        _last_eviction = now
+
+    bucket = _image_rate_buckets[client_ip]
+    _image_rate_buckets[client_ip] = [t for t in bucket if t > cutoff]
+    if len(_image_rate_buckets[client_ip]) >= limit:
+        return False
+    _image_rate_buckets[client_ip].append(now)
+    return True
 
 
 @router.get("/{attachment_id}/access", summary="访问附件")
@@ -32,6 +59,7 @@ async def access_attachment(
 @router.get("/{attachment_id}/image", summary="图片处理")
 @public
 async def get_processed_image(
+    request: Request,
     attachment_id: int,
     db: DbSession,
     token: str | None = None,
@@ -69,6 +97,19 @@ async def get_processed_image(
     - `medium`: 640px 宽 fit
     - `large`: 1024px 宽 fit
     """
+    # IP rate limiting (read configurable limit)
+    from app.configs.service import ConfigService
+    config_svc = ConfigService(db)
+    rate_limit = int(await config_svc.get_platform_config(
+        "platform_image_process_rate_limit", default=60
+    ))
+    client_ip = request.client.host if request.client else "unknown"
+    if not _check_image_rate_limit(client_ip, limit=rate_limit):
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Too many image processing requests. Please try again later."},
+        )
+
     # 验证访问权限
     download_service = AttachmentDownloadService(db)
     attachment = await download_service.get_attachment(attachment_id)

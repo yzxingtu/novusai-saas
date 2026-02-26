@@ -137,6 +137,10 @@ export function repairPluginApi(id: number) {
   return requestClient.post(`${BASE_URL}/${id}/repair`);
 }
 
+export function installNpmDepsApi(id: number) {
+  return requestClient.post(`${BASE_URL}/${id}/install-npm-deps`);
+}
+
 // ── 配置 ──
 
 export function updatePluginConfigApi(id: number, config: Record<string, unknown>) {
@@ -199,8 +203,33 @@ export function bindPluginAIFeatureApi(id: number, assignmentId: number, agentId
 
 // ── License ──
 
+export interface PluginLicenseInfo {
+  status: 'none' | 'trial' | 'active' | 'expired' | 'invalid';
+  license_type: string | null;
+  is_valid: boolean;
+  message?: string;
+  license_key?: string;
+  buyer_email?: string;
+  activated_at?: string | null;
+  expires_at?: string | null;
+  remaining_days?: number | null;
+  trial_days_remaining?: number;
+}
+
+export function getPluginLicenseApi(id: number) {
+  return requestClient.get<PluginLicenseInfo>(`${BASE_URL}/${id}/license`);
+}
+
 export function activatePluginLicenseApi(id: number, licenseKey: string) {
   return requestClient.post(`${BASE_URL}/${id}/activate-license`, { license_key: licenseKey });
+}
+
+export function activatePluginTrialApi(id: number) {
+  return requestClient.post<PluginLicenseInfo>(`${BASE_URL}/${id}/activate-trial`);
+}
+
+export function revokePluginLicenseApi(id: number) {
+  return requestClient.delete(`${BASE_URL}/${id}/license`);
 }
 
 // ── 健康 ──

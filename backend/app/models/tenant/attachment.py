@@ -9,7 +9,7 @@ class Attachment(TenantModel):
     __tablename__ = "attachments"
 
     __delete_deps__ = [
-        DeletionDep("KnowledgeDocument", "attachment_id", DeletionStrategy.SET_NULL,
+        DeletionDep("KnowledgeDocument", "attachment_id", DeletionStrategy.NULLIFY,
                     label_field="title", i18n_key="knowledge_document"),
     ]
 

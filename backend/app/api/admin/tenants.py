@@ -4,7 +4,7 @@
 提供租户 CRUD 接口（平台管理员专用）
 """
 
-from fastapi import HTTPException, Query, Request, status
+from fastapi import Body, HTTPException, Query, Request, status
 from sqlalchemy import select
 
 from app.core.base_controller import GlobalController
@@ -407,6 +407,145 @@ class AdminTenantController(GlobalController):
                 message=_("common.success"),
             )
         
+        @router.get("/{tenant_id}/storage-config", summary="获取租户存储配置")
+        @action_read("action.tenant.detail")
+        async def get_tenant_storage_config(
+            request: Request,
+            db: DbSession,
+            tenant_id: int,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            获取租户存储配置（Mode 2: 管理端逐租户指定）
+
+            权限: tenant:detail
+            """
+            from app.services.common.storage_config_resolver import StorageConfigResolver
+
+            resolver = StorageConfigResolver(db)
+            mode = await resolver.get_storage_mode(tenant_id)
+            from app.configs.service import ConfigService
+            config_service = ConfigService(db)
+
+            tenant_driver = await config_service.get_tenant_config(
+                tenant_id, "tenant_storage_driver", default=None
+            )
+            tenant_root_path = await config_service.get_tenant_config(
+                tenant_id, "tenant_storage_root_path", default=""
+            )
+            tenant_base_url = await config_service.get_tenant_config(
+                tenant_id, "tenant_storage_base_url", default=""
+            )
+            tenant_options = await config_service.get_tenant_config(
+                tenant_id, "tenant_storage_options", default={}
+            )
+            tenant_mode = await config_service.get_tenant_config(
+                tenant_id, "tenant_storage_mode", default="platform"
+            )
+            tenant_self_enabled = await config_service.get_tenant_config(
+                tenant_id, "tenant_storage_self_config_enabled", default=False
+            )
+
+            return success(data={
+                "tenant_id": tenant_id,
+                "effective_mode": mode,
+                "tenant_storage_mode": str(tenant_mode),
+                "tenant_storage_driver": str(tenant_driver) if tenant_driver else None,
+                "tenant_storage_root_path": str(tenant_root_path),
+                "tenant_storage_base_url": str(tenant_base_url),
+                "tenant_storage_options": tenant_options or {},
+                "tenant_storage_self_config_enabled": bool(tenant_self_enabled),
+            })
+
+        @router.put("/{tenant_id}/storage-config", summary="设置租户存储配置")
+        @action_update("action.tenant.update")
+        async def update_tenant_storage_config(
+            request: Request,
+            db: DbSession,
+            tenant_id: int,
+            current_admin: ActiveAdmin,
+            data: dict = Body(...),
+        ):
+            """
+            设置租户存储配置（Mode 2: 管理端逐租户指定）
+
+            权限: tenant:update
+            """
+            from app.configs.service import ConfigService
+
+            config_service = ConfigService(db)
+
+            config_map = {
+                "tenant_storage_mode": "tenant_storage_mode",
+                "tenant_storage_driver": "tenant_storage_driver",
+                "tenant_storage_root_path": "tenant_storage_root_path",
+                "tenant_storage_base_url": "tenant_storage_base_url",
+                "tenant_storage_options": "tenant_storage_options",
+                "tenant_storage_self_config_enabled": "tenant_storage_self_config_enabled",
+            }
+
+            for field, config_key in config_map.items():
+                if field in data:
+                    await config_service.set_tenant_config(
+                        tenant_id=tenant_id,
+                        key=config_key,
+                        value=data[field],
+                    )
+
+            await db.commit()
+            return success(message=_("config.updated"))
+
+        @router.post("/{tenant_id}/storage-config/test", summary="测试租户存储连接")
+        @action_update("action.tenant.update")
+        async def test_tenant_storage_connection(
+            request: Request,
+            db: DbSession,
+            tenant_id: int,
+            current_admin: ActiveAdmin,
+            driver: str = Body(..., embed=True),
+            root_path: str = Body("", embed=True),
+            base_url: str = Body("", embed=True),
+            config: dict = Body({}, embed=True),
+        ):
+            """
+            测试租户存储连接
+
+            权限: tenant:update
+            """
+            import io
+            import uuid
+
+            from app.storage import storage_manager
+            from app.storage.base import StorageConfig
+
+            if driver == "local":
+                return success(data={
+                    "success": False,
+                    "errors": [_("config.storage.local_not_allowed_for_tenant")],
+                })
+
+            try:
+                sc = StorageConfig(
+                    driver=driver,
+                    root_path=root_path or config.get("bucket", "test"),
+                    base_url=base_url or None,
+                    options=config,
+                )
+                drv = storage_manager.get_driver(sc)
+                test_key = f".novusai-test/{uuid.uuid4().hex[:8]}.txt"
+                test_content = io.BytesIO(b"NovusAI tenant storage test")
+                await drv.put(test_key, test_content, mime_type="text/plain")
+                exists = await drv.exists(test_key)
+                if not exists:
+                    return success(data={
+                        "success": False,
+                        "errors": [_("config.storage.test_file_not_found")],
+                    })
+                await drv.delete(test_key)
+                return success(data={"success": True})
+            except Exception as e:
+                return success(data={"success": False, "errors": [str(e)]})
+
         @router.put("/{tenant_id}/reset-owner-password", summary="重置租户超级管理员密码")
         @permission_action("reset_owner_password", "action.tenant.reset_owner_password")
         async def reset_owner_password(

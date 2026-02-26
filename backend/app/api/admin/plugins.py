@@ -2,6 +2,7 @@
 插件管理 Controller（管理端）
 """
 
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -22,6 +23,18 @@ from app.rbac.decorators import (
     permission_resource,
 )
 from app.services.system.plugin_service import PluginService
+
+
+_SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9\-]*$")
+
+
+def _sanitize_slug(slug: str) -> None:
+    """Validate marketplace slug to prevent path traversal. Raises 400 on invalid slug."""
+    if not slug or not _SLUG_PATTERN.match(slug) or len(slug) > 128:
+        from app.exceptions.base import ValidationException
+        raise ValidationException(
+            message=f"Invalid marketplace slug: '{slug}'. Only lowercase letters, digits and hyphens allowed.",
+        )
 
 
 class PluginConfigBody(PydanticBaseModel):
@@ -205,6 +218,7 @@ class AdminPluginController(GlobalController):
             from app.plugins.package_security import extract_plugin_zip_safely
             from app.plugins.preview import generate_preview
 
+            _sanitize_slug(slug)
             temp_dir = PLUGINS_DIR / f"_market_{slug}"
             try:
                 extract_dir = zip_path.parent / "extracted"
@@ -245,6 +259,7 @@ class AdminPluginController(GlobalController):
             from app.plugins.loader import PLUGINS_DIR, PluginLoader
             from app.plugins.package_security import extract_plugin_zip_safely
 
+            _sanitize_slug(slug)
             try:
                 extract_dir = zip_path.parent / "extracted"
                 plugin_dir = extract_plugin_zip_safely(zip_path, extract_dir)
@@ -450,7 +465,7 @@ class AdminPluginController(GlobalController):
                 # install_from_path 内部的 lifecycle.install 会读取 manifest、注册 AI features 等
                 # 但不触发文件系统变化（因为 staging_dir 在系统 temp 中，不被 --reload 监控）
                 service = self.get_service(db)
-                plugin = await service.install_from_path(plugin_dir)
+                plugin = await service.install_from_path(plugin_dir, operator_id=admin.id)
                 plugin_data = plugin.to_dict()
 
                 # 阶段 2：DB 事务已在 service 层 flush，现在安全地 move 到 plugins/
@@ -467,14 +482,61 @@ class AdminPluginController(GlobalController):
         @action_update("action.plugin.enable")
         async def enable_plugin(plugin_id: int, db: DbSession, admin: ActiveAdmin):
             service = self.get_service(db)
-            await service.enable_plugin(plugin_id)
-            return success(data={"message": "Plugin enabled"})
+            await service.enable_plugin(plugin_id, operator_id=admin.id)
+
+            # 检查前端 npm 依赖是否已安装（仅 DEBUG 模式）
+            missing_npm_deps: list[str] = []
+            needs_restart = False
+            from app.core.config import settings
+            if settings.DEBUG:
+                plugin = await service.repo.get_by_id(plugin_id)
+                manifest_data = plugin.manifest or {}
+                frontend = (manifest_data.get("extensions") or {}).get("frontend") or {}
+                npm_deps = frontend.get("npm_dependencies") or []
+                if npm_deps:
+                    from app.plugins.loader import PLUGINS_DIR
+                    frontend_node_modules = PLUGINS_DIR.parent.parent / "frontend" / "node_modules"
+                    for pkg in npm_deps:
+                        pkg_name = pkg.split("@")[0] if pkg.startswith("@") else pkg.split("@")[0]
+                        if pkg.startswith("@"):
+                            pkg_name = pkg  # scoped package like @tiptap/vue-3
+                            if "/" in pkg_name and "@" in pkg_name[1:]:
+                                pkg_name = pkg_name.rsplit("@", 1)[0]
+                        pkg_dir = frontend_node_modules / pkg_name
+                        if not pkg_dir.is_dir():
+                            missing_npm_deps.append(pkg)
+                    if missing_npm_deps:
+                        needs_restart = True
+
+            return success(data={
+                "message": "Plugin enabled",
+                "missing_npm_deps": missing_npm_deps,
+                "needs_restart": needs_restart,
+            })
+
+        @self.router.post("/{plugin_id}/install-npm-deps")
+        @action_update("action.plugin.enable")
+        async def install_npm_deps(plugin_id: int, db: DbSession, admin: ActiveAdmin):
+            """手动触发插件 npm 依赖安装（前端启用后调用）"""
+            service = self.get_service(db)
+            plugin = await service.repo.get_by_id(plugin_id)
+            manifest_data = plugin.manifest or {}
+            frontend = (manifest_data.get("extensions") or {}).get("frontend") or {}
+            npm_deps = frontend.get("npm_dependencies") or []
+
+            if not npm_deps:
+                return success(data={"message": "No npm dependencies to install"})
+
+            from app.plugins.lifecycle import PluginLifecycle
+            lifecycle = PluginLifecycle(db)
+            await lifecycle._install_npm_deps(plugin.name, npm_deps)
+            return success(data={"message": f"Installed {len(npm_deps)} npm packages", "needs_restart": True})
 
         @self.router.post("/{plugin_id}/disable")
         @action_update("action.plugin.disable")
         async def disable_plugin(plugin_id: int, db: DbSession, admin: ActiveAdmin):
             service = self.get_service(db)
-            await service.disable_plugin(plugin_id)
+            await service.disable_plugin(plugin_id, operator_id=admin.id)
             return success(data={"message": "Plugin disabled"})
 
         @self.router.delete("/{plugin_id}")
@@ -486,7 +548,7 @@ class AdminPluginController(GlobalController):
             confirm_data_delete: bool = False,
         ):
             service = self.get_service(db)
-            await service.uninstall_plugin(plugin_id, confirm_data_delete)
+            await service.uninstall_plugin(plugin_id, confirm_data_delete, operator_id=admin.id)
             return deleted()
 
         @self.router.post("/{plugin_id}/repair")
@@ -549,10 +611,18 @@ class AdminPluginController(GlobalController):
                 from app.exceptions.base import ValidationException
                 raise ValidationException(message="Only PNG/SVG/JPG/WebP images are allowed")
 
+            # 验证文件大小（最大 2MB）
+            _ICON_MAX_SIZE = 2 * 1024 * 1024
+            content = await file.read()
+            if len(content) > _ICON_MAX_SIZE:
+                from app.exceptions.base import ValidationException
+                raise ValidationException(
+                    message=f"Icon file too large ({len(content)} bytes). Maximum size is 2MB.",
+                )
+
             # 保存文件
             icon_filename = f"icon{suffix}"
             icon_path = PLUGINS_DIR / plugin.name / icon_filename
-            content = await file.read()
             with open(icon_path, "wb") as f:
                 f.write(content)
 
@@ -651,6 +721,18 @@ class AdminPluginController(GlobalController):
 
         # ── License ──
 
+        @self.router.get("/{plugin_id}/license")
+        @action_read("action.plugin.view_license")
+        async def get_license_status(
+            plugin_id: int,
+            db: DbSession = None,
+            admin: ActiveAdmin = None,
+        ):
+            from app.plugins.license import get_license_status_by_id
+
+            license_info = await get_license_status_by_id(plugin_id, db)
+            return success(data=license_info)
+
         @self.router.post("/{plugin_id}/activate-license")
         @action_update("action.plugin.activate_license")
         async def activate_license(
@@ -659,9 +741,38 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            service = self.get_service(db)
-            await service.activate_license(plugin_id, body.license_key)
-            return success(data={"message": "License activated"})
+            from app.plugins.license import activate_license as do_activate
+
+            result = await do_activate(plugin_id, body.license_key, db)
+            if not result.get("success"):
+                from app.exceptions.base import BusinessException
+                raise BusinessException(message=result.get("message", "Activation failed"))
+            return success(data=result)
+
+        @self.router.post("/{plugin_id}/activate-trial")
+        @action_update("action.plugin.activate_trial")
+        async def activate_trial(
+            plugin_id: int,
+            db: DbSession = None,
+            admin: ActiveAdmin = None,
+        ):
+            from app.plugins.license import create_trial_license, get_license_status_by_id
+
+            await create_trial_license(plugin_id, trial_days=14, db=db)
+            license_info = await get_license_status_by_id(plugin_id, db)
+            return success(data=license_info)
+
+        @self.router.delete("/{plugin_id}/license")
+        @action_delete("action.plugin.revoke_license")
+        async def revoke_license(
+            plugin_id: int,
+            db: DbSession = None,
+            admin: ActiveAdmin = None,
+        ):
+            from app.plugins.license import revoke_license as do_revoke
+
+            await do_revoke(plugin_id, db)
+            return deleted()
 
         # ── AI 功能绑定 ──
 

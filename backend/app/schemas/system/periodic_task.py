@@ -9,6 +9,7 @@ from datetime import datetime
 from pydantic import Field, model_validator
 
 from app.core.base_schema import BaseSchema
+from app.enums.common import ResourceScopeEnum
 
 
 class PeriodicTaskResponse(BaseSchema):
@@ -60,7 +61,6 @@ class PeriodicTaskCreateRequest(BaseSchema):
 
     @model_validator(mode="after")
     def validate_scope_tenant(self):
-        from app.enums.common import ResourceScopeEnum
         if self.scope == ResourceScopeEnum.ALL_TENANTS.value and self.tenant_id is None:
             raise ValueError("tenant_id is required when scope is all_tenants")
         if self.scope != ResourceScopeEnum.ALL_TENANTS.value and self.tenant_id is not None:

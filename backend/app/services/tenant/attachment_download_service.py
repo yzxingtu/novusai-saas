@@ -186,68 +186,13 @@ class AttachmentDownloadService:
     async def _resolve_storage_config_for_attachment(
         self, attachment: Attachment
     ) -> StorageConfig:
-        """解析附件所属的实际存储配置（平台托管/租户自定义）"""
-        if attachment.driver == "local":
-            return await self._resolve_platform_storage_config()
-        storage_mode = await self._get_storage_mode()
-        if storage_mode == "custom":
-            return await self._resolve_tenant_storage_config()
-        return await self._resolve_platform_storage_config()
+        """解析附件所属的实际存储配置（委托给统一 StorageConfigResolver）"""
+        from app.services.common.storage_config_resolver import StorageConfigResolver
 
-    async def _get_storage_mode(self) -> str:
-        """读取租户存储模式（platform/custom）"""
-        mode = await self.config_service.get_tenant_config(
-            self.tenant_id or 0,
-            "tenant_storage_mode",
-            default="platform",
-        )
-        return "custom" if str(mode) == "custom" else "platform"
-
-    async def _resolve_platform_storage_config(self) -> StorageConfig:
-        """读取平台托管存储配置"""
-        driver = await self.config_service.get_platform_config(
-            "platform_storage_driver", default="local"
-        )
-        if str(driver) == "local":
-            # 本地存储使用硬编码路径
-            from app.storage import LOCAL_STORAGE_ROOT
-            root_path = str(LOCAL_STORAGE_ROOT)
-        else:
-            root_path = await self.config_service.get_platform_config(
-                "platform_storage_root_path", default=""
-            )
-        base_url = await self.config_service.get_platform_config(
-            "platform_storage_base_url", default=None
-        )
-        options = await self.config_service.get_platform_config(
-            "platform_storage_options", default={}
-        )
-        return StorageConfig(
-            driver=str(driver),
-            root_path=str(root_path),
-            base_url=base_url,
-            options=options or {},
-        )
-
-    async def _resolve_tenant_storage_config(self) -> StorageConfig:
-        """读取租户自定义存储配置"""
-        driver = await self.config_service.get_tenant_config(
-            self.tenant_id or 0, "tenant_storage_driver", default="s3"
-        )
-        root_path = await self.config_service.get_tenant_config(
-            self.tenant_id or 0, "tenant_storage_root_path", default=""
-        )
-        base_url = await self.config_service.get_tenant_config(
-            self.tenant_id or 0, "tenant_storage_base_url", default=None
-        )
-        options = await self.config_service.get_tenant_config(
-            self.tenant_id or 0, "tenant_storage_options", default={}
-        )
-        return StorageConfig(
-            driver=str(driver),
-            root_path=str(root_path),
-            base_url=base_url,
-            options=options or {},
+        resolver = StorageConfigResolver(self.db)
+        return await resolver.resolve_for_attachment(
+            driver=attachment.driver,
+            tenant_id=self.tenant_id or 0,
         )
 
     async def _record_download(self, attachment: Attachment, size: int) -> None:

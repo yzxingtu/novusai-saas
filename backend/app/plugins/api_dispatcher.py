@@ -225,11 +225,22 @@ async def _dispatch_plugin_api(
             return result
         # handler 返回含 error 的 dict 时转为错误响应
         if isinstance(result, dict) and "error" in result:
-            status_code = result.get("status_code", 422)
+            code = result.get("code", 4220)
+            status_code = result.get("status_code")
+            if status_code is None:
+                status_code = {
+                    4001: 400,
+                    4010: 401,
+                    4030: 403,
+                    4031: 403,
+                    4040: 404,
+                    5000: 500,
+                    5001: 500,
+                }.get(code, 422)
             return JSONResponse(
                 status_code=status_code,
                 content={
-                    "code": result.get("code", 4220),
+                    "code": code,
                     "message": result["error"],
                 },
             )

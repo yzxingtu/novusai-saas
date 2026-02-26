@@ -6,17 +6,61 @@ import { requestClient } from '#/utils/request';
 
 const API_PREFIX = '/tenant/dashboard';
 
+// ── Types ──
+
 export interface TenantDashboardStats {
   total_users: number;
   active_users: number;
   api_calls: number;
-  resource_usage: number;
+  total_tokens: number;
+  total_cost: number;
+  storage_used_bytes: number;
+  storage_used_mb: number;
 }
 
-/**
- * 获取租户仪表盘统计数据
- */
+export interface AITrendItem {
+  date: string;
+  calls: number;
+  tokens: number;
+}
+
+export interface StorageDetail {
+  total_files: number;
+  total_size_bytes: number;
+  total_size_mb: number;
+  type_distribution: Array<{
+    mime_type: string;
+    count: number;
+    size_bytes: number;
+  }>;
+}
+
+export interface TenantActivityItem {
+  id: number;
+  username: string | null;
+  action: string | null;
+  module: string | null;
+  path: string;
+  method: string;
+  status_code: number | null;
+  duration_ms: number | null;
+  created_at: string | null;
+}
+
+// ── API Functions ──
+
 export async function getTenantDashboardStatsApi(): Promise<TenantDashboardStats> {
-  const res = await requestClient.get<TenantDashboardStats>(`${API_PREFIX}/stats`);
-  return res;
+  return requestClient.get<TenantDashboardStats>(`${API_PREFIX}/stats`);
+}
+
+export async function getAITrendApi(days = 7): Promise<AITrendItem[]> {
+  return requestClient.get<AITrendItem[]>(`${API_PREFIX}/ai-trend`, { params: { days } });
+}
+
+export async function getStorageDetailApi(): Promise<StorageDetail> {
+  return requestClient.get<StorageDetail>(`${API_PREFIX}/storage-detail`);
+}
+
+export async function getTenantRecentActivitiesApi(limit = 20): Promise<TenantActivityItem[]> {
+  return requestClient.get<TenantActivityItem[]>(`${API_PREFIX}/recent-activities`, { params: { limit } });
 }

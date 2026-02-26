@@ -175,9 +175,10 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
           });
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // 检查错误响应中是否包含 captcha_required 字段
-      const responseData = error?.response?.data;
+      const err = error as { response?: { data?: { data?: { captcha_required?: boolean } } } };
+      const responseData = err?.response?.data;
       if (responseData?.data?.captcha_required) {
         captchaRequired = true;
       }

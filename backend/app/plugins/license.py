@@ -49,6 +49,7 @@ def generate_license_key(
     version_scope: str = "*",
     buyer_email: str = "",
     private_key_b64: str = "",
+    expires_days: int | None = None,
 ) -> str:
     """
     生成 License Key（仅内部工具使用，不暴露在平台 API）。
@@ -58,6 +59,7 @@ def generate_license_key(
         version_scope: 版本范围（如 ">=1.0.0" 或 "*"）
         buyer_email: 购买者邮箱
         private_key_b64: Ed25519 私钥（Base64 编码）
+        expires_days: 有效天数（None 表示永久）
 
     Returns:
         格式化的 License Key: NOVUS-{payload_b64}.{signature_b64}
@@ -70,12 +72,16 @@ def generate_license_key(
     private_key_bytes = base64.b64decode(private_key_b64)
     private_key = Ed25519PrivateKey.from_private_bytes(private_key_bytes)
 
-    payload = {
+    now = int(time.time())
+    payload: dict = {
         "plugin": plugin_name,
         "scope": version_scope,
         "buyer": buyer_email,
-        "issued_at": int(time.time()),
+        "issued_at": now,
     }
+    if expires_days is not None:
+        payload["expires_at"] = now + expires_days * 86400
+
     payload_json = json.dumps(payload, separators=(",", ":"), sort_keys=True)
     payload_bytes = payload_json.encode("utf-8")
     payload_b64 = base64.urlsafe_b64encode(payload_bytes).decode("ascii")
@@ -205,6 +211,31 @@ async def activate_license(
     if existing_license.scalar_one_or_none():
         return {"success": False, "message": _("plugin.error.license_already_activated")}
 
+    # 解析有效期
+    from datetime import datetime, timezone
+
+    expires_at_ts = license_info.get("expires_at")
+    expires_at_dt = None
+    if expires_at_ts and isinstance(expires_at_ts, (int, float)):
+        # utc_now() returns naive UTC; strip tz to keep consistent
+        expires_at_dt = datetime.fromtimestamp(expires_at_ts, tz=timezone.utc).replace(tzinfo=None)
+
+    now = utc_now()
+
+    # 检查 Key 是否已过期
+    if expires_at_dt and now >= expires_at_dt:
+        return {"success": False, "message": _("plugin.error.license_expired")}
+
+    # 使旧 license 失效
+    from sqlalchemy import update
+
+    await db.execute(
+        update(PluginLicense).where(
+            PluginLicense.plugin_id == plugin_id,
+            PluginLicense.is_valid.is_(True),
+        ).values(is_valid=False)
+    )
+
     # 写入 PluginLicense 表
     license_record = PluginLicense(
         plugin_id=plugin_id,
@@ -212,23 +243,136 @@ async def activate_license(
         license_type=PluginLicenseTypeEnum.PERPETUAL.value,
         version_scope=license_info.get("scope", "*"),
         buyer_email=license_info.get("buyer", ""),
-        issued_at=utc_now(),
-        activated_at=utc_now(),
+        issued_at=now,
+        activated_at=now,
+        expires_at=expires_at_dt,
         is_valid=True,
     )
     db.add(license_record)
     await db.flush()
 
     logger.info(
-        "License activated for plugin %s (buyer=%s)",
-        plugin.name, license_info.get("buyer"),
+        "License activated for plugin %s (buyer=%s, expires=%s)",
+        plugin.name, license_info.get("buyer"), expires_at_dt,
     )
+
+    remaining_days = None
+    if expires_at_dt:
+        remaining_days = (expires_at_dt - now).days
 
     return {
         "success": True,
         "message": _("plugin.license_activated"),
-        "license_info": license_info,
+        "license_info": {
+            **license_info,
+            "expires_at": str(expires_at_dt) if expires_at_dt else None,
+            "remaining_days": remaining_days,
+        },
     }
+
+
+async def get_license_status_by_name(
+    plugin_name: str,
+    db: "AsyncSession",
+) -> dict:
+    """
+    通过插件名获取 License 状态（供插件 license_gate 的 AsyncSession 路径使用）。
+
+    Returns:
+        与 PluginContext.get_own_license_status() 返回格式一致的 dict
+    """
+    from sqlalchemy import select
+
+    from app.core.base_model import utc_now
+    from app.models.system.plugin import Plugin
+    from app.models.system.plugin_license import PluginLicense
+
+    result = await db.execute(
+        select(Plugin.id).where(
+            Plugin.name == plugin_name,
+            Plugin.is_deleted.is_(False),
+        )
+    )
+    plugin_id = result.scalar_one_or_none()
+    if not plugin_id:
+        return {
+            "status": "invalid",
+            "license_type": None,
+            "is_valid": False,
+            "message": f"Plugin '{plugin_name}' not found",
+        }
+
+    lic_result = await db.execute(
+        select(PluginLicense).where(
+            PluginLicense.plugin_id == plugin_id,
+            PluginLicense.is_deleted.is_(False),
+        ).order_by(PluginLicense.created_at.desc()).limit(1)
+    )
+    record = lic_result.scalars().first()
+    if not record:
+        return {
+            "status": "invalid",
+            "license_type": None,
+            "is_valid": False,
+            "message": "No license found",
+        }
+
+    now = utc_now()
+
+    # Trial
+    if record.license_type == PluginLicenseTypeEnum.TRIAL.value:
+        if record.trial_expires_at and now < record.trial_expires_at:
+            remaining = (record.trial_expires_at - now).days
+            return {
+                "status": "trial",
+                "license_type": "trial",
+                "is_valid": True,
+                "trial_days_remaining": remaining,
+                "expires_at": str(record.trial_expires_at),
+            }
+        return {
+            "status": "expired",
+            "license_type": "trial",
+            "is_valid": False,
+            "message": "Trial period expired",
+        }
+
+    # Paid — check expires_at
+    if record.is_valid:
+        if record.expires_at and now >= record.expires_at:
+            return {
+                "status": "expired",
+                "license_type": record.license_type,
+                "is_valid": False,
+                "message": "License expired",
+                "expires_at": str(record.expires_at),
+            }
+        remaining_days = None
+        if record.expires_at:
+            remaining_days = (record.expires_at - now).days
+        return {
+            "status": "active",
+            "license_type": record.license_type,
+            "is_valid": True,
+            "license_key": _mask_key(record.license_key),
+            "activated_at": str(record.activated_at) if record.activated_at else None,
+            "expires_at": str(record.expires_at) if record.expires_at else None,
+            "remaining_days": remaining_days,
+        }
+
+    return {
+        "status": "expired",
+        "license_type": record.license_type,
+        "is_valid": False,
+        "message": "License expired or revoked",
+    }
+
+
+def _mask_key(key: str | None) -> str:
+    """Mask license key: NOVUS-xxxx...xxxx"""
+    if not key or len(key) < 20:
+        return "****"
+    return f"{key[:10]}****{key[-4:]}"
 
 
 async def create_trial_license(
@@ -256,6 +400,103 @@ async def create_trial_license(
     await db.flush()
 
     logger.info("Trial license created for plugin %d (%d days)", plugin_id, trial_days)
+
+
+async def get_license_status_by_id(
+    plugin_id: int,
+    db: "AsyncSession",
+) -> dict:
+    """
+    通过插件 ID 获取 License 状态（供 Admin API 使用）。
+    """
+    from sqlalchemy import select
+
+    from app.core.base_model import utc_now
+    from app.models.system.plugin_license import PluginLicense
+
+    lic_result = await db.execute(
+        select(PluginLicense).where(
+            PluginLicense.plugin_id == plugin_id,
+            PluginLicense.is_deleted.is_(False),
+        ).order_by(PluginLicense.created_at.desc()).limit(1)
+    )
+    record = lic_result.scalars().first()
+    if not record:
+        return {
+            "status": "none",
+            "license_type": None,
+            "is_valid": False,
+            "message": "No license found",
+        }
+
+    now = utc_now()
+
+    if record.license_type == PluginLicenseTypeEnum.TRIAL.value:
+        if record.trial_expires_at and now < record.trial_expires_at:
+            remaining = (record.trial_expires_at - now).days
+            return {
+                "status": "trial",
+                "license_type": "trial",
+                "is_valid": True,
+                "trial_days_remaining": remaining,
+                "expires_at": str(record.trial_expires_at),
+                "activated_at": str(record.activated_at) if record.activated_at else None,
+            }
+        return {
+            "status": "expired",
+            "license_type": "trial",
+            "is_valid": False,
+            "message": "Trial period expired",
+        }
+
+    if record.is_valid:
+        if record.expires_at and now >= record.expires_at:
+            return {
+                "status": "expired",
+                "license_type": record.license_type,
+                "is_valid": False,
+                "message": "License expired",
+                "expires_at": str(record.expires_at),
+            }
+        remaining_days = None
+        if record.expires_at:
+            remaining_days = (record.expires_at - now).days
+        return {
+            "status": "active",
+            "license_type": record.license_type,
+            "is_valid": True,
+            "license_key": _mask_key(record.license_key),
+            "activated_at": str(record.activated_at) if record.activated_at else None,
+            "expires_at": str(record.expires_at) if record.expires_at else None,
+            "remaining_days": remaining_days,
+            "buyer_email": record.buyer_email,
+        }
+
+    return {
+        "status": "expired",
+        "license_type": record.license_type,
+        "is_valid": False,
+        "message": "License expired or revoked",
+    }
+
+
+async def revoke_license(
+    plugin_id: int,
+    db: "AsyncSession",
+) -> None:
+    """撤销插件的所有有效 License"""
+    from sqlalchemy import update
+
+    from app.models.system.plugin_license import PluginLicense
+
+    await db.execute(
+        update(PluginLicense).where(
+            PluginLicense.plugin_id == plugin_id,
+            PluginLicense.is_valid.is_(True),
+        ).values(is_valid=False)
+    )
+    await db.flush()
+    logger.info("All licenses revoked for plugin %d", plugin_id)
 
 
 async def check_trial_expirations(db: "AsyncSession") -> list[dict]:

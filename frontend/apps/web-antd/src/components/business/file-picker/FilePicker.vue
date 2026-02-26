@@ -335,9 +335,10 @@ function addFilesToQueue(fileList: File[]) {
   }
 }
 
-function handleCustomUpload(options: any) {
-  addFilesToQueue([options.file as File]);
-  options.onSuccess?.();
+function handleCustomUpload(options: unknown) {
+  const opts = options as { file: File; onSuccess?: (...args: unknown[]) => void };
+  addFilesToQueue([opts.file]);
+  opts.onSuccess?.();
 }
 
 function cancelTask(task: UploadTask) {

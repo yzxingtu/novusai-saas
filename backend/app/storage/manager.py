@@ -4,11 +4,12 @@
 
 from typing import Dict, Type
 
+from app.core.logging import LogManager
 from app.exceptions import StorageConfigError
 from app.storage.base import StorageConfig, StorageDriver
 from app.storage.drivers.local import LocalStorageDriver
-from app.storage.drivers.oss import OssStorageDriver
-from app.storage.drivers.s3 import S3StorageDriver
+
+logger = LogManager.get_logger("storage")
 
 
 class StorageManager:
@@ -35,8 +36,6 @@ class StorageManager:
             return
         self._drivers: Dict[str, Type[StorageDriver]] = {}
         self.register_driver(LocalStorageDriver)
-        self.register_driver(S3StorageDriver)
-        self.register_driver(OssStorageDriver)
         self._initialized = True
 
     def register_driver(self, driver_cls: Type[StorageDriver]) -> None:
@@ -46,12 +45,18 @@ class StorageManager:
         if not driver_cls.name:
             raise StorageConfigError()
         self._drivers[driver_cls.name] = driver_cls
+        display = getattr(driver_cls, "display_name", driver_cls.name)
+        logger.info("Storage driver registered: %s (%s)", driver_cls.name, display)
 
     def unregister_driver(self, driver_name: str) -> None:
         """
         注销驱动（插件禁用时调用）
         """
-        self._drivers.pop(driver_name, None)
+        removed = self._drivers.pop(driver_name, None)
+        if removed:
+            logger.info("Storage driver unregistered: %s", driver_name)
+        else:
+            logger.warning("Storage driver unregister skipped (not found): %s", driver_name)
 
     def get_driver(self, config: StorageConfig) -> StorageDriver:
         """
@@ -73,6 +78,26 @@ class StorageManager:
         判断指定驱动是否已注册
         """
         return driver_name in self._drivers
+
+    def get_driver_class(self, driver_name: str) -> Type[StorageDriver] | None:
+        """
+        获取驱动类（供连接测试等场景使用）
+        """
+        return self._drivers.get(driver_name)
+
+    def get_driver_info_list(self) -> list[dict]:
+        """
+        获取所有已注册驱动的详细信息（含 display_name + config_schema）
+        """
+        result = []
+        for name, cls in self._drivers.items():
+            result.append({
+                "name": name,
+                "display_name": getattr(cls, "display_name", name),
+                "config_schema": getattr(cls, "config_schema", None),
+                "is_builtin": name == "local",
+            })
+        return result
 
 
 storage_manager = StorageManager()

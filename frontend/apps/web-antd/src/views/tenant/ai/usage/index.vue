@@ -3,11 +3,12 @@
  * 租户端 AI 用量统计页面
  */
 import type { Dayjs } from 'dayjs';
+import type { EchartsUIType } from '@vben/plugins/echarts';
 import type { TenantAIUsageSummary } from '#/api/tenant/ai';
 
 defineOptions({ name: 'TenantAIUsage' });
 
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 
 import dayjs from 'dayjs';
 
@@ -15,8 +16,10 @@ import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
 import { Button, Card, DatePicker, Spin } from 'ant-design-vue';
+import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
 import { getTenantAIUsageSummaryApi } from '#/api/tenant/ai';
+import { type CallTrendItem, type ModelDistributionItem, getTenantCallTrendApi, getTenantModelDistributionApi } from '#/api/tenant/analytics';
 import { $t } from '#/locales';
 
 // ============ 日期范围 ============
@@ -47,12 +50,14 @@ function handleDateChange(dates: DateRange | [string, string] | null) {
   if (dates && dates[0] instanceof dayjs && dates[1] instanceof dayjs) {
     dateRange.value = dates as DateRange;
     loadSummary();
+    loadCharts();
   }
 }
 
 function handlePreset(range: DateRange) {
   dateRange.value = range;
   loadSummary();
+  loadCharts();
 }
 
 // ============ 数据加载 ============
@@ -96,18 +101,68 @@ const formatTokens = (tokens: number | undefined) => {
   return `${tokens}`;
 };
 
-/** 计算日趋势中某值占最大值的百分比 */
-const maxDailyTokens = computed(() => {
-  if (!summary.value?.daily_stats) return 1;
-  return Math.max(...summary.value.daily_stats.map((d) => d.total_tokens || 0), 1);
-});
+onMounted(loadSummary);
 
-function barWidth(value: number, max: number): string {
-  if (max <= 0) return '0%';
-  return `${Math.round((value / max) * 100)}%`;
+// ============ ECharts ============
+
+const callChartRef = ref<EchartsUIType>();
+const modelChartRef = ref<EchartsUIType>();
+const { renderEcharts: renderCallChart } = useEcharts(callChartRef);
+const { renderEcharts: renderModelChart } = useEcharts(modelChartRef);
+
+const trendData = ref<CallTrendItem[]>([]);
+const modelData = ref<ModelDistributionItem[]>([]);
+
+async function loadCharts() {
+  const params: Record<string, unknown> = {};
+  if (dateRange.value[0]) params.start_date = dateRange.value[0].format('YYYY-MM-DD');
+  if (dateRange.value[1]) params.end_date = dateRange.value[1].format('YYYY-MM-DD');
+  try {
+    const [ct, md] = await Promise.allSettled([
+      getTenantCallTrendApi(params as { start_date?: string; end_date?: string }),
+      getTenantModelDistributionApi(params as { start_date?: string; end_date?: string }),
+    ]);
+    if (ct.status === 'fulfilled') trendData.value = ct.value;
+    if (md.status === 'fulfilled') modelData.value = md.value;
+  } catch { /* handled */ }
 }
 
-onMounted(loadSummary);
+function renderCharts() {
+  const data = trendData.value;
+  if (data.length) {
+    const dates = data.map((i) => i.date.slice(5));
+    renderCallChart({
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['Calls', 'Tokens'], bottom: 0 },
+      grid: { left: '3%', right: '4%', bottom: '14%', top: '8%', containLabel: true },
+      xAxis: { type: 'category', data: dates, boundaryGap: false },
+      yAxis: [{ type: 'value', name: 'Calls' }, { type: 'value', name: 'Tokens' }],
+      series: [
+        { name: 'Calls', type: 'line', data: data.map((i) => i.calls), smooth: true, itemStyle: { color: '#5B8FF9' } },
+        { name: 'Tokens', type: 'line', areaStyle: { opacity: 0.2 }, data: data.map((i) => i.tokens), smooth: true, itemStyle: { color: '#5AD8A6' }, yAxisIndex: 1 },
+      ],
+    });
+  }
+  const md = modelData.value;
+  if (md.length) {
+    const COLORS = ['#5B8FF9', '#5AD8A6', '#F6BD16', '#E86452', '#6DC8EC', '#945FB9', '#FF9845', '#1E9493', '#FF99C3', '#269A99'];
+    renderModelChart({
+      tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+      legend: { type: 'scroll', bottom: 0, left: 'center' },
+      series: [{
+        type: 'pie', radius: ['40%', '70%'], avoidLabelOverlap: false,
+        itemStyle: { borderRadius: 8, borderColor: 'transparent', borderWidth: 2 },
+        label: { show: false, position: 'center' },
+        emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
+        labelLine: { show: false }, color: COLORS,
+        data: md.map((i) => ({ name: i.model_name, value: i.calls })),
+      }],
+    });
+  }
+}
+
+watch([trendData, modelData], renderCharts);
+onMounted(loadCharts);
 </script>
 
 <template>
@@ -217,76 +272,15 @@ onMounted(loadSummary);
         </Card>
       </div>
 
-      <!-- 每日用量趋势 -->
-      <Card
-        v-if="summary?.daily_stats && summary.daily_stats.length > 0"
-        class="mt-4"
-        :title="$t('tenant.ai.usage.chart.dailyTrend')"
-        :body-style="{ padding: '16px' }"
-      >
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="border-b text-muted-foreground">
-                <th class="py-2 text-left font-medium">{{ $t('tenant.ai.usage.dateRange') }}</th>
-                <th class="py-2 text-right font-medium">{{ $t('tenant.ai.usage.chart.tokens') }}</th>
-                <th class="py-2 text-right font-medium">{{ $t('tenant.ai.usage.chart.cost') }}</th>
-                <th class="py-2 text-right font-medium">{{ $t('tenant.ai.usage.chart.calls') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="day in summary.daily_stats"
-                :key="day.date"
-                class="border-b last:border-0 hover:bg-accent/50"
-              >
-                <td class="py-2 text-foreground">{{ day.date }}</td>
-                <td class="py-2 text-right">
-                  <div class="flex items-center justify-end gap-2">
-                    <div class="h-2 w-24 overflow-hidden rounded-full bg-accent">
-                      <div
-                        class="h-full rounded-full bg-primary transition-all duration-300"
-                        :style="{ width: barWidth(day.total_tokens, maxDailyTokens) }"
-                      />
-                    </div>
-                    <span class="min-w-[48px] text-right text-muted-foreground">
-                      {{ formatTokens(day.total_tokens) }}
-                    </span>
-                  </div>
-                </td>
-                <td class="py-2 text-right text-muted-foreground">{{ formatCost(day.cost) }}</td>
-                <td class="py-2 text-right text-muted-foreground">{{ day.calls }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      <!-- 按模型分布 -->
-      <Card
-        v-if="summary?.model_stats && summary.model_stats.length > 0"
-        class="mt-4"
-        :title="$t('tenant.ai.usage.chart.modelDistribution')"
-        :body-style="{ padding: '16px' }"
-      >
-        <div class="space-y-3">
-          <div
-            v-for="model in summary.model_stats"
-            :key="model.model_id"
-            class="flex items-center justify-between rounded-lg bg-accent/30 p-3"
-          >
-            <div class="flex items-center gap-2">
-              <IconifyIcon icon="lucide:brain" class="size-4 text-primary" />
-              <span class="font-medium text-foreground">{{ model.model_name }}</span>
-            </div>
-            <div class="flex items-center gap-4 text-sm text-muted-foreground">
-              <span>{{ formatTokens(model.total_tokens) }} tokens</span>
-              <span>{{ formatCost(model.cost) }}</span>
-              <span>{{ model.calls }} {{ $t('tenant.ai.usage.chart.calls') }}</span>
-            </div>
-          </div>
-        </div>
-      </Card>
+      <!-- ECharts 趋势图 -->
+      <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card :title="$t('tenant.ai.usage.chart.dailyTrend')" :body-style="{ padding: '12px' }">
+          <EchartsUI ref="callChartRef" height="260px" />
+        </Card>
+        <Card :title="$t('tenant.ai.usage.chart.modelDistribution')" :body-style="{ padding: '12px' }">
+          <EchartsUI ref="modelChartRef" height="260px" />
+        </Card>
+      </div>
 
       <!-- 空状态 -->
       <Card

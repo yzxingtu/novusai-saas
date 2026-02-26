@@ -312,19 +312,46 @@ class AdminConfigController(GlobalController):
             request: Request,
             current_admin: ActiveAdmin,
             driver: str = Body(..., embed=True),
+            root_path: str = Body("", embed=True),
+            base_url: str = Body("", embed=True),
             config: dict[str, Any] = Body({}, embed=True),
         ):
             """
             测试存储驱动连接是否可用
             
+            执行完整测试流程：实例化 → 上传测试文件 → 检查存在 → 删除
+            
             权限: platform_config:update
             """
+            import io
+            import uuid
+
             from app.storage import storage_manager
             from app.storage.base import StorageConfig
+
             try:
-                sc = StorageConfig(driver=driver, root_path="/tmp/test", options=config)
+                sc = StorageConfig(
+                    driver=driver,
+                    root_path=root_path or config.get("bucket", "test"),
+                    base_url=base_url or None,
+                    options=config,
+                )
                 drv = storage_manager.get_driver(sc)
-                # 内置驱动无 test_connection，实例化成功即视为配置有效
+
+                test_key = f".novusai-test/{uuid.uuid4().hex[:8]}.txt"
+                test_content = io.BytesIO(b"NovusAI storage connection test")
+
+                await drv.put(
+                    test_key, test_content,
+                    mime_type="text/plain",
+                )
+                exists = await drv.exists(test_key)
+                if not exists:
+                    return success(data={
+                        "success": False,
+                        "errors": [_("config.storage.test_file_not_found")],
+                    })
+                await drv.delete(test_key)
                 return success(data={"success": True})
             except Exception as e:
                 return success(data={"success": False, "errors": [str(e)]})
@@ -342,10 +369,7 @@ class AdminConfigController(GlobalController):
             """
             from app.storage import storage_manager
 
-            drivers = []
-            for name in storage_manager.get_available_drivers():
-                drivers.append({"name": name})
-            return success(data=drivers)
+            return success(data=storage_manager.get_driver_info_list())
 
         @router.get("/storage/drivers/{driver_name}/schema", summary="获取存储驱动配置 Schema")
         @action_read("action.platform_config.read")
@@ -359,7 +383,13 @@ class AdminConfigController(GlobalController):
             
             权限: platform_config:read
             """
-            return success(data={"schema": {}, "defaults": {}})
+            from app.storage import storage_manager
+
+            driver_cls = storage_manager.get_driver_class(driver_name)
+            if not driver_cls:
+                return success(data={"schema": {}, "defaults": {}})
+            schema = getattr(driver_cls, "config_schema", None) or {}
+            return success(data={"schema": schema, "defaults": {}})
 
 
 # 导出路由

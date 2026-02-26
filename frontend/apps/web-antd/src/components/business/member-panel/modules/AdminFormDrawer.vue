@@ -133,7 +133,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
     };
 
     // 目标角色ID：优先取表单选择的 role_id，其次回退到当前节点 id
-    const targetRoleId = (values as any).role_id ?? props.nodeId!;
+    const targetRoleId = ('role_id' in values ? values.role_id as number : null) ?? props.nodeId!;
 
     drawerApi.lock();
     try {
@@ -142,7 +142,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
         const data = {
           ...baseData,
           // 若用户修改了角色，传递 role_id 参数让后端处理角色切换
-          role_id: (values as any).role_id ?? null,
+          role_id: ('role_id' in values ? values.role_id as number | null : null) ?? null,
         };
         await (props.apiPrefix === 'tenant'
           ? tenant.updateTenantMemberApi(
@@ -227,7 +227,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
         nickname: data.nickname,
         is_active: data.isActive,
         // 若表单存在 role_id 字段，则设置为数据中的角色ID，否则回退到展示字段
-        role_id: (data as any).roleId ?? props.nodeId,
+        role_id: ('roleId' in data ? data.roleId as number | null : null) ?? props.nodeId,
         role_display:
           data.roleName || props.nodeName || $t('admin.common.unassigned'),
       });

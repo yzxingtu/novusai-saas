@@ -12,6 +12,64 @@
     "totalAdmins": "管理员数",
     "systemHealth": "系统状态",
     "totalUsers": "用户总数",
-    "todayLogin": "今日登录"
+    "todayLogin": "今日登录",
+    "aiCalls": "AI 调用总量",
+    "aiTokens": "Token 总量",
+    "storageFiles": "文件总数",
+    "pluginsEnabled": "已启用插件"
+  },
+  "health": {
+    "title": "系统健康",
+    "status": "状态",
+    "database": "数据库",
+    "connected": "已连接",
+    "disconnected": "未连接",
+    "memory": "内存使用",
+    "uptime": "运行时间"
+  },
+  "ai": {
+    "title": "AI 使用概览",
+    "totalCalls": "总调用数",
+    "todayCalls": "今日调用",
+    "totalTokens": "总 Token",
+    "successRate": "成功率",
+    "providers": "活跃供应商",
+    "totalCost": "总费用"
+  },
+  "storage": {
+    "title": "存储概览",
+    "totalFiles": "文件总数",
+    "totalSize": "总大小",
+    "drivers": "存储驱动分布",
+    "files": "个文件"
+  },
+  "tenantGrowth": {
+    "title": "租户增长趋势",
+    "empty": "暂无数据"
+  },
+  "activities": {
+    "title": "近期活动",
+    "empty": "暂无活动记录"
+  },
+  "quickActions": {
+    "title": "快捷操作",
+    "tenantManage": "租户管理",
+    "tenantManageDesc": "管理租户信息",
+    "adminManage": "管理员管理",
+    "adminManageDesc": "管理平台管理员",
+    "systemConfig": "系统配置",
+    "systemConfigDesc": "配置系统参数",
+    "aiProviders": "AI 供应商",
+    "aiProvidersDesc": "管理 AI 供应商",
+    "periodicTasks": "定时任务",
+    "periodicTasksDesc": "管理定时任务",
+    "operationLogs": "操作日志",
+    "operationLogsDesc": "查看操作记录"
+  },
+  "systemOverview": {
+    "title": "系统信息",
+    "version": "版本",
+    "environment": "环境",
+    "currentTime": "当前时间"
   }
 }

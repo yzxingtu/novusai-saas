@@ -1,0 +1,113 @@
+<script lang="ts" setup>
+/**
+ * Tenant Analytics 数据分析页面（T13）
+ *
+ * 集成 ECharts 图表 + 日期范围筛选
+ * T9/T10 复用 Admin 端的 AiCallTrendChart / ModelDistributionChart
+ */
+import { onMounted, ref } from 'vue';
+
+import { Page } from '@vben/common-ui';
+
+import { Card, DatePicker, Spin } from 'ant-design-vue';
+
+import {
+  type AgentRankingItem,
+  type CallTrendItem,
+  type CostTrendItem,
+  type ModelDistributionItem,
+  getTenantAgentRankingApi,
+  getTenantCallTrendApi,
+  getTenantCostTrendApi,
+  getTenantModelDistributionApi,
+} from '#/api/tenant/analytics';
+import { $t } from '#/locales';
+
+import AiCallTrendChart from '#/views/_shared/charts/AiCallTrendChart.vue';
+import TokenTrendChart from '#/views/_shared/charts/TokenTrendChart.vue';
+import ModelDistributionChart from '#/views/_shared/charts/ModelDistributionChart.vue';
+import AgentRankingChart from './charts/AgentRankingChart.vue';
+import CostTrendChart from './charts/CostTrendChart.vue';
+
+defineOptions({ name: 'TenantAnalytics' });
+
+const loading = ref(false);
+const dateRange = ref<[string, string] | undefined>(undefined);
+
+const callTrend = ref<CallTrendItem[]>([]);
+const modelDist = ref<ModelDistributionItem[]>([]);
+const agentRanking = ref<AgentRankingItem[]>([]);
+const costTrend = ref<CostTrendItem[]>([]);
+
+function getParams() {
+  if (!dateRange.value) return {};
+  return { start_date: dateRange.value[0], end_date: dateRange.value[1] };
+}
+
+async function loadAll() {
+  loading.value = true;
+  const params = getParams();
+  try {
+    const [ct, md, ar, cst] = await Promise.allSettled([
+      getTenantCallTrendApi(params),
+      getTenantModelDistributionApi(params),
+      getTenantAgentRankingApi(10, params),
+      getTenantCostTrendApi(params),
+    ]);
+    if (ct.status === 'fulfilled') callTrend.value = ct.value;
+    if (md.status === 'fulfilled') modelDist.value = md.value;
+    if (ar.status === 'fulfilled') agentRanking.value = ar.value;
+    if (cst.status === 'fulfilled') costTrend.value = cst.value;
+  } finally {
+    loading.value = false;
+  }
+}
+
+function handleDateChange() {
+  loadAll();
+}
+
+onMounted(() => {
+  loadAll();
+});
+</script>
+
+<template>
+  <Page :title="$t('tenant.analytics.title')">
+    <template #extra>
+      <DatePicker.RangePicker
+        v-model:value="dateRange"
+        :placeholder="[$t('tenant.analytics.startDate'), $t('tenant.analytics.endDate')]"
+        @change="handleDateChange"
+        allow-clear
+      />
+    </template>
+
+    <Spin :spinning="loading">
+      <!-- Row 1: Call Trend + Token Trend -->
+      <div class="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card :title="$t('tenant.analytics.callTrend')">
+          <AiCallTrendChart :data="callTrend" />
+        </Card>
+        <Card :title="$t('tenant.analytics.tokenTrend')">
+          <TokenTrendChart :data="callTrend" />
+        </Card>
+      </div>
+
+      <!-- Row 2: Model Distribution + Agent Ranking -->
+      <div class="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card :title="$t('tenant.analytics.modelDistribution')">
+          <ModelDistributionChart :data="modelDist" />
+        </Card>
+        <Card :title="$t('tenant.analytics.agentRanking')">
+          <AgentRankingChart :data="agentRanking" />
+        </Card>
+      </div>
+
+      <!-- Row 3: Cost Trend (full width) -->
+      <Card :title="$t('tenant.analytics.costTrend')">
+        <CostTrendChart :data="costTrend" />
+      </Card>
+    </Spin>
+  </Page>
+</template>

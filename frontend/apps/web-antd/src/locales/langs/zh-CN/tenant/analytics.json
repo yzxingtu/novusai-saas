@@ -1,0 +1,10 @@
+{
+  "title": "数据分析",
+  "startDate": "开始日期",
+  "endDate": "结束日期",
+  "callTrend": "AI 调用趋势",
+  "tokenTrend": "Token 消耗趋势",
+  "modelDistribution": "模型调用分布",
+  "agentRanking": "智能体调用排行",
+  "costTrend": "费用趋势"
+}

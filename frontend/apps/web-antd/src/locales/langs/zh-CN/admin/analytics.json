@@ -1,0 +1,12 @@
+{
+  "title": "数据分析",
+  "startDate": "开始日期",
+  "endDate": "结束日期",
+  "callTrend": "AI 调用趋势",
+  "tokenTrend": "Token 消耗趋势",
+  "modelDistribution": "模型调用分布",
+  "providerPerformance": "供应商性能对比",
+  "tenantRanking": "租户使用排行",
+  "successRate": "成功率趋势",
+  "latencyDistribution": "响应延迟分布"
+}

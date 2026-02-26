@@ -5,6 +5,11 @@ Centralizes storage config resolution logic shared by:
 - tenant/attachment_service.py
 - tenant/attachment_download_service.py
 - system/attachment_service.py
+
+Three-mode resolution chain (priority high → low):
+1. custom      — tenant self-configured storage (Mode 3)
+2. admin_override — admin-specified per-tenant storage (Mode 2)
+3. platform    — global platform storage (Mode 1)
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +26,7 @@ class StorageConfigResolver:
     Shared storage configuration resolver
 
     Resolves StorageConfig from platform or tenant settings,
-    avoiding duplication across multiple attachment services.
+    supporting three modes: platform / admin_override / custom.
     """
 
     def __init__(self, db: AsyncSession):
@@ -29,20 +34,45 @@ class StorageConfigResolver:
 
     async def get_storage_mode(self, tenant_id: int) -> str:
         """
-        Get tenant storage mode (platform or custom)
+        Get tenant effective storage mode.
 
-        Args:
-            tenant_id: Tenant ID
+        Resolution:
+        1. If tenant_storage_mode == 'custom' AND both platform + tenant
+           self-config switches are on → 'custom'
+        2. If tenant_storage_mode == 'admin_override' AND tenant has
+           a driver configured → 'admin_override'
+        3. Otherwise → 'platform'
 
         Returns:
-            "platform" or "custom"
+            'platform' | 'admin_override' | 'custom'
         """
         mode = await self._config_service.get_tenant_config(
             tenant_id,
             "tenant_storage_mode",
             default="platform",
         )
-        return "custom" if str(mode) == "custom" else "platform"
+        mode = str(mode)
+
+        if mode == "custom":
+            platform_enabled = await self._config_service.get_platform_config(
+                "platform_tenant_storage_self_config_enabled", default=False
+            )
+            tenant_enabled = await self._config_service.get_tenant_config(
+                tenant_id, "tenant_storage_self_config_enabled", default=False
+            )
+            if platform_enabled and tenant_enabled:
+                return "custom"
+            return "platform"
+
+        if mode == "admin_override":
+            driver = await self._config_service.get_tenant_config(
+                tenant_id, "tenant_storage_driver", default=None
+            )
+            if driver:
+                return "admin_override"
+            return "platform"
+
+        return "platform"
 
     async def resolve_platform_config(self) -> StorageConfig:
         """
@@ -76,13 +106,16 @@ class StorageConfigResolver:
 
     async def resolve_tenant_config(self, tenant_id: int) -> StorageConfig:
         """
-        Resolve tenant custom storage configuration
+        Resolve tenant-level storage configuration (Mode 2 or Mode 3)
+
+        Used for both admin_override and custom modes — they share the same
+        tenant_storage_* config keys.
 
         Args:
             tenant_id: Tenant ID
 
         Returns:
-            StorageConfig for the tenant's custom storage driver
+            StorageConfig for the tenant's storage driver
 
         Raises:
             BusinessException: If driver is local or root_path is empty
@@ -116,6 +149,26 @@ class StorageConfigResolver:
             options=options or {},
         )
 
+    def _check_driver_available(self, config: StorageConfig) -> None:
+        """
+        Verify the driver in config is actually registered in StorageManager.
+
+        Raises BusinessException with friendly message if driver plugin is
+        not installed/enabled, instead of letting StorageManager raise a
+        raw StorageConfigError that becomes a 500.
+        """
+        from app.storage.manager import storage_manager
+
+        if not storage_manager.has_driver(config.driver):
+            raise BusinessException(
+                message=_(
+                    "storage.error.driver_error"
+                ),
+                code=ErrorCode.INVALID_PARAMETER,
+                detail=f"Storage driver '{config.driver}' is not available. "
+                       f"The corresponding plugin may not be installed or enabled.",
+            )
+
     async def resolve_config(
         self, storage_mode: str, tenant_id: int = 0
     ) -> StorageConfig:
@@ -123,15 +176,18 @@ class StorageConfigResolver:
         Resolve storage config based on mode
 
         Args:
-            storage_mode: "platform" or "custom"
-            tenant_id: Tenant ID (required for custom mode)
+            storage_mode: 'platform' | 'admin_override' | 'custom'
+            tenant_id: Tenant ID (required for non-platform modes)
 
         Returns:
             StorageConfig
         """
-        if storage_mode == "custom" and tenant_id:
-            return await self.resolve_tenant_config(tenant_id)
-        return await self.resolve_platform_config()
+        if storage_mode in ("custom", "admin_override") and tenant_id:
+            config = await self.resolve_tenant_config(tenant_id)
+        else:
+            config = await self.resolve_platform_config()
+        self._check_driver_available(config)
+        return config
 
     async def resolve_context(
         self, tenant_id: int
@@ -167,9 +223,13 @@ class StorageConfigResolver:
             return await self.resolve_platform_config()
         if tenant_id:
             storage_mode = await self.get_storage_mode(tenant_id)
-            if storage_mode == "custom":
-                return await self.resolve_tenant_config(tenant_id)
-        return await self.resolve_platform_config()
+            if storage_mode in ("custom", "admin_override"):
+                config = await self.resolve_tenant_config(tenant_id)
+                self._check_driver_available(config)
+                return config
+        config = await self.resolve_platform_config()
+        self._check_driver_available(config)
+        return config
 
 
 __all__ = ["StorageConfigResolver"]

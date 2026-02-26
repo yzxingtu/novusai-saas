@@ -128,7 +128,7 @@ const { Grid, FormDrawer, onRefresh } =
             v-access:code="['periodic_task:toggle']"
             :checked="row.isActive"
             size="small"
-            @change="(checked: any) => onToggleActive(row, !!checked)"
+            @change="(checked: boolean | string | number) => onToggleActive(row, !!checked)"
           />
         </template>
 

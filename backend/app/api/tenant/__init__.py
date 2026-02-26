@@ -80,6 +80,9 @@ tenant_router.include_router(notification_preferences_router)
 # 插件（租户端只读列表，按 scope + 分配过滤）
 from app.api.tenant.plugins import router as plugins_router
 tenant_router.include_router(plugins_router)
+# 数据分析
+from app.api.tenant.analytics import router as analytics_router
+tenant_router.include_router(analytics_router)
 
 
 __all__ = [

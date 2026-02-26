@@ -16,6 +16,7 @@ import * as VueRouter from 'vue-router';
 import * as AntDesignVue from 'ant-design-vue';
 import { IconifyIcon } from '@vben/icons';
 import { i18n } from '@vben/locales';
+import { useUserStore } from '@vben/stores';
 import { requestClient } from '#/utils/request';
 import { $t } from '#/locales';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
@@ -24,7 +25,7 @@ import { TokenStorage } from '#/store/shared/token-storage';
 import { getCurrentEndpoint } from '#/router/access';
 
 // Re-export for dev mode: plugins import { $t, IconifyIcon, ... } from '@novus/plugin-shared'
-export { requestClient, $t, IconifyIcon, usePluginSlotsStore, usePluginExtensionsStore, getAuthToken };
+export { requestClient, $t, IconifyIcon, usePluginSlotsStore, usePluginExtensionsStore, getAuthToken, getCurrentUser };
 
 /**
  * 获取当前端（admin/tenant/user）的 JWT Access Token
@@ -33,6 +34,24 @@ export { requestClient, $t, IconifyIcon, usePluginSlotsStore, usePluginExtension
 function getAuthToken(): string | null {
   const endpoint = getCurrentEndpoint();
   return TokenStorage.getToken(endpoint);
+}
+
+/**
+ * 获取当前登录用户信息（供插件协作、评论等场景使用）
+ */
+function getCurrentUser(): { id: number | null; username: string; name: string } {
+  try {
+    const userStore = useUserStore();
+    const info = userStore.userInfo;
+    if (info) {
+      return {
+        id: info.userId ? Number(info.userId) : null,
+        username: info.username || '',
+        name: info.realName || info.username || '',
+      };
+    }
+  } catch { /* store not ready */ }
+  return { id: null, username: '', name: '' };
 }
 
 export interface NovusPluginSharedAPI {
@@ -50,6 +69,8 @@ export interface NovusPluginSharedAPI {
   registerLocale: (locale: string, prefix: string, messages: Record<string, unknown>) => void;
   /** 获取当前端 JWT Access Token（供 Socket.IO 等非 HTTP 通道鉴权） */
   getAuthToken: () => string | null;
+  /** 获取当前登录用户信息（供协作、评论等场景） */
+  getCurrentUser: () => { id: number | null; username: string; name: string };
 }
 
 /**
@@ -76,6 +97,7 @@ export function exposePluginShared(): void {
     usePluginExtensionsStore,
     registerLocale: _registerPluginLocale,
     getAuthToken,
+    getCurrentUser,
   } satisfies NovusPluginSharedAPI;
 }
 

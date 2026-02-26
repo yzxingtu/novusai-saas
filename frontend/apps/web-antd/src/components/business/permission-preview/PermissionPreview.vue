@@ -95,8 +95,18 @@ function getAllKeys(nodes: PermissionNode[]): number[] {
 /**
  * 过滤权限树，只保留已分配的权限及其父节点
  */
-function filterPermissionTree(nodes: PermissionNode[]): any[] {
-  const result: any[] = [];
+interface FilteredPermNode {
+  key: number;
+  title: string;
+  code: string;
+  type: string;
+  icon?: string;
+  hasPermission: boolean;
+  children?: FilteredPermNode[];
+}
+
+function filterPermissionTree(nodes: PermissionNode[]): FilteredPermNode[] {
+  const result: FilteredPermNode[] = [];
   for (const node of nodes) {
     const children = node.children ? filterPermissionTree(node.children) : [];
     const hasPermission = permissionIdSet.value.has(node.id);
@@ -108,7 +118,7 @@ function filterPermissionTree(nodes: PermissionNode[]): any[] {
         title: node.name,
         code: node.code,
         type: node.type,
-        icon: node.icon,
+        icon: node.icon ?? undefined,
         hasPermission,
         children: children.length > 0 ? children : undefined,
       });

@@ -1359,9 +1359,12 @@
       "dependency_failed": "插件依赖安装失败",
       "security_violation": "插件安全检查未通过",
       "license_invalid": "插件许可证无效",
+      "license_expired": "插件许可证已过期",
+      "license_already_activated": "该许可证密钥已被激活",
       "conflict": "插件与已有扩展冲突",
       "install_failed": "插件安装失败"
-    }
+    },
+    "license_activated": "许可证激活成功"
   },
   "crud_generation_record": {
     "field": {
@@ -1539,6 +1542,22 @@
       "image_default_quality": {
         "name": "默认图片质量",
         "desc": "图片压缩的默认质量（1-100）"
+      },
+      "tenant_storage_self_config_enabled": {
+        "name": "允许租户自主配置存储",
+        "desc": "开启后，租户可在租户端自行配置云存储（需同时开启租户单独开关）"
+      },
+      "storage_allowed_custom_drivers": {
+        "name": "允许的自定义驱动",
+        "desc": "租户自主配置时允许选择的存储驱动列表"
+      },
+      "image_cache_max_variants_per_image": {
+        "name": "单图缓存变体上限",
+        "desc": "同一张图片允许缓存的最大处理变体数量，超出后返回原图"
+      },
+      "image_process_rate_limit": {
+        "name": "图片处理速率限制",
+        "desc": "单个 IP 每分钟最多允许的图片处理请求数"
       },
       "password_min_length": {
         "name": "密码最小长度",
@@ -1881,14 +1900,21 @@
       }
     },
     "storage": {
+      "test_file_not_found": "存储连接测试失败：测试文件写入后未找到",
+      "self_config_not_enabled": "租户自主存储配置未开启，请联系平台管理员",
+      "local_not_allowed_for_tenant": "租户不能使用本地存储驱动",
+      "driver_not_allowed": "该存储驱动不在允许列表中",
       "mode": {
         "platform": "平台托管存储",
+        "admin_override": "管理端指定存储",
         "custom": "自定义云存储"
       },
       "driver": {
         "local": "本地存储",
-        "s3": "R3/S3 兼容",
-        "aliyun_oss": "阿里云 OSS"
+        "s3": "S3 兼容存储",
+        "aliyun_oss": "阿里云 OSS",
+        "qiniu_kodo": "七牛云 Kodo",
+        "tencent_cos": "腾讯云 COS"
       },
       "visibility": {
         "private": "私有",
@@ -1922,7 +1948,79 @@
         "prefix": {
           "name": "路径前缀",
           "desc": "对象存储路径前缀"
+        },
+        "secret_id": {
+          "name": "Secret ID",
+          "desc": "腾讯云 Secret ID"
+        },
+        "cos_secret_key": {
+          "name": "Secret Key",
+          "desc": "腾讯云 Secret Key"
+        },
+        "kodo_secret_key": {
+          "name": "Secret Key",
+          "desc": "七牛云 Secret Key"
+        },
+        "cos_region": {
+          "name": "COS 区域",
+          "desc": "腾讯云 COS 区域标识（如 ap-shanghai）"
+        },
+        "domain": {
+          "name": "CDN 域名",
+          "desc": "对象存储的 CDN 加速域名"
         }
+      },
+      "local": {
+        "root_path": "存储根目录",
+        "root_path_desc": "本地文件存储的根目录路径",
+        "base_url": "访问 URL",
+        "base_url_desc": "文件访问的基础 URL",
+        "permissions": "文件权限",
+        "permissions_desc": "新建文件的 UNIX 权限（默认 0644）"
+      },
+      "kodo": {
+        "bucket": "Bucket 名称",
+        "bucket_desc": "七牛云存储空间名称",
+        "base_url": "CDN 域名",
+        "base_url_desc": "绑定的 CDN 加速域名，如 https://cdn.example.com",
+        "access_key": "Access Key",
+        "secret_key": "Secret Key",
+        "prefix": "Key 前缀",
+        "is_private": "私有空间"
+      },
+      "oss": {
+        "bucket": "Bucket 名称",
+        "bucket_desc": "OSS 存储桶名称",
+        "base_url": "CDN 域名",
+        "base_url_desc": "绑定的 CDN 加速域名",
+        "access_key_id": "Access Key ID",
+        "access_key_secret": "Access Key Secret",
+        "endpoint": "Endpoint",
+        "region": "Region",
+        "prefix": "Key 前缀"
+      },
+      "s3": {
+        "bucket": "Bucket 名称",
+        "bucket_desc": "S3 存储桶名称",
+        "base_url": "CDN 域名",
+        "base_url_desc": "绑定的 CDN 加速域名",
+        "access_key_id": "Access Key ID",
+        "secret_access_key": "Secret Access Key",
+        "region": "Region",
+        "endpoint_url": "Endpoint URL",
+        "prefix": "Key 前缀",
+        "image_process_provider": "图片处理服务",
+        "image_process_url": "图片处理 URL"
+      },
+      "cos": {
+        "bucket": "Bucket 名称",
+        "bucket_desc": "COS 存储桶名称，如 mybucket-1250000000",
+        "base_url": "CDN 域名",
+        "base_url_desc": "绑定的 CDN 加速域名",
+        "secret_id": "Secret ID",
+        "secret_key": "Secret Key",
+        "region": "Region",
+        "prefix": "Key 前缀"
       }
     }
   },

@@ -1,0 +1,9 @@
+{
+  "plugin.tencent-cos.title": "腾讯云 COS 存储",
+  "plugin.tencent-cos.description": "腾讯云对象存储（COS）驱动，支持 imageMogr2 原生图片处理",
+  "plugin.tencent-cos.config.secret_id": "Secret ID",
+  "plugin.tencent-cos.config.secret_key": "Secret Key",
+  "plugin.tencent-cos.config.region": "区域",
+  "plugin.tencent-cos.config.bucket": "Bucket",
+  "plugin.tencent-cos.config.prefix": "Key 前缀"
+}

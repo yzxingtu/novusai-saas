@@ -155,6 +155,7 @@ let cachedPluginMenuEntries: MenuRecordRaw[] = [];
 function registerPluginPageRoutes(
   router: Router,
   slotsStore: ReturnType<typeof usePluginSlotsStore>,
+  side: EndpointSide = 'admin',
 ) {
   const menus = slotsStore.sidebarMenus;
   if (!menus || menus.length === 0) return;
@@ -201,7 +202,11 @@ function registerPluginPageRoutes(
     registeredPluginRouteNames.add(routeName);
 
     // Collect visible menu entries (MenuRecordRaw format) for the sidebar
-    if (!item.hidden) {
+    // Only show menus matching the current side's path prefix
+    const matchesSide = side === 'admin'
+      ? item.path.startsWith('/admin/plugins/')
+      : item.path.startsWith('/tenant/plugins/');
+    if (!item.hidden && matchesSide) {
       menuEntries.push({
         name: item.title || item.name,
         path: item.path,
@@ -315,7 +320,7 @@ export async function ensurePluginRoutes(router: Router, endpoint: string = '/ad
     }
 
     // 注册插件页面路由
-    registerPluginPageRoutes(router, slotsStore);
+    registerPluginPageRoutes(router, slotsStore, side);
     _pluginRoutesReady = true;
     _pluginRoutesReadySide = side;
   } catch (err: unknown) {
@@ -391,7 +396,7 @@ export async function refreshPluginSlots(endpoint: string = '/admin', router?: R
 
     // Register plugin page routes after all slots are loaded
     if (router) {
-      registerPluginPageRoutes(router, slotsStore);
+      registerPluginPageRoutes(router, slotsStore, side);
     }
     _pluginRoutesReady = true;
     _pluginRoutesReadySide = side;
@@ -452,7 +457,7 @@ export function usePluginFrontendInit(endpoint: string = '/admin') {
       }
 
       // ★ Register plugin page routes after all slots are loaded
-      registerPluginPageRoutes(router, slotsStore);
+      registerPluginPageRoutes(router, slotsStore, side);
     } catch (err: unknown) {
       console.error('[PluginFrontendInit] Failed to fetch plugins from API:', err);
     }

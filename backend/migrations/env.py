@@ -108,11 +108,28 @@ config.set_main_option("sqlalchemy.url", settings.DATABASE_URL_SYNC)
 
 # 迁移文件目录
 _migrations_dir = Path(__file__).parent / "versions"
-# 动态扫描已安装插件的迁移目录
 _version_paths = [str(_migrations_dir)]
+
+# 只扫描已安装插件的迁移目录（防止未安装插件的迁移被意外执行）
 _plugins_dir = Path(__file__).parent.parent / "plugins"
 if _plugins_dir.exists():
+    _installed_plugin_names: set[str] = set()
+    try:
+        import psycopg2
+        _conn = psycopg2.connect(settings.DATABASE_URL_SYNC)
+        _cur = _conn.cursor()
+        _cur.execute("SELECT name FROM plugins WHERE is_deleted = false")
+        _installed_plugin_names = {row[0] for row in _cur.fetchall()}
+        _cur.close()
+        _conn.close()
+    except Exception:
+        pass  # DB not ready or table missing — skip plugin migrations
+
     for _plugin_dir in _plugins_dir.iterdir():
+        if not _plugin_dir.is_dir():
+            continue
+        if _plugin_dir.name not in _installed_plugin_names:
+            continue
         _plugin_migrations = _plugin_dir / "backend" / "migrations" / "versions"
         if _plugin_migrations.is_dir():
             _version_paths.append(str(_plugin_migrations))

@@ -41,6 +41,7 @@ from app.api.admin.agent_assignments import router as agent_assignments_router, 
 from app.api.admin.email_logs import router as email_logs_router, AdminEmailLogController
 from app.api.admin.recycle_bin import router as recycle_bin_router, AdminRecycleBinController
 from app.api.admin.dashboard import router as dashboard_router
+from app.api.admin.analytics import router as analytics_router
 
 # 创建平台管理后台路由器
 admin_router = APIRouter()
@@ -48,6 +49,7 @@ admin_router = APIRouter()
 # 注册子路由
 admin_router.include_router(auth_router)
 admin_router.include_router(dashboard_router)
+admin_router.include_router(analytics_router)
 admin_router.include_router(permissions_router)
 admin_router.include_router(roles_router)
 admin_router.include_router(tenants_router)

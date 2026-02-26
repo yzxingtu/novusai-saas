@@ -1,0 +1,12 @@
+{
+  "plugin.amazon-s3.title": "S3 兼容存储",
+  "plugin.amazon-s3.description": "Amazon S3 兼容对象存储驱动，支持 AWS/MinIO/R2/B2 等",
+  "plugin.amazon-s3.config.access_key_id": "Access Key ID",
+  "plugin.amazon-s3.config.secret_access_key": "Secret Access Key",
+  "plugin.amazon-s3.config.region": "区域",
+  "plugin.amazon-s3.config.endpoint_url": "Endpoint URL",
+  "plugin.amazon-s3.config.bucket": "Bucket",
+  "plugin.amazon-s3.config.prefix": "Key 前缀",
+  "plugin.amazon-s3.config.image_process_provider": "图片处理服务",
+  "plugin.amazon-s3.config.image_process_url": "图片处理服务 URL"
+}

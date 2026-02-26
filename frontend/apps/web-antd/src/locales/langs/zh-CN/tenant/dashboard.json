@@ -10,7 +10,25 @@
     "growth": "增长率",
     "totalUsers": "用户总数",
     "activeUsers": "活跃用户",
-    "apiCalls": "API 调用",
-    "resourceUsage": "资源使用"
+    "apiCalls": "AI 调用",
+    "resourceUsage": "资源使用",
+    "totalTokens": "Token 总量",
+    "totalCost": "费用总计",
+    "storageUsed": "存储使用"
+  },
+  "quickActions": {
+    "title": "快捷操作",
+    "aiChat": "AI 对话",
+    "agents": "智能体",
+    "knowledgeBases": "知识库",
+    "callLogs": "调用日志"
+  },
+  "aiTrend": {
+    "title": "AI 使用趋势",
+    "empty": "暂无数据"
+  },
+  "activities": {
+    "title": "近期活动",
+    "empty": "暂无活动记录"
   }
 }

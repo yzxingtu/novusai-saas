@@ -25,7 +25,7 @@ class Admin(BaseModel):
     __tablename__ = "admins"
 
     __delete_deps__ = [
-        DeletionDep("AdminRole", "leader_id", DeletionStrategy.SET_NULL,
+        DeletionDep("AdminRole", "leader_id", DeletionStrategy.NULLIFY,
                     label_field="name", i18n_key="admin_role_leader"),
     ]
     

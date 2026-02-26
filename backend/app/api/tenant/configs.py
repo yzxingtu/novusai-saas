@@ -4,7 +4,7 @@
 提供租户级配置管理接口（租户管理员专用）
 """
 
-from fastapi import Request
+from fastapi import Body, Request
 
 from app.configs.service import ConfigService
 from app.configs.registry import config_registry
@@ -284,6 +284,118 @@ class TenantConfigController(TenantController):
                 ),
                 message=_("config.updated"),
             )
+
+
+        @router.post("/storage/test-connection", summary="测试租户存储连接")
+        @action_update("action.tenant_config.update")
+        async def test_tenant_storage_connection(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+            driver: str = Body(..., embed=True),
+            root_path: str = Body("", embed=True),
+            base_url: str = Body("", embed=True),
+            config: dict = Body({}, embed=True),
+        ):
+            """
+            测试租户自主存储连接（Mode 3）
+
+            权限: tenant_config:update
+            """
+            import io
+            import uuid
+
+            from app.configs.service import ConfigService
+            from app.storage import storage_manager
+            from app.storage.base import StorageConfig
+
+            # Check Mode 3 switches
+            config_service = ConfigService(db)
+            platform_enabled = await config_service.get_platform_config(
+                "platform_tenant_storage_self_config_enabled", default=False
+            )
+            tenant_enabled = await config_service.get_tenant_config(
+                current_admin.tenant_id,
+                "tenant_storage_self_config_enabled",
+                default=False,
+            )
+            if not platform_enabled or not tenant_enabled:
+                raise BusinessException(
+                    message=_("config.storage.self_config_not_enabled"),
+                    code=ErrorCode.FORBIDDEN,
+                )
+
+            if driver == "local":
+                raise BusinessException(
+                    message=_("config.storage.local_not_allowed_for_tenant"),
+                    code=ErrorCode.INVALID_PARAMETER,
+                )
+
+            # Check allowed drivers
+            allowed = await config_service.get_platform_config(
+                "platform_storage_allowed_custom_drivers",
+                default=["aliyun-oss", "qiniu-kodo", "tencent-cos", "s3"],
+            )
+            if isinstance(allowed, list) and driver not in allowed:
+                raise BusinessException(
+                    message=_("config.storage.driver_not_allowed"),
+                    code=ErrorCode.INVALID_PARAMETER,
+                )
+
+            try:
+                sc = StorageConfig(
+                    driver=driver,
+                    root_path=root_path or config.get("bucket", "test"),
+                    base_url=base_url or None,
+                    options=config,
+                )
+                drv = storage_manager.get_driver(sc)
+                test_key = f".novusai-test/{uuid.uuid4().hex[:8]}.txt"
+                test_content = io.BytesIO(b"NovusAI tenant storage test")
+                await drv.put(test_key, test_content, mime_type="text/plain")
+                exists = await drv.exists(test_key)
+                if not exists:
+                    return success(data={
+                        "success": False,
+                        "errors": [_("config.storage.test_file_not_found")],
+                    })
+                await drv.delete(test_key)
+                return success(data={"success": True})
+            except BusinessException:
+                raise
+            except Exception as e:
+                return success(data={"success": False, "errors": [str(e)]})
+
+        @router.get("/storage/drivers", summary="获取租户允许的存储驱动列表")
+        @action_read("action.tenant_config.groups")
+        async def list_tenant_storage_drivers(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+        ):
+            """
+            获取租户允许选择的存储驱动列表（受平台白名单限制）
+
+            权限: tenant_config:groups
+            """
+            from app.configs.service import ConfigService
+            from app.storage import storage_manager
+
+            config_service = ConfigService(db)
+            allowed = await config_service.get_platform_config(
+                "platform_storage_allowed_custom_drivers",
+                default=["aliyun-oss", "qiniu-kodo", "tencent-cos", "s3"],
+            )
+            if not isinstance(allowed, list):
+                allowed = ["aliyun-oss", "qiniu-kodo", "tencent-cos", "s3"]
+
+            all_drivers = storage_manager.get_driver_info_list()
+            # Filter to allowed + exclude local
+            filtered = [
+                d for d in all_drivers
+                if d["name"] in allowed and d["name"] != "local"
+            ]
+            return success(data=filtered)
 
 
 # 导出路由

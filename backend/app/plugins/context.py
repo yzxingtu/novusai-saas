@@ -362,12 +362,26 @@ class PluginContext:
             }
 
         if license_record.is_valid:
+            # 检查付费 License 是否过期
+            if license_record.expires_at and now >= license_record.expires_at:
+                return {
+                    "status": "expired",
+                    "license_type": license_record.license_type,
+                    "is_valid": False,
+                    "message": "License expired",
+                    "expires_at": str(license_record.expires_at),
+                }
+            remaining_days = None
+            if license_record.expires_at:
+                remaining_days = (license_record.expires_at - now).days
             return {
                 "status": "active",
                 "license_type": license_record.license_type,
                 "is_valid": True,
                 "license_key": "****",
                 "activated_at": str(license_record.activated_at) if license_record.activated_at else None,
+                "expires_at": str(license_record.expires_at) if license_record.expires_at else None,
+                "remaining_days": remaining_days,
             }
 
         return {

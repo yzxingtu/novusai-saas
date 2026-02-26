@@ -1,0 +1,10 @@
+{
+  "title": "Analytics",
+  "startDate": "Start Date",
+  "endDate": "End Date",
+  "callTrend": "AI Call Trend",
+  "tokenTrend": "Token Consumption Trend",
+  "modelDistribution": "Model Distribution",
+  "agentRanking": "Agent Usage Ranking",
+  "costTrend": "Cost Trend"
+}

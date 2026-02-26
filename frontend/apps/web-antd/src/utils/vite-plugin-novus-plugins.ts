@@ -9,6 +9,7 @@
  *   virtual:novus-plugins-registry   → export BUILTIN_PLUGINS 注册表
  */
 
+import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync, cpSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve, join, dirname } from 'node:path';
@@ -86,13 +87,16 @@ export interface NovusPluginsOptions {
 }
 
 /**
- * 检查插件声明的 npm 依赖是否已安装到宿主 node_modules
+ * 检查插件声明的 npm 依赖是否已安装到宿主 node_modules。
+ * 缺失时自动执行 pnpm add 安装；安装失败才阻止该插件加载。
  */
 function _checkPluginNpmDeps(
   plugins: PluginEntry[],
   pluginsDir: string,
   cfg: ResolvedConfig,
-): void {
+): Set<string> {
+  const blocked = new Set<string>();
+
   for (const p of plugins) {
     if (!p.srcEntry) continue;
     const yamlPath = join(pluginsDir, p.name, 'plugin.yaml');
@@ -111,25 +115,55 @@ function _checkPluginNpmDeps(
 
       const missing: string[] = [];
       for (const dep of deps) {
-        const pkgName = dep.split('@')[0] || dep;
-        try {
-          hostRequire.resolve(pkgName);
-        } catch {
+        // 提取纯包名（去掉版本号）：
+        // "@tiptap/vue-3"       → "@tiptap/vue-3"
+        // "@tiptap/vue-3@^2.0"  → "@tiptap/vue-3"
+        // "yjs"                 → "yjs"
+        // "yjs@^13.0.0"         → "yjs"
+        const pkgName = dep.startsWith('@')
+          ? dep.replace(/^(@[^/]+\/[^@]+).*$/, '$1')
+          : dep.replace(/@.*$/, '');
+        // 直接检查 node_modules 目录，避免 require.resolve 缓存问题
+        // pnpm workspace 会在 web-antd/node_modules 或 frontend/node_modules 创建链接
+        const inApp = join(hostAppRoot, 'node_modules', pkgName);
+        const inRoot = join(hostAppRoot, '..', '..', 'node_modules', pkgName);
+        if (!existsSync(inApp) && !existsSync(inRoot)) {
           missing.push(dep);
         }
       }
 
-      if (missing.length > 0) {
+      if (missing.length === 0) continue;
+
+      // 自动安装缺失依赖
+      const cmd = `pnpm add ${missing.map((d) => `"${d}"`).join(' ')} --filter=@vben/web-antd`;
+      cfg.logger.info(
+        `[novus-plugins] Plugin '${p.name}' — auto-installing ${missing.length} missing npm package(s)...`,
+      );
+      try {
+        execSync(cmd, {
+          cwd: hostAppRoot.replace(/[\\/]apps[\\/]web-antd$/, ''),
+          stdio: 'pipe',
+          timeout: 120_000,
+        });
+        cfg.logger.info(
+          `[novus-plugins] Plugin '${p.name}' — npm dependencies installed successfully`,
+        );
+      } catch (installErr) {
+        blocked.add(p.name);
+        const stderr = (installErr as { stderr?: Buffer })?.stderr?.toString().slice(0, 500) ?? '';
         cfg.logger.error(
-          `[novus-plugins] Plugin '${p.name}' requires npm packages not installed:\n` +
+          `[novus-plugins] Plugin '${p.name}' SKIPPED — failed to install npm packages:\n` +
           missing.map((d) => `  - ${d}`).join('\n') +
-          `\nRun: pnpm add ${missing.join(' ')} --filter=@vben/web-antd`,
+          (stderr ? `\nError: ${stderr}` : '') +
+          `\nManual fix: ${cmd}`,
         );
       }
     } catch {
       // plugin.yaml 解析失败不阻塞启动
     }
   }
+
+  return blocked;
 }
 
 export function novusPluginsLoader(options: NovusPluginsOptions = {}): Plugin {
@@ -146,6 +180,9 @@ export function novusPluginsLoader(options: NovusPluginsOptions = {}): Plugin {
 
   // Scan eagerly so config() (which runs before configResolved) can use the result
   const plugins: PluginEntry[] = scanPlugins(pluginsDir);
+
+  /** 依赖缺失的插件名集合，在 configResolved 中填充 */
+  let blockedPlugins = new Set<string>();
 
   return {
     name: 'novus-plugins-loader',
@@ -165,14 +202,32 @@ export function novusPluginsLoader(options: NovusPluginsOptions = {}): Plugin {
         );
       }
 
-      // 检查插件声明的 npm 依赖是否已安装
-      _checkPluginNpmDeps(plugins, pluginsDir, config);
+      // 检查插件声明的 npm 依赖是否已安装，依赖缺失的插件将被跳过
+      blockedPlugins = _checkPluginNpmDeps(plugins, pluginsDir, config);
     },
 
     // dev 模式：监控 backend/plugins/ 目录变更，自动触发 HMR
     configureServer(server) {
       if (isBuild) return;
       server.watcher.add(pluginsDir);
+
+      // 当插件目录发生增删时，使 registry 虚拟模块失效并触发 HMR 更新
+      const invalidateRegistry = () => {
+        const mod = server.moduleGraph.getModuleById(RESOLVED_REGISTRY);
+        if (mod) {
+          server.moduleGraph.invalidateModule(mod);
+          server.ws.send({ type: 'full-reload', path: '*' });
+          config.logger.info('[novus-plugins] Plugin directory changed, triggering reload');
+        }
+      };
+
+      server.watcher.on('addDir', (path: string) => {
+        if (_norm(path).startsWith(_norm(pluginsDir))) invalidateRegistry();
+      });
+      server.watcher.on('unlinkDir', (path: string) => {
+        if (_norm(path).startsWith(_norm(pluginsDir))) invalidateRegistry();
+      });
+
       config.logger.info(`[novus-plugins] Watching ${pluginsDir} for changes`);
     },
 
@@ -221,8 +276,10 @@ export function novusPluginsLoader(options: NovusPluginsOptions = {}): Plugin {
 
     load(id) {
       // Registry 模块：导出所有有源码的内置插件
+      // 每次加载时重新扫描目录，确保卸载插件后不再引用已删除文件
       if (id === RESOLVED_REGISTRY) {
-        const srcPlugins = plugins.filter((p) => p.srcEntry);
+        const currentPlugins = scanPlugins(pluginsDir);
+        const srcPlugins = currentPlugins.filter((p) => p.srcEntry && !blockedPlugins.has(p.name));
         if (srcPlugins.length === 0) {
           return 'export const BUILTIN_PLUGINS = {};\n';
         }
@@ -251,14 +308,20 @@ export function novusPluginsLoader(options: NovusPluginsOptions = {}): Plugin {
       // 单个插件虚拟模块
       if (id.startsWith(RESOLVED_PREFIX)) {
         const pluginName = id.slice(RESOLVED_PREFIX.length);
-        const entry = plugins.find((p) => p.name === pluginName);
 
-        if (!entry?.srcEntry) {
+        // 依赖缺失的插件不加载
+        if (blockedPlugins.has(pluginName)) {
+          return 'export default {};';
+        }
+
+        // 动态查找插件入口（不依赖启动时的 plugins 缓存，支持运行时安装的插件）
+        const srcEntry = join(pluginsDir, pluginName, 'frontend', 'src', 'index.ts');
+        if (!existsSync(srcEntry)) {
           return 'export default {};';
         }
 
         // Re-export 插件源码入口（仅 named exports，插件 index.ts 无 default export）
-        const normalizedPath = entry.srcEntry.replaceAll('\\', '/');
+        const normalizedPath = srcEntry.replaceAll('\\', '/');
         return `export * from '${normalizedPath}';\n`;
       }
 

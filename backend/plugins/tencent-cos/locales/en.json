@@ -1,0 +1,9 @@
+{
+  "plugin.tencent-cos.title": "Tencent Cloud COS Storage",
+  "plugin.tencent-cos.description": "Tencent Cloud Object Storage driver with imageMogr2 native image processing",
+  "plugin.tencent-cos.config.secret_id": "Secret ID",
+  "plugin.tencent-cos.config.secret_key": "Secret Key",
+  "plugin.tencent-cos.config.region": "Region",
+  "plugin.tencent-cos.config.bucket": "Bucket",
+  "plugin.tencent-cos.config.prefix": "Key Prefix"
+}

@@ -1,8 +1,12 @@
 """
 插件安全扫描（基础版）
 
-扫描插件 Python 代码中的危险调用，结果作为 warning 包含在安装预览中。
-不阻止安装，仅警告。
+扫描插件 Python 代码中的危险调用。
+
+行为说明：
+- 安装预览（preview）：结果作为 warning 包含在预览信息中
+- 实际安装 / 升级：fail-close，若 has_warnings=True 则 lifecycle 抛出
+  PluginSecurityError 阻止安装
 """
 
 from __future__ import annotations
@@ -64,7 +68,7 @@ def scan_plugin_directory(plugin_dir: Path) -> SecurityScanResult:
         return result
 
     for py_file in backend_dir.rglob("*.py"):
-        if py_file.name.startswith("__"):
+        if "__pycache__" in py_file.parts:
             continue
         try:
             source = py_file.read_text(encoding="utf-8")

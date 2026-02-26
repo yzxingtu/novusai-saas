@@ -58,7 +58,15 @@ function getExpandedKeys(nodes: PermissionNode[], level: number): number[] {
 /**
  * 转换权限树为 Tree 组件需要的格式
  */
-function transformTreeData(nodes: PermissionNode[]): any[] {
+interface TreeNode {
+  key: number;
+  title: string;
+  code: string;
+  type: string;
+  children?: TreeNode[];
+}
+
+function transformTreeData(nodes: PermissionNode[]): TreeNode[] {
   return nodes.map((node) => ({
     key: node.id,
     title: node.name,

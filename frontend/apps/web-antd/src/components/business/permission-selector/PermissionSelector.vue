@@ -126,7 +126,7 @@ watch(
  */
 function handleCheck(
   checked: Key[] | { checked: Key[]; halfChecked: Key[] },
-  _info: any,
+  _info: unknown,
 ) {
   // 处理严格模式和非严格模式
   const keys = Array.isArray(checked) ? checked : checked.checked;

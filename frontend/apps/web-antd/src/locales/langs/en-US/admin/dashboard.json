@@ -12,6 +12,64 @@
     "totalAdmins": "Total Admins",
     "systemHealth": "System Health",
     "totalUsers": "Total Users",
-    "todayLogin": "Today Logins"
+    "todayLogin": "Today Logins",
+    "aiCalls": "AI Calls",
+    "aiTokens": "Total Tokens",
+    "storageFiles": "Total Files",
+    "pluginsEnabled": "Enabled Plugins"
+  },
+  "health": {
+    "title": "System Health",
+    "status": "Status",
+    "database": "Database",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "memory": "Memory Usage",
+    "uptime": "Uptime"
+  },
+  "ai": {
+    "title": "AI Overview",
+    "totalCalls": "Total Calls",
+    "todayCalls": "Today Calls",
+    "totalTokens": "Total Tokens",
+    "successRate": "Success Rate",
+    "providers": "Active Providers",
+    "totalCost": "Total Cost"
+  },
+  "storage": {
+    "title": "Storage Overview",
+    "totalFiles": "Total Files",
+    "totalSize": "Total Size",
+    "drivers": "Driver Distribution",
+    "files": "files"
+  },
+  "tenantGrowth": {
+    "title": "Tenant Growth",
+    "empty": "No data"
+  },
+  "activities": {
+    "title": "Recent Activities",
+    "empty": "No activities"
+  },
+  "quickActions": {
+    "title": "Quick Actions",
+    "tenantManage": "Tenant Manage",
+    "tenantManageDesc": "Manage tenants",
+    "adminManage": "Admin Manage",
+    "adminManageDesc": "Manage admins",
+    "systemConfig": "System Config",
+    "systemConfigDesc": "System settings",
+    "aiProviders": "AI Providers",
+    "aiProvidersDesc": "Manage providers",
+    "periodicTasks": "Periodic Tasks",
+    "periodicTasksDesc": "Manage tasks",
+    "operationLogs": "Operation Logs",
+    "operationLogsDesc": "View logs"
+  },
+  "systemOverview": {
+    "title": "System Info",
+    "version": "Version",
+    "environment": "Environment",
+    "currentTime": "Current Time"
   }
 }

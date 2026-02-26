@@ -166,7 +166,7 @@ const { list, total, loading, FormDrawer, loadList, onCreate, onSearch, onPageCh
 
 ## 八、删除依赖保护
 
-任何 Model 被 FK 引用时，**必须**声明 `__delete_deps__`。五种策略：`BLOCK` / `CASCADE_SOFT` / `CASCADE_DELETE` / `SET_NULL` / `IGNORE`。`useCrudPage` 已集成 `DependencyBlockModal`（错误码 4221）。
+任何 Model 被 FK 引用时，**必须**声明 `__delete_deps__`。五种策略：`BLOCK` / `CASCADE_SOFT` / `CASCADE_DELETE` / `NULLIFY` / `IGNORE`。`useCrudPage` 已集成 `DependencyBlockModal`（错误码 4221）。
 
 当前已声明的 Model（20 个）：Tenant, TenantPlan, Admin, TenantAdmin, TenantDomain, Permission, Plugin, SystemConfigGroup, SystemConfig, Agent, AIModel, AIProvider, KnowledgeBase, SkillPackage, TablePolicy, AdminRole, TenantAdminRole, AgentConversation, Attachment, KnowledgeDocument
 
@@ -444,11 +444,25 @@ python scripts/plugin_cli.py pack plugins/my-plugin
 2. 启动 `pnpm dev` → Vite 自动发现并编译插件 SFC
 3. 修改 `.vue` 文件 → 浏览器自动刷新（不需要 `npm install` 或 `vite build`）
 
-**发布前编译**（仅一次）：
+**发布/打包流程**（生产环境安装前必须完成）：
 ```bash
+# 1. 编译前端（生成 UMD 产物）
 cd backend/plugins/my-plugin/frontend
-npm install && npx vite build    # → dist/index.js (UMD)
+npm install && npx vite build    # → dist/index.js + *.css (UMD)
+
+# 2. 校验插件完整性
+python scripts/plugin_cli.py validate backend/plugins/my-plugin
+
+# 3. 打包为 zip（自动排除 node_modules/__pycache__/.git）
+python scripts/plugin_cli.py pack backend/plugins/my-plugin
+# → my-plugin-1.0.0.zip（通过管理后台上传安装）
 ```
+
+**⚠️ 关键约束**：
+- 生产环境通过管理后台上传 zip 安装插件时，**前端必须是预编译的 `frontend/dist/` 产物**（UMD JS + CSS）
+- 生产环境**不会编译 TypeScript/SFC 源码**，只有 `dist/index.js` 会被加载
+- 若 zip 中只有 `frontend/src/` 而无 `frontend/dist/`，插件后端功能正常但**前端页面不会渲染**
+- Dev 模式下 Vite 会直接编译 `frontend/src/`，所以开发时**不需要** build
 
 **样式规范**：
 - ✅ 样式放 `styles.ts`，通过 `setup()` JS 注入到 `<head>`

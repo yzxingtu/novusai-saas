@@ -435,7 +435,7 @@ defineExpose({
               :options="
                 PAGE_SIZE_OPTIONS.map((s) => ({
                   value: s,
-                  label: `${s} ${$t('shared.page.perPage')}`,
+                  label: `${s} ${$t('shared.common.page.perPage')}`,
                 }))
               "
               size="small"
@@ -444,7 +444,7 @@ defineExpose({
                 (trigger: HTMLElement) => trigger.parentNode as HTMLElement
               "
               class="api-select-pagination__size"
-              @change="(val: string | number) => handlePageSizeChange(Number(val))"
+              @change="(val: unknown) => handlePageSizeChange(Number(val))"
               @mousedown.stop
               @click.stop
             />
@@ -457,7 +457,7 @@ defineExpose({
               class="api-select-pagination__btn"
               :class="{ 'is-disabled': isPrevDisabled }"
               :disabled="isPrevDisabled"
-              :title="$t('shared.page.prev')"
+              :title="$t('shared.common.page.prev')"
               @mousedown="handlePrevPage"
             >
               <ChevronLeft class="api-select-pagination__icon" />
@@ -472,7 +472,7 @@ defineExpose({
               class="api-select-pagination__btn"
               :class="{ 'is-disabled': isNextDisabled }"
               :disabled="isNextDisabled"
-              :title="$t('shared.page.next')"
+              :title="$t('shared.common.page.next')"
               @mousedown="handleNextPage"
             >
               <ChevronRight class="api-select-pagination__icon" />

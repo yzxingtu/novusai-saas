@@ -371,6 +371,16 @@ class LocalStorageDriver(StorageDriver):
         result = await self._process_and_cache(path, params, cache_path)
         return result
 
+    def _count_variants(self, path: str) -> int:
+        """
+        Count existing cache variants for a given source path
+        """
+        path_hash = hashlib.md5(path.encode()).hexdigest()[:8]
+        cache_root = self._get_cache_root()
+        if not cache_root.exists():
+            return 0
+        return sum(1 for f in cache_root.iterdir() if f.name.startswith(f"{path_hash}_"))
+
     async def _process_and_cache(
         self,
         path: str,
@@ -381,7 +391,19 @@ class LocalStorageDriver(StorageDriver):
         处理图片并保存到缓存
         """
         from app.utils.image import ImageProcessor
-        
+
+        max_variants = int(self.config.options.get("image_cache_max_variants", 50))
+        variant_count = await anyio.to_thread.run_sync(lambda: self._count_variants(path))
+        if variant_count >= max_variants:
+            self.logger.warning(
+                "Image cache variant limit reached for %s (%d/%d), returning original",
+                path, variant_count, max_variants,
+            )
+            source = await self.get(path)
+            data = source.read()
+            info = await self.get_info(path)
+            return data, info.mime_type if info else "image/jpeg"
+
         # 获取原图
         source = await self.get(path)
         

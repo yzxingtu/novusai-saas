@@ -45,6 +45,9 @@ class PluginLicense(BaseModel):
     trial_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime, nullable=True, comment="试用到期时间",
     )
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, comment="付费 License 到期时间（None 表示永久）",
+    )
     activated_at: Mapped[datetime | None] = mapped_column(
         DateTime, nullable=True, comment="激活时间",
     )

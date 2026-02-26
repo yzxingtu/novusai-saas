@@ -125,10 +125,10 @@ class VersionManager:
                 message=f"New version ({new_version}) is the same as current ({old_version})",
             )
 
-        # 1. 禁用旧版
+        # 1. 禁用旧版（调用 _disable_impl，因为外层 upgrade() 已持锁）
         was_enabled = plugin.status == PluginStatusEnum.ENABLED.value
         if was_enabled:
-            await lifecycle.disable(plugin_id)
+            await lifecycle._disable_impl(plugin_id)
 
         # 2. 备份旧版
         self.archive_version(plugin_name, old_version)
@@ -144,15 +144,21 @@ class VersionManager:
             # 清理模块缓存，确保后续 on_upgrade/enable 使用新版代码
             unload_plugin_modules(plugin_name)
 
-            # 4. 执行迁移（通过 lifecycle 公共接口）
+            # 4. 安装新版本 Python 依赖（npm 由 re-enable 时安装）
+            # pip 需要在迁移之前装好，因为迁移脚本可能 import 新依赖
+            if new_manifest.dependencies.python:
+                await lifecycle._install_python_deps(plugin_name, new_manifest.dependencies.python)
+
+            # 5. 执行迁移（通过 lifecycle 公共接口）
             await lifecycle.run_alembic_upgrade(plugin_name)
 
-            # 5. 更新 DB 记录
+            # 6. 更新 DB 记录
             plugin.version = new_version
             plugin.manifest = new_manifest.model_dump()
             plugin.display_name = new_manifest.display_name.get(
                 "zh-CN", new_manifest.display_name.get("en", plugin_name)
             )
+            plugin.installed_packages = new_manifest.dependencies.python or []
 
             # 旧版本归档
             from sqlalchemy import update
@@ -176,7 +182,7 @@ class VersionManager:
             self._db.add(version_record)
             await self._db.flush()
 
-            # 6. 调用 on_upgrade
+            # 7. 调用 on_upgrade
             try:
                 plugin_cls = loader.load_plugin_class(plugin_name)
                 from app.plugins.context_factory import create_plugin_context
@@ -191,9 +197,9 @@ class VersionManager:
             except Exception as exc:
                 logger.warning("on_upgrade failed for %s: %s", plugin_name, exc)
 
-            # 7. 重新启用（如果之前是启用状态）
+            # 8. 重新启用（如果之前是启用状态，调用 _enable_impl 避免嵌套锁）
             if was_enabled:
-                await lifecycle.enable(plugin_id)
+                await lifecycle._enable_impl(plugin_id)
 
             logger.info(
                 "Plugin %s upgraded: %s → %s", plugin_name, old_version, new_version
@@ -210,7 +216,7 @@ class VersionManager:
                 plugin.version = old_version
                 if was_enabled:
                     try:
-                        await lifecycle.enable(plugin_id)
+                        await lifecycle._enable_impl(plugin_id)
                     except Exception:
                         pass
             raise PluginError(
@@ -251,10 +257,10 @@ class VersionManager:
 
         lifecycle = PluginLifecycle(self._db)
 
-        # 禁用当前
+        # 禁用当前（调用 _disable_impl，因为外层 rollback() 已持锁）
         was_enabled = plugin.status == PluginStatusEnum.ENABLED.value
         if was_enabled:
-            await lifecycle.disable(plugin_id)
+            await lifecycle._disable_impl(plugin_id)
 
         # 备份当前版本
         self.archive_version(plugin_name, plugin.version)
@@ -275,9 +281,9 @@ class VersionManager:
         plugin.manifest = restored_manifest.model_dump()
         await self._db.flush()
 
-        # 重新启用
+        # 重新启用（调用 _enable_impl 避免嵌套锁）
         if was_enabled:
-            await lifecycle.enable(plugin_id)
+            await lifecycle._enable_impl(plugin_id)
 
         logger.info("Plugin %s rolled back to v%s", plugin_name, target_version)
 

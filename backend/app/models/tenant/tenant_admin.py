@@ -26,7 +26,7 @@ class TenantAdmin(TenantModel):
     __tablename__ = "tenant_admins"
 
     __delete_deps__ = [
-        DeletionDep("TenantAdminRole", "leader_id", DeletionStrategy.SET_NULL,
+        DeletionDep("TenantAdminRole", "leader_id", DeletionStrategy.NULLIFY,
                     label_field="name", i18n_key="tenant_admin_role_leader"),
     ]
     

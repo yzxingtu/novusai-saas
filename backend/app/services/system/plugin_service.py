@@ -42,6 +42,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         source_path: Path,
         config: dict | None = None,
         capabilities: list[str] | None = None,
+        operator_id: int | None = None,
     ) -> Plugin:
         """
         安装插件
@@ -50,26 +51,27 @@ class PluginService(BaseService[Plugin, PluginRepository]):
             source_path: 插件源目录
             config: 初始配置
             capabilities: 授权能力列表
+            operator_id: 操作者管理员 ID（用于进度推送）
         """
-        plugin = await self._lifecycle.install(source_path, config)
+        plugin = await self._lifecycle.install(source_path, config, operator_id=operator_id)
         if capabilities:
             plugin.granted_capabilities = capabilities
             await self.db.flush()
         return plugin
 
-    async def enable_plugin(self, plugin_id: int) -> None:
+    async def enable_plugin(self, plugin_id: int, operator_id: int | None = None) -> None:
         """启用插件"""
-        await self._lifecycle.enable(plugin_id)
+        await self._lifecycle.enable(plugin_id, operator_id=operator_id)
 
-    async def disable_plugin(self, plugin_id: int) -> None:
+    async def disable_plugin(self, plugin_id: int, operator_id: int | None = None) -> None:
         """禁用插件"""
-        await self._lifecycle.disable(plugin_id)
+        await self._lifecycle.disable(plugin_id, operator_id=operator_id)
 
     async def uninstall_plugin(
-        self, plugin_id: int, confirm_data_delete: bool = False
+        self, plugin_id: int, confirm_data_delete: bool = False, operator_id: int | None = None,
     ) -> None:
         """卸载插件"""
-        await self._lifecycle.uninstall(plugin_id, confirm_data_delete)
+        await self._lifecycle.uninstall(plugin_id, confirm_data_delete, operator_id=operator_id)
 
     # ── 配置 ──
 

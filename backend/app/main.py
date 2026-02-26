@@ -156,6 +156,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as plugin_err:
             logger.warning(f"Plugin restore failed: {plugin_err}")
 
+        # Check if configured storage driver is available
+        try:
+            from app.configs.service import ConfigService
+            from app.storage.manager import storage_manager
+            async with async_session_factory() as db:
+                config_svc = ConfigService(db)
+                configured_driver = await config_svc.get_platform_config(
+                    "platform_storage_driver", default="local"
+                )
+                configured_driver = str(configured_driver)
+                if configured_driver != "local" and not storage_manager.has_driver(configured_driver):
+                    logger.warning(
+                        "Platform storage driver '%s' is configured but not available. "
+                        "The corresponding plugin may not be installed or enabled. "
+                        "File operations will fail until the driver is available.",
+                        configured_driver,
+                    )
+        except Exception as driver_check_err:
+            logger.warning(f"Storage driver check failed: {driver_check_err}")
+
     except Exception as e:
         # 确保启动阶段的错误能够被记录和显示
         import traceback

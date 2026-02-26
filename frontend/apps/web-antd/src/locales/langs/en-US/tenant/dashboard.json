@@ -10,7 +10,25 @@
     "growth": "Growth Rate",
     "totalUsers": "Total Users",
     "activeUsers": "Active Users",
-    "apiCalls": "API Calls",
-    "resourceUsage": "Resource Usage"
+    "apiCalls": "AI Calls",
+    "resourceUsage": "Resource Usage",
+    "totalTokens": "Total Tokens",
+    "totalCost": "Total Cost",
+    "storageUsed": "Storage Used"
+  },
+  "quickActions": {
+    "title": "Quick Actions",
+    "aiChat": "AI Chat",
+    "agents": "Agents",
+    "knowledgeBases": "Knowledge Bases",
+    "callLogs": "Call Logs"
+  },
+  "aiTrend": {
+    "title": "AI Usage Trend",
+    "empty": "No data"
+  },
+  "activities": {
+    "title": "Recent Activities",
+    "empty": "No activities"
   }
 }

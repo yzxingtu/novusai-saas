@@ -51,3 +51,76 @@ export async function generateFernetKeyApi(
     options,
   );
 }
+
+/** 测试存储连接 */
+export async function testStorageConnectionApi(
+  data: {
+    driver: string;
+    root_path?: string;
+    base_url?: string;
+    config?: Record<string, unknown>;
+  },
+  options?: ApiRequestOptions,
+): Promise<{ success: boolean; errors?: string[] }> {
+  return await requestClient.post<{ success: boolean; errors?: string[] }>(
+    '/admin/configs/storage/test-connection',
+    data,
+    options,
+  );
+}
+
+/** 获取可用存储驱动列表 */
+export async function getStorageDriversApi(
+  options?: ApiRequestOptions,
+): Promise<
+  Array<{
+    name: string;
+    display_name: string;
+    config_schema: Record<string, unknown> | null;
+    is_builtin: boolean;
+  }>
+> {
+  return await requestClient.get('/admin/configs/storage/drivers', options);
+}
+
+/** 获取租户存储配置 */
+export async function getTenantStorageConfigApi(
+  tenantId: number,
+  options?: ApiRequestOptions,
+): Promise<Record<string, unknown>> {
+  return await requestClient.get(
+    `/admin/tenants/${tenantId}/storage-config`,
+    options,
+  );
+}
+
+/** 设置租户存储配置 */
+export async function updateTenantStorageConfigApi(
+  tenantId: number,
+  data: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.put(
+    `/admin/tenants/${tenantId}/storage-config`,
+    data,
+    options,
+  );
+}
+
+/** 测试租户存储连接 */
+export async function testTenantStorageConnectionApi(
+  tenantId: number,
+  data: {
+    driver: string;
+    root_path?: string;
+    base_url?: string;
+    config?: Record<string, unknown>;
+  },
+  options?: ApiRequestOptions,
+): Promise<{ success: boolean; errors?: string[] }> {
+  return await requestClient.post<{ success: boolean; errors?: string[] }>(
+    `/admin/tenants/${tenantId}/storage-config/test`,
+    data,
+    options,
+  );
+}

@@ -75,6 +75,9 @@ export async function loadPluginComponents(
         }
       }
       loadedPlugins.set(pluginName, mod);
+      // 暴露到 window 以支持跨插件检测（如 novusdoc 检测 novusdoc-pro）
+      const globalVar = toGlobalVarName(pluginName);
+      (window as unknown as Record<string, unknown>)[globalVar] = mod;
       loadingPromises.delete(pluginName);
       return mod;
     }).catch((err) => {

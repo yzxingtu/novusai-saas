@@ -6,7 +6,7 @@ import type { PluginInfo } from '#/api/admin/plugin';
 
 defineOptions({ name: 'AdminPluginList' });
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
@@ -27,6 +27,7 @@ import {
   disablePluginApi,
   enablePluginApi,
   getPluginListApi,
+  installNpmDepsApi,
   uninstallPluginApi,
 } from '#/api/admin/plugin';
 import { $t } from '#/locales';
@@ -40,10 +41,14 @@ import {
   getTypeText,
   PLUGIN_TYPES,
 } from './data';
+import { usePluginInstallProgressStore } from '#/store';
+
 import PluginConfigDrawer from './modules/PluginConfigDrawer.vue';
+import PluginInstallProgress from './modules/PluginInstallProgress.vue';
 import PluginInstallWizard from './modules/PluginInstallWizard.vue';
 
 const router = useRouter();
+const progressStore = usePluginInstallProgressStore();
 const plugins = ref<PluginInfo[]>([]);
 const loading = ref(false);
 const searchKeyword = ref('');
@@ -115,7 +120,14 @@ async function loadPlugins() {
   }
 }
 
-onMounted(loadPlugins);
+onMounted(() => {
+  loadPlugins();
+  progressStore.startListening();
+});
+
+onUnmounted(() => {
+  progressStore.stopListening();
+});
 
 function isProcessing(id: number): boolean {
   return processingIds.value.has(id);
@@ -135,10 +147,37 @@ function onEnable(plugin: PluginInfo) {
   Modal.confirm({
     title: $t('admin.plugin.confirm.enable', { name: plugin.display_name }),
     onOk: () => withProcessing(plugin.id, async () => {
-      await enablePluginApi(plugin.id);
+      const res = await enablePluginApi(plugin.id) as Record<string, unknown>;
       message.success($t('admin.plugin.messages.enableSuccess'));
       await loadPlugins();
       await refreshPluginSlots('/admin');
+
+      // 检查是否有缺失的 npm 依赖
+      const missingDeps = (res?.missing_npm_deps as string[]) || [];
+      if (missingDeps.length > 0) {
+        Modal.confirm({
+          title: $t('admin.plugin.progress.npmDepsTitle'),
+          content: $t('admin.plugin.progress.npmDepsContent', { count: missingDeps.length }),
+          okText: $t('admin.plugin.progress.installDeps'),
+          cancelText: $t('admin.plugin.progress.installLater'),
+          onOk: async () => {
+            try {
+              await installNpmDepsApi(plugin.id);
+              Modal.success({
+                title: $t('admin.plugin.progress.npmDepsInstalled'),
+                content: $t('admin.plugin.progress.npmDepsReload'),
+                okText: $t('admin.plugin.progress.reload'),
+                onOk: () => window.location.reload(),
+              });
+            } catch {
+              message.error($t('admin.plugin.progress.npmDepsFailed'));
+            }
+          },
+          onCancel: () => {
+            message.info($t('admin.plugin.progress.npmDepsSkipped'));
+          },
+        });
+      }
     }),
   });
 }
@@ -160,6 +199,8 @@ function onUninstall(plugin: PluginInfo) {
     title: $t('admin.plugin.confirm.uninstall', { name: plugin.display_name }),
     okType: 'danger',
     onOk: () => withProcessing(plugin.id, async () => {
+      progressStore.reset();
+      progressStore.show();
       await uninstallPluginApi(plugin.id);
       message.success($t('admin.plugin.messages.uninstallSuccess'));
       await loadPlugins();
@@ -173,6 +214,8 @@ function onUploadClick() {
 }
 
 async function onWizardInstalled() {
+  progressStore.reset();
+  progressStore.show();
   await loadPlugins();
 }
 
@@ -421,5 +464,8 @@ function getPluginIconUrl(pluginName: string, icon: string): string {
         </div>
       </div>
     </Spin>
+
+  <!-- 安装/卸载进度抽屉 -->
+  <PluginInstallProgress />
   </Page>
 </template>

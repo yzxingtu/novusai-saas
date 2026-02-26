@@ -442,70 +442,25 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         return attachment
 
     async def _resolve_storage_context(self) -> tuple[str, StorageConfig, bool]:
-        storage_mode = await self._get_storage_mode()
-        storage_config = await self._resolve_storage_config(storage_mode)
-        apply_quota = storage_mode == "platform"
-        return storage_mode, storage_config, apply_quota
+        from app.services.common.storage_config_resolver import StorageConfigResolver
+
+        resolver = StorageConfigResolver(self._db)
+        return await resolver.resolve_context(self.tenant_id)
 
     async def _get_storage_mode(self) -> str:
-        mode = await self._config_service.get_tenant_config(
-            self.tenant_id,
-            "tenant_storage_mode",
-            default="platform",
-        )
-        return "custom" if str(mode) == "custom" else "platform"
+        from app.services.common.storage_config_resolver import StorageConfigResolver
+
+        resolver = StorageConfigResolver(self._db)
+        return await resolver.get_storage_mode(self.tenant_id)
 
     async def _resolve_storage_config(self, storage_mode: str) -> StorageConfig:
         """
-        解析存储配置
+        解析存储配置（委托给统一 StorageConfigResolver）
         """
-        if storage_mode == "custom":
-            driver = await self._config_service.get_tenant_config(
-                self.tenant_id, "tenant_storage_driver", default="s3"
-            )
-            if str(driver) == "local":
-                raise BusinessException(
-                    message=_("error.common.invalid_parameter"),
-                    code=ErrorCode.INVALID_PARAMETER,
-                )
-            root_path = await self._config_service.get_tenant_config(
-                self.tenant_id, "tenant_storage_root_path", default=""
-            )
-            if not root_path:
-                raise BusinessException(
-                    message=_("error.common.invalid_parameter"),
-                    code=ErrorCode.INVALID_PARAMETER,
-                )
-            base_url = await self._config_service.get_tenant_config(
-                self.tenant_id, "tenant_storage_base_url", default=None
-            )
-            options = await self._config_service.get_tenant_config(
-                self.tenant_id, "tenant_storage_options", default={}
-            )
-        else:
-            driver = await self._config_service.get_platform_config(
-                "platform_storage_driver", default="local"
-            )
-            if str(driver) == "local":
-                # 本地存储使用硬编码路径
-                from app.storage import LOCAL_STORAGE_ROOT
-                root_path = str(LOCAL_STORAGE_ROOT)
-            else:
-                root_path = await self._config_service.get_platform_config(
-                    "platform_storage_root_path", default=""
-                )
-            base_url = await self._config_service.get_platform_config(
-                "platform_storage_base_url", default=None
-            )
-            options = await self._config_service.get_platform_config(
-                "platform_storage_options", default={}
-            )
-        return StorageConfig(
-            driver=str(driver),
-            root_path=str(root_path),
-            base_url=base_url,
-            options=options or {},
-        )
+        from app.services.common.storage_config_resolver import StorageConfigResolver
+
+        resolver = StorageConfigResolver(self._db)
+        return await resolver.resolve_config(storage_mode, self.tenant_id)
 
     def _build_storage_path(self, filename: str) -> str:
         """

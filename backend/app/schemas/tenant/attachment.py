@@ -40,7 +40,7 @@ class AttachmentResponse(BaseSchema):
 class AttachmentListItem(BaseSchema):
     """附件列表项响应（精简字段）"""
     id: int = Field(..., description="附件 ID")
-    tenant_id: int = Field(..., description="租户 ID")
+    tenant_id: int | None = Field(None, description="租户 ID")
     name: str = Field(..., description="文件名")
     original_name: str | None = Field(None, description="原始文件名")
     path: str = Field(..., description="存储路径")

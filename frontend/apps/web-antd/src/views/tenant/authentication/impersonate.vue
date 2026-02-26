@@ -91,13 +91,14 @@ async function doImpersonateLogin() {
     setTimeout(() => {
       router.replace(HOME_PATHS.tenant);
     }, 1000);
-  } catch (error: any) {
+  } catch (error: unknown) {
     status.value = 'error';
     // 根据错误类型显示不同提示
+    const err = error as { response?: { status?: number }; message?: string };
     errorMessage.value =
-      error?.response?.status === 401 || error?.response?.status === 400
+      err?.response?.status === 401 || err?.response?.status === 400
         ? $t('tenant.impersonate.tokenExpired')
-        : error?.message || $t('tenant.impersonate.loginFailed');
+        : err?.message || $t('tenant.impersonate.loginFailed');
   }
 }
 

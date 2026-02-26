@@ -1350,9 +1350,12 @@
       "dependency_failed": "Plugin dependency installation failed",
       "security_violation": "Plugin security check failed",
       "license_invalid": "Invalid plugin license",
+      "license_expired": "Plugin license has expired",
+      "license_already_activated": "This license key has already been activated",
       "conflict": "Plugin conflicts with existing extensions",
       "install_failed": "Plugin installation failed"
-    }
+    },
+    "license_activated": "License activated successfully"
   },
   "crud_generation_record": {
     "field": {
@@ -1530,6 +1533,22 @@
       "image_default_quality": {
         "name": "Default Image Quality",
         "desc": "Default quality for image compression (1-100)"
+      },
+      "tenant_storage_self_config_enabled": {
+        "name": "Allow Tenant Self-Config Storage",
+        "desc": "When enabled, tenants can configure their own cloud storage (requires per-tenant switch)"
+      },
+      "storage_allowed_custom_drivers": {
+        "name": "Allowed Custom Drivers",
+        "desc": "Storage drivers that tenants can select for self-configuration"
+      },
+      "image_cache_max_variants_per_image": {
+        "name": "Max Cache Variants Per Image",
+        "desc": "Maximum number of processed variants to cache per image, exceeding returns original"
+      },
+      "image_process_rate_limit": {
+        "name": "Image Process Rate Limit",
+        "desc": "Maximum image processing requests per IP per minute"
       },
       "password_min_length": {
         "name": "Minimum Password Length",
@@ -1872,14 +1891,21 @@
       }
     },
     "storage": {
+      "test_file_not_found": "Storage connection test failed: test file not found after write",
+      "self_config_not_enabled": "Tenant self-storage configuration is not enabled, please contact the platform administrator",
+      "local_not_allowed_for_tenant": "Tenants cannot use local storage driver",
+      "driver_not_allowed": "This storage driver is not in the allowed list",
       "mode": {
         "platform": "Platform-managed storage",
+        "admin_override": "Admin-specified storage",
         "custom": "Custom cloud storage"
       },
       "driver": {
         "local": "Local Storage",
-        "s3": "R3/S3 Compatible",
-        "aliyun_oss": "Aliyun OSS"
+        "s3": "S3 Compatible Storage",
+        "aliyun_oss": "Alibaba Cloud OSS",
+        "qiniu_kodo": "Qiniu Kodo",
+        "tencent_cos": "Tencent Cloud COS"
       },
       "visibility": {
         "private": "Private",
@@ -1913,7 +1939,79 @@
         "prefix": {
           "name": "Path Prefix",
           "desc": "Object storage key prefix"
+        },
+        "secret_id": {
+          "name": "Secret ID",
+          "desc": "Tencent Cloud Secret ID"
+        },
+        "cos_secret_key": {
+          "name": "Secret Key",
+          "desc": "Tencent Cloud Secret Key"
+        },
+        "kodo_secret_key": {
+          "name": "Secret Key",
+          "desc": "Qiniu Secret Key"
+        },
+        "cos_region": {
+          "name": "COS Region",
+          "desc": "Tencent Cloud COS region (e.g. ap-shanghai)"
+        },
+        "domain": {
+          "name": "CDN Domain",
+          "desc": "CDN domain for object storage"
         }
+      },
+      "local": {
+        "root_path": "Storage Root Path",
+        "root_path_desc": "Local file storage root directory",
+        "base_url": "Base URL",
+        "base_url_desc": "Base URL for file access",
+        "permissions": "File Permissions",
+        "permissions_desc": "UNIX permissions for new files (default 0644)"
+      },
+      "kodo": {
+        "bucket": "Bucket",
+        "bucket_desc": "Qiniu Kodo bucket name",
+        "base_url": "CDN Domain",
+        "base_url_desc": "CDN domain, e.g. https://cdn.example.com",
+        "access_key": "Access Key",
+        "secret_key": "Secret Key",
+        "prefix": "Key Prefix",
+        "is_private": "Private Bucket"
+      },
+      "oss": {
+        "bucket": "Bucket",
+        "bucket_desc": "OSS bucket name",
+        "base_url": "CDN Domain",
+        "base_url_desc": "CDN domain for file access",
+        "access_key_id": "Access Key ID",
+        "access_key_secret": "Access Key Secret",
+        "endpoint": "Endpoint",
+        "region": "Region",
+        "prefix": "Key Prefix"
+      },
+      "s3": {
+        "bucket": "Bucket",
+        "bucket_desc": "S3 bucket name",
+        "base_url": "CDN Domain",
+        "base_url_desc": "CDN domain for file access",
+        "access_key_id": "Access Key ID",
+        "secret_access_key": "Secret Access Key",
+        "region": "Region",
+        "endpoint_url": "Endpoint URL",
+        "prefix": "Key Prefix",
+        "image_process_provider": "Image Process Provider",
+        "image_process_url": "Image Process URL"
+      },
+      "cos": {
+        "bucket": "Bucket",
+        "bucket_desc": "COS bucket name, e.g. mybucket-1250000000",
+        "base_url": "CDN Domain",
+        "base_url_desc": "CDN domain for file access",
+        "secret_id": "Secret ID",
+        "secret_key": "Secret Key",
+        "region": "Region",
+        "prefix": "Key Prefix"
       }
     }
   },

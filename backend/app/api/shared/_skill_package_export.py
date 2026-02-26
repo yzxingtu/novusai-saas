@@ -18,6 +18,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.enums.common import ResourceScopeEnum
+
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.exceptions import BusinessException
@@ -146,7 +148,6 @@ async def import_skill_package(
         SkillPackage.scope == target_scope,
         SkillPackage.is_deleted.is_(False),
     ]
-    from app.enums.common import ResourceScopeEnum
     if target_scope == ResourceScopeEnum.ALL_TENANTS.value and target_tenant_id is not None:
         name_conditions.append(SkillPackage.tenant_id == target_tenant_id)
     elif target_scope in (

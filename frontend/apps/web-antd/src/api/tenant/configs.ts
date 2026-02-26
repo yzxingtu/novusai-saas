@@ -40,3 +40,34 @@ export async function updateTenantConfigGroupApi(
     options,
   );
 }
+
+/** 测试租户存储连接（Mode 3） */
+export async function testTenantStorageConnectionApi(
+  data: {
+    driver: string;
+    root_path?: string;
+    base_url?: string;
+    config?: Record<string, unknown>;
+  },
+  options?: ApiRequestOptions,
+): Promise<{ success: boolean; errors?: string[] }> {
+  return await requestClient.post<{ success: boolean; errors?: string[] }>(
+    '/tenant/configs/storage/test-connection',
+    data,
+    options,
+  );
+}
+
+/** 获取租户允许的存储驱动列表 */
+export async function getTenantStorageDriversApi(
+  options?: ApiRequestOptions,
+): Promise<
+  Array<{
+    name: string;
+    display_name: string;
+    config_schema: Record<string, unknown> | null;
+    is_builtin: boolean;
+  }>
+> {
+  return await requestClient.get('/tenant/configs/storage/drivers', options);
+}

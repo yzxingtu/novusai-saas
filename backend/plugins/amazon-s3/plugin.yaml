@@ -1,0 +1,40 @@
+name: amazon-s3
+version: "1.0.0"
+display_name:
+  zh-CN: "S3 兼容存储"
+  en: "S3 Compatible Storage"
+description:
+  zh-CN: "Amazon S3 兼容对象存储驱动，支持 AWS/MinIO/R2/B2 等 S3 协议存储"
+  en: "Amazon S3 compatible object storage driver, supports AWS/MinIO/R2/B2 etc."
+author: "NovusAI"
+icon: "lucide:cloud"
+icon_color: "#ff9900"
+scope: admin_and_all
+tags: ["storage", "s3", "aws", "minio", "cloud"]
+
+capabilities:
+  - storage:read
+  - storage:write
+
+extensions:
+  storage_drivers:
+    - code: s3
+      display_name:
+        zh-CN: "S3 兼容存储"
+        en: "S3 Compatible Storage"
+      entry_point: "driver.S3StorageDriver"
+
+# Storage credentials are managed by the platform Storage Settings (SystemConfig),
+# NOT here. The driver's config_schema (driver.py) describes required fields.
+# See: M12 Tenant Storage Multi-Mode Architecture (doc #427)
+config_schema:
+  type: object
+  properties: {}
+
+dependencies:
+  python:
+    - "boto3>=1.35"
+  plugins: []
+
+pricing:
+  type: free

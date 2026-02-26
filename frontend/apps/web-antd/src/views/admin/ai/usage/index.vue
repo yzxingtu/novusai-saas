@@ -2,15 +2,19 @@
 /**
  * 平台管理端 AI 使用量统计页面
  */
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+
+import type { EchartsUIType } from '@vben/plugins/echarts';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
 import { Card, Progress, Spin, Tag, Tooltip } from 'ant-design-vue';
+import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { getAICallLogStatisticsApi, getAIUsageStatsApi } from '#/api/admin/ai';
+import { type CallTrendItem, getCallTrendApi } from '#/api/admin/analytics';
 import { $t } from '#/locales';
 
 import { formatCost, formatLatency, formatTokens, getRequestTypeColor, useColumns, useGridFormSchema } from './data';
@@ -97,6 +101,63 @@ async function loadSummary() {
 onMounted(loadSummary);
 
 // ============================================================
+// ECharts trend charts
+// ============================================================
+
+const callChartRef = ref<EchartsUIType>();
+const tokenChartRef = ref<EchartsUIType>();
+const { renderEcharts: renderCallChart } = useEcharts(callChartRef);
+const { renderEcharts: renderTokenChart } = useEcharts(tokenChartRef);
+
+const trendData = ref<CallTrendItem[]>([]);
+const trendLoading = ref(false);
+
+async function loadTrend() {
+  trendLoading.value = true;
+  try {
+    trendData.value = await getCallTrendApi();
+  } catch {
+    // Error handled by request interceptor
+  } finally {
+    trendLoading.value = false;
+  }
+}
+
+function renderCharts() {
+  const data = trendData.value;
+  if (!data.length) return;
+  const dates = data.map((i) => i.date.slice(5));
+
+  renderCallChart({
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['Calls', 'Success', 'Failed'], bottom: 0 },
+    grid: { left: '3%', right: '4%', bottom: '14%', top: '8%', containLabel: true },
+    xAxis: { type: 'category', data: dates, boundaryGap: false },
+    yAxis: { type: 'value' },
+    series: [
+      { name: 'Calls', type: 'line', data: data.map((i) => i.calls), smooth: true, itemStyle: { color: '#5B8FF9' } },
+      { name: 'Success', type: 'line', data: data.map((i) => i.success), smooth: true, itemStyle: { color: '#5AD8A6' } },
+      { name: 'Failed', type: 'line', data: data.map((i) => i.failed), smooth: true, itemStyle: { color: '#F6614E' } },
+    ],
+  });
+
+  renderTokenChart({
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['Input Tokens', 'Output Tokens'], bottom: 0 },
+    grid: { left: '3%', right: '4%', bottom: '14%', top: '8%', containLabel: true },
+    xAxis: { type: 'category', data: dates, boundaryGap: false },
+    yAxis: { type: 'value' },
+    series: [
+      { name: 'Input Tokens', type: 'line', areaStyle: { opacity: 0.3 }, data: data.map((i) => i.input_tokens), smooth: true, itemStyle: { color: '#5B8FF9' }, stack: 'tokens' },
+      { name: 'Output Tokens', type: 'line', areaStyle: { opacity: 0.3 }, data: data.map((i) => i.output_tokens), smooth: true, itemStyle: { color: '#5AD8A6' }, stack: 'tokens' },
+    ],
+  });
+}
+
+watch(trendData, renderCharts);
+onMounted(loadTrend);
+
+// ============================================================
 // Grid
 // ============================================================
 
@@ -146,6 +207,18 @@ const { Grid } = useCrudPage({
               </div>
             </div>
           </div>
+        </Card>
+      </div>
+    </Spin>
+
+    <!-- Trend charts -->
+    <Spin :spinning="trendLoading">
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card :title="$t('admin.analytics.callTrend')" :body-style="{ padding: '12px' }">
+          <EchartsUI ref="callChartRef" height="240px" />
+        </Card>
+        <Card :title="$t('admin.analytics.tokenTrend')" :body-style="{ padding: '12px' }">
+          <EchartsUI ref="tokenChartRef" height="240px" />
         </Card>
       </div>
     </Spin>

@@ -4,7 +4,7 @@
  *
  * 展示插件详情 + 配置编辑 + 版本历史 + 健康状态
  */
-import type { PluginInfo, PluginVersionInfo } from '#/api/admin/plugin';
+import type { PluginInfo, PluginLicenseInfo, PluginVersionInfo } from '#/api/admin/plugin';
 
 import { computed, ref } from 'vue';
 
@@ -30,13 +30,17 @@ import {
 } from 'ant-design-vue';
 
 import {
+  activatePluginLicenseApi,
+  activatePluginTrialApi,
   assignPluginTenantsApi,
   disablePluginApi,
   enablePluginApi,
   getPluginDetailApi,
+  getPluginLicenseApi,
   getPluginTenantsApi,
   getPluginVersionsApi,
   repairPluginApi,
+  revokePluginLicenseApi,
   rollbackPluginApi,
   unassignPluginTenantApi,
   uninstallPluginApi,
@@ -77,6 +81,12 @@ const allTenants = ref<Array<{ id: number; name: string }>>([]);
 const tenantLoading = ref(false);
 const showTenantSelect = ref(false);
 const selectedTenantIds = ref<number[]>([]);
+
+// License
+const licenseInfo = ref<PluginLicenseInfo | null>(null);
+const licenseLoading = ref(false);
+const licenseKeyInput = ref('');
+const licenseActivating = ref(false);
 
 const needsTenantAssignment = computed(() => {
   if (!plugin.value) return false;
@@ -139,6 +149,7 @@ async function open(row: PluginInfo) {
   configValues.value = { ...(row.config || {}) };
   loadVersions(row.id);
   loadTenantAssignments(row.id);
+  loadLicense(row.id);
 }
 
 async function reload() {
@@ -310,6 +321,84 @@ function onRollback(version: string) {
 
 const pluginType = computed(() => derivePluginType(plugin.value?.manifest ?? null));
 
+const isPaidPlugin = computed(() => {
+  return plugin.value?.pricing_type === 'paid' || plugin.value?.tier === 'pro';
+});
+
+async function loadLicense(id: number) {
+  licenseLoading.value = true;
+  try {
+    const res = await getPluginLicenseApi(id) as unknown as { data: PluginLicenseInfo };
+    licenseInfo.value = res?.data ?? (res as unknown as PluginLicenseInfo);
+  } catch {
+    licenseInfo.value = null;
+  } finally {
+    licenseLoading.value = false;
+  }
+}
+
+async function onActivateLicense() {
+  if (!plugin.value || !licenseKeyInput.value.trim()) return;
+  licenseActivating.value = true;
+  try {
+    await activatePluginLicenseApi(plugin.value.id, licenseKeyInput.value.trim());
+    message.success($t('admin.plugin.license.activateSuccess'));
+    licenseKeyInput.value = '';
+    await loadLicense(plugin.value.id);
+  } catch {
+    message.error($t('admin.plugin.license.activateFailed'));
+  } finally {
+    licenseActivating.value = false;
+  }
+}
+
+async function onActivateTrial() {
+  if (!plugin.value) return;
+  licenseActivating.value = true;
+  try {
+    await activatePluginTrialApi(plugin.value.id);
+    message.success($t('admin.plugin.license.trialActivated'));
+    await loadLicense(plugin.value.id);
+  } catch {
+    message.error($t('admin.plugin.license.trialFailed'));
+  } finally {
+    licenseActivating.value = false;
+  }
+}
+
+function onRevokeLicense() {
+  if (!plugin.value) return;
+  Modal.confirm({
+    title: $t('admin.plugin.license.revokeConfirm'),
+    okType: 'danger',
+    async onOk() {
+      await revokePluginLicenseApi(plugin.value!.id);
+      message.success($t('admin.plugin.license.revokeSuccess'));
+      await loadLicense(plugin.value!.id);
+    },
+  });
+}
+
+function getLicenseStatusColor(status: string): string {
+  switch (status) {
+    case 'active': return 'success';
+    case 'trial': return 'processing';
+    case 'expired': return 'error';
+    default: return 'default';
+  }
+}
+
+function getLicenseStatusText(status: string): string {
+  const map: Record<string, string> = {
+    active: $t('admin.plugin.license.status_active'),
+    trial: $t('admin.plugin.license.status_trial'),
+    expired: $t('admin.plugin.license.status_expired'),
+    none: $t('admin.plugin.license.status_none'),
+    invalid: $t('admin.plugin.license.status_invalid'),
+  };
+  return map[status] || status;
+}
+
 defineExpose({ open });
 </script>
 
@@ -402,6 +491,98 @@ defineExpose({ open });
           <Tag v-for="cap in plugin.granted_capabilities" :key="cap" color="geekblue" :bordered="false" class="text-xs">
             {{ cap }}
           </Tag>
+        </div>
+      </div>
+
+      <!-- License 管理 -->
+      <div v-if="isPaidPlugin" class="mb-6">
+        <div class="mb-2 flex items-center justify-between">
+          <h4 class="text-sm font-medium">{{ $t('admin.plugin.license.title') }}</h4>
+          <Tag v-if="licenseInfo" :color="getLicenseStatusColor(licenseInfo.status)">
+            {{ getLicenseStatusText(licenseInfo.status) }}
+          </Tag>
+        </div>
+
+        <div class="rounded-lg border border-border/60 p-4">
+          <!-- 加载中 -->
+          <div v-if="licenseLoading" class="text-center text-sm text-muted-foreground">
+            {{ $t('common.loading') }}...
+          </div>
+
+          <!-- 有效 License 详情 -->
+          <template v-else-if="licenseInfo && licenseInfo.is_valid">
+            <Descriptions :column="1" size="small" class="mb-3">
+              <DescriptionsItem :label="$t('admin.plugin.license.type')">
+                {{ licenseInfo.license_type === 'trial' ? $t('admin.plugin.license.type_trial') : $t('admin.plugin.license.type_paid') }}
+              </DescriptionsItem>
+              <DescriptionsItem v-if="licenseInfo.activated_at" :label="$t('admin.plugin.license.activatedAt')">
+                {{ formatDate(licenseInfo.activated_at) }}
+              </DescriptionsItem>
+              <DescriptionsItem v-if="licenseInfo.expires_at" :label="$t('admin.plugin.license.expiresAt')">
+                {{ formatDate(licenseInfo.expires_at) }}
+              </DescriptionsItem>
+              <DescriptionsItem v-if="licenseInfo.remaining_days != null" :label="$t('admin.plugin.license.remainingDays')">
+                <span :class="(licenseInfo.remaining_days ?? 0) <= 7 ? 'font-medium text-warning' : ''">
+                  {{ licenseInfo.remaining_days }} {{ $t('admin.plugin.license.days') }}
+                </span>
+              </DescriptionsItem>
+              <DescriptionsItem v-if="licenseInfo.trial_days_remaining != null" :label="$t('admin.plugin.license.remainingDays')">
+                <span :class="(licenseInfo.trial_days_remaining ?? 0) <= 3 ? 'font-medium text-warning' : ''">
+                  {{ licenseInfo.trial_days_remaining }} {{ $t('admin.plugin.license.days') }}
+                </span>
+              </DescriptionsItem>
+              <DescriptionsItem v-if="licenseInfo.buyer_email" :label="$t('admin.plugin.license.buyer')">
+                {{ licenseInfo.buyer_email }}
+              </DescriptionsItem>
+              <DescriptionsItem v-if="licenseInfo.license_key" :label="$t('admin.plugin.license.key')">
+                <code class="text-xs">{{ licenseInfo.license_key }}</code>
+              </DescriptionsItem>
+            </Descriptions>
+            <Button danger size="small" @click="onRevokeLicense">
+              <IconifyIcon icon="lucide:shield-off" class="mr-1 size-3.5" />
+              {{ $t('admin.plugin.license.revoke') }}
+            </Button>
+          </template>
+
+          <!-- 无 License / 过期 -->
+          <template v-else>
+            <p class="mb-3 text-sm text-muted-foreground">
+              {{ licenseInfo?.message || $t('admin.plugin.license.noLicense') }}
+            </p>
+
+            <!-- 输入 License Key -->
+            <div class="mb-3">
+              <div class="mb-1.5 text-xs font-medium">{{ $t('admin.plugin.license.inputKey') }}</div>
+              <div class="flex gap-2">
+                <Input
+                  v-model:value="licenseKeyInput"
+                  :placeholder="$t('admin.plugin.license.keyPlaceholder')"
+                  class="flex-1"
+                  allow-clear
+                />
+                <Button
+                  type="primary"
+                  size="small"
+                  :loading="licenseActivating"
+                  :disabled="!licenseKeyInput.trim()"
+                  @click="onActivateLicense"
+                >
+                  {{ $t('admin.plugin.license.activate') }}
+                </Button>
+              </div>
+            </div>
+
+            <!-- 开始试用 -->
+            <Button
+              v-if="!licenseInfo || licenseInfo.status === 'none'"
+              size="small"
+              :loading="licenseActivating"
+              @click="onActivateTrial"
+            >
+              <IconifyIcon icon="lucide:clock" class="mr-1 size-3.5" />
+              {{ $t('admin.plugin.license.startTrial') }}
+            </Button>
+          </template>
         </div>
       </div>
 
