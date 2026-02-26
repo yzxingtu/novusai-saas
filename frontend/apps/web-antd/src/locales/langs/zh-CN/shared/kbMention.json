@@ -1,5 +1,10 @@
 {
   "title": "选择知识库",
   "empty": "暂无可用知识库",
-  "selected": "已选 {count} 个知识库"
+  "selected": "已选 {count} 个知识库",
+  "scope": {
+    "global": "全局",
+    "admin": "平台",
+    "tenant": "租户"
+  }
 }

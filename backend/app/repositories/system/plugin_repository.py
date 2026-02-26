@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.core.base_repository import BaseRepository
 from app.enums.plugin import PluginStatusEnum
 from app.models.system.plugin import Plugin
-from app.models.system.plugin_tenant_assignment import PluginTenantAssignment
+from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
 
 
 class PluginRepository(BaseRepository[Plugin]):
@@ -51,11 +51,12 @@ class PluginRepository(BaseRepository[Plugin]):
 
     async def get_tenant_assignments(
         self, plugin_id: int
-    ) -> list[PluginTenantAssignment]:
+    ) -> list[ResourceTenantAssignment]:
         """查询插件的租户分配列表"""
         result = await self.db.execute(
-            select(PluginTenantAssignment).where(
-                PluginTenantAssignment.plugin_id == plugin_id,
+            select(ResourceTenantAssignment).where(
+                ResourceTenantAssignment.resource_type == "plugin",
+                ResourceTenantAssignment.resource_id == plugin_id,
             )
         )
         return list(result.scalars().all())

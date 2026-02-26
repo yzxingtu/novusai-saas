@@ -33,6 +33,9 @@ async def submit_batch(
 
     权限: agent:batch_submit
     """
+    from app.api.tenant.agents import _ensure_tenant_owned_agent
+    await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
+
     from app.ai.engine.dispatcher import ExecutionDispatcher
     from app.ai.engine.types import BatchItem, ExecutionRequest
     from app.enums.agent import AgentExecutionModeEnum
@@ -114,6 +117,9 @@ async def cancel_batch(
     将 BatchRun 状态设为 cancelled，worker 会在下一项开始前检测并停止。
     权限: agent:batch_cancel
     """
+    from app.api.tenant.agents import _ensure_tenant_owned_agent
+    await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
+
     from app.services.ai.batch_run_service import BatchRunService
 
     batch_svc = BatchRunService(db, tenant_admin.tenant_id)

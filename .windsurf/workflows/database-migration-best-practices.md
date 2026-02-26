@@ -224,17 +224,64 @@ await self.update(id, {"status": SslCertStatus.FAILED.value})
 
 **不受影响：** Model 字段的 `default=EnumValue` 可以用枚举对象（SQLAlchemy 自动处理）。
 
-### 7. 最佳实践清单
+### 7. Autogenerate 噪音清理（必做！）
 
-- [ ] 使用日期时间格式命名迁移文件：`YYYYMMDD_HHMM_descriptive_name.py`
+**`alembic revision --autogenerate` 经常捕获大量无关变更**（comment 改动、server_default 差异、索引重命名等），
+必须在生成后**立即手动审查并删除噪音**，只保留本次迁移真正需要的操作。
+
+**常见噪音类型（必须删除）：**
+- `op.alter_column(... comment=...)` — 仅改 comment，无实际 schema 变更
+- `op.alter_column(... server_default=None, ...)` — 仅清空 default，模型未改
+- 对**无关表**的 `alter_column` — autogenerate 扫描了所有模型，把历史差异也捕获了
+- `op.drop_index` + `op.create_index` 仅改索引名（如 `ix_tool_defs_name` → `ix_tool_definitions_name`）
+
+**清理流程：**
+```
+1. alembic revision --autogenerate -m "add xxx table"
+2. 打开生成的文件，检查 upgrade() 和 downgrade()
+3. 删除所有与本次变更无关的 op.alter_column / op.drop_index / op.create_index
+4. 删除未使用的 import（如 postgresql 未使用则删除）
+5. 确认 upgrade 和 downgrade 对称（upgrade 建的表/列，downgrade 要删）
+6. 在 docstring 中简要说明本次变更内容
+```
+
+**历史教训：** 项目中 `ee87f790553e`（61KB）和 `8c70188e6307`（47KB）两个迁移文件因未清理
+autogenerate 噪音，包含了对几十张无关表的 alter_column 操作，已在审计中清理。
+
+### 8. 命名规范
+
+**文件名格式：** `YYYYMMDD_HHMM_descriptive_name.py`
+- ✅ `20260208_0013_add_ai_provider_models.py`
+- ❌ `20260211_ee87f790553e_add_ai_action_logs_table.py`（含 hex hash）
+
+**revision ID 格式：** 与文件名中的 `YYYYMMDD_HHMM` 部分一致，或使用全局递增序号。
+- 禁止使用 Alembic 自动生成的 hex hash 作为 revision ID（如 `ee87f790553e`）
+- 如果使用序号，建议全局递增（如 `0001`, `0002`, ...），避免跨日期冲突
+
+**NO-OP 迁移标注：** 如果某个迁移因后续操作而变为空操作，在 docstring 首行标注 `[NO-OP]` 并说明原因，
+保留文件以维护 Alembic 链路完整性。
+
+### 9. 种子数据迁移规范
+
+- 种子数据迁移必须**幂等**：先 `SELECT` 检查是否存在，再 `INSERT`
+- 避免在迁移中硬编码会频繁变更的业务数据
+- 如果种子数据后续被删除，将迁移标注为 `[NO-OP]` 而非删除文件
+- 批量种子建议使用 `op.execute()` + raw SQL，而非 ORM
+
+### 10. 最佳实践清单
+
+- [ ] 使用 `YYYYMMDD_HHMM_descriptive_name.py` 命名格式
 - [ ] 创建迁移后立即设置 `down_revision`
+- [ ] **清理 autogenerate 噪音**（删除无关 alter_column / drop_index / create_index）
+- [ ] 确认 upgrade 和 downgrade 对称
 - [ ] 使用 `alembic heads` 检查是否有多个 head
 - [ ] 使用 `alembic current` 检查当前版本
 - [ ] 避免使用 SQLAlchemy 保留字作为列名或表名
 - [ ] 确保所有 `relationship` 都正确导入
+- [ ] 种子数据迁移设计为幂等
 - [ ] 迁移文件中避免硬编码数据，使用 `op.execute()` 或 seed 文件
 
-### 7. 快速参考命令
+### 11. 快速参考命令
 
 ```bash
 # 查看当前版本
@@ -262,7 +309,7 @@ alembic stamp <revision_id>
 alembic check
 ```
 
-### 8. 调试技巧
+### 12. 调试技巧
 
 #### 问题：服务器启动失败，迁移错误
 
@@ -278,7 +325,7 @@ alembic check
 - 模型：`Mapped[int | None]` → 迁移：`sa.Column(Integer(), nullable=True)`
 - 模型：`Mapped[dict | None]` → 迁移：`sa.Column(postgresql.JSON(), nullable=True)`
 
-### 9. 示例：完整的迁移文件
+### 13. 示例：完整的迁移文件
 
 ```python
 """add AI provider models

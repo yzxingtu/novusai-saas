@@ -45,6 +45,7 @@ import {
 } from '#/api/admin/plugin';
 import type { PluginTenantAssignmentInfo } from '#/api/admin/plugin';
 import { getTenantListApi } from '#/api/admin/tenant';
+import { scopeNeedsAssignment } from '#/components/business/scope-select';
 import { $t } from '#/locales';
 import { refreshPluginSlots } from '#/composables/use-plugin-frontend-init';
 import { formatDate } from '#/utils/common';
@@ -80,7 +81,7 @@ const selectedTenantIds = ref<number[]>([]);
 const needsTenantAssignment = computed(() => {
   if (!plugin.value) return false;
   const scope = plugin.value.scope || (plugin.value.manifest as Record<string, unknown>)?.scope;
-  return scope === 'assigned_tenants' || scope === 'admin_and_assigned';
+  return scopeNeedsAssignment(String(scope || ''));
 });
 
 const assignedTenantIds = computed(() => new Set(tenantAssignments.value.map(a => a.tenant_id)));
@@ -407,10 +408,10 @@ defineExpose({ open });
       <!-- 租户分配（仅 assigned_tenants / admin_and_assigned 显示） -->
       <div v-if="needsTenantAssignment" class="mb-6">
         <div class="mb-2 flex items-center justify-between">
-          <h4 class="text-sm font-medium">{{ $t('admin.plugin.tenantAssignment') || '租户分配' }}</h4>
+          <h4 class="text-sm font-medium">{{ $t('admin.plugin.tenantAssignment') }}</h4>
           <Button size="small" @click="showTenantSelect = !showTenantSelect">
             <IconifyIcon icon="lucide:plus" class="mr-1 size-3.5" />
-            {{ $t('admin.plugin.action.assignTenant') || '分配租户' }}
+            {{ $t('admin.plugin.action.assignTenant') }}
           </Button>
         </div>
 
@@ -419,13 +420,13 @@ defineExpose({ open });
           <Select
             v-model:value="selectedTenantIds"
             mode="multiple"
-            :placeholder="$t('admin.plugin.placeholder.selectTenants') || '选择租户'"
+            :placeholder="$t('admin.plugin.placeholder.selectTenants')"
             class="flex-1"
             :options="availableTenants.map(t => ({ label: t.name, value: t.id }))"
             :loading="tenantLoading"
           />
           <Button type="primary" size="small" :disabled="selectedTenantIds.length === 0" @click="onAssignTenants">
-            {{ $t('common.confirm') || '确认' }}
+            {{ $t('common.confirm') }}
           </Button>
         </div>
 
@@ -444,7 +445,7 @@ defineExpose({ open });
           </Tag>
         </div>
         <div v-else class="text-xs text-muted-foreground">
-          {{ $t('admin.plugin.tenantAssignmentEmpty') || '未分配任何租户，此插件在租户端不可用' }}
+          {{ $t('admin.plugin.tenantAssignmentEmpty') }}
         </div>
       </div>
 

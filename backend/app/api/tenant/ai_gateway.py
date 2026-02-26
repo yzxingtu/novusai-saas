@@ -30,7 +30,7 @@ from app.schemas.ai.gateway import (
 @permission_resource(
     resource="ai_gateway",
     name="menu.tenant.ai_gateway",
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
 )
 class TenantAIGatewayController(TenantController):
     """

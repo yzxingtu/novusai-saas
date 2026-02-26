@@ -92,8 +92,8 @@ class PeriodicTask(BaseModel):
         comment="所属租户ID（NULL表示平台级任务）",
     )
     scope: Mapped[str] = mapped_column(
-        default=TaskScopeEnum.PLATFORM.value,
-        comment="作用范围（platform/tenant/all_tenants）",
+        default=TaskScopeEnum.ADMIN_ONLY.value,
+        comment="作用范围（admin_only/all_tenants/admin_and_all）",
     )
     is_locked: Mapped[bool] = mapped_column(
         default=False,

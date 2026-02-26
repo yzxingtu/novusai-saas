@@ -72,8 +72,9 @@ class AdminAgentCreate(_AgentOptionalFields, BaseCreateSchema):
     """管理端创建智能体请求（支持 scope）"""
 
     name: str = Field(..., max_length=100, description=_("enum.agent_model.name"))
-    scope: str = Field("tenant", description=_("enum.agent_model.scope"))
+    scope: str = Field("all_tenants", description=_("enum.agent_model.scope"))
     tenant_id: int | None = Field(None, description=_("enum.agent_model.tenant_id"))
+    tenant_ids: list[int] | None = Field(None, description="分配的租户 ID 列表（scope=assigned_tenants/admin_and_assigned 时使用）")
     system_prompt: str | None = Field("", description=_("enum.agent_model.system_prompt"))
 
     @field_validator("system_prompt", mode="before")
@@ -92,6 +93,7 @@ class AdminAgentUpdate(_AgentOptionalFields, BaseUpdateSchema):
     name: str | None = Field(None, max_length=100, description=_("enum.agent_model.name"))
     scope: str | None = Field(None, description=_("enum.agent_model.scope"))
     tenant_id: int | None = Field(None, description=_("enum.agent_model.tenant_id"))
+    tenant_ids: list[int] | None = Field(None, description="分配的租户 ID 列表（scope=assigned_tenants/admin_and_assigned 时使用）")
     system_prompt: str | None = Field(None, description=_("enum.agent_model.system_prompt"))
     model_id: int | None = Field(None, description=_("enum.agent_model.model_id"))
     temperature: float | None = Field(None, ge=0.0, le=2.0, description=_("enum.agent_model.temperature"))

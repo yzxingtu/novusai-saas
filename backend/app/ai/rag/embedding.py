@@ -9,6 +9,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.gateway import AIGateway
+from app.ai.rag.text_cleaner import clean_for_embedding
 from app.ai.types import EmbeddingResponse
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -29,7 +30,7 @@ class EmbeddingService:
     自动从知识库配置获取模型和供应商信息。
     """
 
-    def __init__(self, db: AsyncSession, tenant_id: int):
+    def __init__(self, db: AsyncSession, tenant_id: int | None):
         """
         初始化
 
@@ -61,9 +62,11 @@ class EmbeddingService:
         """
         provider_code, model_code = self._resolve_model(knowledge_base)
 
+        cleaned = clean_for_embedding(text)
+
         response = await self.gateway.embedding(
             provider_code=provider_code,
-            texts=[text],
+            texts=[cleaned],
             model=model_code,
             tenant_id=self.tenant_id,
         )
@@ -104,7 +107,7 @@ class EmbeddingService:
         total_tokens = 0
 
         for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
+            batch = [clean_for_embedding(t) for t in texts[i:i + batch_size]]
 
             response = await self.gateway.embedding(
                 provider_code=provider_code,

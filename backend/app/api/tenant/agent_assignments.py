@@ -6,7 +6,10 @@
 
 from fastapi import Request
 from pydantic import BaseModel as PydanticBaseModel, Field
-
+from app.api.shared._agent_assignment_helpers import (
+    build_assignment_item as _build_assignment_item,
+    build_plugin_feature_i18n_map as _build_plugin_feature_i18n_map,
+)
 from app.core.base_controller import TenantController
 from app.core.deps import DbSession, ActiveTenantAdmin
 from app.core.i18n import _
@@ -46,7 +49,7 @@ def _build_resolve_result(assignment, feature_code: str) -> dict:
     agent_name = None
     try:
         agent_obj = getattr(assignment, "agent", None)
-        if agent_obj is not None:
+        if agent_obj is not None and not getattr(agent_obj, "is_deleted", False):
             agent_name = agent_obj.name
     except AttributeError:
         pass
@@ -60,54 +63,10 @@ def _build_resolve_result(assignment, feature_code: str) -> dict:
     }
 
 
-def _build_assignment_item(assignment, global_default=None) -> dict:
-    """构建绑定列表项（含全局默认对比）"""
-    agent_name = None
-    agent_avatar = None
-    try:
-        agent_obj = getattr(assignment, "agent", None)
-        if agent_obj is not None:
-            agent_name = agent_obj.name
-            agent_avatar = agent_obj.avatar
-    except AttributeError:
-        pass
-
-    is_override = assignment.tenant_id is not None
-
-    # Resolve global default agent info
-    gd_agent_id = None
-    gd_agent_name = None
-    if global_default:
-        gd_agent_id = global_default.agent_id
-        try:
-            gd_agent_obj = getattr(global_default, "agent", None)
-            if gd_agent_obj is not None:
-                gd_agent_name = gd_agent_obj.name
-        except AttributeError:
-            pass
-    elif not is_override:
-        # Non-override item IS the global default
-        gd_agent_id = assignment.agent_id
-        gd_agent_name = agent_name
-
-    return {
-        "feature_code": assignment.feature_code,
-        "feature_name": assignment.feature_name,
-        "description": assignment.description,
-        "agent_id": assignment.agent_id,
-        "agent_name": agent_name,
-        "agent_avatar": agent_avatar,
-        "is_active": assignment.is_active,
-        "is_override": is_override,
-        "global_agent_id": gd_agent_id,
-        "global_agent_name": gd_agent_name,
-    }
-
-
 @permission_resource(
     resource="tenant_agent_assignment",
     name="menu.tenant.agent_assignment",
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=MenuConfig(
         icon="lucide:plug",
         path="/ai/agent-assignments",
@@ -145,15 +104,17 @@ class TenantAgentAssignmentController(TenantController):
 
             override_map = {o.feature_code: o for o in tenant_overrides}
 
+            i18n_map = await _build_plugin_feature_i18n_map(db)
+
             result = []
             for gd in global_defaults:
                 override = override_map.get(gd.feature_code)
                 if override:
-                    result.append(_build_assignment_item(override, global_default=gd))
+                    result.append(_build_assignment_item(override, global_default=gd, i18n_map=i18n_map))
                 else:
-                    result.append(_build_assignment_item(gd))
+                    result.append(_build_assignment_item(gd, i18n_map=i18n_map))
 
-            return success(data=result)
+            return success(data={"items": result, "total": len(result)})
 
         @router.get("/resolve/{feature_code}", summary="解析功能绑定的智能体")
         @auth_only
@@ -188,7 +149,8 @@ class TenantAgentAssignmentController(TenantController):
             assignment = await service.set_tenant_override(
                 feature_code, tenant_id, body.agent_id, body.config,
             )
-            return success(data=_build_resolve_result(assignment, feature_code))
+            i18n_map = await _build_plugin_feature_i18n_map(db)
+            return success(data=_build_assignment_item(assignment, i18n_map=i18n_map))
 
         @router.delete("/{feature_code}", summary="删除租户覆盖")
         @action_delete("action.tenant_agent_assignment.delete")

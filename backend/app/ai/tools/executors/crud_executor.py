@@ -202,6 +202,34 @@ def _check_rbac(
     return None
 
 
+async def _check_tenant_column(
+    context: ExecutionContext,
+    table_name: str,
+) -> str | None:
+    """检查表是否有 tenant_id 列，非平台用户禁止操作无隔离列的表
+
+    返回错误消息或 None（通过）。
+    平台管理员可操作任何表（含无 tenant_id 的平台级表）。
+    """
+    if context.is_platform_admin:
+        return None
+
+    if not context.db:
+        return None
+
+    # 查询目标表是否存在 tenant_id 列
+    check_sql = text(
+        "SELECT 1 FROM information_schema.columns "
+        "WHERE table_schema = 'public' AND table_name = :tbl AND column_name = 'tenant_id' "
+        "LIMIT 1"
+    )
+    result = await context.db.execute(check_sql, {"tbl": table_name})
+    if not result.scalar():
+        return _("data_intelligence.crud.no_tenant_isolation").format(table=table_name)
+
+    return None
+
+
 def _enforce_tenant_isolation(
     context: ExecutionContext,
     policy: AITablePolicy,
@@ -338,6 +366,11 @@ class CreateRecordExecutor(BaseToolExecutor):
         rbac_error = _check_rbac(context, policy, "create")
         if rbac_error:
             return ToolResult.error_result(tool_call_id, rbac_error, name=_name)
+
+        # 租户隔离列检查：非平台用户禁止操作无 tenant_id 列的表
+        tc_err = await _check_tenant_column(context, table_name)
+        if tc_err:
+            return ToolResult.error_result(tool_call_id, tc_err, name=_name)
 
         # 剥离系统管理列（tenant_id/is_deleted 等，由系统注入）
         _strip_system_columns(data)
@@ -479,6 +512,11 @@ class UpdateRecordExecutor(BaseToolExecutor):
         rbac_error = _check_rbac(context, policy, "update")
         if rbac_error:
             return ToolResult.error_result(tool_call_id, rbac_error, name=_name)
+
+        # 租户隔离列检查：非平台用户禁止操作无 tenant_id 列的表
+        tc_err = await _check_tenant_column(context, table_name)
+        if tc_err:
+            return ToolResult.error_result(tool_call_id, tc_err, name=_name)
 
         # 剥离系统管理列
         _strip_system_columns(data)
@@ -651,6 +689,11 @@ class DeleteRecordExecutor(BaseToolExecutor):
         rbac_error = _check_rbac(context, policy, "delete")
         if rbac_error:
             return ToolResult.error_result(tool_call_id, rbac_error, name=_name)
+
+        # 租户隔离列检查：非平台用户禁止操作无 tenant_id 列的表
+        tc_err = await _check_tenant_column(context, table_name)
+        if tc_err:
+            return ToolResult.error_result(tool_call_id, tc_err, name=_name)
 
         # 查询记录详情用于确认预览
         try:

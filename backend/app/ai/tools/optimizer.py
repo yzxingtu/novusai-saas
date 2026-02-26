@@ -70,6 +70,16 @@ _KB_KEYWORDS = frozenset({
     "explain", "definition", "meaning", "describe", "about",
 })
 
+# 联网搜索相关关键词 → web_search/fetch_url 工具加权
+_WEB_KEYWORDS = frozenset({
+    "联网", "搜索", "搜一下", "查一下", "查阅", "上网", "网上",
+    "最新", "实时", "新闻", "百科", "维基", "天气", "今天",
+    "谁是", "生日", "简介", "官网", "网址", "链接", "网页",
+    "search", "internet", "web", "online", "latest", "news",
+    "wiki", "wikipedia", "weather", "today", "website", "url",
+    "browse", "lookup", "fetch",
+})
+
 # 中文字符正则
 _CJK_RE = re.compile(r"[\u4e00-\u9fff]+")
 # 英文单词正则
@@ -151,6 +161,11 @@ def _score_tool(
     if "knowledge" in tool_name_lower or "kb" in tool_name_lower:
         if query_tokens & _KB_KEYWORDS:
             score += 5.0
+
+    # 4.5 联网搜索工具加权
+    if "search" in tool_name_lower or "fetch" in tool_name_lower or "web" in tool_name_lower:
+        if query_tokens & _WEB_KEYWORDS:
+            score += 8.0
 
     # 5. 历史偏好：已使用过的工具加权
     if used_tool_names and tool.name in used_tool_names:

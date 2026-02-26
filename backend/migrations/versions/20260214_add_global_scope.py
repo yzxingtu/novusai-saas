@@ -1,6 +1,9 @@
-"""add_global_scope
+"""[NO-OP] add_global_scope
 
-Add 'global' as a valid scope value for skill_packages and skills.
+Superseded by 20260226_0410_merge_system_skill_packages (package soft-deleted)
+and 20260216 cleanup_dirty_agent_data (DB-2 reverted scope back to admin).
+
+Original: Add 'global' as a valid scope value for skill_packages and skills.
 Update system data intelligence package/skill scope to 'global'.
 
 Revision ID: c4d5e6f7a8b9

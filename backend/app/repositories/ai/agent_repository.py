@@ -12,8 +12,14 @@ from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
 from app.core.base_repository import TenantRepository, BaseRepository
 from app.enums.common import DeleteLevelEnum, ResourceScopeEnum
+from app.repositories.system.resource_tenant_assignment_repository import assigned_resource_ids_subquery
 from app.schemas.common.query import QuerySpec, FilterRule
 from app.core.base_model import utc_now
+
+_ASSIGNED_SCOPES = (
+    ResourceScopeEnum.ASSIGNED_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+)
 
 
 class AgentRepository(TenantRepository[Agent]):
@@ -31,16 +37,23 @@ class AgentRepository(TenantRepository[Agent]):
         id: int,
         include_deleted: bool = False,
     ) -> Agent | None:
-        """根据 ID 获取智能体，允许访问全局和管理端智能体"""
+        """根据 ID 获取智能体，允许访问全局 + 已分配的智能体"""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
-            if instance.scope in (
-                ResourceScopeEnum.GLOBAL.value,
-                ResourceScopeEnum.ADMIN.value,
-            ):
+            # 全局共享
+            if instance.scope == ResourceScopeEnum.ADMIN_AND_ALL.value:
                 return instance
-            if instance.tenant_id != self.tenant_id:
+            # 已分配 scope：检查 resource_tenant_assignments
+            if instance.scope in _ASSIGNED_SCOPES:
+                from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
+                repo = ResourceTenantAssignmentRepository(self.db)
+                if await repo.check_assignment("agent", instance.id, self.tenant_id):
+                    return instance
                 return None
+            # 同租户
+            if instance.tenant_id == self.tenant_id:
+                return instance
+            return None
         return instance
 
     async def query_list(
@@ -53,7 +66,7 @@ class AgentRepository(TenantRepository[Agent]):
         """
         租户级智能体列表查询
 
-        自动注入条件：(tenant_id = X) OR (scope = 'global')
+        自动注入条件：(tenant_id = X) OR (scope = 'admin_and_all')
         """
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
@@ -63,11 +76,16 @@ class AgentRepository(TenantRepository[Agent]):
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
-        # 替代 TenantRepository 的 tenant_id 强制过滤：包含全局资源
+        # 替代 TenantRepository 的 tenant_id 强制过滤：包含全局 + 已分配资源
+        assigned_subq = assigned_resource_ids_subquery("agent", self.tenant_id)
         query = query.where(
             or_(
                 self.model.tenant_id == self.tenant_id,
-                self.model.scope == ResourceScopeEnum.GLOBAL.value,
+                self.model.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
+                and_(
+                    self.model.scope.in_(_ASSIGNED_SCOPES),
+                    self.model.id.in_(assigned_subq),
+                ),
             )
         )
 
@@ -150,13 +168,18 @@ class AgentRepository(TenantRepository[Agent]):
         Returns:
             Agent 列表
         """
+        assigned_subq = assigned_resource_ids_subquery("agent", self.tenant_id)
         stmt = (
             select(Agent)
             .where(
                 and_(
                     or_(
                         Agent.tenant_id == self.tenant_id,
-                        Agent.scope == ResourceScopeEnum.GLOBAL.value,
+                        Agent.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
+                        and_(
+                            Agent.scope.in_(_ASSIGNED_SCOPES),
+                            Agent.id.in_(assigned_subq),
+                        ),
                     ),
                     Agent.status == status,
                     Agent.is_deleted.is_(False),

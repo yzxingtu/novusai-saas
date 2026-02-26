@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from app.plugins.context import PluginContext
+from app.plugins.context import PluginContext, RequestContext
 from app.plugins.exceptions import PluginError
 
 if TYPE_CHECKING:
@@ -31,6 +31,7 @@ def create_plugin_context(
     manifest: PluginManifest,
     db: AsyncSession,
     granted_capabilities: list[str] | None = None,
+    request_context: RequestContext | None = None,
 ) -> PluginContext:
     """
     根据 manifest.api_version 创建对应版本的 PluginContext。
@@ -40,6 +41,7 @@ def create_plugin_context(
         manifest: 插件清单
         db: 数据库会话
         granted_capabilities: 授权能力列表
+        request_context: 请求上下文（tenant_id/user_id/user_role/permissions/request_id）
 
     Returns:
         PluginContext 实例
@@ -61,4 +63,5 @@ def create_plugin_context(
         manifest=manifest,
         db=db,
         granted_capabilities=granted_capabilities,
+        request_context=request_context,
     )

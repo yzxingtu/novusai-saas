@@ -172,7 +172,7 @@ async def _load_single_user_info(
 @permission_resource(
     resource="ai_conversation",
     name="menu.admin.ai_conversation",
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:message-square-text",
         path="/ai/conversations",

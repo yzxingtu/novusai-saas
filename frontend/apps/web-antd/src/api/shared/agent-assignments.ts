@@ -19,6 +19,7 @@ export interface AgentAssignmentResolveResult {
 
 /** 绑定列表项 */
 export interface AgentAssignmentItem {
+  id: number;
   feature_code: string;
   feature_name: string;
   description: string | null;
@@ -32,6 +33,8 @@ export interface AgentAssignmentItem {
   updated_at?: string;
   global_agent_id?: number | null;
   global_agent_name?: string | null;
+  display_name?: Record<string, string>;
+  description_i18n?: Record<string, string>;
 }
 
 /**
@@ -56,8 +59,8 @@ export async function resolveAgentAssignmentApi(
  */
 export async function getAgentAssignmentListApi(
   apiPrefix: string,
-): Promise<AgentAssignmentItem[]> {
-  return requestClient.get<AgentAssignmentItem[]>(
+): Promise<{ items: AgentAssignmentItem[]; total: number }> {
+  return requestClient.get<{ items: AgentAssignmentItem[]; total: number }>(
     `${apiPrefix}/ai/agent-assignments`,
   );
 }

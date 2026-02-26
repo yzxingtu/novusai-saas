@@ -58,83 +58,14 @@ async def restore_enabled_plugins(db: AsyncSession) -> dict:
     restored = 0
     failed = 0
 
+    from app.plugins._extension_registrar import register_all_extensions
+
     for plugin in enabled_plugins:
         try:
             manifest = loader.load_manifest(plugin.name)
-            ext = manifest.extensions
 
-            # 注册 skills (resolver + executor)
-            for skill_ext in ext.skills:
-                resolver_func = _load_handler_safe(
-                    loader, plugin.name,
-                    skill_ext.entry_point + ".resolve" if skill_ext.entry_point else "",
-                )
-                executor_cls = _load_plugin_executor(plugin.name, skill_ext.type)
-                if resolver_func:
-                    registry.register_skill(
-                        plugin.name, skill_ext.type, resolver_func, executor_cls,
-                    )
-
-            # 注册 adapters
-            for adapter_ext in ext.adapters:
-                adapter_cls = _load_handler_safe(loader, plugin.name, adapter_ext.entry_point)
-                if adapter_cls:
-                    registry.register_adapter(plugin.name, adapter_ext.provider_code, adapter_cls)
-
-            # 注册 storage drivers
-            for storage_ext in ext.storage_drivers:
-                driver_cls = _load_handler_safe(loader, plugin.name, storage_ext.entry_point)
-                if driver_cls:
-                    registry.register_storage_driver(plugin.name, driver_cls)
-
-            # 注册 hooks
-            for hook in ext.hooks:
-                handler = _load_handler_safe(loader, plugin.name, hook.handler)
-                if handler:
-                    registry.register_hook(
-                        plugin.name, hook.point, handler, hook.priority
-                    )
-
-            # 注册 events
-            for event in ext.events:
-                handler = _load_handler_safe(loader, plugin.name, event.handler)
-                if handler:
-                    registry.register_event(plugin.name, event.event, handler)
-
-            # 注册 webhooks
-            for webhook in ext.webhooks:
-                handler = _load_handler_safe(loader, plugin.name, webhook.handler)
-                if handler:
-                    registry.register_webhook(
-                        plugin.name, webhook.path, handler,
-                        webhook.method, webhook.auth.model_dump(),
-                    )
-
-            # 注册 tasks
-            for task_ext in ext.tasks:
-                handler = _load_handler_safe(loader, plugin.name, task_ext.handler)
-                if handler:
-                    registry.register_task(
-                        plugin.name, task_ext.name, handler,
-                        task_ext.schedule_type,
-                        task_ext.cron_expression,
-                        task_ext.interval_seconds,
-                        task_ext.queue,
-                    )
-
-            # 注册 notifications
-            for notif_ext in ext.notifications:
-                registry.register_notification(
-                    plugin.name, notif_ext.code,
-                    notif_ext.title, notif_ext.channels, notif_ext.category,
-                )
-
-            # 注册 permissions
-            for perm_ext in ext.permissions:
-                registry.register_permission(
-                    plugin.name, perm_ext.code,
-                    perm_ext.name, perm_ext.scope, perm_ext.actions,
-                )
+            # 注册所有扩展点（公共函数，与 lifecycle.enable 共用）
+            register_all_extensions(registry, manifest, plugin.name)
 
             # 重置错误计数（恢复成功）
             if plugin.error_count > 0:
@@ -173,12 +104,12 @@ async def restore_enabled_plugins(db: AsyncSession) -> dict:
 
 
 def _load_plugin_executor(plugin_name: str, skill_type: str):
-    """加载插件的 executor 类（启动恢复用）— 委托给统一加载器"""
+    """加载插件的 executor 类 — 委托给统一加载器（保留供外部引用）"""
     from app.plugins.module_loader import load_plugin_executor
     return load_plugin_executor(plugin_name, skill_type)
 
 
 def _load_handler_safe(loader, plugin_name: str, handler_path: str):
-    """安全加载插件处理函数（失败返回 None）— 委托给统一加载器"""
+    """安全加载插件处理函数 — 委托给统一加载器（保留供外部引用）"""
     from app.plugins.module_loader import load_plugin_handler
     return load_plugin_handler(plugin_name, handler_path)

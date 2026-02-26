@@ -15,6 +15,7 @@ import { useCrudPage } from '#/adapter/vxe-table';
 import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
+import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
 import {
   formatInterval,
@@ -123,11 +124,11 @@ const { Grid, FormDrawer, onRefresh } =
                   class="size-3 shrink-0 text-warning/70"
                 />
                 <Tag
-                  v-if="row.scope && row.scope !== 'platform'"
-                  :color="row.scope === 'all_tenants' ? 'green' : 'orange'"
+                  v-if="row.scope && row.scope !== 'admin_only'"
+                  :color="getScopeColor(row.scope)"
                   class="!m-0 !px-1 !text-[10px] !leading-4"
                 >
-                  {{ $t(`admin.system.periodicTask.scope.${row.scope === 'all_tenants' ? 'allTenants' : row.scope}`) }}
+                  {{ getScopeText(row.scope) }}
                 </Tag>
               </div>
               <Tooltip v-if="row.description" :title="row.description.trim()" placement="bottomLeft">

@@ -32,7 +32,7 @@ from app.services.ai.conversation_service import ConversationService
 @permission_resource(
     resource="agent_chat",
     name="menu.tenant.agent_chat",
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=MenuConfig(
         icon="lucide:message-square",
         path="/ai/chat",

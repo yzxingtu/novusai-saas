@@ -108,7 +108,7 @@ async def _batch_load_tenant_users(
 @permission_resource(
     resource="agent_conversation",
     name="menu.tenant.agent_conversation",
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=MenuConfig(
         icon="lucide:message-square-text",
         path="/ai/conversations",

@@ -120,52 +120,45 @@ TASKS = [
 ]
 
 
+_INSERT_SQL = sa.text("""
+    INSERT INTO periodic_tasks (
+        name, task_path, schedule_type, cron_expression,
+        interval_seconds, args, kwargs, is_active,
+        description, scope, is_locked, is_editable,
+        max_retries, retry_delay, timeout,
+        notify_on_failure, created_at, updated_at, is_deleted
+    ) VALUES (
+        :name, :task_path, :schedule_type, :cron_expression,
+        :interval_seconds, NULL, :kwargs, true,
+        :description, 'platform', :is_locked, false,
+        :max_retries, 60, :timeout,
+        false, NOW(), NOW(), false
+    )
+    ON CONFLICT DO NOTHING
+""")
+
+
 def upgrade() -> None:
     for t in TASKS:
-        kwargs_val = f"'{t['kwargs']}'" if t["kwargs"] else "NULL"
-        cron_val = f"'{t['cron_expression']}'" if t["cron_expression"] else "NULL"
-        interval_val = t["interval_seconds"] if t["interval_seconds"] else "NULL"
-
         op.execute(
-            sa.text(f"""
-                INSERT INTO periodic_tasks (
-                    name, task_path, schedule_type, cron_expression,
-                    interval_seconds, args, kwargs, is_active,
-                    description, scope, is_locked, is_editable,
-                    max_retries, retry_delay, timeout,
-                    notify_on_failure, created_at, updated_at, is_deleted
-                ) VALUES (
-                    '{t["name"]}',
-                    '{t["task_path"]}',
-                    '{t["schedule_type"]}',
-                    {cron_val},
-                    {interval_val},
-                    NULL,
-                    {kwargs_val},
-                    true,
-                    '{t["description"]}',
-                    'platform',
-                    {str(t["is_locked"]).lower()},
-                    false,
-                    {t["max_retries"]},
-                    60,
-                    {t["timeout"]},
-                    false,
-                    NOW(),
-                    NOW(),
-                    false
-                )
-                ON CONFLICT DO NOTHING
-            """)
+            _INSERT_SQL.bindparams(
+                name=t["name"],
+                task_path=t["task_path"],
+                schedule_type=t["schedule_type"],
+                cron_expression=t["cron_expression"],
+                interval_seconds=t["interval_seconds"],
+                kwargs=t["kwargs"],
+                description=t["description"],
+                is_locked=t["is_locked"],
+                max_retries=t["max_retries"],
+                timeout=t["timeout"],
+            )
         )
 
 
 def downgrade() -> None:
     task_paths = [t["task_path"] for t in TASKS]
-    paths_str = ", ".join(f"'{p}'" for p in task_paths)
-    op.execute(
-        sa.text(f"""
-            DELETE FROM periodic_tasks
-            WHERE task_path IN ({paths_str})
-        """)
-    )
+    for tp in task_paths:
+        op.execute(
+            sa.text("DELETE FROM periodic_tasks WHERE task_path = :tp").bindparams(tp=tp)
+        )

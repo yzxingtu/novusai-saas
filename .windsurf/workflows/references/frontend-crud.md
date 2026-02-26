@@ -94,6 +94,198 @@ const { Drawer, isEdit } = useCrudDrawer<ItemInfo>({
 
 ---
 
+## 自定义布局页面（useCrudList）
+
+当页面不适合表格（如卡片网格、Master-Detail、配置面板）时，使用 `useCrudList`。
+
+### 模式选择指南
+
+| 场景 | Composable | 说明 |
+|------|-----------|------|
+| 数据密集型列表（日志、用户、配置项） | `useCrudPage` | 返回 `Grid` + `FormDrawer`，自动表格渲染 |
+| 卡片网格（知识库、智能体、插件） | `useCrudList` | 返回响应式数据，自定义卡片模板 |
+| Master-Detail（技能包：左列表+右详情） | `useCrudList` × 2 | 左侧用 `selectable: true`，右侧过滤 `selectedId` |
+| 配置面板（域名、配额） | `useCrudList` | 返回列表数据，自定义 inline 编辑 |
+
+### useCrudList API 参考
+
+```typescript
+import { useCrudList } from '#/composables';
+
+const {
+  // 响应式数据
+  list,              // Ref<T[]> — 当前列表
+  filteredList,      // ComputedRef<T[]> — 客户端过滤后的列表
+  total,             // Ref<number> — 总条数
+  loading,           // Ref<boolean>
+  currentPage,       // Ref<number>
+  pageSize,          // Ref<number>
+  searchKeyword,     // Ref<string> — 通用搜索关键词
+  searchParams,      // Ref<Record<string, unknown>>
+
+  // 选中状态（Master-Detail）
+  selectedId,        // Ref<number | string | null>
+  selectedItem,      // ComputedRef<T | null>
+
+  // 组件
+  FormDrawer,        // Component | null — 表单抽屉/弹窗
+
+  // CRUD 操作
+  loadList,          // () => Promise<void>
+  reload,            // () => Promise<void> — 回到第一页
+  onCreate,          // () => void
+  onEdit,            // (row: T) => void
+  onDelete,          // (row: T) => Promise<void> — 含防抖 + 依赖阻止
+  onToggleStatus,    // (val: boolean, row: T) => Promise<boolean>
+  onSelect,          // (row: T) => void — 选中一条记录
+
+  // 搜索/分页
+  onSearch,          // (params?: Record<string, unknown>) => void
+  onPageChange,      // (page: number) => void
+
+  // 回收站
+  openRecycleBin,    // () => void
+  recycleBinCount,   // Ref<number>
+
+  // 辅助
+  handleMenuAction,  // (code: string, row: T) => void — 菜单操作分发（含 'edit'/'delete'）
+} = useCrudList<ItemType>({
+  // === 必填 ===
+  api: {
+    list: getListApi,                    // 列表 API（支持返回 {items, total} 或裸数组）
+    resource: '/admin/ai/knowledge-bases', // DELETE 路径前缀
+    delete: deleteApi,                   // 可选：自定义删除 API
+    toggles: { is_active: toggleApi },   // 可选：快捷开关
+  },
+  i18nPrefix: 'admin.knowledgeBase',     // i18n 前缀
+
+  // === 可选 ===
+  formComponent: Form,                   // 表单组件（不传则无 FormDrawer/onCreate/onEdit）
+  formDefaults: getFormDefaults,         // 新建默认值
+  nameField: 'name',                     // 显示名称字段（删除确认用）
+  defaultSort: '-created_at',            // 排序
+  pageSize: 12,                          // 每页条数
+  pager: true,                           // 是否分页
+  recycleBin: true,                      // 启用回收站
+  createPermission: 'kb:create',         // 创建权限码
+
+  // === 高级 ===
+  keyField: 'feature_code',              // 自定义主键字段（默认 'id'），支持无 id 的类型
+  responseAdapter: (data) => ({ ... }),  // 非标准 API 响应适配
+  autoRefreshInterval: 30000,            // 自动刷新（毫秒），如健康监控 30s 轮询
+  selectable: true,                      // 启用选中状态
+  defaultSelect: 'first',               // 加载后自动选中第一条
+  clientFilter: (item, kw) => ...,       // 客户端过滤函数
+  defaultFilters: { scope: 'admin' },    // 固定过滤条件
+  customActions: { detail: (row) => ... }, // 自定义操作
+});
+```
+
+### 示例 1：卡片网格页面（知识库）
+
+```vue
+<script setup>
+const {
+  list, total, loading, currentPage, pageSize, searchKeyword,
+  FormDrawer, loadList, onCreate, onSearch, onPageChange, handleMenuAction,
+} = useCrudList<KBItem>({
+  api: { list: getListApi, delete: deleteApi, resource: '/admin/ai/knowledge-bases' },
+  formComponent: Form,
+  i18nPrefix: 'admin.knowledgeBase',
+  pageSize: 12,
+  recycleBin: true,
+});
+</script>
+
+<template>
+  <Page>
+    <FormDrawer @success="loadList" />
+    <RecycleBinDrawer ref="recycleBinRef" resource="/admin/ai/knowledge-bases" @restored="loadList" />
+    <!-- 搜索栏 + 创建按钮 -->
+    <div class="flex items-center gap-3">
+      <Input v-model:value="searchKeyword" @press-enter="doSearch" />
+      <Button type="primary" @click="onCreate">{{ $t('create') }}</Button>
+    </div>
+    <!-- 卡片网格 -->
+    <div class="grid grid-cols-3 gap-4">
+      <div v-for="item in list" :key="item.id" class="rounded-xl border bg-card p-4">
+        <h4>{{ item.name }}</h4>
+        <!-- Dropdown 菜单用 handleMenuAction('edit', item) / handleMenuAction('delete', item) -->
+      </div>
+    </div>
+    <Pagination :current="currentPage" :total="total" :page-size="pageSize" @change="onPageChange" />
+  </Page>
+</template>
+```
+
+### 示例 2：Master-Detail（技能包）
+
+```vue
+<script setup>
+// 左侧：包列表（启用选中）
+const { list: packages, selectedId, selectedItem, onSelect, loadList } =
+  useCrudList<PackageInfo>({
+    api: { list: getPackageListApi, resource: '/admin/ai/skill-packages' },
+    i18nPrefix: 'admin.ai.skillPackage',
+    selectable: true,
+    defaultSelect: 'first',
+    clientFilter: (item, kw) => item.name.toLowerCase().includes(kw),
+  });
+
+// 右侧：技能列表（过滤 selectedId）
+const { list: skills, loadList: loadSkills } = useCrudList<SkillInfo>({
+  api: { list: getSkillListApi, resource: '/admin/ai/skills' },
+  i18nPrefix: 'admin.ai.skill',
+  defaultFilters: computed(() => ({ 'filter[package_id][eq]': selectedId.value })),
+});
+
+watch(selectedId, () => loadSkills());
+</script>
+```
+
+### 示例 3：AgentForm ref 模式
+
+当表单组件提供 `openNew()` / `openEdit()` 方法时，不使用 `FormDrawer`：
+
+```vue
+<script setup>
+const { list, loadList, handleMenuAction } = useCrudList<AgentInfo>({
+  api: { list: getListApi, delete: deleteApi, resource: '/admin/ai/agents' },
+  i18nPrefix: 'admin.ai.agent',
+  customActions: { edit: (row) => formRef.value?.openEdit(row) },
+});
+
+const formRef = ref<InstanceType<typeof AgentForm>>();
+</script>
+
+<template>
+  <AgentForm ref="formRef" @success="loadList" />
+  <RecycleBinDrawer ref="recycleBinRef" resource="/admin/ai/agents" @restored="loadList" />
+  <!-- 卡片模板，菜单用 handleMenuAction -->
+</template>
+```
+
+### 回收站与依赖阻止
+
+**回收站**：页面自行渲染 `RecycleBinDrawer`，通过 ref 管理 open/count：
+
+```vue
+<script setup>
+import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
+const recycleBinRef = ref<{ open: () => void; deletedCount: number } | null>(null);
+const recycleBinCount = computed(() => recycleBinRef.value?.deletedCount ?? 0);
+function openRecycleBin() { recycleBinRef.value?.open(); }
+</script>
+
+<template>
+  <RecycleBinDrawer ref="recycleBinRef" resource="/admin/ai/xxx" @restored="loadList" />
+</template>
+```
+
+**依赖阻止**：`useCrudList` 内置处理 4221 错误码，自动弹出 `Modal.warning` 显示依赖详情，无需额外组件。
+
+---
+
 ## 权限控制
 
 ```vue

@@ -13,6 +13,8 @@ export interface AdminKnowledgeBaseItem {
   name: string;
   description: string | null;
   scope: string;
+  visibility?: string;
+  assigned_tenant_ids?: number[];
   embedding_model_name: string | null;
   embedding_model_id: number | null;
   document_count: number;
@@ -31,7 +33,10 @@ export interface AdminKnowledgeBaseCreateParams {
   name: string;
   description?: string;
   scope: string;
+  visibility?: string;
   tenant_id?: number | null;
+  tenant_ids?: number[];
+  assigned_tenant_ids?: number[];
   embedding_model_id: number;
   chunk_size?: number;
   chunk_overlap?: number;
@@ -46,7 +51,10 @@ export interface AdminKnowledgeBaseUpdateParams {
   name?: string;
   description?: string;
   scope?: string;
+  visibility?: string;
   tenant_id?: number | null;
+  tenant_ids?: number[];
+  assigned_tenant_ids?: number[];
   embedding_model_id?: number;
 }
 
@@ -248,15 +256,84 @@ export async function reindexAdminKnowledgeBaseApi(
   );
 }
 
+/** 文档分块预览（管理端） */
+export async function getAdminDocumentChunksApi(
+  kbId: number,
+  docId: number,
+  params?: { page?: number; page_size?: number },
+  options?: ApiRequestOptions,
+): Promise<{ chunks: Array<{ id: number; chunk_index: number; content: string; char_count: number; token_count: number; metadata: Record<string, unknown> }>; total: number }> {
+  return requestClient.get(
+    `${PREFIX}/${kbId}/documents/${docId}/chunks`,
+    { params, ...options },
+  );
+}
+
 /** 检索测试 */
 export async function searchAdminKnowledgeBaseApi(
   kbId: number,
-  data: { query: string; top_k?: number; score_threshold?: number },
+  data: { query: string; top_k?: number; score_threshold?: number; search_mode?: string },
   options?: ApiRequestOptions,
 ): Promise<AdminSearchResultItem[]> {
   return requestClient.post<AdminSearchResultItem[]>(
     `${PREFIX}/${kbId}/search`,
     data,
+    options,
+  );
+}
+
+/** 直接文本输入创建文档 */
+export async function createAdminTextDocumentApi(
+  kbId: number,
+  data: { title: string; content: string },
+  options?: ApiRequestOptions,
+): Promise<AdminKnowledgeDocumentItem> {
+  return requestClient.post<AdminKnowledgeDocumentItem>(
+    `${PREFIX}/${kbId}/documents/text`,
+    data,
+    options,
+  );
+}
+
+/** 添加 Q&A 问答对 */
+export async function createAdminQAPairApi(
+  kbId: number,
+  data: { question: string; answer: string },
+  options?: ApiRequestOptions,
+): Promise<AdminKnowledgeDocumentItem> {
+  return requestClient.post<AdminKnowledgeDocumentItem>(
+    `${PREFIX}/${kbId}/qa-pairs`,
+    data,
+    options,
+  );
+}
+
+/** URL 网页导入 */
+export async function importAdminUrlApi(
+  kbId: number,
+  urls: string[],
+  options?: ApiRequestOptions,
+): Promise<{ created: number }> {
+  const formData = new FormData();
+  urls.forEach((u) => formData.append('urls', u));
+  return requestClient.post(
+    `${PREFIX}/${kbId}/documents/url`,
+    formData,
+    options,
+  );
+}
+
+/** 批量导入 Q&A 问答对（CSV/Excel） */
+export async function batchImportAdminQAApi(
+  kbId: number,
+  file: File,
+  options?: ApiRequestOptions,
+): Promise<{ imported: number; skipped: number; errors: string[] }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return requestClient.post(
+    `${PREFIX}/${kbId}/qa-pairs/batch`,
+    formData,
     options,
   );
 }

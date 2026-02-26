@@ -22,10 +22,12 @@ class SkillPackageCreate(BaseCreateSchema):
     name: str = Field(..., max_length=100, description=_("skill_package.field.name"))
     description: str | None = Field(None, description=_("skill_package.field.description"))
     avatar: str | None = Field(None, max_length=255, description=_("skill_package.field.avatar"))
-    scope: str = Field("tenant", description=_("skill_package.field.scope"))
+    scope: str = Field("all_tenants", description=_("skill_package.field.scope"))
+    bind_mode: str = Field("manual", description=_("skill_package.field.bind_mode"))
     tenant_id: int | None = Field(None, description="租户ID（scope=tenant 时必填）")
     is_active: bool = Field(True, description=_("skill_package.field.is_active"))
     sort_order: int = Field(0, ge=0, description=_("skill_package.field.sort_order"))
+    tenant_ids: list[int] | None = Field(None, description="分配的租户 ID 列表（scope=assigned_tenants/admin_and_assigned 时使用）")
 
 
 class SkillPackageUpdate(BaseUpdateSchema):
@@ -35,8 +37,10 @@ class SkillPackageUpdate(BaseUpdateSchema):
     description: str | None = Field(None, description=_("skill_package.field.description"))
     avatar: str | None = Field(None, max_length=255, description=_("skill_package.field.avatar"))
     scope: str | None = Field(None, description=_("skill_package.field.scope"))
+    bind_mode: str | None = Field(None, description=_("skill_package.field.bind_mode"))
     is_active: bool | None = Field(None, description=_("skill_package.field.is_active"))
     sort_order: int | None = Field(None, ge=0, description=_("skill_package.field.sort_order"))
+    tenant_ids: list[int] | None = Field(None, description="分配的租户 ID 列表（scope=assigned_tenants/admin_and_assigned 时使用）")
 
 
 class SkillPackageResponse(BaseResponseSchema):
@@ -48,6 +52,7 @@ class SkillPackageResponse(BaseResponseSchema):
     avatar: str | None = Field(None, description=_("skill_package.field.avatar"))
     scope: str = Field(..., description=_("skill_package.field.scope"))
     is_system: bool = Field(False, description=_("skill_package.field.is_system"))
+    bind_mode: str = Field("manual", description=_("skill_package.field.bind_mode"))
     source_plugin: str | None = Field(None, description=_("skill_package.field.source_plugin"))
     valves_schema: dict[str, Any] | None = Field(None, description=_("skill_package.field.valves_schema"))
     valves_config: dict[str, Any] | None = Field(None, description=_("skill_package.field.valves_config"))

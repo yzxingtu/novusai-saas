@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import shutil
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -36,7 +35,7 @@ async def backup_plugin_data(
     Returns:
         备份目录路径
     """
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = utc_now().strftime("%Y%m%d_%H%M%S")
     backup_dir = BACKUPS_DIR / plugin_name / f"{version}_{timestamp}"
     backup_dir.mkdir(parents=True, exist_ok=True)
 
@@ -184,7 +183,13 @@ async def export_plugin_data(
         )
         table_names = [row[0] for row in tables_result]
 
+        import re
+        _SAFE_TABLE_RE = re.compile(r'^[a-z][a-z0-9_]*$')
+
         for table_name in table_names:
+            if not _SAFE_TABLE_RE.match(table_name):
+                logger.warning("Skipping unsafe table name in export: %s", table_name)
+                continue
             rows_result = await db.execute(text(f'SELECT * FROM "{table_name}"'))
             columns = list(rows_result.keys())
             rows = [dict(zip(columns, row)) for row in rows_result.fetchall()]

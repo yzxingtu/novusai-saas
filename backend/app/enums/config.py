@@ -5,13 +5,12 @@
 """
 
 from app.enums.base import StrEnum
+from app.enums.common import ResourceScopeEnum
 
 
-class ConfigScope(StrEnum):
-    """配置作用域枚举"""
-    
-    PLATFORM = ("platform", "enum.config_scope.platform")  # 平台级配置
-    TENANT = ("tenant", "enum.config_scope.tenant")  # 租户级配置
+# [DEPRECATED] ConfigScope 已统一为 ResourceScopeEnum，保留别名兼容旧代码引用
+# 旧值映射: PLATFORM→ADMIN_ONLY, TENANT→ALL_TENANTS
+ConfigScope = ResourceScopeEnum
 
 
 class ConfigValueType(StrEnum):

@@ -14,6 +14,7 @@ from app.enums.common import (
     OperationTypeEnum,
     PriorityEnum,
     ResourceScopeEnum,
+    SkillBindModeEnum,
     DeleteLevelEnum,
     UserRoleEnum,
 )
@@ -73,6 +74,7 @@ __all__ = [
     "OperationTypeEnum",
     "PriorityEnum",
     "ResourceScopeEnum",
+    "SkillBindModeEnum",
     "DeleteLevelEnum",
     "UserRoleEnum",
     # RBAC

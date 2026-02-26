@@ -154,6 +154,7 @@
     }
   },
   "agent": {
+    "readonlyHint": "该智能体由管理端分配，仅可查看和对话，不可编辑配置",
     "title": "智能体管理",
     "pageDesc": "创建和管理智能体。配置模型、工具、知识库后发布即可使用，支持版本管理和回滚。",
     "detail": {
@@ -312,8 +313,8 @@
       "rewritePlaceholder": "请选择改写策略",
       "rewriteOptions": {
         "none": "不改写",
-        "hypothetical": "假设文档",
-        "step_back": "回退提问"
+        "multi": "多查询改写",
+        "hyde": "假设性文档嵌入"
       },
       "rerankerEnabled": "启用重排序",
       "rerankerEnabledHelp": "开启后使用 Reranker 对结果二次排序，提升准确度",
@@ -703,11 +704,6 @@
     "scope": "作用域",
     "sortOrder": "排序",
     "create": "新建技能包",
-    "scope_options": {
-      "tenant": "租户",
-      "global": "全局共享",
-      "admin": "平台共享"
-    },
     "scopeTag": {
       "plugin": "插件"
     },
@@ -871,8 +867,8 @@
       },
       "rewriteOptions": {
         "none": "不改写",
-        "hypothetical": "假设性文档",
-        "step_back": "回退提问"
+        "multi": "多查询改写",
+        "hyde": "假设性文档嵌入"
       }
     },
     "builtinTools": {

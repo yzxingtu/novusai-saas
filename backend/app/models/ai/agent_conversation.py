@@ -10,6 +10,7 @@ from sqlalchemy import ForeignKey, Index, Integer, Numeric, String, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
 from app.enums.agent import ConversationStatusEnum
 
@@ -23,6 +24,11 @@ class AgentConversation(TenantModel):
     """
 
     __tablename__ = "agent_conversations"
+
+    __delete_deps__ = [
+        DeletionDep("ConversationMessage", "conversation_id", DeletionStrategy.CASCADE_DELETE,
+                    label_field="id", i18n_key="conversation_message"),
+    ]
 
     # 允许前端筛选的字段
     __filterable__ = {

@@ -635,12 +635,18 @@
       "document_limit_exceeded": "文档数量已达上限",
       "chunk_limit_exceeded": "分块总数已达上限",
       "disabled": "知识库已禁用",
-      "tenant_id_required": "scope 为 tenant 时必须指定 tenant_id"
+      "tenant_id_required": "scope 为 tenant 时必须指定 tenant_id",
+      "unsupported_file_type": "不支持的文件类型",
+      "document_not_found": "文档不存在",
+      "document_exists": "相同内容的文档已存在",
+      "document_not_error": "文档未处于失败状态，无法重试",
+      "readonly": "该知识库由管理端管理，租户无法修改"
     },
     "document": {
       "uploaded": "文档上传成功",
       "deleted": "文档删除成功",
       "retry_started": "文档重试处理已启动",
+      "retrying": "文档重试处理中",
       "error": {
         "not_found": "文档不存在",
         "duplicate": "相同文档已存在",
@@ -660,7 +666,40 @@
     "qa": {
       "question": "问题",
       "answer": "答案",
-      "created": "Q&A 问答对添加成功"
+      "created": "Q&A 问答对添加成功",
+      "batch": {
+        "missing_columns": "文件缺少 question 或 answer 列"
+      }
+    },
+    "text": {
+      "title": "文档标题",
+      "content": "文档内容"
+    },
+    "model": {
+      "name": "知识库名称",
+      "description": "描述",
+      "avatar": "头像",
+      "scope": "作用域",
+      "visibility": "可见性",
+      "tenant_id": "租户 ID",
+      "assigned_tenant_ids": "指定租户 ID 列表",
+      "embedding_model_id": "Embedding 模型",
+      "embedding_model_name": "Embedding 模型名称",
+      "embedding_dimensions": "Embedding 维度",
+      "chunk_size": "分块大小",
+      "chunk_overlap": "分块重叠",
+      "chunk_strategy": "分块策略",
+      "search_mode": "检索模式",
+      "top_k": "Top K",
+      "score_threshold": "相似度阈值",
+      "document_count": "文档数",
+      "total_chunks": "分块总数",
+      "total_size_bytes": "总大小",
+      "status": "状态"
+    },
+    "tenant_access": {
+      "knowledge_base_id": "知识库 ID",
+      "tenant_id": "租户 ID"
     },
     "log": {
       "process_started": "文档处理已启动",
@@ -1144,6 +1183,17 @@
       "global": "全局共享",
       "admin": "仅管理端"
     },
+    "scope": {
+      "admin_only": "仅管理端",
+      "all_tenants": "全部租户",
+      "admin_and_all": "全局共享",
+      "admin_and_assigned": "管理端+部分租户",
+      "assigned_tenants": "部分租户"
+    },
+    "skill_bind_mode": {
+      "auto": "自动绑定",
+      "manual": "手动绑定"
+    },
     "tool_consent": {
       "auto": "自动执行",
       "ask": "每次询问",
@@ -1200,12 +1250,19 @@
         "completed": "已完成",
         "error": "处理失败"
       },
+      "visibility": {
+        "private": "仅自身可见",
+        "all_tenants": "所有租户可见",
+        "assigned": "指定租户可见"
+      },
       "document_type": {
         "pdf": "PDF 文档",
         "docx": "Word 文档",
         "txt": "文本文件",
         "md": "Markdown 文档",
         "csv": "CSV 表格",
+        "xlsx": "Excel 表格",
+        "html": "HTML 网页",
         "qa": "Q&A 问答对",
         "url": "网页链接"
       },
@@ -2042,7 +2099,8 @@
       "invalid_table_name": "表名 '{table}' 包含非法字符，仅允许小写字母、数字和下划线",
       "invalid_column_names": "以下列名包含非法字符: {columns}，仅允许小写字母、数字和下划线",
       "no_retry_hint": " Do NOT retry this operation on this or other tables. Tell the user this table does not allow {operation} operations.",
-      "soft_delete_warning": "This will soft-delete the record (set is_deleted=true)."
+      "soft_delete_warning": "This will soft-delete the record (set is_deleted=true).",
+      "no_tenant_isolation": "表 '{table}' 没有租户隔离列，租户用户无法访问此表"
     },
     "identity_declaration": "Your name is {agent_name}. Never reveal or claim to be any other AI model."
   },
@@ -2118,7 +2176,10 @@
     "error": {
       "not_found": "功能绑定不存在",
       "feature_code_exists": "功能代码已存在",
-      "override_not_found": "租户覆盖绑定不存在"
+      "override_not_found": "租户覆盖绑定不存在",
+      "agent_not_found": "智能体不存在或已删除",
+      "agent_not_published": "智能体尚未发布，无法绑定",
+      "agent_not_accessible": "该智能体不在当前租户的可见范围内"
     }
   },
   "email_log": {
@@ -2160,6 +2221,12 @@
       "tenant": "租户",
       "tenant_domain": "域名",
       "system_agent_assignment": "系统智能体绑定"
+    }
+  },
+  "periodic_task": {
+    "error": {
+      "name_exists": "名为 '{name}' 的定时任务已存在",
+      "scope_requires_tenant_id": "scope 为 all_tenants 时必须指定 tenant_id"
     }
   },
   "quota": {

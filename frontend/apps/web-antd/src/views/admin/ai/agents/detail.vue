@@ -9,6 +9,7 @@ defineOptions({ name: 'AdminAgentDetail' });
 import type { AIAgentInfo, AIAgentSkillBindingInfo } from '#/api/admin/ai';
 
 import { computed, onMounted, ref, watch } from 'vue';
+
 import { useRoute, useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
@@ -46,6 +47,7 @@ import {
   getScopeColor,
   getPackageSelectOptions,
 } from './data';
+import { getScopeText } from '#/utils/scope-helpers';
 
 // ==================== Route ====================
 const route = useRoute();
@@ -173,6 +175,9 @@ async function loadPackageOptions() {
   }
 }
 
+const autoBindings = computed(() => bindings.value.filter((b) => b.is_auto_bound));
+const manualBindings = computed(() => bindings.value.filter((b) => !b.is_auto_bound));
+
 const unboundPackages = computed(() => {
   const boundIds = new Set(bindings.value.map((b) => b.package_id));
   return packageOptions.value.filter((p) => !boundIds.has(p.value));
@@ -180,7 +185,8 @@ const unboundPackages = computed(() => {
 
 async function bindPackage() {
   if (!selectedNewPkg.value) return;
-  const currentIds = bindings.value.map((b) => b.package_id);
+  // Only send manual binding IDs (exclude auto-bound)
+  const currentIds = manualBindings.value.map((b) => b.package_id);
   currentIds.push(selectedNewPkg.value);
   try {
     await batchBindAIAgentSkillsApi(agentId.value, { package_ids: currentIds });
@@ -194,12 +200,8 @@ async function bindPackage() {
 
 function getScopeTagProps(scope?: string, sourcePlugin?: string): { text: string; color: string } | null {
   if (sourcePlugin) return { text: $t('admin.ai.skillPackage.sourcePlugin'), color: 'purple' };
-  switch (scope) {
-    case 'global': return { text: $t('admin.ai.agent.scope.global'), color: 'blue' };
-    case 'admin': return { text: $t('admin.ai.agent.scope.admin'), color: 'orange' };
-    case 'tenant': return { text: $t('admin.ai.agent.scope.tenant'), color: 'green' };
-    default: return null;
-  }
+  if (!scope) return null;
+  return { text: getScopeText(scope), color: getScopeColor(scope) };
 }
 
 function getStatusColor(status: string | undefined): string {
@@ -252,7 +254,7 @@ function onTabChange(key: string | number) {
               {{ $t('admin.ai.agent.system') }}
             </Tag>
             <Tag :color="getScopeColor(agent.scope)">
-              {{ agent.scope }}
+              {{ getScopeText(agent.scope) }}
             </Tag>
           </div>
         </div>
@@ -276,7 +278,7 @@ function onTabChange(key: string | number) {
                   {{ getExecutionModeText(agent.execution_mode) }}
                 </DescriptionsItem>
                 <DescriptionsItem :label="$t('admin.ai.agent.scopeLabel')">
-                  <Tag :color="getScopeColor(agent.scope)">{{ agent.scope }}</Tag>
+                  <Tag :color="getScopeColor(agent.scope)">{{ getScopeText(agent.scope) }}</Tag>
                 </DescriptionsItem>
                 <DescriptionsItem :label="$t('admin.ai.agent.description')" :span="2">
                   {{ agent.description || '-' }}
@@ -399,20 +401,57 @@ function onTabChange(key: string | number) {
                   </div>
                 </Card>
 
-                <!-- Bound packages list -->
-                <Card v-for="b in bindings" :key="b.package_id" size="small">
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                      <div class="flex size-8 items-center justify-center rounded bg-primary/10 text-sm font-bold text-primary">
-                        {{ (b.package_name || '?')[0] }}
-                      </div>
-                      <span class="font-medium">{{ b.package_name || `#${b.package_id}` }}</span>
-                    </div>
-                    <Tag :color="b.consent_mode === 'auto' ? 'green' : b.consent_mode === 'ask' ? 'orange' : 'red'">
-                      {{ b.consent_mode }}
-                    </Tag>
+                <!-- Auto-bind packages (locked, non-removable) -->
+                <div v-if="autoBindings.length > 0">
+                  <div class="mb-2 text-xs font-medium text-muted-foreground">
+                    {{ $t('common.bindMode.auto') }} ({{ autoBindings.length }})
                   </div>
-                </Card>
+                  <div class="flex flex-col gap-2">
+                    <Card v-for="b in autoBindings" :key="`auto-${b.package_id}`" size="small" class="!border-primary/20 !bg-primary/5">
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                          <IconifyIcon icon="lucide:lock" class="size-4 text-primary/60" />
+                          <span class="font-medium">{{ b.package_name || `#${b.package_id}` }}</span>
+                          <Tag v-if="b.package_is_system" color="red" class="!text-[10px]">
+                            {{ $t('admin.ai.skillPackage.system') }}
+                          </Tag>
+                          <Tag v-if="b.package_scope" :color="getScopeColor(b.package_scope)" class="!text-[10px]">
+                            {{ getScopeText(b.package_scope) }}
+                          </Tag>
+                        </div>
+                        <Tag color="blue" class="!text-[10px]">
+                          <IconifyIcon icon="lucide:zap" class="mr-0.5 inline size-3" />
+                          {{ $t('common.bindMode.auto') }}
+                        </Tag>
+                      </div>
+                    </Card>
+                  </div>
+                </div>
+
+                <!-- Manual bound packages list -->
+                <div v-if="manualBindings.length > 0">
+                  <div class="mb-2 text-xs font-medium text-muted-foreground">
+                    {{ $t('common.bindMode.manual') }} ({{ manualBindings.length }})
+                  </div>
+                  <div class="flex flex-col gap-2">
+                    <Card v-for="b in manualBindings" :key="b.package_id" size="small">
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                          <div class="flex size-8 items-center justify-center rounded bg-primary/10 text-sm font-bold text-primary">
+                            {{ (b.package_name || '?')[0] }}
+                          </div>
+                          <span class="font-medium">{{ b.package_name || `#${b.package_id}` }}</span>
+                          <Tag v-if="b.package_is_system" color="red" class="!text-[10px]">
+                            {{ $t('admin.ai.skillPackage.system') }}
+                          </Tag>
+                        </div>
+                        <Tag :color="b.consent_mode === 'auto' ? 'green' : b.consent_mode === 'ask' ? 'orange' : 'red'">
+                          {{ $t(`admin.ai.agent.consentModeOptions.${b.consent_mode}`) }}
+                        </Tag>
+                      </div>
+                    </Card>
+                  </div>
+                </div>
 
                 <Empty v-if="bindings.length === 0 && !bindingsLoading" />
               </div>

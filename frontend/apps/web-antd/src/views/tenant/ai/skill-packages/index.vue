@@ -59,8 +59,12 @@ import PackageForm from './modules/form.vue';
 import ValvesConfigPanel from '#/components/business/valves-config-panel/ValvesConfigPanel.vue';
 import SkillForm from '../skills/modules/SkillForm.vue';
 import { getSkillTypeColor, getSkillTypeText } from '../skills/data';
+import { getScopeText } from '#/utils/scope-helpers';
 
-const SCOPE_GLOBAL = 'global';
+/** 判断是否为租户自有包（只有 all_tenants scope 可编辑） */
+function isTenantOwned(pkg: TenantSkillPackageInfo | null | undefined): boolean {
+  return !!pkg && pkg.scope === 'all_tenants';
+}
 
 // ==================== 技能包列表（左侧） ====================
 const packages = ref<TenantSkillPackageInfo[]>([]);
@@ -572,12 +576,12 @@ onMounted(() => {
                     {{ $t('tenant.ai.skillPackage.system') }}
                   </Tag>
                   <Tag
-                    v-if="pkg.scope === SCOPE_GLOBAL"
+                    v-if="pkg.scope !== 'all_tenants'"
                     color="purple"
                     class="shrink-0"
                     style="font-size: 10px; line-height: 14px; padding: 0 3px; margin: 0;"
                   >
-                    {{ $t('tenant.ai.skillPackage.scope_options.global') }}
+                    {{ getScopeText(pkg.scope) }}
                   </Tag>
                 </div>
                 <div class="mt-0.5 flex items-center gap-1.5">
@@ -614,19 +618,19 @@ onMounted(() => {
                         <span>{{ $t('shared.common.viewDetail') }}</span>
                       </div>
                     </MenuItem>
-                    <MenuItem v-if="pkg.is_system || pkg.scope === SCOPE_GLOBAL" key="clone">
+                    <MenuItem v-if="pkg.is_system || !isTenantOwned(pkg)" key="clone">
                       <div class="flex items-center gap-2">
                         <IconifyIcon icon="lucide:copy" class="size-3.5" />
                         <span>{{ $t('tenant.ai.skillPackage.cloneToMine') }}</span>
                       </div>
                     </MenuItem>
-                    <MenuItem v-if="!pkg.is_system && pkg.scope !== SCOPE_GLOBAL" key="edit">
+                    <MenuItem v-if="!pkg.is_system && isTenantOwned(pkg)" key="edit">
                       <div class="flex items-center gap-2">
                         <IconifyIcon icon="lucide:pencil" class="size-3.5" />
                         <span>{{ $t('tenant.common.edit') }}</span>
                       </div>
                     </MenuItem>
-                    <MenuItem v-if="!pkg.is_system && pkg.scope !== SCOPE_GLOBAL" key="delete" class="!text-destructive">
+                    <MenuItem v-if="!pkg.is_system && isTenantOwned(pkg)" key="delete" class="!text-destructive">
                       <div class="flex items-center gap-2">
                         <IconifyIcon icon="lucide:trash-2" class="size-3.5" />
                         <span>{{ $t('tenant.common.delete') }}</span>
@@ -691,7 +695,7 @@ onMounted(() => {
             {{ $t('tenant.ai.skillPackage.valves.configBtn') }}
           </Button>
           <Button
-            v-if="selectedPackage?.scope !== SCOPE_GLOBAL"
+            v-if="isTenantOwned(selectedPackage)"
             v-access:code="['skill:create']"
             type="primary"
             size="small"
@@ -799,7 +803,7 @@ onMounted(() => {
                   </Button>
                 </Tooltip>
                 <Button
-                  v-if="selectedPackage?.scope !== SCOPE_GLOBAL"
+                  v-if="isTenantOwned(selectedPackage)"
                   v-access:code="['skill:update']"
                   type="link"
                   size="small"
@@ -808,7 +812,7 @@ onMounted(() => {
                   {{ $t('common.edit') }}
                 </Button>
                 <Button
-                  v-if="!record.is_system && selectedPackage?.scope !== SCOPE_GLOBAL"
+                  v-if="!record.is_system && isTenantOwned(selectedPackage)"
                   v-access:code="['skill:delete']"
                   type="link"
                   size="small"

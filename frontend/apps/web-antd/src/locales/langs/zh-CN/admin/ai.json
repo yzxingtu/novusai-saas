@@ -356,11 +356,6 @@
     "create": "创建智能体",
     "noDescription": "暂无描述",
     "viewDetail": "查看详情",
-    "scope": {
-      "tenant": "指定租户",
-      "global": "全局共享",
-      "admin": "仅管理端"
-    },
     "status_options": {
       "draft": "草稿",
       "published": "已发布",
@@ -650,16 +645,14 @@
       "inputDescription": "请输入描述",
       "selectScope": "请选择作用域",
       "selectTenant": "请选择租户",
+      "selectAssignedTenants": "请选择要分配的租户",
       "allScopes": "全部作用域"
     },
-    "scope_options": {
-      "tenant": "指定租户",
-      "admin": "仅管理端",
-      "global": "全局共享"
-    },
     "tenantId": "所属租户",
+    "assignedTenants": "分配租户",
     "help": {
-      "scope": "仅管理端：仅管理端可见；指定租户：仅该租户可见；全局共享：管理端和所有租户都可见"
+      "scope": "仅管理端：仅管理端可见；指定租户：仅该租户可见；全局共享：管理端和所有租户都可见",
+      "assignedTenants": "选择允许使用此技能包的租户"
     },
     "sourcePlugin": "插件",
     "uploadZip": "上传技能包",
@@ -743,11 +736,6 @@
       "email": "邮件发送",
       "code_execution": "代码执行"
     },
-    "scope_options": {
-      "tenant": "指定租户",
-      "admin": "仅管理端",
-      "global": "全局共享"
-    },
     "filter": {
       "adminOnly": "仅管理端",
       "tenantOnly": "仅租户"
@@ -780,8 +768,8 @@
       },
       "rewriteOptions": {
         "none": "不改写",
-        "hypothetical": "假设性文档",
-        "step_back": "回退提问"
+        "multi": "多查询改写",
+        "hyde": "假设性文档嵌入"
       }
     },
     "builtinTools": {
@@ -976,6 +964,7 @@
     "selectAgent": "选择智能体",
     "saveSuccess": "绑定已更新",
     "noAgent": "未分配",
+    "toggleActiveConfirm": "确认{action}此功能绑定？此操作将影响所有租户。",
     "columns": {
       "featureName": "功能名称",
       "featureCode": "功能代码",

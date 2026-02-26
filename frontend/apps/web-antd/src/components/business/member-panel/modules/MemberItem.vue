@@ -115,10 +115,10 @@ function handleResetPassword() {
           <template #icon>
             <IconifyIcon icon="lucide:crown" class="mr-1" />
           </template>
-          负责人
+          {{ $t('shared.memberPanel.leader') }}
         </Tag>
         <Tag v-if="!member.isActive" color="default" class="flex-shrink-0">
-          已禁用
+          {{ $t('shared.memberPanel.item.disabled') }}
         </Tag>
         <!-- 角色名称标签 -->
         <Tag
@@ -138,7 +138,7 @@ function handleResetPassword() {
         <!-- 创建时间 -->
         <Tooltip
           v-if="member.createdAt"
-          :title="`创建: ${formatDate(member.createdAt)}`"
+          :title="$t('shared.memberPanel.item.createdAt', { date: formatDate(member.createdAt) })"
         >
           <span class="flex items-center gap-0.5 text-xs text-gray-400">
             <IconifyIcon icon="lucide:calendar" class="h-3 w-3" />
@@ -151,7 +151,7 @@ function handleResetPassword() {
     <!-- 操作按钮 -->
     <div v-if="showActions && !disabled" class="flex flex-shrink-0 gap-1">
       <!-- 编辑成员 -->
-      <Tooltip title="编辑">
+      <Tooltip :title="$t('shared.memberPanel.item.edit')">
         <Button
           type="text"
           size="small"
@@ -165,7 +165,7 @@ function handleResetPassword() {
       </Tooltip>
 
       <!-- 重置密码 -->
-      <Tooltip title="重置密码">
+      <Tooltip :title="$t('shared.memberPanel.item.resetPassword')">
         <Button
           type="text"
           size="small"
@@ -179,11 +179,11 @@ function handleResetPassword() {
       </Tooltip>
 
       <!-- 设置/取消负责人 -->
-      <Tooltip v-if="isLeader" title="取消负责人">
+      <Tooltip v-if="isLeader" :title="$t('shared.memberPanel.item.cancelLeader')">
         <Popconfirm
-          title="确定取消该成员的负责人身份吗？"
-          ok-text="确定"
-          cancel-text="取消"
+          :title="$t('shared.memberPanel.item.cancelLeaderConfirm')"
+          :ok-text="$t('shared.common.confirm')"
+          :cancel-text="$t('shared.common.cancel')"
           @confirm="handleCancelLeader"
         >
           <Button
@@ -197,7 +197,7 @@ function handleResetPassword() {
           </Button>
         </Popconfirm>
       </Tooltip>
-      <Tooltip v-else title="设为负责人">
+      <Tooltip v-else :title="$t('shared.memberPanel.item.setAsLeader')">
         <Button
           type="text"
           size="small"
@@ -211,11 +211,11 @@ function handleResetPassword() {
       </Tooltip>
 
       <!-- 移除成员 -->
-      <Tooltip title="移除成员">
+      <Tooltip :title="$t('shared.memberPanel.item.removeMember')">
         <Popconfirm
-          title="确定将该成员从此节点移除吗？"
-          ok-text="确定"
-          cancel-text="取消"
+          :title="$t('shared.memberPanel.item.removeConfirm')"
+          :ok-text="$t('shared.common.confirm')"
+          :cancel-text="$t('shared.common.cancel')"
           :ok-button-props="{ danger: true }"
           @confirm="handleRemove"
         >

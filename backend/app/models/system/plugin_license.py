@@ -31,7 +31,7 @@ class PluginLicense(BaseModel):
         String(500), nullable=True, comment="License Key",
     )
     license_type: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="trial", comment="许可类型",
+        String(20), nullable=False, default="trial", comment="许可类型 (trial/perpetual)",
     )
     version_scope: Mapped[str | None] = mapped_column(
         String(50), nullable=True, comment="版本范围",

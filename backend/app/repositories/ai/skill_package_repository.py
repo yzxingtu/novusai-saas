@@ -10,8 +10,14 @@ from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage
 from app.core.base_repository import TenantRepository, BaseRepository
 from app.enums.common import DeleteLevelEnum, ResourceScopeEnum
+from app.repositories.system.resource_tenant_assignment_repository import assigned_resource_ids_subquery
 from app.schemas.common.query import QuerySpec, FilterRule
 from app.core.base_model import utc_now
+
+_ASSIGNED_SCOPES = (
+    ResourceScopeEnum.ASSIGNED_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+)
 
 
 class _SkillPackageCascadeMixin:
@@ -124,11 +130,17 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
     async def get_by_id(
         self, id: int, include_deleted: bool = False
     ) -> SkillPackage | None:
-        """根据 ID 获取技能包，允许访问全局技能包"""
+        """根据 ID 获取技能包，允许访问全局 + 已分配的技能包"""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
-            if instance.scope == ResourceScopeEnum.GLOBAL.value:
+            if instance.scope == ResourceScopeEnum.ADMIN_AND_ALL.value:
                 return instance
+            if instance.scope in _ASSIGNED_SCOPES:
+                from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
+                repo = ResourceTenantAssignmentRepository(self.db)
+                if await repo.check_assignment("skill_package", instance.id, self.tenant_id):
+                    return instance
+                return None
             if instance.tenant_id != self.tenant_id:
                 return None
         return instance
@@ -143,7 +155,7 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
         """
         租户级技能包列表查询
 
-        自动注入条件：(tenant_id = X) OR (scope = 'global')
+        自动注入条件：(tenant_id = X) OR (scope = 'admin_and_all')
         """
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
@@ -153,12 +165,20 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
+        assigned_subq = assigned_resource_ids_subquery("skill_package", self.tenant_id)
         query = query.where(
             or_(
                 self.model.tenant_id == self.tenant_id,
-                self.model.scope == ResourceScopeEnum.GLOBAL.value,
+                self.model.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
+                and_(
+                    self.model.scope.in_(_ASSIGNED_SCOPES),
+                    self.model.id.in_(assigned_subq),
+                ),
             )
         )
+
+        # 排除系统内部技能包（SystemAgentService 基础设施）
+        query = query.where(self.model.is_system.is_(False))
 
         if forced_filters:
             query = self._apply_filters(query, forced_filters, all_fields)
@@ -202,17 +222,23 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
 
     async def get_active_packages(self) -> list[SkillPackage]:
         """
-        获取当前租户所有已激活的技能包（含 global scope 包）
+        获取当前租户所有已激活的技能包（含 global scope + 已分配包）
         """
+        assigned_subq = assigned_resource_ids_subquery("skill_package", self.tenant_id)
         stmt = (
             select(SkillPackage)
             .where(
                 and_(
                     SkillPackage.is_active.is_(True),
                     SkillPackage.is_deleted.is_(False),
+                    SkillPackage.is_system.is_(False),
                     or_(
                         SkillPackage.tenant_id == self.tenant_id,
-                        SkillPackage.scope == ResourceScopeEnum.GLOBAL.value,
+                        SkillPackage.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
+                        and_(
+                            SkillPackage.scope.in_(_ASSIGNED_SCOPES),
+                            SkillPackage.id.in_(assigned_subq),
+                        ),
                     ),
                 )
             )
@@ -226,23 +252,30 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
         获取租户可绑定的所有技能包（用于智能体技能绑定下拉）。
 
         包括：
-          - 同租户的 tenant 包
-          - global 共享包（scope='global'，tenant_id IS NULL）
+          - 同租户的 all_tenants 包
+          - admin_and_all 共享包（全局）
+          - assigned_tenants / admin_and_assigned 已分配包
 
         不包括：
-          - admin scope 包（仅管理端智能体可用）
+          - admin_only 包（仅管理端智能体可用）
         """
+        assigned_subq = assigned_resource_ids_subquery("skill_package", self.tenant_id)
         stmt = (
             select(SkillPackage)
             .where(
                 and_(
                     SkillPackage.is_active.is_(True),
                     SkillPackage.is_deleted.is_(False),
+                    SkillPackage.is_system.is_(False),
                     or_(
                         SkillPackage.tenant_id == self.tenant_id,
                         and_(
                             SkillPackage.tenant_id.is_(None),
-                            SkillPackage.scope == ResourceScopeEnum.GLOBAL.value,
+                            SkillPackage.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
+                        ),
+                        and_(
+                            SkillPackage.scope.in_(_ASSIGNED_SCOPES),
+                            SkillPackage.id.in_(assigned_subq),
                         ),
                     ),
                 )
@@ -304,9 +337,14 @@ class AdminSkillPackageRepository(_SkillPackageCascadeMixin, BaseRepository[Skil
             SkillPackage.scope == scope,
             SkillPackage.is_deleted.is_(False),
         ]
-        if scope == "tenant" and tenant_id is not None:
+        if scope == ResourceScopeEnum.ALL_TENANTS.value and tenant_id is not None:
             conditions.append(SkillPackage.tenant_id == tenant_id)
-        elif scope in ("admin", "global"):
+        elif scope in (
+            ResourceScopeEnum.ADMIN_ONLY.value,
+            ResourceScopeEnum.ADMIN_AND_ALL.value,
+            ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+            ResourceScopeEnum.ASSIGNED_TENANTS.value,
+        ):
             conditions.append(SkillPackage.tenant_id.is_(None))
 
         if exclude_id is not None:

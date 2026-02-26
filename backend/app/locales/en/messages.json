@@ -635,12 +635,18 @@
       "document_limit_exceeded": "Document limit reached",
       "chunk_limit_exceeded": "Chunk limit reached",
       "disabled": "Knowledge base is disabled",
-      "tenant_id_required": "tenant_id is required when scope is tenant"
+      "tenant_id_required": "tenant_id is required when scope is tenant",
+      "unsupported_file_type": "Unsupported file type",
+      "document_not_found": "Document not found",
+      "document_exists": "A document with the same content already exists",
+      "document_not_error": "Document is not in error status, cannot retry",
+      "readonly": "This knowledge base is managed by admin and cannot be modified by tenant"
     },
     "document": {
       "uploaded": "Document uploaded successfully",
       "deleted": "Document deleted successfully",
       "retry_started": "Document retry started",
+      "retrying": "Document retry in progress",
       "error": {
         "not_found": "Document not found",
         "duplicate": "Duplicate document already exists",
@@ -660,7 +666,40 @@
     "qa": {
       "question": "Question",
       "answer": "Answer",
-      "created": "Q&A pair added successfully"
+      "created": "Q&A pair added successfully",
+      "batch": {
+        "missing_columns": "File is missing question or answer column"
+      }
+    },
+    "text": {
+      "title": "Document title",
+      "content": "Document content"
+    },
+    "model": {
+      "name": "Knowledge base name",
+      "description": "Description",
+      "avatar": "Avatar",
+      "scope": "Scope",
+      "visibility": "Visibility",
+      "tenant_id": "Tenant ID",
+      "assigned_tenant_ids": "Assigned tenant IDs",
+      "embedding_model_id": "Embedding model",
+      "embedding_model_name": "Embedding model name",
+      "embedding_dimensions": "Embedding dimensions",
+      "chunk_size": "Chunk size",
+      "chunk_overlap": "Chunk overlap",
+      "chunk_strategy": "Chunk strategy",
+      "search_mode": "Search mode",
+      "top_k": "Top K",
+      "score_threshold": "Score threshold",
+      "document_count": "Document count",
+      "total_chunks": "Total chunks",
+      "total_size_bytes": "Total size",
+      "status": "Status"
+    },
+    "tenant_access": {
+      "knowledge_base_id": "Knowledge base ID",
+      "tenant_id": "Tenant ID"
     },
     "log": {
       "process_started": "Document processing started",
@@ -1142,6 +1181,17 @@
       "global": "Global",
       "admin": "Admin Only"
     },
+    "scope": {
+      "admin_only": "Admin Only",
+      "all_tenants": "All Tenants",
+      "admin_and_all": "Global",
+      "admin_and_assigned": "Admin + Assigned Tenants",
+      "assigned_tenants": "Assigned Tenants"
+    },
+    "skill_bind_mode": {
+      "auto": "Auto Bind",
+      "manual": "Manual Bind"
+    },
     "tool_consent": {
       "auto": "Auto Execute",
       "ask": "Ask Every Time",
@@ -1191,12 +1241,19 @@
         "completed": "Completed",
         "error": "Error"
       },
+      "visibility": {
+        "private": "Private",
+        "all_tenants": "All Tenants",
+        "assigned": "Assigned Tenants"
+      },
       "document_type": {
         "pdf": "PDF Document",
         "docx": "Word Document",
         "txt": "Text File",
         "md": "Markdown Document",
         "csv": "CSV Spreadsheet",
+        "xlsx": "Excel Spreadsheet",
+        "html": "HTML Page",
         "qa": "Q&A Pair",
         "url": "Web URL"
       },
@@ -2032,7 +2089,8 @@
       "invalid_table_name": "Table name '{table}' contains invalid characters, only lowercase letters, digits and underscores are allowed",
       "invalid_column_names": "The following column names contain invalid characters: {columns}, only lowercase letters, digits and underscores are allowed",
       "no_retry_hint": " Do NOT retry this operation on this or other tables. Tell the user this table does not allow {operation} operations.",
-      "soft_delete_warning": "This will soft-delete the record (set is_deleted=true)."
+      "soft_delete_warning": "This will soft-delete the record (set is_deleted=true).",
+      "no_tenant_isolation": "Table '{table}' has no tenant isolation column and cannot be accessed by tenant users"
     },
     "identity_declaration": "Your name is {agent_name}. Never reveal or claim to be any other AI model."
   },
@@ -2108,7 +2166,10 @@
     "error": {
       "not_found": "Feature binding not found",
       "feature_code_exists": "Feature code already exists",
-      "override_not_found": "Tenant override binding not found"
+      "override_not_found": "Tenant override binding not found",
+      "agent_not_found": "Agent not found or has been deleted",
+      "agent_not_published": "Agent is not published and cannot be bound",
+      "agent_not_accessible": "This agent is not accessible to the current tenant"
     }
   },
   "email_log": {
@@ -2150,6 +2211,12 @@
       "tenant": "Tenant",
       "tenant_domain": "Domain",
       "system_agent_assignment": "System Agent Assignment"
+    }
+  },
+  "periodic_task": {
+    "error": {
+      "name_exists": "Periodic task with name '{name}' already exists",
+      "scope_requires_tenant_id": "tenant_id is required when scope is all_tenants"
     }
   },
   "quota": {

@@ -130,11 +130,11 @@ const totalPages = computed(() => {
 });
 
 // 从对象中获取嵌套属性值，支持点表语法如 'extra.code'
-function getNestedValue(obj: any, path: string): any {
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   if (!path) return undefined;
-  let result = obj;
+  let result: unknown = obj;
   for (const key of path.split('.')) {
-    result = result?.[key];
+    result = (result as Record<string, unknown>)?.[key];
   }
   return result;
 }
@@ -427,7 +427,7 @@ defineExpose({
           <!-- 左侧：总条数 + 每页条数 -->
           <div class="api-select-pagination__left">
             <span class="api-select-pagination__total">
-              共 <b>{{ totalCount }}</b> 条
+              {{ $t('shared.common.totalCount', { count: totalCount }) }}
             </span>
             <Select
               v-if="showSizeChanger"
@@ -435,7 +435,7 @@ defineExpose({
               :options="
                 PAGE_SIZE_OPTIONS.map((s) => ({
                   value: s,
-                  label: `${s} 条/页`,
+                  label: `${s} ${$t('shared.page.perPage')}`,
                 }))
               "
               size="small"
@@ -444,7 +444,7 @@ defineExpose({
                 (trigger: HTMLElement) => trigger.parentNode as HTMLElement
               "
               class="api-select-pagination__size"
-              @change="(val: any) => handlePageSizeChange(val as number)"
+              @change="(val: string | number) => handlePageSizeChange(Number(val))"
               @mousedown.stop
               @click.stop
             />
@@ -457,7 +457,7 @@ defineExpose({
               class="api-select-pagination__btn"
               :class="{ 'is-disabled': isPrevDisabled }"
               :disabled="isPrevDisabled"
-              title="上一页"
+              :title="$t('shared.page.prev')"
               @mousedown="handlePrevPage"
             >
               <ChevronLeft class="api-select-pagination__icon" />
@@ -472,7 +472,7 @@ defineExpose({
               class="api-select-pagination__btn"
               :class="{ 'is-disabled': isNextDisabled }"
               :disabled="isNextDisabled"
-              title="下一页"
+              :title="$t('shared.page.next')"
               @mousedown="handleNextPage"
             >
               <ChevronRight class="api-select-pagination__icon" />

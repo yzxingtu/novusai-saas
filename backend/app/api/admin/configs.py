@@ -92,7 +92,7 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
 @permission_resource(
     resource="platform_config",
     name="menu.admin.platform_config",  # i18n key
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:settings",
         path="/system/configs",
@@ -129,7 +129,7 @@ class AdminConfigController(GlobalController):
             
             权限: platform_config:groups
             """
-            groups = config_registry.get_groups_by_scope(ConfigScope.PLATFORM)
+            groups = config_registry.get_groups_by_scope(ConfigScope.ADMIN_ONLY)
             
             result = []
             for group in groups:
@@ -170,7 +170,7 @@ class AdminConfigController(GlobalController):
             """
             # 验证分组存在
             group = config_registry.get_group(group_code)
-            if not group or group.scope != ConfigScope.PLATFORM:
+            if not group or group.scope != ConfigScope.ADMIN_ONLY:
                 raise NotFoundException(
                     message=_("config.group_not_found"),
                     code=ErrorCode.CONFIG_GROUP_NOT_FOUND,
@@ -179,7 +179,7 @@ class AdminConfigController(GlobalController):
             # 获取配置值
             config_service = ConfigService(db)
             groups_with_configs = await config_service.get_groups_with_configs(
-                scope=ConfigScope.PLATFORM,
+                scope=ConfigScope.ADMIN_ONLY,
             )
             
             # 找到目标分组
@@ -233,7 +233,7 @@ class AdminConfigController(GlobalController):
             """
             # 验证分组存在
             group = config_registry.get_group(group_code)
-            if not group or group.scope != ConfigScope.PLATFORM:
+            if not group or group.scope != ConfigScope.ADMIN_ONLY:
                 raise NotFoundException(
                     message=_("config.group_not_found"),
                     code=ErrorCode.CONFIG_GROUP_NOT_FOUND,
@@ -265,7 +265,7 @@ class AdminConfigController(GlobalController):
             
             # 返回更新后的配置
             groups_with_configs = await config_service.get_groups_with_configs(
-                scope=ConfigScope.PLATFORM,
+                scope=ConfigScope.ADMIN_ONLY,
             )
             
             target_group = None

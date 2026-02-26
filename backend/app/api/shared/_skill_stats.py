@@ -6,12 +6,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import func, select, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.base_model import utc_now
 from app.models.ai.skill import Skill
 from app.models.ai.skill_call_log import SkillCallLog
 
@@ -32,7 +33,7 @@ async def get_package_call_stats(
     Returns:
         统计数据字典
     """
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    since = utc_now() - timedelta(days=days)
 
     # 查询包内技能 ID 列表
     skill_ids_result = await db.execute(

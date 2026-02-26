@@ -25,6 +25,8 @@
   "success": "操作成功",
   "failed": "操作失败",
   "noData": "暂无数据",
+  "prev": "上一页",
+  "next": "下一页",
   "createdAt": "创建时间",
   "deletedAt": "删除时间",
   "tenantAdmin": "租户管理员",

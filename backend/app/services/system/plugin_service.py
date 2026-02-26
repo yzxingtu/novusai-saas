@@ -117,7 +117,7 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         """
         from sqlalchemy import select
 
-        from app.models.system.plugin_tenant_assignment import PluginTenantAssignment
+        from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
 
         plugin = await self.repo.get_by_id(plugin_id)
         if not plugin:
@@ -125,8 +125,9 @@ class PluginService(BaseService[Plugin, PluginRepository]):
 
         # 查询已有分配
         result = await self.db.execute(
-            select(PluginTenantAssignment.tenant_id).where(
-                PluginTenantAssignment.plugin_id == plugin_id,
+            select(ResourceTenantAssignment.tenant_id).where(
+                ResourceTenantAssignment.resource_type == "plugin",
+                ResourceTenantAssignment.resource_id == plugin_id,
             )
         )
         existing = {row for row in result.scalars()}
@@ -134,8 +135,9 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         count = 0
         for tid in tenant_ids:
             if tid not in existing:
-                self.db.add(PluginTenantAssignment(
-                    plugin_id=plugin_id,
+                self.db.add(ResourceTenantAssignment(
+                    resource_type="plugin",
+                    resource_id=plugin_id,
                     tenant_id=tid,
                     is_active=True,
                     config={},
@@ -150,12 +152,13 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         """取消租户分配"""
         from sqlalchemy import delete
 
-        from app.models.system.plugin_tenant_assignment import PluginTenantAssignment
+        from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
 
         await self.db.execute(
-            delete(PluginTenantAssignment).where(
-                PluginTenantAssignment.plugin_id == plugin_id,
-                PluginTenantAssignment.tenant_id == tenant_id,
+            delete(ResourceTenantAssignment).where(
+                ResourceTenantAssignment.resource_type == "plugin",
+                ResourceTenantAssignment.resource_id == plugin_id,
+                ResourceTenantAssignment.tenant_id == tenant_id,
             )
         )
         await self.db.flush()
@@ -164,14 +167,15 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         self, plugin_id: int, tenant_id: int, is_active: bool
     ) -> None:
         """切换租户分配启用状态"""
-        from sqlalchemy import select, update
+        from sqlalchemy import update
 
-        from app.models.system.plugin_tenant_assignment import PluginTenantAssignment
+        from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
 
         await self.db.execute(
-            update(PluginTenantAssignment).where(
-                PluginTenantAssignment.plugin_id == plugin_id,
-                PluginTenantAssignment.tenant_id == tenant_id,
+            update(ResourceTenantAssignment).where(
+                ResourceTenantAssignment.resource_type == "plugin",
+                ResourceTenantAssignment.resource_id == plugin_id,
+                ResourceTenantAssignment.tenant_id == tenant_id,
             ).values(is_active=is_active)
         )
         await self.db.flush()
@@ -182,26 +186,13 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         self, plugin_id: int, license_key: str
     ) -> None:
         """激活插件 License"""
-        from app.core.base_model import utc_now
-        from app.models.system.plugin_license import PluginLicense
+        from app.plugins.license import activate_license as activate_plugin_license
 
-        plugin = await self.repo.get_by_id(plugin_id)
-        if not plugin:
-            raise NotFoundException(message="plugin.error.not_found")
-
-        # 简单验证（Phase 4 实现 Ed25519 签名验证）
-        if not license_key or len(license_key) < 10:
-            raise BusinessException(message="plugin.error.license_invalid")
-
-        license_record = PluginLicense(
-            plugin_id=plugin_id,
-            license_key=license_key,
-            license_type="perpetual",
-            is_valid=True,
-            activated_at=utc_now(),
-        )
-        self.db.add(license_record)
-        await self.db.flush()
+        result = await activate_plugin_license(plugin_id, license_key, self.db)
+        if not result.get("success"):
+            raise BusinessException(
+                message=result.get("message") or "plugin.error.license_invalid",
+            )
 
     # ── 查询辅助 ──
 

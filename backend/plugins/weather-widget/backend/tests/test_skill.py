@@ -57,14 +57,14 @@ class TestWeatherResolver:
         skill = SimpleNamespace(name="weather-realtime")
         tools = resolve(skill, {})
         assert tools[0].name == "get_current_weather"
-        assert tools[0].tool_type == "weather_widget"
+        assert tools[0].tool_type == "toolkit"
         assert any(p.name == "city" and p.required for p in tools[0].parameters)
 
     def test_second_tool_is_forecast(self):
         skill = SimpleNamespace(name="weather-realtime")
         tools = resolve(skill, {})
         assert tools[1].name == "get_weather_forecast"
-        assert tools[1].tool_type == "weather_widget"
+        assert tools[1].tool_type == "toolkit"
         param_names = {p.name for p in tools[1].parameters}
         assert "city" in param_names
         assert "days" in param_names

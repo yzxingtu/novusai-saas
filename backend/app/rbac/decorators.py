@@ -121,7 +121,7 @@ class PermissionMeta:
 def permission_resource(
     resource: str,
     name: str,
-    scope: PermissionScope = PermissionScope.TENANT,
+    scope: PermissionScope = PermissionScope.ALL_TENANTS,
     menu: MenuConfig | None = None,
     description: str = "",
     parent_resource: str | None = None,
@@ -145,7 +145,7 @@ def permission_resource(
         @permission_resource(
             resource="user",
             name="用户管理",
-            scope=PermissionScope.TENANT,
+            scope=PermissionScope.ALL_TENANTS,
             menu=MenuConfig(icon="user", path="/users", component="user/List")
         )
         class UserController:
@@ -158,7 +158,7 @@ def permission_resource(
         @permission_resource(
             resource="tenant_domain",
             name="租户域名管理",
-            scope=PermissionScope.ADMIN,
+            scope=PermissionScope.ADMIN_ONLY,
             parent_resource="tenant",  # 操作权限挂载到 tenant 菜单下
         )
         class TenantDomainController:
@@ -176,7 +176,7 @@ def permission_resource(
         
         # 注册菜单权限
         if menu:
-            scope_prefix = "admin" if scope == PermissionScope.ADMIN else "tenant"
+            scope_prefix = "admin" if scope == PermissionScope.ADMIN_ONLY else "tenant"
             menu_code = f"menu:{scope_prefix}.{resource}"
             parent_code = None
             if menu.parent:
@@ -397,7 +397,7 @@ def register_action_permissions(controller_cls: type, router: Any) -> None:
     
     # 构造父菜单权限 code（操作权限挂载到对应菜单下）
     from app.enums.rbac import PermissionScope
-    scope_prefix = "admin" if scope == PermissionScope.ADMIN else "tenant"
+    scope_prefix = "admin" if scope == PermissionScope.ADMIN_ONLY else "tenant"
     
     # 优先使用 parent_resource 指定的父菜单，否则使用自己的资源菜单
     if parent_resource:

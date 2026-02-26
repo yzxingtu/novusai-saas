@@ -10,6 +10,7 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Ind
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import BaseModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 from app.enums.domain import DomainSslStatus, DomainType
 
 
@@ -23,6 +24,11 @@ class TenantDomain(BaseModel):
     """
     
     __tablename__ = "tenant_domains"
+
+    __delete_deps__ = [
+        DeletionDep("DomainSslCertificate", "domain_id", DeletionStrategy.CASCADE_DELETE,
+                    label_field="id", i18n_key="domain_ssl_certificate"),
+    ]
     
     # 允许前端筛选的字段
     __filterable__ = {

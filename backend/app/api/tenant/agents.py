@@ -25,7 +25,26 @@ from app.ai.agent_stats import AgentStatsManager
 from app.core.recycle_bin import register_tenant_recycle_bin_routes
 from app.schemas.ai.agent import AgentCreate, AgentUpdate
 from app.schemas.ai.agent_access import AgentAccessUpdate
+from app.exceptions import BusinessException
 from app.services.ai.agent_service import AgentService
+
+
+async def _ensure_tenant_owned_agent(db, tenant_id: int, agent_id: int):
+    """
+    确保智能体为租户自有（scope=all_tenants）才允许变更操作。
+
+    assigned_tenants / admin_and_assigned / admin_and_all / admin_only 的智能体
+    对租户只读，不允许编辑、发布、回滚、绑定技能等变更操作。
+    """
+    from app.enums.common import ResourceScopeEnum
+
+    service = AgentService(db, tenant_id)
+    agent = await service.get_by_id(agent_id)
+    if not agent:
+        raise NotFoundException(message=_("agent.error.not_found"))
+    if agent.scope != ResourceScopeEnum.ALL_TENANTS.value:
+        raise BusinessException(message=_("agent.error.system_protected"))
+    return agent
 
 
 def _build_agent_list_item(agent) -> dict:
@@ -40,7 +59,7 @@ def _build_agent_list_item(agent) -> dict:
 @permission_resource(
     resource="agent",
     name="menu.tenant.agent",
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=MenuConfig(
         icon="lucide:bot",
         path="/ai/agents",
@@ -275,6 +294,8 @@ class TenantAgentController(TenantController):
 
             权限: agent:update_access
             """
+            await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
+
             service = AgentService(db, tenant_admin.tenant_id)
             config = await service.update_access_config(
                 agent_id=agent_id,

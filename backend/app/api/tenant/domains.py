@@ -40,7 +40,7 @@ from app.services.system.ssl_certificate_service import SslCertificateService
 @permission_resource(
     resource="tenant_domain",
     name="menu.tenant.domain",  # i18n key
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=MenuConfig(
         icon="lucide:globe",
         path="/system-mgmt/domains",

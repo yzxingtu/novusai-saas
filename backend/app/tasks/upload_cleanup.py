@@ -8,9 +8,9 @@ import json
 import shutil
 import tempfile
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 
+from app.core.base_model import utc_now
 from app.core.logging import LogManager
 from app.tasks.base import register_task, BaseTask
 
@@ -42,7 +42,7 @@ def cleanup_chunk_uploads(self: BaseTask, retention_hours: int = DEFAULT_RETENTI
 
     cleaned = 0
     errors = 0
-    now = datetime.now(timezone.utc)
+    now = utc_now()
 
     # 遍历所有租户/admin 子目录
     for tenant_dir in upload_root.iterdir():

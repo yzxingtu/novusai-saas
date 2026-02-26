@@ -881,10 +881,9 @@ class AIGateway:
                 provider=provider.code,
             )
 
-        # 构建测试消息
-        messages = [
-            ChatMessage(role="user", content=test_prompt),
-        ]
+        # 检测模型类型（embedding 模型需要不同的测试方式）
+        ai_model = await self._get_model(model_code, provider.id)
+        is_embedding = ai_model and ai_model.type == "embedding"
 
         # 记录开始时间
         start_time = time.time()
@@ -896,6 +895,30 @@ class AIGateway:
                 api_key=api_key.decrypt_key(),
                 base_url=provider.base_url,
             )
+
+            if is_embedding:
+                # Embedding 模型：发送测试文本，验证返回向量
+                response = await adapter.embedding(
+                    texts=[test_prompt or "Hello"],
+                    model=model_code,
+                )
+                latency_ms = int((time.time() - start_time) * 1000)
+                dim = len(response.embeddings[0]) if response.embeddings else 0
+
+                return TestModelResult(
+                    connected=True,
+                    latency_ms=latency_ms,
+                    input_tokens=response.input_tokens or 0,
+                    total_tokens=response.total_tokens or 0,
+                    response_text=f"Embedding OK: dim={dim}",
+                    model=model_code,
+                    provider=provider.code,
+                )
+
+            # Chat 模型
+            messages = [
+                ChatMessage(role="user", content=test_prompt),
+            ]
 
             if stream:
                 # 流式响应测试（只取前 5 个 chunk）

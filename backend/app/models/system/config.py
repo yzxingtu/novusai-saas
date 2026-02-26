@@ -8,6 +8,7 @@ from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import BaseModel, TenantModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 from app.enums.config import ConfigScope, ConfigValueType
 
 
@@ -19,6 +20,13 @@ class SystemConfigGroup(BaseModel):
     """
     
     __tablename__ = "system_config_groups"
+
+    __delete_deps__ = [
+        DeletionDep("SystemConfigGroup", "parent_id", DeletionStrategy.CASCADE_SOFT,
+                    label_field="code", i18n_key="config_group_child"),
+        DeletionDep("SystemConfig", "group_id", DeletionStrategy.BLOCK,
+                    label_field="key", i18n_key="system_config"),
+    ]
     
     # 可过滤字段声明
     __filterable__ = {
@@ -31,6 +39,8 @@ class SystemConfigGroup(BaseModel):
         "created_at": "created_at",
         "updated_at": "updated_at",
     }
+    
+    __sortable__ = ["id", "code", "scope", "sort_order", "is_active", "created_at", "updated_at"]
     
     # 下拉选项配置
     __selectable__ = {
@@ -55,8 +65,8 @@ class SystemConfigGroup(BaseModel):
     
     # 作用域
     scope: Mapped[str] = mapped_column(
-        String(20), default=ConfigScope.PLATFORM.value, index=True,
-        comment="作用域: platform/tenant"
+        String(20), default=ConfigScope.ADMIN_ONLY.value, index=True,
+        comment="作用域: admin_only/all_tenants"
     )
     
     # 层级关系
@@ -107,6 +117,11 @@ class SystemConfig(BaseModel):
     """
     
     __tablename__ = "system_configs"
+
+    __delete_deps__ = [
+        DeletionDep("SystemConfigValue", "config_id", DeletionStrategy.CASCADE_DELETE,
+                    label_field="id", i18n_key="system_config_value"),
+    ]
     
     # 复合唯一索引
     __table_args__ = (
@@ -157,8 +172,8 @@ class SystemConfig(BaseModel):
     
     # 作用域
     scope: Mapped[str] = mapped_column(
-        String(20), default=ConfigScope.PLATFORM.value, index=True,
-        comment="作用域: platform/tenant"
+        String(20), default=ConfigScope.ADMIN_ONLY.value, index=True,
+        comment="作用域: admin_only/all_tenants"
     )
     
     # 值类型和默认值

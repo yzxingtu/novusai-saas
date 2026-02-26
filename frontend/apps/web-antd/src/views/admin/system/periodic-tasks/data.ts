@@ -14,17 +14,14 @@ import {
   switchField,
   textareaField,
 } from '#/adapter/form';
-import { getTenantSelectApi } from '#/api/admin/tenant';
+import { useScopeFields } from '#/components/business/scope-select';
 import { $t } from '#/locales';
+import { getScopeOptions as _getScopeOptions } from '#/utils/scope-helpers';
 
 type PeriodicTaskInfo = adminApi.PeriodicTaskInfo;
 
 function getScopeOptions() {
-  return [
-    { label: $t('admin.system.periodicTask.scope.platform'), value: 'platform' },
-    { label: $t('admin.system.periodicTask.scope.tenant'), value: 'tenant' },
-    { label: $t('admin.system.periodicTask.scope.allTenants'), value: 'all_tenants' },
-  ];
+  return _getScopeOptions(['admin_only', 'all_tenants']);
 }
 
 /**
@@ -279,22 +276,9 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
     }),
 
     dividerField('scope_divider', $t('admin.system.periodicTask.section.scope')),
-    select('scope', $t('admin.system.periodicTask.scopeLabel'), {
-      options: getScopeOptions(),
-      required: true,
-      placeholder: $t('admin.system.periodicTask.placeholder.selectScope'),
+    ...useScopeFields({
+      allowedScopes: ['admin_only', 'all_tenants'],
     }),
-    {
-      ...select('tenant_id', $t('admin.system.periodicTask.tenantName'), {
-        api: getTenantSelectApi,
-        params: { is_active: 'true' },
-        placeholder: $t('admin.system.periodicTask.placeholder.selectTenant'),
-      }),
-      dependencies: {
-        triggerFields: ['scope'],
-        show: (values) => values.scope === 'tenant',
-      },
-    },
 
     dividerField('protection_divider', $t('admin.system.periodicTask.section.protection')),
     switchField('is_locked', $t('admin.system.periodicTask.isLocked'), {
@@ -345,7 +329,7 @@ export function getFormDefaults(): Record<string, unknown> {
     schedule_type: 'interval',
     interval_seconds: 60,
     is_active: true,
-    scope: 'platform',
+    scope: 'admin_only',
     is_locked: false,
     is_editable: true,
     max_retries: 0,

@@ -106,7 +106,7 @@ async def generate_preview(
         "events": len(ext.events),
         "events_details": [e.event for e in ext.events],
         "webhooks": len(ext.webhooks),
-        "webhooks_details": [f"{w.method} /{w.path}" for w in ext.webhooks],
+        "webhooks_details": [f"{w.method} {w.path}" for w in ext.webhooks],
         "tasks": len(ext.tasks),
         "tasks_details": [t.name for t in ext.tasks],
         "notifications": len(ext.notifications),

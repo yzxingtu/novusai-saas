@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -26,8 +27,8 @@ _DEFAULT_GITHUB_URL = "https://raw.githubusercontent.com/novusai/plugin-marketpl
 _DEFAULT_GITEE_URL = "https://gitee.com/novusai/plugin-marketplace/raw/main"
 _DEFAULT_CACHE_TTL = 3600
 
-# 内存缓存（进程级，多实例部署时各自缓存）
-_cache: dict[str, tuple[float, object]] = {}
+# Redis 缓存 key 前缀（多 worker 共享）
+_CACHE_PREFIX = "marketplace:"
 
 
 class MarketplaceClient:
@@ -111,16 +112,21 @@ class MarketplaceClient:
 
     # ── 缓存 ──
 
-    def _get_cached(self, key: str) -> object | None:
-        """从内存缓存读取"""
-        entry = _cache.get(key)
-        if entry and time.time() - entry[0] < self._cache_ttl:
-            return entry[1]
-        return None
+    async def _get_cached(self, key: str) -> object | None:
+        """从 Redis 缓存读取（多 worker 共享）"""
+        try:
+            from app.core.redis import cache_get
+            return await cache_get(f"{_CACHE_PREFIX}{key}")
+        except Exception:
+            return None
 
-    def _set_cached(self, key: str, value: object) -> None:
-        """写入内存缓存"""
-        _cache[key] = (time.time(), value)
+    async def _set_cached(self, key: str, value: object) -> None:
+        """写入 Redis 缓存（多 worker 共享）"""
+        try:
+            from app.core.redis import cache_set
+            await cache_set(f"{_CACHE_PREFIX}{key}", value, ttl=self._cache_ttl)
+        except Exception as exc:
+            logger.debug("Marketplace cache_set failed for %s: %s", key, exc)
 
     # ── 本地回退 ──
 
@@ -148,34 +154,32 @@ class MarketplaceClient:
         网络失败时返回缓存数据（如果有）。
         """
         cache_key = "marketplace:registry"
-        cached = self._get_cached(cache_key)
+        cached = await self._get_cached(cache_key)
         if cached is not None:
             return cached  # type: ignore
 
-        base_url = await self._select_source()
-        url = f"{base_url}/registry.json"
-
         try:
+            source = await self._select_source()
             async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(url)
+                resp = await client.get(f"{source}/registry.json")
                 resp.raise_for_status()
                 data = resp.json()
 
             plugins = data.get("plugins", data) if isinstance(data, dict) else data
             if isinstance(plugins, list):
-                self._set_cached(cache_key, plugins)
+                await self._set_cached(cache_key, plugins)
                 return plugins
             return []
         except Exception as exc:
             logger.warning("Failed to fetch marketplace registry: %s", exc)
-            # 返回过期缓存（如果有）
-            stale = _cache.get(cache_key)
+            # 返回 Redis 中的过期缓存（如果有）
+            stale = await self._get_cached(cache_key)
             if stale:
-                return stale[1]  # type: ignore
+                return stale  # type: ignore
             # 最后回退到本地 registry
             local = self._get_local_registry()
             if local:
-                self._set_cached(cache_key, local)
+                await self._set_cached(cache_key, local)
             return local
 
     async def list_plugins(
@@ -261,7 +265,7 @@ class MarketplaceClient:
     async def fetch_plugin_detail(self, slug: str) -> dict | None:
         """获取单个插件详细元数据"""
         cache_key = f"marketplace:plugin:{slug}"
-        cached = self._get_cached(cache_key)
+        cached = await self._get_cached(cache_key)
         if cached is not None:
             return cached  # type: ignore
 
@@ -276,13 +280,13 @@ class MarketplaceClient:
                 resp.raise_for_status()
                 data = resp.json()
 
-            self._set_cached(cache_key, data)
+            await self._set_cached(cache_key, data)
             return data
         except Exception as exc:
             logger.warning("Failed to fetch plugin detail for %s: %s", slug, exc)
-            stale = _cache.get(cache_key)
+            stale = await self._get_cached(cache_key)
             if stale:
-                return stale[1]  # type: ignore
+                return stale  # type: ignore
             return None
 
     async def fetch_readme(self, slug: str, locale: str = "zh-CN") -> str | None:
@@ -333,33 +337,50 @@ class MarketplaceClient:
                 )
 
         # 下载（重试 2 次）
+        from app.plugins.exceptions import PluginInstallError
+        from app.plugins.package_security import (
+            ensure_package_size_limit,
+            validate_plugin_zip_archive,
+        )
+
         tmp_dir = Path(tempfile.mkdtemp(prefix="novusai_plugin_"))
         zip_path = tmp_dir / f"{slug}-{version}.zip"
 
         for attempt in range(3):
             try:
                 async with httpx.AsyncClient(timeout=60.0) as client:
-                    resp = await client.get(download_url, follow_redirects=True)
-                    resp.raise_for_status()
+                    async with client.stream("GET", download_url, follow_redirects=True) as resp:
+                        resp.raise_for_status()
 
-                with open(zip_path, "wb") as f:
-                    f.write(resp.content)
+                        downloaded = 0
+                        with open(zip_path, "wb") as f:
+                            async for chunk in resp.aiter_bytes(chunk_size=1024 * 1024):
+                                if not chunk:
+                                    continue
+                                downloaded += len(chunk)
+                                ensure_package_size_limit(downloaded)
+                                f.write(chunk)
+
+                validate_plugin_zip_archive(zip_path)
 
                 logger.info(
                     "Downloaded plugin %s v%s (%d bytes)",
-                    slug, version, len(resp.content),
+                    slug, version, zip_path.stat().st_size,
                 )
                 return zip_path
 
+            except PluginInstallError:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+                raise
             except Exception as exc:
+                zip_path.unlink(missing_ok=True)
                 if attempt < 2:
                     logger.warning(
                         "Download attempt %d failed for %s: %s, retrying...",
                         attempt + 1, slug, exc,
                     )
                     continue
-                from app.plugins.exceptions import PluginInstallError
-
+                shutil.rmtree(tmp_dir, ignore_errors=True)
                 raise PluginInstallError(
                     message=f"Failed to download plugin '{slug}' after 3 attempts: {exc}",
                 )

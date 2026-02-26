@@ -33,7 +33,7 @@ from app.services.ai.skill_service import SkillService
 @permission_resource(
     resource="skill",
     name="menu.tenant.skill",
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=None,
     parent_resource="skill_package",
 )
@@ -126,7 +126,7 @@ class TenantSkillController(TenantController):
             if not skill:
                 raise NotFoundException(message=_("skill.error.not_found"))
 
-            from app.api.admin._skill_stats import get_skill_stats_by_id
+            from app.api.shared._skill_stats import get_skill_stats_by_id
             stats = await get_skill_stats_by_id(db, skill_id)
             return success(data=stats)
 
@@ -146,7 +146,7 @@ class TenantSkillController(TenantController):
             if not skill:
                 raise NotFoundException(message=_("skill.error.not_found"))
 
-            from app.api.admin._skill_test import test_skill
+            from app.api.shared._skill_test import test_skill
             result = await test_skill(db, skill)
             return success(data=result)
 
@@ -168,11 +168,11 @@ class TenantSkillController(TenantController):
             if not skill:
                 raise NotFoundException(message=_("skill.error.not_found"))
 
-            from app.api.admin.skills import _enrich_plugin_skill_info
+            from app.api.shared._skill_helpers import enrich_plugin_skill_info
             from app.schemas.ai.skill import SkillResponse
 
             data = SkillResponse.model_validate(skill, from_attributes=True)
-            await _enrich_plugin_skill_info(db, skill, data)
+            await enrich_plugin_skill_info(db, skill, data)
 
             return success(data=data)
 

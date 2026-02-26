@@ -38,7 +38,7 @@ from app.services.system.ssl_certificate_service import SslCertificateService
 @permission_resource(
     resource="tenant_domain",
     name="menu.admin.tenant_domain",  # i18n key
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     parent_resource="tenant",  # 操作权限挂载到租户管理菜单下
 )
 class AdminTenantDomainController(GlobalController):

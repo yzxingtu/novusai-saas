@@ -142,11 +142,11 @@ async function onExportPackage(pkg: AdminSkillPackageInfo) {
 const importModalVisible = ref(false);
 const importing = ref(false);
 const importConflictMode = ref<'rename' | 'skip'>('rename');
-const importTargetScope = ref('admin');
+const importTargetScope = ref('admin_only');
 
 function onImportClick() {
   importConflictMode.value = 'rename';
-  importTargetScope.value = 'admin';
+  importTargetScope.value = 'admin_only';
   importModalVisible.value = true;
 }
 
@@ -215,7 +215,7 @@ function onCreatePackage() {
     .setData({
       mode: 'add',
       _resource: '/admin/ai/skill-packages',
-      _defaults: { scope: 'admin', is_active: true, sort_order: 0 },
+      _defaults: { scope: 'admin_only', is_active: true, sort_order: 0 },
     })
     .open();
 }
@@ -334,7 +334,7 @@ function onCreateSkill() {
       _defaults: {
         package_id: selectedPackageId.value,
         type: 'toolkit',
-        scope: selectedPackage.value?.scope ?? 'admin',
+        scope: selectedPackage.value?.scope ?? 'admin_only',
         timeout: 30,
         is_active: true,
         toolkit_content: '',
@@ -606,8 +606,8 @@ onMounted(() => {
               v-model:value="importTargetScope"
               size="small"
               :options="[
-                { label: $t('admin.ai.skillPackage.scope_options.admin'), value: 'admin' },
-                { label: $t('admin.ai.skillPackage.scope_options.global'), value: 'global' },
+                { label: getScopeText('admin_only'), value: 'admin_only' },
+                { label: getScopeText('admin_and_all'), value: 'admin_and_all' },
               ]"
             />
           </div>

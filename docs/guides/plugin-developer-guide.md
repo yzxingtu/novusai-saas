@@ -67,14 +67,15 @@ extensions:
   hooks: [...]                     # 钩子扩展
   webhooks: [...]                  # Webhook 端点
   events: [...]                    # EventBus 订阅
-  api: { admin_routes: [...] }     # API 路由
+  api: { admin_routes: [...], tenant_routes: [...], public_routes: [...] }  # API 路由
 ```
 
 ### 命名规范
 
 - **DB 表**: `px_{name}_*`（如 `px_my_plugin_customers`）
 - **i18n Key**: `plugin.{name}.*`（如 `plugin.my-plugin.title`）
-- **API 路径**: `/admin/plugins/{name}/api/*`
+- **API 路径**: `/admin/plugins/{name}/api/*` 或 `/tenant/plugins/{name}/api/*`
+- **前端菜单/页面路径**: 必须以 `/admin/plugins/` 或 `/tenant/plugins/` 开头
 
 ### PluginBase 生命周期
 
@@ -92,16 +93,17 @@ class MyPlugin(PluginBase):
 ### PluginContext API
 
 ```python
-ctx.get_config()                        # 读取配置（自动解密敏感字段）
-ctx.get_tenant_config(tenant_id)        # 读取租户配置
-ctx.update_config(config)               # 更新配置（需 config:write）
-ctx.get_db()                            # 获取 DB 代理（限 px_{name}_* 表）
-ctx.get_logger()                        # 获取专属 Logger
-ctx.get_storage()                       # 获取存储代理（限 plugins/{name}/）
-ctx.http_request(method, url)           # 发送 HTTP（需 http:outbound）
-ctx.call_ai_feature(code, messages)     # 调用 AI（需 ai:call）
-ctx.send_notification(tid, uids, code)  # 发送通知（需 notifications:send）
-ctx.emit_event(name, data)              # 触发自定义事件
+config = await ctx.get_config()                         # 读取配置（自动解密敏感字段）
+tenant_config = await ctx.get_tenant_config(tenant_id) # 读取租户配置
+await ctx.update_config(config)                         # 更新配置（需 config:write）
+db = ctx.get_db()                                       # 获取 DB 代理（需 db:own_tables）
+logger = ctx.get_logger()                               # 获取专属 Logger
+storage = await ctx.get_storage()                       # 获取存储代理（限 plugins/{name}/）
+resp = await ctx.http_request(method, url)              # 发送 HTTP（需 http:outbound）
+text = await ctx.call_ai_feature(code, messages)        # 调用 AI（需 ai:call）
+license_info = await ctx.get_own_license_status()       # 读取当前插件 license 状态
+await ctx.send_notification(tid, uids, code)            # 发送通知（需 notifications:send）
+await ctx.emit_event(name, data)                        # 触发自定义事件
 ```
 
 ### Handler 加载机制
@@ -115,7 +117,7 @@ ctx.emit_event(name, data)              # 触发自定义事件
 extensions:
   skills:
     - name: weather
-      type: weather_widget
+      type: toolkit
       entry_point: "skills.weather_resolver"   # → backend/skills/weather_resolver.py
 ```
 
@@ -126,6 +128,23 @@ extensions:
 2. main.py fallback: `main.py` 模块的 getattr 链
 
 **module_name 统一格式**: `plugins.{plugin_name}.backend.{dotted_path}`
+
+### API Handler 参数注入规范（严格模式）
+
+插件 API handler 推荐签名：
+
+```python
+async def my_handler(request, ctx):
+    ...
+
+async def my_db_handler(request, db, ctx):
+    ...
+```
+
+- `request`：按签名注入 FastAPI Request
+- `ctx`：按签名注入 PluginContext
+- `db`：仅当插件已授予 `db:own_tables` 时才会注入 `PluginDbProxy`
+- `db` 不再是原始 `AsyncSession`，禁止依赖 `db.session`
 
 ### API Handler 错误返回规范
 

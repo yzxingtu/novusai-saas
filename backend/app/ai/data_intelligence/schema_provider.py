@@ -425,6 +425,7 @@ class SchemaProvider:
 
             if perm_code == "platform_only":
                 continue
+
             if perm_code == "*":
                 allowed.add(table_name)
             elif permissions and perm_code in permissions:
@@ -442,9 +443,10 @@ class SchemaProvider:
 
         规则（所有用户统一受 table-policies 限制）：
         - platform_admin：可访问所有表
-        - tenant_admin / tenant_user：仅可访问权限匹配的表
+        - tenant_admin / tenant_user：仅可访问权限匹配 **且有 tenant_column** 的表
         - permission_code='*' 表示任何登录用户可访问
         - permission_code='platform_only' 仅平台管理员
+        - 无 tenant_column 的表（平台级表）对非平台用户不可见
         """
         is_platform = user_role == UserRoleEnum.PLATFORM_ADMIN.value
 
@@ -458,6 +460,10 @@ class SchemaProvider:
 
             # platform_only: 非平台管理员不可访问
             if perm_code == "platform_only":
+                continue
+
+            # 无 tenant_column 的平台级表：非平台用户不可访问（防止无隔离数据泄露）
+            if not t.tenant_column:
                 continue
 
             # '*' 权限码: 任何登录用户可访问

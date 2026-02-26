@@ -42,7 +42,7 @@ def _build_package_item(pkg: SkillPackage, skill_count: int = 0) -> dict[str, An
 @permission_resource(
     resource="skill_package",
     name="menu.tenant.skill_package",
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=MenuConfig(
         icon="lucide:package",
         path="/ai/skill-packages",
@@ -262,7 +262,7 @@ class TenantSkillPackageController(TenantController):
                 file=file,
                 package_service=service,
                 skill_service=skill_svc,
-                scope=ResourceScopeEnum.TENANT.value,
+                scope=ResourceScopeEnum.ALL_TENANTS.value,
                 tenant_id=tenant_id,
                 is_system=False,
             )
@@ -375,12 +375,25 @@ class TenantSkillPackageController(TenantController):
                 export_skill_package,
                 import_skill_package,
             )
+            from app.core.scope import ScopeChecker
             from app.services.ai.skill_package_service import AdminSkillPackageService
 
             # 使用 AdminSkillPackageService 查询（不受租户隔离限制）
             admin_svc = AdminSkillPackageService(db)
             pkg = await admin_svc.get_by_id(package_id)
             if not pkg:
+                raise NotFoundException(message=_("skill_package.error.not_found"))
+
+            # F9: 验证租户对源技能包的可见性，防止克隆其他租户的私有包
+            visible = await ScopeChecker.is_visible_to_tenant(
+                scope=pkg.scope,
+                resource_type="skill_package",
+                resource_id=pkg.id,
+                tenant_id=tenant_admin.tenant_id,
+                db=db,
+            )
+            # 也允许克隆自己的包
+            if not visible and pkg.tenant_id != tenant_admin.tenant_id:
                 raise NotFoundException(message=_("skill_package.error.not_found"))
 
             export_data = await export_skill_package(db, pkg)

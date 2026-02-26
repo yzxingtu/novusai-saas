@@ -188,9 +188,16 @@ class TenantIsolationInjector:
                 )
 
             if not table_schema.tenant_column:
-                # 平台级表（如 tenants、tenant_plans）无 tenant_id，跳过隔离
+                # 平台级表（如 tenants、tenant_plans）无 tenant_id
+                # 非平台管理员禁止查询无隔离列的表（防止数据泄露）
+                if user_role != UserRoleEnum.PLATFORM_ADMIN.value:
+                    raise TenantIsolationError(
+                        _("data_intelligence.isolation.no_tenant_column",
+                          table=table_name)
+                    )
+                # 平台管理员跳过隔离
                 logger.debug(
-                    "Table %s has no tenant_column, skipping isolation",
+                    "Table %s has no tenant_column, skipping isolation (platform_admin)",
                     table_name,
                 )
                 continue

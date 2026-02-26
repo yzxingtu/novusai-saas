@@ -1,0 +1,34 @@
+{
+  "editNode": "编辑节点",
+  "createChildNode": "在「{parent}」下创建节点",
+  "createRootNode": "创建根节点",
+  "cannotCreateChild": "此节点类型不支持创建子节点",
+  "cannotCreateChildDesc": "岗位节点下不能创建子节点",
+  "save": "保存",
+  "cancel": "取消",
+  "nodeType": "节点类型",
+  "name": "名称",
+  "namePlaceholder": "请输入节点名称",
+  "description": "描述",
+  "descriptionPlaceholder": "请输入描述（可选）",
+  "allowMembers": "允许添加成员",
+  "isActive": "启用状态",
+  "sortOrder": "排序号",
+  "permissions": "权限分配",
+  "selectedCount": "已选 {count} 项",
+  "type": {
+    "department": "部门",
+    "departmentDesc": "组织架构中的部门单位",
+    "position": "岗位",
+    "positionDesc": "具体的工作岗位",
+    "role": "角色",
+    "roleDesc": "权限分配单位"
+  },
+  "validation": {
+    "nameRequired": "请输入节点名称",
+    "nameMaxLength": "名称不能超过50个字符",
+    "typeRequired": "请选择节点类型",
+    "sortOrderRequired": "请输入排序号",
+    "sortOrderRange": "排序号需在0-9999之间"
+  }
+}

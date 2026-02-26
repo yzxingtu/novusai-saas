@@ -65,13 +65,13 @@ class LogStatsResponse(BaseModel):
 @permission_resource(
     resource="system_log",
     name="menu.admin.system_log",  # i18n key
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:file-code-2",
         path="/system-mgmt/system-logs",
         component="admin/system/system-logs/index",
-        parent="system_maintenance",
-        sort_order=30,
+        parent="logs",
+        sort_order=20,
     )
 )
 class AdminSystemLogController(GlobalController):

@@ -13,8 +13,11 @@
     "name": "Knowledge Base Name",
     "description": "Description",
     "scope": "Scope",
-    "tenantId": "Tenant ID",
-    "tenantIdPlaceholder": "Enter tenant ID",
+    "visibility": "Visibility",
+    "tenantId": "Tenant",
+    "tenantIdPlaceholder": "Select tenant",
+    "assignedTenantIds": "Assigned Tenants",
+    "assignedTenantIdsPlaceholder": "Select tenants that can access",
     "embeddingModel": "Embedding Model",
     "documentCount": "Documents",
     "totalChunks": "Chunks",
@@ -24,12 +27,23 @@
     "chunkSize": "Chunk Size",
     "chunkOverlap": "Chunk Overlap",
     "topK": "Top K",
-    "scoreThreshold": "Score Threshold"
+    "scoreThreshold": "Score Threshold",
+    "searchMode": "Search Mode"
   },
   "scope": {
     "tenant": "Tenant",
     "global": "Global",
-    "admin": "Admin Only"
+    "admin": "Admin"
+  },
+  "visibility": {
+    "private": "Admin Only",
+    "all_tenants": "All Tenants",
+    "assigned": "Assigned Tenants"
+  },
+  "searchMode": {
+    "hybrid": "Hybrid",
+    "vector": "Vector",
+    "keyword": "Keyword"
   },
   "status": {
     "active": "Active",
@@ -41,9 +55,10 @@
   "document": {
     "title": "Documents",
     "upload": "Upload Document",
-    "uploadHint": "Supports PDF, DOCX, TXT, MD, CSV formats",
+    "uploadHint": "Supports PDF, DOCX, TXT, MD, CSV, XLSX formats",
     "delete": "Delete Document",
     "retry": "Retry",
+    "viewChunks": "View Chunks",
     "field": {
       "fileName": "File Name",
       "fileType": "Type",
@@ -73,5 +88,32 @@
     "title": "Re-vectorize",
     "confirm": "This will delete existing chunks and re-process all documents. Continue?",
     "started": "Re-vectorization started"
+  },
+  "textInput": {
+    "addButton": "Paste Text",
+    "title": "Direct Text Input",
+    "docTitle": "Document Title",
+    "docTitlePlaceholder": "Enter document title",
+    "content": "Text Content",
+    "contentPlaceholder": "Paste or enter text content...",
+    "requiredHint": "Title and content are required"
+  },
+  "qa": {
+    "addButton": "Add Q&A Pair",
+    "title": "Add Q&A Pair",
+    "question": "Question",
+    "questionPlaceholder": "Enter the question",
+    "answer": "Answer",
+    "answerPlaceholder": "Enter the answer",
+    "requiredHint": "Question and answer are required"
+  },
+  "help": {
+    "scope": "Determines usage scope: Tenant = specific tenant only, Global = admin + all tenants, Admin = admin only",
+    "visibility": "Controls visibility of admin knowledge bases to tenants",
+    "embeddingModel": "Model for converting text to vectors. Cannot be changed after creation — rebuild KB to switch",
+    "chunkSize": "Target characters per chunk. Larger = more context but lower precision. Recommended: 512~1024",
+    "chunkOverlap": "Overlapping characters between chunks. Prevents semantic truncation. Recommended: 10%~20% of chunk size",
+    "topK": "Number of most relevant chunks returned per retrieval. Higher = more comprehensive but may add noise",
+    "scoreThreshold": "Results below this score are filtered. Higher = stricter, 0 = no filtering. Recommended: 0.3~0.7"
   }
 }

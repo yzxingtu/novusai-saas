@@ -365,7 +365,7 @@ function agentInitial(agent: { name: string }) {
                 :class="compact ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-1.5 text-xs'"
               >
                 <div class="font-medium text-foreground">{{ src.doc_name }}</div>
-                <div :class="compact ? 'mt-0.5 line-clamp-1' : 'mt-0.5 line-clamp-2'">{{ src.snippet }}</div>
+                <div :class="compact ? 'mt-0.5 line-clamp-2' : 'mt-0.5 line-clamp-3'">{{ src.snippet }}</div>
               </div>
             </div>
           </details>

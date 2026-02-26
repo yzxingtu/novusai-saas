@@ -243,6 +243,7 @@ export function useColumns<T = AgentListItem>(
             text: $t('tenant.ai.agent.access.title'),
             icon: 'lucide:shield',
             accessCodes: ['agent:update'],
+            show: (row: AgentListItem) => row.scope === 'all_tenants',
           },
           {
             code: 'test',
@@ -255,6 +256,7 @@ export function useColumns<T = AgentListItem>(
             text: $t('tenant.ai.agent.publish'),
             icon: 'lucide:rocket',
             accessCodes: ['agent:update'],
+            show: (row: AgentListItem) => row.scope === 'all_tenants',
           },
           {
             code: 'versions',
@@ -262,8 +264,8 @@ export function useColumns<T = AgentListItem>(
             icon: 'lucide:history',
             accessCodes: ['agent:list'],
           },
-          'edit',
-          { code: 'delete', show: (row: AgentListItem) => !row.is_system },
+          { code: 'edit', show: (row: AgentListItem) => row.scope === 'all_tenants' },
+          { code: 'delete', show: (row: AgentListItem) => !row.is_system && row.scope === 'all_tenants' },
         ],
       },
       field: 'operation',

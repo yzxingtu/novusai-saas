@@ -5,6 +5,7 @@
 """
 
 from app.enums.base import LabeledStrEnum
+from app.enums.common import ResourceScopeEnum
 
 
 class PluginStatusEnum(LabeledStrEnum):
@@ -16,14 +17,8 @@ class PluginStatusEnum(LabeledStrEnum):
     ERROR = ("error", "enum.plugin_status.error")
 
 
-class PluginScopeEnum(LabeledStrEnum):
-    """插件作用域（设计时决定，不可更改）"""
-
-    ADMIN_ONLY = ("admin_only", "enum.plugin_scope.admin_only")
-    ALL_TENANTS = ("all_tenants", "enum.plugin_scope.all_tenants")
-    ASSIGNED_TENANTS = ("assigned_tenants", "enum.plugin_scope.assigned_tenants")
-    ADMIN_AND_ALL = ("admin_and_all", "enum.plugin_scope.admin_and_all")
-    ADMIN_AND_ASSIGNED = ("admin_and_assigned", "enum.plugin_scope.admin_and_assigned")
+# [DEPRECATED] PluginScopeEnum 已统一为 ResourceScopeEnum，保留别名兼容旧代码引用
+PluginScopeEnum = ResourceScopeEnum
 
 
 class PluginTierEnum(LabeledStrEnum):

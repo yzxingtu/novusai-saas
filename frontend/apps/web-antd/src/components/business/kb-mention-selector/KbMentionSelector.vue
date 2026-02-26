@@ -7,13 +7,14 @@
  */
 defineOptions({ name: 'KbMentionSelector' });
 
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
 import { Popover, Tag, Spin } from 'ant-design-vue';
 
 import { $t } from '#/locales';
+import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
 export interface KBItem {
   id: number;
@@ -23,7 +24,7 @@ export interface KBItem {
 }
 
 const props = defineProps<{
-  fetchApi: (...args: unknown[]) => Promise<unknown[]>;
+  fetchApi: () => Promise<unknown[]>;
 }>();
 
 const selectedKBs = defineModel<number[]>('selectedIds', { default: () => [] });
@@ -33,7 +34,6 @@ const loading = ref(false);
 const popoverVisible = ref(false);
 
 async function loadKBList() {
-  if (kbList.value.length > 0) return;
   loading.value = true;
   try {
     kbList.value = (await props.fetchApi()) as KBItem[];
@@ -61,16 +61,10 @@ function getKBName(id: number): string {
   return kbList.value.find((kb) => kb.id === id)?.name ?? `KB#${id}`;
 }
 
-function getScopeColor(scope: string): string {
-  switch (scope) {
-    case 'global': return 'blue';
-    case 'admin': return 'purple';
-    case 'tenant': return 'green';
-    default: return 'default';
-  }
-}
 
-onMounted(loadKBList);
+function onPopoverOpen(visible: boolean) {
+  if (visible) loadKBList();
+}
 </script>
 
 <template>
@@ -94,6 +88,7 @@ onMounted(loadKBList);
       trigger="click"
       placement="topLeft"
       :arrow="false"
+      @open-change="onPopoverOpen"
     >
       <template #content>
         <div class="w-64">
@@ -124,7 +119,7 @@ onMounted(loadKBList);
                 </div>
               </div>
               <Tag :color="getScopeColor(kb.scope)" class="m-0 text-xs">
-                {{ kb.scope }}
+                {{ getScopeText(kb.scope) }}
               </Tag>
             </div>
           </div>

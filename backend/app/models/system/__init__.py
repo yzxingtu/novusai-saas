@@ -17,8 +17,8 @@ from app.models.system.agent_assignment import SystemAgentAssignment
 from app.models.system.email_log import EmailLog
 from app.models.system.plugin import Plugin
 from app.models.system.plugin_version import PluginVersion
-from app.models.system.plugin_tenant_assignment import PluginTenantAssignment
 from app.models.system.plugin_license import PluginLicense
+from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
 
 __all__ = [
     "Admin",
@@ -32,6 +32,6 @@ __all__ = [
     "EmailLog",
     "Plugin",
     "PluginVersion",
-    "PluginTenantAssignment",
     "PluginLicense",
+    "ResourceTenantAssignment",
 ]

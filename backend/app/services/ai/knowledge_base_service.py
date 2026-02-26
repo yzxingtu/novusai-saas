@@ -18,6 +18,7 @@ from app.repositories.ai.knowledge_base_repository import (
     DocumentChunkRepository,
 )
 from app.models.ai.knowledge_base import KnowledgeBase
+from app.models.ai.knowledge_base_tenant_access import KnowledgeBaseTenantAccess
 from app.models.ai.knowledge_document import KnowledgeDocument
 from app.models.ai.document_chunk import DocumentChunk
 from app.core.base_service import TenantService, GlobalService
@@ -58,8 +59,18 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 raise BusinessException(message=_("knowledge_base.error.name_exists"))
 
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
-        """更新前校验：名称唯一性"""
+        """更新前校验：scope 保护、名称唯一性"""
         await super()._before_update(id, data)
+
+        from app.enums.common import ResourceScopeEnum
+
+        kb = await self.repo.get_by_id(id)
+        if not kb:
+            raise NotFoundException(message=_("knowledge_base.error.not_found"))
+
+        # 租户端只能修改自有知识库（scope=all_tenants）
+        if kb.scope != ResourceScopeEnum.ALL_TENANTS.value:
+            raise BusinessException(message=_("knowledge_base.error.readonly"))
 
         name = data.get("name")
         if name:
@@ -68,8 +79,18 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
                 raise BusinessException(message=_("knowledge_base.error.name_exists"))
 
     async def _before_delete(self, id: int) -> None:
-        """删除前：级联软删除文档和分块"""
+        """删除前：scope 保护、级联软删除文档和分块"""
         await super()._before_delete(id)
+
+        from app.enums.common import ResourceScopeEnum
+
+        kb = await self.repo.get_by_id(id)
+        if not kb:
+            raise NotFoundException(message=_("knowledge_base.error.not_found"))
+
+        # 租户端只能删除自有知识库（scope=all_tenants）
+        if kb.scope != ResourceScopeEnum.ALL_TENANTS.value:
+            raise BusinessException(message=_("knowledge_base.error.readonly"))
 
         level = self._default_delete_level
         now = utc_now()
@@ -328,16 +349,22 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
 
         from app.enums.common import ResourceScopeEnum
 
-        scope = data.get("scope", ResourceScopeEnum.TENANT.value)
+        scope = data.get("scope", ResourceScopeEnum.ALL_TENANTS.value)
         tenant_id = data.get("tenant_id")
 
-        if scope == ResourceScopeEnum.TENANT.value:
+        # 兼容旧值 'tenant' 和新值 'all_tenants'：需要 tenant_id 的 scope
+        tenant_scopes = {"tenant", ResourceScopeEnum.ALL_TENANTS.value}
+        if scope in tenant_scopes:
             if not tenant_id:
                 raise BusinessException(
                     message=_("knowledge_base.error.tenant_id_required"),
                 )
         else:
             data["tenant_id"] = None
+
+        # assigned_tenant_ids / tenant_ids 不是模型字段，提取后由 Controller 单独处理
+        data.pop("assigned_tenant_ids", None)
+        data.pop("tenant_ids", None)
 
         # 名称唯一性（同 scope + tenant_id 下）
         name = data.get("name")
@@ -359,7 +386,9 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
         scope = data.get("scope", kb.scope)
         tenant_id = data.get("tenant_id", kb.tenant_id)
 
-        if scope == ResourceScopeEnum.TENANT.value:
+        # 兼容旧值 'tenant' 和新值 'all_tenants'：需要 tenant_id 的 scope
+        tenant_scopes = {"tenant", ResourceScopeEnum.ALL_TENANTS.value}
+        if scope in tenant_scopes:
             if not tenant_id:
                 raise BusinessException(
                     message=_("knowledge_base.error.tenant_id_required"),
@@ -368,6 +397,10 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
             data["tenant_id"] = None
             tenant_id = None
 
+        # assigned_tenant_ids / tenant_ids 不是模型字段，提取后由 Controller 单独处理
+        data.pop("assigned_tenant_ids", None)
+        data.pop("tenant_ids", None)
+
         name = data.get("name")
         if name:
             existing = await self._check_name_unique(name, tenant_id=tenant_id, scope=scope, exclude_id=id)
@@ -375,7 +408,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
                 raise BusinessException(message=_("knowledge_base.error.name_exists"))
 
     async def _before_delete(self, id: int) -> None:
-        """删除前：级联软删除文档和分块"""
+        """删除前：级联软删除文档和分块，清理租户分配"""
         await super()._before_delete(id)
 
         level = self._default_delete_level
@@ -400,6 +433,16 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
             )
             .values(is_deleted=True, deleted_at=now, delete_level=level, updated_at=now)
         )
+
+        # 清理 resource_tenant_assignments 残留记录
+        kb = await self.repo.get_by_id(id)
+        if kb and kb.scope in (
+            ResourceScopeEnum.ASSIGNED_TENANTS.value,
+            ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+        ):
+            from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
+            rta_repo = ResourceTenantAssignmentRepository(self.db)
+            await rta_repo.delete_all_for_resource("knowledge_base", id)
 
     async def escalate_delete(self, id: int) -> KnowledgeBase | None:
         """升级删除层级，级联升级文档和分块"""
@@ -452,6 +495,34 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
             )
             .values(is_deleted=False, deleted_at=None, delete_level=None, updated_at=now)
         )
+
+    async def sync_tenant_access(
+        self,
+        kb_id: int,
+        tenant_ids: list[int] | None,
+    ) -> None:
+        """
+        同步知识库的租户访问记录
+
+        全量替换：先删除旧记录，再批量插入新记录
+        """
+        from sqlalchemy import delete as sa_delete
+
+        # 删除旧记录
+        await self.db.execute(
+            sa_delete(KnowledgeBaseTenantAccess).where(
+                KnowledgeBaseTenantAccess.knowledge_base_id == kb_id,
+            )
+        )
+
+        # 插入新记录
+        if tenant_ids:
+            for tid in set(tenant_ids):
+                access = KnowledgeBaseTenantAccess(
+                    knowledge_base_id=kb_id,
+                    tenant_id=tid,
+                )
+                self.db.add(access)
 
     async def _check_name_unique(
         self,

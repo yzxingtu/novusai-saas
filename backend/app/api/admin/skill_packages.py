@@ -26,10 +26,16 @@ from app.rbac.decorators import (
 from app.models.ai.skill_package import SkillPackage
 from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.services.ai.skill_package_service import AdminSkillPackageService
+from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
 from app.schemas.ai.skill_package import (
     SkillPackageCreate,
     SkillPackageUpdate,
     SkillPackageResponse,
+)
+
+SCOPES_NEEDING_ASSIGNMENT = (
+    ResourceScopeEnum.ASSIGNED_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
 )
 
 logger = LogManager.get_logger("ai")
@@ -58,7 +64,7 @@ def _build_admin_package_item(pkg: SkillPackage, skill_count: int = 0) -> dict[s
 @permission_resource(
     resource="ai_skill_package",
     name="menu.admin.ai_skill_package",
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:package",
         path="/ai/skill-packages",
@@ -156,6 +162,15 @@ class AdminSkillPackageController(GlobalController):
             if not data:
                 raise NotFoundException(message=_("skill_package.error.not_found"))
 
+            # 追加已分配的租户 ID 列表
+            if data.get("scope") in SCOPES_NEEDING_ASSIGNMENT:
+                repo = ResourceTenantAssignmentRepository(db)
+                data["assigned_tenant_ids"] = await repo.get_assigned_tenant_ids(
+                    "skill_package", package_id
+                )
+            else:
+                data["assigned_tenant_ids"] = []
+
             return success(data=data)
 
         @router.post("", summary="创建技能包")
@@ -175,9 +190,16 @@ class AdminSkillPackageController(GlobalController):
             service = AdminSkillPackageService(db)
 
             pkg_data = data.model_dump(exclude_unset=True)
+            tenant_ids = pkg_data.pop("tenant_ids", None)
 
             # 校验和创建均由 Service._before_create 处理
             pkg = await service.create(pkg_data)
+
+            # 同步租户分配
+            if pkg.scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
+                repo = ResourceTenantAssignmentRepository(db)
+                await repo.sync_assignments("skill_package", pkg.id, tenant_ids)
+
             await db.commit()
 
             return created(
@@ -204,9 +226,20 @@ class AdminSkillPackageController(GlobalController):
                 raise NotFoundException(message=_("skill_package.error.not_found"))
 
             update_data = data.model_dump(exclude_unset=True)
+            tenant_ids = update_data.pop("tenant_ids", None)
 
             # scope 不可变 + 名称唯一性等校验统一由 Service._before_update 处理
             updated = await service.update(package_id, update_data)
+
+            # 同步租户分配
+            effective_scope = updated.scope
+            if effective_scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
+                repo = ResourceTenantAssignmentRepository(db)
+                await repo.sync_assignments("skill_package", package_id, tenant_ids)
+            elif effective_scope not in SCOPES_NEEDING_ASSIGNMENT:
+                repo = ResourceTenantAssignmentRepository(db)
+                await repo.delete_all_for_resource("skill_package", package_id)
+
             await db.commit()
 
             return success(
@@ -291,7 +324,7 @@ class AdminSkillPackageController(GlobalController):
                 file=file,
                 package_service=service,
                 skill_service=skill_svc,
-                scope=ResourceScopeEnum.ADMIN.value,
+                scope=ResourceScopeEnum.ADMIN_ONLY.value,
                 tenant_id=None,
                 is_system=is_system,
                 source_plugin=True,

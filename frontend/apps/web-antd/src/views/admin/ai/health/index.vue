@@ -1,10 +1,10 @@
 <script lang="ts" setup>
 /**
- * AI 供应商健康状态监控页面
+ * AI 供应商健康状态监控页面 — useCrudList + autoRefresh
  */
 defineOptions({ name: 'AIHealthMonitor' });
 
-import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { computed } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -12,14 +12,25 @@ import { IconifyIcon } from '@vben/icons';
 import { Badge, Button, Card, Empty, Spin, Tag, Tooltip } from 'ant-design-vue';
 
 import { type AIHealthStatus, getAIHealthStatusApi } from '#/api/admin/ai';
+import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
-const loading = ref(false);
-const statuses = ref<AIHealthStatus[]>([]);
-let refreshTimer: ReturnType<typeof setInterval> | null = null;
+// ========== 声明式列表管理 + 30秒自动刷新 ==========
+const {
+  list: statuses, loading, loadList: loadHealth,
+} = useCrudList<AIHealthStatus>({
+  api: {
+    list: () => getAIHealthStatusApi() as unknown as Promise<{ items: AIHealthStatus[]; total: number }>,
+    resource: '/admin/ai/health',
+  },
+  keyField: 'provider_id',
+  i18nPrefix: 'admin.ai.health',
+  pager: false,
+  autoRefreshInterval: 30_000,
+});
 
-/** 概览计数 */
+// ========== 概览计数 ==========
 const healthyCount = computed(() =>
   statuses.value.filter((s) => s.is_healthy && s.is_available).length,
 );
@@ -30,17 +41,7 @@ const unavailableCount = computed(() =>
   statuses.value.filter((s) => !s.is_available).length,
 );
 
-async function loadHealth() {
-  loading.value = true;
-  try {
-    statuses.value = await getAIHealthStatusApi();
-  } catch {
-    // Error handled by request interceptor
-  } finally {
-    loading.value = false;
-  }
-}
-
+// ========== 辅助 ==========
 function getStatusColor(status: AIHealthStatus): string {
   if (status.is_healthy && status.is_available) return 'success';
   if (!status.is_healthy && status.is_available) return 'warning';
@@ -52,16 +53,6 @@ function getStatusText(status: AIHealthStatus): string {
   if (!status.is_healthy && status.is_available) return $t('admin.ai.health.status.degraded');
   return $t('admin.ai.health.status.unavailable');
 }
-
-onMounted(() => {
-  loadHealth();
-  // 每 30 秒自动刷新
-  refreshTimer = setInterval(loadHealth, 30000);
-});
-
-onUnmounted(() => {
-  if (refreshTimer) clearInterval(refreshTimer);
-});
 </script>
 
 <template>

@@ -1,0 +1,34 @@
+{
+  "editNode": "Edit Node",
+  "createChildNode": "Create node under \"{parent}\"",
+  "createRootNode": "Create Root Node",
+  "cannotCreateChild": "This node type does not support child nodes",
+  "cannotCreateChildDesc": "Position nodes cannot have child nodes",
+  "save": "Save",
+  "cancel": "Cancel",
+  "nodeType": "Node Type",
+  "name": "Name",
+  "namePlaceholder": "Enter node name",
+  "description": "Description",
+  "descriptionPlaceholder": "Enter description (optional)",
+  "allowMembers": "Allow Members",
+  "isActive": "Active Status",
+  "sortOrder": "Sort Order",
+  "permissions": "Permission Settings",
+  "selectedCount": "{count} selected",
+  "type": {
+    "department": "Department",
+    "departmentDesc": "Department unit in organization",
+    "position": "Position",
+    "positionDesc": "Specific work position",
+    "role": "Role",
+    "roleDesc": "Permission assignment unit"
+  },
+  "validation": {
+    "nameRequired": "Please enter node name",
+    "nameMaxLength": "Name cannot exceed 50 characters",
+    "typeRequired": "Please select node type",
+    "sortOrderRequired": "Please enter sort order",
+    "sortOrderRange": "Sort order must be between 0-9999"
+  }
+}

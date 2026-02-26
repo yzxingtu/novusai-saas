@@ -16,7 +16,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base_model import TenantModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
-from app.enums.common import ResourceScopeEnum
+from app.enums.common import ResourceScopeEnum, SkillBindModeEnum
 
 
 class SkillPackage(TenantModel):
@@ -49,6 +49,7 @@ class SkillPackage(TenantModel):
         "scope": "scope",
         "is_active": "is_active",
         "is_system": "is_system",
+        "bind_mode": "bind_mode",
         "tenant_id": "tenant_id",
         "created_at": "created_at",
     }
@@ -67,7 +68,7 @@ class SkillPackage(TenantModel):
         "label": "name",
         "value": "id",
         "search": ["name"],
-        "extra": ["scope", "is_system", "source_plugin"],
+        "extra": ["scope", "is_system", "source_plugin", "bind_mode"],
     }
 
     # ==================== 基本信息 ====================
@@ -94,9 +95,19 @@ class SkillPackage(TenantModel):
     scope: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default=ResourceScopeEnum.TENANT.value,
+        default=ResourceScopeEnum.ALL_TENANTS.value,
         index=True,
         comment=_("skill_package.field.scope"),
+    )
+
+    # ==================== 绑定模式 ====================
+
+    bind_mode: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=SkillBindModeEnum.MANUAL.value,
+        index=True,
+        comment=_("skill_package.field.bind_mode"),
     )
 
     # ==================== 来源标记 ====================

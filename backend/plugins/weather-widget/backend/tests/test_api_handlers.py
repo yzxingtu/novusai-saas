@@ -38,6 +38,14 @@ def _make_request(params: dict) -> SimpleNamespace:
     )
 
 
+def _make_ctx(config: dict | None = None) -> MagicMock:
+    """构造模拟 PluginContext 对象"""
+    ctx = MagicMock()
+    ctx.get_config = AsyncMock(return_value=config or {})
+    ctx.get_logger = MagicMock(return_value=MagicMock())
+    return ctx
+
+
 # ── get_current_weather ──
 
 
@@ -47,26 +55,26 @@ class TestGetCurrentWeather:
     @pytest.mark.asyncio
     async def test_missing_lat(self):
         req = _make_request({"lon": "121.47"})
-        result = await get_current_weather(req, db=None)
+        result = await get_current_weather(req, ctx=_make_ctx())
         assert result.get("code") == 4001
         assert "lat" in result["error"]
 
     @pytest.mark.asyncio
     async def test_missing_lon(self):
         req = _make_request({"lat": "31.23"})
-        result = await get_current_weather(req, db=None)
+        result = await get_current_weather(req, ctx=_make_ctx())
         assert result.get("code") == 4001
 
     @pytest.mark.asyncio
     async def test_missing_both(self):
         req = _make_request({})
-        result = await get_current_weather(req, db=None)
+        result = await get_current_weather(req, ctx=_make_ctx())
         assert result.get("code") == 4001
 
     @pytest.mark.asyncio
     async def test_invalid_lat(self):
         req = _make_request({"lat": "abc", "lon": "121.47"})
-        result = await get_current_weather(req, db=None)
+        result = await get_current_weather(req, ctx=_make_ctx())
         assert result.get("code") == 4001
         assert "valid numbers" in result["error"]
 
@@ -82,7 +90,7 @@ class TestGetCurrentWeather:
         req = _make_request({"lat": "31.23", "lon": "121.47"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await get_current_weather(req, db=None)
+            result = await get_current_weather(req, ctx=_make_ctx())
 
         assert "weather" in result
         assert result["weather"]["temperature"] == 22.5
@@ -97,7 +105,7 @@ class TestGetCurrentWeather:
         req = _make_request({"lat": "31.23", "lon": "121.47"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await get_current_weather(req, db=None)
+            result = await get_current_weather(req, ctx=_make_ctx())
 
         assert result.get("code") == 5000
         assert "timeout" in result["error"]
@@ -112,13 +120,13 @@ class TestGetForecast:
     @pytest.mark.asyncio
     async def test_missing_params(self):
         req = _make_request({})
-        result = await get_forecast(req, db=None)
+        result = await get_forecast(req, ctx=_make_ctx())
         assert result.get("code") == 4001
 
     @pytest.mark.asyncio
     async def test_invalid_coords(self):
         req = _make_request({"lat": "xyz", "lon": "121"})
-        result = await get_forecast(req, db=None)
+        result = await get_forecast(req, ctx=_make_ctx())
         assert result.get("code") == 4001
 
     @pytest.mark.asyncio
@@ -129,7 +137,7 @@ class TestGetForecast:
         req = _make_request({"lat": "31.23", "lon": "121.47"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await get_forecast(req, db=None)
+            result = await get_forecast(req, ctx=_make_ctx())
 
         mock_open_meteo.get_forecast.assert_called_once_with(31.23, 121.47, 3)
 
@@ -141,7 +149,7 @@ class TestGetForecast:
         req = _make_request({"lat": "31.23", "lon": "121.47", "days": "5"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await get_forecast(req, db=None)
+            result = await get_forecast(req, ctx=_make_ctx())
 
         mock_open_meteo.get_forecast.assert_called_once_with(31.23, 121.47, 5)
 
@@ -153,7 +161,7 @@ class TestGetForecast:
         req = _make_request({"lat": "31.23", "lon": "121.47", "days": "abc"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await get_forecast(req, db=None)
+            result = await get_forecast(req, ctx=_make_ctx())
 
         mock_open_meteo.get_forecast.assert_called_once_with(31.23, 121.47, 3)
 
@@ -167,7 +175,7 @@ class TestGetForecast:
         req = _make_request({"lat": "31.23", "lon": "121.47", "days": "1"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await get_forecast(req, db=None)
+            result = await get_forecast(req, ctx=_make_ctx())
 
         assert "forecast" in result
         assert len(result["forecast"]) == 1
@@ -182,7 +190,7 @@ class TestGetForecast:
         req = _make_request({"lat": "31.23", "lon": "121.47"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await get_forecast(req, db=None)
+            result = await get_forecast(req, ctx=_make_ctx())
 
         assert result.get("code") == 5000
 
@@ -196,13 +204,13 @@ class TestSearchCity:
     @pytest.mark.asyncio
     async def test_missing_name(self):
         req = _make_request({})
-        result = await search_city(req, db=None)
+        result = await search_city(req, ctx=_make_ctx())
         assert result.get("code") == 4001
 
     @pytest.mark.asyncio
     async def test_empty_name(self):
         req = _make_request({"name": "   "})
-        result = await search_city(req, db=None)
+        result = await search_city(req, ctx=_make_ctx())
         assert result.get("code") == 4001
 
     @pytest.mark.asyncio
@@ -213,7 +221,7 @@ class TestSearchCity:
         req = _make_request({"name": "Shanghai"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await search_city(req, db=None)
+            result = await search_city(req, ctx=_make_ctx())
 
         mock_open_meteo.search_city.assert_called_once_with("Shanghai", 5)
 
@@ -225,7 +233,7 @@ class TestSearchCity:
         req = _make_request({"name": "Shanghai", "count": "3"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await search_city(req, db=None)
+            result = await search_city(req, ctx=_make_ctx())
 
         mock_open_meteo.search_city.assert_called_once_with("Shanghai", 3)
 
@@ -239,7 +247,7 @@ class TestSearchCity:
         req = _make_request({"name": "Shanghai"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await search_city(req, db=None)
+            result = await search_city(req, ctx=_make_ctx())
 
         assert "cities" in result
         assert len(result["cities"]) == 1
@@ -255,6 +263,6 @@ class TestSearchCity:
         req = _make_request({"name": "Shanghai"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await search_city(req, db=None)
+            result = await search_city(req, ctx=_make_ctx())
 
         assert result.get("code") == 5000

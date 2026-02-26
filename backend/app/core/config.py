@@ -187,6 +187,11 @@ class Settings(BaseSettings):
     GITEE_TOKEN: str = ""
     PLUGIN_REGISTRY_CACHE_TTL: int = 3600
     PLUGIN_MAX_PACKAGE_SIZE: int = 50 * 1024 * 1024
+    PLUGIN_MAX_UNCOMPRESSED_SIZE: int = 200 * 1024 * 1024
+    PLUGIN_MAX_ARCHIVE_FILES: int = 2000
+    PLUGIN_MAX_ARCHIVE_SINGLE_FILE_SIZE: int = 50 * 1024 * 1024
+    PLUGIN_MAX_COMPRESSION_RATIO: float = 100.0
+    PLUGIN_ASSETS_ENABLED_ONLY: bool = True
 
     @property
     def tz(self) -> ZoneInfo:

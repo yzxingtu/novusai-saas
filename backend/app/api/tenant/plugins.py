@@ -39,7 +39,7 @@ async def list_available_plugins(
 
     from app.enums.plugin import PluginStatusEnum
     from app.models.system.plugin import Plugin
-    from app.models.system.plugin_tenant_assignment import PluginTenantAssignment
+    from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
 
     tenant_id = tenant_admin.tenant_id
 
@@ -54,9 +54,10 @@ async def list_available_plugins(
 
     # 查询当前租户被分配的插件 ID
     assignment_result = await db.execute(
-        select(PluginTenantAssignment.plugin_id).where(
-            PluginTenantAssignment.tenant_id == tenant_id,
-            PluginTenantAssignment.is_active.is_(True),
+        select(ResourceTenantAssignment.resource_id).where(
+            ResourceTenantAssignment.resource_type == "plugin",
+            ResourceTenantAssignment.tenant_id == tenant_id,
+            ResourceTenantAssignment.is_active.is_(True),
         )
     )
     assigned_plugin_ids = set(assignment_result.scalars().all())

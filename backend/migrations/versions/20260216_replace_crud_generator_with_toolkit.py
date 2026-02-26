@@ -1,13 +1,10 @@
-"""replace_crud_generator_with_toolkit
+"""[NO-OP] replace_crud_generator_with_toolkit
 
-Replace old CRUD Generator (builtin) agent/skill/package with new
+Superseded by 20260216_remove_crud_generator_seed_data (all CRUD data soft-deleted).
+CRUD Generator is now a standalone plugin managing its own lifecycle.
+
+Original: Replace old CRUD Generator (builtin) agent/skill/package with new
 CRUD Form Toolkit (toolkit type) agent/skill/package.
-
-1. Soft-delete old crud_generator agent, skill, binding, package
-2. Create new SkillPackage (toolkit, admin, is_system=True)
-3. Create new Skill (toolkit, toolkit_content from crud_form_toolkit.py)
-4. Create new Agent (admin, is_system=True, published)
-5. Create AgentSkillBinding
 
 Revision ID: cc0216030000
 Revises: cc0216020000

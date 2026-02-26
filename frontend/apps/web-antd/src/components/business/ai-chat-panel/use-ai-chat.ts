@@ -39,6 +39,8 @@ export interface UseAIChatOptions {
   uploadUrl: Ref<string> | string;
   /** Initial agent ID to auto-select after loading agents */
   initialAgentId?: Ref<number | undefined> | number;
+  /** Initial conversation ID to auto-load after agent is selected */
+  initialConversationId?: Ref<number | undefined> | number;
   /** Callback when a tool call completes successfully */
   onToolCall?: (toolName: string, output: string) => void;
   /** Callback when streaming completes (used for unread badge) */
@@ -107,6 +109,13 @@ export function useAIChat(options: UseAIChatOptions) {
       const prefix = unref(options.apiPrefix) as string;
       const res = await getChatConversationsApi<ConversationItem>(prefix, selectedAgentId.value);
       conversations.value = res.items;
+
+      // Auto-load initial conversation (only once)
+      const initConvId = unref(options.initialConversationId);
+      if (initConvId && !_initialConvRestored && res.items.some((c) => c.id === initConvId)) {
+        _initialConvRestored = true;
+        await loadConversationMessages(initConvId);
+      }
     } catch {
       // handled by interceptor
     } finally {
@@ -272,6 +281,9 @@ export function useAIChat(options: UseAIChatOptions) {
   }
 
   // ============ Chat Messages ============
+
+  /** Guard: only restore initialConversationId once */
+  let _initialConvRestored = false;
 
   const chatMessages = ref<ChatMessage[]>([]);
   const inputMessage = ref('');

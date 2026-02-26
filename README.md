@@ -108,6 +108,10 @@ alembic upgrade head
 
 # 启动开发服务器
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# 启动队列
+python scripts/start_worker.py dev
+# 启动前端 
+pnpm dev 
 ```
 
 ### 前端开发

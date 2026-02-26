@@ -33,13 +33,13 @@ from app.core.base_model import utc_now
 @permission_resource(
     resource="task_log",
     name="menu.admin.task_log",
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:list-checks",
         path="/system/task-logs",
         component="admin/system/task-logs/index",
-        parent="system_maintenance",
-        sort_order=60,
+        parent="logs",
+        sort_order=30,
     ),
 )
 class AdminTaskController(GlobalController):

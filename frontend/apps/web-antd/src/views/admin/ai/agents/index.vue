@@ -1,15 +1,15 @@
 <script lang="ts" setup>
 /**
- * 智能体管理列表页面（平台端）
+ * 智能体管理列表页面（平台端）— useCrudList + 卡片网格
  *
- * 卡片网格布局，替代传统表格，提供更好的视觉层次和交互体验。
- * 包含：CRUD、状态管理、发布、版本历史、访问权限配置。
+ * 使用 useCrudList 管理核心 CRUD（列表/分页/搜索/删除/回收站），
+ * 保留自定义逻辑：发布、版本历史、状态切换、AgentForm ref 模式。
  */
 import type { AIAgentInfo } from '#/api/admin/ai';
 
 defineOptions({ name: 'AIAgentList' });
 
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -17,7 +17,6 @@ import { IconifyIcon } from '@vben/icons';
 import {
   Badge,
   Button,
-  Drawer,
   Dropdown,
   Empty,
   Input,
@@ -26,26 +25,22 @@ import {
   message,
   Modal,
   Pagination,
-  Popconfirm,
   Select,
   SelectOption,
-  Space,
   Spin,
-  Table,
   Tag,
   Tooltip,
 } from 'ant-design-vue';
 
+
 import {
   deleteAIAgentApi,
   getAIAgentListApi,
-  getAIAgentRecycleBinApi,
-  getAIAgentRecycleBinCountApi,
-  permanentDeleteAIAgentApi,
   publishAIAgentApi,
-  restoreAIAgentApi,
   updateAIAgentStatusApi,
 } from '#/api/admin/ai';
+import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
+import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -55,147 +50,69 @@ import {
   getScopeOptions,
   getStatusText,
 } from './data';
+import { getScopeText } from '#/utils/scope-helpers';
 import AgentForm from './modules/form.vue';
 import VersionHistoryDrawer from './modules/VersionHistory.vue';
 
 // ============================================================
-// Refs & Drawers
+// 声明式 CRUD（列表/分页/搜索/删除/回收站）
+// ============================================================
+
+const {
+  list, total, loading, currentPage, pageSize, searchKeyword,
+  loadList, onSearch, onPageChange,
+  handleMenuAction,
+} = useCrudList<AIAgentInfo>({
+  api: {
+    list: getAIAgentListApi,
+    delete: deleteAIAgentApi,
+    resource: '/admin/ai/agents',
+  },
+  i18nPrefix: 'admin.ai.agent',
+  nameField: 'name',
+  defaultSort: '-created_at',
+  pageSize: 12,
+  recycleBin: true,
+  customActions: {
+    edit: (row) => agentFormRef.value?.openEdit(row),
+  },
+});
+
+// ========== 回收站 ==========
+const recycleBinRef = ref<{ open: () => void; deletedCount: number } | null>(null);
+const recycleBinCount = computed(() => recycleBinRef.value?.deletedCount ?? 0);
+function openRecycleBin() { recycleBinRef.value?.open(); }
+
+// ============================================================
+// AgentForm（ref 模式，非标准 FormDrawer）
 // ============================================================
 
 const agentFormRef = ref<InstanceType<typeof AgentForm>>();
-const agents = ref<AIAgentInfo[]>([]);
-const loading = ref(false);
-const total = ref(0);
-const page = ref(1);
-const pageSize = ref(12);
-const searchKeyword = ref('');
-const filterScope = ref<string>();
-const filterStatus = ref<string>();
 
-// 版本历史抽屉
+// ============================================================
+// 版本历史
+// ============================================================
+
 const [VersionDrawer, versionDrawerApi] = useVbenDrawer({
   connectedComponent: VersionHistoryDrawer,
 });
 
+function onVersions(agent: AIAgentInfo) {
+  versionDrawerApi.setData({
+    id: agent.id,
+    publishedVersion: agent.published_version ?? null,
+  });
+  versionDrawerApi.open();
+}
+
+// ============================================================
 // 发布弹窗
+// ============================================================
+
 const publishModalOpen = ref(false);
 const publishChangeLog = ref('');
 const publishLoading = ref(false);
 let publishAgentId = 0;
-
-// 回收站
-const recycleBinVisible = ref(false);
-const recycleBinLoading = ref(false);
-const recycleBinItems = ref<AIAgentInfo[]>([]);
-const recycleBinCount = ref(0);
-
-// ============================================================
-// Data fetching
-// ============================================================
-
-async function fetchAgents() {
-  loading.value = true;
-  try {
-    const params: Record<string, unknown> = {
-      'page[number]': page.value,
-      'page[size]': pageSize.value,
-      sort: '-created_at',
-    };
-    if (searchKeyword.value) {
-      params['filter[name][ilike]'] = searchKeyword.value;
-    }
-    if (filterScope.value) {
-      params['filter[scope][eq]'] = filterScope.value;
-    }
-    if (filterStatus.value) {
-      params['filter[status][eq]'] = filterStatus.value;
-    }
-    const res = await getAIAgentListApi(params);
-    agents.value = res.items || [];
-    total.value = res.total || 0;
-  } catch {
-    agents.value = [];
-    total.value = 0;
-  } finally {
-    loading.value = false;
-  }
-}
-
-onMounted(fetchAgents);
-
-watch([page, pageSize], fetchAgents);
-
-// ============================================================
-// Search & Filter
-// ============================================================
-
-let searchTimer: ReturnType<typeof setTimeout>;
-function onSearchInput(val: string) {
-  searchKeyword.value = val;
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => {
-    page.value = 1;
-    fetchAgents();
-  }, 350);
-}
-
-function onFilterChange() {
-  page.value = 1;
-  fetchAgents();
-}
-
-function onClearFilters() {
-  searchKeyword.value = '';
-  filterScope.value = undefined;
-  filterStatus.value = undefined;
-  page.value = 1;
-  fetchAgents();
-}
-
-const hasActiveFilters = computed(
-  () => !!searchKeyword.value || !!filterScope.value || !!filterStatus.value,
-);
-
-// ============================================================
-// Status toggle
-// ============================================================
-
-async function onToggleStatus(agent: AIAgentInfo) {
-  if (agent.is_system) return;
-  const nextStatus = agent.status === 'disabled' ? 'published' : 'disabled';
-  try {
-    await updateAIAgentStatusApi(agent.id, nextStatus);
-    message.success($t('admin.ai.agent.messages.toggleSuccess'));
-    await fetchAgents();
-  } catch {
-    // handled by interceptor
-  }
-}
-
-// ============================================================
-// Delete
-// ============================================================
-
-function onDelete(agent: AIAgentInfo) {
-  Modal.confirm({
-    title: $t('ui.actionMessage.deleteConfirm', { name: agent.name }),
-    content: $t('ui.actionMessage.deleteConfirmContent'),
-    okType: 'danger',
-    async onOk() {
-      try {
-        await deleteAIAgentApi(agent.id);
-        message.success($t('ui.actionMessage.deleteSuccess'));
-        await fetchAgents();
-      } catch {
-        // handled by interceptor
-      }
-    },
-  });
-}
-
-// ============================================================
-// Publish
-// ============================================================
 
 function onPublish(agent: AIAgentInfo) {
   publishAgentId = agent.id;
@@ -211,7 +128,7 @@ async function onPublishConfirm() {
     });
     message.success($t('admin.ai.agent.messages.publishSuccess'));
     publishModalOpen.value = false;
-    await fetchAgents();
+    await loadList();
   } catch {
     // handled by interceptor
   } finally {
@@ -220,25 +137,56 @@ async function onPublishConfirm() {
 }
 
 // ============================================================
-// Versions
+// 状态切换（非标准 toggle，智能体有 published/disabled/draft）
 // ============================================================
 
-function onVersions(agent: AIAgentInfo) {
-  versionDrawerApi.setData({
-    id: agent.id,
-    publishedVersion: agent.published_version ?? null,
-  });
-  versionDrawerApi.open();
+async function onToggleStatus(agent: AIAgentInfo) {
+  if (agent.is_system) return;
+  const nextStatus = agent.status === 'disabled' ? 'published' : 'disabled';
+  try {
+    await updateAIAgentStatusApi(agent.id, nextStatus);
+    message.success($t('admin.ai.agent.messages.toggleSuccess'));
+    await loadList();
+  } catch {
+    // handled by interceptor
+  }
 }
 
 // ============================================================
-// Helpers
+// 搜索过滤
 // ============================================================
 
-function getScopeText(scope: string) {
-  const opt = getScopeOptions().find((o) => o.value === scope);
-  return opt ? opt.label : scope;
+const filterScope = ref<string>();
+const filterStatus = ref<string>();
+
+function doSearch() {
+  const params: Record<string, unknown> = {};
+  if (searchKeyword.value.trim()) {
+    params['filter[name][ilike]'] = searchKeyword.value.trim();
+  }
+  if (filterScope.value) {
+    params['filter[scope][eq]'] = filterScope.value;
+  }
+  if (filterStatus.value) {
+    params['filter[status][eq]'] = filterStatus.value;
+  }
+  onSearch(params);
 }
+
+function onClearFilters() {
+  searchKeyword.value = '';
+  filterScope.value = undefined;
+  filterStatus.value = undefined;
+  onSearch({});
+}
+
+const hasActiveFilters = computed(
+  () => !!searchKeyword.value || !!filterScope.value || !!filterStatus.value,
+);
+
+// ============================================================
+// 辅助函数
+// ============================================================
 
 function getStatusDotClass(status: string): string {
   switch (status) {
@@ -260,88 +208,20 @@ function getExecutionModeIcon(mode: string): string {
 
 function getScopeIcon(scope: string): string {
   switch (scope) {
-    case 'global': return 'lucide:globe';
-    case 'admin': return 'lucide:shield';
-    case 'tenant': return 'lucide:building-2';
+    case 'admin_and_all': return 'lucide:globe';
+    case 'admin_only': return 'lucide:shield';
+    case 'all_tenants': return 'lucide:building-2';
     default: return 'lucide:circle';
   }
 }
 
-// ============================================================
-// Stats
-// ============================================================
-
 const stats = computed(() => {
-  const all = agents.value;
+  const all = list.value;
   return {
     total: total.value,
     published: all.filter((a) => a.status === 'published').length,
     system: all.filter((a) => a.is_system).length,
   };
-});
-
-// ============================================================
-// Recycle Bin
-// ============================================================
-
-async function loadRecycleBinCount() {
-  try {
-    const res = await getAIAgentRecycleBinCountApi();
-    recycleBinCount.value = res.count;
-  } catch {
-    recycleBinCount.value = 0;
-  }
-}
-
-async function openRecycleBin() {
-  recycleBinVisible.value = true;
-  await loadRecycleBinItems();
-}
-
-async function loadRecycleBinItems() {
-  recycleBinLoading.value = true;
-  try {
-    const res = await getAIAgentRecycleBinApi({ 'page[size]': 100 });
-    recycleBinItems.value = res.items;
-  } catch {
-    recycleBinItems.value = [];
-  } finally {
-    recycleBinLoading.value = false;
-  }
-}
-
-async function onRestoreAgent(id: number) {
-  try {
-    await restoreAIAgentApi(id);
-    message.success($t('common.recycleBin.restoreSuccess'));
-    await loadRecycleBinItems();
-    await loadRecycleBinCount();
-    await fetchAgents();
-  } catch {
-    // handled by interceptor
-  }
-}
-
-async function onPermanentDeleteAgent(id: number) {
-  try {
-    await permanentDeleteAIAgentApi(id);
-    message.success($t('common.deleteSuccess'));
-    await loadRecycleBinItems();
-    await loadRecycleBinCount();
-  } catch {
-    // handled by interceptor
-  }
-}
-
-const recycleBinColumns = computed(() => [
-  { title: $t('admin.ai.agent.name'), dataIndex: 'name', key: 'name' },
-  { title: $t('admin.ai.agent.status'), dataIndex: 'status', key: 'status', width: 100 },
-  { title: $t('common.recycleBin.deletedAt'), dataIndex: 'deleted_at', key: 'deleted_at', width: 160 },
-  { title: $t('admin.common.operation'), key: 'action', width: 180, align: 'center' as const },
-]);
-
-onMounted(() => {
-  loadRecycleBinCount();
 });
 </script>
 
@@ -351,9 +231,9 @@ onMounted(() => {
     content-class="flex flex-col gap-4"
   >
     <!-- Form Drawer -->
-    <AgentForm ref="agentFormRef" @success="fetchAgents" />
-    <!-- Version History Drawer -->
-    <VersionDrawer @success="fetchAgents" />
+    <AgentForm ref="agentFormRef" @success="loadList" />
+    <VersionDrawer @success="loadList" />
+    <RecycleBinDrawer ref="recycleBinRef" resource="/admin/ai/agents" @restored="loadList" />
     <!-- Publish Modal -->
     <Modal
       v-model:open="publishModalOpen"
@@ -381,7 +261,7 @@ onMounted(() => {
         :placeholder="$t('admin.ai.agent.placeholder.searchName')"
         allow-clear
         class="!w-64"
-        @update:value="onSearchInput"
+        @update:value="(v: string) => { searchKeyword = v; doSearch(); }"
       >
         <template #prefix>
           <IconifyIcon icon="lucide:search" class="size-4 text-muted-foreground" />
@@ -394,7 +274,7 @@ onMounted(() => {
         :placeholder="$t('admin.ai.agent.scopeLabel')"
         allow-clear
         class="!w-32"
-        @change="onFilterChange"
+        @change="doSearch"
       >
         <SelectOption
           v-for="opt in getScopeOptions()"
@@ -411,7 +291,7 @@ onMounted(() => {
         :placeholder="$t('admin.ai.agent.status')"
         allow-clear
         class="!w-32"
-        @change="onFilterChange"
+        @change="doSearch"
       >
         <SelectOption value="published">
           {{ $t('admin.ai.agent.status_options.published') }}
@@ -476,11 +356,11 @@ onMounted(() => {
     <!-- ==================== Card Grid ==================== -->
     <Spin :spinning="loading">
       <div
-        v-if="agents.length > 0"
+        v-if="list.length > 0"
         class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
       >
         <div
-          v-for="agent in agents"
+          v-for="agent in list"
           :key="agent.id"
           class="group relative rounded-xl border border-border bg-card p-5 transition-all duration-200 hover:border-primary/30 hover:shadow-md"
         >
@@ -608,7 +488,7 @@ onMounted(() => {
                     v-if="!agent.is_system"
                     key="delete"
                     class="!text-destructive"
-                    @click="onDelete(agent)"
+                    @click="handleMenuAction('delete', agent)"
                   >
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:trash-2" class="size-4" />
@@ -743,61 +623,15 @@ onMounted(() => {
       class="flex justify-end"
     >
       <Pagination
-        v-model:current="page"
-        v-model:pageSize="pageSize"
+        :current="currentPage"
+        :page-size="pageSize"
         :total="total"
         :page-size-options="['12', '24', '48']"
-        show-size-changer
-        show-quick-jumper
+        :show-size-changer="false"
         size="small"
+        @change="onPageChange"
       />
     </div>
 
-    <!-- ==================== Recycle Bin Drawer ==================== -->
-    <Drawer
-      v-model:open="recycleBinVisible"
-      :title="$t('common.recycleBin.title')"
-      width="600"
-      :destroy-on-close="true"
-    >
-      <Table
-        :columns="recycleBinColumns"
-        :data-source="recycleBinItems"
-        :loading="recycleBinLoading"
-        :pagination="false"
-        row-key="id"
-        size="small"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'deleted_at'">
-            <span class="text-xs text-muted-foreground">
-              {{ formatRelativeTime(record.deleted_at) }}
-            </span>
-          </template>
-          <template v-if="column.key === 'action'">
-            <Space>
-              <Button
-                type="link"
-                size="small"
-                @click="onRestoreAgent(record.id)"
-              >
-                {{ $t('common.recycleBin.restore') }}
-              </Button>
-              <Popconfirm
-                :title="$t('common.recycleBin.permanentDeleteConfirm')"
-                @confirm="onPermanentDeleteAgent(record.id)"
-              >
-                <Button type="link" size="small" danger>
-                  {{ $t('common.recycleBin.permanentDelete') }}
-                </Button>
-              </Popconfirm>
-            </Space>
-          </template>
-        </template>
-        <template #emptyText>
-          <Empty :description="$t('common.recycleBin.empty')" />
-        </template>
-      </Table>
-    </Drawer>
   </Page>
 </template>

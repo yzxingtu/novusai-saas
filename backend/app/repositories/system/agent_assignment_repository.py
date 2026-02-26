@@ -90,10 +90,13 @@ class AgentAssignmentRepository(BaseRepository[SystemAgentAssignment]):
         self, feature_code: str, tenant_id: int
     ) -> SystemAgentAssignment | None:
         """
-        租户 resolve：先查租户覆盖，未找到则 fallback 到全局默认
+        租户 resolve：先查租户覆盖，未找到则 fallback 到全局默认。
+
+        当租户覆盖存在时直接返回（无论 is_active），让调用方根据
+        is_active 决定行为。只有覆盖不存在时才 fallback 到全局默认。
         """
         override = await self.get_tenant_override(feature_code, tenant_id)
-        if override and override.is_active:
+        if override:
             return override
         return await self.get_active_by_feature_code(feature_code)
 

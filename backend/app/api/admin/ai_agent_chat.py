@@ -48,7 +48,7 @@ async def _get_agent_tenant_id(db: AsyncSession, agent_id: int) -> int:
 @permission_resource(
     resource="admin_agent_chat",
     name="menu.admin.admin_agent_chat",
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:message-square-text",
         path="/ai/chat",

@@ -21,7 +21,7 @@ from app.rbac.services import PermissionService
 @permission_resource(
     resource="permission",
     name="menu.admin.permission",  # i18n key
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     # 不传 menu 参数 = 不注册菜单权限，仅提供 API 端点
 )
 class AdminPermissionController(GlobalController):

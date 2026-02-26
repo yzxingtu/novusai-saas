@@ -7,11 +7,19 @@
 from sqlalchemy import select, and_, or_, func, update
 
 from app.models.ai.knowledge_base import KnowledgeBase
+from app.models.ai.knowledge_base_tenant_access import KnowledgeBaseTenantAccess
 from app.models.ai.knowledge_document import KnowledgeDocument
 from app.models.ai.document_chunk import DocumentChunk
 from app.core.base_repository import TenantRepository, BaseRepository
 from app.enums.common import ResourceScopeEnum
+from app.enums.knowledge_base import KBVisibilityEnum
+from app.repositories.system.resource_tenant_assignment_repository import assigned_resource_ids_subquery
 from app.schemas.common.query import QuerySpec, FilterRule
+
+_ASSIGNED_SCOPES = (
+    ResourceScopeEnum.ASSIGNED_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+)
 
 
 class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
@@ -29,14 +37,46 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         id: int,
         include_deleted: bool = False,
     ) -> KnowledgeBase | None:
-        """根据 ID 获取知识库，允许访问全局知识库"""
+        """
+        根据 ID 获取知识库，检查可见性权限
+
+        访问规则：
+        - 自己租户的 KB → 允许
+        - scope=global → 允许（全局知识库对所有租户可见）
+        - visibility=all_tenants → 允许
+        - visibility=assigned → 检查 KnowledgeBaseTenantAccess 关联
+        - 其他 → 拒绝
+        """
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
-        if instance and hasattr(instance, "tenant_id"):
-            if instance.scope == ResourceScopeEnum.GLOBAL.value:
+        if not instance:
+            return None
+        # 自己租户的 KB
+        if instance.tenant_id == self.tenant_id:
+            return instance
+        # 全局作用域的 KB（admin_and_all）
+        if getattr(instance, "scope", None) == ResourceScopeEnum.ADMIN_AND_ALL.value:
+            return instance
+        # assigned_tenants / admin_and_assigned scope：检查 resource_tenant_assignments
+        if getattr(instance, "scope", None) in _ASSIGNED_SCOPES:
+            from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
+            repo = ResourceTenantAssignmentRepository(self.db)
+            if await repo.check_assignment("knowledge_base", instance.id, self.tenant_id):
                 return instance
-            if instance.tenant_id != self.tenant_id:
-                return None
-        return instance
+            return None
+        # 对所有租户可见
+        if instance.visibility == KBVisibilityEnum.ALL_TENANTS.value:
+            return instance
+        # 指定租户可见（旧机制）：检查 KnowledgeBaseTenantAccess 关联表
+        if instance.visibility == KBVisibilityEnum.ASSIGNED.value:
+            access_stmt = select(KnowledgeBaseTenantAccess.id).where(
+                KnowledgeBaseTenantAccess.knowledge_base_id == id,
+                KnowledgeBaseTenantAccess.tenant_id == self.tenant_id,
+                KnowledgeBaseTenantAccess.is_deleted.is_(False),
+            ).limit(1)
+            result = await self.db.execute(access_stmt)
+            if result.scalar_one_or_none() is not None:
+                return instance
+        return None
 
     async def query_list(
         self,
@@ -48,7 +88,7 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         """
         租户级知识库列表查询
 
-        自动注入条件：(tenant_id = X) OR (scope = 'global')
+        自动注入条件：(tenant_id = X) OR (scope = 'admin_and_all')
         """
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
@@ -58,11 +98,31 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
-        # 替代 TenantRepository 的 tenant_id 强制过滤：包含全局资源
+        # 可见性过滤：自己的 KB + all_tenants + assigned(关联表)
+        assigned_subq = (
+            select(KnowledgeBaseTenantAccess.knowledge_base_id)
+            .where(
+                KnowledgeBaseTenantAccess.tenant_id == self.tenant_id,
+                KnowledgeBaseTenantAccess.is_deleted.is_(False),
+            )
+        ).scalar_subquery()
+
+        rta_subq = assigned_resource_ids_subquery("knowledge_base", self.tenant_id)
         query = query.where(
             or_(
                 self.model.tenant_id == self.tenant_id,
-                self.model.scope == ResourceScopeEnum.GLOBAL.value,
+                self.model.visibility == KBVisibilityEnum.ALL_TENANTS.value,
+                and_(
+                    self.model.visibility == KBVisibilityEnum.ASSIGNED.value,
+                    self.model.id.in_(assigned_subq),
+                ),
+                # 全局共享 KB（admin_and_all）
+                self.model.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
+                # assigned_tenants / admin_and_assigned scope
+                and_(
+                    self.model.scope.in_(_ASSIGNED_SCOPES),
+                    self.model.id.in_(rta_subq),
+                ),
             )
         )
 

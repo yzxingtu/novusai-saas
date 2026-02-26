@@ -37,6 +37,7 @@
     "addQa": "Add Q&A",
     "delete": "Delete Document",
     "retry": "Retry",
+    "viewChunks": "View Chunks",
     "field": {
       "fileName": "File Name",
       "fileType": "Type",
@@ -110,5 +111,6 @@
     "uploadTypes": "Supported: PDF, Word (.docx), TXT, Markdown (.md), CSV. Max recommended file size: 20MB",
     "statusDesc": "Pending → Parsing → Chunking → Embedding → Completed. Click retry if any step fails"
   },
+  "readonlyHint": "This knowledge base is assigned by admin. You can view and search, but cannot edit documents.",
   "deleteConfirm": "Delete knowledge base \"{name}\"? All documents and chunks will be permanently deleted."
 }

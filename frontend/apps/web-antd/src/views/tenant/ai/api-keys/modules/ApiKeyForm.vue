@@ -3,6 +3,8 @@ defineOptions({ name: 'TenantAIApiKeyForm' });
 /**
  * 租户端创建 API Key 弹窗表单
  */
+import { Modal } from 'ant-design-vue';
+
 import { useVbenForm } from '#/adapter/form';
 import { $t } from '#/locales';
 
@@ -31,7 +33,7 @@ function handleCancel() {
 </script>
 
 <template>
-  <a-modal
+  <Modal
     v-model:open="open"
     :title="$t('tenant.ai.apiKey.create')"
     :ok-text="$t('common.confirm')"
@@ -42,5 +44,5 @@ function handleCancel() {
     @cancel="handleCancel"
   >
     <Form class="pt-4" />
-  </a-modal>
+  </Modal>
 </template>

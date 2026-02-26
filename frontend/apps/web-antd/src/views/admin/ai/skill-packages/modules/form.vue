@@ -10,27 +10,19 @@ import { computed } from 'vue';
 import {
   inputField,
   numberField,
-  select,
   switchField,
   textareaField,
 } from '#/adapter/form';
 import { useVbenForm } from '#/adapter/form';
 import { getSkillPackageDetailApi } from '#/api/admin/skill-packages';
-import { getTenantSelectApi } from '#/api/admin/tenant';
+import {
+  extractScopePayload,
+  useScopeFields,
+} from '#/components/business/scope-select';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
-const isTenantScope = (v: Record<string, unknown>) => v.scope === 'tenant';
-
 const emits = defineEmits<{ success: [] }>();
-
-function getScopeOptions() {
-  return [
-    { label: $t('admin.ai.skillPackage.scope_options.admin'), value: 'admin' },
-    { label: $t('admin.ai.skillPackage.scope_options.tenant'), value: 'tenant' },
-    { label: $t('admin.ai.skillPackage.scope_options.global'), value: 'global' },
-  ];
-}
 
 function useFormSchema() {
   return [
@@ -54,33 +46,13 @@ function useFormSchema() {
       required: true,
       placeholder: $t('admin.ai.skillPackage.placeholder.inputName'),
     }),
-    {
-      ...select('scope', $t('admin.ai.skillPackage.scope'), {
-        options: getScopeOptions(),
-        required: true,
-        placeholder: $t('admin.ai.skillPackage.placeholder.selectScope'),
-      }),
-      help: $t('admin.ai.skillPackage.help.scope'),
-      dependencies: {
-        triggerFields: ['_mode'],
-        disabled: (values: Record<string, unknown>) => values._mode === 'edit',
-      },
-    },
+    ...useScopeFields({
+      scopeHelp: $t('admin.ai.skillPackage.help.scope'),
+      scopeDisabled: (values: Record<string, unknown>) => values._mode === 'edit',
+    }),
     textareaField('description', $t('admin.ai.skillPackage.description'), {
       placeholder: $t('admin.ai.skillPackage.placeholder.inputDescription'),
     }),
-    {
-      ...select('tenant_id', $t('admin.ai.skillPackage.tenantId'), {
-        api: getTenantSelectApi,
-        params: { is_active: 'true' },
-        required: true,
-        placeholder: $t('admin.ai.skillPackage.placeholder.selectTenant'),
-      }),
-      dependencies: {
-        triggerFields: ['scope'],
-        if: isTenantScope,
-      },
-    },
     switchField('is_active', $t('admin.ai.skillPackage.isActive'), {
       defaultValue: true,
     }),
@@ -93,7 +65,7 @@ function useFormSchema() {
 
 function getFormDefaults(): Record<string, unknown> {
   return {
-    scope: 'admin',
+    scope: 'admin_only',
     is_active: true,
     sort_order: 0,
   };
@@ -109,26 +81,21 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillPackageInfo>({
   schema: useFormSchema,
   defaults: getFormDefaults,
   apiPath: '/admin/ai/skill-packages',
-  transform: (values) => {
-    const result: Record<string, unknown> = {
-      name: values.name,
-      scope: values.scope,
-      description: values.description || null,
-      is_active: values.is_active ?? true,
-      sort_order: values.sort_order ?? 0,
-    };
-    if (values.scope === 'tenant') {
-      result.tenant_id = values.tenant_id;
-    }
-    return result;
-  },
+  transform: (values) => ({
+    name: values.name,
+    description: values.description || null,
+    is_active: values.is_active ?? true,
+    sort_order: values.sort_order ?? 0,
+    ...extractScopePayload(values),
+  }),
   toFormValues: (data: AdminSkillPackageInfo) => ({
     name: data.name,
-    scope: data.scope,
     description: data.description,
-    tenant_id: data.tenant_id,
     is_active: data.is_active,
     sort_order: data.sort_order,
+    scope: data.scope,
+    tenant_id: data.tenant_id ?? null,
+    tenant_ids: data.assigned_tenant_ids ?? [],
   }),
   onSuccess: () => {
     emits('success');

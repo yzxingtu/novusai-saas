@@ -9,6 +9,7 @@ import { computed } from 'vue';
 
 import { useVbenForm } from '#/adapter/form';
 import { getAdminKnowledgeBaseDetailApi } from '#/api/admin/knowledge-bases';
+import { extractScopePayload } from '#/components/business/scope-select';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
@@ -29,13 +30,8 @@ const { Drawer, isEdit } = useCrudDrawer<AdminKnowledgeBaseItem>({
     const result: Record<string, unknown> = {
       name: values.name,
       description: values.description || null,
-      scope: values.scope,
+      ...extractScopePayload(values),
     };
-    if (values.scope === 'tenant') {
-      result.tenant_id = values.tenant_id;
-    } else {
-      result.tenant_id = null;
-    }
     if (!edit) {
       result.embedding_model_id = values.embedding_model_id;
     }
@@ -45,19 +41,18 @@ const { Drawer, isEdit } = useCrudDrawer<AdminKnowledgeBaseItem>({
     result.score_threshold = values.score_threshold;
     return result;
   },
-  toFormValues: (data) => {
-    return {
-      name: data.name,
-      description: data.description,
-      scope: data.scope,
-      tenant_id: data.tenant_id,
-      embedding_model_id: data.embedding_model_id,
-      chunk_size: data.chunk_size,
-      chunk_overlap: data.chunk_overlap,
-      top_k: data.top_k,
-      score_threshold: data.score_threshold,
-    };
-  },
+  toFormValues: (data) => ({
+    name: data.name,
+    description: data.description,
+    scope: data.scope,
+    tenant_id: data.tenant_id ?? null,
+    tenant_ids: data.assigned_tenant_ids ?? [],
+    embedding_model_id: data.embedding_model_id,
+    chunk_size: data.chunk_size,
+    chunk_overlap: data.chunk_overlap,
+    top_k: data.top_k,
+    score_threshold: data.score_threshold,
+  }),
   onSuccess: () => {
     emits('success');
   },
@@ -72,7 +67,7 @@ const title = computed(() =>
 </script>
 
 <template>
-  <Drawer :title="title" class="w-[600px]">
+  <Drawer :title="title" class="w-[680px]">
     <Form />
   </Drawer>
 </template>

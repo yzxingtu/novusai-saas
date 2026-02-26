@@ -7,26 +7,12 @@ import type { AdminSkillPackageInfo } from '#/api/admin/skill-packages';
 
 import { searchInput, select } from '#/adapter/form';
 import { $t } from '#/locales';
-import { getScopeColor } from '#/utils/ai-helpers';
+import { getScopeColor, getScopeOptions, getScopeText } from '#/utils/scope-helpers';
 
-export { getScopeColor };
-
-/** 作用域文本映射 */
-export function getScopeText(scope: string): string {
-  const map: Record<string, string> = {
-    admin: $t('admin.ai.skillPackage.scope_options.admin'),
-    tenant: $t('admin.ai.skillPackage.scope_options.tenant'),
-    global: $t('admin.ai.skillPackage.scope_options.global'),
-  };
-  return map[scope] || scope;
-}
+export { getScopeColor, getScopeText };
 
 function getScopeFilterOptions() {
-  return [
-    { label: $t('admin.ai.skillPackage.scope_options.admin'), value: 'admin' },
-    { label: $t('admin.ai.skillPackage.scope_options.tenant'), value: 'tenant' },
-    { label: $t('admin.ai.skillPackage.scope_options.global'), value: 'global' },
-  ];
+  return getScopeOptions(['admin_only', 'all_tenants', 'admin_and_all', 'admin_and_assigned', 'assigned_tenants']);
 }
 
 /** 表格列定义 */
@@ -46,6 +32,13 @@ export function useColumns<T = AdminSkillPackageInfo>(
       width: 100,
       align: 'center',
       slots: { default: 'scope_cell' },
+    },
+    {
+      field: 'bind_mode',
+      title: $t('common.bindMode.label'),
+      width: 100,
+      align: 'center',
+      slots: { default: 'bind_mode_cell' },
     },
     {
       field: 'skill_count',

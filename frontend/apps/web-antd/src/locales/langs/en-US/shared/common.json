@@ -32,6 +32,9 @@
   "export": "Export",
   "import": "Import",
   "upload": "Upload",
+  "uploadFailed": "Upload failed",
+  "uploadSuccess": "Upload successful",
+  "type": "Type",
   "change": "Change",
   "preview": "Preview",
   "back": "Back",
@@ -108,5 +111,10 @@
   "copied": "Copied to clipboard",
   "notSet": "Not Set",
   "saveSuccess": "Saved successfully",
-  "connectionLost": "Real-time connection lost, reconnecting..."
+  "connectionLost": "Real-time connection lost, reconnecting...",
+  "page": {
+    "perPage": "/ page",
+    "prev": "Previous",
+    "next": "Next"
+  }
 }

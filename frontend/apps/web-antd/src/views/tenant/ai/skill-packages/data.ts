@@ -7,18 +7,9 @@ import type { TenantSkillPackageInfo } from '#/api/tenant/skill-packages';
 
 import { searchInput } from '#/adapter/form';
 import { $t } from '#/locales';
-import { getScopeColor } from '#/utils/ai-helpers';
+import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
-export { getScopeColor };
-
-/** 作用域文本映射 */
-export function getScopeText(scope: string): string {
-  const map: Record<string, string> = {
-    tenant: $t('tenant.ai.skillPackage.scope_options.tenant'),
-    global: $t('tenant.ai.skillPackage.scope_options.global'),
-  };
-  return map[scope] || scope;
-}
+export { getScopeColor, getScopeText };
 
 /** 表格列定义 */
 export function useColumns<T = TenantSkillPackageInfo>(
@@ -70,8 +61,8 @@ export function useColumns<T = TenantSkillPackageInfo>(
         },
         name: 'CellOperation',
         options: [
-          { code: 'edit', show: (row: TenantSkillPackageInfo) => row.scope !== 'global' },
-          { code: 'delete', show: (row: TenantSkillPackageInfo) => !row.is_system && row.scope !== 'global' },
+          { code: 'edit', show: (row: TenantSkillPackageInfo) => row.scope === 'all_tenants' },
+          { code: 'delete', show: (row: TenantSkillPackageInfo) => !row.is_system && row.scope === 'all_tenants' },
         ],
       },
       field: 'operation',

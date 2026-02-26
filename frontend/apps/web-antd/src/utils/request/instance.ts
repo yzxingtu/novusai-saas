@@ -82,11 +82,12 @@ async function doReAuthenticate() {
   } else {
     // 重定向模式
     const loginPath = LOGIN_PATHS[endpoint];
-    const currentFullPath = window.location.pathname + window.location.search;
-    const redirect =
-      currentFullPath === loginPath
-        ? ''
-        : `?redirect=${encodeURIComponent(currentFullPath)}`;
+    // 仅比较 pathname（忽略 query），避免已在登录页时创建嵌套 redirect 导致死循环
+    if (currentPath === loginPath) {
+      // 已在登录页，不重定向（保留原有 redirect 参数）
+      return;
+    }
+    const redirect = `?redirect=${encodeURIComponent(currentPath)}`;
     window.location.href = loginPath + redirect;
   }
 }

@@ -11,8 +11,15 @@ from app.core.deps import DbSession, ActiveAdmin, QueryParams
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import success, created, deleted, paginated
+from app.enums.common import ResourceScopeEnum
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
+from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
+
+SCOPES_NEEDING_ASSIGNMENT = (
+    ResourceScopeEnum.ASSIGNED_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+)
 from app.rbac.decorators import (
     permission_resource,
     MenuConfig,
@@ -49,7 +56,7 @@ def _build_admin_agent_item(agent) -> dict:
 @permission_resource(
     resource="ai_agent",
     name="menu.admin.ai_agent",
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:bot",
         path="/ai/agents",
@@ -129,7 +136,14 @@ class AdminAgentController(GlobalController):
             """
             service = AdminAgentService(db)
             data = body.model_dump(exclude_unset=True)
+            tenant_ids = data.pop("tenant_ids", None)
             agent = await service.create(data)
+
+            # 同步租户分配
+            if agent.scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
+                repo = ResourceTenantAssignmentRepository(db)
+                await repo.sync_assignments("agent", agent.id, tenant_ids)
+
             await db.commit()
             await db.refresh(agent)
 
@@ -158,7 +172,18 @@ class AdminAgentController(GlobalController):
                 raise NotFoundException(message=_("agent.error.not_found"))
 
             data = body.model_dump(exclude_unset=True)
+            tenant_ids = data.pop("tenant_ids", None)
             agent = await service.update(agent_id, data)
+
+            # 同步租户分配
+            effective_scope = agent.scope
+            if effective_scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
+                repo = ResourceTenantAssignmentRepository(db)
+                await repo.sync_assignments("agent", agent_id, tenant_ids)
+            elif effective_scope not in SCOPES_NEEDING_ASSIGNMENT:
+                repo = ResourceTenantAssignmentRepository(db)
+                await repo.delete_all_for_resource("agent", agent_id)
+
             await db.commit()
             await db.refresh(agent)
 
@@ -212,6 +237,15 @@ class AdminAgentController(GlobalController):
             # 使用租户 Service 获取完整详情（含模型关联）
             service = AgentService(db, agent.tenant_id)
             detail = await service.get_agent_detail(agent_id)
+
+            # 追加已分配的租户 ID 列表
+            if agent.scope in SCOPES_NEEDING_ASSIGNMENT:
+                repo = ResourceTenantAssignmentRepository(db)
+                detail["assigned_tenant_ids"] = await repo.get_assigned_tenant_ids(
+                    "agent", agent_id
+                )
+            else:
+                detail["assigned_tenant_ids"] = []
 
             return success(data=detail)
 

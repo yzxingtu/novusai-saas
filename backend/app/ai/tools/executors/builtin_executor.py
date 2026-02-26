@@ -25,6 +25,40 @@ logger = LogManager.get_logger("ai.tool.builtin")
 BuiltinFunc = Callable[..., Coroutine[Any, Any, str]]
 
 
+# SSRF 防护：阻止访问内网/云元数据的主机名
+_SSRF_BLOCKED_HOSTS = frozenset({
+    "localhost", "127.0.0.1", "0.0.0.0", "::1",
+    "169.254.169.254", "metadata.google.internal",
+    "metadata.google", "100.100.100.200",
+})
+# 内网 IP 段前缀（快速检查，非精确 CIDR）
+_SSRF_PRIVATE_PREFIXES = ("10.", "172.16.", "172.17.", "172.18.", "172.19.",
+                          "172.20.", "172.21.", "172.22.", "172.23.",
+                          "172.24.", "172.25.", "172.26.", "172.27.",
+                          "172.28.", "172.29.", "172.30.", "172.31.",
+                          "192.168.", "fd", "fc")
+
+
+def _is_ssrf_blocked(url: str) -> str | None:
+    """检查 URL 是否指向内网/云元数据，返回错误消息或 None"""
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        if not host:
+            return "Invalid URL: no hostname"
+        if host in _SSRF_BLOCKED_HOSTS:
+            return f"Blocked: requests to {host} are not allowed"
+        if host.startswith(_SSRF_PRIVATE_PREFIXES):
+            return f"Blocked: requests to private network ({host}) are not allowed"
+        # 阻止非 HTTP(S) 协议
+        if parsed.scheme not in ("http", "https"):
+            return f"Blocked: only http/https URLs are allowed, got {parsed.scheme}"
+    except Exception:
+        return "Invalid URL"
+    return None
+
+
 class BuiltinToolExecutor(BaseToolExecutor):
     """
     内置函数工具执行器
@@ -115,6 +149,8 @@ class BuiltinToolExecutor(BaseToolExecutor):
         self.register_function("get_current_time", self._get_current_time)
         self.register_function("calculate", self._calculate)
         self.register_function("format_json", self._format_json)
+        self.register_function("web_search", self._web_search)
+        self.register_function("fetch_url", self._fetch_url)
 
     @staticmethod
     async def _get_current_time(
@@ -157,6 +193,122 @@ class BuiltinToolExecutor(BaseToolExecutor):
             return json.dumps(parsed, indent=2, ensure_ascii=False)
         except json.JSONDecodeError as exc:
             return f"Error: Invalid JSON - {exc}"
+
+    @staticmethod
+    async def _web_search(query: str = "", max_results: int = 5) -> str:
+        """
+        联网搜索：通过 DuckDuckGo HTML API 搜索网页内容。
+
+        返回搜索结果列表（标题 + 摘要 + 链接）。
+        """
+        if not query:
+            return "Error: query parameter is required"
+
+        import httpx
+        from html import unescape
+        import re
+
+        max_results = min(max(1, max_results), 10)
+        url = "https://html.duckduckgo.com/html/"
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                resp = await client.post(url, data={"q": query}, headers=headers)
+                resp.raise_for_status()
+                html = resp.text
+
+            # Parse results from DuckDuckGo HTML response
+            results: list[dict[str, str]] = []
+
+            # Extract result blocks
+            snippet_re = re.compile(
+                r'<a[^>]+class="result__a"[^>]*href="([^"]*)"[^>]*>(.*?)</a>'
+                r'.*?<a[^>]+class="result__snippet"[^>]*>(.*?)</a>',
+                re.DOTALL,
+            )
+            for match in snippet_re.finditer(html):
+                if len(results) >= max_results:
+                    break
+                href = unescape(match.group(1))
+                title = re.sub(r"<[^>]+>", "", unescape(match.group(2))).strip()
+                snippet = re.sub(r"<[^>]+>", "", unescape(match.group(3))).strip()
+                if title and href:
+                    results.append({"title": title, "url": href, "snippet": snippet})
+
+            if not results:
+                return f"No results found for: {query}"
+
+            lines = [f"Search results for: {query}\n"]
+            for i, r in enumerate(results, 1):
+                lines.append(f"{i}. {r['title']}")
+                lines.append(f"   URL: {r['url']}")
+                if r["snippet"]:
+                    lines.append(f"   {r['snippet']}")
+                lines.append("")
+            return "\n".join(lines)
+
+        except httpx.TimeoutException:
+            return f"Error: Search timed out for query: {query}"
+        except Exception as exc:
+            logger.warning("web_search failed: %s", exc)
+            return f"Error: Search failed - {exc}"
+
+    @staticmethod
+    async def _fetch_url(url: str = "", max_length: int = 5000) -> str:
+        """
+        抓取网页内容：获取指定 URL 的文本内容。
+
+        自动提取正文文本，去除 HTML 标签和脚本。
+        """
+        if not url:
+            return "Error: url parameter is required"
+
+        # SSRF 防护：阻止内网/云元数据访问
+        ssrf_err = _is_ssrf_blocked(url)
+        if ssrf_err:
+            return f"Error: {ssrf_err}"
+
+        import httpx
+        import re
+
+        max_length = min(max(500, max_length), 20000)
+
+        try:
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                resp = await client.get(url, headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    ),
+                })
+                resp.raise_for_status()
+                html = resp.text
+
+            # Remove script/style/noscript tags
+            html = re.sub(r"<(script|style|noscript)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
+            # Remove HTML tags
+            text = re.sub(r"<[^>]+>", " ", html)
+            # Collapse whitespace
+            text = re.sub(r"\s+", " ", text).strip()
+
+            if len(text) > max_length:
+                text = text[:max_length] + "... [truncated]"
+
+            return f"Content from {url}:\n\n{text}" if text else f"No readable content found at {url}"
+
+        except httpx.TimeoutException:
+            return f"Error: Request timed out for URL: {url}"
+        except Exception as exc:
+            logger.warning("fetch_url failed for %s: %s", url, exc)
+            return f"Error: Failed to fetch URL - {exc}"
 
 
 # ========================================

@@ -37,6 +37,7 @@
     "addQa": "添加 Q&A",
     "delete": "删除文档",
     "retry": "重试",
+    "viewChunks": "查看分块",
     "field": {
       "fileName": "文件名",
       "fileType": "类型",
@@ -110,5 +111,6 @@
     "uploadTypes": "支持格式：PDF、Word (.docx)、TXT、Markdown (.md)、CSV。单文件建议不超过 20MB",
     "statusDesc": "等待处理→解析中→分块中→向量化中→已完成。任一步骤失败可点击重试"
   },
+  "readonlyHint": "该知识库由管理端分配，仅可查看和检索，不可编辑文档",
   "deleteConfirm": "确认删除知识库「{name}」？所有文档和分块数据将被永久删除。"
 }

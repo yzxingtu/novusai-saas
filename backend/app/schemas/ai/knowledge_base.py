@@ -55,8 +55,11 @@ class AdminKnowledgeBaseCreate(BaseCreateSchema):
     name: str = Field(..., max_length=200, description=_("knowledge_base.model.name"))
     description: str | None = Field(None, description=_("knowledge_base.model.description"))
     avatar: str | None = Field(None, max_length=50, description=_("knowledge_base.model.avatar"))
-    scope: str = Field("tenant", description=_("knowledge_base.model.scope"))
+    scope: str = Field("all_tenants", description=_("knowledge_base.model.scope"))
+    visibility: str = Field("private", description=_("knowledge_base.model.visibility"))
     tenant_id: int | None = Field(None, description=_("knowledge_base.model.tenant_id"))
+    assigned_tenant_ids: list[int] | None = Field(None, description=_("knowledge_base.model.assigned_tenant_ids"))
+    tenant_ids: list[int] | None = Field(None, description="分配的租户 ID 列表（scope=assigned_tenants/admin_and_assigned 时使用）")
     embedding_model_id: int = Field(..., description=_("knowledge_base.model.embedding_model_id"))
     chunk_size: int = Field(512, ge=128, le=4096, description=_("knowledge_base.model.chunk_size"))
     chunk_overlap: int = Field(50, ge=0, description=_("knowledge_base.model.chunk_overlap"))
@@ -73,7 +76,10 @@ class AdminKnowledgeBaseUpdate(BaseUpdateSchema):
     description: str | None = Field(None, description=_("knowledge_base.model.description"))
     avatar: str | None = Field(None, max_length=50, description=_("knowledge_base.model.avatar"))
     scope: str | None = Field(None, description=_("knowledge_base.model.scope"))
+    visibility: str | None = Field(None, description=_("knowledge_base.model.visibility"))
     tenant_id: int | None = Field(None, description=_("knowledge_base.model.tenant_id"))
+    assigned_tenant_ids: list[int] | None = Field(None, description=_("knowledge_base.model.assigned_tenant_ids"))
+    tenant_ids: list[int] | None = Field(None, description="分配的租户 ID 列表（scope=assigned_tenants/admin_and_assigned 时使用）")
     chunk_size: int | None = Field(None, ge=128, le=4096, description=_("knowledge_base.model.chunk_size"))
     chunk_overlap: int | None = Field(None, ge=0, description=_("knowledge_base.model.chunk_overlap"))
     chunk_strategy: str | None = Field(None, description=_("knowledge_base.model.chunk_strategy"))
@@ -179,6 +185,19 @@ class QAPairCreate(BaseCreateSchema):
     )
 
 
+class TextDocumentCreate(BaseCreateSchema):
+    """直接文本输入请求"""
+
+    title: str = Field(
+        ..., min_length=1, max_length=200,
+        description=_("knowledge_base.text.title"),
+    )
+    content: str = Field(
+        ..., min_length=1, max_length=100000,
+        description=_("knowledge_base.text.content"),
+    )
+
+
 class KnowledgeBaseSearchRequest(BaseCreateSchema):
     """检索测试请求"""
 
@@ -211,6 +230,7 @@ __all__ = [
     "DocumentChunkResponse",
     "DocumentChunkUpdate",
     "QAPairCreate",
+    "TextDocumentCreate",
     "KnowledgeBaseSearchRequest",
     "ChunkSearchResult",
 ]

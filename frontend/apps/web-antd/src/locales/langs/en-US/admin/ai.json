@@ -356,11 +356,6 @@
     "create": "Create Agent",
     "noDescription": "No description",
     "viewDetail": "View Detail",
-    "scope": {
-      "tenant": "Tenant",
-      "global": "Global",
-      "admin": "Admin Only"
-    },
     "status_options": {
       "draft": "Draft",
       "published": "Published",
@@ -650,16 +645,14 @@
       "inputDescription": "Enter description",
       "selectScope": "Select scope",
       "selectTenant": "Select tenant",
+      "selectAssignedTenants": "Select tenants to assign",
       "allScopes": "All scopes"
     },
-    "scope_options": {
-      "tenant": "Specific Tenant",
-      "admin": "Admin Only",
-      "global": "Global"
-    },
     "tenantId": "Tenant",
+    "assignedTenants": "Assigned Tenants",
     "help": {
-      "scope": "Admin Only: visible to admin only; Specific Tenant: visible to that tenant only; Global: visible to admin and all tenants"
+      "scope": "Admin Only: visible to admin only; Specific Tenant: visible to that tenant only; Global: visible to admin and all tenants",
+      "assignedTenants": "Select tenants that are allowed to use this skill package"
     },
     "sourcePlugin": "Plugin",
     "uploadZip": "Upload Skill Package",
@@ -742,11 +735,6 @@
       "http": "HTTP Request",
       "email": "Email",
       "code_execution": "Code Execution"
-    },
-    "scope_options": {
-      "tenant": "Specific Tenant",
-      "admin": "Admin Only",
-      "global": "Global"
     },
     "filter": {
       "adminOnly": "Admin only",
@@ -839,8 +827,8 @@
       },
       "rewriteOptions": {
         "none": "None",
-        "hypothetical": "Hypothetical Document",
-        "step_back": "Step Back"
+        "multi": "Multi-Query Rewrite",
+        "hyde": "Hypothetical Document Embedding"
       }
     },
     "builtinTools": {
@@ -976,6 +964,7 @@
     "selectAgent": "Select agent",
     "saveSuccess": "Binding updated",
     "noAgent": "Not assigned",
+    "toggleActiveConfirm": "Are you sure to {action} this feature binding? This will affect all tenants.",
     "columns": {
       "featureName": "Feature",
       "featureCode": "Code",

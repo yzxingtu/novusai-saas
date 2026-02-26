@@ -6,7 +6,10 @@
 
 from fastapi import Request
 from pydantic import BaseModel as PydanticBaseModel, Field
-
+from app.api.shared._agent_assignment_helpers import (
+    build_assignment_item as _build_assignment_item,
+    build_plugin_feature_i18n_map as _build_plugin_feature_i18n_map,
+)
 from app.core.base_controller import GlobalController
 from app.core.deps import DbSession, ActiveAdmin, SuperAdmin
 from app.core.i18n import _
@@ -33,37 +36,10 @@ class AgentAssignmentUpdate(PydanticBaseModel):
     is_active: bool | None = Field(None, description=_("system_agent_assignment.field.is_active"))
 
 
-def _build_assignment_item(assignment) -> dict:
-    """构建绑定列表项"""
-    agent_name = None
-    agent_avatar = None
-    try:
-        agent_obj = getattr(assignment, "agent", None)
-        if agent_obj is not None:
-            agent_name = agent_obj.name
-            agent_avatar = agent_obj.avatar
-    except AttributeError:
-        pass
-
-    return {
-        "id": assignment.id,
-        "feature_code": assignment.feature_code,
-        "feature_name": assignment.feature_name,
-        "description": assignment.description,
-        "agent_id": assignment.agent_id,
-        "agent_name": agent_name,
-        "agent_avatar": agent_avatar,
-        "config": assignment.config,
-        "is_active": assignment.is_active,
-        "created_at": assignment.created_at,
-        "updated_at": assignment.updated_at,
-    }
-
-
 @permission_resource(
     resource="agent_assignment",
     name="menu.admin.agent_assignment",
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:plug",
         path="/ai/agent-assignments",
@@ -93,8 +69,12 @@ class AdminAgentAssignmentController(GlobalController):
             """获取所有全局默认系统智能体绑定"""
             service = AgentAssignmentService(db)
             all_items = await service.get_all_global()
-            result = [_build_assignment_item(item) for item in all_items]
-            return success(data=result)
+
+            # 构建插件 feature 多语言映射
+            i18n_map = await _build_plugin_feature_i18n_map(db)
+
+            result = [_build_assignment_item(item, i18n_map=i18n_map) for item in all_items]
+            return success(data={"items": result, "total": len(result)})
 
         @router.get("/resolve/{feature_code}", summary="解析功能绑定的智能体")
         @auth_only
@@ -122,7 +102,7 @@ class AdminAgentAssignmentController(GlobalController):
             agent_name = None
             try:
                 agent_obj = getattr(assignment, "agent", None)
-                if agent_obj is not None:
+                if agent_obj is not None and not getattr(agent_obj, "is_deleted", False):
                     agent_name = agent_obj.name
             except AttributeError:
                 pass
@@ -149,7 +129,8 @@ class AdminAgentAssignmentController(GlobalController):
                 raise NotFoundException(
                     message=_("system_agent_assignment.error.not_found"),
                 )
-            return success(data=_build_assignment_item(assignment))
+            i18n_map = await _build_plugin_feature_i18n_map(db)
+            return success(data=_build_assignment_item(assignment, i18n_map=i18n_map))
 
         @router.put("/{feature_code}", summary="更新绑定")
         @action_update("action.agent_assignment.update")
@@ -169,11 +150,18 @@ class AdminAgentAssignmentController(GlobalController):
                 )
 
             update_data = body.model_dump(exclude_unset=True)
+            i18n_map = await _build_plugin_feature_i18n_map(db)
             if update_data:
+                # 校验 agent_id 有效性（admin 端 tenant_id=None，不做 scope 校验）
+                if "agent_id" in update_data:
+                    await service.validate_agent_id(update_data["agent_id"])
+                # 启用时校验已绑定的 agent 仍可用（防止启用指向已删除/下架 Agent 的绑定）
+                elif update_data.get("is_active") is True and assignment.agent_id:
+                    await service.validate_agent_id(assignment.agent_id)
                 updated = await service.update(assignment.id, update_data)
-                return success(data=_build_assignment_item(updated))
+                return success(data=_build_assignment_item(updated, i18n_map=i18n_map))
 
-            return success(data=_build_assignment_item(assignment))
+            return success(data=_build_assignment_item(assignment, i18n_map=i18n_map))
 
 
 router = AdminAgentAssignmentController.get_router()

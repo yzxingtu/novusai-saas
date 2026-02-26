@@ -10,8 +10,8 @@
 - 禁止 `console.log`，使用 `console.warn` / `console.error`
 - 禁止 `any` 类型，使用 `unknown` 或具体类型
 - 禁止魔法字符串，使用枚举（后端 `LabeledEnum`）
-- 禁止跨端导入（admin 页面不导入 tenant API/store）
-- 禁止 Controller 写业务逻辑，禁止 Service 直接操作 DB
+- 禁止跨端导入（admin 页面不导入 tenant API/store）。后端跨端共享逻辑放 `app/api/shared/`（如 `_skill_helpers.py`）
+- 禁止 Controller 写业务逻辑或直接 DB 查询，禁止 Service 直接操作 DB。统计/Dashboard 查询必须在 Service 层
 - 禁止裸返回数据，后端必须用 `success()` / `created()` / `paginated()` 等统一响应
 - 禁止手写重复 Schema 配置，前端必须用 `searchInput` / `inputField` 等辅助函数
 - 禁止敏感信息（密钥、密码）写入代码，通过环境变量配置
@@ -27,11 +27,13 @@
 
 ### CRUD 开发
 
-- 列表页用 `useCrudPage`，表单用 `useCrudDrawer`
+- 表格列表页用 `useCrudPage`，自定义布局（卡片/面板/Master-Detail）用 `useCrudList`
+- 表单用 `useCrudDrawer`（标准模式）或 ref 模式（`openNew()`/`openEdit()`）
 - 搜索表单用 `searchInput()` / `statusSelect()` 等辅助函数生成
 - 编辑表单用 `inputField()` / `dateField()` / `textareaField()` 等
 - 业务预设（如 planSelect）定义在业务模块 `data.ts`，不放 adapter
 - 字段映射用 `fields` 选项自动处理 camelCase ↔ snake_case
+- **禁止手写 CRUD 数据管理**（手动 loading/list/page/total + fetchList + watch 分页 + 手写删除确认 + 手写回收站）
 
 ### 权限
 
@@ -47,8 +49,10 @@
 ### 国际化
 
 - 翻译文件 key 前缀 = 文件路径（`zh-CN/admin/system.json` → `admin.system.*`）
+- 共享业务组件用 `shared/` 命名空间（如 `shared/memberPanel.json` → `shared.memberPanel.*`）
 - JSON 内不重复嵌套路径名
 - 避免同一 JSON 中重复 key
+- zh-CN 和 en-US 的 key 必须完全对齐，新增 key 必须同时添加两种语言
 
 ### 图标
 
@@ -108,7 +112,7 @@ error(message, code, status_code)         # 自定义错误
 - 过滤：`filter[field][operator]=value`
 - 排序：`sort=-created_at,name`
 - 分页：`page[number]=1&page[size]=20`
-- 模型声明 `__filterable__` / `__sortable__` / `__selectable__`
+- 模型声明 `__filterable__` / `__sortable__` / `__selectable__` / `__delete_deps__`（被 FK 引用的父 Model 必须声明）
 
 ### 权限（RBAC）
 
@@ -144,6 +148,7 @@ error(message, code, status_code)         # 自定义错误
 ### 枚举
 
 继承 `LabeledStrEnum`，支持 i18n。禁止 `status = "draft"`，用 `status = NoticeStatus.DRAFT`。
+比较也必须用枚举：禁止 `scope == "all_tenants"`，用 `scope == ResourceScopeEnum.ALL_TENANTS.value`。
 
 ### 日志
 
@@ -197,11 +202,13 @@ alembic upgrade head
 ### 技能（Skill）体系
 
 - **技能包（SkillPackage）是一级管理单元**，技能（Skill）必须归属于某个技能包
+- **绑定模式（bind_mode）**：`auto`（自动绑定，按 scope 匹配 Agent）/ `manual`（手动绑定，默认）
+- 系统技能包默认 `bind_mode=auto`，自动对匹配 scope 的 Agent 生效
 - **前端统一入口**：`/admin/ai/skill-packages`（管理端）和 `/tenant/ai/skill-packages`（租户端）为唯一技能管理入口
 - **禁止独立技能路由**：不允许存在独立的 `/admin/ai/skills` 或 `/tenant/ai/skills` 页面
 - 技能包详情页内嵌技能 CRUD，技能表单自动继承当前包的 `package_id`
 
-### 技能类型
+### 技能类型（7 种）
 
 | 类型 | 说明 |
 |------|------|
@@ -209,6 +216,9 @@ alembic upgrade head
 | `knowledge_base` | 知识库检索（RAG，注入 system_prompt） |
 | `data_intelligence` | 数据智能（Text-to-SQL + CRUD） |
 | `builtin` | 内置函数 |
+| `http` | 声明式 HTTP API 调用 |
+| `email` | 邮件发送 |
+| `code_execution` | 代码沙箱执行 |
 
 - **Toolkit 类型**：通过 `toolkit_content` 存储 Python 源码，`toolkit_meta` 存储解析结果，支持 Valves 配置，非系统 Toolkit 有安全扫描
 - 新增技能类型必须同时：创建 Executor、注册到 SkillResolver、添加枚举值、添加 i18n
@@ -232,7 +242,7 @@ alembic upgrade head
 6. 通过 Agent 对话或 Agent.run() 触发 Skill
 ```
 
-详细规则 → `.verdent/rules/ai-architecture.md`
+详细规则 → `.windsurf/rules/ai-architecture.md`
 
 ## DevGenius 治理规则
 

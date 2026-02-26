@@ -175,7 +175,7 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
                 api_key=api_key.decrypt_key(),
                 base_url=provider.base_url,
             )
-            return await adapter.list_models()
+            remote_models = await adapter.list_models()
         except Exception as e:
             _logger.error(
                 _("ai.error.fetch_remote_models_failed"),
@@ -185,6 +185,18 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
             raise ExternalServiceException(
                 message=_("ai.error.fetch_remote_models_failed") + f": {str(e)}"
             )
+
+        # 合并 provider.config.extra_models（某些供应商的 /v1/models 不返回 embedding 等模型）
+        # 格式: {"extra_models": [{"id": "text-embedding-v3", "owned_by": "dashscope"}, ...]}
+        if provider.config and isinstance(provider.config, dict):
+            extra = provider.config.get("extra_models", [])
+            if extra and isinstance(extra, list):
+                existing_ids = {m["id"] for m in remote_models}
+                for em in extra:
+                    if isinstance(em, dict) and em.get("id") and em["id"] not in existing_ids:
+                        remote_models.append(em)
+
+        return remote_models
 
 
 __all__ = [

@@ -20,12 +20,14 @@ from app.models.ai.agent_access import AgentAccess
 from app.models.ai.action_log import AIActionLog
 from app.models.ai.query_log import AIQueryLog
 from app.models.ai.knowledge_base import KnowledgeBase
+from app.models.ai.knowledge_base_tenant_access import KnowledgeBaseTenantAccess
 from app.models.ai.knowledge_document import KnowledgeDocument
 from app.models.ai.document_chunk import DocumentChunk
 from app.models.ai.table_policy import AITablePolicy, AITablePolicyOverride
 from app.models.ai.skill_package import SkillPackage
 from app.models.ai.skill import Skill
 from app.models.ai.agent_skill_binding import AgentSkillBinding
+from app.models.ai.skill_call_log import SkillCallLog
 
 __all__ = [
     "AIProvider",
@@ -44,6 +46,7 @@ __all__ = [
     "AIActionLog",
     "AIQueryLog",
     "KnowledgeBase",
+    "KnowledgeBaseTenantAccess",
     "KnowledgeDocument",
     "DocumentChunk",
     "AITablePolicy",
@@ -51,4 +54,5 @@ __all__ = [
     "SkillPackage",
     "Skill",
     "AgentSkillBinding",
+    "SkillCallLog",
 ]

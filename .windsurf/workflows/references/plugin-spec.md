@@ -1,7 +1,7 @@
 # 插件系统开发规范（代码验证版）
 
 > 本文档基于 `backend/app/plugins/` 实际代码审计编写，所有路径、类名、方法签名均与代码一致。
-> 最后审计时间：2026-02-23
+> 最后审计时间：2026-02-26
 
 ## 一、目录结构
 
@@ -11,15 +11,21 @@
 backend/app/plugins/
 ├── __init__.py
 ├── base.py              # PluginBase 抽象基类（5 个生命周期钩子）
-├── manifest.py          # plugin.yaml Pydantic Schema（434 行，30+ Schema）
+├── manifest.py          # plugin.yaml Pydantic Schema（610 行，30+ Schema，含强校验）
 ├── loader.py            # PluginLoader（发现/清单/主类/README/i18n）
 ├── lifecycle.py         # PluginLifecycle（install/enable/disable/uninstall）
 ├── context.py           # PluginContext 沙箱 + PluginDbProxy
 ├── context_factory.py   # 版本化 Context 创建
-├── registry.py          # ExtensionRegistry 单例（9 种扩展类型）
-├── exceptions.py        # 7 个异常类
-├── api_dispatcher.py    # 插件 API 统一分发器
+├── registry.py          # ExtensionRegistry 单例（11 种扩展类型）
+├── _extension_registrar.py # 扩展点批量注册（fail-close 策略）
+├── exceptions.py        # 8 个异常类
+├── package_security.py  # ZIP 包安全校验与安全解压
+├── asset_resolver.py    # 插件前端静态资源路径解析（安全策略）
+├── api_dispatcher.py    # 插件 API 统一分发器（自动注入 PluginContext）
 ├── webhook_dispatcher.py # Webhook 分发器
+├── sse.py               # plugin_sse_response（SSE 流式封装 + 心跳）
+├── sio_auth.py          # 插件 Socket.IO 鉴权代理
+├── event_bus.py         # 跨插件事件总线（PluginEventBus）
 ├── security_scan.py     # AST 安全扫描
 ├── health.py            # 健康监控（错误追踪 + 自动降级）
 ├── startup.py           # 启动恢复（restore_enabled_plugins）
@@ -29,7 +35,7 @@ backend/app/plugins/
 ├── marketplace.py       # 市场客户端（GitHub/Gitee 双源）
 ├── update_checker.py    # 更新检查（24h 缓存）
 ├── crypto.py            # 配置加密/解密
-├── license.py           # License 工具
+├── license.py           # License 工具（含 fail-close 验证策略）
 ├── backup.py            # 插件备份
 └── telemetry.py         # 遥测
 ```
@@ -112,7 +118,7 @@ extensions:
   # 1. 技能（AI Agent 工具）
   skills:
     - name: weather-query
-      type: weather_query          # 技能类型标识（全局唯一）
+      type: toolkit                # 必须使用标准 SkillTypeEnum 值（toolkit/builtin 等）
       display_name: { zh-CN: "天气查询", en: "Weather Query" }
       description: { zh-CN: "...", en: "..." }
       entry_point: "skills.weather_resolver"  # 相对于 backend/ 的模块路径
@@ -131,10 +137,13 @@ extensions:
       entry_point: "drivers.s3_driver.S3Driver"
 
   # 4. API 路由
+  #    method: 仅允许 GET/POST/PUT/PATCH/DELETE（自动转大写）
+  #    auth:   仅允许 required/none（自动转小写）
+  #    path:   禁止前导斜杠，路径参数名必须合法标识符（如 {doc_id}，禁止 {1bad}）
   api:
     admin_routes:
       - method: GET
-        path: "stats"
+        path: "stats"                # 正确：无前导斜杠
         handler: "api.handlers.get_stats"
         summary: "获取统计数据"
         auth: required
@@ -173,12 +182,15 @@ extensions:
       actions: ["read", "create", "update", "delete"]
 
   # 9. Webhook 端点
+  #    method: 仅允许 GET/POST/PUT/DELETE（自动转大写）
+  #    path:   必须以 / 开头（自动规范化），支持路径参数
+  #    auth.type: 仅允许 none/hmac/token/signature
   webhooks:
-    - path: "/callback"
+    - path: "/callback"             # 必须有前导斜杠
       handler: "webhooks.github.handle_github"
       method: POST
       auth:
-        type: hmac                  # hmac | token | signature
+        type: hmac                  # none | hmac | token | signature
         secret_config_key: "webhook_secret"
         header_name: "X-Hub-Signature-256"
       description: "GitHub webhook"
@@ -192,7 +204,7 @@ extensions:
   frontend:
     menus:
       - name: my-page
-        path: "/tenant/my-plugin"
+        path: "/tenant/plugins/my-plugin"
         icon: "lucide:puzzle"
         parent: null
         sort_order: 100
@@ -371,7 +383,8 @@ await ctx.update_config(config)             # 更新全局配置（需 config:wr
 # ── 数据库 ──
 db = ctx.get_db()                           # 返回 PluginDbProxy（需 db:own_tables）
 # PluginDbProxy 限制只能操作 px_{name}_* 表
-# 方法: execute(), flush(), commit(), rollback(), add()
+# 支持方法: execute(), flush(), commit(), rollback(), add(), add_all(), delete(), refresh(), get(), text()
+# 禁止: db.session（会抛 PluginSecurityError）
 
 # ── 日志 ──
 logger = ctx.get_logger()                   # 返回 Logger（名称: plugin.{name}）
@@ -385,15 +398,31 @@ storage = await ctx.get_storage()           # 需 storage:read 或 storage:write
 result = await ctx.http_request("GET", url) # 需 http:outbound，自动 30s 超时
 # 返回 {"status_code": int, "headers": dict, "body": str}
 
-# ── AI ──
+# ── AI（非流式）──
 text = await ctx.call_ai_feature(           # 需 ai:call
     "ai_writer",                            # feature_code（不含 plugin.{name}. 前缀）
     [{"role": "user", "content": "..."}],   # messages
 )
-# 内部流程: 查找 SystemAgentAssignment → AgentChatService.simple_chat()
+# 内部流程: 查找 SystemAgentAssignment → AgentChatService.chat()
 # 未绑定 Agent 时抛 PluginError
 
-ok = await ctx.is_ai_feature_configured("plugin.my-plugin.ai_writer")  # 注意: 此方法不自动拼前缀，需传完整 feature_code
+# ── AI（流式）──
+async for delta in ctx.call_ai_feature_stream(  # 需 ai:call
+    "ai_writer",
+    [{"role": "user", "content": "..."}],
+):
+    print(delta, end="")  # 仅 yield 纯文本增量，不含 SSE 包装
+# 内部流程: AgentChatService.stream_chat() → 解析 SSE → yield message.delta
+# 上游不支持流式时自动降级为 call_ai_feature 单 chunk 输出（日志标记 fallback=True）
+
+# 在 API handler 中返回 SSE StreamingResponse:
+from app.plugins.sse import plugin_sse_response
+return plugin_sse_response(
+    ctx.call_ai_feature_stream("ai_writer", messages),
+    plugin_name=ctx.plugin_name,
+)
+
+ok = await ctx.is_ai_feature_configured("ai_writer")  # 自动拼接 plugin.{name}. 前缀
 
 # ── 通知 ──
 await ctx.send_notification(                # 需 notifications:send
@@ -428,19 +457,22 @@ class PluginDbProxy:
 
 ## 五、扩展点注册（ExtensionRegistry）
 
-来自 `registry.py`（419 行），**单例模式**：
+来自 `registry.py`（649 行），**单例模式**：
 
 | # | 扩展类型 | 注册方法 | 桥接目标 |
-|---|---------|---------|---------|
+|---|---------|---------|--------|
 | 1 | adapter | `register_adapter()` | `AdapterRegistry.register()` |
 | 2 | hook | `register_hook()` | `HookRegistry.register()` |
 | 3 | storage | `register_storage_driver()` | `storage_manager.register_driver()` |
 | 4 | skill | `register_skill()` | 内部字典 `_plugin_skill_resolvers` / `_plugin_executors` |
-| 5 | event | `register_event()` | `EventBus.subscribe()` |
+| 5 | event | `register_event()` | `PluginEventBus.subscribe()` |
 | 6 | webhook | `register_webhook()` | 内部字典 `_plugin_webhooks` |
-| 7 | task | `register_task()` | 预留（Phase 2 Celery Beat） |
-| 8 | notification | `register_notification()` | 预留（Phase 2 DB 写入） |
-| 9 | permission | `register_permission()` | 预留（Phase 2 DB 写入） |
+| 7 | task | `register_task()` | Celery Beat 动态调度 |
+| 8 | notification | `register_notification()` | 内部字典 `_plugin_notifications` |
+| 9 | permission | `register_permission()` | 内部字典 `_plugin_permissions` |
+| 10 | socketio | `register_socketio()` | `AsyncServer.register_namespace()` |
+
+**批量注册**：`_extension_registrar.register_all_extensions()` 统一加载并注册，加载失败的扩展记入 `get_failed_extensions()` 供生命周期层 fail-close 决策。
 
 **反注册**：`unregister_all(plugin_name)` 遍历追踪列表逐个反注册。
 
@@ -513,7 +545,7 @@ def downgrade():
 extensions:
   skills:
     - name: weather-query
-      type: weather_query           # 技能类型标识（全局唯一）
+      type: toolkit                 # 必须使用标准 SkillTypeEnum 值
       entry_point: "skills.weather_resolver"  # 必须包含 resolve() 函数
 ```
 
@@ -600,9 +632,10 @@ class WeatherExecutor(BaseToolExecutor):
 ```python
 # backend/plugins/{name}/backend/api/handlers.py
 
-async def get_stats(request, db):
-    """Handler 接收 request 和 db 两个参数"""
+async def get_stats(request, db, ctx):
+    """Handler 签名：(request, db, ctx) — db 为 PluginDbProxy（非 AsyncSession）"""
     body = await request.json()  # POST 时读 body
+    tenant_id = ctx.get_current_tenant_id()  # 从 RequestContext 获取
     # ... 业务逻辑 ...
     return {"total": 42}  # 返回 dict 自动包装为 success(data=...)
 ```
@@ -627,11 +660,76 @@ async def handle_github(plugin_name, path, method, headers, payload):
     return {"ok": True}
 ```
 
-**注意**：API handler 签名是 `(request, db)`，Webhook handler 签名是 `(plugin_name, path, method, headers, payload)`，二者完全不同。
+**注意**：API handler 参数按签名注入：
+- `request`：Request
+- `ctx`：PluginContext
+- `db`：仅当插件具备 `db:own_tables` 能力且 handler 声明该参数时，才注入 `PluginDbProxy`
+- 未具备 `db:own_tables` 但声明 `db` 参数时，dispatcher 返回 403
+
+Webhook handler 签名是 `(plugin_name, path, method, headers, payload)`，与 API handler 完全不同。
 
 ---
 
-## 九、异常体系
+## 九、安全加固（生产就绪）
+
+### 9.1 ZIP 包安全（`package_security.py`）
+
+所有插件 ZIP 上传（upload/preview/upgrade）和市场下载均经统一安全校验，**禁止使用原始 `zipfile.extractall()`**。
+
+**可配置限制项**（`app.core.config.Settings`）：
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `PLUGIN_MAX_PACKAGE_SIZE` | 50 MB | 压缩包大小上限 |
+| `PLUGIN_MAX_UNCOMPRESSED_SIZE` | 200 MB | 总解压大小上限 |
+| `PLUGIN_MAX_ARCHIVE_FILES` | 2000 | 成员数上限 |
+| `PLUGIN_MAX_ARCHIVE_SINGLE_FILE_SIZE` | 50 MB | 单文件大小上限 |
+| `PLUGIN_MAX_COMPRESSION_RATIO` | 100x | 压缩比上限（防 zip bomb） |
+
+**校验链路**：
+1. 上传/下载时先校验压缩包大小
+2. 解压前：成员数、单文件大小、总解压大小、压缩比、路径遍历（`../`）、符号链接
+3. 解压中：逐块写入实时监控单文件/总大小
+4. 违规抛 `PluginInstallError`（code=4236）
+
+**市场下载**：流式写入 + 实时大小校验 + 下载完成后 `validate_plugin_zip_archive()` 二次校验。
+
+### 9.2 Manifest 强校验
+
+`manifest.py` 中的 Pydantic validators 在 `model_validate()` 阶段 fail-close：
+
+| Schema | 字段 | 校验规则 |
+|--------|------|----------|
+| `ApiRouteSchema` | `method` | 仅 GET/POST/PUT/PATCH/DELETE（自动大写） |
+| `ApiRouteSchema` | `auth` | 仅 required/none（自动小写） |
+| `ApiRouteSchema` | `path` | 禁止前导斜杠，参数名须合法标识符（`{doc_id}` ✅，`{1bad}` ❌） |
+| `WebhookExtensionSchema` | `method` | 仅 GET/POST/PUT/DELETE |
+| `WebhookExtensionSchema` | `path` | 必须以 `/` 开头，参数名须合法标识符 |
+| `WebhookAuthSchema` | `type` | 仅 none/hmac/token/signature |
+| `SocketIONamespaceSchema` | `path` | 禁止路径参数，仅允许字母/数字/`_`/`-` |
+
+**路径安全**：`_normalize_extension_path()` 统一拒绝空段、`.`、`..`、畸形参数（如 `{bad`）。
+
+### 9.3 信任边界与 fail-close
+
+| 机制 | 说明 |
+|------|------|
+| **PluginContext 信任边界** | 生产模式从 DB manifest 快照创建 Context；DEBUG 模式允许磁盘 manifest 热重载 |
+| **扩展注册 fail-close** | 关键扩展加载失败时，lifecycle 将插件状态设为 ERROR 并回滚注册 |
+| **License 验证 fail-close** | 生产模式下无公钥时拒绝验证（返回 False）；DEBUG 模式降级为长度校验 |
+| **Webhook 错误脱敏** | 生产模式 handler 异常只返回 "Internal server error"，不暴露堆栈 |
+| **版本管理分布式锁** | upgrade/rollback 持有 Redis 分布式锁 + 操作后清理 sys.modules 缓存 |
+
+### 9.4 静态资源安全（`asset_resolver.py`）
+
+`/plugin-assets/{name}/{path}` 端点的安全策略：
+- 仅服务 `frontend/dist/` 子目录下的文件（禁止访问 `plugin.yaml`/`backend/` 等）
+- 插件名必须是合法 kebab-case（拒绝 `../` 等遍历）
+- 可配置 `PLUGIN_ASSETS_ENABLED_ONLY=True`（默认）仅对已启用插件提供资源
+
+---
+
+## 十、异常体系
 
 来自 `exceptions.py`（68 行）：
 
@@ -639,16 +737,16 @@ async def handle_github(plugin_name, path, method, headers, payload):
 |--------|------|--------|------|
 | `PluginError` | `BusinessException` | 4230 | 通用错误 |
 | `PluginNotFoundError` | `NotFoundException` | 4041 | 插件不存在 |
-| `PluginManifestError` | `ValidationException` | 4231 | 清单解析失败 |
+| `PluginManifestError` | `ValidationException` | 4231 | 清单解析/强校验失败 |
 | `PluginDependencyError` | `PluginError` | 4232 | 依赖安装失败 |
-| `PluginSecurityError` | `PluginError` | 4233 | 安全违规 |
+| `PluginSecurityError` | `PluginError` | 4233 | 安全违规（沙箱/表名） |
 | `PluginLicenseError` | `PluginError` | 4234 | License 无效 |
 | `PluginConflictError` | `PluginError` | 4235 | 扩展冲突 |
-| `PluginInstallError` | `PluginError` | 4236 | 安装失败 |
+| `PluginInstallError` | `PluginError` | 4236 | 安装失败（含 ZIP 安全违规） |
 
 ---
 
-## 十、枚举（来自 enums/plugin.py）
+## 十一、枚举（来自 enums/plugin.py）
 
 | 枚举 | 值 |
 |------|---|
@@ -812,13 +910,17 @@ import { getMarketplaceListApi } from '#/api/admin/plugin-marketplace';
 
 ---
 
-## 十三、插件开发检查清单
+## 十四、插件开发检查清单
 
 ### 必须
 
 - [ ] `plugin.yaml` 通过 `PluginManifest.model_validate()` 校验
 - [ ] `name` 是小写 kebab-case（`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`）
 - [ ] `scope` 是合法枚举值
+- [ ] API route `method` 仅 GET/POST/PUT/PATCH/DELETE，`auth` 仅 required/none
+- [ ] API route `path` 无前导斜杠，路径参数名是合法标识符（如 `{doc_id}`）
+- [ ] Webhook `path` 以 `/` 开头，`auth.type` 仅 none/hmac/token/signature
+- [ ] Socket.IO `path` 无路径参数，仅含字母/数字/`_`/`-`
 - [ ] `backend/main.py` 包含 `PluginBase` 子类
 - [ ] `backend/__init__.py` 存在（空文件即可）
 - [ ] 所有 DB 表以 `px_{name_underscored}_` 为前缀
@@ -848,3 +950,5 @@ import { getMarketplaceListApi } from '#/api/admin/plugin-marketplace';
 - [ ] 禁止在插件代码中直接 import 其他插件的内部模块
 - [ ] 禁止硬编码中文字符串（使用 i18n `locales/*.json`）
 - [ ] 禁止插件 SFC 中使用宿主路径别名（如 `#/locales`、`@vben/icons`）——必须用 external（`vue`/`ant-design-vue`/`@novus/plugin-shared`）
+- [ ] 禁止使用原始 `zipfile.extractall()`——必须用 `package_security.extract_plugin_zip_safely()`
+- [ ] 禁止在 API/Webhook 路径中使用 `..` 或数字开头的参数名（manifest 校验会拒绝）

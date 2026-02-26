@@ -32,6 +32,8 @@
     "inactive": "已禁用"
   },
   "enterBackend": "进入后台",
+  "enterCurrentTab": "当前标签页进入",
+  "unverified": "未验证",
   "messages": {
     "toggleStatusConfirm": "确定要{action}租户「{name}」吗？",
     "toggleStatusTitle": "切换状态",

@@ -21,13 +21,13 @@ from app.services.system import OperationLogService
 @permission_resource(
     resource="operation_log",
     name="menu.tenant.operation_log",  # i18n key
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=MenuConfig(
         icon="lucide:file-text",
         path="/system/operation-logs",
         component="tenant/system/operation-logs/index",
-        parent="system_maintenance",
-        sort_order=20,
+        parent="logs",
+        sort_order=10,
     )
 )
 class TenantOperationLogController(TenantController):

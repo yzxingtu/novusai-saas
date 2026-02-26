@@ -44,6 +44,7 @@ import {
   getStatusText,
   getStatusColor,
 } from './data';
+import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
 // ==================== Route ====================
 const route = useRoute();
@@ -88,6 +89,9 @@ async function saveFields(fields: Record<string, unknown>) {
     saving.value = false;
   }
 }
+
+// ==================== Scope Protection ====================
+const isTenantOwned = computed(() => agent.value?.scope === 'all_tenants');
 
 // ==================== Overview Tab ====================
 const editingPrompt = ref(false);
@@ -226,11 +230,8 @@ async function unbindPkg(packageId: number) {
 
 function getScopeTagProps(scope?: string, sourcePlugin?: string): { text: string; color: string } | null {
   if (sourcePlugin) return { text: $t('tenant.ai.skillPackage.scopeTag.plugin'), color: 'purple' };
-  switch (scope) {
-    case 'global': return { text: $t('tenant.ai.skillPackage.scope_options.global'), color: 'blue' };
-    case 'admin': return { text: $t('tenant.ai.skillPackage.scope_options.admin'), color: 'orange' };
-    default: return null;
-  }
+  if (!scope) return null;
+  return { text: getScopeText(scope), color: getScopeColor(scope) };
 }
 
 // ==================== Quota Tab ====================
@@ -315,6 +316,15 @@ function onTabChange(key: string | number) {
           </div>
         </div>
 
+        <!-- Scope readonly banner -->
+        <div v-if="!isTenantOwned && agent" class="mb-3 flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning">
+          <IconifyIcon icon="lucide:lock" class="size-3.5 shrink-0" />
+          <span>{{ $t('tenant.ai.agent.readonlyHint') }}</span>
+          <Tag :color="getScopeColor(agent.scope)" class="ml-auto !text-[10px]">
+            {{ getScopeText(agent.scope) }}
+          </Tag>
+        </div>
+
         <!-- Tabs -->
         <Tabs :active-key="activeTab" @change="onTabChange">
           <!-- ========== 概览 Tab ========== -->
@@ -342,7 +352,7 @@ function onTabChange(key: string | number) {
             <Card :title="$t('tenant.ai.agent.systemPrompt')">
               <template #extra>
                 <Button
-                  v-if="!editingPrompt"
+                  v-if="!editingPrompt && isTenantOwned"
                   size="small"
                   type="link"
                   @click="startEditPrompt"
@@ -350,7 +360,7 @@ function onTabChange(key: string | number) {
                   <IconifyIcon icon="lucide:pencil" class="mr-1" />
                   {{ $t('common.edit') }}
                 </Button>
-                <div v-else class="flex gap-2">
+                <div v-else-if="editingPrompt" class="flex gap-2">
                   <Button size="small" @click="cancelEditPrompt">{{ $t('common.cancel') }}</Button>
                   <Button size="small" type="primary" :loading="saving" @click="savePrompt">{{ $t('common.save') }}</Button>
                 </div>
@@ -373,17 +383,17 @@ function onTabChange(key: string | number) {
               <div class="grid max-w-lg grid-cols-1 gap-4">
                 <div>
                   <label class="mb-1 block text-sm font-medium">{{ $t('tenant.ai.agent.temperature') }}</label>
-                  <InputNumber v-model:value="modelTemp" :min="0" :max="2" :step="0.1" class="w-full" />
+                  <InputNumber v-model:value="modelTemp" :min="0" :max="2" :step="0.1" :disabled="!isTenantOwned" class="w-full" />
                 </div>
                 <div>
                   <label class="mb-1 block text-sm font-medium">{{ $t('tenant.ai.agent.maxTokens') }}</label>
-                  <InputNumber v-model:value="modelMaxTokens" :min="1" :max="128000" class="w-full" />
+                  <InputNumber v-model:value="modelMaxTokens" :min="1" :max="128000" :disabled="!isTenantOwned" class="w-full" />
                 </div>
                 <div>
                   <label class="mb-1 block text-sm font-medium">{{ $t('tenant.ai.agent.topP') }}</label>
-                  <InputNumber v-model:value="modelTopP" :min="0" :max="1" :step="0.1" class="w-full" />
+                  <InputNumber v-model:value="modelTopP" :min="0" :max="1" :step="0.1" :disabled="!isTenantOwned" class="w-full" />
                 </div>
-                <div class="pt-2">
+                <div v-if="isTenantOwned" class="pt-2">
                   <Button type="primary" :loading="saving" @click="saveModelParams">
                     {{ $t('common.save') }}
                   </Button>
@@ -396,29 +406,29 @@ function onTabChange(key: string | number) {
           <TabPane key="chatConfig" :tab="$t('tenant.ai.agent.detail.chatConfig')">
             <div class="flex flex-col gap-4">
               <Card :title="$t('tenant.ai.agent.welcomeMessage')">
-                <Textarea v-model:value="chatWelcome" :rows="3" class="w-full" />
+                <Textarea v-model:value="chatWelcome" :rows="3" :disabled="!isTenantOwned" class="w-full" />
               </Card>
               <Card :title="$t('tenant.ai.agent.suggestedQuestions')">
-                <Textarea v-model:value="chatSuggestions" :rows="4" class="w-full font-mono text-xs" />
+                <Textarea v-model:value="chatSuggestions" :rows="4" :disabled="!isTenantOwned" class="w-full font-mono text-xs" />
                 <p class="mt-1 text-xs text-muted-foreground">JSON</p>
               </Card>
               <Card :title="$t('tenant.ai.agent.inputVariables.title')">
-                <Textarea v-model:value="chatInputVars" :rows="4" class="w-full font-mono text-xs" />
+                <Textarea v-model:value="chatInputVars" :rows="4" :disabled="!isTenantOwned" class="w-full font-mono text-xs" />
                 <p class="mt-1 text-xs text-muted-foreground">JSON</p>
               </Card>
               <Card :title="$t('tenant.ai.agent.contextConfig.title')">
                 <div class="grid max-w-lg grid-cols-2 gap-4">
                   <div>
                     <label class="mb-1 block text-sm">{{ $t('tenant.ai.agent.contextConfig.maxHistoryMessages') }}</label>
-                    <InputNumber v-model:value="chatContextMessages" :min="0" class="w-full" />
+                    <InputNumber v-model:value="chatContextMessages" :min="0" :disabled="!isTenantOwned" class="w-full" />
                   </div>
                   <div>
                     <label class="mb-1 block text-sm">{{ $t('tenant.ai.agent.contextConfig.maxHistoryTokens') }}</label>
-                    <InputNumber v-model:value="chatContextTokens" :min="0" class="w-full" />
+                    <InputNumber v-model:value="chatContextTokens" :min="0" :disabled="!isTenantOwned" class="w-full" />
                   </div>
                 </div>
               </Card>
-              <div>
+              <div v-if="isTenantOwned">
                 <Button type="primary" :loading="saving" @click="saveChatConfig">
                   {{ $t('common.save') }}
                 </Button>
@@ -430,8 +440,8 @@ function onTabChange(key: string | number) {
           <TabPane key="skills" :tab="$t('tenant.ai.agent.detail.skillBindings')">
             <Spin :spinning="bindingsLoading">
               <div class="flex flex-col gap-4">
-                <!-- Add binding -->
-                <Card size="small">
+                <!-- Add binding (only for tenant-owned agents) -->
+                <Card v-if="isTenantOwned" size="small">
                   <div class="flex items-center gap-3">
                     <ASelect
                       v-model:value="selectedNewPkg"
@@ -470,29 +480,49 @@ function onTabChange(key: string | number) {
                   </div>
                 </Card>
 
-                <!-- Bound packages list -->
-                <Card v-for="b in bindings" :key="b.id" size="small">
+                <!-- Auto-bind packages (locked) -->
+                <Card v-for="b in bindings.filter(x => x.is_auto_bound)" :key="`auto-${b.package_id}`" size="small" class="!border-primary/20 !bg-primary/5">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                      <IconifyIcon icon="lucide:lock" class="size-4 text-primary/60" />
+                      <span class="font-medium">{{ b.package_name || `#${b.package_id}` }}</span>
+                      <Tag v-if="b.package_is_system" color="red" class="!text-[10px]">
+                        {{ $t('tenant.ai.skillPackage.system') }}
+                      </Tag>
+                      <Tag v-if="b.package_scope" :color="getScopeColor(b.package_scope)" class="!text-[10px]">
+                        {{ getScopeText(b.package_scope) }}
+                      </Tag>
+                    </div>
+                    <Tag color="blue" class="!text-[10px]">
+                      <IconifyIcon icon="lucide:zap" class="mr-0.5 inline size-3" />
+                      {{ $t('common.bindMode.auto') }}
+                    </Tag>
+                  </div>
+                </Card>
+
+                <!-- Manual-bind packages -->
+                <Card v-for="b in bindings.filter(x => !x.is_auto_bound)" :key="`manual-${b.package_id}`" size="small">
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
                       <div class="flex size-8 items-center justify-center rounded bg-primary/10 text-sm font-bold text-primary">
-                        {{ (b.package?.name || '?')[0] }}
+                        {{ (b.package_name || '?')[0] }}
                       </div>
                       <div>
-                        <span class="font-medium">{{ b.package?.name || `#${b.package_id}` }}</span>
+                        <span class="font-medium">{{ b.package_name || `#${b.package_id}` }}</span>
                         <Tag
-                          v-if="getScopeTagProps(b.package?.scope)"
-                          :color="getScopeTagProps(b.package?.scope)!.color"
-                          class="ml-2 text-xs"
+                          v-if="b.package_scope"
+                          :color="getScopeColor(b.package_scope)"
+                          class="ml-2 !text-[10px]"
                         >
-                          {{ getScopeTagProps(b.package?.scope)!.text }}
+                          {{ getScopeText(b.package_scope) }}
                         </Tag>
                       </div>
                     </div>
                     <div class="flex items-center gap-2">
                       <Tag :color="b.consent_mode === 'auto' ? 'green' : b.consent_mode === 'ask' ? 'orange' : 'red'">
-                        {{ b.consent_mode }}
+                        {{ $t(`tenant.ai.agent.consentModeOptions.${b.consent_mode}`) }}
                       </Tag>
-                      <Button size="small" danger @click="unbindPkg(b.package_id)">
+                      <Button v-if="isTenantOwned" size="small" danger @click="unbindPkg(b.package_id)">
                         <IconifyIcon icon="lucide:x" />
                       </Button>
                     </div>

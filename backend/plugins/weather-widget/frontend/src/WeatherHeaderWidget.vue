@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { Popover, Tooltip } from 'ant-design-vue';
 import { IconifyIcon, $t } from '@novus/plugin-shared';
 
@@ -11,6 +11,12 @@ const {
   cityName, recentCities, current, forecast, loading, error,
   locating, showCitySelector, fetchAll, searchCity, selectCity, geolocate,
 } = useWeather();
+
+const isZh = computed(() => $t('plugin.weather-widget._meta.lang') === 'zh');
+
+function weatherText(item: { weather_text_zh?: string; weather_text_en?: string }): string {
+  return isZh.value ? (item.weather_text_zh || item.weather_text_en || '') : (item.weather_text_en || item.weather_text_zh || '');
+}
 
 const popoverOpen = ref(false);
 const searchKeyword = ref('');
@@ -52,8 +58,8 @@ function formatDate(dateStr: string, index: number): string {
 }
 
 function formatWeekday(dateStr: string): string {
-  const days = ['日', '一', '二', '三', '四', '五', '六'];
-  return `周${days[new Date(dateStr).getDay()]}`;
+  const dayIndex = new Date(dateStr).getDay();
+  return $t(`plugin.weather-widget.ui.weekday_${dayIndex}`);
 }
 </script>
 
@@ -203,7 +209,7 @@ function formatWeekday(dateStr: string): string {
               <div class="wx-main__temp">{{ current.temperature !== null ? Math.round(current.temperature) : '--' }}°</div>
               <div class="wx-main__desc">
                 <IconifyIcon :icon="`lucide:${getIcon(current.weather_code, current.is_day)}`" style="width:24px;height:24px;" />
-                <span>{{ current.weather_text_zh }}</span>
+                <span>{{ weatherText(current) }}</span>
               </div>
             </div>
 

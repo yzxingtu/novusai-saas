@@ -416,11 +416,6 @@
     "timeout": "Timeout (s)",
     "notifyOnFailure": "Notify on Failure",
     "notifyEmails": "Notify Emails",
-    "scope": {
-      "platform": "Platform",
-      "tenant": "Tenant",
-      "allTenants": "All Tenants"
-    },
     "section": {
       "basic": "Basic Settings",
       "scope": "Scope",

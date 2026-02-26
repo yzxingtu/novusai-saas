@@ -25,6 +25,8 @@
   "success": "Success",
   "failed": "Failed",
   "noData": "No data",
+  "prev": "Previous",
+  "next": "Next",
   "createdAt": "Created At",
   "deletedAt": "Deleted At",
   "tenantAdmin": "Tenant Admin",

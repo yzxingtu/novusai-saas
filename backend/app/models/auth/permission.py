@@ -8,6 +8,7 @@ from sqlalchemy import String, Integer, Text, Boolean, ForeignKey, UniqueConstra
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import BaseModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 
 
 class Permission(BaseModel):
@@ -21,6 +22,11 @@ class Permission(BaseModel):
     """
     
     __tablename__ = "permissions"
+
+    __delete_deps__ = [
+        DeletionDep("Permission", "parent_id", DeletionStrategy.CASCADE_SOFT,
+                    label_field="code", i18n_key="permission_child"),
+    ]
     
     # 联合唯一约束：code + scope
     __table_args__ = (

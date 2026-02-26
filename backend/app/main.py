@@ -372,9 +372,14 @@ def create_application() -> FastAPI:
     app.include_router(admin_router, prefix="/admin")
 
     # 注册插件 API 分发器
-    from app.plugins.api_dispatcher import plugin_api_router, plugin_tenant_api_router
+    from app.plugins.api_dispatcher import (
+        plugin_api_router,
+        plugin_tenant_api_router,
+        plugin_public_api_router,
+    )
     app.include_router(plugin_api_router, prefix="/admin")          # /admin/plugins/{name}/api/*
     app.include_router(plugin_tenant_api_router, prefix="/tenant")  # /tenant/plugins/{name}/api/*
+    app.include_router(plugin_public_api_router, prefix="/api/public")  # /api/public/plugins/{name}/api/*
 
     # 注册插件 Webhook 分发器 (/webhooks/plugins/{name}/{path}) — 不走认证中间件
     from app.plugins.webhook_dispatcher import webhook_router
@@ -409,31 +414,39 @@ def create_application() -> FastAPI:
         URL: /plugin-assets/{plugin_name}/{file_path}
         文件系统: plugins/{plugin_name}/frontend/dist/{file_path}
         """
-        safe_name = plugin_name.replace("..", "").replace("/", "").replace("\\", "")
-        safe_path = file_path.replace("..", "")
+        import mimetypes as _mimetypes
 
-        # 优先从 frontend/dist/ 加载（JS/CSS 等前端产物）
-        asset_file = PLUGINS_ROOT / safe_name / "frontend" / "dist" / safe_path
-        # 回退到插件根目录（icon.png 等静态文件）
-        if not asset_file.is_file():
-            asset_file = PLUGINS_ROOT / safe_name / safe_path
+        from sqlalchemy import select as _select
 
-        if not asset_file.is_file():
+        from app.core.database import async_session_factory
+        from app.enums.plugin import PluginStatusEnum as _PluginStatusEnum
+        from app.models.system.plugin import Plugin as _Plugin
+        from app.plugins.asset_resolver import resolve_plugin_asset_file
+
+        # 仅允许已启用插件暴露前端资源
+        async with async_session_factory() as db:
+            status_result = await db.execute(
+                _select(_Plugin.status).where(
+                    _Plugin.name == plugin_name,
+                    _Plugin.is_deleted.is_(False),
+                )
+            )
+            plugin_status = status_result.scalar_one_or_none()
+            if plugin_status != _PluginStatusEnum.ENABLED.value:
+                return JSONResponse(
+                    status_code=404,
+                    content={"code": 4040, "message": "Plugin asset not found"},
+                )
+
+        asset_file = resolve_plugin_asset_file(PLUGINS_ROOT, plugin_name, file_path)
+        if asset_file is None:
             return JSONResponse(
                 status_code=404,
-                content={"code": 4040, "message": f"Plugin asset not found: {file_path}"},
+                content={"code": 4040, "message": "Plugin asset not found"},
             )
 
         content = asset_file.read_bytes()
-        content_type = "application/javascript"
-        if safe_path.endswith(".css"):
-            content_type = "text/css"
-        elif safe_path.endswith(".json"):
-            content_type = "application/json"
-        elif safe_path.endswith(".svg"):
-            content_type = "image/svg+xml"
-        elif safe_path.endswith(".png"):
-            content_type = "image/png"
+        content_type = _mimetypes.guess_type(str(asset_file))[0] or "application/octet-stream"
 
         cache_header = "no-cache" if settings.DEBUG else "public, max-age=3600"
         return FastAPIResponse(

@@ -30,13 +30,13 @@ from app.core.base_model import utc_now
 @permission_resource(
     resource="task_log",
     name="menu.tenant.task_log",
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=MenuConfig(
         icon="lucide:list-checks",
         path="/system/task-logs",
         component="tenant/system/task-logs/index",
-        parent="system_maintenance",
-        sort_order=60,
+        parent="logs",
+        sort_order=20,
     ),
 )
 class TenantTaskLogController(TenantController):

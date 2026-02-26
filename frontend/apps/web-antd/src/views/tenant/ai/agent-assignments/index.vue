@@ -1,11 +1,10 @@
 <script setup lang="ts">
 /**
- * Tenant — System Agent Assignment Management
+ * Tenant — System Agent Assignment Management — useCrudList + 配置面板
  *
- * Shows all feature bindings with global defaults vs tenant overrides.
- * Allows tenant to override agent bindings or restore to global default.
+ * useCrudList(keyField='feature_code') 管理列表数据，自定义覆盖/恢复操作。
  */
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -20,31 +19,29 @@ import {
   getPublishedAgentsApi,
   updateAgentAssignmentApi,
 } from '#/api/shared/agent-assignments';
+import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
+import { preferences } from '@vben/preferences';
 
 const T = 'tenant.ai.agentAssignment';
 
-interface AgentOption {
-  label: string;
-  value: number;
-}
+// ========== 声明式列表管理 ==========
+const {
+  list: assignments, loading, loadList,
+} = useCrudList<AgentAssignmentItem>({
+  api: {
+    list: () => getAgentAssignmentListApi('/tenant'),
+    resource: '/tenant/ai/agent-assignments',
+  },
+  keyField: 'feature_code',
+  i18nPrefix: 'tenant.ai.agentAssignment',
+  nameField: 'feature_name',
+  pager: false,
+});
 
-const loading = ref(false);
-const saving = ref<string | null>(null);
-const assignments = ref<AgentAssignmentItem[]>([]);
+// ========== Agent 选项 ==========
+interface AgentOption { label: string; value: number }
 const agentOptions = ref<AgentOption[]>([]);
-
-async function loadAssignments() {
-  loading.value = true;
-  try {
-    const data = await getAgentAssignmentListApi('/tenant');
-    assignments.value = data;
-  } catch {
-    // handled by interceptor
-  } finally {
-    loading.value = false;
-  }
-}
 
 async function loadAgentOptions() {
   try {
@@ -55,12 +52,17 @@ async function loadAgentOptions() {
   }
 }
 
+onMounted(loadAgentOptions);
+
+// ========== 自定义操作 ==========
+const saving = ref<string | null>(null);
+
 async function setOverride(featureCode: string, agentId: number | null) {
   saving.value = featureCode;
   try {
     await updateAgentAssignmentApi('/tenant', featureCode, { agent_id: agentId });
     message.success($t(`${T}.saveSuccess`));
-    await loadAssignments();
+    await loadList();
   } catch {
     // handled by interceptor
   } finally {
@@ -73,12 +75,33 @@ async function restoreDefault(featureCode: string) {
   try {
     await deleteAgentAssignmentApi('/tenant', featureCode);
     message.success($t(`${T}.restoreSuccess`));
-    await loadAssignments();
+    await loadList();
   } catch {
     // handled by interceptor
   } finally {
     saving.value = null;
   }
+}
+
+// ========== 辅助：多语言 ==========
+const currentLocale = computed(() => preferences.app.locale);
+
+function pickLocale(dict: Record<string, string> | undefined): string | undefined {
+  if (!dict) return undefined;
+  const locale = currentLocale.value;
+  return dict[locale] ?? dict['zh-CN'] ?? dict['en'] ?? Object.values(dict)[0];
+}
+
+function featureName(record: AgentAssignmentItem): string {
+  const fromApi = pickLocale(record.display_name);
+  if (fromApi) return fromApi;
+  return record.feature_name;
+}
+
+function featureDesc(record: AgentAssignmentItem): string {
+  const fromApi = pickLocale(record.description_i18n);
+  if (fromApi) return fromApi;
+  return record.description || '';
 }
 
 const columns = [
@@ -118,17 +141,13 @@ const columns = [
   },
 ];
 
-onMounted(() => {
-  loadAssignments();
-  loadAgentOptions();
-});
 </script>
 
 <template>
   <Page :title="$t(`${T}.title`)">
     <Card>
       <template #extra>
-        <Button size="small" @click="loadAssignments">
+        <Button size="small" @click="loadList">
           <template #icon>
             <IconifyIcon icon="lucide:refresh-cw" class="size-3.5" />
           </template>
@@ -148,10 +167,10 @@ onMounted(() => {
           <template v-if="column.key === 'feature_name'">
             <div class="flex items-center gap-2">
               <IconifyIcon icon="lucide:plug" class="text-primary size-4" />
-              <span class="font-medium">{{ record.feature_name }}</span>
+              <span class="font-medium">{{ featureName(record as AgentAssignmentItem) }}</span>
             </div>
-            <div v-if="record.description" class="text-muted-foreground mt-0.5 text-xs">
-              {{ record.description }}
+            <div v-if="featureDesc(record as AgentAssignmentItem)" class="text-muted-foreground mt-0.5 text-xs">
+              {{ featureDesc(record as AgentAssignmentItem) }}
             </div>
           </template>
 

@@ -23,6 +23,14 @@ logger = LogManager.get_logger("ai.tool.http")
 # 安全限制
 _MAX_RESPONSE_SIZE = 50_000  # 50KB
 _BLOCKED_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "169.254.169.254", "metadata.google.internal"}
+# 内网 IP 段前缀（SSRF 防护）
+_PRIVATE_IP_PREFIXES = ("10.", "172.16.", "172.17.", "172.18.", "172.19.",
+                        "172.20.", "172.21.", "172.22.", "172.23.",
+                        "172.24.", "172.25.", "172.26.", "172.27.",
+                        "172.28.", "172.29.", "172.30.", "172.31.",
+                        "192.168.", "fd", "fc")
+# 额外阻止的主机名
+_EXTRA_BLOCKED_HOSTS = {"::1", "metadata.google", "100.100.100.200"}
 
 
 def _substitute_template(template: str, variables: dict[str, Any]) -> str:
@@ -89,16 +97,24 @@ class HttpToolExecutor(BaseToolExecutor):
         auth_config = cfg.get("_http_auth_config", {})
         response_path = cfg.get("_http_response_path", "")
 
-        # 安全检查：阻止内网请求
+        # SSRF 防护：阻止内网/云元数据请求
         try:
             from urllib.parse import urlparse
             parsed = urlparse(url)
-            if parsed.hostname and parsed.hostname.lower() in _BLOCKED_HOSTS:
+            host = (parsed.hostname or "").lower()
+            if host in _BLOCKED_HOSTS or host in _EXTRA_BLOCKED_HOSTS:
                 return ToolResult(
                     tool_call_id=tool_call_id,
                     name=definition.name,
                     success=False,
-                    error=f"Blocked: requests to {parsed.hostname} are not allowed",
+                    error=f"Blocked: requests to {host} are not allowed",
+                )
+            if host.startswith(_PRIVATE_IP_PREFIXES):
+                return ToolResult(
+                    tool_call_id=tool_call_id,
+                    name=definition.name,
+                    success=False,
+                    error=f"Blocked: requests to private network ({host}) are not allowed",
                 )
         except Exception:
             pass

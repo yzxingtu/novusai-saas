@@ -416,11 +416,6 @@
     "timeout": "超时时间（秒）",
     "notifyOnFailure": "失败通知",
     "notifyEmails": "通知邮箱",
-    "scope": {
-      "platform": "平台级",
-      "tenant": "租户级",
-      "allTenants": "全部租户"
-    },
     "section": {
       "basic": "基本设置",
       "scope": "作用范围",

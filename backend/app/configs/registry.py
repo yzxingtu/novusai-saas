@@ -33,7 +33,7 @@ class ConfigRegistry:
         config = registry.get_config("platform_basic", "site_name")
         
         # 获取所有平台配置
-        groups = registry.get_groups_by_scope(ConfigScope.PLATFORM)
+        groups = registry.get_groups_by_scope(ConfigScope.ADMIN_ONLY)
     """
     
     _instance: "ConfigRegistry | None" = None
@@ -61,8 +61,8 @@ class ConfigRegistry:
         
         # 作用域索引: {scope: [group_code, ...]}
         self._scope_groups: dict[str, list[str]] = {
-            ConfigScope.PLATFORM.value: [],
-            ConfigScope.TENANT.value: [],
+            ConfigScope.ADMIN_ONLY.value: [],
+            ConfigScope.ALL_TENANTS.value: [],
         }
         
         self._initialized = True
@@ -281,8 +281,8 @@ class ConfigRegistry:
         self._groups.clear()
         self._configs.clear()
         self._scope_groups = {
-            ConfigScope.PLATFORM.value: [],
-            ConfigScope.TENANT.value: [],
+            ConfigScope.ADMIN_ONLY.value: [],
+            ConfigScope.ALL_TENANTS.value: [],
         }
         logger.debug("ConfigRegistry cleared")
     

@@ -23,7 +23,7 @@ PLATFORM_GENERAL_GROUP = ConfigGroupMeta(
     code="platform_general",
     name_key="config.group.platform_general.name",
     description_key="config.group.platform_general.desc",
-    scope=ConfigScope.PLATFORM,
+    scope=ConfigScope.ADMIN_ONLY,
     icon="lucide:settings",
     sort_order=10,
 )
@@ -33,7 +33,7 @@ PLATFORM_SECURITY_GROUP = ConfigGroupMeta(
     code="platform_security",
     name_key="config.group.platform_security.name",
     description_key="config.group.platform_security.desc",
-    scope=ConfigScope.PLATFORM,
+    scope=ConfigScope.ADMIN_ONLY,
     icon="lucide:shield",
     sort_order=20,
 )
@@ -43,7 +43,7 @@ PLATFORM_EMAIL_GROUP = ConfigGroupMeta(
     code="platform_email",
     name_key="config.group.platform_email.name",
     description_key="config.group.platform_email.desc",
-    scope=ConfigScope.PLATFORM,
+    scope=ConfigScope.ADMIN_ONLY,
     icon="lucide:mail",
     sort_order=30,
 )
@@ -53,7 +53,7 @@ PLATFORM_STORAGE_GROUP = ConfigGroupMeta(
     code="platform_storage",
     name_key="config.group.platform_storage.name",
     description_key="config.group.platform_storage.desc",
-    scope=ConfigScope.PLATFORM,
+    scope=ConfigScope.ADMIN_ONLY,
     icon="lucide:database",
     sort_order=40,
 )
@@ -68,7 +68,7 @@ TENANT_GENERAL_GROUP = ConfigGroupMeta(
     code="tenant_general",
     name_key="config.group.tenant_general.name",
     description_key="config.group.tenant_general.desc",
-    scope=ConfigScope.TENANT,
+    scope=ConfigScope.ALL_TENANTS,
     icon="lucide:sliders-horizontal",
     sort_order=10,
 )
@@ -78,7 +78,7 @@ TENANT_APPEARANCE_GROUP = ConfigGroupMeta(
     code="tenant_appearance",
     name_key="config.group.tenant_appearance.name",
     description_key="config.group.tenant_appearance.desc",
-    scope=ConfigScope.TENANT,
+    scope=ConfigScope.ALL_TENANTS,
     icon="lucide:palette",
     sort_order=20,
 )
@@ -88,7 +88,7 @@ TENANT_FEATURES_GROUP = ConfigGroupMeta(
     code="tenant_features",
     name_key="config.group.tenant_features.name",
     description_key="config.group.tenant_features.desc",
-    scope=ConfigScope.TENANT,
+    scope=ConfigScope.ALL_TENANTS,
     icon="lucide:puzzle",
     sort_order=30,
 )
@@ -97,7 +97,7 @@ TENANT_STORAGE_GROUP = ConfigGroupMeta(
     code="tenant_storage",
     name_key="config.group.tenant_storage.name",
     description_key="config.group.tenant_storage.desc",
-    scope=ConfigScope.TENANT,
+    scope=ConfigScope.ALL_TENANTS,
     icon="lucide:database",
     sort_order=40,
 )
@@ -112,7 +112,7 @@ PLATFORM_SSL_GROUP = ConfigGroupMeta(
     code="platform_ssl",
     name_key="config.group.platform_ssl.name",
     description_key="config.group.platform_ssl.desc",
-    scope=ConfigScope.PLATFORM,
+    scope=ConfigScope.ADMIN_ONLY,
     icon="lucide:shield-check",
     sort_order=50,
 )
@@ -122,7 +122,7 @@ PLATFORM_WEBSOCKET_GROUP = ConfigGroupMeta(
     code="platform_websocket",
     name_key="config.group.platform_websocket.name",
     description_key="config.group.platform_websocket.desc",
-    scope=ConfigScope.PLATFORM,
+    scope=ConfigScope.ADMIN_ONLY,
     icon="lucide:radio",
     sort_order=70,
 )
@@ -132,7 +132,7 @@ PLATFORM_AI_TOOLKIT_GROUP = ConfigGroupMeta(
     code="platform_ai_toolkit",
     name_key="config.group.platform_ai_toolkit.name",
     description_key="config.group.platform_ai_toolkit.desc",
-    scope=ConfigScope.PLATFORM,
+    scope=ConfigScope.ADMIN_ONLY,
     icon="lucide:wrench",
     sort_order=60,
 )

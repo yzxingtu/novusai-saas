@@ -135,6 +135,9 @@ function setupAccessGuard(router: Router) {
       accessStore.setAccessRoutes([]);
       // 清除权限码，避免使用旧端的权限
       accessStore.setAccessCodes([]);
+
+      const { resetPluginRoutesReady } = await import('#/composables/use-plugin-frontend-init');
+      resetPluginRoutesReady(router);
     }
     lastEndpoint = currentEndpoint;
 
@@ -184,6 +187,18 @@ function setupAccessGuard(router: Router) {
 
     // 是否已经生成过动态路由
     if (accessStore.isAccessChecked) {
+      // 插件路由可能还未注册（layout onMounted 异步注册），
+      // 如果目标是插件 URL 但路由不存在，在 guard 中同步注册插件路由
+      const isPluginPath = /\/(tenant|admin)\/plugins\//.test(to.path);
+      if (isPluginPath && to.name === 'FallbackNotFound') {
+        const { ensurePluginRoutes } = await import('#/composables/use-plugin-frontend-init');
+        await ensurePluginRoutes(router, to.path);
+        // 路由注册后重新解析
+        const resolved = router.resolve(to.fullPath);
+        if (resolved.name !== 'FallbackNotFound') {
+          return { ...resolved, replace: true };
+        }
+      }
       return true;
     }
 
@@ -211,14 +226,32 @@ function setupAccessGuard(router: Router) {
     const userRoles = userInfo.roles ?? [];
 
     // 生成菜单和路由（根据端类型获取对应的菜单）
-    const { accessibleMenus, accessibleRoutes } = await generateAccess(
-      {
-        roles: userRoles,
-        router,
-        routes: accessRoutes,
-      },
-      currentEndpoint,
-    );
+    let accessibleMenus;
+    let accessibleRoutes;
+    try {
+      const result = await generateAccess(
+        {
+          roles: userRoles,
+          router,
+          routes: accessRoutes,
+        },
+        currentEndpoint,
+      );
+      accessibleMenus = result.accessibleMenus;
+      accessibleRoutes = result.accessibleRoutes;
+    } catch (error) {
+      console.error('[Router Guard] 生成菜单路由失败:', error);
+      // 菜单 API 可能返回 401 触发 doReAuthenticate；
+      // 此处兜底：清 token 并跳登录，避免死循环
+      TokenStorage.clearToken(currentEndpoint);
+      accessStore.setAccessToken(null);
+      accessStore.setIsAccessChecked(false);
+      return {
+        path: currentLoginPath,
+        query: to.fullPath === currentHomePath ? {} : { redirect: to.fullPath },
+        replace: true,
+      };
+    }
 
     // 保存菜单信息和路由信息
     accessStore.setAccessMenus(accessibleMenus);
@@ -229,6 +262,18 @@ function setupAccessGuard(router: Router) {
       (to.path === currentHomePath
         ? userInfo.homePath || currentHomePath
         : to.fullPath)) as string;
+
+    // 插件路由在 guard 中同步注册（无感方式，不跳转首页）
+    const isPluginRedirect = /\/(tenant|admin)\/plugins\//.test(redirectPath);
+    if (isPluginRedirect) {
+      try {
+        const { ensurePluginRoutes } = await import('#/composables/use-plugin-frontend-init');
+        await ensurePluginRoutes(router, redirectPath);
+      } catch (e) {
+        console.warn('[Router Guard] ensurePluginRoutes failed, redirecting to home:', e);
+        return { path: currentHomePath, replace: true };
+      }
+    }
 
     return {
       ...router.resolve(redirectPath),

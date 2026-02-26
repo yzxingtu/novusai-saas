@@ -24,7 +24,7 @@ class PeriodicTaskResponse(BaseSchema):
     last_run_at: datetime | None = Field(None, description="上次执行时间")
     next_run_at: datetime | None = Field(None, description="下次执行时间")
     description: str | None = Field(None, description="任务描述")
-    scope: str = Field("platform", description="作用范围")
+    scope: str = Field("admin_only", description="作用范围")
     tenant_id: int | None = Field(None, description="所属租户ID")
     is_locked: bool = Field(False, description="是否禁止删除")
     is_editable: bool = Field(True, description="是否允许编辑")
@@ -48,7 +48,7 @@ class PeriodicTaskCreateRequest(BaseSchema):
     kwargs: dict | None = Field(None, description="关键字参数")
     is_active: bool = Field(True, description="是否启用")
     description: str | None = Field(None, description="任务描述")
-    scope: str = Field("platform", description="作用范围（platform/tenant/all_tenants）")
+    scope: str = Field("admin_only", description="作用范围（platform/tenant/all_tenants）")
     tenant_id: int | None = Field(None, description="所属租户ID（scope=tenant时必填）")
     is_locked: bool = Field(False, description="是否禁止删除")
     is_editable: bool = Field(True, description="是否允许编辑")
@@ -60,9 +60,10 @@ class PeriodicTaskCreateRequest(BaseSchema):
 
     @model_validator(mode="after")
     def validate_scope_tenant(self):
-        if self.scope == "tenant" and self.tenant_id is None:
-            raise ValueError("scope 为 tenant 时必须指定 tenant_id")
-        if self.scope != "tenant" and self.tenant_id is not None:
+        from app.enums.common import ResourceScopeEnum
+        if self.scope == ResourceScopeEnum.ALL_TENANTS.value and self.tenant_id is None:
+            raise ValueError("tenant_id is required when scope is all_tenants")
+        if self.scope != ResourceScopeEnum.ALL_TENANTS.value and self.tenant_id is not None:
             self.tenant_id = None
         return self
 

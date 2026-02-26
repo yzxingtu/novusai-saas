@@ -32,6 +32,7 @@ export interface AIAgentInfo {
   max_tokens: number;
   top_p: number | null;
   knowledge_base_ids: number[] | null;
+  assigned_tenant_ids?: number[];
   created_at: string;
   updated_at: string;
 }
@@ -42,6 +43,7 @@ export interface AIAgentCreateRequest {
   description?: null | string;
   scope: string;
   tenant_id?: number | null;
+  tenant_ids?: number[];
   model_id: number;
   execution_mode?: string;
   system_prompt?: null | string;
@@ -56,6 +58,7 @@ export interface AIAgentUpdateRequest {
   description?: null | string;
   scope?: string;
   tenant_id?: number | null;
+  tenant_ids?: number[];
   model_id?: number;
   system_prompt?: null | string;
   temperature?: number;
@@ -69,16 +72,19 @@ export interface AIAgentUpdateRequest {
 
 /** 技能绑定信息 */
 export interface AIAgentSkillBindingInfo {
-  id: number;
+  id: number | null;
   agent_id: number;
   package_id: number;
   enabled: boolean;
   config_override: Record<string, unknown> | null;
   sort_order: number;
   consent_mode: string;
+  is_auto_bound: boolean;
   package_name: string | null;
   package_description: string | null;
   package_scope: string | null;
+  package_bind_mode: string;
+  package_is_system: boolean;
 }
 
 /** 绑定技能包请求 */

@@ -56,9 +56,8 @@ class VectorSearcher:
     使用 pgvector <=> 余弦距离检索最相似分块
     """
 
-    def __init__(self, db: AsyncSession, tenant_id: int, embedding_service: EmbeddingService):
+    def __init__(self, db: AsyncSession, embedding_service: EmbeddingService):
         self.db = db
-        self.tenant_id = tenant_id
         self.embedding_service = embedding_service
 
     async def search(
@@ -105,7 +104,6 @@ class VectorSearcher:
             .where(
                 and_(
                     DocumentChunk.knowledge_base_id.in_(kb_ids),
-                    DocumentChunk.tenant_id == self.tenant_id,
                     DocumentChunk.is_deleted.is_(False),
                     DocumentChunk.embedding.isnot(None),
                     distance_expr <= max_distance,
@@ -149,9 +147,8 @@ class KeywordSearcher:
     使用 PostgreSQL tsvector + plainto_tsquery('simple', ...) 全文检索
     """
 
-    def __init__(self, db: AsyncSession, tenant_id: int):
+    def __init__(self, db: AsyncSession):
         self.db = db
-        self.tenant_id = tenant_id
 
     async def search(
         self,
@@ -188,7 +185,6 @@ class KeywordSearcher:
                 AND kd.is_deleted = false
                 AND kd.status = 'completed'
             WHERE dc.knowledge_base_id = ANY(:kb_ids)
-                AND dc.tenant_id = :tenant_id
                 AND dc.is_deleted = false
                 AND dc.content_tsv @@ plainto_tsquery('simple', :query)
             ORDER BY rank DESC
@@ -198,7 +194,6 @@ class KeywordSearcher:
         result = await self.db.execute(sql, {
             "query": query,
             "kb_ids": kb_ids,
-            "tenant_id": self.tenant_id,
             "limit": limit,
         })
         rows = result.fetchall()
@@ -230,12 +225,12 @@ class HybridRetriever:
     内置 Redis 缓存（TTL 5 分钟）
     """
 
-    def __init__(self, db: AsyncSession, tenant_id: int):
+    def __init__(self, db: AsyncSession, tenant_id: int | None):
         self.db = db
         self.tenant_id = tenant_id
         self.embedding_service = EmbeddingService(db, tenant_id)
-        self.vector_searcher = VectorSearcher(db, tenant_id, self.embedding_service)
-        self.keyword_searcher = KeywordSearcher(db, tenant_id)
+        self.vector_searcher = VectorSearcher(db, self.embedding_service)
+        self.keyword_searcher = KeywordSearcher(db)
 
     async def search(
         self,
@@ -335,6 +330,13 @@ class HybridRetriever:
         # 按分数降序排序后截取
         all_results.sort(key=lambda x: x.score, reverse=True)
         results = all_results[:top_k * 2] if reranker_enabled else all_results[:top_k]
+
+        # 后融合质量门控：过滤归一化分数过低的结果（hybrid 模式 RRF 归一化后适用）
+        if mode != SearchModeEnum.VECTOR.value and results:
+            min_score = 0.15
+            filtered = [r for r in results if r.score >= min_score]
+            if filtered:
+                results = filtered
 
         # 3. LLM 重排序（可选）
         if reranker_enabled and results:
@@ -441,7 +443,8 @@ class HybridRetriever:
 
         score(d) = Σ 1/(k + rank_i(d)), k=60
 
-        同一 chunk_id 只保留一次，合并得分
+        同一 chunk_id 只保留一次，合并得分。
+        最终分数归一化到 [0, 1]（除以理论最大值 2/(k+1)）。
         """
         # chunk_id -> (rrf_score, ChunkSearchResult)
         score_map: dict[int, tuple[float, ChunkSearchResult]] = {}
@@ -467,9 +470,14 @@ class HybridRetriever:
         # 按 RRF 得分降序排序
         sorted_items = sorted(score_map.values(), key=lambda x: x[0], reverse=True)
 
+        # 归一化：RRF 理论最大值 = num_lists / (k + 1)
+        num_lists = 2  # vector + keyword
+        rrf_max = num_lists / (RRF_K + 1)
+
         results: list[ChunkSearchResult] = []
         for rrf_score, chunk_result in sorted_items[:top_k]:
-            chunk_result.score = round(rrf_score, 6)
+            normalized = min(rrf_score / rrf_max, 1.0) if rrf_max > 0 else 0.0
+            chunk_result.score = round(normalized, 4)
             results.append(chunk_result)
 
         return results

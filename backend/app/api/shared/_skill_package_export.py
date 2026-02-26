@@ -12,7 +12,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from app.core.base_model import utc_now
 from typing import Any
 
 from sqlalchemy import select
@@ -96,7 +96,7 @@ async def export_skill_package(
 
     return {
         "export_version": EXPORT_VERSION,
-        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "exported_at": utc_now().isoformat(),
         "package_info": package_info,
         "skills": skills_data,
         "valves_schema": pkg.valves_schema,
@@ -120,7 +120,7 @@ async def import_skill_package(
     # 提取导入选项
     export_data = data.get("export_data", data)
     conflict_mode = data.get("conflict_mode", "rename")  # skip / rename
-    target_scope = data.get("target_scope", "admin")
+    target_scope = data.get("target_scope", "admin_only")
     target_tenant_id = data.get("target_tenant_id")
 
     # 校验格式
@@ -146,9 +146,15 @@ async def import_skill_package(
         SkillPackage.scope == target_scope,
         SkillPackage.is_deleted.is_(False),
     ]
-    if target_scope == "tenant" and target_tenant_id is not None:
+    from app.enums.common import ResourceScopeEnum
+    if target_scope == ResourceScopeEnum.ALL_TENANTS.value and target_tenant_id is not None:
         name_conditions.append(SkillPackage.tenant_id == target_tenant_id)
-    elif target_scope in ("admin", "global"):
+    elif target_scope in (
+        ResourceScopeEnum.ADMIN_ONLY.value,
+        ResourceScopeEnum.ADMIN_AND_ALL.value,
+        ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+        ResourceScopeEnum.ASSIGNED_TENANTS.value,
+    ):
         name_conditions.append(SkillPackage.tenant_id.is_(None))
 
     existing = await db.execute(
@@ -166,7 +172,7 @@ async def import_skill_package(
             }
         elif conflict_mode == "rename":
             # 自动追加时间戳后缀
-            suffix = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+            suffix = utc_now().strftime("%Y%m%d%H%M%S")
             pkg_name = f"{pkg_name}_{suffix}"
         else:
             raise BusinessException(

@@ -32,13 +32,13 @@ from app.services.system import PeriodicTaskService
 @permission_resource(
     resource="periodic_task",
     name="menu.admin.periodic_task",
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:timer",
         path="/system/periodic-tasks",
         component="admin/system/periodic-tasks/index",
         parent="system_maintenance",
-        sort_order=61,
+        sort_order=50,
     ),
 )
 class AdminPeriodicTaskController(GlobalController):

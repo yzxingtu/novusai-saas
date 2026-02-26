@@ -9,7 +9,8 @@
  *   virtual:novus-plugins-registry   → export BUILTIN_PLUGINS 注册表
  */
 
-import { existsSync, readdirSync, statSync, cpSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, cpSync, mkdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Plugin, ResolvedConfig } from 'vite';
@@ -17,6 +18,21 @@ import type { Plugin, ResolvedConfig } from 'vite';
 const _dirname = typeof __dirname !== 'undefined'
   ? __dirname
   : dirname(fileURLToPath(import.meta.url));
+
+/** web-antd 根目录（_dirname = src/utils/ → ../../ = web-antd/） */
+const hostAppRoot = resolve(_dirname, '..', '..');
+
+/**
+ * 使用宿主应用的 node_modules 上下文来解析裸模块说明符。
+ * 插件源码位于 backend/plugins/ 目录外，无法通过标准 Node 模块解析
+ * 走到宿主 node_modules，因此需要显式指定解析基路径。
+ */
+const hostRequire = createRequire(resolve(hostAppRoot, 'package.json'));
+
+function _norm(p: string): string {
+  return p.replaceAll('\\', '/');
+}
+
 
 interface PluginEntry {
   name: string;
@@ -69,6 +85,53 @@ export interface NovusPluginsOptions {
   pluginsDir?: string;
 }
 
+/**
+ * 检查插件声明的 npm 依赖是否已安装到宿主 node_modules
+ */
+function _checkPluginNpmDeps(
+  plugins: PluginEntry[],
+  pluginsDir: string,
+  cfg: ResolvedConfig,
+): void {
+  for (const p of plugins) {
+    if (!p.srcEntry) continue;
+    const yamlPath = join(pluginsDir, p.name, 'plugin.yaml');
+    if (!existsSync(yamlPath)) continue;
+
+    try {
+      const content = readFileSync(yamlPath, 'utf-8');
+      // 简易解析 npm_dependencies 列表（避免引入 yaml 解析器）
+      const match = content.match(/npm_dependencies:\s*\n((?:\s+-\s+.+\n?)*)/);
+      if (!match) continue;
+
+      const deps = (match[1] ?? '')
+        .split('\n')
+        .map((line) => line.replace(/^\s*-\s*/, '').trim())
+        .filter(Boolean);
+
+      const missing: string[] = [];
+      for (const dep of deps) {
+        const pkgName = dep.split('@')[0] || dep;
+        try {
+          hostRequire.resolve(pkgName);
+        } catch {
+          missing.push(dep);
+        }
+      }
+
+      if (missing.length > 0) {
+        cfg.logger.error(
+          `[novus-plugins] Plugin '${p.name}' requires npm packages not installed:\n` +
+          missing.map((d) => `  - ${d}`).join('\n') +
+          `\nRun: pnpm add ${missing.join(' ')} --filter=@vben/web-antd`,
+        );
+      }
+    } catch {
+      // plugin.yaml 解析失败不阻塞启动
+    }
+  }
+}
+
 export function novusPluginsLoader(options: NovusPluginsOptions = {}): Plugin {
   let config: ResolvedConfig;
   let isBuild = false;
@@ -101,6 +164,9 @@ export function novusPluginsLoader(options: NovusPluginsOptions = {}): Plugin {
           `[novus-plugins] Found ${plugins.length} plugin(s): ${names.join(', ')}`,
         );
       }
+
+      // 检查插件声明的 npm 依赖是否已安装
+      _checkPluginNpmDeps(plugins, pluginsDir, config);
     },
 
     // dev 模式：监控 backend/plugins/ 目录变更，自动触发 HMR
@@ -110,7 +176,7 @@ export function novusPluginsLoader(options: NovusPluginsOptions = {}): Plugin {
       config.logger.info(`[novus-plugins] Watching ${pluginsDir} for changes`);
     },
 
-    resolveId(id) {
+    async resolveId(id, importer) {
       // virtual:novus-plugins-registry
       if (id === VIRTUAL_REGISTRY) {
         return RESOLVED_REGISTRY;
@@ -119,6 +185,37 @@ export function novusPluginsLoader(options: NovusPluginsOptions = {}): Plugin {
       if (id.startsWith(VIRTUAL_PREFIX)) {
         return '\0' + id.slice('virtual:'.length);
       }
+
+      // 插件源码文件中的裸模块说明符（如 @tiptap/vue-3、ant-design-vue）
+      // 无法通过标准目录上溯找到宿主 node_modules，需要从宿主上下文解析。
+      // 使用 this.resolve() 从宿主根目录解析，让 Vite 走预构建（optimizeDeps）路径，
+      // 确保 CJS 包（如 ant-design-vue/lib/index.js）被正确转换为 ESM。
+      if (
+        importer
+        && !id.startsWith('.')
+        && !id.startsWith('/')
+        && !id.startsWith('\0')
+        && !id.startsWith('virtual:')
+        && !/^[a-zA-Z]:/.test(id)
+      ) {
+        const normImporter = _norm(importer);
+        const normPluginsDir = _norm(pluginsDir);
+        if (normImporter.startsWith(normPluginsDir)) {
+          // 用宿主根目录的虚拟文件作为 importer，让 Vite 按宿主上下文解析
+          const fakeImporter = resolve(hostAppRoot, '__plugin_resolve__.ts');
+          const resolved = await this.resolve(id, fakeImporter, { skipSelf: true });
+          if (resolved && !resolved.external) {
+            return resolved;
+          }
+          // Vite 无法解析时，尝试 Node require 兜底
+          try {
+            return hostRequire.resolve(id);
+          } catch {
+            return null;
+          }
+        }
+      }
+
       return null;
     },
 

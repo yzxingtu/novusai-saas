@@ -15,36 +15,28 @@ from app.core.logging import get_logger
 logger = get_logger("plugin.weather-widget.api")
 
 
-async def _get_plugin_config(db) -> dict:
+async def _get_plugin_config(ctx) -> dict:
     """读取天气插件的全局配置"""
     try:
-        from sqlalchemy import select
-        from app.models.system.plugin import Plugin as PluginModel
-        result = await db.execute(
-            select(PluginModel.config).where(
-                PluginModel.name == "weather-widget",
-                PluginModel.is_deleted.is_(False),
-            )
-        )
-        config = result.scalar_one_or_none()
+        config = await ctx.get_config()
         return config if isinstance(config, dict) else {}
     except Exception:
         return {}
 
 
-async def get_config(request, db) -> dict:
+async def get_config(request, ctx) -> dict:
     """
     获取天气插件配置（供前端读取）
 
     Returns:
         插件 config 对象（含 default_city, temperature_unit, forecast_days, cache_ttl, auto_refresh）
     """
-    config = await _get_plugin_config(db)
+    config = await _get_plugin_config(ctx)
     return {"config": config}
 
 
 def _get_open_meteo():
-    """动态加载 open_meteo 模块（插件名含连字符，无法直接 import）"""
+    """动态加载 open_meteo 模块（插件名含连字符，需 importlib）"""
     import importlib.util
     import sys
     from pathlib import Path
@@ -63,7 +55,7 @@ def _get_open_meteo():
     return mod
 
 
-async def get_current_weather(request, db) -> dict:
+async def get_current_weather(request, ctx) -> dict:
     """
     获取当前天气
 
@@ -93,7 +85,7 @@ async def get_current_weather(request, db) -> dict:
         return {"error": str(exc), "code": 5000}
 
 
-async def get_forecast(request, db) -> dict:
+async def get_forecast(request, ctx) -> dict:
     """
     获取天气预报
 
@@ -121,7 +113,7 @@ async def get_forecast(request, db) -> dict:
         except (ValueError, TypeError):
             days = 3
     else:
-        plugin_config = await _get_plugin_config(db)
+        plugin_config = await _get_plugin_config(ctx)
         days = plugin_config.get("forecast_days", 3)
 
     open_meteo = _get_open_meteo()
@@ -134,7 +126,7 @@ async def get_forecast(request, db) -> dict:
         return {"error": str(exc), "code": 5000}
 
 
-async def search_city(request, db) -> dict:
+async def search_city(request, ctx) -> dict:
     """
     城市搜索 / 反向地理编码
 

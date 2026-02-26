@@ -36,7 +36,7 @@ class SourceReference:
     doc_id: int
     chunk_id: int
     score: float
-    snippet: str  # 前 50 字
+    snippet: str
     page: int | None = None
     heading: str | None = None
     chunk_index: int = 0
@@ -224,11 +224,62 @@ class RAGContextBuilder:
             doc_id=chunk.document_id,
             chunk_id=chunk.chunk_id,
             score=chunk.score,
-            snippet=chunk.content[:50],
+            snippet=RAGContextBuilder._extract_snippet(chunk.content),
             page=page,
             heading=heading,
             chunk_index=chunk.chunk_index,
         )
+
+    @staticmethod
+    def _extract_snippet(content: str, max_tokens: int = 80) -> str:
+        """
+        智能提取 snippet：按自然边界截取，而非硬编码字符数。
+
+        策略：
+        - 内容在 token 预算内 → 直接返回全文
+        - 超出预算 → 按自然边界（句号/换行/分号/逗号）截断
+        - 确保不在词中间截断，末尾加省略号
+
+        Args:
+            content: chunk 原始文本
+            max_tokens: snippet 的 token 预算（默认 80，约 120-160 中文字）
+        """
+        if not content:
+            return ""
+
+        content = content.strip()
+
+        if estimate_tokens(content) <= max_tokens:
+            return content
+
+        # 按 token 预算找到粗略截断点（字符级二分）
+        low, high = 0, len(content)
+        while low < high:
+            mid = (low + high + 1) // 2
+            if estimate_tokens(content[:mid]) <= max_tokens:
+                low = mid
+            else:
+                high = mid - 1
+
+        rough_end = low
+        if rough_end <= 0:
+            return content[:20] + "..."
+
+        # 在粗截断点附近寻找最佳自然边界（优先级：句号 > 换行 > 分号 > 逗号）
+        candidates = []
+        for sep in ("。", "\n", "；", ". ", "; ", "，", ", "):
+            pos = content.rfind(sep, 0, rough_end)
+            if pos > rough_end * 0.3:  # 至少保留 30% 内容
+                candidates.append((pos + len(sep), sep))
+
+        if candidates:
+            best_pos = max(candidates, key=lambda x: x[0])[0]
+            snippet = content[:best_pos].rstrip()
+        else:
+            # 无自然边界：按空格/字边界截断
+            snippet = content[:rough_end].rstrip()
+
+        return snippet + "..." if len(snippet) < len(content) else snippet
 
     @staticmethod
     def _truncate_to_budget(text: str, budget: int) -> str:

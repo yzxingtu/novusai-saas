@@ -57,15 +57,18 @@ class PluginLoader:
 
     # ── 2. 清单解析 ──
 
-    def load_manifest(self, plugin_name: str) -> PluginManifest:
+    def _load_manifest_from_yaml(
+        self,
+        yaml_path: Path,
+        plugin_name: str,
+    ) -> PluginManifest:
         """
-        读取并解析 plugin.yaml → PluginManifest。
+        从指定 plugin.yaml 路径解析 PluginManifest。
 
         Raises:
             PluginNotFoundError: plugin.yaml 不存在
             PluginManifestError: YAML 解析或 Schema 校验失败
         """
-        yaml_path = self.plugins_dir / plugin_name / "plugin.yaml"
         if not yaml_path.is_file():
             raise PluginNotFoundError(
                 message=f"Plugin '{plugin_name}' not found: {yaml_path} does not exist",
@@ -90,6 +93,27 @@ class PluginLoader:
             raise PluginManifestError(
                 message=f"Manifest validation failed for '{plugin_name}': {exc}",
             )
+
+    def load_manifest(self, plugin_name: str) -> PluginManifest:
+        """
+        读取并解析 plugin.yaml → PluginManifest。
+
+        Raises:
+            PluginNotFoundError: plugin.yaml 不存在
+            PluginManifestError: YAML 解析或 Schema 校验失败
+        """
+        yaml_path = self.plugins_dir / plugin_name / "plugin.yaml"
+        return self._load_manifest_from_yaml(yaml_path, plugin_name)
+
+    def load_manifest_from_path(self, plugin_dir: Path) -> PluginManifest:
+        """
+        从任意插件目录读取并解析 plugin.yaml。
+
+        用于临时解压目录、升级源目录等不在默认 PLUGINS_DIR 下的场景。
+        """
+        plugin_name = plugin_dir.name
+        yaml_path = plugin_dir / "plugin.yaml"
+        return self._load_manifest_from_yaml(yaml_path, plugin_name)
 
     # ── 3. 主类加载 ──
 

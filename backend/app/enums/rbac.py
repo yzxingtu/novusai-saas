@@ -5,6 +5,7 @@ RBAC 权限相关枚举
 """
 
 from app.enums.base import StrEnum
+from app.enums.common import ResourceScopeEnum
 
 
 class PermissionType(StrEnum):
@@ -14,12 +15,9 @@ class PermissionType(StrEnum):
     OPERATION = ("operation", "enum.permission_type.operation")
 
 
-class PermissionScope(StrEnum):
-    """权限作用域"""
-    
-    ADMIN = ("admin", "enum.permission_scope.admin")
-    TENANT = ("tenant", "enum.permission_scope.tenant")
-    BOTH = ("both", "enum.permission_scope.both")
+# [DEPRECATED] PermissionScope 已统一为 ResourceScopeEnum，保留别名兼容旧代码引用
+# 旧值映射: ADMIN→ADMIN_ONLY, TENANT→ALL_TENANTS, BOTH→ADMIN_AND_ALL
+PermissionScope = ResourceScopeEnum
 
 
 __all__ = [

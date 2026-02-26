@@ -75,16 +75,34 @@ async def inject_rag_context(
             KnowledgeBaseRepository,
         )
 
-        # 获取第一个知识库（用于 Embedding 模型配置）
-        # 租户场景：使用 KnowledgeBaseRepository 确保租户隔离（自动允许 scope=global）
+        # 获取知识库（用于 Embedding 模型配置）
+        # 租户场景：使用 KnowledgeBaseRepository 确保租户隔离（visibility 控制跨租户访问）
         # 平台管理员场景：使用 AdminKnowledgeBaseRepository（无 tenant_id 限制）
         if tenant_id:
             kb_repo = KnowledgeBaseRepository(db, tenant_id=tenant_id)
         else:
             kb_repo = AdminKnowledgeBaseRepository(db)
-        primary_kb = await kb_repo.get_by_id(kb_ids[0])
-        if not primary_kb:
+
+        # 安全校验：验证所有 kb_ids 均属于当前租户（防止跨租户数据泄露）
+        # 只有通过 tenant-scoped repo 校验的 KB 才允许检索
+        validated_kb_ids: list[int] = []
+        primary_kb = None
+        for kid in kb_ids:
+            kb = await kb_repo.get_by_id(kid)
+            if kb:
+                validated_kb_ids.append(kid)
+                if primary_kb is None:
+                    primary_kb = kb
+            else:
+                logger.warning(
+                    "KB %d not accessible for tenant %d, skipped",
+                    kid, tenant_id,
+                )
+
+        if not primary_kb or not validated_kb_ids:
             return messages, None
+
+        kb_ids = validated_kb_ids
 
         # 提取用户最新问题
         user_query = ""
@@ -119,7 +137,11 @@ async def inject_rag_context(
 
         # 估算 system prompt 的 token 数
         system_tokens = estimate_tokens(messages[0].content) if messages else 0
-        max_context = getattr(agent, "max_context_tokens", 0) or 8000
+        # 从关联的 AIModel 获取实际上下文窗口大小
+        model_context = 0
+        if hasattr(agent, "model") and agent.model:
+            model_context = getattr(agent.model, "context_window", 0) or 0
+        max_context = model_context or 8000
 
         rag_budget, _ = builder.calculate_rag_budget(
             max_context_tokens=max_context,

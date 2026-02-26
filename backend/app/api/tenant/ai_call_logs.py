@@ -24,7 +24,7 @@ from app.repositories.ai import AICallLogRepository
 @permission_resource(
     resource="ai_tenant_call_log",
     name="menu.tenant.ai_call_log",
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=MenuConfig(
         icon="lucide:scroll-text",
         path="/ai/call-logs",

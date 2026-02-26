@@ -36,7 +36,7 @@ const { Drawer, isEdit } = useCrudDrawer<PeriodicTaskInfo>({
       interval_seconds: values.interval_seconds || null,
       is_active: values.is_active ?? true,
       description: values.description || null,
-      scope: values.scope || 'platform',
+      scope: values.scope || 'admin_only',
       tenant_id: values.tenant_id || null,
       is_locked: values.is_locked ?? false,
       is_editable: values.is_editable ?? true,

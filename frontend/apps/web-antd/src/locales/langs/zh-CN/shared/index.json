@@ -7,6 +7,7 @@
     "./config.json",
     "./filePicker.json",
     "./filePreview.json",
+    "./knowledgeDocPicker.json",
     "./page.json",
     "./profile.json"
   ]

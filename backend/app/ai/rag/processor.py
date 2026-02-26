@@ -26,19 +26,41 @@ async def _report_progress(
     progress: int,
     total_chunks: int = 0,
     processed_chunks: int = 0,
+    *,
+    tenant_id: int | None = None,
+    kb_id: int | None = None,
 ) -> None:
-    """上报处理进度到 Redis"""
+    """上报处理进度到 Redis + WS 推送"""
+    progress_data = {
+        "stage": stage,
+        "progress": min(progress, 100),
+        "total_chunks": total_chunks,
+        "processed_chunks": processed_chunks,
+    }
     try:
         from app.core.redis import cache_set
         key = PROGRESS_KEY_TEMPLATE.format(document_id=document_id)
-        await cache_set(key, {
-            "stage": stage,
-            "progress": min(progress, 100),
-            "total_chunks": total_chunks,
-            "processed_chunks": processed_chunks,
-        }, ttl=PROGRESS_TTL)
+        await cache_set(key, progress_data, ttl=PROGRESS_TTL)
     except Exception:
-        pass  # 进度上报失败不影响主流程
+        pass
+
+    # WS 实时推送（Celery 同步环境通过 Redis Pub/Sub 转发）
+    try:
+        from app.core.sio_bridge import notify_tenant_sync, notify_admins_sync
+        ws_payload = {
+            "type": "ai.kb_doc_progress",
+            "data": {
+                "document_id": document_id,
+                "kb_id": kb_id,
+                **progress_data,
+            },
+        }
+        if tenant_id is not None:
+            notify_tenant_sync(tenant_id, ws_payload)
+        else:
+            notify_admins_sync(ws_payload)
+    except Exception:
+        pass
 
 
 async def _clear_progress(document_id: int) -> None:
@@ -74,6 +96,15 @@ async def _load_and_parse_document(db, doc, tenant_id) -> list:
             question=qa_data.get("question", ""),
             answer=qa_data.get("answer", ""),
             file_name=doc.file_name,
+        )
+
+    # 直接文本输入：content 存储在 metadata_extra 中，无 attachment
+    if not doc.attachment_id and doc.metadata_extra:
+        import io
+        parser = get_parser(doc.file_type)
+        return await parser.parse(
+            io.BytesIO(doc.metadata_extra.encode("utf-8")),
+            doc.file_name,
         )
 
     if not doc.attachment_id:
@@ -140,7 +171,7 @@ async def get_document_progress(document_id: int) -> dict | None:
     time_limit=660,
     acks_late=True,
 )
-def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict:
+def process_document(self: TenantTask, tenant_id: int | None, document_id: int) -> dict:
     """
     文档处理主任务（支持断点续传）
 
@@ -161,6 +192,16 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
 
     async def _execute() -> dict:
         from sqlalchemy import select, func
+        # 清理上一次 event loop 残留的 DB 连接（Windows --pool=solo 必需）
+        from app.core.database import async_engine
+        await async_engine.dispose()
+
+        # 确保 AI 适配器已注册（Celery worker 可能未加载 celery_app.py 中的注册）
+        from app.ai.adapters import AdapterRegistry
+        if not AdapterRegistry.list_adapters():
+            from app.ai.adapters.openai_adapter import OpenAIAdapter
+            AdapterRegistry.register("openai_compatible", OpenAIAdapter)
+            logger.info("Registered AI adapters in task context")
 
         from app.ai.gateway import AIGateway
         from app.ai.rag.chunker import get_chunker
@@ -216,11 +257,11 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
                 if not skip_parsing:
                     doc.status = DocumentStatusEnum.PARSING.value
                     await db.commit()
-                    await _report_progress(document_id, "parsing", 0)
+                    await _report_progress(document_id, "parsing", 0, tenant_id=tenant_id, kb_id=kb.id)
 
                     pages = await _load_and_parse_document(db, doc, tenant_id)
 
-                    await _report_progress(document_id, "parsing", 100)
+                    await _report_progress(document_id, "parsing", 100, tenant_id=tenant_id, kb_id=kb.id)
 
                     if not pages:
                         logger.warning("Document %d parsed with 0 pages", document_id)
@@ -229,7 +270,7 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
                 if not skip_chunking:
                     doc.status = DocumentStatusEnum.CHUNKING.value
                     await db.commit()
-                    await _report_progress(document_id, "chunking", 0)
+                    await _report_progress(document_id, "chunking", 0, tenant_id=tenant_id, kb_id=kb.id)
 
                     # 如果跳过了解析（从 chunking 恢复），需要重新解析
                     if pages is None:
@@ -241,7 +282,7 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
                         chunk_overlap=kb.chunk_overlap,
                     )
                     chunk_data_list = chunker.chunk(pages or [])
-                    await _report_progress(document_id, "chunking", 100)
+                    await _report_progress(document_id, "chunking", 100, tenant_id=tenant_id, kb_id=kb.id)
 
                 # ===== 4. Embedding 阶段（支持断点续传） =====
                 doc.status = DocumentStatusEnum.EMBEDDING.value
@@ -275,7 +316,7 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
                         select(func.count(DocumentChunk.id))
                         .where(
                             DocumentChunk.document_id == document_id,
-                            DocumentChunk.tenant_id == tenant_id,
+                            DocumentChunk.knowledge_base_id == kb.id,
                             DocumentChunk.is_deleted.is_(False),
                             DocumentChunk.embedding.isnot(None),
                         )
@@ -295,7 +336,11 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
 
                 # 从断点位置开始 Embedding
                 chunks_to_embed = chunk_data_list[existing_chunk_count:]
-                batch_size = 100
+                # 从供应商配置读取 embedding_batch_size，默认 10（DashScope 限制）
+                embedding_batch_size = 10
+                if provider.config and isinstance(provider.config, dict):
+                    embedding_batch_size = provider.config.get("embedding_batch_size", 10)
+                batch_size = min(embedding_batch_size, len(chunks_to_embed) or 1)
                 all_embeddings: list[list[float]] = []
                 total_token_count = 0
                 processed_so_far = existing_chunk_count
@@ -304,11 +349,14 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
                     document_id, "embedding", 
                     int(processed_so_far / max(total_chunks, 1) * 100),
                     total_chunks, processed_so_far,
+                    tenant_id=tenant_id, kb_id=kb.id,
                 )
+
+                from app.ai.rag.text_cleaner import clean_for_embedding
 
                 for i in range(0, len(chunks_to_embed), batch_size):
                     batch = chunks_to_embed[i:i + batch_size]
-                    texts = [c.content for c in batch]
+                    texts = [clean_for_embedding(c.content) for c in batch]
 
                     response = await gateway.embedding(
                         provider_code=provider.code,
@@ -326,6 +374,7 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
                         document_id, "embedding",
                         int(processed_so_far / max(total_chunks, 1) * 100),
                         total_chunks, processed_so_far,
+                        tenant_id=tenant_id, kb_id=kb.id,
                     )
 
                     logger.info(
@@ -347,7 +396,7 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
                     batch_data = []
                     for idx, cd in enumerate(batch):
                         embedding_vec = (
-                            all_embeddings[idx + i - 0]  # all_embeddings 从0开始对应 chunks_to_embed
+                            all_embeddings[idx + i]  # all_embeddings 从0开始对应 chunks_to_embed
                             if (idx + i) < len(all_embeddings)
                             else None
                         )
@@ -382,10 +431,16 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
                 # 清除 Redis 进度
                 await _clear_progress(document_id)
 
+                # 清除该知识库的检索缓存（避免返回过时结果）
+                try:
+                    from app.ai.rag.retriever import HybridRetriever
+                    await HybridRetriever.invalidate_kb_cache(kb.id)
+                except Exception:
+                    pass
+
                 # Socket.IO 索引完成通知
                 try:
-                    from app.core.sio_bridge import notify_tenant_sync
-                    notify_tenant_sync(tenant_id, {
+                    notification = {
                         "type": "ai.kb_index_complete",
                         "category": "ai",
                         "title": f"Document indexed: {doc.name}",
@@ -396,7 +451,13 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
                             "tokens": total_token_count,
                         },
                         "priority": "normal",
-                    })
+                    }
+                    if tenant_id is not None:
+                        from app.core.sio_bridge import notify_tenant_sync
+                        notify_tenant_sync(tenant_id, notification)
+                    else:
+                        from app.core.sio_bridge import notify_admins_sync
+                        notify_admins_sync(notification)
                 except Exception:
                     pass
 
@@ -436,12 +497,12 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
                     # 上报错误进度
                     await _report_progress(
                         document_id, "error", 0,
+                        tenant_id=tenant_id, kb_id=kb.id if kb else None,
                     )
 
                     # Socket.IO 索引失败通知
                     try:
-                        from app.core.sio_bridge import notify_tenant_sync
-                        notify_tenant_sync(tenant_id, {
+                        fail_notification = {
                             "type": "ai.kb_index_failed",
                             "category": "ai",
                             "title": f"Document indexing failed: {doc.name}",
@@ -451,7 +512,13 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
                                 "error": str(exc)[:200],
                             },
                             "priority": "high",
-                        })
+                        }
+                        if tenant_id is not None:
+                            from app.core.sio_bridge import notify_tenant_sync
+                            notify_tenant_sync(tenant_id, fail_notification)
+                        else:
+                            from app.core.sio_bridge import notify_admins_sync
+                            notify_admins_sync(fail_notification)
                     except Exception:
                         pass
                 except Exception:
@@ -463,7 +530,14 @@ def process_document(self: TenantTask, tenant_id: int, document_id: int) -> dict
                     "error": str(exc)[:500],
                 }
 
-    return asyncio.run(_execute())
+    # Windows --pool=solo: asyncio.run() 会关闭 event loop，导致后续任务的 DB 连接池失效。
+    # 使用 new_event_loop 并手动运行，确保每次任务都有干净的 loop。
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(_execute())
+    finally:
+        loop.close()
 
 
 __all__ = ["process_document", "get_document_progress"]

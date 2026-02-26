@@ -36,6 +36,14 @@ class TenantAdminCreateRequest(BaseModel):
     role_id: int | None = Field(None)
 
 
+class TenantAdminUpdateRequest(BaseModel):
+    """更新租户管理员请求（平台端重置密码等）"""
+    password: str | None = Field(None, min_length=6, max_length=100)
+    nickname: str | None = Field(None, max_length=100)
+    role_id: int | None = Field(None)
+    is_active: bool | None = Field(None)
+
+
 class TenantAdminStatusRequest(BaseModel):
     """切换管理员状态请求"""
     is_active: bool
@@ -48,7 +56,7 @@ class TenantAdminStatusRequest(BaseModel):
 @permission_resource(
     resource="tenant_admin",
     name="menu.admin.tenant_admin",
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     parent_resource="tenant",
     menu=None,
 )
@@ -185,6 +193,65 @@ class AdminTenantAdminController(GlobalController):
                 "nickname": new_admin.nickname,
                 "is_owner": new_admin.is_owner,
                 "is_active": new_admin.is_active,
+            })
+
+        @router.put("/{admin_id}", summary="更新租户管理员")
+        @action_update("action.tenant_admin.update")
+        async def update_tenant_admin(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            tenant_id: int,
+            admin_id: int,
+            data: TenantAdminUpdateRequest,
+        ):
+            """
+            更新租户管理员信息（含重置密码）
+
+            平台管理员可修改租户管理员的密码、昵称、角色、状态。
+            至少需要一个字段有值。
+            """
+            await _verify_tenant(db, tenant_id)
+
+            from sqlalchemy import select
+            from app.models import TenantAdmin
+
+            result = await db.execute(
+                select(TenantAdmin).where(
+                    TenantAdmin.id == admin_id,
+                    TenantAdmin.tenant_id == tenant_id,
+                    TenantAdmin.is_deleted.is_(False),
+                )
+            )
+            tenant_admin = result.scalar_one_or_none()
+            if not tenant_admin:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=_("tenant_admin.not_found"),
+                )
+
+            if data.password is not None:
+                tenant_admin.password_hash = get_password_hash(data.password)
+            if data.nickname is not None:
+                tenant_admin.nickname = data.nickname
+            if data.role_id is not None:
+                tenant_admin.role_id = data.role_id
+            if data.is_active is not None:
+                if tenant_admin.is_owner and not data.is_active:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=_("tenant_admin.cannot_disable_owner"),
+                    )
+                tenant_admin.is_active = data.is_active
+
+            await db.flush()
+
+            return success(data={
+                "id": tenant_admin.id,
+                "username": tenant_admin.username,
+                "nickname": tenant_admin.nickname,
+                "role_id": tenant_admin.role_id,
+                "is_active": tenant_admin.is_active,
             })
 
         @router.put("/{admin_id}/status", summary="切换管理员状态")

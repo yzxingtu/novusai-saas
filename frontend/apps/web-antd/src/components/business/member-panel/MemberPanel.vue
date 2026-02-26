@@ -217,12 +217,12 @@ onMounted(() => {
       <div class="flex items-center gap-2">
         <IconifyIcon icon="lucide:users" class="h-5 w-5 text-primary" />
         <span class="font-medium text-gray-900 dark:text-gray-100">
-          成员管理
+          {{ $t('shared.memberPanel.title') }}
         </span>
         <span class="text-sm text-gray-500"> ({{ pagination.total }}) </span>
       </div>
       <div class="flex items-center gap-2">
-        <Tooltip title="刷新">
+        <Tooltip :title="$t('shared.memberPanel.refresh')">
           <Button
             type="text"
             size="small"
@@ -234,12 +234,12 @@ onMounted(() => {
             </template>
           </Button>
         </Tooltip>
-        <Tooltip v-if="!allowMembers" title="此节点不允许添加成员">
+        <Tooltip v-if="!allowMembers" :title="$t('shared.memberPanel.nodeNotAllowMembers')">
           <Button type="primary" size="small" disabled>
             <template #icon>
               <IconifyIcon icon="lucide:user-plus" />
             </template>
-            添加成员
+            {{ $t('shared.memberPanel.addMember') }}
           </Button>
         </Tooltip>
         <Button
@@ -252,7 +252,7 @@ onMounted(() => {
           <template #icon>
             <IconifyIcon icon="lucide:user-plus" />
           </template>
-          添加成员
+          {{ $t('shared.memberPanel.addMember') }}
         </Button>
       </div>
     </div>
@@ -260,7 +260,7 @@ onMounted(() => {
     <!-- 不允许成员提示 -->
     <Alert
       v-if="!allowMembers && nodeId"
-      message="此节点类型不允许添加成员"
+      :message="$t('shared.memberPanel.nodeTypeNotAllowMembers')"
       type="warning"
       show-icon
       class="mx-4 mt-3"
@@ -276,7 +276,7 @@ onMounted(() => {
           icon="lucide:mouse-pointer-click"
           class="mx-auto mb-2 h-12 w-12 opacity-50"
         />
-        <p>请在左侧选择一个节点</p>
+        <p>{{ $t('shared.memberPanel.selectNode') }}</p>
       </div>
     </div>
 
@@ -285,7 +285,7 @@ onMounted(() => {
       <div class="flex items-center gap-3 px-4 py-3">
         <Input
           v-model:value="searchText"
-          placeholder="搜索用户名、昵称或邮箱..."
+          :placeholder="$t('shared.memberPanel.searchPlaceholder')"
           allow-clear
           :disabled="loading"
           class="flex-1"
@@ -294,7 +294,7 @@ onMounted(() => {
             <IconifyIcon icon="lucide:search" class="text-gray-400" />
           </template>
         </Input>
-        <Tooltip title="开启后将显示所有子节点的成员">
+        <Tooltip :title="$t('shared.memberPanel.includeDescendantsTooltip')">
           <div class="flex flex-shrink-0 items-center gap-1.5">
             <IconifyIcon
               icon="lucide:git-branch"
@@ -306,7 +306,7 @@ onMounted(() => {
               :disabled="loading"
               @change="(checked) => toggleIncludeDescendants(Boolean(checked))"
             />
-            <span class="text-xs text-gray-500">含子节点</span>
+            <span class="text-xs text-gray-500">{{ $t('shared.memberPanel.includeDescendants') }}</span>
           </div>
         </Tooltip>
       </div>
@@ -318,7 +318,7 @@ onMounted(() => {
             <!-- 负责人置顶显示 -->
             <template v-if="leaderInfo && !searchText">
               <div class="mb-2 text-xs font-medium uppercase text-gray-500">
-                负责人
+                {{ $t('shared.memberPanel.leader') }}
               </div>
               <MemberItem
                 :member="leaderInfo"
@@ -335,7 +335,7 @@ onMounted(() => {
                 v-if="members.length > 1"
                 class="mb-2 mt-4 text-xs font-medium uppercase text-gray-500"
               >
-                成员
+                {{ $t('shared.memberPanel.members') }}
               </div>
             </template>
             <!-- 其他成员 -->
@@ -357,7 +357,7 @@ onMounted(() => {
           </template>
           <Empty
             v-else
-            :description="searchText ? '未找到匹配的成员' : '暂无成员'"
+            :description="searchText ? $t('shared.memberPanel.emptySearch') : $t('shared.memberPanel.empty')"
             class="py-8"
           />
         </Spin>
@@ -369,8 +369,7 @@ onMounted(() => {
         class="flex flex-col gap-2 border-t border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700"
       >
         <div class="text-sm text-gray-500">
-          显示 {{ paginationInfo.start }}-{{ paginationInfo.end }} 项，共
-          {{ paginationInfo.total }} 项
+          {{ $t('shared.memberPanel.paginationInfo', { start: paginationInfo.start, end: paginationInfo.end, total: paginationInfo.total }) }}
         </div>
         <Pagination
           :current="pagination.page"

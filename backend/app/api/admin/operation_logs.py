@@ -30,13 +30,13 @@ from app.services.system.operation_log_service import OperationLogService
 @permission_resource(
     resource="operation_log",
     name="menu.admin.operation_log",  # i18n key
-    scope=PermissionScope.ADMIN,    
+    scope=PermissionScope.ADMIN_ONLY,    
     menu=MenuConfig(
         icon="lucide:file-text",
         path="/system/operation-logs",
         component="admin/system/operation-logs/index",
-        parent="system_maintenance",
-        sort_order=20,
+        parent="logs",
+        sort_order=10,
     )
 )
 class AdminOperationLogController(GlobalController):

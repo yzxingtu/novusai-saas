@@ -85,12 +85,12 @@ extensions:
   api:
     tenant_routes:
       - method: GET
-        path: /customers
+        path: customers
         handler: "api.customers.list_customers"
         summary: "List customers"
         auth: required
       - method: POST
-        path: /customers
+        path: customers
         handler: "api.customers.create_customer"
         summary: "Create customer"
         auth: required
@@ -98,12 +98,12 @@ extensions:
   frontend:
     menus:
       - name: crm
-        path: /crm
+        path: /tenant/plugins/crm-module
         icon: "lucide:users"
         sort_order: 50
         scope: tenant
       - name: crm-customers
-        path: /crm/customers
+        path: /tenant/plugins/crm-module/customers
         icon: "lucide:contact"
         parent: crm
         sort_order: 10

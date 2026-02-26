@@ -16,6 +16,13 @@ export {
 export { useCrudDrawer, type UseCrudDrawerOptions } from './use-crud-form';
 
 export {
+  useCrudList,
+  type CrudListApiConfig,
+  type UseCrudListOptions,
+  type UseCrudListReturn,
+} from './use-crud-list';
+
+export {
   useFileUpload,
   type FileValidationResult,
   type FileValidationRules,

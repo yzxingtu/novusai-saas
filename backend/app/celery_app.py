@@ -92,6 +92,13 @@ def _import_task_modules():
 _import_task_modules()
 
 # ========================================
+# AI 适配器注册（Worker 进程不走 main.py lifespan）
+# ========================================
+from app.ai.adapters import AdapterRegistry
+from app.ai.adapters.openai_adapter import OpenAIAdapter
+AdapterRegistry.register("openai_compatible", OpenAIAdapter)
+
+# ========================================
 # 结果配置
 # ========================================
 celery_app.conf.result_expires = 3600

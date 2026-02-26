@@ -35,7 +35,7 @@ from app.services.common import StorageQuotaService
 @permission_resource(
     resource="attachment",
     name="menu.tenant.attachment",
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=MenuConfig(
         icon="lucide:paperclip",
         path="/system/attachments",

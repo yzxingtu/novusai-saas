@@ -14,10 +14,33 @@
 """
 
 import logging
+import os
 import sys
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 from pathlib import Path
 from typing import Literal
+
+
+class _WindowsSafeRotatingFileHandler(RotatingFileHandler):
+    """
+    Windows 安全的 RotatingFileHandler
+
+    多进程（FastAPI + Celery Worker）同时写同一日志文件时，
+    标准 RotatingFileHandler.doRollover() 使用 os.rename()，
+    在 Windows 上会因文件被占用抛出 PermissionError (WinError 32)。
+
+    修复策略：捕获 PermissionError，跳过本次轮转继续写入当前文件。
+    下次达到 maxBytes 时再尝试轮转。
+    """
+
+    def doRollover(self) -> None:
+        if os.name != "nt":
+            return super().doRollover()
+
+        try:
+            super().doRollover()
+        except PermissionError:
+            pass
 
 from app.core.config import settings
 from app.enums.log import LogCategoryEnum
@@ -234,7 +257,7 @@ class LogManager:
             raise RuntimeError("LogManager not initialized")
         
         log_file = cls._log_dir / f"{name}.log"
-        handler = RotatingFileHandler(
+        handler = _WindowsSafeRotatingFileHandler(
             log_file,
             maxBytes=max_bytes,
             backupCount=backup_count,
@@ -254,12 +277,12 @@ class LogManager:
         level: int,
         when: Literal["midnight", "D", "H", "M"] = "midnight",
         backup_count: int = 30,
-    ) -> RotatingFileHandler:
+    ) -> _WindowsSafeRotatingFileHandler:
         """
         创建文件处理器（按大小轮转，避免 Windows 文件占用问题）
         
         Windows 不允许重命名被占用的文件，TimedRotatingFileHandler 会失败。
-        使用 RotatingFileHandler 按大小轮转更可靠。
+        使用 _WindowsSafeRotatingFileHandler 按大小轮转，轮转失败时静默跳过。
         
         Args:
             name: 日志文件名
@@ -271,8 +294,7 @@ class LogManager:
             raise RuntimeError("LogManager not initialized")
         
         log_file = cls._log_dir / f"{name}.log"
-        # 按大小轮转：单个文件最大 10MB，保留 30 个备份
-        handler = RotatingFileHandler(
+        handler = _WindowsSafeRotatingFileHandler(
             log_file,
             maxBytes=10 * 1024 * 1024,  # 10MB
             backupCount=backup_count,

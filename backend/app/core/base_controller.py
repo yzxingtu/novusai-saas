@@ -10,7 +10,7 @@
     @permission_resource(
         resource="user",
         name="用户管理",
-        scope=PermissionScope.TENANT,
+        scope=PermissionScope.ALL_TENANTS,
         menu=MenuConfig(icon="user", path="/users", component="user/List")
     )
     class UserController(TenantController):

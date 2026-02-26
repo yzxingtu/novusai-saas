@@ -15,6 +15,8 @@ export interface PluginSlotItem {
   title?: string;
   sortOrder?: number;
   scope?: string;
+  path?: string;
+  hidden?: boolean;
   [key: string]: unknown;
 }
 

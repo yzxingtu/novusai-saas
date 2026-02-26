@@ -22,12 +22,10 @@ class ScheduleTypeEnum(StrEnum):
     INTERVAL = ("interval", "enum.schedule_type.interval")
 
 
-class TaskScopeEnum(StrEnum):
-    """定时任务作用范围枚举"""
-
-    PLATFORM = ("platform", "enum.task_scope.platform")
-    TENANT = ("tenant", "enum.task_scope.tenant")
-    ALL_TENANTS = ("all_tenants", "enum.task_scope.all_tenants")
+# [DEPRECATED] TaskScopeEnum 已统一为 ResourceScopeEnum，保留别名兼容旧代码引用
+# 旧值映射: PLATFORM→ADMIN_ONLY, TENANT→ALL_TENANTS, ALL_TENANTS→ALL_TENANTS(不变)
+from app.enums.common import ResourceScopeEnum
+TaskScopeEnum = ResourceScopeEnum
 
 
 __all__ = [

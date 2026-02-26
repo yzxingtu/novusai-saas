@@ -62,7 +62,7 @@ config_schema:
     default_city:
       type: string
       title: "默认城市 / Default City"
-      description: "天气组件启动时默认显示的城市"
+      description: "天气组件启动时默认显示的城市 / Default city shown on widget startup"
       default: "Shanghai"
     temperature_unit:
       type: string
@@ -84,7 +84,7 @@ config_schema:
     auto_refresh:
       type: boolean
       title: "自动刷新 / Auto Refresh"
-      description: "是否自动定时刷新天气数据"
+      description: "是否自动定时刷新天气数据 / Whether to auto-refresh weather data periodically"
       default: true
 
 dependencies:

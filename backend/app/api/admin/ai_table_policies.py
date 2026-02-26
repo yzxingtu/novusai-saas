@@ -29,7 +29,7 @@ from app.services.ai.table_policy_service import AITablePolicyService
 @permission_resource(
     resource="ai_table_policy",
     name="menu.admin.ai_table_policy",
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:shield-check",
         path="/ai/table-policies",

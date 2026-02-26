@@ -73,7 +73,7 @@ class Agent(TenantModel):
     scope: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default=ResourceScopeEnum.TENANT.value,
+        default=ResourceScopeEnum.ALL_TENANTS.value,
         index=True,
         comment=_("enum.agent_model.scope"),
     )
@@ -175,19 +175,22 @@ class Agent(TenantModel):
         comment=_("enum.agent_model.input_variables"),
     )
 
-    # ==================== 知识库（RAG）配置 ====================
+    # ==================== 知识库（RAG）配置 [DEPRECATED] ====================
+    # 已废弃：知识库绑定已迁移到技能包机制（SkillPackage → Skill[knowledge_base]）
+    # 运行时 knowledge_base_ids 来自 SkillResolver + 用户 @ 选择，不再读取此字段
+    # 保留列以兼容旧数据，后续可通过迁移删除
 
     knowledge_base_ids: Mapped[list | None] = mapped_column(
         JSON,
         nullable=True,
         default=list,
-        comment=_("enum.agent_model.knowledge_base_ids"),
+        comment="[DEPRECATED] " + _("enum.agent_model.knowledge_base_ids"),
     )
     rag_config: Mapped[dict | None] = mapped_column(
         JSON,
         nullable=True,
         default=None,
-        comment=_("enum.agent_model.rag_config"),
+        comment="[DEPRECATED] " + _("enum.agent_model.rag_config"),
     )
 
     # ==================== 上下文配置 ====================

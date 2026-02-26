@@ -150,7 +150,14 @@ class SkillResolver:
 
         插件技能（source_plugin 有值）优先走插件 resolver，
         不论其 type 是什么（可以是 toolkit 等标准类型）。
+
+        config.internal=true 的技能为系统内部调度用途（如 llm_chat、
+        llm_embedding），不解析为 function calling 工具。
         """
+        # 跳过内部调度技能（不暴露给 LLM 作为 function calling 工具）
+        if config.get("internal"):
+            return
+
         # 插件技能优先走插件 resolver
         if source_plugin:
             await self._resolve_plugin_skill(skill, config, result, source_plugin)
@@ -890,6 +897,74 @@ class SkillResolver:
         return params
 
 
+async def _load_auto_bind_packages(
+    db: AsyncSession,
+    agent_scope: str,
+    tenant_id: int | None,
+) -> list:
+    """
+    加载 bind_mode=auto 的技能包（按 agent scope 匹配规则过滤）
+
+    匹配规则：
+    - admin_only agent → auto 包 scope IN (admin_only, admin_and_all, admin_and_assigned)
+    - all_tenants agent → auto 包 scope IN (all_tenants, admin_and_all)
+                         + scope IN (assigned_tenants, admin_and_assigned) 且在分配表中
+    """
+    from sqlalchemy import select, and_, or_
+    from app.models.ai.skill_package import SkillPackage
+    from app.enums.common import ResourceScopeEnum, SkillBindModeEnum
+    from app.core.scope import ScopeChecker
+
+    # 基础条件：bind_mode=auto + is_active + not deleted
+    base_conditions = [
+        SkillPackage.bind_mode == SkillBindModeEnum.AUTO.value,
+        SkillPackage.is_active.is_(True),
+        SkillPackage.is_deleted.is_(False),
+    ]
+
+    if not tenant_id:
+        # 无租户上下文（管理端调用）→ 获取所有管理端可见的 auto 包
+        admin_scopes = ScopeChecker.get_admin_visible_scopes()
+        stmt = (
+            select(SkillPackage)
+            .where(and_(*base_conditions, SkillPackage.scope.in_(admin_scopes)))
+            .order_by(SkillPackage.sort_order)
+        )
+    else:
+        # tenant agent → 获取 all_tenants + admin_and_all 的 auto 包
+        all_tenant_scopes = ScopeChecker.get_all_tenants_visible_scopes()
+        scope_conditions = [SkillPackage.scope.in_(all_tenant_scopes)]
+
+        # 加上 assigned_tenants / admin_and_assigned 中在分配表里的包
+        if tenant_id:
+            from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
+            assigned_pkg_ids_stmt = (
+                select(ResourceTenantAssignment.resource_id)
+                .where(
+                    ResourceTenantAssignment.resource_type == "skill_package",
+                    ResourceTenantAssignment.tenant_id == tenant_id,
+                    ResourceTenantAssignment.is_active.is_(True),
+                    ResourceTenantAssignment.is_deleted.is_(False),
+                )
+            )
+            assignment_scopes = ScopeChecker.get_assignment_required_scopes()
+            scope_conditions.append(
+                and_(
+                    SkillPackage.scope.in_(assignment_scopes),
+                    SkillPackage.id.in_(assigned_pkg_ids_stmt),
+                )
+            )
+
+        stmt = (
+            select(SkillPackage)
+            .where(and_(*base_conditions, or_(*scope_conditions)))
+            .order_by(SkillPackage.sort_order)
+        )
+
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
 async def resolve_for_agent(
     db: AsyncSession,
     agent: Any,
@@ -916,13 +991,39 @@ async def resolve_for_agent(
     Raises:
         sqlalchemy.exc.SQLAlchemyError: DB 连接/查询异常（不再静默吞掉）
     """
-    from sqlalchemy import select, and_
+    from sqlalchemy import select, and_, or_
     from sqlalchemy.exc import SQLAlchemyError
     from app.models.ai.skill import Skill as SkillModel
+    from app.models.ai.skill_package import SkillPackage
     from app.models.ai.agent_skill_binding import AgentSkillBinding
+    from app.enums.common import SkillBindModeEnum
+    from app.core.scope import ScopeChecker
 
-    # ── Phase 1: 加载绑定数据（DB 错误直接上抛） ──
     agent_tenant_id = tenant_id or getattr(agent, "tenant_id", None)
+    agent_scope = getattr(agent, "scope", "all_tenants")
+
+    # ── Phase 0 (NEW): 加载自动绑定技能包（bind_mode=auto） ──
+    auto_packages: list[SkillPackage] = []
+    try:
+        auto_packages = await _load_auto_bind_packages(
+            db, agent_scope, agent_tenant_id,
+        )
+    except SQLAlchemyError as exc:
+        logger.warning(
+            "Failed to load auto-bind packages for agent %d: %s",
+            agent.id, str(exc),
+        )
+        # 降级：auto-bind 加载失败不阻塞，继续使用 explicit bindings
+
+    if auto_packages:
+        logger.info(
+            "Auto-bind: %d packages for agent=%s (scope=%s)",
+            len(auto_packages),
+            agent.name if agent else "?",
+            agent_scope,
+        )
+
+    # ── Phase 1: 加载显式绑定数据（DB 错误直接上抛） ──
     if agent_tenant_id:
         binding_stmt = (
             select(AgentSkillBinding)
@@ -960,12 +1061,28 @@ async def resolve_for_agent(
         )
         raise
 
-    if not bindings:
+    # ── Phase 1.5: 合并 auto + explicit，去重（explicit 优先） ──
+    # explicit binding 的 package_ids 优先
+    explicit_package_ids: set[int] = set()
+    for binding in bindings:
+        if binding.package and binding.package.is_active and not binding.package.is_deleted:
+            explicit_package_ids.add(binding.package.id)
+
+    # 如果没有 explicit 也没有 auto，返回 None
+    if not bindings and not auto_packages:
         return None
 
     package_ids: list[int] = []
     config_overrides: dict[int, dict[str, Any]] = {}
     consent_by_package: dict[int, str] = {}
+
+    # 先添加 auto 包（不在 explicit 中的）
+    for pkg in auto_packages:
+        if pkg.id not in explicit_package_ids:
+            package_ids.append(pkg.id)
+            consent_by_package[pkg.id] = "auto"  # auto 包默认 consent_mode=auto
+
+    # 再添加 explicit 包
     for binding in bindings:
         if binding.package and binding.package.is_active and not binding.package.is_deleted:
             package_ids.append(binding.package.id)
@@ -1017,6 +1134,11 @@ async def resolve_for_agent(
     # ── Phase 2: 解析 Skill → ToolDefinition（单个失败降级） ──
     skill_config_overrides: dict[int, dict[str, Any]] = {}
     pkg_valves: dict[int, dict[str, Any]] = {}
+    # Load valves from auto-bind packages first
+    for pkg in auto_packages:
+        if pkg.id not in explicit_package_ids and getattr(pkg, "valves_config", None):
+            pkg_valves[pkg.id] = pkg.valves_config
+    # Then from explicit bindings (explicit overrides auto)
     for binding in bindings:
         if binding.package and binding.package.valves_config:
             pkg_valves[binding.package.id] = binding.package.valves_config
@@ -1048,6 +1170,16 @@ async def resolve_for_agent(
 
     consent_by_skill: dict[int, str] = {}
     package_name_by_skill: dict[int, str] = {}
+
+    # Build package name lookup from both auto-bind and explicit sources
+    _pkg_name_map: dict[int, str] = {}
+    for pkg in auto_packages:
+        if pkg.id not in explicit_package_ids:
+            _pkg_name_map[pkg.id] = pkg.name
+    for binding in bindings:
+        if binding.package:
+            _pkg_name_map[binding.package.id] = binding.package.name
+
     for skill in skills:
         # Default: package-level consent_mode
         pkg_consent = consent_by_package.get(skill.package_id, "auto")
@@ -1056,10 +1188,8 @@ async def resolve_for_agent(
         consent_by_skill[skill.id] = pkg_overrides.get(
             str(skill.id), pkg_consent
         )
-        for binding in bindings:
-            if binding.package and binding.package.id == skill.package_id:
-                package_name_by_skill[skill.id] = binding.package.name
-                break
+        if skill.package_id in _pkg_name_map:
+            package_name_by_skill[skill.id] = _pkg_name_map[skill.package_id]
     for tool in resolve_result.tools:
         if tool.source_skill_id and tool.source_skill_id in consent_by_skill:
             resolve_result.tool_consent_modes[tool.name] = consent_by_skill[

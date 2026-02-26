@@ -30,7 +30,7 @@ from app.services.ai import AIModelService, AIProviderService, ProviderApiKeySer
 @permission_resource(
     resource="ai_config",
     name="menu.tenant.ai_config",
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=MenuConfig(
         icon="lucide:settings-2",
         path="/ai/config",

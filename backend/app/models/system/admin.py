@@ -10,6 +10,7 @@ from sqlalchemy import Boolean, DateTime, Integer, String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import BaseModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 
 
 class Admin(BaseModel):
@@ -22,6 +23,11 @@ class Admin(BaseModel):
     """
     
     __tablename__ = "admins"
+
+    __delete_deps__ = [
+        DeletionDep("AdminRole", "leader_id", DeletionStrategy.SET_NULL,
+                    label_field="name", i18n_key="admin_role_leader"),
+    ]
     
     # 可过滤字段声明（注意：不包含 password_hash 等敏感字段）
     __filterable__ = {
@@ -36,6 +42,8 @@ class Admin(BaseModel):
         "created_at": "created_at",
         "updated_at": "updated_at",
     }
+    
+    __sortable__ = ["id", "username", "email", "nickname", "is_active", "created_at", "updated_at", "last_login_at"]
     
     # 下拉选项配置
     __selectable__ = {

@@ -31,6 +31,9 @@ async def publish_agent(
     将当前配置冻结为新版本快照，状态设为 published。
     权限: agent:publish
     """
+    from app.api.tenant.agents import _ensure_tenant_owned_agent
+    await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
+
     service = AgentService(db, tenant_admin.tenant_id)
     agent = await service.publish_agent(
         agent_id,
@@ -57,6 +60,9 @@ async def rollback_agent(
     将指定版本的配置回写到主记录，状态重置为 draft。
     权限: agent:rollback
     """
+    from app.api.tenant.agents import _ensure_tenant_owned_agent
+    await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
+
     service = AgentService(db, tenant_admin.tenant_id)
     agent = await service.rollback_agent(agent_id, data.version)
     await db.commit()

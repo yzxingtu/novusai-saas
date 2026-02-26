@@ -30,13 +30,13 @@ from app.repositories.system.email_log_repository import EmailLogRepository
 @permission_resource(
     resource="email_log",
     name="menu.admin.email_log",
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:mail",
         path="/system/email-logs",
         component="admin/system/email-logs/index",
-        parent="system_maintenance",
-        sort_order=70,
+        parent="logs",
+        sort_order=40,
     ),
 )
 class AdminEmailLogController(GlobalController):

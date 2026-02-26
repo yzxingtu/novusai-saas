@@ -1,11 +1,20 @@
-from sqlalchemy import Integer, String, Text, JSON, Index
+from sqlalchemy import Column, Integer, String, Text, JSON, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import TenantModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 
 
 class Attachment(TenantModel):
     __tablename__ = "attachments"
+
+    __delete_deps__ = [
+        DeletionDep("KnowledgeDocument", "attachment_id", DeletionStrategy.SET_NULL,
+                    label_field="title", i18n_key="knowledge_document"),
+    ]
+
+    # 覆盖 TenantModel 的 tenant_id：允许 NULL（全局/管理端 KB 附件无租户归属）
+    tenant_id = Column(Integer, nullable=True, index=True, comment="租户ID")
     
     # 支持过滤字段
     __filterable__ = {
@@ -28,6 +37,8 @@ class Attachment(TenantModel):
         "created_at": "created_at",
         "updated_at": "updated_at",
     }
+    
+    __sortable__ = ["id", "name", "original_name", "mime_type", "extension", "status", "driver", "source", "created_at", "updated_at"]
     
     # 支持远程下拉配置
     __selectable__ = {

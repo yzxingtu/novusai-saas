@@ -48,10 +48,19 @@
 
 ### Agent 作用域与多租户
 
-- `tenant_id=NULL` + `scope=admin` → 平台级 Agent（仅管理员可见）
-- `tenant_id=N` + `scope=tenant` → 租户级 Agent（租户内可见）
+作用域使用统一的 `ResourceScopeEnum`（5 值）：
+
+| scope 值 | 含义 | tenant_id |
+|----------|------|-----------|
+| `admin_only` | 仅管理端可见 | NULL |
+| `all_tenants` | 全部租户可见 | N |
+| `admin_and_all` | 管理端 + 全部租户 | NULL |
+| `admin_and_assigned` | 管理端 + 部分租户 | NULL |
+| `assigned_tenants` | 部分租户 | NULL |
+
 - `is_system=True` → 系统 Agent，**不可删除/禁用**
 - `visibility`：控制 Agent 对终端用户的可见性
+- `assigned_tenants` / `admin_and_assigned` 需要 `ResourceTenantAssignment` 分配表记录
 
 ### Agent 可配置参数
 
@@ -109,7 +118,20 @@ LLM tool_call → Executor 生成预览（requires_confirmation=true）→ SSE c
 
 - 技能（Skill）**必须**归属于某个技能包（SkillPackage）
 - `package_id` 为必填外键，不可为空
-- SkillPackage 拥有 `scope`（tenant/admin）、`valves_schema`、`valves_config`
+- SkillPackage 拥有 `scope`（5 值 ResourceScopeEnum）、`bind_mode`（auto/manual）、`valves_schema`、`valves_config`
+
+### 技能包绑定模式（SkillBindModeEnum）
+
+| bind_mode | 行为 |
+|-----------|------|
+| `auto` | 自动绑定 — 按 scope 匹配规则自动对所有匹配的 Agent 生效，无需 AgentSkillBinding 记录 |
+| `manual` | 手动绑定 — 需通过 AgentSkillBinding 显式绑定（默认） |
+
+- `bind_mode=auto` 的包不写入 `AgentSkillBinding` 表，零数据膨胀
+- 如果用户对 auto 包创建了显式 `AgentSkillBinding`（如改 consent_mode），显式绑定优先
+- 系统技能包（`is_system=True`）默认 `bind_mode=auto`
+- 租户端只能创建 `bind_mode=manual` 的包
+- 自动绑定匹配规则见 `_load_auto_bind_packages()` 和 `ScopeChecker`
 
 ### 前端统一入口（禁止独立技能路由）
 
@@ -119,7 +141,7 @@ LLM tool_call → Executor 生成预览（requires_confirmation=true）→ SSE c
 - 技能包详情页内嵌技能 CRUD（新增/编辑/删除/排序）
 - 新建技能时 `package_id` 自动填充，用户无需手动选择
 
-### 技能类型（SkillTypeEnum）— 仅 4 种
+### 技能类型（SkillTypeEnum）— 7 种
 
 | 类型 | 说明 | Executor | ToolDefinition 数量 |
 |------|------|----------|---------------------|
@@ -127,6 +149,9 @@ LLM tool_call → Executor 生成预览（requires_confirmation=true）→ SSE c
 | `knowledge_base` | 知识库检索（RAG） | 无（RAG 注入 system_prompt） | 0 |
 | `data_intelligence` | 数据智能（Text-to-SQL + CRUD） | TextToSQLExecutor + CrudExecutor | 1~4 |
 | `builtin` | 内置函数 | BuiltinToolExecutor | 1~N |
+| `http` | 声明式 HTTP API 调用 | HttpExecutor | 1 |
+| `email` | 邮件发送 | EmailExecutor | 1 |
+| `code_execution` | 代码沙箱执行 | CodeExecutor | 1 |
 
 ### Toolkit 技能（toolkit 类型）
 
@@ -160,6 +185,27 @@ LLM tool_call → Executor 生成预览（requires_confirmation=true）→ SSE c
 - **单工具模式**（默认）：Skill 本身即为一个工具，使用 `input_schema` 定义参数
 - **多工具模式**：`config.tools` 为工具列表，每项含 `name` / `description` / `parameters`
 - 默认内置函数：`get_current_time` / `calculate` / `format_json`
+
+### HTTP 技能（http 类型）
+
+- 声明式 HTTP API 调用：用户填写 URL / Method / Headers / Body 模板，无需编写代码
+- 自动从 `body_template` / URL / `query_params` 提取 `{{variable}}` 占位符作为 LLM 参数
+- `config` 结构：`url` / `method` / `headers` / `body_template` / `query_params` / `auth_type`（none|bearer|api_key|basic）/ `auth_config` / `response_path`（JSONPath）/ `timeout`
+- Executor：`HttpExecutor`（`app.ai.tools.executors.http_executor`）
+
+### Email 技能（email 类型）
+
+- 生成 `send_email` 工具，利用已有 `EmailService` 发送邮件
+- 默认 `consent_mode=ask`（发邮件需用户确认）
+- `config` 结构：`subject_prefix` / `allowed_domains` / `max_recipients` / `require_confirmation` / `allow_cc` / `allow_attachments`
+- Executor：`EmailExecutor`（`app.ai.tools.executors.email_executor`）
+
+### Code Execution 技能（code_execution 类型）
+
+- 生成 `execute_code` 工具，在安全沙箱中执行用户提供的代码
+- `config` 结构：`language`（默认 python）/ `timeout` / `memory_limit_mb` / `allowed_modules`
+- 默认允许模块：`math` / `json` / `datetime` / `re` / `collections` / `itertools` / `functools` / `statistics` / `decimal` 等
+- Executor：`CodeExecutor`（`app.ai.tools.executors.code_executor`）
 
 ## 五、Skill 解析链路（SkillResolver）
 

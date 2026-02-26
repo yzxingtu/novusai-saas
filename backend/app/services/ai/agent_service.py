@@ -179,7 +179,14 @@ class AgentService(TenantService[Agent, AgentRepository]):
             data.update(ctx.get("updates", data))
 
         agent = await self.repo.get_by_id(id)
-        if agent and agent.is_system:
+        if not agent:
+            raise NotFoundException(message=_("agent.error.not_found"))
+
+        # 租户端只能修改自有智能体（scope=all_tenants）
+        if agent.scope != ResourceScopeEnum.ALL_TENANTS.value:
+            raise BusinessException(message=_("agent.error.system_protected"))
+
+        if agent.is_system:
             protected = {"is_system", "status", "scope", "execution_mode"}
             if protected & set(data.keys()):
                 raise BusinessException(message=_("agent.error.system_protected"))
@@ -221,6 +228,11 @@ class AgentService(TenantService[Agent, AgentRepository]):
         agent = await self.repo.get_by_id(id)
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
+
+        # 租户端只能删除自有智能体（scope=all_tenants）
+        if agent.scope != ResourceScopeEnum.ALL_TENANTS.value:
+            raise BusinessException(message=_("agent.error.system_protected"))
+
         if agent.is_system:
             raise BusinessException(message=_("agent.error.system_protected"))
 
@@ -642,16 +654,19 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
         from app.enums.common import ResourceScopeEnum
 
-        scope = data.get("scope", ResourceScopeEnum.TENANT.value)
+        scope = data.get("scope", ResourceScopeEnum.ALL_TENANTS.value)
         tenant_id = data.get("tenant_id")
 
-        if scope == ResourceScopeEnum.TENANT.value:
+        if scope == ResourceScopeEnum.ALL_TENANTS.value:
             if not tenant_id:
                 raise BusinessException(
                     message=_("agent.error.tenant_id_required"),
                 )
         else:
             data["tenant_id"] = None
+
+        # tenant_ids 不是模型字段，由 Controller 通过 resource_tenant_assignments 处理
+        data.pop("tenant_ids", None)
 
         name = data.get("name")
         if name:
@@ -678,7 +693,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         scope = data.get("scope", agent.scope)
         tenant_id = data.get("tenant_id", agent.tenant_id)
 
-        if scope == ResourceScopeEnum.TENANT.value:
+        if scope == ResourceScopeEnum.ALL_TENANTS.value:
             if not tenant_id:
                 raise BusinessException(
                     message=_("agent.error.tenant_id_required"),
@@ -686,6 +701,9 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         else:
             data["tenant_id"] = None
             tenant_id = None
+
+        # tenant_ids 不是模型字段，由 Controller 通过 resource_tenant_assignments 处理
+        data.pop("tenant_ids", None)
 
         name = data.get("name")
         if name:
@@ -706,7 +724,7 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         return await self.repo.query_list(query)
 
     async def _before_delete(self, id: int) -> None:
-        """删除前校验：系统智能体不可删除，级联软删除对话"""
+        """删除前校验：系统智能体不可删除，级联软删除对话，清理租户分配"""
         await super()._before_delete(id)
         agent = await self.repo.get_by_id(id)
         if not agent:
@@ -716,6 +734,16 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
         # 级联软删除智能体的对话记录
         await self.repo.cascade_soft_delete_conversations(id, self._default_delete_level)
+
+        # 清理 resource_tenant_assignments 残留记录
+        from app.enums.common import ResourceScopeEnum
+        if agent.scope in (
+            ResourceScopeEnum.ASSIGNED_TENANTS.value,
+            ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+        ):
+            from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
+            rta_repo = ResourceTenantAssignmentRepository(self.db)
+            await rta_repo.delete_all_for_resource("agent", id)
 
     async def update_status(self, agent_id: int, status: str) -> Agent:
         """

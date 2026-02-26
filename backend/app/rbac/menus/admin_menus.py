@@ -34,7 +34,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:admin.dashboard",
         name="menu.admin.dashboard",  # i18n key
         type=PermissionType.MENU,
-        scope=PermissionScope.ADMIN,
+        scope=PermissionScope.ADMIN_ONLY,
         resource="menu",
         action="admin.dashboard",
         icon="lucide:gauge",
@@ -50,7 +50,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:admin.system",
         name="menu.admin.system",  # i18n key
         type=PermissionType.MENU,
-        scope=PermissionScope.ADMIN,
+        scope=PermissionScope.ADMIN_ONLY,
         resource="menu",
         action="admin.system",
         icon="lucide:settings",
@@ -69,7 +69,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:admin.tenant_mgmt",
         name="menu.admin.tenant_mgmt",  # i18n key
         type=PermissionType.MENU,
-        scope=PermissionScope.ADMIN,
+        scope=PermissionScope.ADMIN_ONLY,
         resource="menu",
         action="admin.tenant_mgmt",
         icon="lucide:building-2",
@@ -86,7 +86,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:admin.system_mgmt",
         name="menu.admin.system_mgmt",  # i18n key
         type=PermissionType.MENU,
-        scope=PermissionScope.ADMIN,
+        scope=PermissionScope.ADMIN_ONLY,
         resource="menu",
         action="admin.system_mgmt",
         icon="lucide:wrench",
@@ -103,7 +103,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:admin.ai_mgmt",
         name="menu.admin.ai_mgmt",  # i18n key
         type=PermissionType.MENU,
-        scope=PermissionScope.ADMIN,
+        scope=PermissionScope.ADMIN_ONLY,
         resource="menu",
         action="admin.ai_mgmt",
         icon="lucide:brain-circuit",
@@ -116,7 +116,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:admin.ai_infra",
         name="menu.admin.ai_infra",  # i18n key
         type=PermissionType.MENU,
-        scope=PermissionScope.ADMIN,
+        scope=PermissionScope.ADMIN_ONLY,
         resource="menu",
         action="admin.ai_infra",
         icon="lucide:server",
@@ -135,7 +135,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:admin.ai_app",
         name="menu.admin.ai_app",  # i18n key
         type=PermissionType.MENU,
-        scope=PermissionScope.ADMIN,
+        scope=PermissionScope.ADMIN_ONLY,
         resource="menu",
         action="admin.ai_app",
         icon="lucide:bot",
@@ -154,7 +154,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:admin.ai_ops",
         name="menu.admin.ai_ops",  # i18n key
         type=PermissionType.MENU,
-        scope=PermissionScope.ADMIN,
+        scope=PermissionScope.ADMIN_ONLY,
         resource="menu",
         action="admin.ai_ops",
         icon="lucide:bar-chart-3",
@@ -177,18 +177,37 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:admin.system_maintenance",
         name="menu.admin.system_maintenance",
         type=PermissionType.MENU,
-        scope=PermissionScope.ADMIN,
+        scope=PermissionScope.ADMIN_ONLY,
         resource="menu",
         action="admin.system_maintenance",
         icon="lucide:hard-drive",
         path="/system-maintenance",
         sort_order=90,
     ),
+
+    # ---- 日志中心（子目录） ----
+    PermissionMeta(
+        code="menu:admin.logs",
+        name="menu.admin.logs",
+        type=PermissionType.MENU,
+        scope=PermissionScope.ADMIN_ONLY,
+        resource="menu",
+        action="admin.logs",
+        icon="lucide:scroll-text",
+        path="/system-maintenance/logs",
+        sort_order=10,
+        parent_code="menu:admin.system_maintenance",
+    ),
     # 子菜单由控制器声明:
     # - menu:admin.operation_log (操作日志)
     # - menu:admin.system_log (系统日志)
     # - menu:admin.task_log (任务日志)
+    # - menu:admin.email_log (邮件日志)
+
+    # 其他子菜单由控制器声明:
     # - menu:admin.periodic_task (定时任务)
+    # - menu:admin.plugin (插件管理)
+    # - menu:admin.recycle_bin (回收站)
 
 ]
 

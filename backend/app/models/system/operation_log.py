@@ -49,6 +49,8 @@ class OperationLog(BaseModel):
         "created_at": "created_at",
     }
     
+    __sortable__ = ["id", "username", "module", "action", "method", "response_code", "created_at"]
+    
     # ==================== 用户信息 ====================
     
     # 租户ID（平台操作时为空）

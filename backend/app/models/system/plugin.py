@@ -8,6 +8,7 @@ from sqlalchemy import Boolean, Index, Integer, JSON, String, Text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import BaseModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 
 
 class Plugin(BaseModel):
@@ -16,6 +17,13 @@ class Plugin(BaseModel):
     """
 
     __tablename__ = "plugins"
+
+    __delete_deps__ = [
+        DeletionDep("PluginVersion", "plugin_id", DeletionStrategy.CASCADE_DELETE,
+                    label_field="version", i18n_key="plugin_version"),
+        DeletionDep("PluginLicense", "plugin_id", DeletionStrategy.CASCADE_DELETE,
+                    label_field="id", i18n_key="plugin_license"),
+    ]
 
     __table_args__ = (
         Index(
@@ -149,9 +157,6 @@ class Plugin(BaseModel):
     # ── 关系 ──
     versions = relationship(
         "PluginVersion", back_populates="plugin", lazy="noload",
-    )
-    tenant_assignments = relationship(
-        "PluginTenantAssignment", back_populates="plugin", lazy="noload",
     )
     licenses = relationship(
         "PluginLicense", back_populates="plugin", lazy="noload",

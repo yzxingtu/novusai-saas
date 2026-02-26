@@ -45,12 +45,15 @@ const props = withDefaults(defineProps<AIChatPanelProps>(), {
 const emit = defineEmits<{
   /** Emitted when the selected agent changes */
   'agent-change': [agentId: number];
+  /** Emitted when the active conversation changes */
+  'conversation-change': [conversationId: number | null];
 }>();
 
 const chat = useAIChat({
   apiPrefix: toRef(props, 'apiPrefix'),
   uploadUrl: toRef(props, 'uploadUrl'),
   initialAgentId: toRef(props, 'initialAgentId'),
+  initialConversationId: toRef(props, 'initialConversationId'),
   onToolCall: props.onToolCall,
   onStreamComplete: props.onStreamComplete,
 });
@@ -205,6 +208,7 @@ defineExpose({
   loadAgents,
   loadConversations,
   selectedAgentId,
+  activeConversationId,
 });
 
 function onSelectConversation(convId: number) {
@@ -241,6 +245,10 @@ watch(selectedAgentId, (id) => {
   if (id != null) {
     emit('agent-change', id);
   }
+});
+
+watch(activeConversationId, (id) => {
+  emit('conversation-change', id);
 });
 
 onMounted(() => {

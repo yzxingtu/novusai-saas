@@ -22,7 +22,7 @@ from app.ai.failover import FailoverService
 @permission_resource(
     resource="ai_health",
     name="menu.admin.ai_health",
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:heart-pulse",
         path="/ai/monitor/health",

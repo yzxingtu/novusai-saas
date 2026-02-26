@@ -33,8 +33,18 @@ class DocumentTypeEnum(LabeledStrEnum):
     TXT = ("txt", "enum.knowledge_base.document_type.txt")
     MD = ("md", "enum.knowledge_base.document_type.md")
     CSV = ("csv", "enum.knowledge_base.document_type.csv")
+    XLSX = ("xlsx", "enum.knowledge_base.document_type.xlsx")
+    HTML = ("html", "enum.knowledge_base.document_type.html")
     QA = ("qa", "enum.knowledge_base.document_type.qa")
     URL = ("url", "enum.knowledge_base.document_type.url")
+
+
+class KBVisibilityEnum(LabeledStrEnum):
+    """知识库可见性枚举"""
+
+    PRIVATE = ("private", "enum.knowledge_base.visibility.private")
+    ALL_TENANTS = ("all_tenants", "enum.knowledge_base.visibility.all_tenants")
+    ASSIGNED = ("assigned", "enum.knowledge_base.visibility.assigned")
 
 
 class ChunkStrategyEnum(LabeledStrEnum):
@@ -63,6 +73,7 @@ class RewriteStrategyEnum(LabeledStrEnum):
 
 __all__ = [
     "KBStatusEnum",
+    "KBVisibilityEnum",
     "DocumentStatusEnum",
     "DocumentTypeEnum",
     "ChunkStrategyEnum",

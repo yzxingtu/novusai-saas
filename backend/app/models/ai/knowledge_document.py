@@ -7,10 +7,11 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
+from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
 from app.enums.knowledge_base import DocumentStatusEnum, DocumentTypeEnum
 
@@ -20,7 +21,7 @@ class KnowledgeDocument(TenantModel):
     知识文档模型
 
     存储文档的文件信息、处理状态机、统计数据等
-    属于租户级资源，通过 tenant_id 隔离
+    属于租户级资源，通过 tenant_id 隔离（全局/管理端 KB 的文档 tenant_id 为 NULL）
 
     状态机流转：
     pending → parsing → chunking → embedding → completed
@@ -29,6 +30,14 @@ class KnowledgeDocument(TenantModel):
     """
 
     __tablename__ = "knowledge_documents"
+
+    __delete_deps__ = [
+        DeletionDep("DocumentChunk", "document_id", DeletionStrategy.CASCADE_DELETE,
+                    label_field="id", i18n_key="document_chunk"),
+    ]
+
+    # 覆盖 TenantModel 的 tenant_id：允许 NULL（全局/管理端 KB 文档无租户归属）
+    tenant_id = Column(Integer, nullable=True, index=True, comment="租户ID")
 
     # 允许前端筛选的字段
     __filterable__ = {

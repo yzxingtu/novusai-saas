@@ -19,9 +19,21 @@ import { i18n } from '@vben/locales';
 import { requestClient } from '#/utils/request';
 import { $t } from '#/locales';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
+import { usePluginExtensionsStore } from '#/stores/plugin-extensions';
+import { TokenStorage } from '#/store/shared/token-storage';
+import { getCurrentEndpoint } from '#/router/access';
 
 // Re-export for dev mode: plugins import { $t, IconifyIcon, ... } from '@novus/plugin-shared'
-export { requestClient, $t, IconifyIcon, usePluginSlotsStore };
+export { requestClient, $t, IconifyIcon, usePluginSlotsStore, usePluginExtensionsStore, getAuthToken };
+
+/**
+ * 获取当前端（admin/tenant/user）的 JWT Access Token
+ * 供插件 Socket.IO 等非 HTTP 通道鉴权使用
+ */
+function getAuthToken(): string | null {
+  const endpoint = getCurrentEndpoint();
+  return TokenStorage.getToken(endpoint);
+}
 
 export interface NovusPluginSharedAPI {
   /** HTTP 请求客户端 */
@@ -30,10 +42,14 @@ export interface NovusPluginSharedAPI {
   $t: typeof $t;
   /** 图标组件 */
   IconifyIcon: typeof IconifyIcon;
-  /** 插件槽位 Store */
+  /** 插件槽位 Store（UI 插槽：headerWidgets / floatingPanels 等） */
   usePluginSlotsStore: typeof usePluginSlotsStore;
+  /** 插件扩展 Store（编辑器扩展 / 面板 / 命令） */
+  usePluginExtensionsStore: typeof usePluginExtensionsStore;
   /** 注册插件国际化消息 */
   registerLocale: (locale: string, prefix: string, messages: Record<string, unknown>) => void;
+  /** 获取当前端 JWT Access Token（供 Socket.IO 等非 HTTP 通道鉴权） */
+  getAuthToken: () => string | null;
 }
 
 /**
@@ -57,7 +73,9 @@ export function exposePluginShared(): void {
     $t,
     IconifyIcon,
     usePluginSlotsStore,
+    usePluginExtensionsStore,
     registerLocale: _registerPluginLocale,
+    getAuthToken,
   } satisfies NovusPluginSharedAPI;
 }
 
@@ -71,13 +89,28 @@ function _registerPluginLocale(
 ): void {
   try {
     if (i18n?.global) {
-      // 将 "plugin.my-plugin" → { plugin: { "my-plugin": messages } }
-      const parts = prefix.split('.');
-      let nested: Record<string, unknown> = messages;
-      for (let i = parts.length - 1; i >= 0; i--) {
-        nested = { [parts[i]!]: nested };
+      // 将扁平点分 key（如 'folder.all': '全部文档'）转为嵌套对象
+      // 再包裹 prefix（如 "plugin.novusdoc"）→ { plugin: { novusdoc: { folder: { all: '全部文档' } } } }
+      const nestedMessages: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(messages)) {
+        const keyParts = key.split('.');
+        let current: Record<string, unknown> = nestedMessages;
+        for (let i = 0; i < keyParts.length - 1; i++) {
+          if (!(keyParts[i]! in current) || typeof current[keyParts[i]!] !== 'object') {
+            current[keyParts[i]!] = {};
+          }
+          current = current[keyParts[i]!] as Record<string, unknown>;
+        }
+        current[keyParts[keyParts.length - 1]!] = value;
       }
-      i18n.global.mergeLocaleMessage(locale, nested);
+
+      // 包裹 prefix 路径
+      const prefixParts = prefix.split('.');
+      let wrapped: Record<string, unknown> = nestedMessages;
+      for (let i = prefixParts.length - 1; i >= 0; i--) {
+        wrapped = { [prefixParts[i]!]: wrapped };
+      }
+      i18n.global.mergeLocaleMessage(locale, wrapped);
     }
   } catch {
     console.error('[PluginShared] Failed to register plugin locale');

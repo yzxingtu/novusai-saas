@@ -31,13 +31,13 @@ from app.services.tenant.periodic_task_service import TenantPeriodicTaskService
 @permission_resource(
     resource="periodic_task",
     name="menu.tenant.periodic_task",
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=MenuConfig(
         icon="lucide:timer",
         path="/system/periodic-tasks",
         component="tenant/system/periodic-tasks/index",
         parent="system_maintenance",
-        sort_order=61,
+        sort_order=50,
     ),
 )
 class TenantPeriodicTaskController(TenantController):

@@ -16,6 +16,7 @@ from app.enums.common import ResourceScopeEnum
 from app.enums.knowledge_base import (
     ChunkStrategyEnum,
     KBStatusEnum,
+    KBVisibilityEnum,
     SearchModeEnum,
 )
 
@@ -49,6 +50,7 @@ class KnowledgeBase(TenantModel):
         "name": "name",
         "status": "status",
         "scope": "scope",
+        "visibility": "visibility",
         "embedding_model_id": "embedding_model_id",
         "tenant_id": "tenant_id",
         "created_at": "created_at",
@@ -70,9 +72,16 @@ class KnowledgeBase(TenantModel):
     scope: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default=ResourceScopeEnum.TENANT.value,
+        default=ResourceScopeEnum.ALL_TENANTS.value,
         index=True,
         comment=_("knowledge_base.model.scope"),
+    )
+    visibility: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=KBVisibilityEnum.PRIVATE.value,
+        index=True,
+        comment=_("knowledge_base.model.visibility"),
     )
 
     # ==================== 基本信息 ====================

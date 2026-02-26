@@ -17,6 +17,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.rbac.decorators import public
 
@@ -57,7 +58,8 @@ async def webhook_dispatcher(
             )
         )
         row = result.one_or_none()
-        if not row or row[0] != "enabled":
+        from app.enums.plugin import PluginStatusEnum
+        if not row or row[0] != PluginStatusEnum.ENABLED.value:
             return JSONResponse(
                 status_code=404,
                 content={"error": f"Plugin '{plugin_name}' not found or disabled"},
@@ -169,9 +171,10 @@ async def webhook_dispatcher(
             "Webhook handler error: %s/%s: %s (%dms)",
             plugin_name, path, exc, duration_ms, exc_info=True,
         )
+        err_message = str(exc) if settings.DEBUG else "Internal server error"
         return JSONResponse(
             status_code=500,
-            content={"error": str(exc)},
+            content={"error": err_message},
         )
 
 
@@ -183,6 +186,18 @@ async def _verify_webhook_auth(
     body: bytes,
 ) -> bool:
     """验证 Webhook 来源"""
+    def _decrypt_if_needed(secret_value: str) -> str | None:
+        from app.plugins.crypto import _FERNET_PREFIX
+
+        if secret_value.startswith(_FERNET_PREFIX):
+            from app.core.security import decrypt_data
+
+            try:
+                return decrypt_data(secret_value)
+            except Exception:
+                return None
+        return secret_value
+
     if auth_type == "hmac":
         secret_key = auth_config.get("secret_config_key", "")
         secret = plugin_config.get(secret_key, "")
@@ -195,13 +210,10 @@ async def _verify_webhook_auth(
             return False
 
         # 解密密钥（如果是加密存储的）
-        from app.plugins.crypto import _FERNET_PREFIX
-        if secret.startswith(_FERNET_PREFIX):
-            from app.core.security import decrypt_data
-            try:
-                secret = decrypt_data(secret)
-            except Exception:
-                return False
+        decrypted = _decrypt_if_needed(secret)
+        if decrypted is None:
+            return False
+        secret = decrypted
 
         expected = hmac.new(
             secret.encode(), body, hashlib.sha256,
@@ -219,6 +231,11 @@ async def _verify_webhook_auth(
         if not expected_token:
             return False
 
+        decrypted = _decrypt_if_needed(expected_token)
+        if decrypted is None:
+            return False
+        expected_token = decrypted
+
         header_name = auth_config.get("header_name", "Authorization")
         actual_token = request.headers.get(header_name, "")
         if actual_token.startswith("Bearer "):
@@ -230,37 +247,16 @@ async def _verify_webhook_auth(
         # 与 hmac 相同处理
         return await _verify_webhook_auth("hmac", auth_config, plugin_config, request, body)
 
-    return True  # none or unknown → pass
+    # unknown auth type → fail-close
+    logger.warning(
+        "Webhook auth: unknown auth_type '%s', denying request",
+        auth_type,
+    )
+    return False
 
 
 def _load_webhook_handler(plugin_name: str, handler_path: str):
-    """加载 Webhook handler"""
-    import importlib.util
-    import sys
-    from app.plugins.loader import PLUGINS_DIR
+    """加载 Webhook handler — 委托给统一模块加载器"""
+    from app.plugins.module_loader import load_plugin_handler
 
-    parts = handler_path.split(".")
-    if len(parts) < 2:
-        return None
-
-    module_parts = parts[:-1]
-    attr_name = parts[-1]
-    from pathlib import Path as _Path
-    module_file = PLUGINS_DIR / plugin_name / "backend" / _Path(*module_parts).with_suffix(".py")
-
-    if not module_file.is_file():
-        return None
-
-    module_name = f"plugins.{plugin_name}.backend.{'.'.join(module_parts)}"
-    try:
-        if module_name not in sys.modules:
-            spec = importlib.util.spec_from_file_location(module_name, module_file)
-            if spec and spec.loader:
-                mod = importlib.util.module_from_spec(spec)
-                sys.modules[module_name] = mod
-                spec.loader.exec_module(mod)
-        mod = sys.modules.get(module_name)
-        return getattr(mod, attr_name, None) if mod else None
-    except Exception as exc:
-        logger.warning("Failed to load webhook handler %s: %s", handler_path, exc)
-        return None
+    return load_plugin_handler(plugin_name, handler_path)

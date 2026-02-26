@@ -1,4 +1,4 @@
-"""remove openai adapter plugin from plugins table (now hardcoded in core)
+"""[NO-OP downgrade] remove openai adapter plugin from plugins table (now hardcoded in core)
 
 Revision ID: 20260222_rm_oai
 Revises: 20260222_seed_notif

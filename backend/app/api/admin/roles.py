@@ -48,7 +48,7 @@ from app.services.common.role_hierarchy_validator import AdminRoleHierarchyValid
 @permission_resource(
     resource="organization",
     name="menu.admin.organization",  # i18n key
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:git-branch",
         path="/system/organization",

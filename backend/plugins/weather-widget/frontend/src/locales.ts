@@ -6,6 +6,9 @@
  */
 
 export const zhCN: Record<string, Record<string, string>> = {
+  _meta: {
+    lang: 'zh',
+  },
   ui: {
     temperature: '温度',
     humidity: '湿度',
@@ -24,6 +27,13 @@ export const zhCN: Record<string, Record<string, string>> = {
     today: '今天',
     tomorrow: '明天',
     day_after: '后天',
+    weekday_0: '周日',
+    weekday_1: '周一',
+    weekday_2: '周二',
+    weekday_3: '周三',
+    weekday_4: '周四',
+    weekday_5: '周五',
+    weekday_6: '周六',
   },
   error: {
     city_not_found: '未找到该城市',
@@ -33,6 +43,9 @@ export const zhCN: Record<string, Record<string, string>> = {
 };
 
 export const enUS: Record<string, Record<string, string>> = {
+  _meta: {
+    lang: 'en',
+  },
   ui: {
     temperature: 'Temperature',
     humidity: 'Humidity',
@@ -51,6 +64,13 @@ export const enUS: Record<string, Record<string, string>> = {
     today: 'Today',
     tomorrow: 'Tomorrow',
     day_after: 'Day After',
+    weekday_0: 'Sun',
+    weekday_1: 'Mon',
+    weekday_2: 'Tue',
+    weekday_3: 'Wed',
+    weekday_4: 'Thu',
+    weekday_5: 'Fri',
+    weekday_6: 'Sat',
   },
   error: {
     city_not_found: 'City not found',

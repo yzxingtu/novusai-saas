@@ -55,10 +55,8 @@ async def bind_skill(
     """
     绑定单个技能包到智能体
     """
-    agent_svc = AgentService(db, tenant_admin.tenant_id)
-    agent = await agent_svc.get_by_id(agent_id)
-    if not agent:
-        raise NotFoundException(message=_("agent.error.not_found"))
+    from app.api.tenant.agents import _ensure_tenant_owned_agent
+    await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
 
     binding_service = AgentSkillBindingService(db, tenant_admin.tenant_id)
     binding = await binding_service.bind_package(
@@ -84,10 +82,8 @@ async def batch_bind_skills(
     """
     批量绑定技能包（替换模式：先清空再批量插入）
     """
-    agent_svc = AgentService(db, tenant_admin.tenant_id)
-    agent = await agent_svc.get_by_id(agent_id)
-    if not agent:
-        raise NotFoundException(message=_("agent.error.not_found"))
+    from app.api.tenant.agents import _ensure_tenant_owned_agent
+    await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
 
     binding_service = AgentSkillBindingService(db, tenant_admin.tenant_id)
     bindings = await binding_service.batch_bind(
@@ -112,10 +108,8 @@ async def update_skill_binding(
     """
     更新技能绑定（enabled / config_override / sort_order）
     """
-    agent_svc = AgentService(db, tenant_admin.tenant_id)
-    agent = await agent_svc.get_by_id(agent_id)
-    if not agent:
-        raise NotFoundException(message=_("agent.error.not_found"))
+    from app.api.tenant.agents import _ensure_tenant_owned_agent
+    await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
 
     binding_service = AgentSkillBindingService(db, tenant_admin.tenant_id)
 
@@ -144,10 +138,8 @@ async def unbind_skill(
     """
     解绑指定技能包
     """
-    agent_svc = AgentService(db, tenant_admin.tenant_id)
-    agent = await agent_svc.get_by_id(agent_id)
-    if not agent:
-        raise NotFoundException(message=_("agent.error.not_found"))
+    from app.api.tenant.agents import _ensure_tenant_owned_agent
+    await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
 
     binding_service = AgentSkillBindingService(db, tenant_admin.tenant_id)
     await binding_service.unbind_package(agent_id=agent_id, package_id=package_id)

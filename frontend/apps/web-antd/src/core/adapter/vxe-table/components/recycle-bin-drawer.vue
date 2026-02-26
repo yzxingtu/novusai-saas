@@ -4,7 +4,7 @@
  *
  * 展示已删除记录列表，支持恢复/永久删除/批量操作
  */
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -67,7 +67,7 @@ function close() {
 async function refreshCount() {
   try {
     const res = await requestClient.get(`${props.resource}/recycle-bin/count`);
-    deletedCount.value = res?.data?.count ?? 0;
+    deletedCount.value = res?.count ?? res?.data?.count ?? 0;
   } catch {
     deletedCount.value = 0;
   }
@@ -247,8 +247,8 @@ watch(visible, (val) => {
   }
 });
 
-// 初始化获取计数
-refreshCount();
+// 初始化获取计数（延迟到 mounted，避免 setup 阶段 API 调用出错）
+onMounted(() => refreshCount());
 
 defineExpose({ open, close, refreshCount, deletedCount });
 </script>

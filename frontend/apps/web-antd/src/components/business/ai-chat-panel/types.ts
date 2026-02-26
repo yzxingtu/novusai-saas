@@ -133,11 +133,13 @@ export interface AIChatPanelProps {
   /** Whether to show file attachments */
   showAttachments?: boolean;
   /** Function to fetch selectable KBs */
-  fetchKbApi?: (...args: unknown[]) => Promise<unknown[]>;
+  fetchKbApi?: () => Promise<unknown[]>;
   /** i18n namespace prefix for labels */
   i18nPrefix?: string;
   /** Initial agent ID to auto-select on load */
   initialAgentId?: number;
+  /** Initial conversation ID to auto-load after agent is selected */
+  initialConversationId?: number;
   /** Custom welcome message (overrides default) */
   welcomeMessage?: string;
   /** Suggested question buttons shown in empty state */

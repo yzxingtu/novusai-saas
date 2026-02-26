@@ -3,8 +3,12 @@
  * 租户端 AI 对话页面
  *
  * Uses the shared AIChatPanel component in 'page' mode.
- * Welcome message and suggested questions are now handled internally
- * by AIChatPanel from the agent list data.
+ * Persists selected agent and conversation in URL query params
+ * so that page refresh restores the previous state.
+ *
+ * NOTE: Uses history.replaceState instead of router.replace to avoid
+ * Vue Router key change (getTabKey uses fullPath) which would destroy
+ * and recreate the component on every query param update.
  */
 defineOptions({ name: 'TenantAIChat' });
 
@@ -13,6 +17,35 @@ import { Page } from '@vben/common-ui';
 import { AIChatPanel } from '#/components/business/ai-chat-panel';
 import { getTenantSelectableKBApi } from '#/api/tenant/knowledge-bases';
 import { $t } from '#/locales';
+
+function _readQuery(): URLSearchParams {
+  return new URLSearchParams(window.location.search);
+}
+
+function _updateQuery(key: string, value: string | null) {
+  const params = _readQuery();
+  if (value) {
+    params.set(key, value);
+  } else {
+    params.delete(key);
+  }
+  const qs = params.toString();
+  const newUrl = `${window.location.pathname}${qs ? `?${qs}` : ''}`;
+  window.history.replaceState(window.history.state, '', newUrl);
+}
+
+const initParams = _readQuery();
+const initialAgentId = initParams.has('agent') ? Number(initParams.get('agent')) : undefined;
+const initialConversationId = initParams.has('conv') ? Number(initParams.get('conv')) : undefined;
+
+function onAgentChange(agentId: number) {
+  _updateQuery('agent', String(agentId));
+  _updateQuery('conv', null);
+}
+
+function onConversationChange(conversationId: number | null) {
+  _updateQuery('conv', conversationId ? String(conversationId) : null);
+}
 </script>
 
 <template>
@@ -28,6 +61,10 @@ import { $t } from '#/locales';
       :show-kb-selector="true"
       :show-attachments="true"
       :fetch-kb-api="getTenantSelectableKBApi"
+      :initial-agent-id="initialAgentId"
+      :initial-conversation-id="initialConversationId"
+      @agent-change="onAgentChange"
+      @conversation-change="onConversationChange"
     />
   </Page>
 </template>

@@ -15,6 +15,7 @@ export interface AdminSkillPackageInfo {
   description: string | null;
   avatar: string | null;
   scope: string;
+  bind_mode: string;
   is_system: boolean;
   is_active: boolean;
   sort_order: number;
@@ -22,6 +23,7 @@ export interface AdminSkillPackageInfo {
   source_plugin: string | null;
   valves_schema: Record<string, unknown> | null;
   valves_config: Record<string, unknown> | null;
+  assigned_tenant_ids: number[];
   created_at: string;
   updated_at: string;
 }
@@ -32,8 +34,10 @@ export interface SkillPackageCreateParams {
   description?: string | null;
   avatar?: string | null;
   scope: string;
+  bind_mode?: string;
   is_active?: boolean;
   sort_order?: number;
+  tenant_ids?: number[];
 }
 
 /** 更新技能包请求 */
@@ -43,6 +47,7 @@ export interface SkillPackageUpdateParams {
   avatar?: string | null;
   is_active?: boolean;
   sort_order?: number;
+  tenant_ids?: number[];
 }
 
 /** 获取技能包下拉选项 */

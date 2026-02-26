@@ -154,6 +154,7 @@
     }
   },
   "agent": {
+    "readonlyHint": "This agent is assigned by admin. You can view and chat, but cannot edit configuration.",
     "title": "Agent Management",
     "pageDesc": "Create and manage agents. Configure model, tools, and knowledge base, then publish. Supports versioning and rollback.",
     "detail": {
@@ -266,7 +267,7 @@
       "ragTopK": "Number of most relevant document chunks returned per retrieval. Higher = more references but may introduce noise",
       "ragScoreThreshold": "Results scoring below this threshold are discarded. Higher = stricter, recommended 0.3~0.7",
       "ragSearchMode": "Vector search for semantic similarity, keyword for exact match, hybrid combines both",
-      "ragRewriteStrategy": "Rewrites user query to improve retrieval. Hypothetical generates an imagined answer, Step Back generalizes the question",
+      "ragRewriteStrategy": "Rewrites user query to improve retrieval. Multi-Query generates multiple search queries, HyDE generates a hypothetical answer for embedding",
       "ragContextTokenRatio": "Max ratio of total context budget for KB content. E.g., 0.3 = at most 30% of token budget"
     },
     "inputVariables": {
@@ -312,8 +313,8 @@
       "rewritePlaceholder": "Select rewrite strategy",
       "rewriteOptions": {
         "none": "None",
-        "hypothetical": "Hypothetical Document",
-        "step_back": "Step Back"
+        "multi": "Multi-Query Rewrite",
+        "hyde": "Hypothetical Document Embedding"
       },
       "rerankerEnabled": "Enable Reranker",
       "rerankerEnabledHelp": "Re-ranks retrieval results for improved accuracy",
@@ -703,11 +704,6 @@
     "scope": "Scope",
     "sortOrder": "Sort Order",
     "create": "New Skill Package",
-    "scope_options": {
-      "tenant": "Tenant",
-      "global": "Global",
-      "admin": "Platform"
-    },
     "scopeTag": {
       "plugin": "Plugin"
     },
@@ -871,8 +867,8 @@
       },
       "rewriteOptions": {
         "none": "None",
-        "hypothetical": "Hypothetical Document",
-        "step_back": "Step Back"
+        "multi": "Multi-Query Rewrite",
+        "hyde": "Hypothetical Document Embedding"
       }
     },
     "builtinTools": {

@@ -286,8 +286,8 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
                 Permission.is_enabled.is_(True),
                 Permission.type == PermissionType.MENU.value,
                 Permission.scope.in_([
-                    PermissionScope.TENANT.value,
-                    PermissionScope.BOTH.value,
+                    PermissionScope.ALL_TENANTS.value,
+                    PermissionScope.ADMIN_AND_ALL.value,
                 ]),
             )
         )
@@ -310,8 +310,8 @@ class TenantPlanService(GlobalService[TenantPlan, TenantPlanRepository]):
                 Permission.is_enabled.is_(True),
                 Permission.type == PermissionType.MENU.value,
                 Permission.scope.in_([
-                    PermissionScope.TENANT.value,
-                    PermissionScope.BOTH.value,
+                    PermissionScope.ALL_TENANTS.value,
+                    PermissionScope.ADMIN_AND_ALL.value,
                 ]),
             )
             .order_by(Permission.sort_order, Permission.id)

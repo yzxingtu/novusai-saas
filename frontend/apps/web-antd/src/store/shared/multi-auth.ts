@@ -243,7 +243,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
       path: loginPath,
       query: redirect
         ? {
-            redirect: encodeURIComponent(router.currentRoute.value.fullPath),
+            redirect: router.currentRoute.value.fullPath,
           }
         : {},
     });

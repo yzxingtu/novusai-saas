@@ -42,16 +42,9 @@ import {
 import { updateSkillApi } from '#/api/tenant/skills';
 import { $t } from '#/locales';
 import { formatRelativeTime } from '#/utils/common';
-import { getScopeColor, getSkillTypeColor, getSkillTypeIcon } from '#/utils/ai-helpers';
+import { getSkillTypeColor, getSkillTypeIcon } from '#/utils/ai-helpers';
+import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 import { getSkillTypeText } from '../skills/data';
-
-function getScopeText(scope: string): string {
-  const map: Record<string, string> = {
-    tenant: $t('tenant.ai.skillPackage.scope_options.tenant'),
-    global: $t('tenant.ai.skillPackage.scope_options.global'),
-  };
-  return map[scope] || scope;
-}
 
 const route = useRoute();
 const router = useRouter();
@@ -72,7 +65,7 @@ const valvesSaving = ref(false);
 // ==================== Computed ====================
 const isReadonly = computed(() => {
   if (!pkg.value) return true;
-  return pkg.value.scope !== 'tenant';
+  return pkg.value.scope !== 'all_tenants';
 });
 
 const hasValves = computed(() => {

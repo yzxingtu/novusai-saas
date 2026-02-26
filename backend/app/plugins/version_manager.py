@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from app.core.base_model import utc_now
 from app.core.logging import get_logger
 from app.enums.plugin import PluginStatusEnum, PluginVersionStatusEnum
-from app.plugins.exceptions import PluginError, PluginNotFoundError
+from app.plugins.exceptions import PluginError, PluginNotFoundError, PluginSecurityError
 from app.plugins.loader import PLUGINS_DIR
 
 if TYPE_CHECKING:
@@ -56,6 +56,17 @@ class VersionManager:
         plugin_id: int,
         new_source: Path,
     ) -> None:
+        """升级插件（全流程加锁，避免并发竞态）。"""
+        from app.plugins.lifecycle import _plugin_lock
+
+        async with _plugin_lock(plugin_id):
+            await self._upgrade_unlocked(plugin_id, new_source)
+
+    async def _upgrade_unlocked(
+        self,
+        plugin_id: int,
+        new_source: Path,
+    ) -> None:
         """
         升级插件：禁用旧版 → 备份 → 替换 → 迁移 → 启用新版
 
@@ -67,6 +78,7 @@ class VersionManager:
         from app.models.system.plugin_version import PluginVersion
         from app.plugins.lifecycle import PluginLifecycle
         from app.plugins.loader import PluginLoader
+        from app.plugins.module_loader import unload_plugin_modules
 
         result = await self._db.execute(
             select(Plugin).where(
@@ -84,8 +96,29 @@ class VersionManager:
         loader = PluginLoader()
 
         # 解析新版本 manifest
-        new_manifest = loader.load_manifest(new_source.name)
+        new_manifest = loader.load_manifest_from_path(new_source)
         new_version = new_manifest.version
+
+        if new_manifest.name != plugin_name:
+            raise PluginError(
+                message=(
+                    f"Upgrade package mismatch: expected plugin '{plugin_name}', "
+                    f"but got '{new_manifest.name}'"
+                ),
+            )
+
+        # 升级前安全扫描（高风险 fail-close）
+        from app.plugins.security_scan import scan_plugin_directory
+
+        scan_result = scan_plugin_directory(new_source)
+        if scan_result.has_warnings:
+            top_warnings = "; ".join(scan_result.warnings[:5])
+            raise PluginSecurityError(
+                message=(
+                    f"Plugin '{plugin_name}' upgrade blocked by security scan: "
+                    f"{top_warnings}"
+                ),
+            )
 
         if new_version == old_version:
             raise PluginError(
@@ -108,8 +141,11 @@ class VersionManager:
             shutil.rmtree(target_dir)
             shutil.copytree(new_source, target_dir)
 
+            # 清理模块缓存，确保后续 on_upgrade/enable 使用新版代码
+            unload_plugin_modules(plugin_name)
+
             # 4. 执行迁移（通过 lifecycle 公共接口）
-            await lifecycle._run_alembic_upgrade(plugin_name)
+            await lifecycle.run_alembic_upgrade(plugin_name)
 
             # 5. 更新 DB 记录
             plugin.version = new_version
@@ -170,6 +206,7 @@ class VersionManager:
                 if target_dir.exists():
                     shutil.rmtree(target_dir)
                 shutil.copytree(old_backup, target_dir)
+                unload_plugin_modules(plugin_name)
                 plugin.version = old_version
                 if was_enabled:
                     try:
@@ -181,11 +218,19 @@ class VersionManager:
             )
 
     async def rollback(self, plugin_id: int, target_version: str) -> None:
-        """回滚到指定版本"""
+        """回滚到指定版本（全流程加锁，避免并发竞态）。"""
+        from app.plugins.lifecycle import _plugin_lock
+
+        async with _plugin_lock(plugin_id):
+            await self._rollback_unlocked(plugin_id, target_version)
+
+    async def _rollback_unlocked(self, plugin_id: int, target_version: str) -> None:
+        """回滚到指定版本。"""
         from sqlalchemy import select
 
         from app.models.system.plugin import Plugin
         from app.plugins.lifecycle import PluginLifecycle
+        from app.plugins.module_loader import unload_plugin_modules
 
         result = await self._db.execute(
             select(Plugin).where(
@@ -218,6 +263,7 @@ class VersionManager:
         target_dir = PLUGINS_DIR / plugin_name
         shutil.rmtree(target_dir)
         shutil.copytree(backup_dir, target_dir)
+        unload_plugin_modules(plugin_name)
 
         # 更新 DB
         from app.plugins.loader import PluginLoader

@@ -4,7 +4,6 @@
 
 import shutil
 import tempfile
-import zipfile
 from pathlib import Path
 
 from fastapi import File, UploadFile
@@ -48,13 +47,13 @@ class PluginRollbackBody(PydanticBaseModel):
 @permission_resource(
     resource="plugin",
     name="menu.admin.plugin",
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:puzzle",
         path="/plugins",
         component="admin/plugins/index",
         parent="system_maintenance",
-        sort_order=90,
+        sort_order=60,
     ),
 )
 class AdminPluginController(GlobalController):
@@ -202,40 +201,25 @@ class AdminPluginController(GlobalController):
             zip_path = await client.download_plugin(slug, version)
 
             # 解压并生成预览
-            import zipfile
-            extract_dir = zip_path.parent / "extracted"
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(extract_dir)
-
-            plugin_dir = None
-            for child in extract_dir.iterdir():
-                if child.is_dir() and (child / "plugin.yaml").is_file():
-                    plugin_dir = child
-                    break
-            if not plugin_dir and (extract_dir / "plugin.yaml").is_file():
-                plugin_dir = extract_dir
-
-            if not plugin_dir:
-                from app.plugins.exceptions import PluginManifestError
-                raise PluginManifestError(message="No plugin.yaml found in downloaded package")
-
             from app.plugins.loader import PLUGINS_DIR, PluginLoader
+            from app.plugins.package_security import extract_plugin_zip_safely
             from app.plugins.preview import generate_preview
 
             temp_dir = PLUGINS_DIR / f"_market_{slug}"
-            if temp_dir.exists():
-                shutil.rmtree(temp_dir)
-            shutil.copytree(plugin_dir, temp_dir)
-
             try:
+                extract_dir = zip_path.parent / "extracted"
+                plugin_dir = extract_plugin_zip_safely(zip_path, extract_dir)
+
+                if temp_dir.exists():
+                    shutil.rmtree(temp_dir)
+                shutil.copytree(plugin_dir, temp_dir)
+
                 loader = PluginLoader()
                 preview = await generate_preview(temp_dir, loader)
-                # 保存下载路径供 confirm-install 使用
-                preview_data = preview.model_dump()
-                preview_data["_download_dir"] = str(plugin_dir)
-                return success(data=preview_data)
+                return success(data=preview.model_dump())
             finally:
                 shutil.rmtree(temp_dir, ignore_errors=True)
+                shutil.rmtree(zip_path.parent, ignore_errors=True)
 
         @self.router.post("/marketplace/{slug}/confirm-install")
         @action_create("action.plugin.install")
@@ -258,40 +242,30 @@ class AdminPluginController(GlobalController):
             version = detail.get("version", "1.0.0")
             zip_path = await client.download_plugin(slug, version)
 
-            import zipfile
-            extract_dir = zip_path.parent / "extracted"
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(extract_dir)
-
-            plugin_dir = None
-            for child in extract_dir.iterdir():
-                if child.is_dir() and (child / "plugin.yaml").is_file():
-                    plugin_dir = child
-                    break
-            if not plugin_dir and (extract_dir / "plugin.yaml").is_file():
-                plugin_dir = extract_dir
-
-            if not plugin_dir:
-                from app.plugins.exceptions import PluginManifestError
-                raise PluginManifestError(message="No plugin.yaml in downloaded package")
-
             from app.plugins.loader import PLUGINS_DIR, PluginLoader
+            from app.plugins.package_security import extract_plugin_zip_safely
 
-            loader = PluginLoader()
-            manifest = loader.load_manifest(plugin_dir.name)
-            target_dir = PLUGINS_DIR / manifest.name
-            if not target_dir.exists():
-                shutil.copytree(plugin_dir, target_dir)
+            try:
+                extract_dir = zip_path.parent / "extracted"
+                plugin_dir = extract_plugin_zip_safely(zip_path, extract_dir)
 
-            service = self.get_service(db)
-            plugin = await service.install_from_path(target_dir, body.config)
+                loader = PluginLoader()
+                manifest = loader.load_manifest_from_path(plugin_dir)
+                target_dir = PLUGINS_DIR / manifest.name
+                if not target_dir.exists():
+                    shutil.copytree(plugin_dir, target_dir)
 
-            # 更新 install_source 和 marketplace_slug
-            plugin.install_source = PluginInstallSourceEnum.MARKETPLACE.value
-            plugin.marketplace_slug = slug
-            await db.flush()
+                service = self.get_service(db)
+                plugin = await service.install_from_path(target_dir, body.config)
 
-            return created(data=plugin.to_dict())
+                # 更新 install_source 和 marketplace_slug
+                plugin.install_source = PluginInstallSourceEnum.MARKETPLACE.value
+                plugin.marketplace_slug = slug
+                await db.flush()
+
+                return created(data=plugin.to_dict())
+            finally:
+                shutil.rmtree(zip_path.parent, ignore_errors=True)
 
         @self.router.get("/frontend-config")
         @action_read("action.plugin.list")
@@ -385,28 +359,26 @@ class AdminPluginController(GlobalController):
             使用系统临时目录，不在项目内，避免触发 --reload。
             调用方负责清理 staging_dir。
             """
-            staging_dir = Path(tempfile.mkdtemp(prefix="novusai_plugin_"))
+            from app.plugins.package_security import (
+                ensure_package_size_limit,
+                extract_plugin_zip_safely,
+            )
 
-            zip_path = staging_dir / filename
+            staging_dir = Path(tempfile.mkdtemp(prefix="novusai_plugin_"))
+            safe_filename = Path(filename).name if filename else "plugin.zip"
+
+            ensure_package_size_limit(len(file_content))
+
+            zip_path = staging_dir / safe_filename
             with open(zip_path, "wb") as f:
                 f.write(file_content)
 
-            extract_dir = staging_dir / "extracted"
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(extract_dir)
-
-            plugin_dir = None
-            for child in extract_dir.iterdir():
-                if child.is_dir() and (child / "plugin.yaml").is_file():
-                    plugin_dir = child
-                    break
-            if not plugin_dir and (extract_dir / "plugin.yaml").is_file():
-                plugin_dir = extract_dir
-
-            if not plugin_dir:
+            try:
+                extract_dir = staging_dir / "extracted"
+                plugin_dir = extract_plugin_zip_safely(zip_path, extract_dir)
+            except Exception:
                 shutil.rmtree(staging_dir, ignore_errors=True)
-                from app.plugins.exceptions import PluginManifestError
-                raise PluginManifestError(message="No plugin.yaml found in uploaded ZIP")
+                raise
 
             return staging_dir, plugin_dir
 
@@ -425,7 +397,6 @@ class AdminPluginController(GlobalController):
 
             try:
                 from app.plugins.loader import PluginLoader
-                from app.plugins.manifest import PluginManifest
 
                 loader = PluginLoader(plugins_dir=plugin_dir.parent)
                 preview = await generate_preview(plugin_dir, loader)
@@ -440,7 +411,12 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            """上传 ZIP 并安装插件（一步完成）"""
+            """
+            上传 ZIP 并安装插件（两阶段提交）
+
+            阶段 1：在系统临时目录中完成 DB 事务（不触发 Uvicorn --reload）
+            阶段 2：DB 提交成功后，move 到 plugins/ 目录（此时 reload 不影响已提交的事务）
+            """
             from sqlalchemy import select
 
             from app.models.system.plugin import Plugin as PluginModel
@@ -470,15 +446,20 @@ class AdminPluginController(GlobalController):
                                 "Please uninstall it first or use the upgrade endpoint.",
                     )
 
+                # 阶段 1：在临时目录中执行安装（DB 操作），不复制到 plugins/
+                # install_from_path 内部的 lifecycle.install 会读取 manifest、注册 AI features 等
+                # 但不触发文件系统变化（因为 staging_dir 在系统 temp 中，不被 --reload 监控）
+                service = self.get_service(db)
+                plugin = await service.install_from_path(plugin_dir)
+                plugin_data = plugin.to_dict()
+
+                # 阶段 2：DB 事务已在 service 层 flush，现在安全地 move 到 plugins/
                 target_dir = PLUGINS_DIR / plugin_name
                 if target_dir.exists():
-                    # 残留目录（无 DB 记录），清理后重新安装
                     shutil.rmtree(target_dir)
                 shutil.copytree(plugin_dir, target_dir)
 
-                service = self.get_service(db)
-                plugin = await service.install_from_path(target_dir)
-                return created(data=plugin.to_dict())
+                return created(data=plugin_data)
             finally:
                 shutil.rmtree(staging_dir, ignore_errors=True)
 
@@ -600,27 +581,22 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
+            from app.plugins.package_security import (
+                ensure_package_size_limit,
+                extract_plugin_zip_safely,
+            )
             from app.plugins.version_manager import VersionManager
 
             with tempfile.TemporaryDirectory() as tmp_dir:
-                tmp_path = Path(tmp_dir) / file.filename
+                safe_filename = Path(file.filename).name if file.filename else "plugin.zip"
+                tmp_path = Path(tmp_dir) / safe_filename
                 with open(tmp_path, "wb") as f:
                     content = await file.read()
+                    ensure_package_size_limit(len(content))
                     f.write(content)
 
                 extract_dir = Path(tmp_dir) / "extracted"
-                with zipfile.ZipFile(tmp_path, "r") as zf:
-                    zf.extractall(extract_dir)
-
-                plugin_dir = None
-                for child in extract_dir.iterdir():
-                    if child.is_dir() and (child / "plugin.yaml").is_file():
-                        plugin_dir = child
-                        break
-
-                if not plugin_dir:
-                    from app.plugins.exceptions import PluginManifestError
-                    raise PluginManifestError(message="No plugin.yaml found in ZIP")
+                plugin_dir = extract_plugin_zip_safely(tmp_path, extract_dir)
 
                 manager = VersionManager(db)
                 await manager.upgrade(plugin_id, plugin_dir)

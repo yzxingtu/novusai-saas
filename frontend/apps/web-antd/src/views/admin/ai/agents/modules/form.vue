@@ -6,11 +6,13 @@ defineOptions({ name: 'AdminAgentForm' });
  * 系统智能体编辑时锁定核心字段（name / scope / execution_mode），
  * 仅允许修改调优参数（model_id / system_prompt / temperature / max_tokens）。
  */
-import type { AIAgentInfo } from '#/api/admin/ai';
+import type { AIAgentInfo, AIAgentSkillBindingInfo } from '#/api/admin/ai';
 
 import type { PkgOption } from '../data';
 
 import { computed, onMounted, ref } from 'vue';
+
+import { IconifyIcon } from '@vben/icons';
 
 import { useVbenForm } from '#/adapter/form';
 import {
@@ -18,8 +20,10 @@ import {
   getAIAgentDetailApi,
   getAIAgentSkillsApi,
 } from '#/api/admin/ai';
+import { extractScopePayload } from '#/components/business/scope-select';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
+import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
 import { Alert, Select as ASelect, Tag as ATag } from 'ant-design-vue';
 
@@ -32,7 +36,8 @@ const pendingPackageIds = ref<number[]>([]);
 const consentModes = ref<Record<string, string>>({});
 const selectedPackages = ref<Array<{ label: string; value: number }>>([])
 const packageOptions = ref<PkgOption[]>([]);
-const packageLoading = ref(false);;
+const packageLoading = ref(false);
+const autoBindPackages = ref<AIAgentSkillBindingInfo[]>([]);
 
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(),
@@ -65,9 +70,8 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<A
     };
     if (!edit || !isSystemAgent.value) {
       result.name = values.name;
-      result.scope = values.scope;
       result.execution_mode = values.execution_mode;
-      result.tenant_id = values.scope === 'tenant' ? values.tenant_id : null;
+      Object.assign(result, extractScopePayload(values));
     }
     return result;
   },
@@ -77,7 +81,8 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<A
       avatar: data.avatar || '',
       description: data.description,
       scope: data.scope,
-      tenant_id: data.tenant_id,
+      tenant_id: data.tenant_id ?? null,
+      tenant_ids: ((data as unknown as Record<string, unknown>).assigned_tenant_ids as number[]) ?? [],
       model_id: data.model_id,
       execution_mode: data.execution_mode,
       system_prompt: data.system_prompt,
@@ -117,22 +122,33 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<A
     const agent = await getAIAgentDetailApi(id as number);
     try {
       const bindings = await getAIAgentSkillsApi(id as number);
-      const ext = agent as AIAgentInfo & { _package_options?: { label: string; value: number }[] };
-      ext._package_options = bindings.map((b) => ({
+      // Separate auto-bind vs manual bindings
+      const autoBind: AIAgentSkillBindingInfo[] = [];
+      const manualBind: AIAgentSkillBindingInfo[] = [];
+      for (const b of bindings) {
+        if (b.is_auto_bound) {
+          autoBind.push(b);
+        } else {
+          manualBind.push(b);
+        }
+      }
+      autoBindPackages.value = autoBind;
+
+      const manualOptions = manualBind.map((b) => ({
         label: b.package_name || `#${b.package_id}`,
         value: b.package_id,
       }));
       const modes: Record<string, string> = {};
-      for (const b of bindings) {
+      for (const b of manualBind) {
         if (b.consent_mode && b.consent_mode !== 'auto') {
           modes[String(b.package_id)] = b.consent_mode;
         }
       }
       consentModes.value = modes;
-      selectedPackages.value = ext._package_options;
-      pendingPackageIds.value = ext._package_options.map((p) => p.value);
+      selectedPackages.value = manualOptions;
+      pendingPackageIds.value = manualOptions.map((p) => p.value);
     } catch {
-      (agent as AIAgentInfo & { _package_options?: { label: string; value: number }[] })._package_options = [];
+      autoBindPackages.value = [];
     }
     return agent;
   },
@@ -180,16 +196,20 @@ async function loadPackageOptions() {
 
 onMounted(loadPackageOptions);
 
-function getScopeTagByValue(value: number): { text: string; color: string } | null {
+// Filter out auto-bound packages from the manual selection dropdown
+const manualPackageOptions = computed(() => {
+  const autoIds = new Set(autoBindPackages.value.map((b) => b.package_id));
+  return packageOptions.value.filter((p) => !autoIds.has(p.value));
+});
+
+function getOptionTags(value: number): Array<{ text: string; color: string }> {
   const opt = packageOptions.value.find((o) => o.value === value);
-  if (!opt) return null;
-  if (opt.sourcePlugin) return { text: $t('admin.ai.skillPackage.sourcePlugin'), color: 'purple' };
-  switch (opt.scope) {
-    case 'global': return { text: $t('admin.ai.agent.scope.global'), color: 'blue' };
-    case 'admin': return { text: $t('admin.ai.agent.scope.admin'), color: 'orange' };
-    case 'tenant': return { text: $t('admin.ai.agent.scope.tenant'), color: 'green' };
-    default: return null;
-  }
+  if (!opt) return [];
+  const tags: Array<{ text: string; color: string }> = [];
+  if (opt.isSystem) tags.push({ text: $t('admin.ai.skillPackage.system'), color: 'red' });
+  if (opt.sourcePlugin) tags.push({ text: $t('admin.ai.skillPackage.sourcePlugin'), color: 'purple' });
+  if (opt.scope) tags.push({ text: opt.scope, color: getScopeColor(opt.scope) });
+  return tags;
 }
 
 function onPackageChange(val: unknown) {
@@ -218,17 +238,19 @@ function onPackageChange(val: unknown) {
     />
     <Form />
 
-    <!-- Skill package binding with Tag badges -->
+    <!-- Skill package binding section (unified: auto-bind + manual + consent mode) -->
     <div class="mb-5">
       <div class="mb-2 text-sm font-medium text-foreground">
         {{ $t('admin.ai.agent.skillPackageBindings') }}
       </div>
+
+      <!-- Manual package selector -->
       <ASelect
         :value="selectedPackages"
         mode="multiple"
         label-in-value
         :loading="packageLoading"
-        :options="packageOptions"
+        :options="manualPackageOptions"
         :placeholder="$t('admin.ai.agent.placeholder.selectSkillPackages')"
         show-search
         option-filter-prop="label"
@@ -238,35 +260,53 @@ function onPackageChange(val: unknown) {
         <template #option="{ label: optLabel, value: optValue }">
           <div class="flex items-center justify-between gap-2">
             <span class="truncate">{{ optLabel }}</span>
-            <ATag
-              v-if="getScopeTagByValue(optValue as number)"
-              :color="getScopeTagByValue(optValue as number)!.color"
-              class="mr-0 shrink-0 text-xs leading-tight"
-            >
-              {{ getScopeTagByValue(optValue as number)!.text }}
-            </ATag>
+            <span class="flex shrink-0 gap-1">
+              <ATag
+                v-for="tag in getOptionTags(optValue as number)"
+                :key="tag.text"
+                :color="tag.color"
+                class="!m-0 !text-[10px]"
+              >
+                {{ tag.text }}
+              </ATag>
+            </span>
           </div>
         </template>
       </ASelect>
-    </div>
 
-    <!-- Consent mode per skill package -->
-    <div v-if="selectedPackages.length > 0" class="mt-4">
-      <div class="mb-2 text-sm font-medium text-foreground">
-        {{ $t('admin.ai.agent.consentMode') }}
-      </div>
-      <div class="space-y-2">
+      <!-- Unified binding list: auto-bind + manual, each with consent mode -->
+      <div v-if="autoBindPackages.length > 0 || selectedPackages.length > 0" class="mt-3 space-y-2">
+        <!-- Auto-bind packages (locked, with consent mode) -->
+        <div
+          v-for="pkg in autoBindPackages"
+          :key="`auto-${pkg.package_id}`"
+          class="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2"
+        >
+          <IconifyIcon icon="lucide:lock" class="size-3.5 shrink-0 text-primary/60" />
+          <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ pkg.package_name }}</span>
+          <ATag v-if="pkg.package_is_system" color="red" class="!m-0 shrink-0 !text-[10px]">
+            {{ $t('admin.ai.skillPackage.system') }}
+          </ATag>
+          <ATag v-if="pkg.package_scope" :color="getScopeColor(pkg.package_scope)" class="!m-0 shrink-0 !text-[10px]">
+            {{ getScopeText(pkg.package_scope) }}
+          </ATag>
+          <ATag color="green" class="!m-0 shrink-0 !text-[10px]">
+            {{ $t('admin.ai.agent.consentModeOptions.auto') }}
+          </ATag>
+        </div>
+
+        <!-- Manual-bind packages (with consent mode) -->
         <div
           v-for="pkg in selectedPackages"
-          :key="pkg.value"
-          class="flex items-center gap-3 rounded-md border border-border px-3 py-2"
+          :key="`manual-${pkg.value}`"
+          class="flex items-center gap-2 rounded-md border border-border px-3 py-2"
         >
-          <span class="flex-1 truncate text-sm">{{ pkg.label }}</span>
+          <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ pkg.label }}</span>
           <ASelect
             :value="getConsentMode(pkg.value)"
             :options="consentModeOptions"
             size="small"
-            class="w-[140px]"
+            class="w-[120px] shrink-0"
             @change="(v: unknown) => setConsentMode(pkg.value, v as string)"
           />
         </div>

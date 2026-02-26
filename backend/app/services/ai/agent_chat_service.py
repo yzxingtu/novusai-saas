@@ -87,7 +87,11 @@ class AgentChatService:
             NotFoundException: 智能体不存在
             BusinessException: 智能体未发布
         """
-        agent_repo = AgentRepository(self.db, self.tenant_id)
+        if self.tenant_id == 0:
+            from app.repositories.ai.agent_repository import AdminAgentRepository
+            agent_repo = AdminAgentRepository(self.db)
+        else:
+            agent_repo = AgentRepository(self.db, self.tenant_id)
         agent = await agent_repo.get_by_id(agent_id)
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))

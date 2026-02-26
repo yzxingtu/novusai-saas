@@ -20,6 +20,7 @@
   "permissionSettings": "Permission Settings",
   "accountStatus": "Account Status",
   "admin": "Admin",
+  "detail": "Detail",
   "viewDetail": "View Detail",
   "submit": "Submit",
   "save": "Save",
@@ -45,6 +46,8 @@
   "total": "Total",
   "noData": "No Data",
   "success": "Success",
+  "operationSuccess": "Operation Successful",
+  "operationFailed": "Operation Failed",
   "failed": "Failed",
   "error": "Error",
   "warning": "Warning",
@@ -259,6 +262,26 @@
     "title": "System Maintenance",
     "defaultMessage": "The system is under maintenance. Please try again later.",
     "refresh": "Refresh"
+  },
+  "scope": {
+    "adminOnly": "Admin Only",
+    "allTenants": "All Tenants",
+    "adminAndAll": "Global",
+    "adminAndAssigned": "Admin + Assigned Tenants",
+    "assignedTenants": "Assigned Tenants",
+    "label": "Scope",
+    "placeholder": "Select scope",
+    "allScopes": "All Scopes",
+    "tenantId": "Tenant",
+    "selectTenant": "Select tenant",
+    "assignedTenantsLabel": "Assigned Tenants",
+    "assignedTenantsHelp": "Select tenants that are allowed to use this resource",
+    "selectAssignedTenants": "Select tenants to assign"
+  },
+  "bindMode": {
+    "auto": "Auto Bind",
+    "manual": "Manual Bind",
+    "label": "Bind Mode"
   },
   "cronPicker": {
     "placeholder": "Enter Cron expression (e.g. 0 2 * * *)",

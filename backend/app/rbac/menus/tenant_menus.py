@@ -33,7 +33,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:tenant.dashboard",
         name="menu.tenant.dashboard",  # i18n key
         type=PermissionType.MENU,
-        scope=PermissionScope.TENANT,
+        scope=PermissionScope.ALL_TENANTS,
         resource="menu",
         action="tenant.dashboard",
         icon="lucide:layout-dashboard",
@@ -49,7 +49,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:tenant.system",
         name="menu.tenant.system",  # i18n key
         type=PermissionType.MENU,
-        scope=PermissionScope.TENANT,
+        scope=PermissionScope.ALL_TENANTS,
         resource="menu",
         action="tenant.system",
         icon="lucide:settings",
@@ -68,7 +68,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:tenant.system_mgmt",
         name="menu.tenant.system_mgmt",  # i18n key
         type=PermissionType.MENU,
-        scope=PermissionScope.TENANT,
+        scope=PermissionScope.ALL_TENANTS,
         resource="menu",
         action="tenant.system_mgmt",
         icon="lucide:wrench",
@@ -86,7 +86,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:tenant.ai_mgmt",
         name="menu.tenant.ai_mgmt",  # i18n key
         type=PermissionType.MENU,
-        scope=PermissionScope.TENANT,
+        scope=PermissionScope.ALL_TENANTS,
         resource="menu",
         action="tenant.ai_mgmt",
         icon="lucide:brain-circuit",
@@ -99,7 +99,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:tenant.ai_workspace",
         name="menu.tenant.ai_workspace",  # i18n key
         type=PermissionType.MENU,
-        scope=PermissionScope.TENANT,
+        scope=PermissionScope.ALL_TENANTS,
         resource="menu",
         action="tenant.ai_workspace",
         icon="lucide:bot",
@@ -118,7 +118,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:tenant.ai_settings",
         name="menu.tenant.ai_settings",  # i18n key
         type=PermissionType.MENU,
-        scope=PermissionScope.TENANT,
+        scope=PermissionScope.ALL_TENANTS,
         resource="menu",
         action="tenant.ai_settings",
         icon="lucide:settings",
@@ -135,7 +135,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:tenant.ai_analytics",
         name="menu.tenant.ai_analytics",  # i18n key
         type=PermissionType.MENU,
-        scope=PermissionScope.TENANT,
+        scope=PermissionScope.ALL_TENANTS,
         resource="menu",
         action="tenant.ai_analytics",
         icon="lucide:bar-chart-3",
@@ -156,16 +156,32 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         code="menu:tenant.system_maintenance",
         name="menu.tenant.system_maintenance",
         type=PermissionType.MENU,
-        scope=PermissionScope.TENANT,
+        scope=PermissionScope.ALL_TENANTS,
         resource="menu",
         action="tenant.system_maintenance",
         icon="lucide:hard-drive",
         path="/system-maintenance",
         sort_order=30,
     ),
+
+    # ---- 日志中心（子目录） ----
+    PermissionMeta(
+        code="menu:tenant.logs",
+        name="menu.tenant.logs",
+        type=PermissionType.MENU,
+        scope=PermissionScope.ALL_TENANTS,
+        resource="menu",
+        action="tenant.logs",
+        icon="lucide:scroll-text",
+        path="/system-maintenance/logs",
+        sort_order=10,
+        parent_code="menu:tenant.system_maintenance",
+    ),
     # 子菜单由控制器声明:
     # - menu:tenant.operation_log (操作日志)
     # - menu:tenant.task_log (任务日志)
+
+    # 其他子菜单由控制器声明:
     # - menu:tenant.periodic_task (定时任务)
 
     # ========================================
@@ -175,7 +191,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     #     code="menu:tenant.business",
     #     name="menu.tenant.business",  # i18n key
     #     type=PermissionType.MENU,
-    #     scope=PermissionScope.TENANT,
+    #     scope=PermissionScope.ALL_TENANTS,
     #     resource="menu",
     #     action="tenant.business",
     #     icon="appstore",

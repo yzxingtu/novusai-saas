@@ -30,6 +30,7 @@ from app.schemas.ai.knowledge_base import (
     KnowledgeBaseUpdate,
     KnowledgeBaseSearchRequest,
     QAPairCreate,
+    TextDocumentCreate,
 )
 from app.core.recycle_bin import register_tenant_recycle_bin_routes
 from app.services.ai.knowledge_base_service import (
@@ -39,6 +40,28 @@ from app.services.ai.knowledge_base_service import (
 )
 
 
+async def _ensure_tenant_owned_kb(
+    db,
+    tenant_id: int,
+    kb_id: int,
+):
+    """
+    确保知识库为租户自有（scope=all_tenants）才允许变更操作。
+
+    assigned_tenants / admin_and_assigned / admin_and_all / admin_only 的 KB
+    对租户只读，不允许上传文档、删除文档等变更操作。
+    """
+    from app.enums.common import ResourceScopeEnum
+
+    kb_service = KnowledgeBaseService(db, tenant_id)
+    kb = await kb_service.get_by_id(kb_id)
+    if not kb:
+        raise NotFoundException(message=_("knowledge_base.error.not_found"))
+    if kb.scope != ResourceScopeEnum.ALL_TENANTS.value:
+        raise BusinessException(message=_("knowledge_base.error.readonly"))
+    return kb
+
+
 # 支持的文件类型映射
 ALLOWED_EXTENSIONS: dict[str, str] = {
     ".txt": DocumentTypeEnum.TXT.value,
@@ -46,13 +69,16 @@ ALLOWED_EXTENSIONS: dict[str, str] = {
     ".pdf": DocumentTypeEnum.PDF.value,
     ".docx": DocumentTypeEnum.DOCX.value,
     ".csv": DocumentTypeEnum.CSV.value,
+    ".xlsx": DocumentTypeEnum.XLSX.value,
+    ".html": DocumentTypeEnum.HTML.value,
+    ".htm": DocumentTypeEnum.HTML.value,
 }
 
 
 @permission_resource(
     resource="knowledge_base",
     name="menu.tenant.knowledge_base",
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=MenuConfig(
         icon="lucide:book-open",
         path="/ai/knowledge-bases",
@@ -104,17 +130,30 @@ class TenantKnowledgeBaseController(TenantController):
             from app.models.ai.knowledge_base import KnowledgeBase
             from app.enums.common import ResourceScopeEnum
 
+            from app.repositories.system.resource_tenant_assignment_repository import assigned_resource_ids_subquery
+
             tenant_id = tenant_admin.tenant_id
+            assigned_subq = assigned_resource_ids_subquery("knowledge_base", tenant_id)
             stmt = (
                 select(KnowledgeBase)
                 .where(
                     KnowledgeBase.is_deleted.is_(False),
                     or_(
+                        # 本租户创建的 KB
                         and_(
-                            KnowledgeBase.scope == ResourceScopeEnum.TENANT.value,
+                            KnowledgeBase.scope == ResourceScopeEnum.ALL_TENANTS.value,
                             KnowledgeBase.tenant_id == tenant_id,
                         ),
-                        KnowledgeBase.scope == ResourceScopeEnum.GLOBAL.value,
+                        # 全局共享的 KB（admin 创建，所有租户可见）
+                        KnowledgeBase.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
+                        # 已分配给当前租户的 KB
+                        and_(
+                            KnowledgeBase.scope.in_([
+                                ResourceScopeEnum.ASSIGNED_TENANTS.value,
+                                ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+                            ]),
+                            KnowledgeBase.id.in_(assigned_subq),
+                        ),
                     ),
                 )
                 .order_by(KnowledgeBase.name.asc())
@@ -324,13 +363,11 @@ class TenantKnowledgeBaseController(TenantController):
             from app.enums.attachment import AttachmentSource, AttachmentVisibility
             from app.services.tenant.attachment_service import AttachmentService
 
-            # 验证知识库存在
-            kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
-            kb = await kb_service.get_by_id(kb_id)
-            if not kb:
-                raise NotFoundException(message=_("knowledge_base.error.not_found"))
+            # 验证知识库存在且为租户自有
+            kb = await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
 
             # 配额检查
+            kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
             await kb_service.check_document_quota(kb_id)
 
             # 验证文件类型
@@ -421,6 +458,106 @@ class TenantKnowledgeBaseController(TenantController):
 
             return success(data=doc.to_dict())
 
+        @router.post("/{kb_id}/documents/text", summary="直接文本输入")
+        @action_create("action.knowledge_base.document_text")
+        async def create_text_document(
+            request: Request,
+            db: DbSession,
+            kb_id: int,
+            data: TextDocumentCreate,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            直接输入文本内容创建文档
+
+            将文本包装为虚拟 TXT 文件，走标准分块/Embedding 流程
+            权限: knowledge_base:document_text
+            """
+            import hashlib
+
+            kb = await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
+
+            kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
+            await kb_service.check_document_quota(kb_id)
+
+            content_bytes = data.content.encode("utf-8")
+            content_hash = hashlib.md5(content_bytes).hexdigest()
+
+            doc_service = KnowledgeDocumentService(db, tenant_admin.tenant_id)
+            existing = await doc_service.get_by_kb_and_hash(kb_id, content_hash)
+            if existing:
+                raise BusinessException(
+                    message=_("knowledge_base.document.error.duplicate"),
+                )
+
+            safe_title = data.title.replace("/", "_").replace("\\", "_")
+            doc = await doc_service.create({
+                "knowledge_base_id": kb_id,
+                "file_name": f"{safe_title}.txt",
+                "file_type": DocumentTypeEnum.TXT.value,
+                "file_size": len(content_bytes),
+                "file_hash": content_hash,
+                "status": DocumentStatusEnum.PENDING.value,
+                "metadata_extra": data.content,
+            })
+            await db.commit()
+
+            from app.ai.rag.processor import process_document
+            process_document.delay(
+                tenant_id=tenant_admin.tenant_id,
+                document_id=doc.id,
+            )
+
+            return created(
+                data=doc.to_dict(),
+                message=_("knowledge_base.document.uploaded"),
+            )
+
+        @router.get("/{kb_id}/documents/{doc_id}/chunks", summary="文档分块预览")
+        @action_read("action.knowledge_base.document_chunks")
+        async def get_document_chunks(
+            request: Request,
+            db: DbSession,
+            kb_id: int,
+            doc_id: int,
+            tenant_admin: ActiveTenantAdmin,
+            page: int = 1,
+            page_size: int = 20,
+        ):
+            """
+            获取文档的分块列表（预览用）
+
+            权限: knowledge_base:document_chunks
+            """
+            doc_service = KnowledgeDocumentService(db, tenant_admin.tenant_id)
+            doc = await doc_service.get_by_id(doc_id)
+            if not doc or doc.knowledge_base_id != kb_id:
+                raise NotFoundException(
+                    message=_("knowledge_base.error.document_not_found"),
+                )
+
+            chunk_service = DocumentChunkService(db, tenant_admin.tenant_id)
+            chunks = await chunk_service.repo.get_by_document(
+                document_id=doc_id,
+                skip=(page - 1) * page_size,
+                limit=page_size,
+            )
+
+            return success(data={
+                "chunks": [
+                    {
+                        "id": c.id,
+                        "chunk_index": c.chunk_index,
+                        "content": c.content,
+                        "char_count": c.char_count,
+                        "token_count": c.token_count,
+                        "metadata": c.metadata_,
+                    }
+                    for c in chunks
+                ],
+                "total": doc.chunk_count or 0,
+            })
+
         @router.delete("/{kb_id}/documents/{doc_id}", summary="删除文档")
         @action_delete("action.knowledge_base.document_delete")
         async def delete_document(
@@ -435,6 +572,8 @@ class TenantKnowledgeBaseController(TenantController):
 
             权限: knowledge_base:document_delete
             """
+            await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
+
             doc_service = KnowledgeDocumentService(db, tenant_admin.tenant_id)
             doc = await doc_service.get_by_id(doc_id)
 
@@ -455,6 +594,9 @@ class TenantKnowledgeBaseController(TenantController):
             await kb_service.update_statistics(kb_id)
             await db.commit()
 
+            from app.ai.rag.retriever import HybridRetriever
+            await HybridRetriever.invalidate_kb_cache(kb_id)
+
             return deleted(message=_("knowledge_base.document.deleted"))
 
         @router.post(
@@ -474,6 +616,8 @@ class TenantKnowledgeBaseController(TenantController):
 
             权限: knowledge_base:document_retry
             """
+            await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
+
             doc_service = KnowledgeDocumentService(db, tenant_admin.tenant_id)
             doc = await doc_service.get_by_id(doc_id)
 
@@ -561,8 +705,13 @@ class TenantKnowledgeBaseController(TenantController):
             删除现有分块并重新触发处理
             权限: knowledge_base:reindex
             """
+            await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
+
             kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
             count = await kb_service.reindex_knowledge_base(kb_id)
+
+            from app.ai.rag.retriever import HybridRetriever
+            await HybridRetriever.invalidate_kb_cache(kb_id)
 
             return success(
                 data={"document_count": count},
@@ -590,12 +739,10 @@ class TenantKnowledgeBaseController(TenantController):
             """
             import hashlib
 
-            kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
-            kb = await kb_service.get_by_id(kb_id)
-            if not kb:
-                raise NotFoundException(message=_("knowledge_base.error.not_found"))
+            kb = await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
 
             # 配额检查
+            kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
             await kb_service.check_document_quota(kb_id)
 
             # 构建 Q&A 内容
@@ -610,7 +757,8 @@ class TenantKnowledgeBaseController(TenantController):
                     message=_("knowledge_base.document.error.duplicate"),
                 )
 
-            # 创建文档记录
+            # 创建文档记录（metadata_extra 存储原始 Q&A JSON，供 reindex 使用）
+            import json as _json
             doc = await doc_service.create({
                 "knowledge_base_id": kb_id,
                 "file_name": f"qa_{content_hash[:8]}.txt",
@@ -620,6 +768,7 @@ class TenantKnowledgeBaseController(TenantController):
                 "status": DocumentStatusEnum.COMPLETED.value,
                 "chunk_count": 1,
                 "char_count": len(qa_content),
+                "metadata_extra": _json.dumps({"question": data.question, "answer": data.answer}),
             })
 
             # 直接创建 chunk（无需 Celery 异步）
@@ -630,7 +779,7 @@ class TenantKnowledgeBaseController(TenantController):
 
             # 生成 embedding
             embedding_service = EmbeddingService(db, tenant_admin.tenant_id)
-            embeddings = await embedding_service.generate_embedding(kb, qa_content)
+            embeddings = await embedding_service.generate_embedding(qa_content, kb)
 
             token_count = estimate_tokens(qa_content)
 
@@ -639,6 +788,7 @@ class TenantKnowledgeBaseController(TenantController):
                 "knowledge_base_id": kb_id,
                 "chunk_index": 0,
                 "content": qa_content,
+                "content_hash": content_hash,
                 "embedding": embeddings,
                 "char_count": len(qa_content),
                 "token_count": token_count,
@@ -656,10 +806,194 @@ class TenantKnowledgeBaseController(TenantController):
             await kb_service.update_statistics(kb_id)
             await db.commit()
 
+            from app.ai.rag.retriever import HybridRetriever
+            await HybridRetriever.invalidate_kb_cache(kb_id)
+
             return created(
                 data=doc.to_dict(),
                 message=_("knowledge_base.document.uploaded"),
             )
+
+        @router.post("/{kb_id}/qa-pairs/batch", summary="批量导入 Q&A 问答对")
+        @action_create("action.knowledge_base.qa_batch")
+        async def batch_import_qa(
+            request: Request,
+            db: DbSession,
+            kb_id: int,
+            tenant_admin: ActiveTenantAdmin,
+            file: UploadFile = File(..., description="CSV/Excel 文件（需含 question, answer 列）"),
+        ):
+            """
+            批量导入 Q&A 问答对（CSV/Excel）
+
+            文件需包含 question 和 answer 两列，每行创建一条 Q&A 文档+chunk。
+            跳过空行和重复行，返回导入统计。
+            权限: knowledge_base:qa_batch
+            """
+            import hashlib
+            import os
+
+            kb = await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
+
+            # 配额检查
+            kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
+            await kb_service.check_document_quota(kb_id)
+
+            filename = file.filename or "unnamed"
+            ext = os.path.splitext(filename)[1].lower()
+            if ext not in (".csv", ".xlsx"):
+                raise BusinessException(
+                    message=_("knowledge_base.error.unsupported_file_type"),
+                )
+
+            file_bytes = await file.read()
+            import io
+            import pandas as pd
+
+            if ext == ".csv":
+                df = pd.read_csv(io.BytesIO(file_bytes), dtype=str)
+            else:
+                df = pd.read_excel(io.BytesIO(file_bytes), dtype=str)
+
+            if "question" not in df.columns or "answer" not in df.columns:
+                raise BusinessException(
+                    message=_("knowledge_base.qa.batch.missing_columns"),
+                )
+
+            from app.ai.rag.embedding import EmbeddingService
+            from app.ai.utils.token_estimator import estimate_tokens
+
+            doc_service = KnowledgeDocumentService(db, tenant_admin.tenant_id)
+            chunk_service = DocumentChunkService(db, tenant_admin.tenant_id)
+            embedding_service = EmbeddingService(db, tenant_admin.tenant_id)
+
+            imported = 0
+            skipped = 0
+            errors: list[str] = []
+
+            for row_idx, row in df.iterrows():
+                q = str(row.get("question", "")).strip()
+                a = str(row.get("answer", "")).strip()
+                if not q or not a or q == "nan" or a == "nan":
+                    skipped += 1
+                    continue
+
+                qa_content = f"Q: {q}\nA: {a}"
+                content_hash = hashlib.md5(qa_content.encode("utf-8")).hexdigest()
+
+                existing = await doc_service.get_by_kb_and_hash(kb_id, content_hash)
+                if existing:
+                    skipped += 1
+                    continue
+
+                try:
+                    import json as _json
+                    doc = await doc_service.create({
+                        "knowledge_base_id": kb_id,
+                        "file_name": f"qa_{content_hash[:8]}.txt",
+                        "file_type": DocumentTypeEnum.QA.value,
+                        "file_size": len(qa_content.encode("utf-8")),
+                        "file_hash": content_hash,
+                        "status": DocumentStatusEnum.COMPLETED.value,
+                        "chunk_count": 1,
+                        "char_count": len(qa_content),
+                        "metadata_extra": _json.dumps({"question": q, "answer": a}),
+                    })
+
+                    embeddings = await embedding_service.generate_embedding(qa_content, kb)
+                    token_count = estimate_tokens(qa_content)
+
+                    await chunk_service.create({
+                        "document_id": doc.id,
+                        "knowledge_base_id": kb_id,
+                        "chunk_index": 0,
+                        "content": qa_content,
+                        "content_hash": content_hash,
+                        "embedding": embeddings,
+                        "char_count": len(qa_content),
+                        "token_count": token_count,
+                        "metadata_": {"type": "qa", "question": q, "answer": a},
+                    })
+                    doc.token_count = token_count
+                    imported += 1
+                except Exception as exc:
+                    errors.append(f"Row {int(row_idx) + 2}: {str(exc)[:100]}")
+
+            await kb_service.update_statistics(kb_id)
+            await db.commit()
+
+            from app.ai.rag.retriever import HybridRetriever
+            await HybridRetriever.invalidate_kb_cache(kb_id)
+
+            return success(data={
+                "imported": imported,
+                "skipped": skipped,
+                "errors": errors[:20],
+            })
+
+        # ========================================
+        # URL 网页导入
+        # ========================================
+
+        @router.post("/{kb_id}/documents/url", summary="URL 网页导入")
+        @action_create("action.knowledge_base.document_url")
+        async def import_from_url(
+            request: Request,
+            db: DbSession,
+            kb_id: int,
+            tenant_admin: ActiveTenantAdmin,
+            urls: list[str] = Form(..., description="URL 列表"),
+        ):
+            """
+            通过 URL 导入网页内容
+
+            每个 URL 创建一个文档，异步爬取和处理。
+            权限: knowledge_base:document_url
+            """
+            kb = await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
+
+            # 配额检查
+            kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
+            await kb_service.check_document_quota(kb_id)
+
+            doc_service = KnowledgeDocumentService(db, tenant_admin.tenant_id)
+            created_docs: list[dict] = []
+
+            for url in urls:
+                url = url.strip()
+                if not url or not url.startswith(("http://", "https://")):
+                    continue
+
+                url_hash = hashlib.md5(url.encode("utf-8")).hexdigest()
+                existing = await doc_service.get_by_kb_and_hash(kb_id, url_hash)
+                if existing:
+                    continue
+
+                doc = await doc_service.create({
+                    "knowledge_base_id": kb_id,
+                    "file_name": url[:200],
+                    "file_type": DocumentTypeEnum.URL.value,
+                    "file_size": len(url.encode("utf-8")),
+                    "file_hash": url_hash,
+                    "source_url": url,
+                    "status": DocumentStatusEnum.PENDING.value,
+                    "metadata_extra": url,
+                })
+                created_docs.append(doc.to_dict())
+
+            await db.commit()
+
+            from app.ai.rag.processor import process_document
+            for doc_dict in created_docs:
+                process_document.delay(
+                    tenant_id=tenant_admin.tenant_id,
+                    document_id=doc_dict["id"],
+                )
+
+            return success(data={
+                "created": len(created_docs),
+                "documents": created_docs,
+            })
 
         # ========================================
         # 检索测试
@@ -694,6 +1028,7 @@ class TenantKnowledgeBaseController(TenantController):
                 query=data.query,
                 top_k=data.top_k,
                 score_threshold=data.score_threshold,
+                search_mode=data.search_mode,
             )
 
             return success(data=[

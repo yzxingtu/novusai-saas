@@ -32,8 +32,8 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 - **禁止 `console.log`**：使用 `console.warn` / `console.error`
 - **禁止 `any` 类型**：使用 `unknown` 或具体类型
 - **禁止魔法字符串**：后端用 `LabeledEnum`，前端用常量/枚举
-- **禁止跨端导入**：admin 页面不导入 tenant/user 的 API/Store
-- **禁止层级越权**：Controller 不写业务逻辑，Service 不直接操作 DB，Repository 不写业务判断
+- **禁止跨端导入**：admin 页面不导入 tenant/user 的 API/Store。后端跨端共享逻辑放 `app/api/shared/`（如 `_skill_helpers.py`）
+- **禁止层级越权**：Controller 不写业务逻辑或直接 DB 查询，Service 不直接操作 DB，Repository 不写业务判断。统计/Dashboard 查询必须在 Service 层
 - **禁止裸返回**：后端必须用 `success()` / `created()` / `paginated()` 等统一响应
 - **禁止手写重复 Schema**：前端用 `searchInput()` / `inputField()` 等辅助函数
 - **禁止敏感信息入代码**：密钥、密码、Token 通过环境变量
@@ -60,7 +60,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 
 分层架构：请求 → Middleware → Controller → Service → Repository → Model/DB
 
-1. **Model** — 继承 `TenantModel`/`BaseModel`，声明 `__filterable__`/`__sortable__`
+1. **Model** — 继承 `TenantModel`/`BaseModel`，声明 `__filterable__`/`__sortable__`/`__delete_deps__`（被 FK 引用时）
 2. **Schema** — 继承 `BaseCreateSchema`/`BaseUpdateSchema`/`BaseResponseSchema`
 3. **Repository** — 继承 `TenantRepository`/`BaseRepository`
 4. **Service** — 继承 `TenantService`/`BaseService`，可重写钩子
@@ -79,17 +79,49 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 
 ---
 
-## 四、前端开发（CRUD 4 步）
+## 四、前端开发（CRUD）
 
 架构分层：`views → composables → store/api → utils`（禁止反向依赖）
 
-1. **data.ts** — 列定义 `useColumns()`、搜索 `useGridFormSchema()`、表单 `useFormSchema()`
-2. **list.vue** — `useCrudPage` 组装列表
-3. **form.vue** — `useCrudDrawer` 组装表单
-4. **路由 + i18n** — `router/routes/{endpoint}/` + `locales/langs/zh-CN/{endpoint}/`
+### 模式选择
 
-**关键注意**：
-- 搜索/表单必须用辅助函数（`searchInput` / `inputField` 等），禁止手写
+| 场景 | Composable | 渲染方式 |
+|------|-----------|---------|
+| 数据密集型列表（日志、配置、用户管理） | `useCrudPage` | VxeTable 表格 |
+| 卡片网格（知识库、智能体、插件） | `useCrudList` | 自定义卡片模板 |
+| Master-Detail（技能包：左列表+右详情） | `useCrudList` × 2 | 自定义分栏模板 |
+| 配置面板（域名管理、配额管理） | `useCrudList` | 自定义卡片/列表 |
+
+### 模式 A：表格（useCrudPage）
+
+1. **data.ts** — 列定义 `useColumns()`、搜索 `useGridFormSchema()`、表单 `useFormSchema()`
+2. **index.vue** — `useCrudPage` 组装列表（返回 `Grid` + `FormDrawer`）
+3. **form.vue** — `useCrudDrawer` 组装表单
+4. **路由 + i18n**
+
+### 模式 B：自定义布局（useCrudList）
+
+1. **data.ts** — 搜索/表单辅助函数、状态/颜色辅助函数
+2. **index.vue** — `useCrudList` 获取数据能力（`list`/`loading`/`loadList`/`onCreate`/`onEdit`/`onDelete`/`onSearch`/`onPageChange`），自定义模板渲染
+3. **form.vue** — `useCrudDrawer` 或 ref 模式（`openNew()`/`openEdit()`）
+4. **路由 + i18n**
+
+```typescript
+// useCrudList 声明式配置示例
+const { list, total, loading, FormDrawer, loadList, onCreate, onSearch, onPageChange, handleMenuAction } =
+  useCrudList<ItemType>({
+    api: { list: getListApi, delete: deleteApi, resource: '/admin/items' },
+    formComponent: Form,
+    i18nPrefix: 'admin.module',
+    pageSize: 12,
+    recycleBin: true,
+  });
+```
+
+### 禁令
+
+- **禁止手写 CRUD 数据管理**：禁止手动管理 `loading`/`list`/`page`/`total` + `fetchList` + `watch` 分页 + 手写删除确认 + 手写回收站。必须使用 `useCrudPage` 或 `useCrudList`
+- 搜索/表单必须用辅助函数（`searchInput` / `inputField` 等），禁止手写 Schema
 - 业务预设（planSelect 等）定义在 `data.ts`，不放 adapter
 - `requestClient` 导入路径：`#/utils/request`
 - 权限指令：`v-access:code="['resource:action']"`
@@ -125,7 +157,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 
 - 必须用 `@register_task` 装饰器，禁止 `@celery_app.task`
 - Celery Worker 是同步进程，用 `sync_session_factory()` 获取 DB，`redis.from_url()` 获取 Redis
-- 4 个队列：`default` / `high_priority` / `ai_gateway` / `scheduled`
+- 5 个队列：`default` / `high_priority` / `ai_gateway` / `scheduled` / `notification`
 - 定时任务通过 `periodic_tasks` 表管理，禁止硬编码 `beat_schedule`
 
 → 完整规范：`references/async-tasks.md`
@@ -134,7 +166,9 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 
 ## 八、删除依赖保护
 
-任何 Model 被 FK 引用时，必须声明 `__delete_deps__`。五种策略：`BLOCK` / `CASCADE_SOFT` / `CASCADE_DELETE` / `NULLIFY` / `IGNORE`。`useCrudPage` 已集成 `DependencyBlockModal`（错误码 4221）。
+任何 Model 被 FK 引用时，**必须**声明 `__delete_deps__`。五种策略：`BLOCK` / `CASCADE_SOFT` / `CASCADE_DELETE` / `SET_NULL` / `IGNORE`。`useCrudPage` 已集成 `DependencyBlockModal`（错误码 4221）。
+
+当前已声明的 Model（20 个）：Tenant, TenantPlan, Admin, TenantAdmin, TenantDomain, Permission, Plugin, SystemConfigGroup, SystemConfig, Agent, AIModel, AIProvider, KnowledgeBase, SkillPackage, TablePolicy, AdminRole, TenantAdminRole, AgentConversation, Attachment, KnowledgeDocument
 
 → 完整规范：`references/deletion-deps.md`
 
@@ -202,6 +236,9 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 ### 后端
 
 - [ ] Model 继承 `BaseModel` / `TenantModel`，声明 `__filterable__` / `__sortable__`
+- [ ] 被 FK 引用的父 Model 声明 `__delete_deps__`
+- [ ] 枚举比较用 `.value`（禁止硬编码字符串）
+- [ ] Controller 无直接 DB 查询（全部下沉到 Service/Repository）
 - [ ] Repository 继承 `BaseRepository` / `TenantRepository`
 - [ ] Service 继承 `BaseService` / `TenantService` / `GlobalService`
 - [ ] Controller 声明 `@permission_resource`，方法声明 `@action_*`
@@ -217,12 +254,12 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 
 - [ ] 无 `any` 类型
 - [ ] 无 `console.log()`
-- [ ] 无中文硬编码（全部 `$t()`）
+- [ ] 无中文硬编码（全部 `$t()`，包括 Tooltip/Popconfirm/Alert/Empty 等组件 props）
 - [ ] 搜索/表单用辅助函数生成
 - [ ] 业务预设在 `data.ts` 定义，不在 adapter
 - [ ] 无跨端导入
 - [ ] i18n JSON key 无重复、路径正确
-- [ ] 中英文翻译齐全
+- [ ] 中英文翻译齐全（zh-CN 和 en-US 的 key 必须完全对齐）
 - [ ] Props 用 `defineProps<T>()`
 
 ---
@@ -242,7 +279,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 | `app/plugins/loader.py` | 插件发现 / 清单解析 / 主类加载 / README / i18n |
 | `app/plugins/lifecycle.py` | install(10 步) / enable / disable / uninstall(14 步) |
 | `app/plugins/context.py` | PluginContext 沙箱 + PluginDbProxy 表前缀隔离 |
-| `app/plugins/registry.py` | ExtensionRegistry 单例（9 种扩展类型注册 + 反注册） |
+| `app/plugins/registry.py` | ExtensionRegistry 单例（10 种扩展类型注册 + 反注册） |
 | `app/plugins/exceptions.py` | 7 个异常类（4230-4236 错误码） |
 
 ### 插件目录结构
@@ -280,7 +317,7 @@ scope: all_tenants                 # admin_only|all_tenants|assigned_tenants|adm
 capabilities:
   - db:own_tables                  # 按需声明: db:own_tables / http:outbound / storage:read / storage:write / ai:call / config:write / notifications:send
 extensions:
-  skills: []                       # 9 种扩展点: skills/adapters/storage_drivers/api/hooks/tasks/notifications/permissions/webhooks/events/frontend
+  skills: []                       # 10 种扩展点: skills/adapters/storage_drivers/api/hooks/tasks/notifications/permissions/webhooks/events/socketio/frontend
 ```
 
 ### config_schema（插件配置表单）
@@ -340,9 +377,29 @@ await ctx.get_config()                        # 读取配置（自动解密 x-en
 db = ctx.get_db()                             # PluginDbProxy（仅 px_{name}_* 表）→ 需 db:own_tables
 storage = await ctx.get_storage()             # 命名空间限定 plugins/{name}/ → 需 storage:read|write
 result = await ctx.http_request("GET", url)   # 自动 30s 超时 → 需 http:outbound
-text = await ctx.call_ai_feature("ai_writer", messages)  # 查 SystemAgentAssignment → 需 ai:call
+text = await ctx.call_ai_feature("ai_writer", messages)  # 非流式 → 需 ai:call
+async for delta in ctx.call_ai_feature_stream("ai_writer", messages):  # 流式（yield 文本增量）→ 需 ai:call
+    ...
 logger = ctx.get_logger()                     # Logger 名称: plugin.{name}
 ```
+
+**流式 AI 调用 + SSE 响应封装**（插件 API handler 推荐用法）：
+
+```python
+from app.plugins.sse import plugin_sse_response
+
+async def my_stream_handler(request, db, ctx):
+    """API handler 签名：(request, db, ctx) — ctx 为 PluginContext（可选，向后兼容旧 (request, db)）"""
+    messages = [{"role": "user", "content": request.query_params.get("q", "")}]
+    return plugin_sse_response(
+        ctx.call_ai_feature_stream("ai_writer", messages),
+        plugin_name=ctx.plugin_name,
+    )
+```
+
+- `call_ai_feature_stream` yield 纯文本 delta，不含 SSE 包装
+- `plugin_sse_response` 将 delta 生成器包装为标准 SSE StreamingResponse（含心跳、done、error 处理）
+- 上游不支持流式时自动降级为非流式单 chunk 输出，日志标记 `fallback=True`
 
 ### 命名规范
 
@@ -430,6 +487,32 @@ npm install && npx vite build    # → dist/index.js (UMD)
 | 知识库 | `before_kb_search` / `after_kb_search` |
 | 数据智能 | `before_sql_execute` / `after_sql_execute` |
 
+### Hook vs PluginEvent 边界
+
+| 维度 | HookRegistry（hooks） | PluginEventBus（events） |
+|------|----------------------|-------------------------|
+| 模式 | 同步拦截链 | 异步通知（fire-and-forget） |
+| 数据 | 可修改 context dict | 只读，handler 不应修改 payload |
+| 异常 | handler 异常会中断链路 | handler 异常隔离，不影响发布方 |
+| 用途 | BEFORE_*/AFTER_* 拦截改写 | 跨插件解耦通信 |
+| 声明 | `plugin.yaml` → `hooks` | `plugin.yaml` → `events` + `ctx.subscribe_event()` |
+| 清理 | `unregister_all` 自动清理 | `unregister_all` 自动清理 |
+
+**跨插件通信用法**（插件 A 发布 → 插件 B 消费）：
+
+```python
+# 插件 A（novusdoc）— 发布事件
+await ctx.emit_event("document_saved", {"doc_id": 123, "title": "My Doc"})
+# 同时触发: PluginEventBus(异步通知) + HookRegistry(同步拦截)
+
+# 插件 B（novusdoc-pro）— 订阅事件（在 on_enable 中注册）
+async def on_doc_saved(event_name: str, payload: dict):
+    doc_id = payload.get("doc_id")
+    # ... 执行 AI 摘要等后续逻辑
+
+ctx.subscribe_event("plugin.novusdoc.document_saved", on_doc_saved)
+```
+
 ### 可用 EventBus 事件（26 个）
 
 插件可通过 `plugin.yaml` 的 `events` 声明订阅事件（异步通知，只读不可修改）。
@@ -505,6 +588,7 @@ extensions:
 | `frontend/.../stores/plugin-slots.ts` | Pinia 插槽 Store（5 种插槽类型） |
 | `frontend/.../layouts/basic.vue` | `#header-right-89` 渲染 `headerWidgets` |
 | `backend/app/main.py` | `/plugin-assets/{name}/` 静态资源路由 |
+| `backend/app/plugins/sse.py` | `plugin_sse_response()` — 插件 SSE 流式响应封装 |
 | `backend/app/middleware/access_control.py` | `/plugin-assets` 在豁免路径列表中 |
 
 → 完整规范 + 代码示例：`references/plugin-spec.md`
@@ -519,7 +603,7 @@ extensions:
 |------|------|
 | `references/platform-infrastructure.md` | 多租户/认证/异常/日志/SSE/启动/存储/配置/组件 |
 | `references/backend-crud.md` | 后端 CRUD 7 步完整代码 + 响应/异常/权限/枚举/日志 |
-| `references/frontend-crud.md` | 前端 CRUD 4 步完整代码 + 权限/搜索/i18n/图标/请求/命名 |
+| `references/frontend-crud.md` | 前端 CRUD 完整代码（useCrudPage 表格 + useCrudList 自定义布局 + useCrudDrawer 表单） |
 | `references/frontend-spec.md` | 前端开发手册完整版（含拖拽排序、列表 UI 设计、CSS 动画等） |
 | `references/backend-spec.md` | 后端开发指南完整版（含存储、日志、枚举、Service 钩子等） |
 | `references/async-tasks.md` | 异步任务与定时任务开发规范（Celery/Redis/队列/定时任务） |

@@ -19,6 +19,7 @@ export interface AgentListItem {
   description: string | null;
   status: string;
   execution_mode: string;
+  scope: string;
   is_system: boolean;
   model_name: string | null;
   skill_packages: { id: number; name: string }[];
@@ -324,21 +325,19 @@ export async function updateAgentAccessApi(
 
 /** 技能包绑定信息 */
 export interface AgentSkillBindingInfo {
-  id: number;
+  id: number | null;
   agent_id: number;
   package_id: number;
   enabled: boolean;
   config_override: Record<string, unknown> | null;
   sort_order: number;
   consent_mode: string;
-  package: {
-    id: number;
-    name: string;
-    description: string | null;
-    avatar: string | null;
-    scope: string;
-    is_active: boolean;
-  };
+  is_auto_bound: boolean;
+  package_name: string | null;
+  package_description: string | null;
+  package_scope: string | null;
+  package_bind_mode: string;
+  package_is_system: boolean;
 }
 
 /** 获取智能体绑定的技能包列表 */

@@ -663,13 +663,13 @@ class TenantService(BaseService[ModelType, RepoType]):
     
     _default_delete_level: str = DeleteLevelEnum.TENANT.value
 
-    def __init__(self, db: AsyncSession, tenant_id: int):
+    def __init__(self, db: AsyncSession, tenant_id: int | None):
         """
         初始化租户服务
         
         Args:
             db: 异步数据库会话
-            tenant_id: 租户 ID
+            tenant_id: 租户 ID（全局/管理端资源传 None）
         """
         self.db = db
         self.tenant_id = tenant_id

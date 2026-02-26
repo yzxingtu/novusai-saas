@@ -20,16 +20,34 @@ from app.core.base_model import Base
 
 # 导入所有模型以确保它们被注册到 Base.metadata
 from app.models import (
+    # 平台级模型
     Admin,
+    SystemConfigGroup,
+    SystemConfig,
+    SystemConfigValue,
+    OperationLog,
+    TaskLog,
+    PeriodicTask,
+    SystemAgentAssignment,
+    # 租户级模型
     Tenant,
     TenantAdmin,
     TenantUser,
+    TenantDomain,
+    TenantPlan,
+    tenant_plan_permissions,
+    Attachment,
+    # RBAC
     Permission,
     AdminRole,
     admin_role_permissions,
     TenantAdminRole,
     tenant_admin_role_permissions,
-    # AI 网关模型
+    # 通知
+    NotificationTemplate,
+    Notification,
+    NotificationPreference,
+    # AI 网关
     AIProvider,
     AIModel,
     ProviderApiKey,
@@ -37,37 +55,50 @@ from app.models import (
     UsageStat,
     TenantModelRateLimit,
     TenantQuota,
-    # 智能体模型
+    # 智能体
     Agent,
     AgentConversation,
     ConversationMessage,
-    # 批量运行
     BatchRun,
-    # 智能体版本
     AgentVersion,
-    # 智能体访问权限
     AgentAccess,
-    # AI 操作审计日志
     AIActionLog,
-    # AI 表策略
     AITablePolicy,
     AITablePolicyOverride,
     # 技能包 & 技能
     SkillPackage,
     Skill,
     AgentSkillBinding,
-    # 域名 SSL 证书
+    # 域名 SSL
     DomainSslCertificate,
-    # 通知
-    NotificationTemplate,
-    Notification,
-    NotificationPreference,
     # 插件
     Plugin,
     PluginVersion,
-    PluginTenantAssignment,
     PluginLicense,
+    ResourceTenantAssignment,
 )
+# AI 子模块中有但未在 models/__init__.py 再导出的模型
+from app.models.ai.query_log import AIQueryLog
+from app.models.ai.knowledge_base import KnowledgeBase
+from app.models.ai.knowledge_base_tenant_access import KnowledgeBaseTenantAccess
+from app.models.ai.knowledge_document import KnowledgeDocument
+from app.models.ai.document_chunk import DocumentChunk
+from app.models.ai.skill_call_log import SkillCallLog
+from app.models.system.email_log import EmailLog
+
+# Dynamic plugin model discovery (Alembic autogenerate needs models registered on Base.metadata)
+# Scans plugins/*/backend/models/__init__.py — no hardcoded plugin names
+import importlib
+_plugins_base = Path(__file__).parent.parent / "plugins"
+if _plugins_base.exists():
+    for _pd in sorted(_plugins_base.iterdir()):
+        _models_init = _pd / "backend" / "models" / "__init__.py"
+        if _models_init.is_file():
+            _mod_name = f"plugins.{_pd.name}.backend.models"
+            try:
+                importlib.import_module(_mod_name)
+            except Exception:
+                pass  # plugin not installed or import error — skip
 
 # Alembic 配置对象
 config = context.config
@@ -75,12 +106,10 @@ config = context.config
 # 设置数据库 URL
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL_SYNC)
 
-# 确保 version_locations 包含 CRUD 子目录
+# 迁移文件目录
 _migrations_dir = Path(__file__).parent / "versions"
-_crud_dir = _migrations_dir / "crud"
-_crud_dir.mkdir(exist_ok=True)
 # 动态扫描已安装插件的迁移目录
-_version_paths = [str(_migrations_dir), str(_crud_dir)]
+_version_paths = [str(_migrations_dir)]
 _plugins_dir = Path(__file__).parent.parent / "plugins"
 if _plugins_dir.exists():
     for _plugin_dir in _plugins_dir.iterdir():

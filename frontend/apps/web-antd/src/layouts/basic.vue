@@ -24,7 +24,12 @@ import NotificationPanel from '#/components/business/notification-panel/Notifica
 import NotificationToast from '#/components/business/notification-toast/NotificationToast.vue';
 import { useGlobalAIChatStore, useMultiAuthStore, useNotificationStore, usePresenceStore, useSocketIOStore } from '#/store';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
-import { usePluginFrontendInit } from '#/composables/use-plugin-frontend-init';
+import {
+  appendPluginMenusToAccessStore,
+  refreshPluginSlots,
+  resetPluginRoutesReady,
+  usePluginFrontendInit,
+} from '#/composables/use-plugin-frontend-init';
 
 import LoginForm from '#/views/_core/authentication/login.vue';
 import GlobalAIChat from '#/views/_core/global-ai-chat/GlobalAIChat.vue';
@@ -48,6 +53,15 @@ const currentEndpointPrefix = computed(() => {
   return path.startsWith('/tenant') ? '/tenant' : '/admin';
 });
 usePluginFrontendInit(currentEndpointPrefix.value);
+
+watch(currentEndpointPrefix, async (endpoint, previousEndpoint) => {
+  if (!previousEndpoint || endpoint === previousEndpoint) {
+    return;
+  }
+  resetPluginRoutesReady(router);
+  await refreshPluginSlots(endpoint, router);
+});
+
 function handleGlobalKeydown(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.key === '\\') {
     e.preventDefault();
@@ -141,6 +155,9 @@ async function handleLocaleChange() {
     // 更新菜单和路由
     accessStore.setAccessMenus(accessibleMenus);
     accessStore.setAccessRoutes(accessibleRoutes);
+
+    // 重新追加插件菜单（generateAccess 会覆盖 accessMenus）
+    appendPluginMenusToAccessStore();
 
     // 更新所有已打开的 tabs 的 title
     updateAllTabsTitles();

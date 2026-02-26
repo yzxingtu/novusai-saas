@@ -83,7 +83,7 @@ class ConfigService:
         return await self._get_config_value(
             key=key,
             tenant_id=PLATFORM_TENANT_ID,
-            scope=ConfigScope.PLATFORM,
+            scope=ConfigScope.ADMIN_ONLY,
             default=default,
         )
     
@@ -154,7 +154,7 @@ class ConfigService:
         value = await self._get_config_value(
             key=key,
             tenant_id=tenant_id,
-            scope=ConfigScope.TENANT,
+            scope=ConfigScope.ALL_TENANTS,
             default=None,
             skip_default=True,
         )
@@ -224,7 +224,7 @@ class ConfigService:
         created_count = 0
         
         # 获取所有租户作用域的配置
-        tenant_configs = self.registry.get_configs_by_scope(ConfigScope.TENANT)
+        tenant_configs = self.registry.get_configs_by_scope(ConfigScope.ALL_TENANTS)
         
         for config_meta in tenant_configs:
             # 检查是否已有值
@@ -292,7 +292,7 @@ class ConfigService:
             - is_encrypted: 是否加密
             - group_code: 分组代码
         """
-        actual_tenant_id = PLATFORM_TENANT_ID if scope == ConfigScope.PLATFORM else tenant_id
+        actual_tenant_id = PLATFORM_TENANT_ID if scope == ConfigScope.ADMIN_ONLY else tenant_id
         
         # 获取分组
         if group_code:
@@ -332,7 +332,7 @@ class ConfigService:
         Returns:
             分组列表，每项包含分组信息和配置项列表
         """
-        actual_tenant_id = PLATFORM_TENANT_ID if scope == ConfigScope.PLATFORM else tenant_id
+        actual_tenant_id = PLATFORM_TENANT_ID if scope == ConfigScope.ADMIN_ONLY else tenant_id
         groups = self.registry.get_groups_by_scope(scope)
         
         result = []

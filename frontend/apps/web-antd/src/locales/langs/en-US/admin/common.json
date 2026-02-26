@@ -20,5 +20,8 @@
   "unlimited": "Unlimited",
   "total": "Total",
   "reset": "Reset",
-  "noData": "No data"
+  "noData": "No data",
+  "prev": "Previous",
+  "next": "Next",
+  "detail": "Detail"
 }

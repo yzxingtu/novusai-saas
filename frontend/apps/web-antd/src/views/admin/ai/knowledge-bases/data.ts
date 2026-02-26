@@ -9,26 +9,28 @@ import type { AIModelInfo } from '#/api/admin/ai';
 
 import { inputField, numberField, searchInput, select, textareaField } from '#/adapter/form';
 import { getAIModelListApi } from '#/api/admin/ai';
-import { getTenantSelectApi } from '#/api/admin/tenant';
+import { useScopeFields } from '#/components/business/scope-select';
 import { $t } from '#/locales';
+import {
+  getScopeColor,
+  getScopeOptions as _getScopeOptions,
+  getScopeText,
+} from '#/utils/scope-helpers';
+
+export { getScopeColor, getScopeText };
 
 // ============ Scope 辅助 ============
 
 export function getScopeOptions() {
-  return [
-    { label: $t('admin.knowledgeBase.scope.tenant'), value: 'tenant' },
-    { label: $t('admin.knowledgeBase.scope.global'), value: 'global' },
-    { label: $t('admin.knowledgeBase.scope.admin'), value: 'admin' },
-  ];
+  return _getScopeOptions();
 }
 
-export function getScopeColor(scope: string | undefined): string {
-  switch (scope) {
-    case 'global': return 'blue';
-    case 'admin': return 'purple';
-    case 'tenant': return 'green';
-    default: return 'default';
-  }
+export function getVisibilityOptions() {
+  return [
+    { label: $t('admin.knowledgeBase.visibility.private'), value: 'private' },
+    { label: $t('admin.knowledgeBase.visibility.all_tenants'), value: 'all_tenants' },
+    { label: $t('admin.knowledgeBase.visibility.assigned'), value: 'assigned' },
+  ];
 }
 
 // ============ Embedding 模型下拉 ============
@@ -55,8 +57,9 @@ export function getFormDefaults() {
   return {
     name: '',
     description: '',
-    scope: 'global',
+    scope: 'admin_and_all',
     tenant_id: null,
+    tenant_ids: [],
     embedding_model_id: undefined,
     chunk_size: 512,
     chunk_overlap: 50,
@@ -90,6 +93,7 @@ export function useColumns<T = AdminKnowledgeBaseItem>(
       field: 'name',
       title: $t('admin.knowledgeBase.field.name'),
       minWidth: 180,
+      slots: { default: 'name_cell' },
     },
     {
       field: 'embedding_model_name',
@@ -139,7 +143,7 @@ export function useColumns<T = AdminKnowledgeBaseItem>(
           onClick: onActionClick,
         },
         name: 'CellOperation',
-        options: ['detail', 'edit', 'delete'],
+        options: [{ code: 'detail', accessCodes: [] }, 'edit', 'delete'],
       },
       field: 'operation',
       fixed: 'right',
@@ -173,51 +177,48 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
     textareaField('description', $t('admin.knowledgeBase.field.description'), {
       rows: 3,
     }),
-    {
-      ...select('scope', $t('admin.knowledgeBase.field.scope'), {
-        options: getScopeOptions(),
-        required: true,
-      }),
-    },
-    {
-      ...select('tenant_id', $t('admin.knowledgeBase.field.tenantId'), {
-        api: getTenantSelectApi,
-        params: { is_active: 'true' },
-        placeholder: $t('admin.knowledgeBase.field.tenantIdPlaceholder'),
-      }),
-      dependencies: {
-        show(values: Record<string, unknown>) {
-          return values.scope === 'tenant';
-        },
-        triggerFields: ['scope'],
-      },
-    },
+    ...useScopeFields({
+      scopeHelp: $t('admin.knowledgeBase.help.scope'),
+    }),
     {
       ...select('embedding_model_id', $t('admin.knowledgeBase.field.embeddingModel'), {
         api: getEmbeddingModelOptions,
         required: !isEdit,
       }),
+      help: $t('admin.knowledgeBase.help.embeddingModel'),
     },
   ];
 
   if (!isEdit) {
     schemas.push(
-      numberField('chunk_size', $t('admin.knowledgeBase.field.chunkSize'), {
-        min: 128,
-        max: 4096,
-      }),
-      numberField('chunk_overlap', $t('admin.knowledgeBase.field.chunkOverlap'), {
-        min: 0,
-        max: 200,
-      }),
-      numberField('top_k', $t('admin.knowledgeBase.field.topK'), {
-        min: 1,
-        max: 20,
-      }),
-      numberField('score_threshold', $t('admin.knowledgeBase.field.scoreThreshold'), {
-        min: 0,
-        max: 1,
-      }),
+      {
+        ...numberField('chunk_size', $t('admin.knowledgeBase.field.chunkSize'), {
+          min: 128,
+          max: 4096,
+        }),
+        help: $t('admin.knowledgeBase.help.chunkSize'),
+      },
+      {
+        ...numberField('chunk_overlap', $t('admin.knowledgeBase.field.chunkOverlap'), {
+          min: 0,
+          max: 200,
+        }),
+        help: $t('admin.knowledgeBase.help.chunkOverlap'),
+      },
+      {
+        ...numberField('top_k', $t('admin.knowledgeBase.field.topK'), {
+          min: 1,
+          max: 20,
+        }),
+        help: $t('admin.knowledgeBase.help.topK'),
+      },
+      {
+        ...numberField('score_threshold', $t('admin.knowledgeBase.field.scoreThreshold'), {
+          min: 0,
+          max: 1,
+        }),
+        help: $t('admin.knowledgeBase.help.scoreThreshold'),
+      },
     );
   }
 

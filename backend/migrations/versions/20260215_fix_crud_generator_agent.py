@@ -1,15 +1,9 @@
-"""fix_crud_generator_agent
+"""[NO-OP] fix_crud_generator_agent
 
-Create or update the crud_generator_assistant Agent and bind it
+Superseded by 20260216_remove_crud_generator_seed_data (all CRUD data soft-deleted).
+
+Original: Create or update the crud_generator_assistant Agent and bind it
 to the crud_generator skill package.
-
-Problem:
-  - Agent 'crud_generator_assistant' doesn't exist in DB
-  - No agent_skill_binding exists
-
-Fix:
-  - Create agent with full CRUD_AGENT_SYSTEM_PROMPT
-  - Create agent_skill_binding to the CRUD Generator skill package
 
 Revision ID: aa0215020000
 Revises: aa0215010000

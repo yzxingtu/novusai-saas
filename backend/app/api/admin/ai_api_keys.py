@@ -93,7 +93,7 @@ def _build_api_key_response(key) -> dict:
 @permission_resource(
     resource="ai_api_key",
     name="menu.admin.ai_api_key",
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:key",
         path="/ai/api-keys",

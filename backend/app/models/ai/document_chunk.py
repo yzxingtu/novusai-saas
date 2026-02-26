@@ -7,8 +7,8 @@
 from typing import TYPE_CHECKING
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ForeignKey, Index, Integer, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy import Column, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSON, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
@@ -29,6 +29,9 @@ class DocumentChunk(TenantModel):
     """
 
     __tablename__ = "document_chunks"
+
+    # 覆盖 TenantModel 的 tenant_id：允许 NULL（全局/管理端 KB 分块无租户归属）
+    tenant_id = Column(Integer, nullable=True, index=True, comment="租户ID")
 
     # 允许前端筛选的字段
     __filterable__ = {
@@ -103,6 +106,15 @@ class DocumentChunk(TenantModel):
         Vector(),
         nullable=True,
         comment=_("knowledge_base.chunk_model.embedding"),
+    )
+
+    # ==================== 全文检索 ====================
+
+    # tsvector 列，由 DB trigger trg_document_chunks_tsv 自动维护
+    # 用于 KeywordSearcher 全文检索
+    content_tsv = mapped_column(
+        TSVECTOR,
+        nullable=True,
     )
 
     # ==================== 元数据 ====================

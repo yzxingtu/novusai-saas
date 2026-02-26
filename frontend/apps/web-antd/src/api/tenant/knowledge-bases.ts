@@ -17,6 +17,7 @@ export interface KnowledgeBaseItem {
   name: string;
   description: string | null;
   avatar: string | null;
+  scope: string;
   embedding_model_id: number;
   embedding_model_name: string | null;
   chunk_size: number;
@@ -252,6 +253,19 @@ export async function reindexKnowledgeBaseApi(
   );
 }
 
+/** 直接文本输入创建文档 */
+export async function createTextDocumentApi(
+  kbId: number,
+  data: { title: string; content: string },
+  options?: ApiRequestOptions,
+): Promise<KnowledgeDocumentItem> {
+  return requestClient.post<KnowledgeDocumentItem>(
+    `${PREFIX}/${kbId}/documents/text`,
+    data,
+    options,
+  );
+}
+
 /** 添加 Q&A 问答对 */
 export async function createQAPairApi(
   kbId: number,
@@ -261,6 +275,36 @@ export async function createQAPairApi(
   return requestClient.post<KnowledgeDocumentItem>(
     `${PREFIX}/${kbId}/qa-pairs`,
     data,
+    options,
+  );
+}
+
+/** URL 网页导入 */
+export async function importUrlApi(
+  kbId: number,
+  urls: string[],
+  options?: ApiRequestOptions,
+): Promise<{ created: number }> {
+  const formData = new FormData();
+  urls.forEach((u) => formData.append('urls', u));
+  return requestClient.post(
+    `${PREFIX}/${kbId}/documents/url`,
+    formData,
+    options,
+  );
+}
+
+/** 批量导入 Q&A 问答对（CSV/Excel） */
+export async function batchImportQAApi(
+  kbId: number,
+  file: File,
+  options?: ApiRequestOptions,
+): Promise<{ imported: number; skipped: number; errors: string[] }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return requestClient.post(
+    `${PREFIX}/${kbId}/qa-pairs/batch`,
+    formData,
     options,
   );
 }
@@ -280,6 +324,19 @@ export async function getTenantSelectableKBApi(
   return requestClient.get<SelectableKBItem[]>(
     `${PREFIX}/selectable`,
     options,
+  );
+}
+
+/** 文档分块预览 */
+export async function getDocumentChunksApi(
+  kbId: number,
+  docId: number,
+  params?: { page?: number; page_size?: number },
+  options?: ApiRequestOptions,
+): Promise<{ chunks: Array<{ id: number; chunk_index: number; content: string; char_count: number; token_count: number; metadata: Record<string, unknown> }>; total: number }> {
+  return requestClient.get(
+    `${PREFIX}/${kbId}/documents/${docId}/chunks`,
+    { params, ...options },
   );
 }
 

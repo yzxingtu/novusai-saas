@@ -67,11 +67,38 @@ class PriorityEnum(IntEnum):
 
 
 class ResourceScopeEnum(LabeledStrEnum):
-    """资源作用域枚举（知识库、智能体等共用）"""
+    """统一资源作用域枚举（全平台共用：智能体、技能包、知识库、权限、配置、插件、定时任务等）
 
-    TENANT = ("tenant", "enum.resource_scope.tenant")
-    GLOBAL = ("global", "enum.resource_scope.global")
-    ADMIN = ("admin", "enum.resource_scope.admin")
+    5 种作用域覆盖所有业务场景：
+      - ADMIN_ONLY:         仅管理端可见
+      - ALL_TENANTS:        仅租户端可见（全部租户）
+      - ADMIN_AND_ALL:      管理端 + 全部租户（全局共享）
+      - ADMIN_AND_ASSIGNED: 管理端 + 部分租户（需 ResourceTenantAssignment 分配）
+      - ASSIGNED_TENANTS:   部分租户（需 ResourceTenantAssignment 分配）
+
+    注意区分：本枚举是「资源作用域」，与以下概念无关：
+      - JWT Token Scope (TOKEN_SCOPE_ADMIN 等) — 认证身份标识
+      - ASGI Scope (Starlette.types.Scope) — HTTP 请求元数据
+      - BaseRepository._scope_fields — API 端字段过滤标识
+    """
+
+    ADMIN_ONLY = ("admin_only", "enum.scope.admin_only")
+    ALL_TENANTS = ("all_tenants", "enum.scope.all_tenants")
+    ADMIN_AND_ALL = ("admin_and_all", "enum.scope.admin_and_all")
+    ADMIN_AND_ASSIGNED = ("admin_and_assigned", "enum.scope.admin_and_assigned")
+    ASSIGNED_TENANTS = ("assigned_tenants", "enum.scope.assigned_tenants")
+
+
+class SkillBindModeEnum(LabeledStrEnum):
+    """技能包绑定模式枚举
+
+    控制技能包如何绑定到智能体：
+      - AUTO:   自动绑定 — 按 scope 匹配规则自动对所有匹配的 Agent 生效，无需 AgentSkillBinding 记录
+      - MANUAL: 手动绑定 — 需通过 AgentSkillBinding 显式绑定（默认）
+    """
+
+    AUTO = ("auto", "enum.skill_bind_mode.auto")
+    MANUAL = ("manual", "enum.skill_bind_mode.manual")
 
 
 class DeleteLevelEnum(LabeledStrEnum):
@@ -97,6 +124,7 @@ __all__ = [
     "OperationTypeEnum",
     "PriorityEnum",
     "ResourceScopeEnum",
+    "SkillBindModeEnum",
     "DeleteLevelEnum",
     "UserRoleEnum",
 ]

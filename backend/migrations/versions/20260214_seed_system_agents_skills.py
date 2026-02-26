@@ -1,15 +1,13 @@
 """seed_system_agents_skills
 
-Create system-level Agents, Skills, and SkillPackages with is_system=True.
+NOTE: SkillPackages partially superseded by 20260226_0410_merge_system_skill_packages:
+  - 系统聊天技能包 → renamed to 系统核心技能包 (unified package)
+  - 系统向量化技能包 → soft-deleted, skill moved to unified package
+  Agents (system_chat_agent, system_embedding_agent) and skills (llm_chat, llm_embedding)
+  remain valid and are now under the unified package.
+
+Original: Create system-level Agents, Skills, and SkillPackages with is_system=True.
 These records serve as the unified AI dispatch layer (Agent→Skill architecture).
-
-System SkillPackages + Skills (always created):
-  - 系统聊天技能包 → llm_chat (builtin)
-  - 系统向量化技能包 → llm_embedding (builtin)
-
-System Agents (created only if suitable AI models exist):
-  - system_chat_agent → binds llm_chat skill
-  - system_embedding_agent → binds llm_embedding skill
 
 Revision ID: a7b8c9d0e1f2
 Revises: f6a7b8c9d0e1

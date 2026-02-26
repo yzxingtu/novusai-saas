@@ -161,6 +161,10 @@ export function registerRenderers(vxeUI: any) {
           text: $t('common.delete'),
           icon: 'lucide:trash-2',
         },
+        detail: {
+          text: $t('common.detail'),
+          icon: 'lucide:eye',
+        },
         edit: {
           text: $t('common.edit'),
           icon: 'lucide:pencil',

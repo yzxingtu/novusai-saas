@@ -89,13 +89,14 @@ class PeriodicTaskService(GlobalService[PeriodicTask, PeriodicTaskRepository]):
         existing = await self.repo.get_by_name(data.get("name", ""))
         if existing:
             raise BusinessException(
-                message=f"Periodic task with name '{data['name']}' already exists"
+                message=_("periodic_task.error.name_exists", name=data['name'])
             )
-        if data.get("scope") == "tenant" and not data.get("tenant_id"):
+        from app.enums.common import ResourceScopeEnum
+        if data.get("scope") == ResourceScopeEnum.ALL_TENANTS.value and not data.get("tenant_id"):
             raise BusinessException(
-                message="scope 为 tenant 时必须指定 tenant_id"
+                message=_("periodic_task.error.scope_requires_tenant_id")
             )
-        if data.get("scope") != "tenant":
+        if data.get("scope") != ResourceScopeEnum.ALL_TENANTS.value:
             data["tenant_id"] = None
         return data
 

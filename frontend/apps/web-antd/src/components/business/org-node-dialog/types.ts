@@ -3,6 +3,8 @@
  */
 import type { OrgNodeType } from '#/api/admin/organization';
 
+import { $t } from '#/locales';
+
 /** 弹窗模式 */
 export type DialogMode = 'create' | 'edit';
 
@@ -105,21 +107,21 @@ export function getNodeTypeOptions(
   const allOptions: NodeTypeOption[] = [
     {
       value: 'department',
-      label: '部门',
+      label: $t('shared.orgNode.type.department'),
       icon: 'lucide:building-2',
-      description: '组织架构中的部门单位',
+      description: $t('shared.orgNode.type.departmentDesc'),
     },
     {
       value: 'position',
-      label: '岗位',
+      label: $t('shared.orgNode.type.position'),
       icon: 'lucide:briefcase',
-      description: '具体的工作岗位',
+      description: $t('shared.orgNode.type.positionDesc'),
     },
     {
       value: 'role',
-      label: '角色',
+      label: $t('shared.orgNode.type.role'),
       icon: 'lucide:shield',
-      description: '权限分配单位',
+      description: $t('shared.orgNode.type.roleDesc'),
     },
   ];
 
@@ -157,13 +159,13 @@ export const formRules = {
   name: [
     {
       required: true,
-      message: '请输入节点名称',
+      message: $t('shared.orgNode.validation.nameRequired'),
       trigger: 'blur' as const,
       type: 'string' as const,
     },
     {
       max: 50,
-      message: '名称不能超过50个字符',
+      message: $t('shared.orgNode.validation.nameMaxLength'),
       trigger: 'blur' as const,
       type: 'string' as const,
     },
@@ -171,7 +173,7 @@ export const formRules = {
   type: [
     {
       required: true,
-      message: '请选择节点类型',
+      message: $t('shared.orgNode.validation.typeRequired'),
       trigger: 'change' as const,
       type: 'string' as const,
     },
@@ -179,7 +181,7 @@ export const formRules = {
   sortOrder: [
     {
       required: true,
-      message: '请输入排序号',
+      message: $t('shared.orgNode.validation.sortOrderRequired'),
       trigger: 'blur' as const,
       type: 'number' as const,
     },
@@ -187,7 +189,7 @@ export const formRules = {
       type: 'number' as const,
       min: 0,
       max: 9999,
-      message: '排序号需在0-9999之间',
+      message: $t('shared.orgNode.validation.sortOrderRange'),
       trigger: 'blur' as const,
     },
   ],

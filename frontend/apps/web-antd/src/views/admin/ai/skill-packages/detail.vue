@@ -48,8 +48,8 @@ import {
 } from '#/api/admin/skills';
 import { $t } from '#/locales';
 import { formatRelativeTime } from '#/utils/common';
-import { getScopeColor, getSkillTypeColor, getSkillTypeIcon } from '#/utils/ai-helpers';
-import { getScopeText } from './data';
+import { getSkillTypeColor, getSkillTypeIcon } from '#/utils/ai-helpers';
+import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 import { getSkillTypeText } from '../skills/data';
 
 const route = useRoute();

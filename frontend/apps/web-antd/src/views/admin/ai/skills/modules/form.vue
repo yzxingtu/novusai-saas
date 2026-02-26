@@ -62,8 +62,8 @@ function getSearchModeOptions() {
 function getRewriteStrategyOptions() {
   return [
     { label: $t('admin.ai.skill.knowledgeBaseConfig.rewriteOptions.none'), value: 'none' },
-    { label: $t('admin.ai.skill.knowledgeBaseConfig.rewriteOptions.hypothetical'), value: 'hypothetical' },
-    { label: $t('admin.ai.skill.knowledgeBaseConfig.rewriteOptions.step_back'), value: 'step_back' },
+    { label: $t('admin.ai.skill.knowledgeBaseConfig.rewriteOptions.multi'), value: 'multi' },
+    { label: $t('admin.ai.skill.knowledgeBaseConfig.rewriteOptions.hyde'), value: 'hyde' },
   ];
 }
 

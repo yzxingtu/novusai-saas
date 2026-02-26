@@ -79,7 +79,7 @@ class ConfigMeta:
             key="site_name",
             name_key="config.platform.site_name",
             description_key="config.platform.site_name.desc",
-            scope=ConfigScope.PLATFORM,
+            scope=ConfigScope.ADMIN_ONLY,
             value_type=ConfigValueType.STRING,
             default_value="NovusAI SaaS",
             is_required=True,
@@ -92,7 +92,7 @@ class ConfigMeta:
     name_key: str
     """名称的 i18n 键"""
     
-    scope: ConfigScope = ConfigScope.PLATFORM
+    scope: ConfigScope = ConfigScope.ADMIN_ONLY
     """作用域：platform/tenant"""
     
     value_type: ConfigValueType = ConfigValueType.STRING
@@ -191,7 +191,7 @@ class ConfigGroupMeta:
         platform_basic = ConfigGroupMeta(
             code="platform_basic",
             name_key="config.group.platform_basic",
-            scope=ConfigScope.PLATFORM,
+            scope=ConfigScope.ADMIN_ONLY,
             icon="settings",
             configs=[site_name, site_description],
         )
@@ -201,7 +201,7 @@ class ConfigGroupMeta:
         self,
         code: str,
         name_key: str,
-        scope: ConfigScope = ConfigScope.PLATFORM,
+        scope: ConfigScope = ConfigScope.ADMIN_ONLY,
         description_key: str = "",
         icon: str = "",
         parent_code: str = "",

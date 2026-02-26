@@ -131,17 +131,18 @@ class TestSearchCity:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {
-            "results": [
-                {
-                    "name": "Shanghai",
+        mock_resp.json.return_value = [
+            {
+                "lat": "31.23",
+                "lon": "121.47",
+                "display_name": "Shanghai, China",
+                "address": {
+                    "city": "Shanghai",
                     "country": "China",
-                    "admin1": "Shanghai",
-                    "latitude": 31.23,
-                    "longitude": 121.47,
-                }
-            ]
-        }
+                    "state": "Shanghai",
+                },
+            }
+        ]
 
         mock_instance = AsyncMock()
         mock_instance.get.return_value = mock_resp

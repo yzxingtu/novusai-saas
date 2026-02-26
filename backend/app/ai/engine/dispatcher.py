@@ -91,7 +91,11 @@ class ExecutionDispatcher:
 
         try:
             # 1. 加载 Agent
-            agent_repo = AgentRepository(self.db, request.tenant_id)
+            if request.tenant_id == 0:
+                from app.repositories.ai.agent_repository import AdminAgentRepository
+                agent_repo = AdminAgentRepository(self.db)
+            else:
+                agent_repo = AgentRepository(self.db, request.tenant_id)
             agent = await agent_repo.get_by_id(request.agent_id)
             if not agent:
                 raise NotFoundException(message=_("agent.error.not_found"))

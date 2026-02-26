@@ -257,7 +257,7 @@ def run_migrations() -> bool:
             "sqlalchemy.url", settings.DATABASE_URL_SYNC
         )
 
-        command.upgrade(alembic_cfg, "head")
+        command.upgrade(alembic_cfg, "heads")
 
         logger.info("Database migrations completed")
         return True

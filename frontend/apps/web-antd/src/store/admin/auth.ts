@@ -133,7 +133,7 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
     await router.replace({
       path: ADMIN_LOGIN_PATH,
       query: redirect
-        ? { redirect: encodeURIComponent(router.currentRoute.value.fullPath) }
+        ? { redirect: router.currentRoute.value.fullPath }
         : {},
     });
   }

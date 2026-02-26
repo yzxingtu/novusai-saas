@@ -22,8 +22,8 @@ from app.models.system import (
     SystemAgentAssignment,
     Plugin,
     PluginVersion,
-    PluginTenantAssignment,
     PluginLicense,
+    ResourceTenantAssignment,
 )
 
 # 租户级模型
@@ -58,6 +58,7 @@ from app.models.ai import (
     AIModel,
     ProviderApiKey,
     AICallLog,
+    AIQueryLog,
     UsageStat,
     TenantModelRateLimit,
     TenantQuota,
@@ -70,10 +71,18 @@ from app.models.ai import (
     AIActionLog,
     AITablePolicy,
     AITablePolicyOverride,
+    KnowledgeBase,
+    KnowledgeBaseTenantAccess,
+    KnowledgeDocument,
+    DocumentChunk,
     SkillPackage,
     Skill,
     AgentSkillBinding,
+    SkillCallLog,
 )
+
+# 系统模型（补充）
+from app.models.system.email_log import EmailLog
 
 __all__ = [
     # 平台级
@@ -126,13 +135,23 @@ __all__ = [
     "SkillPackage",
     "Skill",
     "AgentSkillBinding",
+    "SkillCallLog",
+    # 知识库
+    "KnowledgeBase",
+    "KnowledgeBaseTenantAccess",
+    "KnowledgeDocument",
+    "DocumentChunk",
+    # AI 查询日志
+    "AIQueryLog",
     # 系统智能体绑定
     "SystemAgentAssignment",
+    # 邮件日志
+    "EmailLog",
     # 插件
     "Plugin",
     "PluginVersion",
-    "PluginTenantAssignment",
     "PluginLicense",
+    "ResourceTenantAssignment",
     # 通知
     "NotificationTemplate",
     "Notification",

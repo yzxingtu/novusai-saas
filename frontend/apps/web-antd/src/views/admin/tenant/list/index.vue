@@ -253,7 +253,7 @@ const {
                 </a>
                 <Tooltip
                   v-if="row.primaryDomain.verificationStatus === 'pending'"
-                  title="未验证"
+                  :title="$t('admin.tenant.unverified')"
                 >
                   <IconifyIcon
                     icon="lucide:alert-circle"
@@ -453,7 +453,7 @@ const {
                   <MenuItem v-if="isDev" @click="onImpersonateInCurrentTab(row)">
                     <div class="flex items-center gap-2 text-warning">
                       <IconifyIcon icon="lucide:arrow-right" class="size-4" />
-                      <span>当前标签页进入(Dev)</span>
+                      <span>{{ $t('admin.tenant.enterCurrentTab') }} (Dev)</span>
                     </div>
                   </MenuItem>
                 </Menu>

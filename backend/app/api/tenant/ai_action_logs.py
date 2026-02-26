@@ -23,7 +23,7 @@ from app.services.ai.action_log_service import AIActionLogService
 @permission_resource(
     resource="ai_action_log",
     name="menu.tenant.ai_action_log",
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=MenuConfig(
         icon="lucide:shield-check",
         path="/ai/action-logs",

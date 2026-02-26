@@ -1,6 +1,9 @@
-"""seed_crud_generator_agent_skill
+"""[NO-OP] seed_crud_generator_agent_skill
 
-Create system-level CRUD Generator SkillPackage, Skill, and Agent.
+Superseded by 20260216_remove_crud_generator_seed_data (all data soft-deleted).
+CRUD Generator is now a standalone plugin managing its own lifecycle.
+
+Original: Create system-level CRUD Generator SkillPackage, Skill, and Agent.
   - SkillPackage: CRUD Generator 技能包 (is_system=true)
   - Skill: crud_generator (type=builtin, is_system=true, builtin_type=crud_generator)
     input_schema: multi_tool 格式，8 个 Tool

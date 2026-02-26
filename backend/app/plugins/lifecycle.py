@@ -9,6 +9,8 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
+import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -23,6 +25,7 @@ from app.plugins.exceptions import (
     PluginDependencyError,
     PluginError,
     PluginInstallError,
+    PluginSecurityError,
 )
 from app.plugins.loader import PLUGINS_DIR, PluginLoader
 from app.plugins.preview import resolve_i18n
@@ -33,6 +36,46 @@ if TYPE_CHECKING:
     from app.models.system.plugin import Plugin
 
 logger = get_logger(__name__)
+
+
+# 插件级分布式锁（防止并发 enable/disable/uninstall）
+_LOCK_PREFIX = "plugin:lifecycle:lock:"
+_LOCK_TTL = 120  # 秒，自动过期防死锁
+_UNLOCK_IF_OWNER_LUA = """
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return redis.call('DEL', KEYS[1])
+end
+return 0
+"""
+
+
+@asynccontextmanager
+async def _plugin_lock(plugin_id: int):
+    """
+    Redis 分布式锁，粒度为单个插件。
+
+    获取失败时抛出 PluginError(409)，调用方无需手动释放。
+    TTL 120s 自动过期防死锁。
+    """
+    from app.core.redis import get_redis_client
+    from app.plugins.exceptions import PluginError
+
+    key = f"{_LOCK_PREFIX}{plugin_id}"
+    client = get_redis_client()
+    owner_token = str(uuid.uuid4())
+    acquired = await client.set(key, owner_token, nx=True, ex=_LOCK_TTL)
+    if not acquired:
+        raise PluginError(
+            message=f"Plugin {plugin_id} is being modified by another operation. Please retry later.",
+            status_code=409,
+        )
+    try:
+        yield
+    finally:
+        try:
+            await client.eval(_UNLOCK_IF_OWNER_LUA, 1, key, owner_token)
+        except Exception as exc:
+            logger.warning("Failed to release plugin lock %s safely: %s", key, exc)
 
 
 class PluginLifecycle:
@@ -66,7 +109,7 @@ class PluginLifecycle:
         from app.plugins.crypto import encrypt_plugin_config
 
         # 1. 复制到 plugins 目录（如果 source 已在 plugins/ 中则跳过）
-        manifest = self._loader.load_manifest(source_path.name)
+        manifest = self._loader.load_manifest_from_path(source_path)
         plugin_name = manifest.name
         target_dir = PLUGINS_DIR / plugin_name
 
@@ -114,6 +157,24 @@ class PluginLifecycle:
             # 3. 校验兼容性 + 插件依赖检查
             from app.enums.plugin import PluginStatusEnum
 
+            # 3a. 平台版本兼容性检查
+            if manifest.compatibility and manifest.compatibility.platform_version != "*":
+                try:
+                    from packaging.specifiers import SpecifierSet
+                    from packaging.version import Version
+                    from app.core.config import settings
+
+                    platform_spec = SpecifierSet(manifest.compatibility.platform_version)
+                    if Version(settings.APP_VERSION) not in platform_spec:
+                        raise PluginInstallError(
+                            message=f"Plugin '{plugin_name}' requires platform version "
+                            f"{manifest.compatibility.platform_version}, "
+                            f"but current is {settings.APP_VERSION}",
+                        )
+                except ImportError:
+                    logger.warning("packaging library not available, skipping version check")
+
+            # 3b. 插件依赖检查（dependencies.plugins — 名称级）
             if manifest.dependencies.plugins:
                 missing: list[str] = []
                 for dep_name in manifest.dependencies.plugins:
@@ -132,7 +193,57 @@ class PluginLifecycle:
                     raise PluginInstallError(
                         message=f"Missing plugin dependencies: {', '.join(missing)}",
                     )
+
+            # 3c. 插件依赖版本检查（compatibility.requires — 含版本约束）
+            if manifest.compatibility and manifest.compatibility.requires:
+                version_errors: list[str] = []
+                for req in manifest.compatibility.requires:
+                    dep_result = await self._db.execute(
+                        select(PluginModel.version, PluginModel.status).where(
+                            PluginModel.name == req.plugin,
+                            PluginModel.is_deleted.is_(False),
+                        )
+                    )
+                    dep_row = dep_result.one_or_none()
+                    if not dep_row:
+                        version_errors.append(f"{req.plugin} (not installed)")
+                    elif dep_row[1] != PluginStatusEnum.ENABLED.value:
+                        version_errors.append(f"{req.plugin} (not enabled)")
+                    elif req.version != "*":
+                        try:
+                            from packaging.specifiers import SpecifierSet
+                            from packaging.version import Version
+
+                            spec = SpecifierSet(req.version)
+                            if Version(dep_row[0]) not in spec:
+                                version_errors.append(
+                                    f"{req.plugin} requires {req.version}, "
+                                    f"installed {dep_row[0]}"
+                                )
+                        except Exception as exc:
+                            logger.warning(
+                                "Version check failed for %s: %s", req.plugin, exc,
+                            )
+                if version_errors:
+                    raise PluginDependencyError(
+                        message=f"Plugin dependency version mismatch: {'; '.join(version_errors)}",
+                    )
+
                 logger.info("Plugin dependency check passed for %s", plugin_name)
+
+            # 3d. 安全扫描（高风险 fail-close）
+            from app.plugins.security_scan import scan_plugin_directory
+
+            scan_target = target_dir if target_dir.is_dir() else source_path
+            scan_result = scan_plugin_directory(scan_target)
+            if scan_result.has_warnings:
+                top_warnings = "; ".join(scan_result.warnings[:5])
+                raise PluginSecurityError(
+                    message=(
+                        f"Plugin '{plugin_name}' blocked by security scan: "
+                        f"{top_warnings}"
+                    ),
+                )
 
             # 4. 安装 Python 依赖
             installed_packages: list[str] = []
@@ -145,7 +256,7 @@ class PluginLifecycle:
             # 5. 执行 Alembic 迁移
             migrations_dir = target_dir / "backend" / "migrations" / "versions"
             if migrations_dir.is_dir():
-                await self._run_alembic_upgrade(plugin_name)
+                await self.run_alembic_upgrade(plugin_name)
                 completed_steps.append("alembic")
 
             # 6. 注册 AI features → SystemAgentAssignment
@@ -159,10 +270,11 @@ class PluginLifecycle:
                     feature_desc = feature.description.get(
                         "zh-CN", feature.description.get("en", "")
                     )
-                    # 检查是否已存在
+                    # 检查全局默认是否已存在（只查 tenant_id IS NULL）
                     existing = await self._db.execute(
                         select(SystemAgentAssignment.id).where(
                             SystemAgentAssignment.feature_code == feature_code,
+                            SystemAgentAssignment.tenant_id.is_(None),
                             SystemAgentAssignment.is_deleted.is_(False),
                         )
                     )
@@ -279,7 +391,12 @@ class PluginLifecycle:
     # ================================================================
 
     async def enable(self, plugin_id: int) -> None:
-        """启用插件"""
+        """启用插件（带分布式锁）"""
+        async with _plugin_lock(plugin_id):
+            await self._enable_impl(plugin_id)
+
+    async def _enable_impl(self, plugin_id: int) -> None:
+        """启用插件实现（调用方须持锁）"""
         from sqlalchemy import select
 
         from app.enums.plugin import PluginStatusEnum
@@ -315,6 +432,7 @@ class PluginLifecycle:
             plugin.icon = manifest.icon or plugin.icon
             plugin.icon_color = manifest.icon_color or plugin.icon_color
             plugin.tags = manifest.tags
+            plugin.ai_requirements = manifest.ai_requirements.model_dump() if manifest.ai_requirements else plugin.ai_requirements
             await self._db.flush()
 
         # 检查依赖插件是否都已启用
@@ -335,80 +453,67 @@ class PluginLifecycle:
                     message=f"Cannot enable '{plugin_name}': dependency plugins not enabled: {', '.join(not_enabled)}. Enable them first.",
                 )
 
+        # 检查 compatibility.requires 版本约束
+        if manifest.compatibility and manifest.compatibility.requires:
+            version_errors: list[str] = []
+            for req in manifest.compatibility.requires:
+                dep_result = await self._db.execute(
+                    select(PluginModel.version, PluginModel.status).where(
+                        PluginModel.name == req.plugin,
+                        PluginModel.is_deleted.is_(False),
+                    )
+                )
+                dep_row = dep_result.one_or_none()
+                if not dep_row:
+                    version_errors.append(f"{req.plugin} (not installed)")
+                elif dep_row[1] != PluginStatusEnum.ENABLED.value:
+                    version_errors.append(f"{req.plugin} (not enabled)")
+                elif req.version != "*":
+                    try:
+                        from packaging.specifiers import SpecifierSet
+                        from packaging.version import Version
+
+                        if Version(dep_row[0]) not in SpecifierSet(req.version):
+                            version_errors.append(
+                                f"{req.plugin} requires {req.version}, "
+                                f"installed {dep_row[0]}"
+                            )
+                    except Exception as exc:
+                        logger.warning(
+                            "Version check failed for %s: %s", req.plugin, exc,
+                        )
+            if version_errors:
+                raise PluginDependencyError(
+                    message=f"Cannot enable '{plugin_name}': version mismatch: {'; '.join(version_errors)}",
+                )
+
         registry = ExtensionRegistry.get_instance()
 
-        # 注册所有扩展点
-        ext = manifest.extensions
+        # 注册所有扩展点（公共函数，与 startup.restore_enabled_plugins 共用）
+        from app.plugins._extension_registrar import (
+            get_failed_extensions,
+            register_all_extensions,
+        )
 
-        # Skills（resolver + executor）
-        for skill_ext in ext.skills:
-            resolver_func = self._load_handler(plugin_name, skill_ext.entry_point + ".resolve") if skill_ext.entry_point else None
-            executor_cls = self._load_plugin_executor(plugin_name, skill_ext.type)
-            if resolver_func:
-                registry.register_skill(
-                    plugin_name, skill_ext.type, resolver_func, executor_cls,
-                )
+        register_all_extensions(registry, manifest, plugin_name)
 
-        # Adapters
-        for adapter_ext in ext.adapters:
-            adapter_cls = self._load_handler(plugin_name, adapter_ext.entry_point)
-            if adapter_cls:
-                registry.register_adapter(plugin_name, adapter_ext.provider_code, adapter_cls)
-
-        # Storage Drivers
-        for storage_ext in ext.storage_drivers:
-            driver_cls = self._load_handler(plugin_name, storage_ext.entry_point)
-            if driver_cls:
-                registry.register_storage_driver(plugin_name, driver_cls)
-
-        # Hooks
-        for hook in ext.hooks:
-            handler = self._load_handler(plugin_name, hook.handler)
-            if handler:
-                registry.register_hook(plugin_name, hook.point, handler, hook.priority)
-
-        # Events
-        for event in ext.events:
-            handler = self._load_handler(plugin_name, event.handler)
-            if handler:
-                registry.register_event(plugin_name, event.event, handler)
-
-        # Webhooks
-        for webhook in ext.webhooks:
-            handler = self._load_handler(plugin_name, webhook.handler)
-            if handler:
-                registry.register_webhook(
-                    plugin_name, webhook.path, handler,
-                    webhook.method, webhook.auth.model_dump(),
-                )
-
-        # Tasks
-        for task_ext in ext.tasks:
-            handler = self._load_handler(plugin_name, task_ext.handler)
-            if handler:
-                registry.register_task(
-                    plugin_name, task_ext.name, handler,
-                    task_ext.schedule_type,
-                    task_ext.cron_expression,
-                    task_ext.interval_seconds,
-                    task_ext.queue,
-                )
-
-        # Notifications
-        for notif_ext in ext.notifications:
-            registry.register_notification(
-                plugin_name, notif_ext.code,
-                notif_ext.title, notif_ext.channels, notif_ext.category,
+        # fail-close：若有关键扩展加载失败，回滚注册并标记 error
+        failed = get_failed_extensions(plugin_name)
+        if failed:
+            registry.unregister_all(plugin_name)
+            failed_summary = "; ".join(
+                f"{f['type']}:{f['entry_point']}" for f in failed[:5]
             )
-
-        # Permissions
-        for perm_ext in ext.permissions:
-            registry.register_permission(
-                plugin_name, perm_ext.code,
-                perm_ext.name, perm_ext.scope, perm_ext.actions,
+            plugin.status = PluginStatusEnum.ERROR.value
+            plugin.error_message = f"Extension load failed: {failed_summary}"
+            plugin.error_count += 1
+            await self._db.flush()
+            raise PluginError(
+                message=f"Cannot enable '{plugin_name}': {len(failed)} extension(s) failed to load: {failed_summary}",
             )
 
         # 自动创建 SkillPackage + Skill 记录（供 Agent 绑定）
+        ext = manifest.extensions
         if ext.skills:
             await self._ensure_plugin_skill_records(
                 plugin_name, manifest, ext.skills, active=True,
@@ -425,7 +530,16 @@ class PluginLifecycle:
             )
             await plugin_cls().on_enable(ctx)
         except Exception as exc:
+            # on_enable 失败：回滚注册，标记 error 状态
             logger.warning("Plugin %s on_enable failed: %s", plugin_name, exc)
+            registry.unregister_all(plugin_name)
+            plugin.status = PluginStatusEnum.ERROR.value
+            plugin.error_message = f"on_enable failed: {exc}"
+            plugin.error_count += 1
+            await self._db.flush()
+            raise PluginError(
+                message=f"Plugin '{plugin_name}' on_enable failed: {exc}",
+            )
 
         # 更新状态
         plugin.status = PluginStatusEnum.ENABLED.value
@@ -434,6 +548,10 @@ class PluginLifecycle:
         plugin.error_count = 0
         await self._db.flush()
 
+        # 清除路由正则缓存（DEBUG 模式下路由可能变化）
+        from app.plugins.api_dispatcher import _compile_route_regex
+        _compile_route_regex.cache_clear()
+
         logger.info("Plugin %s enabled", plugin_name)
 
     # ================================================================
@@ -441,7 +559,12 @@ class PluginLifecycle:
     # ================================================================
 
     async def disable(self, plugin_id: int) -> None:
-        """禁用插件"""
+        """禁用插件（带分布式锁）"""
+        async with _plugin_lock(plugin_id):
+            await self._disable_impl(plugin_id)
+
+    async def _disable_impl(self, plugin_id: int) -> None:
+        """禁用插件实现"""
         from sqlalchemy import select
 
         from app.enums.plugin import PluginStatusEnum
@@ -506,12 +629,19 @@ class PluginLifecycle:
     async def uninstall(
         self, plugin_id: int, confirm_data_delete: bool = False
     ) -> None:
-        """卸载插件（14 步清理）"""
+        """卸载插件（带分布式锁）"""
+        async with _plugin_lock(plugin_id):
+            await self._uninstall_impl(plugin_id, confirm_data_delete)
+
+    async def _uninstall_impl(
+        self, plugin_id: int, confirm_data_delete: bool = False
+    ) -> None:
+        """卸载插件实现（14 步清理）"""
         from sqlalchemy import delete, select
 
         from app.models.system.plugin import Plugin as PluginModel
         from app.models.system.plugin_license import PluginLicense
-        from app.models.system.plugin_tenant_assignment import PluginTenantAssignment
+        from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
         from app.models.system.plugin_version import PluginVersion
         from app.plugins.context_factory import create_plugin_context
         from app.plugins.registry import ExtensionRegistry
@@ -536,9 +666,9 @@ class PluginLifecycle:
                 message=f"Cannot uninstall '{plugin_name}': plugins [{', '.join(dependents)}] depend on it. Uninstall them first.",
             )
 
-        # 2. 禁用（如果启用中）
+        # 2. 禁用（如果启用中）— 直接调用 _disable_impl 避免重复获取锁
         if plugin.status == PluginStatusEnum.ENABLED.value:
-            await self.disable(plugin_id)
+            await self._disable_impl(plugin_id)
 
         # 3. 调用 on_uninstall
         try:
@@ -574,7 +704,7 @@ class PluginLifecycle:
         # 9. Alembic 回退
         if confirm_data_delete:
             try:
-                await self._run_alembic_downgrade(plugin_name)
+                await self.run_alembic_downgrade(plugin_name)
             except Exception as exc:
                 logger.warning(
                     "Plugin %s alembic downgrade failed: %s", plugin_name, exc
@@ -589,8 +719,9 @@ class PluginLifecycle:
             delete(PluginVersion).where(PluginVersion.plugin_id == plugin_id)
         )
         await self._db.execute(
-            delete(PluginTenantAssignment).where(
-                PluginTenantAssignment.plugin_id == plugin_id
+            delete(ResourceTenantAssignment).where(
+                ResourceTenantAssignment.resource_type == "plugin",
+                ResourceTenantAssignment.resource_id == plugin_id,
             )
         )
         await self._db.execute(
@@ -691,20 +822,38 @@ class PluginLifecycle:
         self, plugin_name: str, requirements: list[str]
     ) -> list[str]:
         """安装 Python 依赖到当前 venv"""
+        from packaging.requirements import Requirement
+
         installed: list[str] = []
         for req in requirements:
+            normalized_req = req.strip()
+            try:
+                req_obj = Requirement(normalized_req)
+            except Exception as exc:
+                raise PluginDependencyError(
+                    message=f"Invalid requirement '{normalized_req}': {exc}",
+                ) from exc
+
+            if req_obj.url:
+                raise PluginDependencyError(
+                    message=(
+                        f"Direct URL requirement is not allowed for plugin '{plugin_name}': "
+                        f"{normalized_req}"
+                    ),
+                )
+
             result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", req, "--quiet"],
+                [sys.executable, "-m", "pip", "install", normalized_req, "--quiet"],
                 capture_output=True,
                 text=True,
                 timeout=120,
             )
             if result.returncode != 0:
                 raise PluginDependencyError(
-                    message=f"Failed to install {req}: {result.stderr.strip()}",
+                    message=f"Failed to install {normalized_req}: {result.stderr.strip()}",
                 )
-            installed.append(req)
-            logger.info("Installed %s for plugin %s", req, plugin_name)
+            installed.append(normalized_req)
+            logger.info("Installed %s for plugin %s", normalized_req, plugin_name)
         return installed
 
     async def _uninstall_python_deps(
@@ -741,8 +890,8 @@ class PluginLifecycle:
             else:
                 logger.info("Kept %s (still needed by other plugins)", pkg)
 
-    async def _run_alembic_upgrade(self, plugin_name: str) -> None:
-        """执行插件 Alembic 迁移"""
+    async def run_alembic_upgrade(self, plugin_name: str) -> None:
+        """执行插件 Alembic 迁移（公共接口，供 version_manager 等调用）"""
         branch_label = f"plugin_{plugin_name.replace('-', '_')}"
         result = subprocess.run(
             ["alembic", "upgrade", f"{branch_label}@head"],
@@ -752,12 +901,13 @@ class PluginLifecycle:
             cwd=str(PLUGINS_DIR.parent),
         )
         if result.returncode != 0:
-            logger.warning(
-                "Alembic upgrade for %s: %s", plugin_name, result.stderr.strip()
+            err_output = result.stderr.strip() or result.stdout.strip() or "unknown error"
+            raise PluginInstallError(
+                message=f"Alembic upgrade failed for '{plugin_name}': {err_output}",
             )
 
-    async def _run_alembic_downgrade(self, plugin_name: str) -> None:
-        """回退插件 Alembic 迁移"""
+    async def run_alembic_downgrade(self, plugin_name: str) -> None:
+        """回退插件 Alembic 迁移（公共接口，供 version_manager 等调用）"""
         branch_label = f"plugin_{plugin_name.replace('-', '_')}"
         result = subprocess.run(
             ["alembic", "downgrade", f"{branch_label}@base"],
@@ -781,7 +931,7 @@ class PluginLifecycle:
 
         if "alembic" in completed_steps:
             try:
-                await self._run_alembic_downgrade(plugin_name)
+                await self.run_alembic_downgrade(plugin_name)
             except Exception as exc:
                 logger.warning("Rollback alembic failed: %s", exc)
 
@@ -834,7 +984,7 @@ class PluginLifecycle:
             package = SkillPackage(
                 name=display_name,
                 description=resolve_i18n(manifest.description) if manifest.description else None,
-                scope=ResourceScopeEnum.GLOBAL.value,
+                scope=ResourceScopeEnum.ADMIN_AND_ALL.value,
                 source_plugin=plugin_name,
                 is_system=True,
                 is_active=active,

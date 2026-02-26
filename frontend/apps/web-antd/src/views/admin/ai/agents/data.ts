@@ -7,8 +7,11 @@ import type { AIModelInfo } from '#/api/admin/ai';
 import { inputField, numberField, select, textareaField } from '#/adapter/form';
 import { getAIModelListApi } from '#/api/admin/ai';
 import { getSkillPackageSelectApi } from '#/api/admin/skill-packages';
-import { getTenantSelectApi } from '#/api/admin/tenant';
+import { useScopeFields } from '#/components/business/scope-select';
 import { $t } from '#/locales';
+import { getScopeColor, getScopeOptions as _getScopeOptions } from '#/utils/scope-helpers';
+
+export { getScopeColor };
 
 // ============ 类型辅助（系统/自定义）============
 
@@ -22,20 +25,7 @@ export function getTypeOptions() {
 // ============ Scope 辅助 ============
 
 export function getScopeOptions() {
-  return [
-    { label: $t('admin.ai.agent.scope.tenant'), value: 'tenant' },
-    { label: $t('admin.ai.agent.scope.global'), value: 'global' },
-    { label: $t('admin.ai.agent.scope.admin'), value: 'admin' },
-  ];
-}
-
-export function getScopeColor(scope: string | undefined): string {
-  switch (scope) {
-    case 'global': return 'blue';
-    case 'admin': return 'purple';
-    case 'tenant': return 'green';
-    default: return 'default';
-  }
+  return _getScopeOptions();
 }
 
 function getExecutionModeOptions() {
@@ -72,8 +62,9 @@ export function getFormDefaults() {
   return {
     name: '',
     description: '',
-    scope: 'global',
+    scope: 'admin_and_all',
     tenant_id: null,
+    tenant_ids: [],
     model_id: undefined,
     execution_mode: 'conversation',
     system_prompt: '',
@@ -103,6 +94,8 @@ export interface PkgOption {
   value: number;
   scope?: string;
   sourcePlugin?: string;
+  isSystem?: boolean;
+  bindMode?: string;
 }
 
 export async function getPackageSelectOptions(): Promise<PkgOption[]> {
@@ -116,6 +109,8 @@ export async function getPackageSelectOptions(): Promise<PkgOption[]> {
       value: p.value,
       scope: p.extra?.scope,
       sourcePlugin: p.extra?.source_plugin,
+      isSystem: p.extra?.is_system,
+      bindMode: (p.extra as Record<string, unknown> | undefined)?.bind_mode as string | undefined,
     }));
   } catch {
     return [];
@@ -192,27 +187,9 @@ export function useFormSchema(_isEdit = false, isSystem = false): VbenFormSchema
     textareaField('description', $t('admin.ai.agent.description'), {
       rows: 2,
     }),
-    {
-      ...select('scope', $t('admin.ai.agent.scopeLabel'), {
-        options: getScopeOptions(),
-        required: true,
-        ...locked,
-      }),
-    },
-    {
-      ...select('tenant_id', $t('admin.ai.agent.tenantId'), {
-        api: getTenantSelectApi,
-        params: { is_active: 'true' },
-        placeholder: $t('admin.ai.agent.placeholder.tenantId'),
-      }),
-      ...(isSystem ? { help: $t('admin.ai.agent.systemFieldLocked') } : {}),
-      dependencies: {
-        show(values: Record<string, unknown>) {
-          return values.scope === 'tenant';
-        },
-        triggerFields: ['scope'],
-      },
-    },
+    ...useScopeFields({
+      scopeDisabled: isSystem ? () => true : false,
+    }),
     {
       ...select('model_id', $t('admin.ai.agent.modelName'), {
         api: getChatModelOptions,

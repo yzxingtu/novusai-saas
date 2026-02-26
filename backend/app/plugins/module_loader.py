@@ -139,43 +139,70 @@ def load_plugin_handler(plugin_name: str, handler_dotpath: str) -> Any | None:
     return obj
 
 
+def _find_executor_in_module(mod: Any) -> type | None:
+    """在模块中查找 BaseToolExecutor 子类"""
+    from app.ai.tools.executors.base import BaseToolExecutor
+
+    for _name, obj in inspect.getmembers(mod, inspect.isclass):
+        if issubclass(obj, BaseToolExecutor) and obj is not BaseToolExecutor:
+            return obj
+    return None
+
+
 def load_plugin_executor(plugin_name: str, skill_type: str) -> type | None:
     """
     加载插件的 executor 类。
 
-    约定路径: backend/executors/{skill_type}_executor.py 中的 BaseToolExecutor 子类
+    查找顺序：
+    1. 约定路径: backend/executors/{skill_type}_executor.py
+    2. 回退扫描: backend/executors/ 下所有 *_executor.py 文件
 
     Args:
         plugin_name: 插件名称
-        skill_type: 技能类型 (如 "weather_widget")
+        skill_type: 技能类型 (如 "toolkit", "weather_widget")
 
     Returns:
         BaseToolExecutor 子类，找不到返回 None
     """
+    # 1. 按约定名称查找
     executor_module_name = f"{skill_type.replace('-', '_')}_executor"
     mod = load_plugin_module(plugin_name, f"executors.{executor_module_name}")
-    if mod is None:
+    if mod is not None:
+        try:
+            cls = _find_executor_in_module(mod)
+            if cls:
+                return cls
+        except Exception as exc:
+            logger.warning(
+                "Failed to find executor class for skill_type '%s' in plugin '%s': %s",
+                skill_type, plugin_name, exc,
+            )
+
+    # 2. 回退：扫描 executors 目录下所有 *_executor.py
+    plugins_dir = _get_plugins_dir()
+    executors_dir = plugins_dir / plugin_name / "backend" / "executors"
+    if not executors_dir.is_dir():
         return None
 
-    try:
-        from app.ai.tools.executors.base import BaseToolExecutor
+    for py_file in executors_dir.glob("*_executor.py"):
+        stem = py_file.stem
+        if stem == executor_module_name:
+            continue  # 已经尝试过
+        fallback_mod = load_plugin_module(plugin_name, f"executors.{stem}")
+        if fallback_mod is None:
+            continue
+        try:
+            cls = _find_executor_in_module(fallback_mod)
+            if cls:
+                logger.info(
+                    "Found plugin executor %s in fallback scan for plugin '%s'",
+                    cls.__name__, plugin_name,
+                )
+                return cls
+        except Exception:
+            continue
 
-        for _name, obj in inspect.getmembers(mod, inspect.isclass):
-            if issubclass(obj, BaseToolExecutor) and obj is not BaseToolExecutor:
-                return obj
-
-        logger.warning(
-            "No BaseToolExecutor subclass found in executor module for "
-            "skill_type '%s' in plugin '%s'",
-            skill_type, plugin_name,
-        )
-        return None
-    except Exception as exc:
-        logger.warning(
-            "Failed to find executor class for skill_type '%s' in plugin '%s': %s",
-            skill_type, plugin_name, exc,
-        )
-        return None
+    return None
 
 
 def unload_plugin_modules(plugin_name: str) -> int:

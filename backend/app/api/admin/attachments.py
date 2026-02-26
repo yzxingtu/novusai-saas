@@ -39,7 +39,7 @@ from app.services.tenant.attachment_download_service import AttachmentDownloadSe
 @permission_resource(
     resource="attachment",
     name="menu.admin.attachment",
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:paperclip",
         path="/system/attachments",

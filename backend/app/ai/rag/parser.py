@@ -255,6 +255,58 @@ class CsvParser(DocumentParser):
         return pages
 
 
+class XlsxParser(DocumentParser):
+    """
+    Excel (.xlsx) 解析器
+
+    使用 openpyxl 读取，支持多 Sheet，每行转为 "列名: 值" 格式文本
+    """
+
+    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+        from openpyxl import load_workbook
+
+        wb = load_workbook(file_content, read_only=True, data_only=True)
+        pages: list[ParsedPage] = []
+
+        try:
+            for sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+                rows = list(ws.iter_rows(values_only=True))
+                if not rows:
+                    continue
+
+                # 第一行作为列名
+                headers = [
+                    str(h).strip() if h is not None else f"col_{i}"
+                    for i, h in enumerate(rows[0])
+                ]
+
+                for row_idx, row in enumerate(rows[1:], start=1):
+                    parts = []
+                    for col_idx, val in enumerate(row):
+                        if val is not None and str(val).strip():
+                            col_name = headers[col_idx] if col_idx < len(headers) else f"col_{col_idx}"
+                            parts.append(f"{col_name}: {val}")
+                    if parts:
+                        pages.append(ParsedPage(
+                            content="\n".join(parts),
+                            metadata={
+                                "sheet": sheet_name,
+                                "row_index": row_idx,
+                                "columns": headers,
+                                "source": file_name,
+                            },
+                        ))
+        finally:
+            wb.close()
+
+        logger.info(
+            "XLSX parsed: %s, sheets=%d, rows=%d",
+            file_name, len(wb.sheetnames), len(pages),
+        )
+        return pages
+
+
 class QaPairParser:
     """
     Q&A 对解析器
@@ -289,6 +341,62 @@ class QaPairParser:
                 "source": file_name,
             },
         )]
+
+
+class HtmlParser(DocumentParser):
+    """
+    HTML 文件解析器
+
+    使用 BeautifulSoup 提取正文，过滤 script/style 等非内容标签
+    """
+
+    async def parse(self, file_content: BinaryIO, file_name: str = "") -> list[ParsedPage]:
+        from bs4 import BeautifulSoup
+
+        html_text = file_content.read().decode("utf-8", errors="replace")
+        soup = BeautifulSoup(html_text, "lxml")
+
+        for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
+            tag.decompose()
+
+        pages: list[ParsedPage] = []
+        body = soup.find("body") or soup
+        current_heading: str | None = soup.title.string if soup.title else None
+        current_content: list[str] = []
+
+        for element in body.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "td"]):
+            text = element.get_text(strip=True)
+            if not text:
+                continue
+
+            if element.name and element.name.startswith("h"):
+                if current_content:
+                    pages.append(ParsedPage(
+                        content="\n".join(current_content),
+                        metadata={
+                            "heading": current_heading,
+                            "source": file_name,
+                        },
+                    ))
+                    current_content = []
+                current_heading = text
+            else:
+                current_content.append(text)
+
+        if current_content:
+            pages.append(ParsedPage(
+                content="\n".join(current_content),
+                metadata={
+                    "heading": current_heading,
+                    "source": file_name,
+                },
+            ))
+
+        logger.info(
+            "HTML parsed: %s, sections=%d",
+            file_name, len(pages),
+        )
+        return pages
 
 
 class UrlParser(DocumentParser):
@@ -387,6 +495,8 @@ def get_parser(file_type: str) -> DocumentParser:
         "txt": TxtParser,
         "md": MarkdownParser,
         "csv": CsvParser,
+        "xlsx": XlsxParser,
+        "html": HtmlParser,
         "url": UrlParser,
     }
 
@@ -406,6 +516,8 @@ __all__ = [
     "TxtParser",
     "MarkdownParser",
     "CsvParser",
+    "XlsxParser",
+    "HtmlParser",
     "QaPairParser",
     "UrlParser",
     "get_parser",

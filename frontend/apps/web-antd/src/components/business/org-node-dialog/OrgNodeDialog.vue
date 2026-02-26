@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { FormInstance } from 'ant-design-vue';
+import type { FormInstance, RadioChangeEvent } from 'ant-design-vue';
 
 import type { OrgNodeFormData } from './types';
 
@@ -9,6 +9,7 @@ import type { PermissionNode } from '#/components/business/permission-selector';
 import { computed, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
+import { $t } from '#/locales';
 
 import {
   Alert,
@@ -127,12 +128,12 @@ const api = computed(() => {
 /** 弹窗标题 */
 const dialogTitle = computed(() => {
   if (props.mode === 'edit') {
-    return '编辑节点';
+    return $t('shared.orgNode.editNode');
   }
   if (props.parentName) {
-    return `在「${props.parentName}」下创建节点`;
+    return $t('shared.orgNode.createChildNode', { parent: props.parentName });
   }
-  return '创建根节点';
+  return $t('shared.orgNode.createRootNode');
 });
 
 /** 允许的子节点类型 */
@@ -292,16 +293,16 @@ watch(
     :width="680"
     :confirm-loading="submitting"
     :mask-closable="false"
-    ok-text="保存"
-    cancel-text="取消"
+    :ok-text="$t('shared.orgNode.save')"
+    :cancel-text="$t('shared.orgNode.cancel')"
     @cancel="handleClose"
     @ok="handleSubmit"
   >
     <!-- 不允许创建子节点提示 -->
     <Alert
       v-if="mode === 'create' && !canCreateChild"
-      message="此节点类型不支持创建子节点"
-      description="岗位节点下不能创建子节点"
+      :message="$t('shared.orgNode.cannotCreateChild')"
+      :description="$t('shared.orgNode.cannotCreateChildDesc')"
       type="warning"
       show-icon
       class="mb-4"
@@ -316,11 +317,11 @@ watch(
         :disabled="mode === 'create' && !canCreateChild"
       >
         <!-- 节点类型选择 -->
-        <FormItem label="节点类型" name="type" required>
+        <FormItem :label="$t('shared.orgNode.nodeType')" name="type" required>
           <RadioGroup
             v-model:value="formData.type"
             :disabled="mode === 'edit'"
-            @change="(e: any) => handleTypeChange(e.target.value)"
+            @change="(e: RadioChangeEvent) => handleTypeChange(e.target.value as OrgNodeType)"
           >
             <div class="grid grid-cols-3 gap-3">
               <div
@@ -362,20 +363,20 @@ watch(
         </FormItem>
 
         <!-- 名称 -->
-        <FormItem label="名称" name="name" required>
+        <FormItem :label="$t('shared.orgNode.name')" name="name" required>
           <Input
             v-model:value="formData.name"
-            placeholder="请输入节点名称"
+            :placeholder="$t('shared.orgNode.namePlaceholder')"
             :maxlength="50"
             show-count
           />
         </FormItem>
 
         <!-- 描述 -->
-        <FormItem label="描述" name="description">
+        <FormItem :label="$t('shared.orgNode.description')" name="description">
           <Textarea
             v-model:value="formData.description"
-            placeholder="请输入描述（可选）"
+            :placeholder="$t('shared.orgNode.descriptionPlaceholder')"
             :rows="3"
             :maxlength="200"
             show-count
@@ -385,17 +386,17 @@ watch(
         <!-- 设置行 -->
         <div class="grid grid-cols-3 gap-4">
           <!-- 是否允许成员 -->
-          <FormItem label="允许添加成员" name="allowMembers">
+          <FormItem :label="$t('shared.orgNode.allowMembers')" name="allowMembers">
             <Switch v-model:checked="formData.allowMembers" />
           </FormItem>
 
           <!-- 状态 -->
-          <FormItem label="启用状态" name="isActive">
+          <FormItem :label="$t('shared.orgNode.isActive')" name="isActive">
             <Switch v-model:checked="formData.isActive" />
           </FormItem>
 
           <!-- 排序 -->
-          <FormItem label="排序号" name="sortOrder">
+          <FormItem :label="$t('shared.orgNode.sortOrder')" name="sortOrder">
             <InputNumber
               v-model:value="formData.sortOrder"
               :min="0"
@@ -407,10 +408,10 @@ watch(
 
         <!-- 权限分配 -->
         <Collapse class="mt-4" :bordered="false">
-          <CollapsePanel key="permissions" header="权限分配">
+          <CollapsePanel key="permissions" :header="$t('shared.orgNode.permissions')">
             <template #extra>
               <span class="text-sm text-gray-500">
-                已选 {{ formData.permissionIds.length }} 项
+                {{ $t('shared.orgNode.selectedCount', { count: formData.permissionIds.length }) }}
               </span>
             </template>
             <Spin :spinning="permissionLoading">

@@ -16,10 +16,12 @@ import json
 import time
 from typing import TYPE_CHECKING
 
+from app.core.i18n import _
 from app.core.logging import get_logger
+from app.enums.plugin import PluginLicenseTypeEnum
 
 if TYPE_CHECKING:
-    pass
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
 
@@ -103,9 +105,16 @@ def verify_license_key(
 
     public_key_bytes = _get_public_key_bytes()
     if not public_key_bytes:
-        logger.warning("License verification skipped: no public key configured")
-        # 无公钥时返回基本信息（开发模式）
-        return _parse_payload_without_verify(license_key)
+        from app.core.config import settings
+
+        if settings.DEBUG:
+            logger.warning("License verification skipped: no public key configured (DEBUG mode)")
+            # 开发模式允许无公钥兼容
+            return _parse_payload_without_verify(license_key)
+
+        # 生产模式 fail-close
+        logger.error("License verification failed: no public key configured")
+        return None
 
     try:
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -179,18 +188,28 @@ async def activate_license(
     )
     plugin = result.scalar_one_or_none()
     if not plugin:
-        return {"success": False, "message": "Plugin not found"}
+        return {"success": False, "message": _("plugin.error.not_found")}
 
     # 验证 License Key
     license_info = verify_license_key(license_key, plugin.name)
     if not license_info:
-        return {"success": False, "message": "Invalid license key"}
+        return {"success": False, "message": _("plugin.error.license_invalid")}
+
+    # 检查 License Key 是否已被激活（防止重放）
+    existing_license = await db.execute(
+        select(PluginLicense).where(
+            PluginLicense.license_key == license_key,
+            PluginLicense.is_valid.is_(True),
+        )
+    )
+    if existing_license.scalar_one_or_none():
+        return {"success": False, "message": _("plugin.error.license_already_activated")}
 
     # 写入 PluginLicense 表
     license_record = PluginLicense(
         plugin_id=plugin_id,
         license_key=license_key,
-        license_type="perpetual",
+        license_type=PluginLicenseTypeEnum.PERPETUAL.value,
         version_scope=license_info.get("scope", "*"),
         buyer_email=license_info.get("buyer", ""),
         issued_at=utc_now(),
@@ -207,7 +226,7 @@ async def activate_license(
 
     return {
         "success": True,
-        "message": "License activated",
+        "message": _("plugin.license_activated"),
         "license_info": license_info,
     }
 
@@ -228,7 +247,7 @@ async def create_trial_license(
     license_record = PluginLicense(
         plugin_id=plugin_id,
         license_key=None,
-        license_type="trial",
+        license_type=PluginLicenseTypeEnum.TRIAL.value,
         is_valid=True,
         activated_at=utc_now(),
         trial_expires_at=trial_expires,

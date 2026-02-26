@@ -1,6 +1,9 @@
-"""seed_system_data_intelligence
+"""[NO-OP] seed_system_data_intelligence
 
-Add system built-in data intelligence skill package + skill.
+Superseded by 20260226_0410_merge_system_skill_packages.
+Package 系统数据智能技能包 soft-deleted, skill 平台数据管理 moved to unified 系统核心技能包.
+
+Original: Add system built-in data intelligence skill package + skill.
 - is_system=true so it cannot be deleted
 - config={} (no table_policy_ids) → auto-uses ALL active table policies
 - scope=admin, globally available

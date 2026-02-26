@@ -48,7 +48,7 @@ from app.services.common.role_hierarchy_validator import TenantAdminRoleHierarch
 @permission_resource(
     resource="organization",
     name="menu.tenant.organization",  # i18n key
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=MenuConfig(
         icon="lucide:git-branch",
         path="/system/organization",
@@ -405,7 +405,7 @@ class TenantRoleController(TenantController):
                     perm_result = await db.execute(
                         select(Permission.id).where(
                             Permission.id.in_(data.permission_ids),
-                            Permission.scope.in_(["tenant", "both"]),
+                            Permission.scope.in_(["all_tenants", "admin_and_all"]),
                             Permission.is_enabled.is_(True),
                             Permission.is_deleted.is_(False),
                         )
@@ -510,7 +510,7 @@ class TenantRoleController(TenantController):
                     perm_result = await db.execute(
                         select(Permission.id).where(
                             Permission.id.in_(data.permission_ids),
-                            Permission.scope.in_(["tenant", "both"]),
+                            Permission.scope.in_(["all_tenants", "admin_and_all"]),
                             Permission.is_enabled.is_(True),
                             Permission.is_deleted.is_(False),
                         )

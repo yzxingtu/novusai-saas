@@ -40,18 +40,56 @@ class AgentSkillBindingService:
 
     async def get_agent_packages(self, agent_id: int) -> list[dict[str, Any]]:
         """
-        获取智能体的所有技能包绑定
+        获取智能体的所有技能包绑定（含自动绑定包）
+
+        返回两类包：
+        1. 自动绑定包（is_auto_bound=True）— 来自 bind_mode=auto 的 SkillPackage
+        2. 显式绑定包（is_auto_bound=False）— 来自 AgentSkillBinding
 
         Args:
             agent_id: 智能体 ID
 
         Returns:
-            绑定列表（含 SkillPackage 详情）
+            绑定列表（含 SkillPackage 详情 + is_auto_bound 标记）
         """
+        # 获取 agent 信息用于 auto-bind scope 匹配
+        agent = await self.agent_repo.get_by_id(agent_id)
+
+        # 加载自动绑定包
+        auto_items: list[dict[str, Any]] = []
+        if agent:
+            from app.ai.skills.resolver import _load_auto_bind_packages
+            try:
+                auto_packages = await _load_auto_bind_packages(
+                    self.db,
+                    agent_scope=agent.scope,
+                    tenant_id=self.tenant_id,
+                )
+                for pkg in auto_packages:
+                    auto_items.append({
+                        "id": None,
+                        "agent_id": agent_id,
+                        "package_id": pkg.id,
+                        "enabled": True,
+                        "config_override": None,
+                        "sort_order": -1,
+                        "consent_mode": "auto",
+                        "is_auto_bound": True,
+                        "package_name": pkg.name,
+                        "package_description": pkg.description,
+                        "package_scope": pkg.scope,
+                        "package_bind_mode": getattr(pkg, "bind_mode", "auto"),
+                        "package_is_system": getattr(pkg, "is_system", False),
+                    })
+            except Exception as exc:
+                logger.warning("Failed to load auto-bind packages for agent %d: %s", agent_id, exc)
+
+        # 加载显式绑定
         bindings = await self.binding_repo.get_by_agent_id(agent_id)
-        result = []
+        explicit_pkg_ids = set()
+        explicit_items: list[dict[str, Any]] = []
         for binding in bindings:
-            item = {
+            item: dict[str, Any] = {
                 "id": binding.id,
                 "agent_id": binding.agent_id,
                 "package_id": binding.package_id,
@@ -59,17 +97,25 @@ class AgentSkillBindingService:
                 "config_override": binding.config_override,
                 "sort_order": binding.sort_order,
                 "consent_mode": binding.consent_mode,
+                "is_auto_bound": False,
+                "package_name": None,
+                "package_description": None,
+                "package_scope": None,
+                "package_bind_mode": "manual",
+                "package_is_system": False,
             }
             if binding.package:
-                item["package"] = {
-                    "id": binding.package.id,
-                    "name": binding.package.name,
-                    "description": binding.package.description,
-                    "avatar": binding.package.avatar,
-                    "scope": binding.package.scope,
-                    "is_active": binding.package.is_active,
-                }
-            result.append(item)
+                explicit_pkg_ids.add(binding.package.id)
+                item["package_name"] = binding.package.name
+                item["package_description"] = binding.package.description
+                item["package_scope"] = binding.package.scope
+                item["package_bind_mode"] = getattr(binding.package, "bind_mode", "manual")
+                item["package_is_system"] = getattr(binding.package, "is_system", False)
+            explicit_items.append(item)
+
+        # 合并：auto 包（排除已有 explicit binding 的）+ explicit 包
+        result = [item for item in auto_items if item["package_id"] not in explicit_pkg_ids]
+        result.extend(explicit_items)
         return result
 
     @staticmethod
@@ -90,33 +136,49 @@ class AgentSkillBindingService:
         a = agent_scope
         p = pkg_scope
 
-        if a == ResourceScopeEnum.TENANT.value:
-            if p == ResourceScopeEnum.TENANT.value:
+        if a == ResourceScopeEnum.ALL_TENANTS.value:
+            if p == ResourceScopeEnum.ALL_TENANTS.value:
                 if agent_tenant_id != pkg_tenant_id:
                     raise BusinessException(
                         message=_("agent_skill_binding.error.scope_mismatch")
                     )
-            elif p != ResourceScopeEnum.GLOBAL.value:
+            elif p != ResourceScopeEnum.ADMIN_AND_ALL.value:
                 raise BusinessException(
                     message=_("agent_skill_binding.error.scope_mismatch")
                 )
-        elif a == ResourceScopeEnum.ADMIN.value:
+        elif a == ResourceScopeEnum.ADMIN_ONLY.value:
             if p not in (
-                ResourceScopeEnum.ADMIN.value,
-                ResourceScopeEnum.GLOBAL.value,
+                ResourceScopeEnum.ADMIN_ONLY.value,
+                ResourceScopeEnum.ADMIN_AND_ALL.value,
             ):
                 raise BusinessException(
                     message=_("agent_skill_binding.error.scope_mismatch")
                 )
-        elif a == ResourceScopeEnum.GLOBAL.value:
+        elif a == ResourceScopeEnum.ADMIN_AND_ALL.value:
             if p not in (
-                ResourceScopeEnum.GLOBAL.value,
-                ResourceScopeEnum.ADMIN.value,
-                ResourceScopeEnum.TENANT.value,
+                ResourceScopeEnum.ADMIN_AND_ALL.value,
+                ResourceScopeEnum.ADMIN_ONLY.value,
+                ResourceScopeEnum.ALL_TENANTS.value,
+                ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+                ResourceScopeEnum.ASSIGNED_TENANTS.value,
             ):
                 raise BusinessException(
                     message=_("agent_skill_binding.error.scope_mismatch")
                 )
+        elif a == ResourceScopeEnum.ASSIGNED_TENANTS.value:
+            # 部分租户 agent → 可绑定同类型 + 全局 + 租户包
+            if p not in (
+                ResourceScopeEnum.ASSIGNED_TENANTS.value,
+                ResourceScopeEnum.ALL_TENANTS.value,
+                ResourceScopeEnum.ADMIN_AND_ALL.value,
+                ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+            ):
+                raise BusinessException(
+                    message=_("agent_skill_binding.error.scope_mismatch")
+                )
+        elif a == ResourceScopeEnum.ADMIN_AND_ASSIGNED.value:
+            # 管理端+部分租户 agent → 可绑定所有 scope 的包
+            pass
 
     async def bind_package(
         self,

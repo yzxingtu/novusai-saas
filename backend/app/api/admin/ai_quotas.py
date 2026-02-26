@@ -73,7 +73,7 @@ def _build_quota_response(quota) -> dict:
 @permission_resource(
     resource="ai_quota",
     name="menu.admin.ai_quota",
-    scope=PermissionScope.ADMIN,
+    scope=PermissionScope.ADMIN_ONLY,
     menu=MenuConfig(
         icon="lucide:gauge",
         path="/ai/quotas",

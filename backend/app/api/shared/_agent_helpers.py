@@ -59,6 +59,7 @@ def build_agent_base_item(agent: Any) -> dict[str, Any]:
         "avatar": agent.avatar,
         "description": agent.description,
         "status": agent.status,
+        "scope": agent.scope,
         "execution_mode": agent.execution_mode,
         "is_system": agent.is_system,
         "model_name": model_name,

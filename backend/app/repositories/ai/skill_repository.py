@@ -8,7 +8,13 @@ from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage
 from app.core.base_repository import TenantRepository, BaseRepository
 from app.enums.common import ResourceScopeEnum
+from app.repositories.system.resource_tenant_assignment_repository import assigned_resource_ids_subquery
 from app.schemas.common.query import QuerySpec, FilterRule
+
+_ASSIGNED_SCOPES = (
+    ResourceScopeEnum.ASSIGNED_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+)
 
 
 class SkillRepository(TenantRepository[Skill]):
@@ -24,14 +30,24 @@ class SkillRepository(TenantRepository[Skill]):
     async def get_by_id(
         self, id: int, include_deleted: bool = False
     ) -> Skill | None:
-        """根据 ID 获取技能，允许访问全局技能包下的技能"""
+        """根据 ID 获取技能，允许访问全局 + 已分配技能包下的技能"""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
-            # 检查所属包是否为 global scope
+            # 同租户的技能
+            if instance.tenant_id == self.tenant_id:
+                return instance
+            # 检查所属包的 scope
             if instance.tenant_id is None:
                 pkg = await self.db.get(SkillPackage, instance.package_id)
-                if pkg and pkg.scope == ResourceScopeEnum.GLOBAL.value:
+                if not pkg:
+                    return None
+                if pkg.scope == ResourceScopeEnum.ADMIN_AND_ALL.value:
                     return instance
+                if pkg.scope in _ASSIGNED_SCOPES:
+                    from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
+                    repo = ResourceTenantAssignmentRepository(self.db)
+                    if await repo.check_assignment("skill_package", pkg.id, self.tenant_id):
+                        return instance
                 return None
             if instance.tenant_id != self.tenant_id:
                 return None
@@ -47,29 +63,41 @@ class SkillRepository(TenantRepository[Skill]):
         """
         租户级技能列表查询
 
-        自动注入条件：(tenant_id = X) OR (所属技能包 scope = 'global')
+        自动注入条件：(tenant_id = X) OR (所属技能包 scope = 'admin_and_all')
         """
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
 
-        # 查找所有 global scope 的技能包 ID
+        # 查找 global scope 的技能包 ID
         global_pkg_stmt = select(SkillPackage.id).where(
-            SkillPackage.scope == ResourceScopeEnum.GLOBAL.value,
+            SkillPackage.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
             SkillPackage.is_deleted.is_(False),
         )
         global_pkg_result = await self.db.execute(global_pkg_stmt)
         global_pkg_ids = [row[0] for row in global_pkg_result.all()]
+
+        # 查找已分配给当前租户的技能包 ID
+        assigned_pkg_subq = assigned_resource_ids_subquery("skill_package", self.tenant_id)
+        assigned_pkg_stmt = select(SkillPackage.id).where(
+            SkillPackage.scope.in_(_ASSIGNED_SCOPES),
+            SkillPackage.is_deleted.is_(False),
+            SkillPackage.id.in_(assigned_pkg_subq),
+        )
+        assigned_pkg_result = await self.db.execute(assigned_pkg_stmt)
+        assigned_pkg_ids = [row[0] for row in assigned_pkg_result.all()]
+
+        visible_pkg_ids = set(global_pkg_ids + assigned_pkg_ids)
 
         query = select(self.model)
 
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
-        if global_pkg_ids:
+        if visible_pkg_ids:
             query = query.where(
                 or_(
                     self.model.tenant_id == self.tenant_id,
-                    self.model.package_id.in_(global_pkg_ids),
+                    self.model.package_id.in_(visible_pkg_ids),
                 )
             )
         else:

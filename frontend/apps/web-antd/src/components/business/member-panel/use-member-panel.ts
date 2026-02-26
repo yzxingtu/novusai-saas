@@ -9,6 +9,7 @@ import type { TenantMemberListParams } from '#/api/tenant/organization';
 import { ref, watch } from 'vue';
 
 import { message } from 'ant-design-vue';
+import { $t } from '#/locales';
 
 // Admin API
 import {
@@ -101,7 +102,7 @@ export function useMemberPanel(
       pagination.value.page = response.page;
     } catch (error_) {
       console.error('Failed to load members:', error_);
-      error.value = '加载成员列表失败';
+      error.value = $t('shared.memberPanel.loadFailed');
       members.value = [];
       pagination.value.total = 0;
     } finally {
@@ -115,19 +116,19 @@ export function useMemberPanel(
   async function addMember(adminId: number): Promise<boolean> {
     const id = nodeId();
     if (!id) {
-      message.error('请先选择节点');
+      message.error($t('shared.memberPanel.selectNodeFirst'));
       return false;
     }
 
     operating.value = true;
     try {
       await addMemberApi(id, adminId);
-      message.success('成员添加成功');
+      message.success($t('shared.memberPanel.addSuccess'));
       await loadMembers();
       return true;
     } catch (error_) {
       console.error('Failed to add member:', error_);
-      message.error('添加成员失败');
+      message.error($t('shared.memberPanel.addFailed'));
       return false;
     } finally {
       operating.value = false;
@@ -140,7 +141,7 @@ export function useMemberPanel(
   async function addMembers(adminIds: number[]): Promise<boolean> {
     const id = nodeId();
     if (!id) {
-      message.error('请先选择节点');
+      message.error($t('shared.memberPanel.selectNodeFirst'));
       return false;
     }
 
@@ -154,12 +155,12 @@ export function useMemberPanel(
       for (const adminId of adminIds) {
         await addMemberApi(id, adminId);
       }
-      message.success(`成功添加 ${adminIds.length} 名成员`);
+      message.success($t('shared.memberPanel.batchAddSuccess', { count: adminIds.length }));
       await loadMembers();
       return true;
     } catch (error_) {
       console.error('Failed to add members:', error_);
-      message.error('批量添加成员失败');
+      message.error($t('shared.memberPanel.batchAddFailed'));
       // 即使部分失败也刷新列表
       await loadMembers();
       return false;
@@ -178,20 +179,20 @@ export function useMemberPanel(
     // 优先使用传入的 roleId，否则使用当前选中节点
     const id = targetRoleId ?? nodeId();
     if (!id) {
-      message.error('请先选择节点');
+      message.error($t('shared.memberPanel.selectNodeFirst'));
       return false;
     }
 
     operating.value = true;
     try {
       await removeMemberApi(id, adminId);
-      message.success('成员已移除');
+      message.success($t('shared.memberPanel.removeSuccess'));
       // 从本地列表移除
       members.value = members.value.filter((m) => m.id !== adminId);
       return true;
     } catch (error_) {
       console.error('Failed to remove member:', error_);
-      message.error('移除成员失败');
+      message.error($t('shared.memberPanel.removeFailed'));
       return false;
     } finally {
       operating.value = false;
@@ -210,20 +211,20 @@ export function useMemberPanel(
     // 如果指定了 targetRoleId 则使用它，否则使用当前选中的节点
     const id = targetRoleId ?? nodeId();
     if (!id) {
-      message.error('请先选择节点');
+      message.error($t('shared.memberPanel.selectNodeFirst'));
       return false;
     }
 
     operating.value = true;
     try {
       await setLeaderApi(id, adminId);
-      message.success(adminId ? '已设置为负责人' : '已取消负责人');
+      message.success(adminId ? $t('shared.memberPanel.setLeaderSuccess') : $t('shared.memberPanel.cancelLeaderSuccess'));
       // 重新加载列表以获取最新的 isLeader 状态
       await loadMembers();
       return true;
     } catch (error_) {
       console.error('Failed to set leader:', error_);
-      message.error('设置负责人失败');
+      message.error($t('shared.memberPanel.setLeaderFailed'));
       return false;
     } finally {
       operating.value = false;

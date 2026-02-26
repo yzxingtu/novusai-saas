@@ -15,6 +15,57 @@ from app.enums.plugin import PluginScopeEnum
 I18nText = dict[str, str]
 """多语言文本，如 {"zh-CN": "CRM 管理", "en": "CRM Management"}"""
 
+_FRONTEND_PLUGIN_ROUTE_PREFIXES = ("/admin/plugins/", "/tenant/plugins/")
+_API_HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
+_WEBHOOK_HTTP_METHODS = {"GET", "POST", "PUT", "DELETE"}
+_API_AUTH_VALUES = {"required", "none"}
+_WEBHOOK_AUTH_VALUES = {"none", "hmac", "token", "signature"}
+_PATH_PARAM_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_SOCKETIO_SEGMENT_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _validate_frontend_plugin_route_path(path: str) -> str:
+    """前端插件路由必须位于 /admin/plugins/* 或 /tenant/plugins/* 下。"""
+    if not any(path.startswith(prefix) for prefix in _FRONTEND_PLUGIN_ROUTE_PREFIXES):
+        raise ValueError(
+            "Frontend plugin route path must start with '/admin/plugins/' "
+            "or '/tenant/plugins/'"
+        )
+    return path
+
+
+def _normalize_extension_path(
+    path: str,
+    *,
+    field_name: str,
+    keep_leading_slash: bool,
+    allow_path_params: bool = True,
+) -> str:
+    """扩展点路径规范化与安全校验。"""
+    normalized = (path or "").strip().replace("\\", "/")
+    normalized = normalized.strip("/")
+    if not normalized:
+        raise ValueError(f"{field_name} cannot be empty")
+
+    for segment in normalized.split("/"):
+        if segment in {"", ".", ".."}:
+            raise ValueError(f"{field_name} contains illegal segment '{segment}'")
+
+        if segment.startswith("{") and segment.endswith("}"):
+            if not allow_path_params:
+                raise ValueError(f"{field_name} does not allow path parameters")
+            param_name = segment[1:-1].strip()
+            if not _PATH_PARAM_NAME_PATTERN.match(param_name):
+                raise ValueError(
+                    f"{field_name} contains invalid path parameter name '{param_name}'"
+                )
+            continue
+
+        if "{" in segment or "}" in segment:
+            raise ValueError(f"{field_name} contains malformed parameter segment '{segment}'")
+
+    return f"/{normalized}" if keep_leading_slash else normalized
+
 
 # ============================================================
 # 扩展点子 Schema
@@ -57,6 +108,37 @@ class ApiRouteSchema(BaseModel):
     handler: str
     summary: str = ""
     auth: str = "required"
+    permission: str = ""
+
+    @field_validator("method")
+    @classmethod
+    def validate_method(cls, v: str) -> str:
+        method = v.strip().upper()
+        if method not in _API_HTTP_METHODS:
+            raise ValueError(
+                f"Invalid API method '{v}'. Must be one of: {sorted(_API_HTTP_METHODS)}"
+            )
+        return method
+
+    @field_validator("auth")
+    @classmethod
+    def validate_auth(cls, v: str) -> str:
+        auth = v.strip().lower()
+        if auth not in _API_AUTH_VALUES:
+            raise ValueError(
+                f"Invalid API auth '{v}'. Must be one of: {sorted(_API_AUTH_VALUES)}"
+            )
+        return auth
+
+    @field_validator("path")
+    @classmethod
+    def validate_path(cls, v: str) -> str:
+        return _normalize_extension_path(
+            v,
+            field_name="api.path",
+            keep_leading_slash=False,
+            allow_path_params=True,
+        )
 
 
 class ApiExtensionSchema(BaseModel):
@@ -102,7 +184,7 @@ class PermissionExtensionSchema(BaseModel):
 
     code: str
     name: I18nText = Field(default_factory=dict)
-    scope: str = "tenant"
+    scope: str = "all_tenants"
     actions: list[str] = Field(default_factory=list)
 
 
@@ -117,8 +199,15 @@ class MenuExtensionSchema(BaseModel):
     icon: str = ""
     parent: str | None = None
     sort_order: int = 100
-    scope: str = "tenant"
+    scope: str = "all_tenants"
     component: str = ""
+    title: I18nText = Field(default_factory=dict)
+    hidden: bool = False
+
+    @field_validator("path")
+    @classmethod
+    def validate_path(cls, v: str) -> str:
+        return _validate_frontend_plugin_route_path(v)
 
 
 class HeaderWidgetSchema(BaseModel):
@@ -146,6 +235,11 @@ class StandalonePageSchema(BaseModel):
     component: str
     title: I18nText = Field(default_factory=dict)
 
+    @field_validator("path")
+    @classmethod
+    def validate_path(cls, v: str) -> str:
+        return _validate_frontend_plugin_route_path(v)
+
 
 class NotificationUIExtensionSchema(BaseModel):
     """通知 UI 扩展"""
@@ -161,7 +255,7 @@ class DashboardWidgetSchema(BaseModel):
     component: str
     title: I18nText = Field(default_factory=dict)
     grid: dict = Field(default_factory=lambda: {"w": 6, "h": 4})
-    scope: str = "tenant"
+    scope: str = "all_tenants"
 
 
 class SettingsTabSchema(BaseModel):
@@ -170,7 +264,7 @@ class SettingsTabSchema(BaseModel):
     name: str
     component: str
     title: I18nText = Field(default_factory=dict)
-    scope: str = "tenant"
+    scope: str = "all_tenants"
 
 
 class FrontendSideSchema(BaseModel):
@@ -192,6 +286,55 @@ class FrontendExtensionSchema(BaseModel):
     settings_tabs: list[SettingsTabSchema] = Field(default_factory=list)
     admin: FrontendSideSchema = Field(default_factory=FrontendSideSchema)
     tenant: FrontendSideSchema = Field(default_factory=FrontendSideSchema)
+    npm_dependencies: list[str] = Field(default_factory=list)
+
+
+# ── Socket.IO Namespace ──
+
+
+class SocketIONamespaceSchema(BaseModel):
+    """Socket.IO namespace 扩展声明
+
+    插件可声明一个或多个 Socket.IO namespace，
+    启用时动态注册到 AsyncServer，禁用/卸载时反注册。
+
+    namespace 路径自动添加 /plugin/{plugin_name}/ 前缀，
+    避免与系统内置 namespace（/admin, /tenant, /user）冲突。
+    """
+
+    path: str = Field(
+        ...,
+        description="Namespace 路径（不含 /plugin/{name}/ 前缀，如 'collab'）",
+    )
+    handler: str = Field(
+        ...,
+        description="Handler 模块路径（相对于 backend/，如 'sio.collab_ns.CollabNamespace'）",
+    )
+    auth_required: bool = Field(
+        default=True,
+        description="是否需要 JWT 认证",
+    )
+    auth_scopes: list[str] = Field(
+        default_factory=lambda: ["tenant_admin"],
+        description="允许的 token scope 列表（tenant_admin / tenant_user / admin）",
+    )
+    description: str = ""
+
+    @field_validator("path")
+    @classmethod
+    def validate_path(cls, v: str) -> str:
+        normalized = _normalize_extension_path(
+            v,
+            field_name="socketio.path",
+            keep_leading_slash=False,
+            allow_path_params=False,
+        )
+        for segment in normalized.split("/"):
+            if not _SOCKETIO_SEGMENT_PATTERN.match(segment):
+                raise ValueError(
+                    "socketio.path can only contain letters, numbers, '_' and '-'"
+                )
+        return normalized
 
 
 # ── Webhook + EventBus (v7) ──
@@ -204,6 +347,17 @@ class WebhookAuthSchema(BaseModel):
     secret_config_key: str = ""
     header_name: str = "X-Webhook-Signature"
 
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        auth_type = v.strip().lower()
+        if auth_type not in _WEBHOOK_AUTH_VALUES:
+            raise ValueError(
+                "Invalid webhook auth type "
+                f"'{v}'. Must be one of: {sorted(_WEBHOOK_AUTH_VALUES)}"
+            )
+        return auth_type
+
 
 class WebhookExtensionSchema(BaseModel):
     """Webhook 端点扩展声明"""
@@ -213,6 +367,27 @@ class WebhookExtensionSchema(BaseModel):
     method: str = "POST"
     auth: WebhookAuthSchema = Field(default_factory=WebhookAuthSchema)
     description: str = ""
+
+    @field_validator("method")
+    @classmethod
+    def validate_method(cls, v: str) -> str:
+        method = v.strip().upper()
+        if method not in _WEBHOOK_HTTP_METHODS:
+            raise ValueError(
+                "Invalid webhook method "
+                f"'{v}'. Must be one of: {sorted(_WEBHOOK_HTTP_METHODS)}"
+            )
+        return method
+
+    @field_validator("path")
+    @classmethod
+    def validate_path(cls, v: str) -> str:
+        return _normalize_extension_path(
+            v,
+            field_name="webhook.path",
+            keep_leading_slash=True,
+            allow_path_params=True,
+        )
 
 
 class EventExtensionSchema(BaseModel):
@@ -278,6 +453,7 @@ class ExtensionsSchema(BaseModel):
     frontend: FrontendExtensionSchema = Field(default_factory=FrontendExtensionSchema)
     webhooks: list[WebhookExtensionSchema] = Field(default_factory=list)
     events: list[EventExtensionSchema] = Field(default_factory=list)
+    socketio: list[SocketIONamespaceSchema] = Field(default_factory=list)
 
 
 # ============================================================

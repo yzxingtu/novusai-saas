@@ -371,7 +371,7 @@ class BaseRepository(Generic[ModelType]):
         从模型的 __filterable__ 属性获取可过滤字段，并根据 scope 进行裁剪
         
         Args:
-            scope: 作用域（如 'admin', 'tenant'），用于按端限制字段
+            scope: API 端标识（如 'admin', 'tenant'），用于按端限制可过滤字段
         
         Returns:
             字段名到 SQLAlchemy 列的映射
@@ -1356,13 +1356,13 @@ class TenantRepository(BaseRepository[ModelType]):
     自动在查询中添加 tenant_id 过滤
     """
     
-    def __init__(self, db: AsyncSession, tenant_id: int):
+    def __init__(self, db: AsyncSession, tenant_id: int | None):
         """
         初始化租户仓储
         
         Args:
             db: 异步数据库会话
-            tenant_id: 租户 ID
+            tenant_id: 租户 ID（全局/管理端资源传 None）
         """
         super().__init__(db)
         self.tenant_id = tenant_id
@@ -1411,6 +1411,27 @@ class TenantRepository(BaseRepository[ModelType]):
             if instance.tenant_id != self.tenant_id:
                 return None
         return instance
+
+    async def get_by_ids(
+        self,
+        ids: list[int],
+        include_deleted: bool = False,
+    ) -> list[ModelType]:
+        """根据 ID 列表获取租户级记录，自动过滤非本租户数据"""
+        instances = await super().get_by_ids(ids, include_deleted)
+        return [
+            inst for inst in instances
+            if not hasattr(inst, "tenant_id") or inst.tenant_id == self.tenant_id
+        ]
+
+    async def get_one_by(
+        self,
+        include_deleted: bool = False,
+        **filters: Any,
+    ) -> ModelType | None:
+        """根据条件获取租户级单条记录，自动注入 tenant_id"""
+        filters["tenant_id"] = self.tenant_id
+        return await super().get_one_by(include_deleted=include_deleted, **filters)
     
     async def query_list(
         self,
@@ -1507,6 +1528,55 @@ class TenantRepository(BaseRepository[ModelType]):
 
         result = await self.db.execute(query)
         return result.scalar() or 0
+
+    async def update_many(
+        self,
+        ids: list[int],
+        data: dict[str, Any],
+    ) -> int:
+        """租户级批量更新，自动注入 tenant_id 防止跨租户操作"""
+        if not ids:
+            return 0
+
+        stmt = (
+            update(self.model)
+            .where(
+                self.model.id.in_(ids),
+                self.model.is_deleted.is_(False),
+                self.model.tenant_id == self.tenant_id,
+            )
+            .values(**data)
+        )
+        result = await self.db.execute(stmt)
+        return result.rowcount
+
+    async def delete_many(
+        self,
+        ids: list[int],
+        soft: bool = True,
+    ) -> int:
+        """租户级批量删除，自动注入 tenant_id 防止跨租户操作"""
+        if not ids:
+            return 0
+
+        if soft:
+            stmt = (
+                update(self.model)
+                .where(
+                    self.model.id.in_(ids),
+                    self.model.is_deleted.is_(False),
+                    self.model.tenant_id == self.tenant_id,
+                )
+                .values(is_deleted=True, deleted_at=utc_now())
+            )
+        else:
+            stmt = delete(self.model).where(
+                self.model.id.in_(ids),
+                self.model.tenant_id == self.tenant_id,
+            )
+
+        result = await self.db.execute(stmt)
+        return result.rowcount
 
     async def batch_restore(self, ids: list[int]) -> int:
         """租户级批量恢复，自动注入 tenant_id 防止跨租户操作"""

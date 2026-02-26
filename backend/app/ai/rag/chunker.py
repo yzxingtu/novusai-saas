@@ -67,6 +67,86 @@ class BaseChunker(ABC):
             metadata=metadata,
         )
 
+    def _merge_small_pages(self, pages: list[ParsedPage]) -> list[ParsedPage]:
+        """
+        合并相邻小 page 至 chunk_size 范围内
+
+        当 Parser 输出大量微型 page 时（如 CSV 每行一个 page），
+        逐 page 独立分块会产生碎片化 chunk。此方法在分块前将相邻小 page
+        合并为接近 chunk_size 的大 page，保留语义连贯性。
+
+        合并规则：
+        - 相邻 page 内容拼接（\\n\\n 分隔）不超过 chunk_size → 合并
+        - 超过 chunk_size → 当前累积 page 输出，开始新一轮
+        - 单个 page 已 >= chunk_size → 独立输出，不与其他 page 合并
+
+        Returns:
+            合并后的 ParsedPage 列表
+        """
+        if not pages:
+            return pages
+
+        merged: list[ParsedPage] = []
+        buf_parts: list[str] = []
+        buf_len = 0
+        buf_metadata: dict = {}
+
+        separator = "\n\n"
+        sep_len = len(separator)
+
+        for page in pages:
+            text = page.content.strip()
+            if not text:
+                continue
+
+            # 单个 page 已达 chunk_size，独立输出
+            if len(text) >= self.chunk_size:
+                # 先输出缓冲区
+                if buf_parts:
+                    merged.append(ParsedPage(
+                        content=separator.join(buf_parts),
+                        metadata=buf_metadata,
+                    ))
+                    buf_parts = []
+                    buf_len = 0
+                    buf_metadata = {}
+                merged.append(page)
+                continue
+
+            # 计算合并后长度
+            new_len = buf_len + (sep_len if buf_parts else 0) + len(text)
+
+            if new_len <= self.chunk_size:
+                buf_parts.append(text)
+                buf_len = new_len
+                if not buf_metadata:
+                    buf_metadata = page.metadata.copy()
+            else:
+                # 超出：输出缓冲区，开始新一轮
+                if buf_parts:
+                    merged.append(ParsedPage(
+                        content=separator.join(buf_parts),
+                        metadata=buf_metadata,
+                    ))
+                buf_parts = [text]
+                buf_len = len(text)
+                buf_metadata = page.metadata.copy()
+
+        # 输出剩余
+        if buf_parts:
+            merged.append(ParsedPage(
+                content=separator.join(buf_parts),
+                metadata=buf_metadata,
+            ))
+
+        if len(merged) != len(pages):
+            logger.info(
+                "Merged small pages: %d → %d (chunk_size=%d)",
+                len(pages), len(merged), self.chunk_size,
+            )
+
+        return merged
+
 
 class RecursiveChunker(BaseChunker):
     """
@@ -84,6 +164,9 @@ class RecursiveChunker(BaseChunker):
     SEPARATORS = ["\n\n", "\n", "。", "！", "？", "；", ". ", "! ", "? ", "; ", " "]
 
     def chunk(self, pages: list[ParsedPage]) -> list[ChunkData]:
+        # 预合并：将相邻小 page 合并至接近 chunk_size，避免碎片化 chunk
+        pages = self._merge_small_pages(pages)
+
         chunks: list[ChunkData] = []
         chunk_index = 0
 
@@ -175,6 +258,9 @@ class ParagraphChunker(BaseChunker):
     """
 
     def chunk(self, pages: list[ParsedPage]) -> list[ChunkData]:
+        # 预合并：将相邻小 page 合并至接近 chunk_size，避免碎片化 chunk
+        pages = self._merge_small_pages(pages)
+
         chunks: list[ChunkData] = []
         chunk_index = 0
         recursive = RecursiveChunker(self.chunk_size, self.chunk_overlap)
@@ -234,6 +320,9 @@ class SemanticChunker(BaseChunker):
     SENTENCE_SEPARATORS = re.compile(r"(?<=[。！？.!?])\s*")
 
     def chunk(self, pages: list[ParsedPage]) -> list[ChunkData]:
+        # 预合并：将相邻小 page 合并至接近 chunk_size，避免碎片化 chunk
+        pages = self._merge_small_pages(pages)
+
         chunks: list[ChunkData] = []
         chunk_index = 0
 

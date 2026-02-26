@@ -90,7 +90,7 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
 @permission_resource(
     resource="tenant_config",
     name="menu.tenant.tenant_config",  # i18n key
-    scope=PermissionScope.TENANT,
+    scope=PermissionScope.ALL_TENANTS,
     menu=MenuConfig(
         icon="lucide:sliders-horizontal",
         path="/system-mgmt/configs",
@@ -127,7 +127,7 @@ class TenantConfigController(TenantController):
             
             权限: tenant_config:groups
             """
-            groups = config_registry.get_groups_by_scope(ConfigScope.TENANT)
+            groups = config_registry.get_groups_by_scope(ConfigScope.ALL_TENANTS)
             
             result = []
             for group in groups:
@@ -168,7 +168,7 @@ class TenantConfigController(TenantController):
             """
             # 验证分组存在
             group = config_registry.get_group(group_code)
-            if not group or group.scope != ConfigScope.TENANT:
+            if not group or group.scope != ConfigScope.ALL_TENANTS:
                 raise NotFoundException(
                     message=_("config.group_not_found"),
                     code=ErrorCode.CONFIG_GROUP_NOT_FOUND,
@@ -177,7 +177,7 @@ class TenantConfigController(TenantController):
             # 获取配置值
             config_service = ConfigService(db)
             groups_with_configs = await config_service.get_groups_with_configs(
-                scope=ConfigScope.TENANT,
+                scope=ConfigScope.ALL_TENANTS,
                 tenant_id=current_admin.tenant_id,
             )
             
@@ -228,7 +228,7 @@ class TenantConfigController(TenantController):
             """
             # 验证分组存在
             group = config_registry.get_group(group_code)
-            if not group or group.scope != ConfigScope.TENANT:
+            if not group or group.scope != ConfigScope.ALL_TENANTS:
                 raise NotFoundException(
                     message=_("config.group_not_found"),
                     code=ErrorCode.CONFIG_GROUP_NOT_FOUND,
@@ -258,7 +258,7 @@ class TenantConfigController(TenantController):
             
             # 返回更新后的配置
             groups_with_configs = await config_service.get_groups_with_configs(
-                scope=ConfigScope.TENANT,
+                scope=ConfigScope.ALL_TENANTS,
                 tenant_id=current_admin.tenant_id,
             )
             
