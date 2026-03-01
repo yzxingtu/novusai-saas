@@ -74,12 +74,12 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         )
         validate_result_or_raise(validation_result)
 
-        storage_mode, storage_config, apply_quota = await self._resolve_storage_context()
+        storage_mode, storage_config, _apply_quota = await self._resolve_storage_context()
         temp_path, size, file_hash = await self._save_to_temp(content)
         actual_size = file_size or size
 
         # 检查配额
-        await self._check_quota(actual_size, apply_quota=apply_quota)
+        await self._check_quota(actual_size)
         existing = await self.repo.get_by_hash(file_hash)
         if existing:
             await self._remove_temp_file(temp_path)
@@ -90,7 +90,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
                 "used_bytes": await self.repo.sum_size(),
             }
 
-        storage_path = self._build_storage_path(filename)
+        storage_path = self._build_storage_path(filename, storage_mode)
         upload_result = await self._upload_to_storage(
             storage_config=storage_config,
             storage_path=storage_path,
@@ -143,8 +143,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
                 code=ErrorCode.INVALID_PARAMETER,
             )
         storage_mode = await self._get_storage_mode()
-        apply_quota = storage_mode == "platform"
-        await self._check_quota(total_size, apply_quota=apply_quota)
+        await self._check_quota(total_size)
 
         upload_id = uuid.uuid4().hex
         session = {
@@ -217,8 +216,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
         temp_path, size, file_hash = await self._merge_chunks(upload_id, chunk_count)
         storage_mode = session.get("storage_mode", "platform")
-        apply_quota = storage_mode == "platform"
-        await self._check_quota(size, apply_quota=apply_quota)
+        await self._check_quota(size)
         storage_config = await self._resolve_storage_config(storage_mode)
 
         existing = await self.repo.get_by_hash(file_hash)
@@ -232,7 +230,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
                 "used_bytes": await self.repo.sum_size(),
             }
 
-        storage_path = self._build_storage_path(session["filename"])
+        storage_path = self._build_storage_path(session["filename"], storage_mode)
         upload_result = await self._upload_to_storage(
             storage_config=storage_config,
             storage_path=storage_path,
@@ -288,22 +286,41 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
                 code=ErrorCode.FORBIDDEN,
             )
 
-    async def _check_quota(self, additional_bytes: int, apply_quota: bool) -> None:
+    async def _check_quota(self, additional_bytes: int) -> None:
         """
         检查文件大小与存储配额
+
+        - 单文件大小限制：取 min(套餐 max_file_size_mb, 系统配置 platform_storage_max_file_size_mb)
+        - 存储总量配额（storage_limit_gb）：全局生效，不管存储到哪里
         """
-        if not apply_quota:
-            return
         tenant = await self._get_tenant()
         quota_service = QuotaService(self.db, tenant)
 
-        size_check = quota_service.check_file_size(additional_bytes)
-        if not size_check.allowed:
-            raise BusinessException(
-                message=_("file.file_too_large"),
-                code=ErrorCode.INVALID_PARAMETER,
-            )
+        # 单文件大小：取套餐和系统配置中更严格的那个
+        plan_limit_mb = quota_service.get_quota_value("max_file_size_mb", 0)
 
+        from app.configs.service import ConfigService
+        config_service = ConfigService(self._db)
+        platform_limit_mb = int(
+            await config_service.get_platform_config(
+                "platform_storage_max_file_size_mb", default=100,
+            ) or 100
+        )
+
+        # 确定有效限制（0 表示无限制，取非零中更小的）
+        limits = [v for v in (plan_limit_mb, platform_limit_mb) if v > 0]
+        effective_limit_mb = min(limits) if limits else 0
+
+        if effective_limit_mb > 0:
+            file_size_mb = additional_bytes / (1024 * 1024)
+            if file_size_mb > effective_limit_mb:
+                raise BusinessException(
+                    message=_("file.file_too_large"),
+                    code=ErrorCode.INVALID_PARAMETER,
+                    detail=f"File size {file_size_mb:.1f}MB exceeds limit {effective_limit_mb}MB",
+                )
+
+        # 存储总量全局检查
         current_bytes = await self.repo.sum_size()
         storage_check = await quota_service.check_storage_quota(
             additional_bytes=additional_bytes,
@@ -311,7 +328,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         )
         if not storage_check.allowed:
             raise BusinessException(
-                message=_("error.common.conflict"),
+                message=storage_check.message or _("quota.storage_exceeded"),
                 code=ErrorCode.CONFLICT,
             )
 
@@ -462,13 +479,19 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         resolver = StorageConfigResolver(self._db)
         return await resolver.resolve_config(storage_mode, self.tenant_id)
 
-    def _build_storage_path(self, filename: str) -> str:
+    def _build_storage_path(self, filename: str, storage_mode: str = "platform") -> str:
         """
         构建存储路径
+
+        Mode 1 (platform / shared bucket): tenants/{tenant_id}/{date}/{uuid}.ext
+        Mode 2/3 (tenant independent bucket): {date}/{uuid}.ext
         """
         suffix = Path(filename).suffix if filename else ""
         date_path = utc_now().strftime("%Y/%m/%d")
-        return f"{self.tenant_id}/{date_path}/{uuid.uuid4().hex}{suffix}"
+        unique = uuid.uuid4().hex
+        if storage_mode == "platform":
+            return f"tenants/{self.tenant_id}/{date_path}/{unique}{suffix}"
+        return f"{date_path}/{unique}{suffix}"
 
     def _get_upload_root(self) -> Path:
         """

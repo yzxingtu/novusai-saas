@@ -108,6 +108,9 @@ admin_router.include_router(notification_templates_router)
 # 插件管理
 from app.api.admin.plugins import router as plugins_router, AdminPluginController
 admin_router.include_router(plugins_router)
+# 缓存管理
+from app.api.admin.cache import router as cache_router, AdminCacheController
+admin_router.include_router(cache_router)
 
 
 __all__ = [
@@ -156,4 +159,6 @@ __all__ = [
     "AdminNotificationTemplateController",
     # 插件
     "AdminPluginController",
+    # 缓存管理
+    "AdminCacheController",
 ]

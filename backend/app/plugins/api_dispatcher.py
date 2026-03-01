@@ -515,9 +515,9 @@ def _build_plugin_context(
         try:
             manifest = _get_plugin_loader().load_manifest(plugin_name)
         except Exception:
-            manifest = PluginManifest(**manifest_data)
+            manifest = PluginManifest.model_validate(manifest_data)
     else:
-        manifest = PluginManifest(**manifest_data)
+        manifest = PluginManifest.model_validate(manifest_data)
 
     req_ctx = RequestContext(
         tenant_id=tenant_id,

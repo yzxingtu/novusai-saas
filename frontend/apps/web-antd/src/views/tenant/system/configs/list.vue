@@ -18,6 +18,9 @@ import {
 import { ConfigForm } from '#/components';
 import { $t as t } from '#/locales';
 
+// 存储配置专用页面（懒加载）
+import TenantStoragePanel from '../storage/index.vue';
+
 const groups = ref<ConfigGroupListItemMeta[]>([]);
 const activeGroup = ref<string>('');
 const configs = ref<ConfigItemMeta[]>([]);
@@ -67,8 +70,13 @@ async function loadGroups() {
   try {
     groups.value = await getTenantConfigGroupsApi();
     if (groups.value.length > 0) {
-      activeGroup.value = groups.value[0]!.code;
-      await loadGroupDetail(activeGroup.value);
+      // 按 sort_order 取第一个组
+      const sorted = [...groups.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+      activeGroup.value = sorted[0]!.code;
+      // tenant_storage 组用专用面板，不需要加载配置详情
+      if (activeGroup.value !== 'tenant_storage') {
+        await loadGroupDetail(activeGroup.value);
+      }
     }
   } finally {
     groupLoading.value = false;
@@ -98,12 +106,18 @@ async function onSelectGroup(code: string) {
       cancelText: t('shared.common.cancel'),
       onOk: async () => {
         activeGroup.value = code;
-        await loadGroupDetail(code);
+        // tenant_storage 组用专用面板，不需要加载配置详情
+        if (code !== 'tenant_storage') {
+          await loadGroupDetail(code);
+        }
       },
     });
   } else {
     activeGroup.value = code;
-    await loadGroupDetail(code);
+    // tenant_storage 组用专用面板，不需要加载配置详情
+    if (code !== 'tenant_storage') {
+      await loadGroupDetail(code);
+    }
   }
 }
 
@@ -215,7 +229,9 @@ onBeforeUnmount(() => {
           }}</span>
         </template>
         <template #extra>
+          <!-- 存储配置组的保存按钮在存储组件内部管理，此处隐藏 -->
           <Button
+            v-if="activeGroup !== 'tenant_storage'"
             type="primary"
             v-access:code="['tenant_config:update']"
             :loading="saving"
@@ -230,7 +246,11 @@ onBeforeUnmount(() => {
         </template>
 
         <Spin :spinning="loading">
-          <div v-if="activeGroup" class="max-w-[800px]">
+          <!-- tenant_storage 分组使用专用存储配置组件 -->
+          <TenantStoragePanel
+            v-if="activeGroup === 'tenant_storage'"
+          />
+          <div v-else-if="activeGroup" class="max-w-[800px]">
             <ConfigForm ref="formRef" :configs="configs" />
           </div>
           <Empty

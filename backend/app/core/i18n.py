@@ -82,9 +82,15 @@ def _load_translations(locale: str) -> dict[str, Any]:
             except (json.JSONDecodeError, IOError) as e:
                 logger.warning("Failed to load translation file %s: %s", json_file, e)
 
-    # 2. 扫描插件翻译文件（app/plugins/*/locales/{locale_alias}.json）
-    plugins_dir = LOCALES_DIR.parent / "plugins"
-    if plugins_dir.is_dir():
+    # 2. 扫描插件翻译文件
+    # 两个位置：app/plugins/*/locales/ 和 plugins/*/locales/（已安装插件）
+    _plugin_dirs = [
+        LOCALES_DIR.parent / "plugins",           # app/plugins/
+        LOCALES_DIR.parent.parent / "plugins",     # plugins/（已安装插件）
+    ]
+    for plugins_dir in _plugin_dirs:
+        if not plugins_dir.is_dir():
+            continue
         for plugin_dir in sorted(plugins_dir.iterdir()):
             if not plugin_dir.is_dir():
                 continue

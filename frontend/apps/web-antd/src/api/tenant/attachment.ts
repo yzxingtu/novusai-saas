@@ -393,6 +393,7 @@ export async function smartUploadFile(
   options?: ApiRequestOptions,
 ): Promise<UploadAttachmentResponse> {
   const file = params.file as File;
+  const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
   const CHUNK_THRESHOLD = 10 * 1024 * 1024; // 10MB
 
   // 小文件直接上传
@@ -401,7 +402,6 @@ export async function smartUploadFile(
   }
 
   // 大文件分片上传
-  const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
   const {
     visibility = 'private',
     business_type,

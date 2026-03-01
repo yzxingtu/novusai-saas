@@ -404,14 +404,17 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     def _build_storage_path(self, tenant_id: int, filename: str) -> str:
         """
-        构建存储路径
-        
+        构建存储路径（管理端始终使用平台存储 / 共享 Bucket）
+
         - tenant_id=0: 平台附件，路径为 platform/{date}/{uuid}.ext
-        - tenant_id>0: 租户附件，路径为 {tenant_id}/{date}/{uuid}.ext
+        - tenant_id>0: 租户附件，路径为 tenants/{tenant_id}/{date}/{uuid}.ext
         """
         suffix = Path(filename).suffix if filename else ""
         date_path = utc_now().strftime("%Y/%m/%d")
-        prefix = "platform" if tenant_id == 0 else str(tenant_id)
+        if tenant_id == 0:
+            prefix = "platform"
+        else:
+            prefix = f"tenants/{tenant_id}"
         return f"{prefix}/{date_path}/{uuid.uuid4().hex}{suffix}"
 
     def _get_upload_root(self) -> Path:

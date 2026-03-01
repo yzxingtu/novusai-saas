@@ -62,14 +62,12 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         """更新前校验：scope 保护、名称唯一性"""
         await super()._before_update(id, data)
 
-        from app.enums.common import ResourceScopeEnum
-
         kb = await self.repo.get_by_id(id)
         if not kb:
             raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
-        # 租户端只能修改自有知识库（scope=all_tenants）
-        if kb.scope != ResourceScopeEnum.ALL_TENANTS.value:
+        # 租户端只能修改自有知识库（tenant_id 与当前租户匹配）
+        if kb.tenant_id != self.repo.tenant_id:
             raise BusinessException(message=_("knowledge_base.error.readonly"))
 
         name = data.get("name")
@@ -82,14 +80,12 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
         """删除前：scope 保护、级联软删除文档和分块"""
         await super()._before_delete(id)
 
-        from app.enums.common import ResourceScopeEnum
-
         kb = await self.repo.get_by_id(id)
         if not kb:
             raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
-        # 租户端只能删除自有知识库（scope=all_tenants）
-        if kb.scope != ResourceScopeEnum.ALL_TENANTS.value:
+        # 租户端只能删除自有知识库（tenant_id 与当前租户匹配）
+        if kb.tenant_id != self.repo.tenant_id:
             raise BusinessException(message=_("knowledge_base.error.readonly"))
 
         level = self._default_delete_level
@@ -187,11 +183,19 @@ class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]
 
         result = kb.to_dict()
         result["embedding_model_name"] = None
+        result["vision_model_name"] = None
 
         try:
             model_obj = getattr(kb, "embedding_model", None)
             if model_obj is not None:
                 result["embedding_model_name"] = model_obj.name
+        except AttributeError:
+            pass
+
+        try:
+            vision_obj = getattr(kb, "vision_model", None)
+            if vision_obj is not None:
+                result["vision_model_name"] = vision_obj.name
         except AttributeError:
             pass
 
@@ -349,27 +353,19 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
 
         from app.enums.common import ResourceScopeEnum
 
-        scope = data.get("scope", ResourceScopeEnum.ALL_TENANTS.value)
-        tenant_id = data.get("tenant_id")
+        scope = data.get("scope", ResourceScopeEnum.ADMIN_AND_ALL.value)
 
-        # 兼容旧值 'tenant' 和新值 'all_tenants'：需要 tenant_id 的 scope
-        tenant_scopes = {"tenant", ResourceScopeEnum.ALL_TENANTS.value}
-        if scope in tenant_scopes:
-            if not tenant_id:
-                raise BusinessException(
-                    message=_("knowledge_base.error.tenant_id_required"),
-                )
-        else:
-            data["tenant_id"] = None
+        # all_tenants 现在表示平台全局资源（tenant_id=null），其他 scope 同样不需要 tenant_id
+        data["tenant_id"] = None
 
         # assigned_tenant_ids / tenant_ids 不是模型字段，提取后由 Controller 单独处理
         data.pop("assigned_tenant_ids", None)
         data.pop("tenant_ids", None)
 
-        # 名称唯一性（同 scope + tenant_id 下）
+        # 名称唯一性（同 scope 下）
         name = data.get("name")
         if name:
-            existing = await self._check_name_unique(name, tenant_id=data.get("tenant_id"), scope=scope)
+            existing = await self._check_name_unique(name, tenant_id=None, scope=scope)
             if existing:
                 raise BusinessException(message=_("knowledge_base.error.name_exists"))
 
@@ -377,25 +373,14 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
         """更新前校验：scope 变更时的一致性、名称唯一性"""
         await super()._before_update(id, data)
 
-        from app.enums.common import ResourceScopeEnum
-
         kb = await self.repo.get_by_id(id)
         if not kb:
             raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
         scope = data.get("scope", kb.scope)
-        tenant_id = data.get("tenant_id", kb.tenant_id)
 
-        # 兼容旧值 'tenant' 和新值 'all_tenants'：需要 tenant_id 的 scope
-        tenant_scopes = {"tenant", ResourceScopeEnum.ALL_TENANTS.value}
-        if scope in tenant_scopes:
-            if not tenant_id:
-                raise BusinessException(
-                    message=_("knowledge_base.error.tenant_id_required"),
-                )
-        else:
-            data["tenant_id"] = None
-            tenant_id = None
+        # all_tenants 现在表示平台全局资源（tenant_id=null）
+        data["tenant_id"] = None
 
         # assigned_tenant_ids / tenant_ids 不是模型字段，提取后由 Controller 单独处理
         data.pop("assigned_tenant_ids", None)
@@ -403,7 +388,7 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
 
         name = data.get("name")
         if name:
-            existing = await self._check_name_unique(name, tenant_id=tenant_id, scope=scope, exclude_id=id)
+            existing = await self._check_name_unique(name, tenant_id=None, scope=scope, exclude_id=id)
             if existing:
                 raise BusinessException(message=_("knowledge_base.error.name_exists"))
 

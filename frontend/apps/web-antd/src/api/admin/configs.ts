@@ -3,6 +3,7 @@ import type {
   ConfigGroupMeta,
   ConfigSubmitPayload,
 } from '#/types/config';
+import type { StorageDriverInfo } from '#/types/storage';
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
@@ -69,17 +70,10 @@ export async function testStorageConnectionApi(
   );
 }
 
-/** 获取可用存储驱动列表 */
+/** 获取可用存储驱动列表（含插件启用状态） */
 export async function getStorageDriversApi(
   options?: ApiRequestOptions,
-): Promise<
-  Array<{
-    name: string;
-    display_name: string;
-    config_schema: Record<string, unknown> | null;
-    is_builtin: boolean;
-  }>
-> {
+): Promise<StorageDriverInfo[]> {
   return await requestClient.get('/admin/configs/storage/drivers', options);
 }
 

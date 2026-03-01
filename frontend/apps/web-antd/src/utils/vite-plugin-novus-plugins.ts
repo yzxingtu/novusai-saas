@@ -9,7 +9,6 @@
  *   virtual:novus-plugins-registry   → export BUILTIN_PLUGINS 注册表
  */
 
-import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync, cpSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve, join, dirname } from 'node:path';
@@ -32,6 +31,17 @@ const hostRequire = createRequire(resolve(hostAppRoot, 'package.json'));
 
 function _norm(p: string): string {
   return p.replaceAll('\\', '/');
+}
+
+/**
+ * 从插件目录下的文件路径中提取插件名称
+ * 如 /path/to/plugins/novusdoc-pro/frontend/src/index.ts → 'novusdoc-pro'
+ */
+function _extractPluginName(normalizedFilePath: string, normalizedPluginsDir: string): string | null {
+  if (!normalizedFilePath.startsWith(normalizedPluginsDir)) return null;
+  const rel = normalizedFilePath.slice(normalizedPluginsDir.length).replace(/^\//, '');
+  const firstSlash = rel.indexOf('/');
+  return firstSlash > 0 ? rel.slice(0, firstSlash) : rel || null;
 }
 
 
@@ -88,7 +98,8 @@ export interface NovusPluginsOptions {
 
 /**
  * 检查插件声明的 npm 依赖是否已安装到宿主 node_modules。
- * 缺失时自动执行 pnpm add 安装；安装失败才阻止该插件加载。
+ * 缺失依赖的插件直接标记为 blocked 并跳过编译。
+ * 插件的 npm 依赖由后端启用生命周期负责安装，Vite 侧不自动安装。
  */
 function _checkPluginNpmDeps(
   plugins: PluginEntry[],
@@ -134,30 +145,13 @@ function _checkPluginNpmDeps(
 
       if (missing.length === 0) continue;
 
-      // 自动安装缺失依赖
-      const cmd = `pnpm add ${missing.map((d) => `"${d}"`).join(' ')} --filter=@vben/web-antd`;
+      // 依赖缺失 → 跳过该插件（不自动安装，由后端启用流程负责）
+      blocked.add(p.name);
       cfg.logger.info(
-        `[novus-plugins] Plugin '${p.name}' — auto-installing ${missing.length} missing npm package(s)...`,
+        `[novus-plugins] Plugin '${p.name}' skipped — ${missing.length} npm dep(s) not installed: ` +
+        missing.join(', ') +
+        `. Enable the plugin in admin panel to auto-install.`,
       );
-      try {
-        execSync(cmd, {
-          cwd: hostAppRoot.replace(/[\\/]apps[\\/]web-antd$/, ''),
-          stdio: 'pipe',
-          timeout: 120_000,
-        });
-        cfg.logger.info(
-          `[novus-plugins] Plugin '${p.name}' — npm dependencies installed successfully`,
-        );
-      } catch (installErr) {
-        blocked.add(p.name);
-        const stderr = (installErr as { stderr?: Buffer })?.stderr?.toString().slice(0, 500) ?? '';
-        cfg.logger.error(
-          `[novus-plugins] Plugin '${p.name}' SKIPPED — failed to install npm packages:\n` +
-          missing.map((d) => `  - ${d}`).join('\n') +
-          (stderr ? `\nError: ${stderr}` : '') +
-          `\nManual fix: ${cmd}`,
-        );
-      }
     } catch {
       // plugin.yaml 解析失败不阻塞启动
     }
@@ -243,8 +237,6 @@ export function novusPluginsLoader(options: NovusPluginsOptions = {}): Plugin {
 
       // 插件源码文件中的裸模块说明符（如 @tiptap/vue-3、ant-design-vue）
       // 无法通过标准目录上溯找到宿主 node_modules，需要从宿主上下文解析。
-      // 使用 this.resolve() 从宿主根目录解析，让 Vite 走预构建（optimizeDeps）路径，
-      // 确保 CJS 包（如 ant-design-vue/lib/index.js）被正确转换为 ESM。
       if (
         importer
         && !id.startsWith('.')
@@ -266,7 +258,18 @@ export function novusPluginsLoader(options: NovusPluginsOptions = {}): Plugin {
           try {
             return hostRequire.resolve(id);
           } catch {
-            return null;
+            // 依赖不可 resolve → 自动将该插件标记为 blocked，防止后续编译报错
+            const pluginName = _extractPluginName(normImporter, normPluginsDir);
+            if (pluginName && !blockedPlugins.has(pluginName)) {
+              blockedPlugins.add(pluginName);
+              config.logger.warn(
+                `[novus-plugins] Plugin '${pluginName}' SKIPPED — ` +
+                `cannot resolve '${id}' (dependency not installed). ` +
+                `Enable the plugin and install its dependencies first.`,
+              );
+            }
+            // 返回空模块而非 null，阻止 Vite 继续尝试解析并报错
+            return { id: `\0blocked-dep:${id}`, external: false };
           }
         }
       }
@@ -275,6 +278,11 @@ export function novusPluginsLoader(options: NovusPluginsOptions = {}): Plugin {
     },
 
     load(id) {
+      // 被 blocked 的依赖：返回空模块，防止 Vite 报错
+      if (id.startsWith('\0blocked-dep:')) {
+        return 'export default {};\n';
+      }
+
       // Registry 模块：导出所有有源码的内置插件
       // 每次加载时重新扫描目录，确保卸载插件后不再引用已删除文件
       if (id === RESOLVED_REGISTRY) {

@@ -686,6 +686,10 @@
       "embedding_model_id": "Embedding 模型",
       "embedding_model_name": "Embedding 模型名称",
       "embedding_dimensions": "Embedding 维度",
+      "vision_model_id": "Vision 模型",
+      "vision_model_name": "Vision 模型名称",
+      "extract_images": "提取图片内容",
+      "tenant_ids": "分配租户 ID 列表",
       "chunk_size": "分块大小",
       "chunk_overlap": "分块重叠",
       "chunk_strategy": "分块策略",
@@ -1264,7 +1268,14 @@
         "xlsx": "Excel 表格",
         "html": "HTML 网页",
         "qa": "Q&A 问答对",
-        "url": "网页链接"
+        "url": "网页链接",
+        "image": "图片文件",
+        "pptx": "PPT 演示文稿",
+        "audio": "音频文件"
+      },
+      "vision": {
+        "describe_prompt": "请详细描述这张图片的内容，包括：文字信息、图表数据、表格内容、流程图逻辑、关键视觉元素。用于知识库检索，请尽量提取所有可被检索的信息。",
+        "image_content_label": "图片内容"
       },
       "chunk_strategy": {
         "recursive": "递归分割",
@@ -1280,6 +1291,13 @@
         "none": "不改写",
         "multi": "多查询改写",
         "hyde": "假设文档嵌入"
+      }
+    },
+    "ai_model": {
+      "tier": {
+        "fast": "快速型",
+        "standard": "标准型",
+        "premium": "高级型"
       }
     },
     "codegen": {
@@ -1349,7 +1367,31 @@
     "plugin_version_status": {
       "active": "当前版本",
       "archived": "已归档"
+    },
+    "cache": {
+      "category": {
+        "ai_response": "AI 响应缓存",
+        "ai_schema": "数据库 Schema 缓存",
+        "ai_sql_result": "SQL 查询结果缓存",
+        "ai_action_rate": "Action 频率限制",
+        "ai_action_confirm": "Action 确认缓存",
+        "kb_search": "知识库检索缓存",
+        "ws_config": "WebSocket 配置缓存",
+        "marketplace": "插件市场缓存",
+        "ai_provider_health": "AI 供应商健康状态",
+        "image_cache": "图片处理缓存",
+        "config_memory": "配置内存缓存",
+        "ai_rate_limit": "AI 调用速率限制",
+        "celery_results": "异步任务结果",
+        "captcha": "验证码缓存",
+        "plugin_update": "插件更新检查缓存"
+      }
     }
+  },
+  "cache_management": {
+    "clear_success": "缓存清理完成",
+    "clear_failed": "缓存清理失败",
+    "no_categories": "请选择至少一个缓存分类"
   },
   "plugin": {
     "error": {
@@ -1554,6 +1596,10 @@
       "image_cache_max_variants_per_image": {
         "name": "单图缓存变体上限",
         "desc": "同一张图片允许缓存的最大处理变体数量，超出后返回原图"
+      },
+      "image_cache_max_total_size_mb": {
+        "name": "图片缓存总容量上限",
+        "desc": "图片处理缓存允许占用的最大磁盘空间（MB）"
       },
       "image_process_rate_limit": {
         "name": "图片处理速率限制",

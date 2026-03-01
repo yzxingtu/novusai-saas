@@ -58,13 +58,27 @@ class UsageRecorder:
     ) -> None:
         """
         原子检查速率限制 + 配额（仅租户调用时执行）
+
+        速率限制优先级：租户自定义 > 模型默认值
         """
+        # 确定有效的速率限制：优先使用租户专属配置
+        rpm_limit = ai_model.rpm_limit
+        tpm_limit = ai_model.tpm_limit
+
+        if tenant_id:
+            from app.services.ai.tenant_rate_limit_service import TenantRateLimitService
+            rate_svc = TenantRateLimitService(self.db, tenant_id)
+            effective = await rate_svc.get_effective_rate_limits(model_id)
+            if effective.get("source") == "tenant":
+                rpm_limit = effective["rpm_limit"]
+                tpm_limit = effective["tpm_limit"]
+
         try:
             await RateLimiter.check_and_record(
                 tenant_id=tenant_id,
                 model_id=model_id,
-                rpm_limit=ai_model.rpm_limit,
-                tpm_limit=ai_model.tpm_limit,
+                rpm_limit=rpm_limit,
+                tpm_limit=tpm_limit,
                 estimated_tokens=estimated_tokens,
             )
         except RateLimitExceeded as e:

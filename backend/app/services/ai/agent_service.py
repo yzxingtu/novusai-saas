@@ -182,8 +182,8 @@ class AgentService(TenantService[Agent, AgentRepository]):
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
 
-        # 租户端只能修改自有智能体（scope=all_tenants）
-        if agent.scope != ResourceScopeEnum.ALL_TENANTS.value:
+        # 租户端只能修改自有智能体（即 tenant_id 与当前租户匹配）
+        if agent.tenant_id != self.tenant_id:
             raise BusinessException(message=_("agent.error.system_protected"))
 
         if agent.is_system:
@@ -229,8 +229,8 @@ class AgentService(TenantService[Agent, AgentRepository]):
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
 
-        # 租户端只能删除自有智能体（scope=all_tenants）
-        if agent.scope != ResourceScopeEnum.ALL_TENANTS.value:
+        # 租户端只能删除自有智能体（即 tenant_id 与当前租户匹配）
+        if agent.tenant_id != self.tenant_id:
             raise BusinessException(message=_("agent.error.system_protected"))
 
         if agent.is_system:
@@ -654,31 +654,23 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
 
         from app.enums.common import ResourceScopeEnum
 
-        scope = data.get("scope", ResourceScopeEnum.ALL_TENANTS.value)
-        tenant_id = data.get("tenant_id")
+        scope = data.get("scope", ResourceScopeEnum.ADMIN_AND_ALL.value)
 
-        if scope == ResourceScopeEnum.ALL_TENANTS.value:
-            if not tenant_id:
-                raise BusinessException(
-                    message=_("agent.error.tenant_id_required"),
-                )
-        else:
-            data["tenant_id"] = None
+        # all_tenants 现在表示对全部租户可见，无需指定具体租户
+        data["tenant_id"] = None
 
         # tenant_ids 不是模型字段，由 Controller 通过 resource_tenant_assignments 处理
         data.pop("tenant_ids", None)
 
         name = data.get("name")
         if name:
-            existing = await self.repo.exists_by_name(name, tenant_id=data.get("tenant_id"), scope=scope)
+            existing = await self.repo.exists_by_name(name, tenant_id=None, scope=scope)
             if existing:
                 raise BusinessException(message=_("agent.error.name_exists"))
 
     async def _before_update(self, id: int, data: dict[str, Any]) -> None:
         """更新前校验：scope 变更时的一致性、名称唯一性、系统智能体保护"""
         await super()._before_update(id, data)
-
-        from app.enums.common import ResourceScopeEnum
 
         agent = await self.repo.get_by_id(id)
         if not agent:
@@ -691,23 +683,16 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
                 raise BusinessException(message=_("agent.error.system_protected"))
 
         scope = data.get("scope", agent.scope)
-        tenant_id = data.get("tenant_id", agent.tenant_id)
 
-        if scope == ResourceScopeEnum.ALL_TENANTS.value:
-            if not tenant_id:
-                raise BusinessException(
-                    message=_("agent.error.tenant_id_required"),
-                )
-        else:
-            data["tenant_id"] = None
-            tenant_id = None
+        # all_tenants 现在表示对全部租户可见，无需指定具体租户
+        data["tenant_id"] = None
 
         # tenant_ids 不是模型字段，由 Controller 通过 resource_tenant_assignments 处理
         data.pop("tenant_ids", None)
 
         name = data.get("name")
         if name:
-            existing = await self.repo.exists_by_name(name, tenant_id=tenant_id, scope=scope, exclude_id=id)
+            existing = await self.repo.exists_by_name(name, tenant_id=None, scope=scope, exclude_id=id)
             if existing:
                 raise BusinessException(message=_("agent.error.name_exists"))
 

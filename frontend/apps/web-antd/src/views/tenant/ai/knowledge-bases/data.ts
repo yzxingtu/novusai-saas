@@ -10,6 +10,7 @@ import {
   numberField,
   searchInput,
   select,
+  switchField,
   textareaField,
 } from '#/adapter/form';
 import { getTenantAIModelsApi } from '#/api/tenant/ai';
@@ -59,7 +60,7 @@ export function getDocStatusColor(status: string | undefined): string {
   }
 }
 
-// ============ Embedding 模型下拉 ============
+// ============ Embedding / Vision 模型下拉 ============
 
 export async function getEmbeddingModelOptions() {
   try {
@@ -72,6 +73,24 @@ export async function getEmbeddingModelOptions() {
       }));
   } catch {
     return [];
+  }
+}
+
+export async function getTenantVisionModelOptions() {
+  try {
+    const models = await getTenantAIModelsApi();
+    const visionModels = models
+      .filter((m) => m.type === 'chat' && m.supports_vision)
+      .map((m) => ({
+        label: `${m.name} (${m.provider_name || '-'})`,
+        value: m.id,
+      }));
+    return [
+      { label: $t('tenant.knowledgeBase.field.visionModelAuto'), value: null },
+      ...visionModels,
+    ];
+  } catch {
+    return [{ label: $t('tenant.knowledgeBase.field.visionModelAuto'), value: null }];
   }
 }
 
@@ -167,8 +186,8 @@ export function useColumns<T = KnowledgeBaseItem>(
             icon: 'lucide:eye',
             accessCodes: ['knowledge_base:list'],
           },
-          { code: 'edit', show: (row: KnowledgeBaseItem) => row.scope === 'all_tenants' },
-          { code: 'delete', show: (row: KnowledgeBaseItem) => row.scope === 'all_tenants' },
+          { code: 'edit', show: (row: KnowledgeBaseItem) => row.scope === 'all_tenants' && row.tenant_id !== null },
+          { code: 'delete', show: (row: KnowledgeBaseItem) => row.scope === 'all_tenants' && row.tenant_id !== null },
         ],
       },
       field: 'operation',
@@ -205,6 +224,17 @@ export function useFormSchema(): VbenFormSchema[] {
         required: true,
       }),
       help: $t('tenant.knowledgeBase.help.embeddingModel'),
+    },
+    {
+      ...select('vision_model_id', $t('tenant.knowledgeBase.field.visionModel'), {
+        api: getTenantVisionModelOptions,
+        required: false,
+      }),
+      help: $t('tenant.knowledgeBase.help.visionModel'),
+    },
+    {
+      ...switchField('extract_images', $t('tenant.knowledgeBase.field.extractImages')),
+      help: $t('tenant.knowledgeBase.help.extractImages'),
     },
     {
       ...numberField('chunk_size', $t('tenant.knowledgeBase.field.chunkSize'), {

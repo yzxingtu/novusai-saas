@@ -7,7 +7,7 @@ description:
   zh-CN: "阿里云对象存储服务（OSS）驱动，支持原生图片处理"
   en: "Alibaba Cloud Object Storage Service driver with native image processing"
 author: "NovusAI"
-icon: "lucide:cloud"
+icon: "icon.png"
 icon_color: "#ff6a00"
 scope: admin_and_all
 tags: ["storage", "oss", "aliyun", "cloud"]
@@ -25,11 +25,8 @@ extensions:
       entry_point: "driver.OssStorageDriver"
 
 # Storage credentials are managed by the platform Storage Settings (SystemConfig),
-# NOT here. The driver's config_schema (driver.py) describes required fields.
-# See: M12 Tenant Storage Multi-Mode Architecture (doc #427)
-config_schema:
-  type: object
-  properties: {}
+# NOT here. The driver class (driver.py) has its own config_schema for the storage form.
+# No plugin-level config_schema needed — omitting prevents empty config button in plugin UI.
 
 dependencies:
   python:

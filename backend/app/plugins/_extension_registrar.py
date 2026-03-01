@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 
 from app.core.logging import get_logger
+from app.enums.plugin import FrontendSlotTypeEnum
 
 if TYPE_CHECKING:
     from app.plugins.manifest import ExtensionsSchema, PluginManifest
@@ -36,6 +37,7 @@ def register_all_extensions(
     registry: ExtensionRegistry,
     manifest: PluginManifest,
     plugin_name: str,
+    menu_overrides: dict[str, dict] | None = None,
 ) -> int:
     """
     将 manifest 中声明的所有扩展点注册到 ExtensionRegistry。
@@ -47,10 +49,18 @@ def register_all_extensions(
         registry: 扩展点注册中心实例
         manifest: 插件清单（已解析的 PluginManifest）
         plugin_name: 插件名称
+        menu_overrides: 管理员自定义的菜单位置覆盖
+            格式: {"menu_name": {"parent": "system_maintenance"}}
 
     Returns:
         注册成功的扩展点数量（registry.get_registered_count）
     """
+    # ── T13: 幂等性保证（clean-slate 策略）──
+    # 先清除旧注册，再重新注册所有扩展点。
+    # 确保 enable/restore 重复执行时不会产生重复注入。
+    # unregister_all 在 plugin_name 无注册时为 no-op，安全幂等。
+    registry.unregister_all(plugin_name)
+
     ext: ExtensionsSchema = manifest.extensions
     _failed_extensions[plugin_name] = []
 
@@ -102,6 +112,8 @@ def register_all_extensions(
         handler = _load_handler(plugin_name, event.handler)
         if handler:
             registry.register_event(plugin_name, event.event, handler)
+        else:
+            _record_failure(plugin_name, "event", event.handler)
 
     # Webhooks
     for webhook in ext.webhooks:
@@ -146,6 +158,150 @@ def register_all_extensions(
                 plugin_name, sio_ext.path, handler_class,
                 sio_ext.auth_required, sio_ext.auth_scopes,
             )
+
+    # Frontend Menus
+    overrides = menu_overrides or {}
+    for menu_ext in ext.frontend.menus:
+        override = overrides.get(menu_ext.name, {})
+        scope = menu_ext.scope or "admin_only"
+
+        if scope == "admin_and_all":
+            # admin_and_all → 始终拆分为两条独立权限（管理端 + 租户端），
+            # 分别可配置不同的父级菜单目录
+            admin_parent = override.get("parent", menu_ext.parent)
+            # tenant_parent 未配置时沿用 admin parent（降级）
+            tenant_parent = override.get("tenant_parent", admin_parent)
+            registry.register_menu(
+                plugin_name,
+                name=f"{menu_ext.name}_admin",
+                path=menu_ext.path,
+                icon=menu_ext.icon,
+                parent=admin_parent,
+                sort_order=menu_ext.sort_order,
+                scope="admin_only",
+                component=menu_ext.component,
+                title=menu_ext.title,
+                hidden=menu_ext.hidden,
+            )
+            registry.register_menu(
+                plugin_name,
+                name=f"{menu_ext.name}_tenant",
+                path=menu_ext.path,
+                icon=menu_ext.icon,
+                parent=tenant_parent,
+                sort_order=menu_ext.sort_order,
+                scope="all_tenants",
+                component=menu_ext.component,
+                title=menu_ext.title,
+                hidden=menu_ext.hidden,
+            )
+        else:
+            # admin_only / all_tenants — 单端菜单
+            effective_parent = override.get("parent", menu_ext.parent)
+            registry.register_menu(
+                plugin_name,
+                name=menu_ext.name,
+                path=menu_ext.path,
+                icon=menu_ext.icon,
+                parent=effective_parent,
+                sort_order=menu_ext.sort_order,
+                scope=scope,
+                component=menu_ext.component,
+                title=menu_ext.title,
+                hidden=menu_ext.hidden,
+            )
+
+    # ── T9: Frontend Slots（6 种前端插槽，按 slot_type 分类注册）──
+
+    # header_widgets — 右上角导航栏组件
+    for widget in ext.frontend.header_widgets:
+        registry.register_frontend_slot(
+            plugin_name, FrontendSlotTypeEnum.HEADER_WIDGET.value,
+            name=widget.name,
+            component=widget.component,
+            sort_order=widget.sort_order,
+        )
+
+    # floating_panels — 页面浮动面板（右下角等）
+    for panel in ext.frontend.floating_panels:
+        registry.register_frontend_slot(
+            plugin_name, FrontendSlotTypeEnum.FLOATING_PANEL.value,
+            name=panel.name,
+            component=panel.component,
+            icon=panel.icon,
+            position=panel.position,
+        )
+
+    # standalone_pages — 独立页面路由（/admin/plugins/* 或 /tenant/plugins/*）
+    for page in ext.frontend.standalone_pages:
+        registry.register_frontend_slot(
+            plugin_name, FrontendSlotTypeEnum.STANDALONE_PAGE.value,
+            name=page.name,
+            path=page.path,
+            component=page.component,
+            title=page.title,
+        )
+
+    # notification_ui — 通知中心自定义 UI 组件
+    for notif_ui in ext.frontend.notification_ui:
+        registry.register_frontend_slot(
+            plugin_name, FrontendSlotTypeEnum.NOTIFICATION_UI.value,
+            name=notif_ui.event,
+            component=notif_ui.component,
+        )
+
+    # dashboard_widgets — 仪表板卡片
+    for widget in ext.frontend.dashboard_widgets:
+        registry.register_frontend_slot(
+            plugin_name, FrontendSlotTypeEnum.DASHBOARD_WIDGET.value,
+            name=widget.name,
+            component=widget.component,
+            title=widget.title,
+            grid=widget.grid,
+            scope=widget.scope,
+        )
+
+    # settings_tabs — 系统设置页签
+    for tab in ext.frontend.settings_tabs:
+        registry.register_frontend_slot(
+            plugin_name, FrontendSlotTypeEnum.SETTINGS_TAB.value,
+            name=tab.name,
+            component=tab.component,
+            title=tab.title,
+            scope=tab.scope,
+        )
+
+    # Middleware — ASGI 中间件（注入请求链）
+    for mw_ext in ext.middleware:
+        mw_cls = _load_handler(plugin_name, mw_ext.handler)
+        if mw_cls:
+            registry.register_middleware(
+                plugin_name, mw_ext.name, mw_cls,
+                priority=mw_ext.priority,
+            )
+        else:
+            _record_failure(plugin_name, "middleware", mw_ext.handler)
+
+    # Custom Extensions — 通用自定义扩展点（元数据注入）
+    for custom_ext in ext.custom:
+        registry.register_custom(
+            plugin_name, custom_ext.type, custom_ext.name,
+            data=custom_ext.data,
+            description=custom_ext.description,
+        )
+
+    # Consumers — 消息队列消费者（无调度，由队列消息触发）
+    for consumer_ext in ext.consumers:
+        handler = _load_handler(plugin_name, consumer_ext.handler)
+        if handler:
+            registry.register_consumer(
+                plugin_name, consumer_ext.name, handler,
+                queue=consumer_ext.queue,
+                max_retries=consumer_ext.max_retries,
+                retry_delay=consumer_ext.retry_delay,
+            )
+        else:
+            _record_failure(plugin_name, "consumer", consumer_ext.handler)
 
     # 清理空失败列表
     if not _failed_extensions[plugin_name]:

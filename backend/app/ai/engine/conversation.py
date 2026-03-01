@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 import time
-from typing import TYPE_CHECKING, AsyncIterator, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, AsyncIterator, Awaitable, Callable
 
 from fastapi.responses import StreamingResponse
 
@@ -87,11 +87,12 @@ class ConversationEngine(BaseEngine):
                 tools=tools or None,
                 tenant_id=request.tenant_id,
                 user_id=request.user_id,
+                route_result=prep.route_result,
             )
 
             total_tokens = response.total_tokens or 0
 
-            # 4. 工具调用循环
+            # 4. 工具调用循环（传入 route_result 保持模型一致）
             tool_results = []
             if response.tool_calls and tools:
                 response, tool_results, total_tokens = await self._handle_tool_calls(
@@ -100,6 +101,7 @@ class ConversationEngine(BaseEngine):
                     response=response,
                     tools=tools,
                     request=request,
+                    route_result=prep.route_result,
                 )
 
             # 5. 追加最终 assistant 消息
@@ -203,6 +205,7 @@ class ConversationEngine(BaseEngine):
         agent: Agent,
         messages: list[ChatMessage],
         tenant_id: int | None = None,
+        route_result: Any | None = None,
     ) -> AsyncIterator[ChatChunk]:
         """
         通过 adapter 获取流式 ChatChunk（含限流/配额/计量保护）
@@ -214,18 +217,26 @@ class ConversationEngine(BaseEngine):
             agent: 智能体
             messages: 消息列表
             tenant_id: 租户 ID（用于获取 API Key）
+            route_result: ModelRouter 路由结果（影响 provider/model 选择）
 
         Yields:
             ChatChunk
         """
-        model_obj = agent.model
-        provider_code = (
-            model_obj.provider.code if model_obj and model_obj.provider else ""
-        )
-        model_code = model_obj.code if model_obj else ""
+        # 路由覆写优先
+        if route_result is not None and getattr(route_result, "is_overridden", False):
+            provider_code: str = route_result.provider_code or ""
+            model_code: str = route_result.model_code or ""
+            is_vision: bool = "vision" in (route_result.reason or "")
+        else:
+            model_obj = agent.model
+            provider_code = (
+                model_obj.provider.code if model_obj and model_obj.provider else ""
+            )
+            model_code = model_obj.code if model_obj else ""
+            is_vision = model_obj.supports_vision if model_obj else False
 
         # 非视觉模型：移除图片附件，避免 API 报错
-        if model_obj and not model_obj.supports_vision:
+        if is_vision is False:
             for msg in messages:
                 if msg.attachments:
                     msg.attachments = [
@@ -233,6 +244,9 @@ class ConversationEngine(BaseEngine):
                     ]
                     if not msg.attachments:
                         msg.attachments = None
+
+        # 为了兼容现有限流/配额逻辑，保留 model_obj 引用
+        model_obj = agent.model
 
         # 通过 gateway 获取 provider 和 API Key
         provider, api_key = await self.gateway.get_provider_and_key(

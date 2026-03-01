@@ -255,11 +255,13 @@ class AnalyticsService:
         tenant_id: int | None = None,
     ) -> list[dict[str, Any]]:
         """
-        延迟分布（按区间聚合）
+        延迟分布（按区间聚合，单次 CASE WHEN 查询）
 
         Returns:
             [{"range": "0-200ms", "count": 150}, {"range": "200-500ms", "count": 80}, ...]
         """
+        from sqlalchemy import case, literal_column
+
         buckets = [
             (0, 200, "0-200ms"),
             (200, 500, "200-500ms"),
@@ -274,17 +276,26 @@ class AnalyticsService:
             filters.append(AICallLog.tenant_id == tenant_id)
         filters.append(AICallLog.latency_ms.isnot(None))
 
-        result_list = []
+        columns = []
         for low, high, label in buckets:
-            stmt = select(func.count(AICallLog.id)).where(
-                *filters,
-                AICallLog.latency_ms >= low,
-                AICallLog.latency_ms < high,
-            )
-            count = (await self.db.execute(stmt)).scalar() or 0
-            result_list.append({"range": label, "count": count})
+            col = func.sum(
+                case(
+                    (
+                        (AICallLog.latency_ms >= low) & (AICallLog.latency_ms < high),
+                        literal_column("1"),
+                    ),
+                    else_=literal_column("0"),
+                )
+            ).label(label)
+            columns.append(col)
 
-        return result_list
+        stmt = select(*columns).where(*filters)
+        row = (await self.db.execute(stmt)).one()
+
+        return [
+            {"range": label, "count": int(row[i] or 0)}
+            for i, (_, _, label) in enumerate(buckets)
+        ]
 
     # ── 成功率趋势 ──
 

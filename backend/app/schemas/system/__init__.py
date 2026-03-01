@@ -53,6 +53,12 @@ from app.schemas.system.task_log import (
     TaskRetryRequest,
     ActiveTaskResponse,
 )
+from app.schemas.system.cache import (
+    CacheCategorySummary,
+    CacheSummaryResponse,
+    CacheClearRequest,
+    CacheClearResponse,
+)
 from app.schemas.system.periodic_task import (
     PeriodicTaskResponse,
     PeriodicTaskCreateRequest,
@@ -105,6 +111,11 @@ __all__ = [
     "TaskStatsResponse",
     "TaskRetryRequest",
     "ActiveTaskResponse",
+    # Cache
+    "CacheCategorySummary",
+    "CacheSummaryResponse",
+    "CacheClearRequest",
+    "CacheClearResponse",
     # PeriodicTask
     "PeriodicTaskResponse",
     "PeriodicTaskCreateRequest",

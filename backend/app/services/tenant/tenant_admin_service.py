@@ -117,7 +117,25 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
                 message=_("tenant_admin.phone_exists"),
                 code=ErrorCode.ADMIN_PHONE_EXISTS,
             )
-        
+
+        # 检查管理员数配额
+        from sqlalchemy.orm import selectinload
+        from app.models.tenant.tenant import Tenant
+        from app.services.tenant.quota_service import QuotaService
+        tenant_obj = (await self.db.execute(
+            select(Tenant)
+            .options(selectinload(Tenant.tenant_plan))
+            .where(Tenant.id == self.tenant_id)
+        )).scalar_one_or_none()
+        if tenant_obj:
+            quota_svc = QuotaService(self.db, tenant_obj)
+            quota_check = await quota_svc.check_admin_quota()
+            if not quota_check.allowed:
+                raise BusinessException(
+                    message=quota_check.message or _("quota.admins_exceeded"),
+                    code=ErrorCode.CONFLICT,
+                )
+
         # 如果是租户所有者，获取根节点
         root_node = None
         if is_owner:

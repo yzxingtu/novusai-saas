@@ -3,6 +3,7 @@ import type {
   ConfigGroupMeta,
   ConfigSubmitPayload,
 } from '#/types/config';
+import type { StorageDriverInfo, TenantStorageStatus } from '#/types/storage';
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
@@ -61,13 +62,22 @@ export async function testTenantStorageConnectionApi(
 /** 获取租户允许的存储驱动列表 */
 export async function getTenantStorageDriversApi(
   options?: ApiRequestOptions,
-): Promise<
-  Array<{
-    name: string;
-    display_name: string;
-    config_schema: Record<string, unknown> | null;
-    is_builtin: boolean;
-  }>
-> {
+): Promise<StorageDriverInfo[]> {
   return await requestClient.get('/tenant/configs/storage/drivers', options);
 }
+
+/** 获取租户存储状态 */
+export async function getTenantStorageStatusApi(
+  options?: ApiRequestOptions,
+): Promise<TenantStorageStatus> {
+  return await requestClient.get('/tenant/configs/storage/status', options);
+}
+
+/** 保存租户存储配置（Mode 3） */
+export async function saveTenantStorageConfigApi(
+  data: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.put('/tenant/configs/storage', data, options);
+}
+

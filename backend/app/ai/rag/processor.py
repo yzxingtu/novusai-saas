@@ -19,6 +19,9 @@ logger = LogManager.get_logger("ai.rag.processor")
 PROGRESS_KEY_TEMPLATE = "kb:doc:progress:{document_id}"
 PROGRESS_TTL = 3600
 
+# 需要 Vision 描述的图片文件类型（用户显式上传时必须描述，不受 extract_images 控制）
+_IMAGE_DOC_TYPES: frozenset[str] = frozenset({"image", "jpg", "jpeg", "png", "webp", "gif"})
+
 
 async def _report_progress(
     document_id: int,
@@ -73,12 +76,15 @@ async def _clear_progress(document_id: int) -> None:
         pass
 
 
-async def _load_and_parse_document(db, doc, tenant_id) -> list:
+async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
     """
-    加载并解析文档内容，返回 ParsedPage 列表
+    加载并解析文档内容，返回非空 ParsedPage 列表
 
     统一处理 QA 类型和文件类型的文档加载逻辑，
     避免在解析/分块/嵌入阶段重复相同代码。
+
+    当 kb.extract_images=True 时自动实例化 VisionDescriber 并注入解析器。
+    空内容的 ParsedPage（content=''）会被过滤，不进入分块阶段。
     """
     from sqlalchemy import select
 
@@ -98,14 +104,26 @@ async def _load_and_parse_document(db, doc, tenant_id) -> list:
             file_name=doc.file_name,
         )
 
+    # 按需实例化 VisionDescriber：
+    # 1. kb.extract_images=True → PDF/文档中的嵌入图片也需要提取描述
+    # 2. 文件类型本身是图片（用户显式上传）→ 无论 extract_images 设置，都必须描述
+    _needs_vision = (
+        kb is not None and getattr(kb, "extract_images", False)
+    ) or doc.file_type in _IMAGE_DOC_TYPES
+    vision_describer = None
+    if _needs_vision:
+        from app.ai.rag.vision_describer import VisionDescriber
+        vision_describer = VisionDescriber(db, tenant_id)
+
     # 直接文本输入：content 存储在 metadata_extra 中，无 attachment
     if not doc.attachment_id and doc.metadata_extra:
         import io
-        parser = get_parser(doc.file_type)
-        return await parser.parse(
+        parser = get_parser(doc.file_type, vision_describer=vision_describer, knowledge_base=kb)
+        pages = await parser.parse(
             io.BytesIO(doc.metadata_extra.encode("utf-8")),
             doc.file_name,
         )
+        return [p for p in pages if p.content.strip()]
 
     if not doc.attachment_id:
         raise ValueError("Document has no attachment")
@@ -147,8 +165,9 @@ async def _load_and_parse_document(db, doc, tenant_id) -> list:
     driver = storage_manager.get_driver(storage_config)
     file_content = await driver.get(attachment.path)
 
-    parser = get_parser(doc.file_type)
-    return await parser.parse(file_content, doc.file_name)
+    parser = get_parser(doc.file_type, vision_describer=vision_describer, knowledge_base=kb)
+    pages = await parser.parse(file_content, doc.file_name)
+    return [p for p in pages if p.content.strip()]
 
 
 async def get_document_progress(document_id: int) -> dict | None:
@@ -259,7 +278,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     await db.commit()
                     await _report_progress(document_id, "parsing", 0, tenant_id=tenant_id, kb_id=kb.id)
 
-                    pages = await _load_and_parse_document(db, doc, tenant_id)
+                    pages = await _load_and_parse_document(db, doc, tenant_id, kb=kb)
 
                     await _report_progress(document_id, "parsing", 100, tenant_id=tenant_id, kb_id=kb.id)
 
@@ -274,7 +293,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
 
                     # 如果跳过了解析（从 chunking 恢复），需要重新解析
                     if pages is None:
-                        pages = await _load_and_parse_document(db, doc, tenant_id)
+                        pages = await _load_and_parse_document(db, doc, tenant_id, kb=kb)
 
                     chunker = get_chunker(
                         strategy=kb.chunk_strategy,
@@ -302,7 +321,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     # 需要重新生成 chunk_data_list（从 embedding 恢复）
                     if chunk_data_list is None:
                         # 重新解析+分块（跳过 embedding 阶段已完成的部分）
-                        pages = await _load_and_parse_document(db, doc, tenant_id)
+                        pages = await _load_and_parse_document(db, doc, tenant_id, kb=kb)
 
                         chunker = get_chunker(
                             strategy=kb.chunk_strategy,

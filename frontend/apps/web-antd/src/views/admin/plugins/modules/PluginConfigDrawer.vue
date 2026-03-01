@@ -9,9 +9,12 @@ import type { PluginInfo, PluginLicenseInfo, PluginVersionInfo } from '#/api/adm
 import { computed, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
+import { preferences } from '@vben/preferences';
 
 import {
   Button,
+  Collapse,
+  CollapsePanel,
   Descriptions,
   DescriptionsItem,
   Drawer,
@@ -28,6 +31,8 @@ import {
   Tag,
   Upload,
 } from 'ant-design-vue';
+
+import { MarkdownRender } from '#/components/business/markdown-render';
 
 import {
   activatePluginLicenseApi,
@@ -111,13 +116,15 @@ interface ConfigField {
   maximum?: number;
 }
 
+const currentLocale = computed(() => preferences.app.locale || 'zh-CN');
+
 const configSchemaFields = computed<ConfigField[]>(() => {
   const manifest = plugin.value?.manifest as Record<string, unknown> | undefined;
   const schema = manifest?.config_schema as Record<string, unknown> | undefined;
   if (!schema || !schema.properties) return [];
 
   const props = schema.properties as Record<string, Record<string, unknown>>;
-  const locale = 'zh-CN';
+  const locale = currentLocale.value;
 
   return Object.entries(props).map(([key, prop]) => {
     const titleRaw = prop.title;
@@ -142,23 +149,40 @@ const configSchemaFields = computed<ConfigField[]>(() => {
   });
 });
 
+const hasConfigToShow = computed(() => {
+  if (configSchemaFields.value.length > 0) return true;
+  const cfg = plugin.value?.config;
+  return !!cfg && Object.keys(cfg).length > 0;
+});
+
 async function open(row: PluginInfo) {
   plugin.value = row;
   visible.value = true;
   configJson.value = JSON.stringify(row.config || {}, null, 2);
   configValues.value = { ...(row.config || {}) };
+  loadDetail(row.id);
   loadVersions(row.id);
   loadTenantAssignments(row.id);
   loadLicense(row.id);
+}
+
+async function loadDetail(id: number) {
+  try {
+    const res = await getPluginDetailApi(id, { locale: currentLocale.value }) as unknown as { data: PluginInfo };
+    const data = res?.data ?? (res as unknown as PluginInfo);
+    plugin.value = data;
+    configJson.value = JSON.stringify(data.config || {}, null, 2);
+    configValues.value = { ...(data.config || {}) };
+  } catch {
+    //
+  }
 }
 
 async function reload() {
   if (!plugin.value) return;
   loading.value = true;
   try {
-    const res = await getPluginDetailApi(plugin.value.id) as unknown as { data: PluginInfo };
-    plugin.value = res?.data ?? (res as unknown as PluginInfo);
-    configJson.value = JSON.stringify(plugin.value.config || {}, null, 2);
+    await loadDetail(plugin.value.id);
   } catch {
     //
   } finally {
@@ -484,6 +508,23 @@ defineExpose({ open });
         </DescriptionsItem>
       </Descriptions>
 
+      <!-- README 文档（可折叠） -->
+      <div v-if="plugin.readme" class="mb-6">
+        <Collapse :bordered="false" class="!bg-transparent">
+          <CollapsePanel key="readme" class="!rounded-lg !border !border-border/60">
+            <template #header>
+              <div class="flex items-center gap-1.5">
+                <IconifyIcon icon="lucide:book-open" class="size-4 text-muted-foreground" />
+                <span class="text-sm font-medium">{{ $t('admin.plugin.readme') }}</span>
+              </div>
+            </template>
+            <div class="max-h-[400px] overflow-y-auto">
+              <MarkdownRender :content="plugin.readme" />
+            </div>
+          </CollapsePanel>
+        </Collapse>
+      </div>
+
       <!-- 能力授权 -->
       <div v-if="plugin.granted_capabilities?.length" class="mb-6">
         <h4 class="mb-2 text-sm font-medium">{{ $t('admin.plugin.capabilitiesLabel') }}</h4>
@@ -630,8 +671,8 @@ defineExpose({ open });
         </div>
       </div>
 
-      <!-- 配置编辑 -->
-      <div class="mb-6">
+      <!-- 配置编辑（仅在有 config_schema 或已有配置时显示） -->
+      <div v-if="hasConfigToShow" class="mb-6">
         <div class="mb-2 flex items-center justify-between">
           <h4 class="text-sm font-medium">{{ $t('admin.plugin.tab.config') }}</h4>
           <Button type="primary" size="small" :loading="configSaving" @click="onSaveConfig">
@@ -685,7 +726,7 @@ defineExpose({ open });
           </Form>
         </template>
 
-        <!-- 无 schema 时显示 JSON 编辑器 -->
+        <!-- 无 schema 但有已存配置时显示 JSON 编辑器 -->
         <template v-else>
           <Input.TextArea v-model:value="configJson" :rows="6" class="font-mono !text-xs" />
         </template>

@@ -7,6 +7,7 @@ import type { EchartsUIType } from '@vben/plugins/echarts';
 import { ref, watch } from 'vue';
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
+import { Empty } from 'ant-design-vue';
 
 interface DistItem {
   model_name: string;
@@ -43,5 +44,6 @@ watch(() => props.data, render, { immediate: true });
 </script>
 
 <template>
-  <EchartsUI ref="chartRef" height="320px" />
+  <EchartsUI v-if="data.length" ref="chartRef" height="320px" />
+  <Empty v-else :image="Empty.PRESENTED_IMAGE_SIMPLE" />
 </template>

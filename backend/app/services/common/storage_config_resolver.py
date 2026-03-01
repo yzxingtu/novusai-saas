@@ -34,14 +34,15 @@ class StorageConfigResolver:
 
     async def get_storage_mode(self, tenant_id: int) -> str:
         """
-        Get tenant effective storage mode.
+        获取租户有效存储模式
 
-        Resolution:
-        1. If tenant_storage_mode == 'custom' AND both platform + tenant
-           self-config switches are on → 'custom'
-        2. If tenant_storage_mode == 'admin_override' AND tenant has
-           a driver configured → 'admin_override'
-        3. Otherwise → 'platform'
+        解析规则：
+        1. tenant_storage_mode == 'custom' 且该租户的 self_config 开关打开 → 'custom'
+        2. tenant_storage_mode == 'admin_override' 且该租户有驱动配置 → 'admin_override'
+        3. 其他情况 → 'platform'
+
+        注意：自主配置权限是逐租户控制的（tenant_storage_self_config_enabled），
+        不依赖全局开关，管理员可以为个别租户单独开启。
 
         Returns:
             'platform' | 'admin_override' | 'custom'
@@ -54,13 +55,10 @@ class StorageConfigResolver:
         mode = str(mode)
 
         if mode == "custom":
-            platform_enabled = await self._config_service.get_platform_config(
-                "platform_tenant_storage_self_config_enabled", default=False
-            )
             tenant_enabled = await self._config_service.get_tenant_config(
                 tenant_id, "tenant_storage_self_config_enabled", default=False
             )
-            if platform_enabled and tenant_enabled:
+            if tenant_enabled:
                 return "custom"
             return "platform"
 
@@ -197,11 +195,12 @@ class StorageConfigResolver:
 
         Returns:
             (storage_mode, storage_config, apply_quota)
-            apply_quota is True when using platform storage
+            apply_quota is always True — storage quota from tenant plan
+            applies globally regardless of storage mode
         """
         storage_mode = await self.get_storage_mode(tenant_id)
         storage_config = await self.resolve_config(storage_mode, tenant_id)
-        apply_quota = storage_mode == "platform"
+        apply_quota = True
         return storage_mode, storage_config, apply_quota
 
     async def resolve_for_attachment(
@@ -210,7 +209,18 @@ class StorageConfigResolver:
         """
         Resolve storage config for an existing attachment
 
-        Used by download service to determine which driver to use.
+        Core principle: always use the driver that matches the attachment's
+        original storage, regardless of the tenant's current storage mode.
+        This ensures that files uploaded under a previous storage config
+        (e.g. local) remain accessible after the platform/tenant switches
+        to a different storage driver (e.g. S3/OSS).
+
+        Resolution order:
+        1. driver == "local" → always return local StorageConfig
+        2. driver matches tenant config → use tenant config
+        3. driver matches platform config → use platform config
+        4. driver registered but no matching config → construct minimal config
+        5. driver not registered → raise error
 
         Args:
             driver: The driver recorded on the attachment
@@ -219,15 +229,51 @@ class StorageConfigResolver:
         Returns:
             StorageConfig matching the attachment's storage driver
         """
+        # Local files always live on local disk, regardless of current config
         if driver == "local":
-            return await self.resolve_platform_config()
+            from app.storage import LOCAL_STORAGE_ROOT
+            return StorageConfig(
+                driver="local",
+                root_path=str(LOCAL_STORAGE_ROOT),
+                base_url=None,
+                options={},
+            )
+
+        # For cloud drivers, try tenant config first if applicable
         if tenant_id:
             storage_mode = await self.get_storage_mode(tenant_id)
             if storage_mode in ("custom", "admin_override"):
-                config = await self.resolve_tenant_config(tenant_id)
-                self._check_driver_available(config)
-                return config
+                try:
+                    config = await self.resolve_tenant_config(tenant_id)
+                    if config.driver == driver:
+                        self._check_driver_available(config)
+                        return config
+                except BusinessException:
+                    pass
+
+        # Fall back to platform config
         config = await self.resolve_platform_config()
+        if config.driver == driver:
+            self._check_driver_available(config)
+            return config
+
+        # Driver mismatch: attachment was stored on a different driver
+        # than the current config. This happens after a storage migration.
+        # Still try to use platform config if it was the original source.
+        # As last resort, check if the driver is at least registered.
+        from app.storage.manager import storage_manager
+        if storage_manager.has_driver(driver):
+            # Driver is available (plugin enabled) but no matching config.
+            # Return platform config — the caller will get a driver instance
+            # but it won't have the right credentials for this driver.
+            # Log a warning so admins are aware of the config gap.
+            from app.core.logging import LogManager
+            logger = LogManager.get_logger("storage")
+            logger.warning(
+                "Attachment driver '%s' does not match current config driver '%s'. "
+                "File may not be accessible. Consider migrating old attachments.",
+                driver, config.driver,
+            )
         self._check_driver_available(config)
         return config
 

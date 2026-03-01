@@ -12,6 +12,9 @@ from app.core.logging import LogManager
 from app.core.i18n import _
 from app.enums.ai import CallStatusEnum
 from app.models.ai import AICallLog
+from app.models.ai.model import AIModel
+from app.models.ai.provider import AIProvider
+from app.models.tenant.tenant import Tenant
 
 
 logger = LogManager.get_logger("ai.call_log")
@@ -22,6 +25,71 @@ class AICallLogRepository(BaseRepository[AICallLog]):
     AI 调用日志 Repository
     """
     model = AICallLog
+
+    async def query_list_with_names(self, spec) -> tuple[list[dict], int]:
+        """
+        查询调用日志列表，附带 model_name / provider_name / tenant_name
+
+        通过批量查 ID→Name 映射，避免逐行 JOIN 性能问题
+        """
+        items, total = await self.query_list(spec)
+
+        if not items:
+            return [], total
+
+        # 收集所有关联 ID
+        model_ids = {i.model_id for i in items if i.model_id}
+        provider_ids = {i.provider_id for i in items if i.provider_id}
+        tenant_ids = {i.tenant_id for i in items if i.tenant_id}
+
+        # 批量查映射
+        model_map: dict[int, str] = {}
+        if model_ids:
+            rows = (await self.db.execute(
+                select(AIModel.id, AIModel.name).where(AIModel.id.in_(model_ids))
+            )).all()
+            model_map = {r.id: r.name for r in rows}
+
+        provider_map: dict[int, str] = {}
+        if provider_ids:
+            rows = (await self.db.execute(
+                select(AIProvider.id, AIProvider.name).where(AIProvider.id.in_(provider_ids))
+            )).all()
+            provider_map = {r.id: r.name for r in rows}
+
+        tenant_map: dict[int, str] = {}
+        if tenant_ids:
+            rows = (await self.db.execute(
+                select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
+            )).all()
+            tenant_map = {r.id: r.name for r in rows}
+
+        # 组装结果
+        result = []
+        for item in items:
+            d = item.to_dict() if hasattr(item, "to_dict") else {
+                "id": item.id,
+                "tenant_id": item.tenant_id,
+                "model_id": item.model_id,
+                "provider_id": item.provider_id,
+                "request_type": item.request_type,
+                "input_tokens": item.input_tokens,
+                "output_tokens": item.output_tokens,
+                "total_tokens": item.total_tokens,
+                "cost": float(item.cost or 0),
+                "latency_ms": item.latency_ms,
+                "status": item.status,
+                "error_message": item.error_message,
+                "user_id": item.user_id,
+                "user_type": item.user_type,
+                "created_at": item.created_at,
+            }
+            d["model_name"] = model_map.get(item.model_id, "-")
+            d["provider_name"] = provider_map.get(item.provider_id, "-")
+            d["tenant_name"] = tenant_map.get(item.tenant_id, "-")
+            result.append(d)
+
+        return result, total
     
     async def get_statistics(
         self,

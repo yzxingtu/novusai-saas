@@ -170,6 +170,61 @@ class TaskExtensionSchema(BaseModel):
     description: str = ""
 
 
+class MiddlewareExtensionSchema(BaseModel):
+    """插件 ASGI 中间件扩展声明
+
+    插件可声明一个 ASGI 中间件，在应用启动时注入请求链。
+    中间件在插件启用时注册，禁用时标记为待优化（完全移除需重启服务）。
+
+    handler 必须是一个 ASGI 中间件工厂类，接收 app 参数并返回中间件实例：
+
+    ```python
+    class MyMiddleware:
+        def __init__(self, app): self.app = app
+        async def __call__(self, scope, receive, send): ...
+    ```
+    """
+
+    name: str
+    handler: str
+    priority: int = 50
+    description: str = ""
+
+
+class CustomExtensionSchema(BaseModel):
+    """通用自定义扩展点声明
+
+    为插件提供对未预见扩展类型的支持。
+    框架将 custom 扩展的元数据存入内存注册表，
+    插件可通过 PluginContext 或其他插件关联读取。
+
+    用途示例：
+    - 平台专属功能特性声明
+    - 跨插件元数据注册（如 CRM 插件提供客户字段扩展点）
+    - 延迟加载配置和功能开关
+    """
+
+    type: str
+    name: str
+    data: dict = Field(default_factory=dict)
+    description: str = ""
+
+
+class ConsumerExtensionSchema(BaseModel):
+    """消息队列消费者扩展声明
+
+    区别于 tasks（带调度的定时任务），consumers 是纯事件驱动的 Celery worker，
+    由队列消息触发，无 Celery Beat 调度。
+    """
+
+    name: str
+    handler: str
+    queue: str = "default"
+    description: str = ""
+    max_retries: int = 3
+    retry_delay: int = 60
+
+
 class NotificationExtensionSchema(BaseModel):
     """通知模板扩展声明"""
 
@@ -192,22 +247,21 @@ class PermissionExtensionSchema(BaseModel):
 
 
 class MenuExtensionSchema(BaseModel):
-    """菜单扩展声明"""
+    """菜单扩展声明
+
+    菜单是导航链接，指向已有路由，不创建新路由，
+    因此不限制 path 必须在 /admin/plugins/ 下。
+    """
 
     name: str
     path: str
     icon: str = ""
     parent: str | None = None
     sort_order: int = 100
-    scope: str = "all_tenants"
+    scope: str = "admin_only"
     component: str = ""
     title: I18nText = Field(default_factory=dict)
     hidden: bool = False
-
-    @field_validator("path")
-    @classmethod
-    def validate_path(cls, v: str) -> str:
-        return _validate_frontend_plugin_route_path(v)
 
 
 class HeaderWidgetSchema(BaseModel):
@@ -454,6 +508,9 @@ class ExtensionsSchema(BaseModel):
     webhooks: list[WebhookExtensionSchema] = Field(default_factory=list)
     events: list[EventExtensionSchema] = Field(default_factory=list)
     socketio: list[SocketIONamespaceSchema] = Field(default_factory=list)
+    consumers: list[ConsumerExtensionSchema] = Field(default_factory=list)
+    custom: list[CustomExtensionSchema] = Field(default_factory=list)
+    middleware: list[MiddlewareExtensionSchema] = Field(default_factory=list)
 
 
 # ============================================================

@@ -6,7 +6,7 @@
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, Column, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
@@ -52,6 +52,7 @@ class KnowledgeBase(TenantModel):
         "scope": "scope",
         "visibility": "visibility",
         "embedding_model_id": "embedding_model_id",
+        "vision_model_id": "vision_model_id",
         "tenant_id": "tenant_id",
         "created_at": "created_at",
     }
@@ -117,6 +118,22 @@ class KnowledgeBase(TenantModel):
         nullable=False,
         default=1536,
         comment=_("knowledge_base.model.embedding_dimensions"),
+    )
+
+    # ==================== Vision 配置 ====================
+
+    vision_model_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("ai_models.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment=_("knowledge_base.model.vision_model_id"),
+    )
+    extract_images: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment=_("knowledge_base.model.extract_images"),
     )
 
     # ==================== 分块配置 ====================
@@ -203,6 +220,14 @@ class KnowledgeBase(TenantModel):
     # 关联的 Embedding 模型
     embedding_model = relationship(
         "AIModel",
+        foreign_keys=[embedding_model_id],
+        lazy="selectin",
+    )
+
+    # 关联的 Vision 模型（可选）
+    vision_model = relationship(
+        "AIModel",
+        foreign_keys=[vision_model_id],
         lazy="selectin",
     )
 

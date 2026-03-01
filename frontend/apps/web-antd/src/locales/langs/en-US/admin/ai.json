@@ -73,6 +73,7 @@
     "maxImageCount": "Max Image Count",
     "maxImageSizeMb": "Max Image Size (MB)",
     "isActive": "Status",
+    "tier": "Model Tier",
     "fallbackModel": "Fallback Model",
     "rpmLimit": "RPM Limit",
     "tpmLimit": "TPM Limit",
@@ -86,7 +87,8 @@
       "pricing": "Pricing",
       "rateLimit": "Rate Limits",
       "capability": "Capabilities",
-      "failover": "Failover"
+      "failover": "Failover",
+      "routing": "Routing Policy"
     },
     "fetchRemote": "Fetch Remote Models",
     "fetchRemoteLoading": "Fetching...",
@@ -94,6 +96,11 @@
     "fetchRemoteFailed": "Failed to fetch remote models",
     "fetchRemoteTip": "Please select a provider first",
     "selectRemoteModel": "Select Remote Model",
+    "tier_options": {
+      "fast": "Fast (low latency)",
+      "standard": "Standard (balanced)",
+      "premium": "Premium (highest capability)"
+    },
     "placeholder": {
       "searchName": "Search model name",
       "inputName": "Enter model name",
@@ -110,6 +117,7 @@
       "inputRpmLimit": "Requests per minute limit (leave empty for unlimited)",
       "inputTpmLimit": "Tokens per minute limit (leave empty for unlimited)",
       "selectFallback": "Select fallback model (optional)",
+      "selectTier": "Select model tier (optional)",
       "inputMaxImageCount": "e.g. 5",
       "inputMaxImageSizeMb": "e.g. 10"
     },
@@ -124,6 +132,7 @@
       "contextWindow": "Maximum tokens the model can process (input + output). GPT-4 is 128K, Claude 3 is 200K",
       "maxOutputTokens": "Maximum output tokens per request. Setting too high may increase cost and latency",
       "functionCalling": "When enabled, the model can call tool functions. Requires the model to natively support Function Calling",
+      "tier": "Model tier for multi-model routing. Fast = simple tasks, Premium = complex analysis. Leave unset to opt out of auto-routing",
       "fallbackModel": "Automatically switches to fallback model when current model is unavailable, ensuring service continuity",
       "rpmLimit": "Maximum requests per minute. Requests exceeding this limit are throttled to protect the provider API",
       "tpmLimit": "Maximum tokens per minute. Controls the total token consumption rate",
@@ -206,6 +215,7 @@
     "providerName": "Provider",
     "userId": "User ID",
     "errorMessage": "Error Message",
+    "routedModel": "Routed Model",
     "createdAt": "Created At",
     "placeholder": {
       "allStatuses": "All Statuses",
@@ -312,6 +322,27 @@
       "allTypes": "All Types"
     }
   },
+  "rateLimit": {
+    "title": "Rate Limits",
+    "tenantId": "Tenant",
+    "tenantName": "Tenant",
+    "tenantLabel": "Tenant",
+    "modelId": "Model",
+    "rpmLimit": "RPM Limit",
+    "tpmLimit": "TPM Limit",
+    "description": "Description",
+    "isActive": "Status",
+    "create": "Add Rate Limit",
+    "noLimit": "No Limit",
+    "confirmDelete": "Confirm deleting this rate limit?",
+    "placeholder": {
+      "selectTenant": "Select tenant",
+      "selectModel": "Select model",
+      "inputRpm": "Max requests per minute",
+      "inputTpm": "Max tokens per minute",
+      "inputDescription": "Enter description"
+    }
+  },
   "agent": {
     "title": "Agent Management",
     "pageDesc": "Manage all agents. Create global, tenant-specific, or admin-only agents. Publish, disable, or delete.",
@@ -322,9 +353,27 @@
       "chatConfig": "Chat Config",
       "skillBindings": "Skill Bindings",
       "quota": "Quota",
+      "routing": "Smart Routing",
       "basicInfo": "Basic Info",
       "saveSuccess": "Saved successfully",
       "noQuotaLimit": "0 means no limit"
+    },
+    "routing": {
+      "description": "Smart routing automatically selects the most suitable AI model based on conversation complexity, attachment type, and token count, balancing performance and cost.",
+      "enableRouting": "Enable Smart Routing",
+      "maxTier": "Cost Limit",
+      "maxTierHelp": "Limits the maximum model tier the router can use; automatically downgrades if exceeded",
+      "visionModel": "Vision Model",
+      "longContextModel": "Long-Context Model",
+      "longContextThreshold": "Long-Context Threshold (Tokens)",
+      "longContextThresholdHelp": "Automatically switches to the long-context model when input tokens exceed this threshold",
+      "autoSelect": "Auto Select",
+      "noLimit": "No Limit",
+      "tier": {
+        "fast": "Fast",
+        "standard": "Standard",
+        "premium": "Premium"
+      }
     },
     "system": "System",
     "systemAgent": "System Agent",

@@ -46,18 +46,16 @@ async def _ensure_tenant_owned_kb(
     kb_id: int,
 ):
     """
-    确保知识库为租户自有（scope=all_tenants）才允许变更操作。
+    确保知识库为租户自有（tenant_id 与当前租户匹配）才允许变更操作。
 
-    assigned_tenants / admin_and_assigned / admin_and_all / admin_only 的 KB
-    对租户只读，不允许上传文档、删除文档等变更操作。
+    平台创建的全局 KB（tenant_id=null）及其他租户的 KB 对当前租户只读，
+    不允许上传文档、删除文档等变更操作。
     """
-    from app.enums.common import ResourceScopeEnum
-
     kb_service = KnowledgeBaseService(db, tenant_id)
     kb = await kb_service.get_by_id(kb_id)
     if not kb:
         raise NotFoundException(message=_("knowledge_base.error.not_found"))
-    if kb.scope != ResourceScopeEnum.ALL_TENANTS.value:
+    if kb.tenant_id != tenant_id:
         raise BusinessException(message=_("knowledge_base.error.readonly"))
     return kb
 
@@ -72,6 +70,12 @@ ALLOWED_EXTENSIONS: dict[str, str] = {
     ".xlsx": DocumentTypeEnum.XLSX.value,
     ".html": DocumentTypeEnum.HTML.value,
     ".htm": DocumentTypeEnum.HTML.value,
+    ".pptx": DocumentTypeEnum.PPTX.value,
+    ".jpg": DocumentTypeEnum.IMAGE.value,
+    ".jpeg": DocumentTypeEnum.IMAGE.value,
+    ".png": DocumentTypeEnum.IMAGE.value,
+    ".webp": DocumentTypeEnum.IMAGE.value,
+    ".gif": DocumentTypeEnum.IMAGE.value,
 }
 
 
@@ -194,9 +198,15 @@ class TenantKnowledgeBaseController(TenantController):
             for kb in items:
                 item = kb.to_dict()
                 item["embedding_model_name"] = None
+                item["vision_model_name"] = None
                 try:
                     if kb.embedding_model:
                         item["embedding_model_name"] = kb.embedding_model.name
+                except Exception:
+                    pass
+                try:
+                    if getattr(kb, "vision_model", None):
+                        item["vision_model_name"] = kb.vision_model.name
                 except Exception:
                     pass
                 result.append(item)
@@ -243,8 +253,22 @@ class TenantKnowledgeBaseController(TenantController):
             kb = await service.create(data.model_dump(exclude_unset=True))
             await db.commit()
 
+            result = kb.to_dict()
+            result["embedding_model_name"] = None
+            result["vision_model_name"] = None
+            try:
+                if kb.embedding_model:
+                    result["embedding_model_name"] = kb.embedding_model.name
+            except Exception:
+                pass
+            try:
+                if getattr(kb, "vision_model", None):
+                    result["vision_model_name"] = kb.vision_model.name
+            except Exception:
+                pass
+
             return created(
-                data=kb.to_dict(),
+                data=result,
                 message=_("knowledge_base.created"),
             )
 
@@ -273,8 +297,22 @@ class TenantKnowledgeBaseController(TenantController):
             )
             await db.commit()
 
+            result = updated.to_dict()
+            result["embedding_model_name"] = None
+            result["vision_model_name"] = None
+            try:
+                if updated.embedding_model:
+                    result["embedding_model_name"] = updated.embedding_model.name
+            except Exception:
+                pass
+            try:
+                if getattr(updated, "vision_model", None):
+                    result["vision_model_name"] = updated.vision_model.name
+            except Exception:
+                pass
+
             return success(
-                data=updated.to_dict(),
+                data=result,
                 message=_("knowledge_base.updated"),
             )
 

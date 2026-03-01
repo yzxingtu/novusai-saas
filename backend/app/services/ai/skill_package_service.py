@@ -59,8 +59,8 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         if not pkg:
             raise NotFoundException(message=_("skill_package.error.not_found"))
 
-        # 租户端只能修改自有包（scope=all_tenants）
-        if pkg.scope != ResourceScopeEnum.ALL_TENANTS.value:
+        # 租户端只能修改自有包（tenant_id 与当前租户匹配）
+        if pkg.tenant_id != self.tenant_id:
             raise BusinessException(message=_("skill_package.error.system_protected"))
 
         if pkg.is_system:
@@ -86,8 +86,8 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
         if not pkg:
             raise NotFoundException(message=_("skill_package.error.not_found"))
 
-        # 租户端只能删除自有包（scope=all_tenants）
-        if pkg.scope != ResourceScopeEnum.ALL_TENANTS.value:
+        # 租户端只能删除自有包（tenant_id 与当前租户匹配）
+        if pkg.tenant_id != self.tenant_id:
             raise BusinessException(message=_("skill_package.error.system_protected"))
 
         if pkg.is_system:
@@ -149,22 +149,12 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
         """创建前校验：作用域合法性、名称唯一性"""
         await super()._before_create(data)
 
-        scope = data.get("scope", ResourceScopeEnum.ALL_TENANTS.value)
+        scope = data.get("scope", ResourceScopeEnum.ADMIN_AND_ALL.value)
         if scope not in ResourceScopeEnum.values():
             raise BusinessException(message=_("skill_package.error.invalid_scope"))
 
-        # scope 与 tenant_id 一致性校验
-        if scope in (
-            ResourceScopeEnum.ADMIN_ONLY.value,
-            ResourceScopeEnum.ADMIN_AND_ALL.value,
-            ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
-            ResourceScopeEnum.ASSIGNED_TENANTS.value,
-        ):
-            data["tenant_id"] = None
-        elif scope == ResourceScopeEnum.ALL_TENANTS.value and not data.get("tenant_id"):
-            raise BusinessException(
-                message=_("skill_package.error.scope_tenant_id_required"),
-            )
+        # all_tenants 现在表示平台全局资源（tenant_id=null），其他 scope 同样不需要 tenant_id
+        data["tenant_id"] = None
 
         # tenant_ids 不是模型字段，由 Controller 通过 resource_tenant_assignments 处理
         data.pop("tenant_ids", None)

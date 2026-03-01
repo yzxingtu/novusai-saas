@@ -103,11 +103,10 @@ class SkillService(TenantService[Skill, SkillRepository]):
         if not skill:
             raise NotFoundException(message=_("skill.error.not_found"))
 
-        # 租户端只能修改自有包（scope=all_tenants）中的技能
-        from app.enums.common import ResourceScopeEnum
+        # 租户端只能修改自有包（tenant_id 与当前租户匹配）中的技能
         from app.models.ai.skill_package import SkillPackage
         pkg = await self.repo.db.get(SkillPackage, skill.package_id)
-        if pkg and pkg.scope != ResourceScopeEnum.ALL_TENANTS.value:
+        if pkg and pkg.tenant_id != self.repo.tenant_id:
             raise BusinessException(message=_("skill.error.system_protected"))
 
         # 系统技能不允许修改关键字段
@@ -158,11 +157,10 @@ class SkillService(TenantService[Skill, SkillRepository]):
         if not skill:
             raise NotFoundException(message=_("skill.error.not_found"))
 
-        # 租户端只能删除自有包（scope=all_tenants）中的技能
-        from app.enums.common import ResourceScopeEnum
+        # 租户端只能删除自有包（tenant_id 与当前租户匹配）中的技能
         from app.models.ai.skill_package import SkillPackage
         pkg = await self.repo.db.get(SkillPackage, skill.package_id)
-        if pkg and pkg.scope != ResourceScopeEnum.ALL_TENANTS.value:
+        if pkg and pkg.tenant_id != self.repo.tenant_id:
             raise BusinessException(message=_("skill.error.system_protected"))
 
         if skill.is_system:

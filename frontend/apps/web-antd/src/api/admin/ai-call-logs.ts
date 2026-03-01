@@ -31,6 +31,10 @@ export interface AICallLogInfo {
   model_name?: null | string;
   provider_name?: null | string;
   tenant_name?: null | string;
+  // 路由字段（多模型路由）
+  routed_model_id?: null | number;
+  route_reason?: null | string;
+  routed_model_name?: null | string;
   // 详情字段（仅详情 API 返回）
   request_data?: null | Record<string, unknown>;
   response_data?: null | Record<string, unknown>;

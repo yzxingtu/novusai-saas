@@ -18,6 +18,7 @@ from app.enums.config import ConfigScope
 from app.enums.error_code import ErrorCode
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException, BusinessException
+from app.api.shared._storage_helpers import get_known_plugin_storage_drivers as _get_known_plugin_storage_drivers
 from app.rbac.decorators import (
     permission_resource,
     MenuConfig,
@@ -360,16 +361,20 @@ class AdminConfigController(GlobalController):
         @action_read("action.platform_config.read")
         async def list_storage_drivers(
             request: Request,
+            db: DbSession,
             current_admin: ActiveAdmin,
         ):
             """
-            获取所有可用的存储驱动列表（含内置和插件驱动）
-            
+            获取所有可用的存储驱动列表（含内置和插件驱动，标记插件启用状态）
+
             权限: platform_config:read
             """
             from app.storage import storage_manager
 
-            return success(data=storage_manager.get_driver_info_list())
+            known_plugin_drivers = await _get_known_plugin_storage_drivers(db)
+            return success(
+                data=storage_manager.get_all_driver_info_list(known_plugin_drivers)
+            )
 
         @router.get("/storage/drivers/{driver_name}/schema", summary="获取存储驱动配置 Schema")
         @action_read("action.platform_config.read")

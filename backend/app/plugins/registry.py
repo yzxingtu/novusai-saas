@@ -63,6 +63,14 @@ class ExtensionRegistry:
         self._plugin_webhooks: dict[str, dict[str, Any]] = {}
         self._plugin_notifications: dict[str, dict[str, Any]] = {}
         self._plugin_permissions: dict[str, dict[str, Any]] = {}
+        # slot_type 取値见 FrontendSlotTypeEnum
+        self._plugin_frontend_slots: dict[str, list[dict[str, Any]]] = {}
+        # consumer: plugin_name -> list of consumer info dicts
+        self._plugin_consumers: dict[str, list[dict[str, Any]]] = {}
+        # custom: plugin_name -> list of custom extension dicts
+        self._plugin_custom_extensions: dict[str, list[dict[str, Any]]] = {}
+        # middleware: plugin_name -> list of middleware class refs
+        self._plugin_middlewares: dict[str, list[dict[str, Any]]] = {}
 
     @classmethod
     def get_instance(cls) -> ExtensionRegistry:
@@ -257,8 +265,14 @@ class ExtensionRegistry:
         method: str = "POST",
         auth_config: dict | None = None,
     ) -> None:
-        """注册 Webhook 端点"""
-        full_path = f"/plugins/{plugin_name}{path}"
+        """注册 Webhook 端点
+        
+        路径规范化：path 不以 / 开头时自动补齐，确保生成的 full_path 与
+        webhook_dispatcher.py 的 f"/plugins/{name}/{url_path}" 查找格式一致。
+        """
+        # 规范化：确保 path 以 / 开头（消除 /plugins/{name}path 的不一致风险）
+        normalized_path = path if path.startswith("/") else f"/{path}"
+        full_path = f"/plugins/{plugin_name}{normalized_path}"
         if plugin_name not in self._plugin_webhooks:
             self._plugin_webhooks[plugin_name] = {}
         self._plugin_webhooks[plugin_name][full_path] = {
@@ -463,7 +477,86 @@ class ExtensionRegistry:
             ]
         return list(self._plugin_permissions.values())
 
-    # ── 10. Socket.IO Namespace ──
+    # ── 10. Menu ──
+
+    def register_menu(
+        self,
+        plugin_name: str,
+        name: str,
+        path: str,
+        icon: str = "",
+        parent: str | None = None,
+        sort_order: int = 100,
+        scope: str = "admin_only",
+        component: str = "",
+        title: dict[str, str] | None = None,
+        hidden: bool = False,
+    ) -> None:
+        """
+        注册插件菜单到 RBAC 权限注册中心。
+
+        将插件声明的菜单转换为 PermissionMeta 并注册到 permission_registry，
+        下次 sync_permissions 时会写入 DB 并出现在侧边栏。
+
+        Args:
+            plugin_name: 插件名
+            name: 菜单唯一标识
+            path: 前端路由路径
+            icon: 图标（lucide:xxx）
+            parent: 父菜单资源名（如 system_mgmt）
+            sort_order: 排序
+            scope: 权限范围（admin_only / all_tenants）
+            component: 前端组件路径
+            title: i18n 标题 {"zh-CN": "存储迁移", "en": "Storage Migration"}
+            hidden: 是否隐藏
+        """
+        from app.enums.rbac import PermissionScope, PermissionType
+        from app.rbac.decorators import PermissionMeta
+        from app.rbac.registry import permission_registry
+
+        scope_enum = (
+            PermissionScope.ADMIN_ONLY
+            if scope == "admin_only"
+            else PermissionScope.ALL_TENANTS
+        )
+        scope_prefix = "admin" if scope_enum == PermissionScope.ADMIN_ONLY else "tenant"
+        safe_name = plugin_name.replace("-", "_")
+        menu_code = f"menu:{scope_prefix}.plugin_{safe_name}_{name}"
+        parent_code = f"menu:{scope_prefix}.{parent}" if parent else None
+
+        # i18n key: 映射到插件 locales 文件结构
+        # 例如 storage_migration.menu.title → plugins/storage-migration/locales/zh-CN.json
+        i18n_key = f"{safe_name}.menu.title"
+
+        perm = PermissionMeta(
+            code=menu_code,
+            name=i18n_key,
+            type=PermissionType.MENU,
+            scope=scope_enum,
+            resource="menu",
+            action=f"{scope_prefix}.plugin_{plugin_name.replace('-', '_')}_{name}",
+            icon=icon,
+            path=path,
+            component=component,
+            parent_code=parent_code,
+            sort_order=sort_order,
+            hidden=hidden,
+        )
+
+        permission_registry.register(perm)
+        self._track(plugin_name, "menu", menu_code)
+        logger.info(
+            "Plugin %s registered menu: %s -> %s (parent=%s)",
+            plugin_name, menu_code, path, parent,
+        )
+
+    def _unregister_menu(self, ext: RegisteredExtension) -> None:
+        """从 RBAC 权限注册中心移除插件菜单"""
+        from app.rbac.registry import permission_registry
+
+        permission_registry.unregister(ext.key)
+
+    # ── 11. Socket.IO Namespace ──
 
     def register_socketio(
         self,
@@ -531,6 +624,87 @@ class ExtensionRegistry:
                 "Failed to unregister socketio namespace %s: %s", ext.key, exc
             )
 
+    # ── 12. Frontend Slot ──
+
+    def register_frontend_slot(
+        self,
+        plugin_name: str,
+        slot_type: str,
+        **data: object,
+    ) -> None:
+        """
+        注册插件前端插槽。
+
+        slot_type 取值:
+          header_widget / dashboard_widget / settings_tab /
+          floating_panel / standalone_page / notification_ui
+
+        去重策略: 按 (slot_type, name) 唯一，重复注册时覆盖旧值。
+        """
+        slot_entry = {"slot_type": slot_type, "plugin_name": plugin_name, **data}
+        dedup_key = f"{slot_type}:{data.get('name', '')}"
+
+        slots = self._plugin_frontend_slots.setdefault(plugin_name, [])
+        # 移除同 key 的旧条目，再追加新条目（upsert 语义）
+        self._plugin_frontend_slots[plugin_name] = [
+            s for s in slots
+            if f"{s['slot_type']}:{s.get('name', '')}" != dedup_key
+        ]
+        self._plugin_frontend_slots[plugin_name].append(slot_entry)
+
+        self._track(plugin_name, "frontend_slot", dedup_key, slot_entry)
+        logger.info(
+            "Plugin %s registered frontend slot: %s/%s",
+            plugin_name, slot_type, data.get("name", ""),
+        )
+
+    def _unregister_frontend_slot(self, ext: RegisteredExtension) -> None:
+        """移除插件前端插槽注册"""
+        plugin_name = ext.plugin_name
+        key = ext.key  # "slot_type:name"
+        if plugin_name in self._plugin_frontend_slots:
+            self._plugin_frontend_slots[plugin_name] = [
+                s for s in self._plugin_frontend_slots[plugin_name]
+                if f"{s['slot_type']}:{s.get('name', '')}" != key
+            ]
+
+    def get_frontend_slots(
+        self,
+        slot_type: str | None = None,
+        scope: str | None = None,
+        plugin_name: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        获取前端插槽数据，供 GET /plugins/slots API 使用。
+
+        Args:
+            slot_type: 过滤插槽类型（None = 全部）
+            scope: 过滤适用端（"admin" / "tenant" / None = 全部）
+            plugin_name: 过滤指定插件（None = 全部）
+        """
+        all_slots: list[dict[str, Any]] = []
+        plugins_iter = (
+            [plugin_name] if plugin_name
+            else list(self._plugin_frontend_slots.keys())
+        )
+        for pname in plugins_iter:
+            for slot in self._plugin_frontend_slots.get(pname, []):
+                if slot_type and slot.get("slot_type") != slot_type:
+                    continue
+                if scope:
+                    slot_scope = slot.get("scope", "")
+                    # all_tenants / admin_and_all 对两端都可见
+                    # admin_only 只对 admin 端
+                    from app.enums.common import ResourceScopeEnum
+                    _ADMIN_ONLY = ResourceScopeEnum.ADMIN_ONLY.value
+                    if scope == "admin":
+                        pass  # admin 可见所有插槽
+                    elif scope == "tenant":
+                        if slot_scope == _ADMIN_ONLY:
+                            continue
+                all_slots.append(slot)
+        return all_slots
+
     # ── 通用 ──
 
     _DISPATCH: dict[str, str] = {
@@ -543,7 +717,12 @@ class ExtensionRegistry:
         "task": "_unregister_task",
         "notification": "_unregister_notification",
         "permission": "_unregister_permission",
+        "menu": "_unregister_menu",
         "socketio": "_unregister_socketio",
+        "frontend_slot": "_unregister_frontend_slot",
+        "consumer": "_unregister_consumer",
+        "custom": "_unregister_custom",
+        "middleware": "_unregister_middleware",
     }
 
     def unregister_all(self, plugin_name: str) -> int:
@@ -568,6 +747,15 @@ class ExtensionRegistry:
                     )
         # 清理 webhook 字典
         self._plugin_webhooks.pop(plugin_name, None)
+
+        # 清理前端插槽
+        self._plugin_frontend_slots.pop(plugin_name, None)
+        # 清理消费者
+        self._plugin_consumers.pop(plugin_name, None)
+        # 清理自定义扩展
+        self._plugin_custom_extensions.pop(plugin_name, None)
+        # 清理中间件
+        self._plugin_middlewares.pop(plugin_name, None)
 
         # 清理 PluginEventBus 订阅
         try:
@@ -642,6 +830,226 @@ class ExtensionRegistry:
                 if ext.ext_type == ext_type and ext.key == key:
                     return plugin_name
         return None
+
+    # ── 13. Consumer ──
+
+    def register_consumer(
+        self,
+        plugin_name: str,
+        consumer_name: str,
+        handler: Callable,
+        queue: str = "default",
+        max_retries: int = 3,
+        retry_delay: int = 60,
+    ) -> None:
+        """
+        注册插件消息队列消费者（Celery task，无调度）。
+
+        区别于 register_task（带 Celery Beat 调度），consumer 仅注册 Celery task，
+        不加入 beat_schedule，由队列消息触发。
+        """
+        from app.celery_app import celery_app
+
+        celery_task_name = f"plugin.{plugin_name}.{consumer_name}"
+
+        if celery_task_name not in celery_app.tasks:
+            import asyncio
+            import functools
+
+            if asyncio.iscoroutinefunction(handler):
+                @functools.wraps(handler)
+                def _sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+                    return _run_async(handler(*args, **kwargs))
+                celery_app.task(name=celery_task_name, queue=queue,
+                                max_retries=max_retries, default_retry_delay=retry_delay)(_sync_wrapper)
+            else:
+                celery_app.task(name=celery_task_name, queue=queue,
+                                max_retries=max_retries, default_retry_delay=retry_delay)(handler)
+
+        consumer_info: dict[str, Any] = {
+            "name": consumer_name,
+            "celery_task_name": celery_task_name,
+            "queue": queue,
+        }
+        self._plugin_consumers.setdefault(plugin_name, []).append(consumer_info)
+        self._track(plugin_name, "consumer", celery_task_name, consumer_info)
+        logger.info(
+            "Plugin %s registered consumer: %s (queue=%s)",
+            plugin_name, consumer_name, queue,
+        )
+
+    def _unregister_consumer(self, ext: RegisteredExtension) -> None:
+        """消费者反注册（Celery task 无法热卸载，仅清理追踪记录）"""
+        plugin_name = ext.plugin_name
+        celery_task_name = ext.key
+        if plugin_name in self._plugin_consumers:
+            self._plugin_consumers[plugin_name] = [
+                c for c in self._plugin_consumers[plugin_name]
+                if c.get("celery_task_name") != celery_task_name
+            ]
+        logger.info(
+            "Plugin consumer unregistered (Celery task remains until restart): %s",
+            celery_task_name,
+        )
+
+    # ── 14. Middleware ──
+
+    def register_middleware(
+        self,
+        plugin_name: str,
+        name: str,
+        middleware_cls: type,
+        priority: int = 50,
+    ) -> None:
+        """
+        注册插件 ASGI 中间件。
+
+        应用启动时将优先级较高的中间件注入到请求链外层。
+        禁用插件后标记为待移除，完全移除需重启。
+        """
+        entry: dict[str, Any] = {
+            "plugin_name": plugin_name,
+            "name": name,
+            "cls": middleware_cls,
+            "priority": priority,
+        }
+        self._plugin_middlewares.setdefault(plugin_name, []).append(entry)
+        self._track(plugin_name, "middleware", f"{plugin_name}:{name}", middleware_cls)
+        # 尝试注入到运行时 FastAPI 应用
+        try:
+            from app.main import app as fastapi_app
+            fastapi_app.add_middleware(middleware_cls)
+            logger.info(
+                "Plugin %s registered middleware: %s (priority=%d)",
+                plugin_name, name, priority,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Plugin %s: failed to add middleware %s at runtime: %s",
+                plugin_name, name, exc,
+            )
+
+    def _unregister_middleware(self, ext: RegisteredExtension) -> None:
+        """移除中间件注册（内存清理，完全移除需重启服务）"""
+        plugin_name = ext.plugin_name
+        name = ext.key.split(":", 1)[-1]
+        if plugin_name in self._plugin_middlewares:
+            self._plugin_middlewares[plugin_name] = [
+                m for m in self._plugin_middlewares[plugin_name]
+                if m.get("name") != name
+            ]
+        logger.info(
+            "Plugin middleware unregistered (full removal requires restart): %s",
+            ext.key,
+        )
+
+    def get_plugin_middlewares(self, plugin_name: str | None = None) -> list[dict[str, Any]]:
+        """获取插件中间件列表（按 priority 升序）"""
+        result: list[dict[str, Any]] = []
+        plugins_iter = [plugin_name] if plugin_name else list(self._plugin_middlewares.keys())
+        for pname in plugins_iter:
+            result.extend(self._plugin_middlewares.get(pname, []))
+        result.sort(key=lambda x: x.get("priority", 50))
+        return result
+
+    # ── 15. Custom Extension ──
+
+    def register_custom(
+        self,
+        plugin_name: str,
+        ext_type: str,
+        name: str,
+        data: dict[str, Any] | None = None,
+        description: str = "",
+    ) -> None:
+        """
+        注册通用自定义扩展点。
+
+        元数据存入内存注册表，其他插件或平台可通过
+        `get_custom_extensions(ext_type)` 查询。
+        """
+        entry: dict[str, Any] = {
+            "plugin_name": plugin_name,
+            "type": ext_type,
+            "name": name,
+            "data": data or {},
+            "description": description,
+        }
+        key = f"{ext_type}:{name}"
+        customs = self._plugin_custom_extensions.setdefault(plugin_name, [])
+        # upsert
+        self._plugin_custom_extensions[plugin_name] = [
+            c for c in customs if f"{c['type']}:{c['name']}" != key
+        ]
+        self._plugin_custom_extensions[plugin_name].append(entry)
+        self._track(plugin_name, "custom", key, entry)
+        logger.info(
+            "Plugin %s registered custom extension: %s/%s",
+            plugin_name, ext_type, name,
+        )
+
+    def _unregister_custom(self, ext: RegisteredExtension) -> None:
+        """\u79fb\u9664\u81ea\u5b9a\u4e49\u6269\u5c55\u6ce8\u518c"""
+        plugin_name = ext.plugin_name
+        key = ext.key
+        if plugin_name in self._plugin_custom_extensions:
+            self._plugin_custom_extensions[plugin_name] = [
+                c for c in self._plugin_custom_extensions[plugin_name]
+                if f"{c['type']}:{c['name']}" != key
+            ]
+
+    def get_custom_extensions(
+        self,
+        ext_type: str | None = None,
+        plugin_name: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """\u83b7\u53d6\u81ea\u5b9a\u4e49\u6269\u5c55列\u8868\u3002\n\n        Args:\n            ext_type: 过\u6ee4\u6269\u5c55\u7c7b\u578b\uff08None = 全\u90e8\uff09\n            plugin_name: 过\u6ee4\u63d2\u4ef6\uff08None = 全\u90e8\uff09\n        """
+        result: list[dict[str, Any]] = []
+        plugins_iter = [plugin_name] if plugin_name else list(self._plugin_custom_extensions.keys())
+        for pname in plugins_iter:
+            for ext in self._plugin_custom_extensions.get(pname, []):
+                if ext_type and ext.get("type") != ext_type:
+                    continue
+                result.append(ext)
+        return result
+
+    def get_frontend_slots_grouped(
+        self,
+        scope: str | None = None,
+    ) -> dict[str, list[dict[str, Any]]]:
+        """
+        获取按类型分组的前端插槽数据。
+
+        供 Controller 直接返回，避免 Controller 内写分组+排序逻辑。
+
+        Args:
+            scope: "admin" / "tenant" / None = 全部
+
+        Returns:
+            {"header_widgets": [...], "dashboard_widgets": [...], ...}
+        """
+        from app.enums.plugin import FrontendSlotTypeEnum
+
+        _TYPE_TO_KEY: dict[str, str] = {
+            FrontendSlotTypeEnum.HEADER_WIDGET.value: "header_widgets",
+            FrontendSlotTypeEnum.DASHBOARD_WIDGET.value: "dashboard_widgets",
+            FrontendSlotTypeEnum.SETTINGS_TAB.value: "settings_tabs",
+            FrontendSlotTypeEnum.FLOATING_PANEL.value: "floating_panels",
+            FrontendSlotTypeEnum.STANDALONE_PAGE.value: "standalone_pages",
+            FrontendSlotTypeEnum.NOTIFICATION_UI.value: "notification_ui",
+        }
+
+        result: dict[str, list[dict[str, Any]]] = {k: [] for k in _TYPE_TO_KEY.values()}
+
+        for slot in self.get_frontend_slots(scope=scope):
+            key = _TYPE_TO_KEY.get(slot.get("slot_type", ""))
+            if key:
+                result[key].append(slot)
+
+        # 所有插槽类型统一按 sort_order 升序排序，保证前端渲染顺序一致
+        for slots in result.values():
+            slots.sort(key=lambda x: x.get("sort_order", 100))
+        return result
 
     def get_registered_count(self, plugin_name: str) -> int:
         """获取某插件已注册的扩展数量"""

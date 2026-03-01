@@ -39,7 +39,7 @@ export const usePluginInstallProgressStore = defineStore(
     // ── 状态 ──
 
     /** 当前操作类型 */
-    const currentAction = ref<'install' | 'uninstall' | null>(null);
+    const currentAction = ref<'enable' | 'install' | 'uninstall' | null>(null);
 
     /** 当前插件名 */
     const pluginName = ref('');
@@ -92,7 +92,7 @@ export const usePluginInstallProgressStore = defineStore(
       if (!isRunning.value && !isComplete.value) {
         isRunning.value = true;
         pluginName.value = payload.plugin_name;
-        currentAction.value = payload.action as 'install' | 'uninstall';
+        currentAction.value = payload.action as 'enable' | 'install' | 'uninstall';
         visible.value = true;
       }
 
@@ -135,7 +135,7 @@ export const usePluginInstallProgressStore = defineStore(
 
         // 如果安装了 npm 依赖，标记需要刷新
         if (
-          currentAction.value === 'install' &&
+          (currentAction.value === 'install' || currentAction.value === 'enable') &&
           steps.value.some((s) => s.step === 'npm' && s.status === 'success')
         ) {
           needsReload.value = true;
@@ -188,6 +188,40 @@ export const usePluginInstallProgressStore = defineStore(
       visible.value = true;
     }
 
+    /**
+     * 后备完成：HTTP 返回成功但 Socket.IO 事件未到达时调用
+     * 正常情况下由 Socket.IO done 事件驱动，此为防御 fallback
+     */
+    function markComplete() {
+      if (!isComplete.value && !isFailed.value) {
+        isRunning.value = false;
+        isComplete.value = true;
+        progress.value = 100;
+      }
+    }
+
+    /**
+     * 后备失败：HTTP 返回错误但 Socket.IO 未推送错误事件时调用
+     */
+    function markError(message: string) {
+      if (!isFailed.value) {
+        isRunning.value = false;
+        isFailed.value = true;
+        errorMessage.value = message;
+      }
+    }
+
+    /**
+     * 立即标记操作开始（在 Socket.IO 首条事件到来前给用户反馈）
+     * Modal 关闭后、HTTP 请求发出前调用。
+     */
+    function startOperation(name: string, action: 'enable' | 'install' | 'uninstall') {
+      pluginName.value = name;
+      currentAction.value = action;
+      isRunning.value = true;
+      visible.value = true;
+    }
+
     /** 隐藏面板并重置 */
     function hide() {
       visible.value = false;
@@ -218,6 +252,9 @@ export const usePluginInstallProgressStore = defineStore(
       reset,
       show,
       hide,
+      startOperation,
+      markComplete,
+      markError,
     };
   },
 );

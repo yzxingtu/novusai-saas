@@ -17,6 +17,7 @@
   "pricingType": "定价",
   "errorCount": "错误次数",
   "capabilitiesLabel": "能力授权",
+  "readme": "说明文档",
   "create": "安装插件",
   "upload": "上传安装",
   "marketplaceBtn": "插件市场",
@@ -73,13 +74,18 @@
     "assignTenant": "分配租户",
     "upgrade": "升级",
     "rollback": "回退",
-    "detail": "详情"
+    "detail": "详情",
+    "forceCleanup": "强制清理"
   },
   "confirm": {
     "enable": "确认启用插件「{name}」？",
     "disable": "确认禁用插件「{name}」？禁用后所有扩展点将被反注册。",
     "uninstall": "确认卸载插件「{name}」？此操作不可撤销。",
-    "uninstallWithData": "同时删除插件数据表"
+    "forceCleanup": "确认强制清理「{name}」的残留记录？该插件磁盘文件已缺失。",
+    "uninstallWithData": "同时删除插件数据表",
+    "force_disable_title": "强制禁用插件「{name}」？",
+    "force_disable_content": "该插件的存储驱动正被平台或租户使用。强制禁用将自动将其存储配置切换回本地存储，可能影响文件访问。确认继续？",
+    "force_disable_ok": "强制禁用"
   },
   "tab": {
     "overview": "概览",
@@ -203,6 +209,18 @@
     "revokeConfirm": "确认撤销此许可证？撤销后插件付费功能将不可用。",
     "revokeSuccess": "许可证已撤销"
   },
+  "menu_config": {
+    "title": "菜单位置配置",
+    "description": "为插件「{name}」选择菜单挂载位置",
+    "select_parent": "选择父级菜单目录",
+    "no_menus": "该插件没有菜单扩展",
+    "save_success": "菜单位置已更新",
+    "menu_location": "菜单位置",
+    "admin_parent": "管理端位置",
+    "tenant_parent": "租户端位置",
+    "admin_section": "管理端菜单",
+    "tenant_section": "租户端菜单"
+  },
   "messages": {
     "enableSuccess": "插件已启用",
     "disableSuccess": "插件已禁用",
@@ -212,10 +230,12 @@
     "upgradeSuccess": "插件已升级",
     "rollbackSuccess": "插件已回退",
     "fileTooLarge": "文件过大，请上传 50MB 以内的 ZIP 文件",
-    "assignSuccess": "租户分配成功"
+    "assignSuccess": "租户分配成功",
+    "forceCleanupSuccess": "残留记录已清理"
   },
   "progress": {
     "installTitle": "安装进度",
+    "enableTitle": "启用进度",
     "uninstallTitle": "卸载进度",
     "completed": "已完成",
     "failed": "失败",
@@ -247,8 +267,11 @@
       "cleanup_ai": "清理 AI 功能",
       "cleanup_db": "清理数据库表",
       "cleanup_pip": "卸载 Python 依赖",
+      "cleanup_npm": "卸载前端依赖",
       "cleanup_records": "删除关联记录",
-      "cleanup_files": "删除插件文件"
+      "cleanup_files": "删除插件文件",
+      "extensions": "注册扩展点",
+      "on_enable": "执行启用钩子"
     }
   }
 }

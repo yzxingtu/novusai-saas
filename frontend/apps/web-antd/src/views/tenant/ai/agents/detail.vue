@@ -23,6 +23,7 @@ import {
   message,
   Select as ASelect,
   Spin,
+  Switch,
   Tabs,
   TabPane,
   Tag,
@@ -37,6 +38,7 @@ import {
   updateAgentApi,
 } from '#/api/tenant/agents';
 import { getAvailablePackagesApi } from '#/api/tenant/skill-packages';
+import { getTenantAIModelsApi } from '#/api/tenant/ai';
 import { $t } from '#/locales';
 
 import {
@@ -266,6 +268,58 @@ async function saveQuota() {
   });
 }
 
+// ==================== Routing Config Tab ====================
+const routingEnabled = ref(false);
+const routingMaxTier = ref<string | undefined>(undefined);
+const routingVisionModelId = ref<number | undefined>(undefined);
+const routingLongContextModelId = ref<number | undefined>(undefined);
+const routingLongContextThreshold = ref(32000);
+
+const visionModelOptions = ref<{ label: string; value: number }[]>([]);
+const chatModelOptions = ref<{ label: string; value: number }[]>([]);
+
+async function loadRoutingModelOptions() {
+  try {
+    const models = await getTenantAIModelsApi();
+    visionModelOptions.value = models
+      .filter((m) => m.type === 'chat' && m.supports_vision)
+      .map((m) => ({ label: `${m.name} (${m.provider_name || '-'})`, value: m.id }));
+    chatModelOptions.value = models
+      .filter((m) => m.type === 'chat')
+      .map((m) => ({ label: `${m.name} (${m.provider_name || '-'})`, value: m.id }));
+  } catch {
+    // fallback: empty list
+  }
+}
+
+const tierOptions = [
+  { label: $t('tenant.ai.agent.routing.tier.fast'), value: 'fast' },
+  { label: $t('tenant.ai.agent.routing.tier.standard'), value: 'standard' },
+  { label: $t('tenant.ai.agent.routing.tier.premium'), value: 'premium' },
+];
+
+function initRouting() {
+  if (!agent.value) return;
+  const rc = (agent.value.routing_config ?? {}) as Record<string, unknown>;
+  routingEnabled.value = Boolean(rc.enable_routing);
+  routingMaxTier.value = (rc.max_tier as string | undefined) ?? undefined;
+  routingVisionModelId.value = (rc.vision_model_id as number | undefined) ?? undefined;
+  routingLongContextModelId.value = (rc.long_context_model_id as number | undefined) ?? undefined;
+  routingLongContextThreshold.value = (rc.long_context_threshold as number) ?? 32000;
+}
+
+async function saveRouting() {
+  await saveFields({
+    routing_config: {
+      enable_routing: routingEnabled.value,
+      max_tier: routingMaxTier.value || null,
+      vision_model_id: routingVisionModelId.value ?? null,
+      long_context_model_id: routingLongContextModelId.value ?? null,
+      long_context_threshold: routingLongContextThreshold.value,
+    },
+  });
+}
+
 // ==================== Tab Change: Init ====================
 function onTabChange(key: string | number) {
   activeTab.value = String(key);
@@ -275,6 +329,7 @@ function onTabChange(key: string | number) {
     case 'chatConfig': initChatConfig(); break;
     case 'skills': { loadBindings(); loadAvailablePackages(); break; }
     case 'quota': initQuota(); break;
+    case 'routing': { initRouting(); loadRoutingModelOptions(); break; }
   }
 }
 </script>
@@ -565,6 +620,82 @@ function onTabChange(key: string | number) {
                 </div>
                 <div class="pt-2">
                   <Button type="primary" :loading="saving" @click="saveQuota">
+                    {{ $t('common.save') }}
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </TabPane>
+
+          <!-- ========== 智能路由 Tab ========== -->
+          <TabPane key="routing" :tab="$t('tenant.ai.agent.detail.routing')">
+            <Card>
+              <p class="mb-4 text-xs text-muted-foreground">{{ $t('tenant.ai.agent.routing.description') }}</p>
+              <div class="grid max-w-xl grid-cols-1 gap-5">
+                <!-- 启用智能路由 -->
+                <div class="flex items-center gap-3">
+                  <label class="text-sm font-medium">{{ $t('tenant.ai.agent.routing.enableRouting') }}</label>
+                  <Switch
+                    v-model:checked="routingEnabled"
+                    :disabled="!isTenantOwned"
+                  />
+                </div>
+
+                <!-- 成本上限 Tier -->
+                <div>
+                  <label class="mb-1 block text-sm font-medium">{{ $t('tenant.ai.agent.routing.maxTier') }}</label>
+                  <ASelect
+                    v-model:value="routingMaxTier"
+                    :options="tierOptions"
+                    class="w-full"
+                    :disabled="!routingEnabled || !isTenantOwned"
+                    :allow-clear="true"
+                    :placeholder="$t('tenant.ai.agent.routing.noLimit')"
+                  />
+                  <p class="mt-1 text-xs text-muted-foreground">{{ $t('tenant.ai.agent.routing.maxTierHelp') }}</p>
+                </div>
+
+                <!-- Vision 专用模型 -->
+                <div>
+                  <label class="mb-1 block text-sm font-medium">{{ $t('tenant.ai.agent.routing.visionModel') }}</label>
+                  <ASelect
+                    v-model:value="routingVisionModelId"
+                    :options="visionModelOptions"
+                    class="w-full"
+                    :disabled="!routingEnabled || !isTenantOwned"
+                    :allow-clear="true"
+                    :placeholder="$t('tenant.ai.agent.routing.autoSelect')"
+                  />
+                </div>
+
+                <!-- 长上下文模型 -->
+                <div>
+                  <label class="mb-1 block text-sm font-medium">{{ $t('tenant.ai.agent.routing.longContextModel') }}</label>
+                  <ASelect
+                    v-model:value="routingLongContextModelId"
+                    :options="chatModelOptions"
+                    class="w-full"
+                    :disabled="!routingEnabled || !isTenantOwned"
+                    :allow-clear="true"
+                    :placeholder="$t('tenant.ai.agent.routing.autoSelect')"
+                  />
+                </div>
+
+                <!-- 长上下文触发阈值 -->
+                <div>
+                  <label class="mb-1 block text-sm font-medium">{{ $t('tenant.ai.agent.routing.longContextThreshold') }}</label>
+                  <InputNumber
+                    v-model:value="routingLongContextThreshold"
+                    :min="1000"
+                    :step="1000"
+                    class="w-full"
+                    :disabled="!routingEnabled || !isTenantOwned"
+                  />
+                  <p class="mt-1 text-xs text-muted-foreground">{{ $t('tenant.ai.agent.routing.longContextThresholdHelp') }}</p>
+                </div>
+
+                <div v-if="isTenantOwned" class="pt-2">
+                  <Button type="primary" :loading="saving" @click="saveRouting">
                     {{ $t('common.save') }}
                   </Button>
                 </div>

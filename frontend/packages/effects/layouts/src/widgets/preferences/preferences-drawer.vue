@@ -19,7 +19,6 @@ import { computed, ref } from 'vue';
 import { Copy, Pin, PinOff, RotateCw } from '@vben/icons';
 import { $t, loadLocaleMessages } from '@vben/locales';
 import {
-  clearCache,
   preferences,
   resetPreferences,
   usePreferences,
@@ -227,8 +226,6 @@ async function handleCopy() {
 }
 
 async function handleClearCache() {
-  resetPreferences();
-  clearCache();
   emit('clearPreferencesAndLogout');
 }
 
@@ -471,7 +468,6 @@ async function handleReset() {
           {{ $t('preferences.copyPreferences') }}
         </VbenButton>
         <VbenButton
-          :disabled="!diffPreference"
           class="mr-4 w-full"
           size="sm"
           variant="ghost"

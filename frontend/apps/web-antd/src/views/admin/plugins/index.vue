@@ -2,13 +2,15 @@
 /**
  * 平台插件管理页面 — 卡片式布局
  */
-import type { PluginInfo } from '#/api/admin/plugin';
+import type { MenuOverrideItem, PluginInfo } from '#/api/admin/plugin';
+import type { MenuDeclItem } from './modules/PluginMenuConfigModal.vue';
 
 defineOptions({ name: 'AdminPluginList' });
 
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
+import { useAccessStore } from '@vben/stores';
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -26,9 +28,10 @@ import {
 import {
   disablePluginApi,
   enablePluginApi,
+  forceCleanupPluginApi,
   getPluginListApi,
-  installNpmDepsApi,
   uninstallPluginApi,
+  updatePluginMenuConfigApi,
 } from '#/api/admin/plugin';
 import { $t } from '#/locales';
 import { refreshPluginSlots } from '#/composables/use-plugin-frontend-init';
@@ -46,8 +49,10 @@ import { usePluginInstallProgressStore } from '#/store';
 import PluginConfigDrawer from './modules/PluginConfigDrawer.vue';
 import PluginInstallProgress from './modules/PluginInstallProgress.vue';
 import PluginInstallWizard from './modules/PluginInstallWizard.vue';
+import PluginMenuConfigModal from './modules/PluginMenuConfigModal.vue';
 
 const router = useRouter();
+const accessStore = useAccessStore();
 const progressStore = usePluginInstallProgressStore();
 const plugins = ref<PluginInfo[]>([]);
 const loading = ref(false);
@@ -57,6 +62,8 @@ const filterStatus = ref('all');
 const processingIds = ref<Set<number>>(new Set());
 const installWizardRef = ref<InstanceType<typeof PluginInstallWizard>>();
 const configDrawerRef = ref<InstanceType<typeof PluginConfigDrawer>>();
+const menuConfigModalRef = ref<InstanceType<typeof PluginMenuConfigModal>>();
+let pendingEnablePlugin: PluginInfo | null = null;
 
 const statusFilters = computed(() => [
   { value: 'all', label: $t('admin.plugin.type_options.all'), icon: 'lucide:layers' },
@@ -143,53 +150,111 @@ function onDetail(plugin: PluginInfo) {
   configDrawerRef.value?.open(plugin);
 }
 
+function getPluginMenus(plugin: PluginInfo): MenuDeclItem[] {
+  const manifest = plugin.manifest || {};
+  const extensions = (manifest.extensions || {}) as Record<string, unknown>;
+  const frontend = (extensions.frontend || {}) as Record<string, unknown>;
+  const all = (frontend.menus || []) as MenuDeclItem[];
+  // Exclude hidden routes (those belong in standalone_pages)
+  return all.filter((m) => !m.hidden);
+}
+
 function onEnable(plugin: PluginInfo) {
+  const menus = getPluginMenus(plugin);
+  if (menus.length > 0) {
+    // 有菜单扩展 → 先让管理员选择挂载位置
+    pendingEnablePlugin = plugin;
+    const currentOverrides = ((plugin.config || {}) as Record<string, unknown>).menu_overrides as Record<string, { parent?: string; tenant_parent?: string }> | undefined;
+    menuConfigModalRef.value?.open(menus, currentOverrides);
+  } else {
+    doEnable(plugin);
+  }
+}
+
+function doEnable(plugin: PluginInfo, menuOverrides?: MenuOverrideItem[]) {
   Modal.confirm({
     title: $t('admin.plugin.confirm.enable', { name: plugin.display_name }),
-    onOk: () => withProcessing(plugin.id, async () => {
-      const res = await enablePluginApi(plugin.id) as Record<string, unknown>;
-      message.success($t('admin.plugin.messages.enableSuccess'));
-      await loadPlugins();
-      await refreshPluginSlots('/admin');
-
-      // 检查是否有缺失的 npm 依赖
-      const missingDeps = (res?.missing_npm_deps as string[]) || [];
-      if (missingDeps.length > 0) {
-        Modal.confirm({
-          title: $t('admin.plugin.progress.npmDepsTitle'),
-          content: $t('admin.plugin.progress.npmDepsContent', { count: missingDeps.length }),
-          okText: $t('admin.plugin.progress.installDeps'),
-          cancelText: $t('admin.plugin.progress.installLater'),
-          onOk: async () => {
-            try {
-              await installNpmDepsApi(plugin.id);
-              Modal.success({
-                title: $t('admin.plugin.progress.npmDepsInstalled'),
-                content: $t('admin.plugin.progress.npmDepsReload'),
-                okText: $t('admin.plugin.progress.reload'),
-                onOk: () => window.location.reload(),
-              });
-            } catch {
-              message.error($t('admin.plugin.progress.npmDepsFailed'));
-            }
-          },
-          onCancel: () => {
-            message.info($t('admin.plugin.progress.npmDepsSkipped'));
-          },
-        });
-      }
-    }),
+    onOk() {
+      // 不 return Promise，让 Modal 立即关闭，进度由 progressStore (Socket.IO) 跟踪
+      progressStore.reset();
+      progressStore.startOperation(plugin.display_name, 'enable');
+      withProcessing(plugin.id, async () => {
+        await enablePluginApi(plugin.id, menuOverrides);
+        // SIO fallback: if no Socket.IO events arrived, mark complete via HTTP success
+        progressStore.markComplete();
+        message.success($t('admin.plugin.messages.enableSuccess'));
+        await loadPlugins();
+        await refreshPluginSlots('/admin', router);
+        accessStore.setIsAccessChecked(false);
+      }).catch((err: unknown) => {
+        // SIO fallback: if no Socket.IO error event arrived, show error from HTTP
+        const msg = (err as { message?: string })?.message || $t('admin.plugin.messages.enableFailed');
+        progressStore.markError(msg);
+      });
+    },
   });
+}
+
+let menuConfigUpdatePlugin: PluginInfo | null = null;
+
+async function onMenuConfigConfirm(overrides: MenuOverrideItem[]) {
+  if (pendingEnablePlugin) {
+    const plugin = pendingEnablePlugin;
+    pendingEnablePlugin = null;
+    doEnable(plugin, overrides);
+  } else if (menuConfigUpdatePlugin) {
+    const plugin = menuConfigUpdatePlugin;
+    menuConfigUpdatePlugin = null;
+    await updatePluginMenuConfigApi(plugin.id, overrides);
+    message.success($t('admin.plugin.menu_config.save_success'));
+    await loadPlugins();
+  }
+}
+
+function onMenuConfigCancel() {
+  pendingEnablePlugin = null;
+  menuConfigUpdatePlugin = null;
+}
+
+function onMenuLocation(plugin: PluginInfo) {
+  const menus = getPluginMenus(plugin);
+  if (menus.length === 0) return;
+  const currentOverrides = ((plugin.config || {}) as Record<string, unknown>).menu_overrides as Record<string, { parent?: string; tenant_parent?: string }> | undefined;
+  menuConfigUpdatePlugin = plugin;
+  menuConfigModalRef.value?.open(menus, currentOverrides);
 }
 
 function onDisable(plugin: PluginInfo) {
   Modal.confirm({
     title: $t('admin.plugin.confirm.disable', { name: plugin.display_name }),
     onOk: () => withProcessing(plugin.id, async () => {
-      await disablePluginApi(plugin.id);
+      try {
+        await disablePluginApi(plugin.id);
+      } catch (err: unknown) {
+        type AxiosLike = { message?: string; response?: { data?: { message?: string } } };
+        const apiMsg = (err as AxiosLike)?.response?.data?.message ?? (err as AxiosLike)?.message ?? '';
+        if (apiMsg.includes('storage driver') || apiMsg.includes('used by tenant')) {
+          Modal.confirm({
+            title: $t('admin.plugin.confirm.force_disable_title', { name: plugin.display_name }),
+            content: $t('admin.plugin.confirm.force_disable_content'),
+            okType: 'danger',
+            okText: $t('admin.plugin.confirm.force_disable_ok'),
+            onOk: () => withProcessing(plugin.id, async () => {
+              await disablePluginApi(plugin.id, true);
+              message.success($t('admin.plugin.messages.disableSuccess'));
+              await loadPlugins();
+              await refreshPluginSlots('/admin', router);
+              accessStore.setIsAccessChecked(false);
+            }),
+          });
+          return;
+        }
+        throw err;
+      }
       message.success($t('admin.plugin.messages.disableSuccess'));
       await loadPlugins();
-      await refreshPluginSlots('/admin');
+      await refreshPluginSlots('/admin', router);
+      accessStore.setIsAccessChecked(false);
     }),
   });
 }
@@ -198,13 +263,32 @@ function onUninstall(plugin: PluginInfo) {
   Modal.confirm({
     title: $t('admin.plugin.confirm.uninstall', { name: plugin.display_name }),
     okType: 'danger',
-    onOk: () => withProcessing(plugin.id, async () => {
+    onOk() {
+      // 不 return Promise，让 Modal 立即关闭
       progressStore.reset();
-      progressStore.show();
-      await uninstallPluginApi(plugin.id);
-      message.success($t('admin.plugin.messages.uninstallSuccess'));
+      progressStore.startOperation(plugin.display_name, 'uninstall');
+      withProcessing(plugin.id, async () => {
+        await uninstallPluginApi(plugin.id);
+        progressStore.markComplete();
+        message.success($t('admin.plugin.messages.uninstallSuccess'));
+        await loadPlugins();
+        await refreshPluginSlots('/admin');
+      }).catch((err: unknown) => {
+        const msg = (err as { message?: string })?.message || $t('admin.plugin.messages.uninstallFailed');
+        progressStore.markError(msg);
+      });
+    },
+  });
+}
+
+function onForceCleanup(plugin: PluginInfo) {
+  Modal.confirm({
+    title: $t('admin.plugin.confirm.forceCleanup', { name: plugin.display_name }),
+    okType: 'danger',
+    onOk: () => withProcessing(plugin.id, async () => {
+      await forceCleanupPluginApi(plugin.id);
+      message.success($t('admin.plugin.messages.forceCleanupSuccess'));
       await loadPlugins();
-      await refreshPluginSlots('/admin');
     }),
   });
 }
@@ -430,6 +514,14 @@ function getPluginIconUrl(pluginName: string, icon: string): string {
               />
               <!-- 操作按钮组 -->
               <div class="flex items-center gap-0.5">
+                <Tooltip v-if="plugin.status !== 'error' && getPluginMenus(plugin).length > 0" :title="$t('admin.plugin.menu_config.menu_location')">
+                  <button
+                    class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                    @click="onMenuLocation(plugin)"
+                  >
+                    <IconifyIcon icon="lucide:layout-list" class="size-4" />
+                  </button>
+                </Tooltip>
                 <Tooltip :title="$t('admin.plugin.action.settings')">
                   <button
                     class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
@@ -438,7 +530,15 @@ function getPluginIconUrl(pluginName: string, icon: string): string {
                     <IconifyIcon icon="lucide:settings" class="size-4" />
                   </button>
                 </Tooltip>
-                <Tooltip :title="$t('admin.plugin.action.uninstall')">
+                <Tooltip v-if="plugin.status === 'error' && plugin.error_message?.includes('missing from disk')" :title="$t('admin.plugin.action.forceCleanup')">
+                  <button
+                    class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    @click="onForceCleanup(plugin)"
+                  >
+                    <IconifyIcon icon="lucide:eraser" class="size-4" />
+                  </button>
+                </Tooltip>
+                <Tooltip v-else :title="$t('admin.plugin.action.uninstall')">
                   <button
                     class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                     @click="onUninstall(plugin)"
@@ -467,5 +567,12 @@ function getPluginIconUrl(pluginName: string, icon: string): string {
 
   <!-- 安装/卸载进度抽屉 -->
   <PluginInstallProgress />
+
+  <!-- 插件菜单位置配置弹窗 -->
+  <PluginMenuConfigModal
+    ref="menuConfigModalRef"
+    @confirm="onMenuConfigConfirm"
+    @cancel="onMenuConfigCancel"
+  />
   </Page>
 </template>

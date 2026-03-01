@@ -316,5 +316,16 @@
     "featureAnalytics": "Analytics",
     "featureWhiteLabel": "White Label",
     "featureSupport": "Support"
+  },
+  "aiUsage": {
+    "title": "AI Usage Statistics",
+    "totalCalls": "Total Calls",
+    "totalTokens": "Total Tokens",
+    "avgLatency": "Avg Latency",
+    "successRate": "Success Rate",
+    "totalCost": "Total Cost",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "viewUsage": "AI Usage"
   }
 }

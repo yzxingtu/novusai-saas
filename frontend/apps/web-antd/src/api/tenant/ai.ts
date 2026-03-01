@@ -25,6 +25,7 @@ export interface TenantAIModelInfo {
   supports_vision: boolean;
   supports_streaming: boolean;
   is_active: boolean;
+  tier: null | string;
   provider_name: null | string;
   created_at: string;
   updated_at: string;

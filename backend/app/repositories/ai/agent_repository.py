@@ -37,11 +37,14 @@ class AgentRepository(TenantRepository[Agent]):
         id: int,
         include_deleted: bool = False,
     ) -> Agent | None:
-        """根据 ID 获取智能体，允许访问全局 + 已分配的智能体"""
+        """根据 ID 获取智能体，允许访问全局 + 全部租户可见 + 已分配的智能体"""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
-            # 全局共享
+            # 全局共享（管理端 + 全部租户）
             if instance.scope == ResourceScopeEnum.ADMIN_AND_ALL.value:
+                return instance
+            # 全部租户可见（平台创建的全局资源，tenant_id=null）
+            if instance.scope == ResourceScopeEnum.ALL_TENANTS.value and instance.tenant_id is None:
                 return instance
             # 已分配 scope：检查 resource_tenant_assignments
             if instance.scope in _ASSIGNED_SCOPES:
@@ -76,12 +79,17 @@ class AgentRepository(TenantRepository[Agent]):
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
-        # 替代 TenantRepository 的 tenant_id 强制过滤：包含全局 + 已分配资源
+        # 替代 TenantRepository 的 tenant_id 强制过滤：包含全局 + 全部租户可见 + 已分配资源
         assigned_subq = assigned_resource_ids_subquery("agent", self.tenant_id)
         query = query.where(
             or_(
                 self.model.tenant_id == self.tenant_id,
                 self.model.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
+                # 平台创建的全局资源（tenant_id=null，对全部租户可见）
+                and_(
+                    self.model.scope == ResourceScopeEnum.ALL_TENANTS.value,
+                    self.model.tenant_id.is_(None),
+                ),
                 and_(
                     self.model.scope.in_(_ASSIGNED_SCOPES),
                     self.model.id.in_(assigned_subq),

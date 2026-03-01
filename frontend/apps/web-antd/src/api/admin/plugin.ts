@@ -95,8 +95,8 @@ export function getPluginListApi(params?: Record<string, unknown>) {
   return requestClient.get(BASE_URL, { params });
 }
 
-export function getPluginDetailApi(id: number) {
-  return requestClient.get<PluginInfo>(`${BASE_URL}/${id}`);
+export function getPluginDetailApi(id: number, params?: { locale?: string }) {
+  return requestClient.get<PluginInfo>(`${BASE_URL}/${id}`, { params });
 }
 
 // ── 安装 ──
@@ -117,28 +117,69 @@ export function installPluginApi(file: File) {
   });
 }
 
-// ── 启用/禁用/卸载/修复 ──
+// ── 菜单配置 ──
 
-export function enablePluginApi(id: number) {
-  return requestClient.post(`${BASE_URL}/${id}/enable`);
+export interface MenuParentOption {
+  value: string;
+  label: string;
+  code: string;
+  icon: string | null;
+  path: string;
+  children?: MenuParentOption[];
 }
 
-export function disablePluginApi(id: number) {
-  return requestClient.post(`${BASE_URL}/${id}/disable`);
+export interface MenuParentOptionsResponse {
+  admin: MenuParentOption[];
+  tenant: MenuParentOption[];
+}
+
+export interface MenuOverrideItem {
+  name: string;
+  parent: string;
+  tenant_parent?: string;
+}
+
+export function getMenuParentOptionsApi() {
+  return requestClient.get<MenuParentOptionsResponse>(`${BASE_URL}/menu-parent-options`);
+}
+
+export function updatePluginMenuConfigApi(id: number, menuOverrides: MenuOverrideItem[]) {
+  return requestClient.put(`${BASE_URL}/${id}/menu-config`, {
+    menu_overrides: menuOverrides,
+  });
+}
+
+// ── 启用/禁用/卸载/修复 ──
+
+export function enablePluginApi(id: number, menuOverrides?: MenuOverrideItem[]) {
+  return requestClient.post(
+    `${BASE_URL}/${id}/enable`,
+    menuOverrides?.length ? { menu_overrides: menuOverrides } : undefined,
+    { timeout: 300_000 },
+  );
+}
+
+export function disablePluginApi(id: number, force = false) {
+  return requestClient.post(`${BASE_URL}/${id}/disable`, null, {
+    params: force ? { force: true } : undefined,
+    // 当不是强制禁用时，关闭自动 toast，改由 onDisable 处理强制禁用确认弹框
+    showCodeMessage: force,
+  });
 }
 
 export function uninstallPluginApi(id: number, confirmDataDelete = false) {
   return requestClient.delete(`${BASE_URL}/${id}`, {
     params: { confirm_data_delete: confirmDataDelete },
+    timeout: 300_000,
   });
 }
 
 export function repairPluginApi(id: number) {
-  return requestClient.post(`${BASE_URL}/${id}/repair`);
+  return requestClient.post(`${BASE_URL}/${id}/repair`, undefined, { timeout: 300_000 });
 }
 
-export function installNpmDepsApi(id: number) {
-  return requestClient.post(`${BASE_URL}/${id}/install-npm-deps`);
+export function forceCleanupPluginApi(id: number) {
+  return requestClient.delete(`${BASE_URL}/${id}/force-cleanup`);
 }
 
 // ── 配置 ──
@@ -236,4 +277,34 @@ export function revokePluginLicenseApi(id: number) {
 
 export function getPluginHealthApi(id: number) {
   return requestClient.get<PluginHealthInfo>(`${BASE_URL}/${id}/health`);
+}
+
+// ── 前端插槽 ──
+
+export interface PluginSlotData {
+  slot_type: string;
+  plugin_name: string;
+  name: string;
+  component?: string;
+  title?: Record<string, string> | string;
+  sort_order?: number;
+  scope?: string;
+  path?: string;
+  grid?: Record<string, number>;
+  icon?: string;
+  position?: string;
+  [key: string]: unknown;
+}
+
+export interface PluginSlotsResponse {
+  header_widgets: PluginSlotData[];
+  dashboard_widgets: PluginSlotData[];
+  settings_tabs: PluginSlotData[];
+  floating_panels: PluginSlotData[];
+  standalone_pages: PluginSlotData[];
+  notification_ui: PluginSlotData[];
+}
+
+export function getPluginSlotsApi() {
+  return requestClient.get<PluginSlotsResponse>(`${BASE_URL}/slots`);
 }

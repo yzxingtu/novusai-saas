@@ -49,10 +49,24 @@ async def access_attachment(
     service = AttachmentDownloadService(db)
     attachment = await service.get_attachment(attachment_id)
     await service.validate_access(attachment, token)
+
+    # Local files: stream directly from disk
     if attachment.driver == "local":
         await service.record_download(attachment)
         return await service.get_download_response(attachment, preview=preview)
+
+    # Cloud files: generate redirect URL
     url = await service.get_redirect_url(attachment, expires=3600, preview=preview)
+
+    # Guard against self-redirect loop: if _get_access_url fell back to
+    # an API proxy URL (private file with config mismatch), return 404
+    # instead of redirecting to ourselves.
+    if url.startswith("/api/"):
+        return JSONResponse(
+            status_code=404,
+            content={"code": 4040, "message": "File storage config unavailable"},
+        )
+
     return RedirectResponse(url=url)
 
 

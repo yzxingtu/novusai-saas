@@ -1,6 +1,7 @@
 {
   "plugin.amazon-s3.title": "S3 Compatible Storage",
   "plugin.amazon-s3.description": "Amazon S3 compatible object storage driver, supports AWS/MinIO/R2/B2 etc.",
+  "plugin.amazon-s3.config.base_url": "Custom Domain",
   "plugin.amazon-s3.config.access_key_id": "Access Key ID",
   "plugin.amazon-s3.config.secret_access_key": "Secret Access Key",
   "plugin.amazon-s3.config.region": "Region",

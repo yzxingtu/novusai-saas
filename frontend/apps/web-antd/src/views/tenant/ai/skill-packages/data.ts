@@ -61,8 +61,8 @@ export function useColumns<T = TenantSkillPackageInfo>(
         },
         name: 'CellOperation',
         options: [
-          { code: 'edit', show: (row: TenantSkillPackageInfo) => row.scope === 'all_tenants' },
-          { code: 'delete', show: (row: TenantSkillPackageInfo) => !row.is_system && row.scope === 'all_tenants' },
+          { code: 'edit', show: (row: TenantSkillPackageInfo) => row.scope === 'all_tenants' && row.tenant_id !== null },
+          { code: 'delete', show: (row: TenantSkillPackageInfo) => !row.is_system && row.scope === 'all_tenants' && row.tenant_id !== null },
         ],
       },
       field: 'operation',

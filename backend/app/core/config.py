@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     
     # 跨域配置
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5666" ]
+    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5666", "http://localhost:5667" ]
     
     # ========================================
     # 安全配置

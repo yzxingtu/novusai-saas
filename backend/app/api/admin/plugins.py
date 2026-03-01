@@ -53,8 +53,29 @@ class PluginActivateLicenseBody(PydanticBaseModel):
     license_key: str = ""
 
 
+class PluginBindAiFeatureBody(PydanticBaseModel):
+    agent_id: int | None = None
+
+
 class PluginRollbackBody(PydanticBaseModel):
     target_version: str = ""
+
+
+class MenuOverrideItem(PydanticBaseModel):
+    """Single menu override: which parent to mount under"""
+    name: str = Field(..., description="Menu name from plugin.yaml")
+    parent: str = Field(..., description="Admin parent menu code (e.g. system_mgmt)")
+    tenant_parent: str | None = Field(None, description="Tenant parent menu code (for admin_and_all scope)")
+
+
+class PluginMenuConfigBody(PydanticBaseModel):
+    """Admin-configurable menu placement overrides"""
+    menu_overrides: list[MenuOverrideItem] = Field(default_factory=list)
+
+
+class PluginEnableBody(PydanticBaseModel):
+    """Optional body for enable endpoint with menu config"""
+    menu_overrides: list[MenuOverrideItem] = Field(default_factory=list)
 
 
 @permission_resource(
@@ -97,6 +118,31 @@ class AdminPluginController(GlobalController):
             lifecycle = PluginLifecycle(db)
             dependencies = await lifecycle.get_dependencies(plugin_id)
             return success(data=dependencies)
+
+        # ── 前端插槽查询 ──
+
+        @self.router.get("/slots")
+        @action_read("action.plugin.list")
+        async def get_plugin_slots(db: DbSession, admin: ActiveAdmin):
+            """
+            获取所有已启用插件的前端插槽数据（admin 端）。
+
+            返回格式：
+            {
+              "header_widgets": [...],
+              "dashboard_widgets": [...],
+              "settings_tabs": [...],
+              "floating_panels": [...],
+              "standalone_pages": [...],
+              "notification_ui": [...]
+            }
+
+            前端 pluginSlotsStore 启动时调用此接口，驱动各插槽渲染。
+            """
+            from app.plugins.registry import ExtensionRegistry
+
+            registry = ExtensionRegistry.get_instance()
+            return success(data=registry.get_frontend_slots_grouped(scope="admin"))
 
         # ── 更新检查 ──
 
@@ -282,6 +328,75 @@ class AdminPluginController(GlobalController):
             finally:
                 shutil.rmtree(zip_path.parent, ignore_errors=True)
 
+        @self.router.get("/menu-parent-options")
+        @action_read("action.plugin.list")
+        async def get_menu_parent_options(db: DbSession, admin: ActiveAdmin):
+            """
+            获取可用的父级菜单树，供插件菜单挂载位置选择。
+
+            同时返回 admin 和 tenant 两侧的菜单树（多级嵌套），
+            前端可按插件菜单的 scope 显示对应分组。
+            """
+            from sqlalchemy import select
+            from app.core.i18n import translate
+            from app.models.auth.permission import Permission
+
+            # 加载所有启用的菜单权限（admin + tenant）
+            result = await db.execute(
+                select(Permission)
+                .where(
+                    Permission.type == "menu",
+                    Permission.is_enabled.is_(True),
+                    Permission.is_deleted.is_(False),
+                )
+                .order_by(Permission.sort_order)
+            )
+            all_menus = list(result.scalars().all())
+
+            def _short_name(code: str) -> str:
+                """'menu:admin.system_mgmt' → 'system_mgmt'"""
+                return code.rsplit(".", 1)[-1] if "." in code else code
+
+            def _label(perm: Permission) -> str:
+                name_key = perm.name or ""
+                if "." in name_key:
+                    t = translate(name_key)
+                    return t if t != name_key else name_key.split(".")[-1]
+                return name_key
+
+            # 计算哪些 id 是父节点（有子菜单的目录型节点）
+            def _has_menu_children(menus_subset: list, parent_id: int) -> bool:
+                return any(m.parent_id == parent_id and m.type == "menu" for m in menus_subset)
+
+            def _build_tree(menus_subset: list, parent_id: int | None) -> list:
+                nodes = []
+                for m in menus_subset:
+                    if m.parent_id == parent_id:
+                        children = _build_tree(menus_subset, m.id)
+                        # 只保留目录型节点（有子菜单），叶子页面不作为父级候选
+                        if not children and not _has_menu_children(menus_subset, m.id):
+                            continue
+                        node = {
+                            "value": _short_name(m.code),
+                            "label": _label(m),
+                            "icon": m.icon,
+                            "code": m.code,
+                        }
+                        if children:
+                            node["children"] = children
+                        nodes.append(node)
+                return nodes
+
+            # admin 侧：admin_only + admin_and_all
+            admin_menus = [m for m in all_menus if m.scope in ("admin_only", "admin_and_all")]
+            # tenant 侧：all_tenants + admin_and_all
+            tenant_menus = [m for m in all_menus if m.scope in ("all_tenants", "admin_and_all")]
+
+            return success(data={
+                "admin": _build_tree(admin_menus, None),
+                "tenant": _build_tree(tenant_menus, None),
+            })
+
         @self.router.get("/frontend-config")
         @action_read("action.plugin.list")
         async def get_frontend_config(db: DbSession, admin: ActiveAdmin):
@@ -348,7 +463,12 @@ class AdminPluginController(GlobalController):
 
         @self.router.get("/{plugin_id}")
         @action_read("action.plugin.detail")
-        async def get_plugin(plugin_id: int, db: DbSession, admin: ActiveAdmin):
+        async def get_plugin(
+            plugin_id: int,
+            db: DbSession,
+            admin: ActiveAdmin,
+            locale: str = "zh-CN",
+        ):
             service = self.get_service(db)
             plugin = await service.get_by_id(plugin_id)
 
@@ -362,8 +482,8 @@ class AdminPluginController(GlobalController):
             if config_schema and data.get("config"):
                 data["config"] = mask_plugin_config(data["config"], config_schema)
 
-            # 加载 README
-            readme = await service.get_readme(plugin_id)
+            # 加载 README（按 locale 优先级）
+            readme = await service.get_readme(plugin_id, locale=locale)
             data["readme"] = readme
 
             return success(data=data)
@@ -480,64 +600,91 @@ class AdminPluginController(GlobalController):
 
         @self.router.post("/{plugin_id}/enable")
         @action_update("action.plugin.enable")
-        async def enable_plugin(plugin_id: int, db: DbSession, admin: ActiveAdmin):
+        async def enable_plugin(
+            plugin_id: int,
+            db: DbSession,
+            admin: ActiveAdmin,
+            body: PluginEnableBody | None = None,
+        ):
+            """启用插件（自动安装 pip/npm 依赖，通过 Socket.IO 推送进度）"""
             service = self.get_service(db)
+
+            # 保存管理员配置的菜单挂载位置
+            if body and body.menu_overrides:
+                plugin = await service.get_by_id(plugin_id)
+                config = dict(plugin.config or {})
+                config["menu_overrides"] = {
+                    item.name: (
+                        {"parent": item.parent, "tenant_parent": item.tenant_parent}
+                        if item.tenant_parent
+                        else {"parent": item.parent}
+                    )
+                    for item in body.menu_overrides
+                }
+                plugin.config = config
+                await db.flush()
+
             await service.enable_plugin(plugin_id, operator_id=admin.id)
-
-            # 检查前端 npm 依赖是否已安装（仅 DEBUG 模式）
-            missing_npm_deps: list[str] = []
-            needs_restart = False
-            from app.core.config import settings
-            if settings.DEBUG:
-                plugin = await service.repo.get_by_id(plugin_id)
-                manifest_data = plugin.manifest or {}
-                frontend = (manifest_data.get("extensions") or {}).get("frontend") or {}
-                npm_deps = frontend.get("npm_dependencies") or []
-                if npm_deps:
-                    from app.plugins.loader import PLUGINS_DIR
-                    frontend_node_modules = PLUGINS_DIR.parent.parent / "frontend" / "node_modules"
-                    for pkg in npm_deps:
-                        pkg_name = pkg.split("@")[0] if pkg.startswith("@") else pkg.split("@")[0]
-                        if pkg.startswith("@"):
-                            pkg_name = pkg  # scoped package like @tiptap/vue-3
-                            if "/" in pkg_name and "@" in pkg_name[1:]:
-                                pkg_name = pkg_name.rsplit("@", 1)[0]
-                        pkg_dir = frontend_node_modules / pkg_name
-                        if not pkg_dir.is_dir():
-                            missing_npm_deps.append(pkg)
-                    if missing_npm_deps:
-                        needs_restart = True
-
-            return success(data={
-                "message": "Plugin enabled",
-                "missing_npm_deps": missing_npm_deps,
-                "needs_restart": needs_restart,
-            })
-
-        @self.router.post("/{plugin_id}/install-npm-deps")
-        @action_update("action.plugin.enable")
-        async def install_npm_deps(plugin_id: int, db: DbSession, admin: ActiveAdmin):
-            """手动触发插件 npm 依赖安装（前端启用后调用）"""
-            service = self.get_service(db)
-            plugin = await service.repo.get_by_id(plugin_id)
-            manifest_data = plugin.manifest or {}
-            frontend = (manifest_data.get("extensions") or {}).get("frontend") or {}
-            npm_deps = frontend.get("npm_dependencies") or []
-
-            if not npm_deps:
-                return success(data={"message": "No npm dependencies to install"})
-
-            from app.plugins.lifecycle import PluginLifecycle
-            lifecycle = PluginLifecycle(db)
-            await lifecycle._install_npm_deps(plugin.name, npm_deps)
-            return success(data={"message": f"Installed {len(npm_deps)} npm packages", "needs_restart": True})
+            return success(data={"message": "Plugin enabled"})
 
         @self.router.post("/{plugin_id}/disable")
         @action_update("action.plugin.disable")
-        async def disable_plugin(plugin_id: int, db: DbSession, admin: ActiveAdmin):
+        async def disable_plugin(
+            plugin_id: int,
+            db: DbSession,
+            admin: ActiveAdmin,
+            force: bool = False,
+        ):
             service = self.get_service(db)
-            await service.disable_plugin(plugin_id, operator_id=admin.id)
+            await service.disable_plugin(plugin_id, force=force, operator_id=admin.id)
             return success(data={"message": "Plugin disabled"})
+
+        @self.router.put("/{plugin_id}/menu-config")
+        @action_update("action.plugin.update")
+        async def update_menu_config(
+            plugin_id: int,
+            body: PluginMenuConfigBody,
+            db: DbSession,
+            admin: ActiveAdmin,
+        ):
+            """更新插件菜单挂载位置（已启用插件可动态调整）"""
+            from app.enums.plugin import PluginStatusEnum
+            from app.plugins._extension_registrar import register_all_extensions
+            from app.plugins.loader import PluginLoader
+            from app.plugins.registry import ExtensionRegistry
+            from app.rbac.sync import PermissionSyncService
+
+            service = self.get_service(db)
+            plugin = await service.get_by_id(plugin_id)
+
+            # 保存新的菜单覆盖配置
+            config = dict(plugin.config or {})
+            config["menu_overrides"] = {
+                item.name: (
+                    {"parent": item.parent, "tenant_parent": item.tenant_parent}
+                    if item.tenant_parent
+                    else {"parent": item.parent}
+                )
+                for item in body.menu_overrides
+            }
+            plugin.config = config
+            await db.flush()
+
+            # 如果插件已启用，重新注册扩展点 + 同步权限到 DB
+            if plugin.status == PluginStatusEnum.ENABLED.value:
+                registry = ExtensionRegistry.get_instance()
+                registry.unregister_all(plugin.name)
+
+                loader = PluginLoader()
+                manifest = loader.load_manifest(plugin.name)
+                menu_overrides = config.get("menu_overrides")
+                register_all_extensions(registry, manifest, plugin.name, menu_overrides=menu_overrides)
+
+                # 同步权限到 DB，使菜单位置变更立即生效
+                sync_service = PermissionSyncService(db)
+                await sync_service.sync_permissions()
+
+            return success(data={"message": "Menu config updated"})
 
         @self.router.delete("/{plugin_id}")
         @action_delete("action.plugin.uninstall")
@@ -554,13 +701,87 @@ class AdminPluginController(GlobalController):
         @self.router.post("/{plugin_id}/repair")
         @action_update("action.plugin.repair")
         async def repair_plugin(plugin_id: int, db: DbSession, admin: ActiveAdmin):
-            """修复插件（重置错误计数）"""
-            from app.plugins.health import PluginHealthMonitor
+            """修复插件：重置错误计数并尝试重新恢复（安装依赖 + 注册扩展点）"""
+            from app.enums.plugin import PluginStatusEnum
+            from app.plugins._extension_registrar import register_all_extensions
+            from app.plugins.lifecycle import PluginLifecycle, _plugin_lock
+            from app.plugins.loader import PluginLoader
+            from app.plugins.registry import ExtensionRegistry
 
-            monitor = PluginHealthMonitor(db)
-            plugin = await self.get_service(db).get(plugin_id)
-            await monitor.reset_error(plugin.name)
-            return success(data={"message": "Plugin repaired"})
+            plugin = await self.get_service(db).get_by_id(plugin_id)
+
+            # 只对 error 状态的插件执行修复
+            if plugin.status not in (PluginStatusEnum.ERROR.value, PluginStatusEnum.ENABLED.value):
+                return success(data={"message": "Plugin is not in error state"})
+
+            loader = PluginLoader()
+            lifecycle = PluginLifecycle(db)
+            registry = ExtensionRegistry.get_instance()
+
+            async with _plugin_lock(plugin_id):
+                try:
+                    manifest = loader.load_manifest(plugin.name)
+
+                    # 安装 Python 依赖
+                    if manifest.dependencies.python:
+                        await lifecycle._install_python_deps(plugin.name, manifest.dependencies.python)
+
+                    # 安装前端 npm 依赖
+                    frontend_ext = manifest.extensions.frontend if manifest.extensions else None
+                    npm_deps = frontend_ext.npm_dependencies if frontend_ext else []
+                    if npm_deps:
+                        await lifecycle._install_npm_deps(plugin.name, npm_deps)
+
+                    # 注册扩展点
+                    menu_overrides = (plugin.config or {}).get("menu_overrides")
+                    register_all_extensions(registry, manifest, plugin.name, menu_overrides=menu_overrides)
+
+                    # 恢复成功：重置错误，恢复 enabled 状态
+                    plugin.status = PluginStatusEnum.ENABLED.value
+                    plugin.error_count = 0
+                    plugin.error_message = None
+                    await db.flush()
+                    return success(data={"message": "Plugin repaired and restored"})
+
+                except Exception as exc:
+                    plugin.status = PluginStatusEnum.ERROR.value
+                    plugin.error_count = (plugin.error_count or 0) + 1
+                    plugin.error_message = f"Repair failed: {exc}"
+                    await db.flush()
+                    from app.exceptions.base import BusinessException
+                    raise BusinessException(message=f"Repair failed: {exc}") from exc
+
+        @self.router.delete("/{plugin_id}/force-cleanup")
+        @action_delete("action.plugin.uninstall")
+        async def force_cleanup_orphan(plugin_id: int, db: DbSession, admin: ActiveAdmin):
+            """强制清理孤立插件记录（磁盘文件已缺失的 error 状态插件）"""
+            from sqlalchemy import delete, select
+
+            from app.models.system.plugin import Plugin as PluginModel
+            from app.models.system.plugin_license import PluginLicense
+            from app.models.system.plugin_version import PluginVersion
+            from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
+            from app.plugins.loader import PLUGINS_DIR
+
+            plugin = await self.get_service(db).get_by_id(plugin_id)
+            plugin_dir = PLUGINS_DIR / plugin.name
+            if plugin_dir.exists():
+                from app.exceptions.base import BusinessException
+                raise BusinessException(
+                    message="Plugin files exist on disk. Use normal uninstall instead of force cleanup.",
+                )
+
+            await db.execute(delete(PluginVersion).where(PluginVersion.plugin_id == plugin_id))
+            await db.execute(
+                delete(ResourceTenantAssignment).where(
+                    ResourceTenantAssignment.resource_type == "plugin",
+                    ResourceTenantAssignment.resource_id == plugin_id,
+                )
+            )
+            await db.execute(delete(PluginLicense).where(PluginLicense.plugin_id == plugin_id))
+            await db.execute(delete(PluginModel).where(PluginModel.id == plugin_id))
+            await db.flush()
+            return deleted()
 
         # ── 配置 ──
 
@@ -799,20 +1020,37 @@ class AdminPluginController(GlobalController):
         async def bind_ai_feature(
             plugin_id: int,
             assignment_id: int,
+            body: PluginBindAiFeatureBody,
             db: DbSession = None,
             admin: ActiveAdmin = None,
-            agent_id: int | None = None,
         ):
             """为插件 AI 功能绑定 Agent"""
             from sqlalchemy import select, update
 
+            from app.models.system.plugin import Plugin as PluginModel
             from app.models.system.agent_assignment import SystemAgentAssignment
 
-            await db.execute(
+            plugin_name_result = await db.execute(
+                select(PluginModel.name).where(
+                    PluginModel.id == plugin_id,
+                    PluginModel.is_deleted.is_(False),
+                )
+            )
+            plugin_name = plugin_name_result.scalar_one_or_none()
+            if not plugin_name:
+                from app.exceptions.base import NotFoundException
+                raise NotFoundException(message="Plugin not found")
+
+            result = await db.execute(
                 update(SystemAgentAssignment).where(
                     SystemAgentAssignment.id == assignment_id,
-                ).values(agent_id=agent_id)
+                    SystemAgentAssignment.feature_code.like(f"plugin.{plugin_name}.%"),
+                    SystemAgentAssignment.is_deleted.is_(False),
+                ).values(agent_id=body.agent_id)
             )
+            if result.rowcount == 0:
+                from app.exceptions.base import NotFoundException
+                raise NotFoundException(message="AI feature assignment not found for this plugin")
             await db.flush()
             return success(data={"message": "AI feature binding updated"})
 

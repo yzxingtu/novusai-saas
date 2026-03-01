@@ -6,12 +6,15 @@
  * B6: AI 使用趋势
  * B7: 近期活动时间线
  */
-import { computed, onMounted, ref } from 'vue';
+import type { EchartsUIType } from '@vben/plugins/echarts';
+
+import { computed, onMounted, ref, watch } from 'vue';
 
 import { useUserStore } from '@vben/stores';
 import { IconifyIcon } from '@vben/icons';
 
 import { Card, Spin, Tag } from 'ant-design-vue';
+import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
 import {
   type AITrendItem,
@@ -80,7 +83,25 @@ const statCards = computed(() => [
 ]);
 
 // B6: AI 趋势
-const maxTrendCalls = computed(() => Math.max(...aiTrend.value.map(i => i.calls), 1));
+const aiTrendChartRef = ref<EchartsUIType>();
+const { renderEcharts: renderAiTrendChart } = useEcharts(aiTrendChartRef);
+
+function renderTrendChart() {
+  const data = aiTrend.value;
+  if (!data.length) return;
+  renderAiTrendChart({
+    tooltip: { trigger: 'axis' },
+    grid: { left: '3%', right: '4%', bottom: '3%', top: '8%', containLabel: true },
+    xAxis: { type: 'category', data: data.map((i) => i.date.slice(5)), axisLabel: { fontSize: 10 } },
+    yAxis: [{ type: 'value', name: $t('tenant.analytics.chart.calls') }, { type: 'value', name: 'Token' }],
+    series: [
+      { name: $t('tenant.analytics.chart.calls'), type: 'bar', data: data.map((i) => i.calls), itemStyle: { color: '#5B8FF9', borderRadius: [4, 4, 0, 0] }, barMaxWidth: 20 },
+      { name: 'Token', type: 'line', data: data.map((i) => i.tokens), smooth: true, itemStyle: { color: '#5AD8A6' }, yAxisIndex: 1 },
+    ],
+  });
+}
+
+watch(aiTrend, renderTrendChart);
 
 // 快捷操作
 const quickActions = computed(() => [
@@ -142,22 +163,9 @@ function navigateTo(route: string) { router.push(route); }
         </div>
       </Card>
 
-      <!-- B6: AI Usage Trend (CSS bar chart) -->
+      <!-- B6: AI Usage Trend (ECharts) -->
       <Card :title="$t('tenant.dashboard.aiTrend.title')">
-        <div v-if="aiTrend.length" class="space-y-1.5">
-          <div v-for="item in aiTrend" :key="item.date" class="flex items-center gap-2">
-            <span class="w-14 shrink-0 text-right text-xs text-muted-foreground">{{ item.date.slice(5) }}</span>
-            <div class="flex-1">
-              <div
-                class="h-5 rounded bg-primary/20 transition-all"
-                :style="{ width: `${Math.max((item.calls / maxTrendCalls) * 100, 4)}%` }"
-              >
-                <span class="px-1 text-xs font-medium leading-5 text-primary">{{ item.calls }}</span>
-              </div>
-            </div>
-            <span class="w-14 text-right text-xs text-muted-foreground">{{ formatNumber(item.tokens) }}t</span>
-          </div>
-        </div>
+        <EchartsUI v-if="aiTrend.length" ref="aiTrendChartRef" height="220px" />
         <div v-else class="py-8 text-center text-sm text-muted-foreground">{{ $t('tenant.dashboard.aiTrend.empty') }}</div>
       </Card>
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ConfigGroupListItemMeta, ConfigItemMeta } from '#/types/config';
 
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onActivated, onBeforeUnmount, onMounted, ref } from 'vue';
 
 defineOptions({ name: 'SystemConfigList' });
 
@@ -18,6 +18,9 @@ import {
 } from '#/api/admin/configs';
 import { ConfigForm } from '#/components';
 import { $t as t } from '#/locales';
+
+// 平台存储配置专用面板
+import PlatformStoragePanel from './modules/PlatformStoragePanel.vue';
 
 const generatingKey = ref(false);
 async function onGenerateFernetKey(setValue: (v: string) => void) {
@@ -37,6 +40,7 @@ const loading = ref(false);
 const groupLoading = ref(false);
 const saving = ref(false);
 const formRef = ref<any>();
+const storagePanelRef = ref<{ onSave: () => Promise<void>; saving: { value: boolean } }>();
 
 // 当前选中的分组数据
 const activeGroupData = computed(() =>
@@ -86,8 +90,13 @@ async function loadGroups() {
   try {
     groups.value = await getAdminConfigGroupsApi();
     if (groups.value.length > 0) {
-      activeGroup.value = groups.value[0]!.code;
-      await loadGroupDetail(activeGroup.value);
+      // 按 sort_order 取第一个组
+      const sorted = [...groups.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+      activeGroup.value = sorted[0]!.code;
+      // platform_storage 组用专用面板，不需要加载配置详情
+      if (activeGroup.value !== 'platform_storage') {
+        await loadGroupDetail(activeGroup.value);
+      }
     }
   } finally {
     groupLoading.value = false;
@@ -117,17 +126,27 @@ async function onSelectGroup(code: string) {
       cancelText: t('shared.common.cancel'),
       onOk: async () => {
         activeGroup.value = code;
-        await loadGroupDetail(code);
+        // platform_storage 组用专用面板，不需要加载配置详情
+        if (code !== 'platform_storage') {
+          await loadGroupDetail(code);
+        }
       },
     });
   } else {
     activeGroup.value = code;
-    await loadGroupDetail(code);
+    // platform_storage 组用专用面板，不需要加载配置详情
+    if (code !== 'platform_storage') {
+      await loadGroupDetail(code);
+    }
   }
 }
 
 async function onSave() {
   if (!activeGroup.value) return;
+  if (activeGroup.value === 'platform_storage') {
+    await storagePanelRef.value?.onSave();
+    return;
+  }
   try {
     await formRef.value?.validate();
   } catch {
@@ -156,9 +175,19 @@ function beforeUnloadHandler(e: BeforeUnloadEvent) {
     e.returnValue = '';
   }
 }
+let isInitialMount = true;
 onMounted(() => {
   loadGroups();
   window.addEventListener('beforeunload', beforeUnloadHandler);
+});
+onActivated(() => {
+  if (isInitialMount) {
+    isInitialMount = false;
+    return;
+  }
+  if (activeGroup.value && activeGroup.value !== 'platform_storage') {
+    loadGroupDetail(activeGroup.value);
+  }
 });
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', beforeUnloadHandler);
@@ -239,7 +268,7 @@ onBeforeUnmount(() => {
           <Button
             type="primary"
             v-access:code="['platform_config:update']"
-            :loading="saving"
+            :loading="activeGroup === 'platform_storage' ? storagePanelRef?.saving?.value : saving"
             :disabled="!activeGroup"
             @click="onSave"
           >
@@ -251,7 +280,12 @@ onBeforeUnmount(() => {
         </template>
 
         <Spin :spinning="loading">
-          <div v-if="activeGroup" class="max-w-[800px]">
+          <!-- platform_storage 分组使用专用存储配置面板 -->
+          <PlatformStoragePanel
+            v-if="activeGroup === 'platform_storage'"
+            ref="storagePanelRef"
+          />
+          <div v-else-if="activeGroup" class="max-w-[800px]">
             <ConfigForm ref="formRef" :configs="configs">
               <template #generate-ssl_private_key_encryption_key="{ setValue }">
                 <Button

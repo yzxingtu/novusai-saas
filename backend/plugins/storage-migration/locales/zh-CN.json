@@ -1,0 +1,76 @@
+{
+  "storage_migration": {
+    "plugin_name": "存储迁移工具",
+    "plugin_description": "跨存储驱动文件迁移工具",
+    "menu": {
+      "title": "存储迁移"
+    },
+    "impact_analysis": {
+      "title": "存储切换影响分析",
+      "total_files": "总文件数",
+      "total_size": "总大小",
+      "private_files": "私有文件",
+      "public_files": "公开文件",
+      "source_driver": "源存储驱动",
+      "target_driver": "目标存储驱动",
+      "driver_not_available": "驱动不可用",
+      "no_files": "指定驱动下没有文件"
+    },
+    "task": {
+      "title": "迁移任务",
+      "create": "创建迁移任务",
+      "status": {
+        "pending": "等待中",
+        "running": "迁移中",
+        "paused": "已暂停",
+        "completed": "已完成",
+        "failed": "失败",
+        "cancelled": "已取消",
+        "rolling_back": "回滚中"
+      },
+      "progress": "迁移进度",
+      "migrated_files": "已迁移文件",
+      "failed_files": "失败文件",
+      "skipped_files": "跳过文件",
+      "total_bytes": "总大小",
+      "migrated_bytes": "已迁移大小",
+      "concurrency": "并发数",
+      "scope": "迁移范围",
+      "scope_all": "全部文件",
+      "scope_tenant": "租户 {id} 的文件",
+      "started_at": "开始时间",
+      "completed_at": "完成时间"
+    },
+    "action": {
+      "start": "开始迁移",
+      "pause": "暂停",
+      "resume": "恢复",
+      "cancel": "取消",
+      "retry": "重试失败文件",
+      "rollback": "回滚",
+      "cleanup": "清理源文件",
+      "confirm_cancel": "确定要取消此迁移任务吗？",
+      "confirm_rollback": "确定要回滚此迁移吗？已迁移的文件记录将恢复为原始驱动。",
+      "confirm_cleanup": "确定要删除源存储中的旧文件吗？此操作不可逆。"
+    },
+    "switch_warning": {
+      "title": "存储切换影响提醒",
+      "description": "切换存储驱动前，请注意以下影响：",
+      "private_warning": "有 {count} 个私有文件（切换后将不可访问，建议先迁移）",
+      "public_warning": "有 {count} 个公开文件（切换后旧 CDN 链接仍可访问）",
+      "btn_switch": "仍然切换",
+      "btn_migrate": "先去迁移"
+    },
+    "error": {
+      "source_target_same": "源驱动和目标驱动不能相同",
+      "driver_not_available": "存储驱动 '{driver}' 不可用",
+      "no_files_to_migrate": "没有需要迁移的文件",
+      "task_not_found": "迁移任务不存在",
+      "invalid_status": "无法在 '{status}' 状态下执行此操作"
+    },
+    "history": {
+      "title": "迁移历史",
+      "empty": "暂无迁移记录"
+    }
+  }
+}

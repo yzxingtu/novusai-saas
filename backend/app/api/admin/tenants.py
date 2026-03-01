@@ -475,6 +475,27 @@ class AdminTenantController(GlobalController):
 
             config_service = ConfigService(db)
 
+            # admin_override 模式必填校验
+            mode = data.get("tenant_storage_mode")
+            if mode == "admin_override":
+                driver = data.get("tenant_storage_driver")
+                root_path = data.get("tenant_storage_root_path", "")
+                if not driver:
+                    raise BusinessException(
+                        message=_("error.common.invalid_parameter"),
+                        code=ErrorCode.INVALID_PARAMETER,
+                    )
+                if not root_path or not str(root_path).strip():
+                    raise BusinessException(
+                        message=_("error.common.invalid_parameter"),
+                        code=ErrorCode.INVALID_PARAMETER,
+                    )
+                if driver == "local":
+                    raise BusinessException(
+                        message=_("config.storage.local_not_allowed_for_tenant"),
+                        code=ErrorCode.INVALID_PARAMETER,
+                    )
+
             config_map = {
                 "tenant_storage_mode": "tenant_storage_mode",
                 "tenant_storage_driver": "tenant_storage_driver",

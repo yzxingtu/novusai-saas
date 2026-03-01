@@ -45,7 +45,8 @@
       "agent_assignment": "Agent Assignment",
       "email_log": "Email Logs",
       "recycle_bin": "Recycle Bin",
-      "notification_template": "Notification Templates"
+      "notification_template": "Notification Templates",
+      "cache_management": "Cache Management"
     },
     "tags": {
       "admin_agent_mgmt": "Agent Management (Platform)",
@@ -73,7 +74,8 @@
       "tenant_knowledge_base": "Knowledge Bases",
       "tenant_ai_table_policy": "Data Access Policies",
       "admin_agent_assignment_mgmt": "Agent Assignment Management",
-      "notification_template": "Notification Template Management"
+      "notification_template": "Notification Template Management",
+      "admin_cache": "Cache Management"
     },
     "tenant": {
       "dashboard": "Dashboard",

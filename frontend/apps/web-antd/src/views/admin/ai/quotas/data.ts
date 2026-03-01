@@ -1,9 +1,7 @@
 /**
- * AI 配额管理 - 表格列、搜索和表单 Schema
+ * AI 配额管理 - 表单 Schema 和辅助函数（卡片布局）
  */
 import type { VbenFormSchema } from '#/adapter/form';
-import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { AIQuotaInfo } from '#/api/admin/ai';
 
 import {
   dividerField,
@@ -19,7 +17,7 @@ import { $t } from '#/locales';
 /**
  * 获取周期下拉选项
  */
-function getPeriodOptions() {
+export function getPeriodOptions() {
   return [
     { label: $t('admin.ai.quota.period_options.daily'), value: 'daily' },
     { label: $t('admin.ai.quota.period_options.monthly'), value: 'monthly' },
@@ -29,7 +27,7 @@ function getPeriodOptions() {
 /**
  * 获取配额类型下拉选项
  */
-function getQuotaTypeOptions() {
+export function getQuotaTypeOptions() {
   return [
     { label: $t('admin.ai.quota.type_options.soft'), value: 'soft' },
     { label: $t('admin.ai.quota.type_options.hard'), value: 'hard' },
@@ -88,110 +86,6 @@ async function getModelSelectOptions() {
 }
 
 /**
- * 表格列定义
- */
-export function useColumns<T = AIQuotaInfo>(
-  onActionClick: OnActionClickFn<T>,
-): VxeTableGridOptions['columns'] {
-  return [
-    {
-      field: 'tenant_name',
-      title: $t('admin.ai.quota.tenantName'),
-      width: 140,
-      align: 'center',
-      slots: { default: 'tenantName_cell' },
-    },
-    {
-      field: 'model_name',
-      title: $t('admin.ai.quota.modelName'),
-      width: 160,
-      align: 'center',
-      slots: { default: 'modelName_cell' },
-    },
-    {
-      field: 'period',
-      title: $t('admin.ai.quota.period'),
-      width: 100,
-      align: 'center',
-      slots: { default: 'period_cell' },
-    },
-    {
-      field: 'limit',
-      title: $t('admin.ai.quota.limit'),
-      width: 140,
-      align: 'right',
-      slots: { default: 'limit_cell' },
-    },
-    {
-      field: 'quota_type',
-      title: $t('admin.ai.quota.quotaType'),
-      width: 110,
-      align: 'center',
-      slots: { default: 'quotaType_cell' },
-    },
-    {
-      field: 'warning_threshold',
-      title: $t('admin.ai.quota.warningThreshold'),
-      width: 130,
-      align: 'center',
-      slots: { default: 'threshold_cell' },
-    },
-    {
-      field: 'is_active',
-      title: $t('admin.ai.quota.isActive'),
-      width: 100,
-      align: 'center',
-      slots: { default: 'isActive_cell' },
-    },
-    {
-      field: 'created_at',
-      title: $t('admin.common.createdAt'),
-      width: 130,
-      sortable: true,
-      slots: { default: 'createdAt_cell' },
-    },
-    {
-      align: 'center',
-      cellRender: {
-        attrs: {
-          resource: 'ai_quota',
-          nameField: 'id',
-          nameTitle: $t('admin.ai.quota.title'),
-          onClick: onActionClick,
-        },
-        name: 'CellOperation',
-        options: ['edit', 'delete'],
-      },
-      field: 'operation',
-      fixed: 'right',
-      title: $t('admin.common.operation'),
-      width: 160,
-    },
-  ];
-}
-
-/**
- * 搜索表单 Schema
- */
-export function useGridFormSchema(): VbenFormSchema[] {
-  return [
-    select('filter[tenant_id]', $t('admin.ai.quota.tenantId'), {
-      api: getTenantSelectApi,
-      params: { is_active: 'true' },
-      placeholder: $t('admin.ai.quota.placeholder.allTenants'),
-    }),
-    select('filter[period][eq]', $t('admin.ai.quota.period'), {
-      options: getPeriodOptions(),
-      placeholder: $t('admin.ai.quota.placeholder.allPeriods'),
-    }),
-    select('filter[quota_type][eq]', $t('admin.ai.quota.quotaType'), {
-      options: getQuotaTypeOptions(),
-      placeholder: $t('admin.ai.quota.placeholder.allTypes'),
-    }),
-  ];
-}
-
-/**
  * 表单 Schema
  */
 export function useFormSchema(): VbenFormSchema[] {
@@ -246,6 +140,52 @@ export function getFormDefaults(): Record<string, unknown> {
     period: 'monthly',
     quota_type: 'soft',
     warning_threshold: 80,
+    is_active: true,
+  };
+}
+
+// ============================================================
+// 速率限制 Schema
+// ============================================================
+
+/**
+ * 速率限制表单 Schema
+ */
+export function getRateLimitFormSchema(): VbenFormSchema[] {
+  return [
+    select('tenant_id', $t('admin.ai.rateLimit.tenantId'), {
+      api: getTenantSelectApi,
+      params: { is_active: 'true' },
+      required: true,
+      placeholder: $t('admin.ai.rateLimit.placeholder.selectTenant'),
+    }),
+    select('model_id', $t('admin.ai.rateLimit.modelId'), {
+      api: getModelSelectOptions,
+      required: true,
+      placeholder: $t('admin.ai.rateLimit.placeholder.selectModel'),
+    }),
+    numberField('rpm_limit', $t('admin.ai.rateLimit.rpmLimit'), {
+      min: 0,
+      placeholder: $t('admin.ai.rateLimit.placeholder.inputRpm'),
+    }),
+    numberField('tpm_limit', $t('admin.ai.rateLimit.tpmLimit'), {
+      min: 0,
+      placeholder: $t('admin.ai.rateLimit.placeholder.inputTpm'),
+    }),
+    inputField('description', $t('admin.ai.rateLimit.description'), {
+      placeholder: $t('admin.ai.rateLimit.placeholder.inputDescription'),
+    }),
+    switchField('is_active', $t('admin.ai.rateLimit.isActive'), {
+      defaultValue: true,
+    }),
+  ];
+}
+
+/**
+ * 速率限制表单默认值
+ */
+export function getRateLimitFormDefaults(): Record<string, unknown> {
+  return {
     is_active: true,
   };
 }

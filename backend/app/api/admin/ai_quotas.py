@@ -27,7 +27,13 @@ from app.schemas.ai.tenant_quota import (
     TenantQuotaResponse,
     TenantQuotaUpdate,
 )
+from app.schemas.ai.tenant_rate_limit import (
+    AdminRateLimitCreate,
+    TenantRateLimitResponse,
+    TenantRateLimitUpdate,
+)
 from app.services.ai.tenant_quota_service import TenantQuotaService
+from app.services.ai.tenant_rate_limit_service import TenantRateLimitService
 
 
 def _build_quota_response(quota) -> dict:
@@ -96,6 +102,136 @@ class AdminAIQuotaController(GlobalController):
     def _register_routes(self) -> None:
         """注册路由"""
         router = self.router
+
+        # ========== 速率限制管理 ==========
+        # 注意：rate-limits 路由必须在 /{quota_id} 之前注册
+
+        @router.get("/rate-limits", summary=_("action.ai_quota.list_rate_limits"))
+        @action_read("action.ai_quota.list_rate_limits")
+        async def list_rate_limits(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            tenant_id: int | None = None,
+            model_id: int | None = None,
+        ):
+            """
+            获取速率限制列表（跨租户）
+
+            权限: ai_quota:list_rate_limits
+            """
+            from sqlalchemy import select
+            from app.models.ai.tenant_rate_limit import TenantModelRateLimit
+
+            stmt = select(TenantModelRateLimit).where(
+                TenantModelRateLimit.is_deleted.is_(False)
+            )
+            if tenant_id is not None:
+                stmt = stmt.where(TenantModelRateLimit.tenant_id == tenant_id)
+            if model_id is not None:
+                stmt = stmt.where(TenantModelRateLimit.model_id == model_id)
+            stmt = stmt.order_by(TenantModelRateLimit.created_at.desc())
+
+            result = await db.execute(stmt)
+            items = result.scalars().all()
+            return success(
+                data=[TenantRateLimitResponse.from_orm_model(item) for item in items],
+                message=_("common.success"),
+            )
+
+        @router.post("/rate-limits", summary=_("action.ai_quota.create_rate_limit"))
+        @action_create("action.ai_quota.create_rate_limit")
+        async def create_rate_limit(
+            request: Request,
+            db: DbSession,
+            data: AdminRateLimitCreate,
+            admin: ActiveAdmin,
+        ):
+            """
+            创建速率限制配置（指定 tenant_id）
+
+            权限: ai_quota:create_rate_limit
+            """
+            service = TenantRateLimitService(db, data.tenant_id)
+            rate_limit = await service.create_rate_limit(
+                model_id=data.model_id,
+                rpm_limit=data.rpm_limit,
+                tpm_limit=data.tpm_limit,
+                description=data.description,
+            )
+            await db.commit()
+            return success(
+                data=TenantRateLimitResponse.from_orm_model(rate_limit),
+                message=_("ai.rate_limit.created"),
+            )
+
+        @router.put("/rate-limits/{rate_limit_id}", summary=_("action.ai_quota.update_rate_limit"))
+        @action_update("action.ai_quota.update_rate_limit")
+        async def update_rate_limit(
+            request: Request,
+            db: DbSession,
+            rate_limit_id: int,
+            data: TenantRateLimitUpdate,
+            admin: ActiveAdmin,
+        ):
+            """
+            更新速率限制配置
+
+            权限: ai_quota:update_rate_limit
+            """
+            from sqlalchemy import select
+            from app.models.ai.tenant_rate_limit import TenantModelRateLimit
+
+            result = await db.execute(
+                select(TenantModelRateLimit).where(
+                    TenantModelRateLimit.id == rate_limit_id,
+                    TenantModelRateLimit.is_deleted.is_(False),
+                )
+            )
+            rate_limit = result.scalar_one_or_none()
+            if not rate_limit:
+                raise NotFoundException(message=_("ai.error.rate_limit_not_found"))
+
+            service = TenantRateLimitService(db, rate_limit.tenant_id)
+            updated = await service.update(rate_limit_id, data.model_dump(exclude_unset=True))
+            await db.commit()
+            return success(
+                data=TenantRateLimitResponse.from_orm_model(updated),
+                message=_("ai.rate_limit.updated"),
+            )
+
+        @router.delete("/rate-limits/{rate_limit_id}", summary=_("action.ai_quota.delete_rate_limit"))
+        @action_delete("action.ai_quota.delete_rate_limit")
+        async def delete_rate_limit(
+            request: Request,
+            db: DbSession,
+            rate_limit_id: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            删除速率限制配置
+
+            权限: ai_quota:delete_rate_limit
+            """
+            from sqlalchemy import select
+            from app.models.ai.tenant_rate_limit import TenantModelRateLimit
+
+            result = await db.execute(
+                select(TenantModelRateLimit).where(
+                    TenantModelRateLimit.id == rate_limit_id,
+                    TenantModelRateLimit.is_deleted.is_(False),
+                )
+            )
+            rate_limit = result.scalar_one_or_none()
+            if not rate_limit:
+                raise NotFoundException(message=_("ai.error.rate_limit_not_found"))
+
+            service = TenantRateLimitService(db, rate_limit.tenant_id)
+            await service.delete(rate_limit_id)
+            await db.commit()
+            return success(message=_("ai.rate_limit.deleted"))
+
+        # ========== 配额管理 ==========
 
         @router.get("", summary=_("action.ai_quota.list"))
         @action_read("action.ai_quota.list")

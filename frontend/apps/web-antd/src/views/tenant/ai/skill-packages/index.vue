@@ -61,9 +61,9 @@ import SkillForm from '../skills/modules/SkillForm.vue';
 import { getSkillTypeColor, getSkillTypeText } from '../skills/data';
 import { getScopeText } from '#/utils/scope-helpers';
 
-/** 判断是否为租户自有包（只有 all_tenants scope 可编辑） */
+/** 判断是否为租户自有包（scope=all_tenants 且 tenant_id 不为 null，平台全局包不可编辑） */
 function isTenantOwned(pkg: TenantSkillPackageInfo | null | undefined): boolean {
-  return !!pkg && pkg.scope === 'all_tenants';
+  return !!pkg && pkg.scope === 'all_tenants' && pkg.tenant_id !== null;
 }
 
 // ==================== 技能包列表（左侧） ====================

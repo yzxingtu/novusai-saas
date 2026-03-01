@@ -41,38 +41,36 @@ class OssStorageDriver(StorageDriver):
         "properties": {
             "root_path": {
                 "type": "string",
-                "title": "config.storage.oss.bucket",
-                "description": "config.storage.oss.bucket_desc",
+                "title": "plugin.aliyun-oss.config.bucket",
             },
             "base_url": {
                 "type": "string",
-                "title": "config.storage.oss.base_url",
-                "description": "config.storage.oss.base_url_desc",
+                "title": "plugin.aliyun-oss.config.base_url",
             },
             "access_key_id": {
                 "type": "string",
-                "title": "config.storage.oss.access_key_id",
+                "title": "plugin.aliyun-oss.config.access_key_id",
                 "x-encrypted": True,
             },
             "access_key_secret": {
                 "type": "string",
-                "title": "config.storage.oss.access_key_secret",
+                "title": "plugin.aliyun-oss.config.access_key_secret",
                 "x-encrypted": True,
             },
             "endpoint": {
                 "type": "string",
-                "title": "config.storage.oss.endpoint",
+                "title": "plugin.aliyun-oss.config.endpoint",
             },
             "region": {
                 "type": "string",
-                "title": "config.storage.oss.region",
+                "title": "plugin.aliyun-oss.config.region",
             },
             "prefix": {
                 "type": "string",
-                "title": "config.storage.oss.prefix",
+                "title": "plugin.aliyun-oss.config.prefix",
             },
         },
-        "required": ["root_path"],
+        "required": ["root_path", "access_key_id", "access_key_secret"],
     }
 
     MAX_PROCESS_SIZE = 20 * 1024 * 1024  # 20MB
@@ -85,10 +83,21 @@ class OssStorageDriver(StorageDriver):
         region = options.get("region", "")
         ak = options.get("access_key_id")
         sk = options.get("access_key_secret")
-        if not self.bucket_name or not ak or not sk:
-            raise StorageConfigError()
+        missing = []
+        if not self.bucket_name:
+            missing.append("bucket/root_path")
+        if not ak:
+            missing.append("access_key_id")
+        if not sk:
+            missing.append("access_key_secret")
+        if missing:
+            raise StorageConfigError(
+                message=f"Aliyun OSS missing required config: {', '.join(missing)}",
+            )
         if not endpoint and not region:
-            raise StorageConfigError()
+            raise StorageConfigError(
+                message="Aliyun OSS requires either 'endpoint' or 'region'",
+            )
         self.base_url = config.base_url.rstrip("/") if config.base_url else None
         self.prefix = options.get("prefix", "").strip("/")
 
@@ -150,6 +159,7 @@ class OssStorageDriver(StorageDriver):
             return size, hasher.hexdigest()
 
         size, file_hash = await anyio.to_thread.run_sync(_upload)
+        self.logger.debug("put %s (%d bytes)", path, size)
         return UploadResult(
             path=path,
             url=await self.get_url(path, visibility=visibility),
@@ -174,7 +184,7 @@ class OssStorageDriver(StorageDriver):
                 se = exc.unwrap()
                 if hasattr(se, "code") and se.code == "NoSuchKey":
                     raise StorageNotFoundError() from exc
-                raise StorageError() from exc
+                raise StorageError(message=str(exc)) from exc
 
         return await anyio.to_thread.run_sync(_get)
 
@@ -188,10 +198,12 @@ class OssStorageDriver(StorageDriver):
                     key=key,
                 ))
             except oss.exceptions.OperationError as exc:
-                raise StorageError() from exc
+                raise StorageError(message=str(exc)) from exc
             return True
 
-        return await anyio.to_thread.run_sync(_delete)
+        result = await anyio.to_thread.run_sync(_delete)
+        self.logger.debug("delete %s", path)
+        return result
 
     async def exists(self, path: str) -> bool:
         key = self._key(path)
@@ -203,7 +215,7 @@ class OssStorageDriver(StorageDriver):
                     key=key,
                 )
             except oss.exceptions.OperationError as exc:
-                raise StorageError() from exc
+                raise StorageError(message=str(exc)) from exc
 
         return await anyio.to_thread.run_sync(_exists)
 
@@ -275,10 +287,12 @@ class OssStorageDriver(StorageDriver):
                     source_key=src_key,
                 ))
             except oss.exceptions.OperationError as exc:
-                raise StorageError() from exc
+                raise StorageError(message=str(exc)) from exc
             return True
 
-        return await anyio.to_thread.run_sync(_copy)
+        result = await anyio.to_thread.run_sync(_copy)
+        self.logger.debug("copy %s -> %s", source, destination)
+        return result
 
     async def move(self, source: str, destination: str) -> bool:
         copied = await self.copy(source, destination)

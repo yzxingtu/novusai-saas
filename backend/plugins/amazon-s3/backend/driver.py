@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import mimetypes
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, BinaryIO, Optional
 
 import anyio
@@ -42,45 +42,43 @@ class S3StorageDriver(StorageDriver):
         "properties": {
             "root_path": {
                 "type": "string",
-                "title": "config.storage.s3.bucket",
-                "description": "config.storage.s3.bucket_desc",
+                "title": "plugin.amazon-s3.config.bucket",
             },
             "base_url": {
                 "type": "string",
-                "title": "config.storage.s3.base_url",
-                "description": "config.storage.s3.base_url_desc",
+                "title": "plugin.amazon-s3.config.base_url",
             },
             "access_key_id": {
                 "type": "string",
-                "title": "config.storage.s3.access_key_id",
+                "title": "plugin.amazon-s3.config.access_key_id",
                 "x-encrypted": True,
             },
             "secret_access_key": {
                 "type": "string",
-                "title": "config.storage.s3.secret_access_key",
+                "title": "plugin.amazon-s3.config.secret_access_key",
                 "x-encrypted": True,
             },
             "region": {
                 "type": "string",
-                "title": "config.storage.s3.region",
+                "title": "plugin.amazon-s3.config.region",
             },
             "endpoint_url": {
                 "type": "string",
-                "title": "config.storage.s3.endpoint_url",
+                "title": "plugin.amazon-s3.config.endpoint_url",
             },
             "prefix": {
                 "type": "string",
-                "title": "config.storage.s3.prefix",
+                "title": "plugin.amazon-s3.config.prefix",
             },
             "image_process_provider": {
                 "type": "string",
-                "title": "config.storage.s3.image_process_provider",
+                "title": "plugin.amazon-s3.config.image_process_provider",
                 "enum": ["", "cloudflare", "imgproxy"],
                 "default": "",
             },
             "image_process_url": {
                 "type": "string",
-                "title": "config.storage.s3.image_process_url",
+                "title": "plugin.amazon-s3.config.image_process_url",
                 "default": "",
             },
         },
@@ -92,7 +90,9 @@ class S3StorageDriver(StorageDriver):
         options = config.options or {}
         self.bucket = options.get("bucket") or config.root_path
         if not self.bucket:
-            raise StorageConfigError()
+            raise StorageConfigError(
+                message="S3 missing required config: bucket/root_path",
+            )
         self.base_url = config.base_url.rstrip("/") if config.base_url else None
         self.prefix = options.get("prefix", "").strip("/")
         self.client = boto3.client(
@@ -140,6 +140,7 @@ class S3StorageDriver(StorageDriver):
             return size, hasher.hexdigest()
 
         size, file_hash = await anyio.to_thread.run_sync(_upload)
+        self.logger.debug("put %s (%d bytes)", path, size)
         final_mime_type = mime_type or mimetypes.guess_type(path)[0]
         return UploadResult(
             path=path,
@@ -178,7 +179,7 @@ class S3StorageDriver(StorageDriver):
             except ClientError as exc:
                 if exc.response.get("Error", {}).get("Code") in {"404", "NoSuchKey"}:
                     raise StorageNotFoundError() from exc
-                raise StorageError() from exc
+                raise StorageError(message=str(exc)) from exc
             return response["Body"]
 
         return await anyio.to_thread.run_sync(_get)
@@ -190,10 +191,12 @@ class S3StorageDriver(StorageDriver):
             try:
                 self.client.delete_object(Bucket=self.bucket, Key=key)
             except ClientError as exc:
-                raise StorageError() from exc
+                raise StorageError(message=str(exc)) from exc
             return True
 
-        return await anyio.to_thread.run_sync(_delete)
+        result = await anyio.to_thread.run_sync(_delete)
+        self.logger.debug("delete %s", path)
+        return result
 
     async def exists(self, path: str) -> bool:
         key = self._key(path)
@@ -205,7 +208,7 @@ class S3StorageDriver(StorageDriver):
             except ClientError as exc:
                 if exc.response.get("Error", {}).get("Code") in {"404", "NoSuchKey"}:
                     return False
-                raise StorageError() from exc
+                raise StorageError(message=str(exc)) from exc
 
         return await anyio.to_thread.run_sync(_exists)
 
@@ -240,14 +243,14 @@ class S3StorageDriver(StorageDriver):
             except ClientError as exc:
                 if exc.response.get("Error", {}).get("Code") in {"404", "NoSuchKey"}:
                     return None
-                raise StorageError() from exc
+                raise StorageError(message=str(exc)) from exc
             metadata = response.get("Metadata", {}) or {}
             visibility_value = metadata.get("visibility", "private")
             return FileInfo(
                 path=path,
                 size=response.get("ContentLength", 0),
                 mime_type=response.get("ContentType") or "application/octet-stream",
-                last_modified=response.get("LastModified") or datetime.utcnow(),
+                last_modified=response.get("LastModified") or datetime.now(timezone.utc),
                 visibility=StorageVisibility(visibility_value),
                 metadata=metadata,
             )
@@ -266,10 +269,12 @@ class S3StorageDriver(StorageDriver):
                     Key=dst_key,
                 )
             except ClientError as exc:
-                raise StorageError() from exc
+                raise StorageError(message=str(exc)) from exc
             return True
 
-        return await anyio.to_thread.run_sync(_copy)
+        result = await anyio.to_thread.run_sync(_copy)
+        self.logger.debug("copy %s -> %s", source, destination)
+        return result
 
     async def move(self, source: str, destination: str) -> bool:
         copied = await self.copy(source, destination)

@@ -94,3 +94,47 @@ async def list_available_plugins(
         "page_size": len(items),
         "pages": 1,
     })
+
+
+@router.get("/slots")
+@auth_only
+async def get_plugin_slots(
+    db: DbSession,
+    tenant_admin: ActiveTenantAdmin,
+):
+    """
+    获取当前租户可见的已启用插件前端插槽数据。
+
+    过滤规则：
+    - admin_only scope 的插槽不返回
+    - assigned_tenants / admin_and_assigned scope 的插槽仅当租户被分配时返回
+
+    返回格式：
+    {
+      "header_widgets": [...],
+      "dashboard_widgets": [...],
+      "settings_tabs": [...],
+      "floating_panels": [...],
+      "standalone_pages": [...],
+      "notification_ui": [...]
+    }
+    """
+    from app.plugins.registry import ExtensionRegistry
+    from app.services.system.plugin_service import PluginService
+
+    visible_names = await PluginService(db).get_tenant_visible_plugin_names(
+        tenant_admin.tenant_id
+    )
+
+    registry = ExtensionRegistry.get_instance()
+    grouped = registry.get_frontend_slots_grouped(scope="tenant")
+
+    # 按可见插件名过滤各插槽
+    filtered = {
+        slot_key: [
+            s for s in slots if s.get("plugin_name") in visible_names
+        ]
+        for slot_key, slots in grouped.items()
+    }
+
+    return success(data=filtered)

@@ -31,18 +31,16 @@ from app.services.ai.agent_service import AgentService
 
 async def _ensure_tenant_owned_agent(db, tenant_id: int, agent_id: int):
     """
-    确保智能体为租户自有（scope=all_tenants）才允许变更操作。
+    确保智能体为租户自有（tenant_id 与当前租户匹配）才允许变更操作。
 
-    assigned_tenants / admin_and_assigned / admin_and_all / admin_only 的智能体
-    对租户只读，不允许编辑、发布、回滚、绑定技能等变更操作。
+    平台创建的全局智能体（tenant_id=null）及其他租户的智能体对当前租户只读，
+    不允许编辑、发布、回滚、绑定技能等变更操作。
     """
-    from app.enums.common import ResourceScopeEnum
-
     service = AgentService(db, tenant_id)
     agent = await service.get_by_id(agent_id)
     if not agent:
         raise NotFoundException(message=_("agent.error.not_found"))
-    if agent.scope != ResourceScopeEnum.ALL_TENANTS.value:
+    if agent.tenant_id != tenant_id:
         raise BusinessException(message=_("agent.error.system_protected"))
     return agent
 

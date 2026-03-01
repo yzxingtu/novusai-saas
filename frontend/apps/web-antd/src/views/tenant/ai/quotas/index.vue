@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 /**
- * 租户端配额与速率限制管理页面
+ * 租户端配额与速率限制管理页面（只读）— useCrudList 声明式卡片布局
  */
 import type {
   TenantQuotaWithUsageInfo,
@@ -9,17 +9,12 @@ import type {
 
 defineOptions({ name: 'TenantAIQuotas' });
 
-import { onMounted, ref } from 'vue';
-
 import { Page } from '@vben/common-ui';
-import { IconifyIcon, Plus } from '@vben/icons';
+import { IconifyIcon } from '@vben/icons';
 
 import {
-  Button,
   Card,
   Empty,
-  message,
-  Modal,
   Progress,
   Spin,
   Tabs,
@@ -27,9 +22,8 @@ import {
   Tag,
 } from 'ant-design-vue';
 
+import { useCrudList } from '#/composables';
 import {
-  deleteTenantQuotaApi,
-  deleteTenantRateLimitApi,
   getTenantQuotasApi,
   getTenantRateLimitsApi,
 } from '#/api/tenant/ai';
@@ -40,135 +34,65 @@ import {
   getPeriodText,
   getQuotaTypeText,
 } from './data';
-import QuotaForm from './modules/QuotaForm.vue';
-import RateLimitForm from './modules/RateLimitForm.vue';
 
-// ============ 配额 ============
+// ========== 配额 Tab — useCrudList（只读，含使用量） ==========
+const {
+  list: quotas, loading: quotaLoading,
+} = useCrudList<TenantQuotaWithUsageInfo>({
+  api: {
+    list: getTenantQuotasApi,
+    resource: '',
+  },
+  i18nPrefix: 'tenant.ai.quota',
+  pager: false,
+  responseAdapter: (data) => ({
+    items: Array.isArray(data)
+      ? (data as TenantQuotaWithUsageInfo[]).map((item) => ({ ...item, id: item.quota?.id }))
+      : [],
+    total: Array.isArray(data) ? (data as unknown[]).length : 0,
+  }),
+});
 
-const quotaLoading = ref(false);
-const quotas = ref<TenantQuotaWithUsageInfo[]>([]);
-const quotaFormRef = ref<InstanceType<typeof QuotaForm>>();
+// ========== 速率限制 Tab — useCrudList（只读） ==========
+const {
+  list: rateLimits, loading: rateLimitLoading,
+} = useCrudList<TenantRateLimitInfo>({
+  api: {
+    list: getTenantRateLimitsApi,
+    resource: '',
+  },
+  i18nPrefix: 'tenant.ai.rateLimit',
+  pager: false,
+  responseAdapter: (data) => ({
+    items: Array.isArray(data) ? data as TenantRateLimitInfo[] : [],
+    total: Array.isArray(data) ? (data as unknown[]).length : 0,
+  }),
+});
 
-async function loadQuotas() {
-  quotaLoading.value = true;
-  try {
-    quotas.value = await getTenantQuotasApi();
-  } catch {
-    // Error handled by request interceptor
-  } finally {
-    quotaLoading.value = false;
-  }
-}
-
-function handleCreateQuota() {
-  quotaFormRef.value?.openNew();
-}
-
-function handleEditQuota(item: TenantQuotaWithUsageInfo) {
-  quotaFormRef.value?.openEdit(item.quota);
-}
-
-function handleDeleteQuota(item: TenantQuotaWithUsageInfo) {
-  Modal.confirm({
-    title: $t('tenant.ai.quota.confirmDelete'),
-    onOk: async () => {
-      try {
-        await deleteTenantQuotaApi(item.quota.id);
-        message.success($t('tenant.ai.quota.messages.deleteSuccess'));
-        await loadQuotas();
-      } catch {
-        // Error handled by request interceptor
-      }
-    },
-  });
-}
-
-/**
- * 获取进度条颜色
- */
+/** 获取进度条颜色 */
 function getProgressColor(item: TenantQuotaWithUsageInfo): string {
   if (item.is_exceeded) return '#ff4d4f';
   if (item.is_warning) return '#faad14';
   return '#52c41a';
 }
-
-// ============ 速率限制 ============
-
-const rateLimitLoading = ref(false);
-const rateLimits = ref<TenantRateLimitInfo[]>([]);
-const rateLimitFormRef = ref<InstanceType<typeof RateLimitForm>>();
-
-async function loadRateLimits() {
-  rateLimitLoading.value = true;
-  try {
-    rateLimits.value = await getTenantRateLimitsApi();
-  } catch {
-    // Error handled by request interceptor
-  } finally {
-    rateLimitLoading.value = false;
-  }
-}
-
-function handleCreateRateLimit() {
-  rateLimitFormRef.value?.openNew();
-}
-
-function handleEditRateLimit(item: TenantRateLimitInfo) {
-  rateLimitFormRef.value?.openEdit(item);
-}
-
-function handleDeleteRateLimit(item: TenantRateLimitInfo) {
-  Modal.confirm({
-    title: $t('tenant.ai.rateLimit.confirmDelete'),
-    onOk: async () => {
-      try {
-        await deleteTenantRateLimitApi(item.id);
-        message.success($t('tenant.ai.rateLimit.messages.deleteSuccess'));
-        await loadRateLimits();
-      } catch {
-        // Error handled by request interceptor
-      }
-    },
-  });
-}
-
-function handleTabChange(key: number | string) {
-  if (key === 'rateLimits' && rateLimits.value.length === 0) {
-    loadRateLimits();
-  }
-}
-
-onMounted(loadQuotas);
 </script>
 
 <template>
   <Page auto-content-height :description="$t('tenant.ai.quota.pageDesc')" content-class="flex flex-col gap-4">
-    <!-- 表单抽屉 -->
-    <QuotaForm ref="quotaFormRef" @success="loadQuotas" />
-    <RateLimitForm ref="rateLimitFormRef" @success="loadRateLimits" />
-
     <Card :body-style="{ padding: '0' }">
-      <Tabs default-active-key="quotas" class="px-4" @change="handleTabChange">
+      <Tabs default-active-key="quotas" class="px-4">
         <!-- ========== 配额 Tab ========== -->
         <TabPane key="quotas" :tab="$t('tenant.ai.quota.title')">
-          <!-- 操作栏 -->
-          <div class="mb-4 flex items-center justify-between">
+          <!-- 信息栏 -->
+          <div class="mb-4">
             <span class="text-sm text-muted-foreground">
               {{ quotas.length }} {{ $t('tenant.ai.quota.title') }}
             </span>
-            <Button
-              v-access:code="['ai_quota:create_quota']"
-              type="primary"
-              @click="handleCreateQuota"
-            >
-              <template #icon><Plus class="size-4" /></template>
-              {{ $t('tenant.ai.quota.create') }}
-            </Button>
           </div>
 
           <!-- 配额列表 -->
           <Spin :spinning="quotaLoading">
-            <div v-if="quotas.length > 0" class="flex flex-col gap-3 pb-4">
+            <div v-if="quotas.length > 0" class="grid grid-cols-1 gap-3 pb-4 md:grid-cols-2 xl:grid-cols-3">
               <Card
                 v-for="item in quotas"
                 :key="item.quota.id"
@@ -247,30 +171,6 @@ onMounted(loadQuotas);
                     </div>
                   </div>
 
-                  <!-- 右侧操作 -->
-                  <div class="ml-4 flex items-center gap-1">
-                    <Button
-                      v-access:code="['ai_quota:update_quota']"
-                      type="text"
-                      size="small"
-                      @click="handleEditQuota(item)"
-                    >
-                      <template #icon>
-                        <IconifyIcon icon="lucide:pencil" class="size-4" />
-                      </template>
-                    </Button>
-                    <Button
-                      v-access:code="['ai_quota:delete_quota']"
-                      type="text"
-                      danger
-                      size="small"
-                      @click="handleDeleteQuota(item)"
-                    >
-                      <template #icon>
-                        <IconifyIcon icon="lucide:trash-2" class="size-4" />
-                      </template>
-                    </Button>
-                  </div>
                 </div>
               </Card>
             </div>
@@ -280,24 +180,16 @@ onMounted(loadQuotas);
 
         <!-- ========== 速率限制 Tab ========== -->
         <TabPane key="rateLimits" :tab="$t('tenant.ai.rateLimit.title')">
-          <!-- 操作栏 -->
-          <div class="mb-4 flex items-center justify-between">
+          <!-- 信息栏 -->
+          <div class="mb-4">
             <span class="text-sm text-muted-foreground">
               {{ rateLimits.length }} {{ $t('tenant.ai.rateLimit.title') }}
             </span>
-            <Button
-              v-access:code="['ai_quota:create_rate_limit']"
-              type="primary"
-              @click="handleCreateRateLimit"
-            >
-              <template #icon><Plus class="size-4" /></template>
-              {{ $t('tenant.ai.rateLimit.create') }}
-            </Button>
           </div>
 
           <!-- 速率限制列表 -->
           <Spin :spinning="rateLimitLoading">
-            <div v-if="rateLimits.length > 0" class="flex flex-col gap-3 pb-4">
+            <div v-if="rateLimits.length > 0" class="grid grid-cols-1 gap-3 pb-4 md:grid-cols-2 xl:grid-cols-3">
               <Card
                 v-for="item in rateLimits"
                 :key="item.id"
@@ -308,12 +200,12 @@ onMounted(loadQuotas);
                   <!-- 左侧信息 -->
                   <div class="flex items-center gap-3">
                     <div
-                      class="flex size-10 items-center justify-center rounded-lg"
+                      class="flex size-9 shrink-0 items-center justify-center rounded-lg"
                       :class="item.is_active ? 'bg-primary/10' : 'bg-muted'"
                     >
                       <IconifyIcon
                         icon="lucide:timer"
-                        class="size-5"
+                        class="size-4.5"
                         :class="item.is_active ? 'text-primary' : 'text-muted-foreground'"
                       />
                     </div>
@@ -349,30 +241,6 @@ onMounted(loadQuotas);
                     </div>
                   </div>
 
-                  <!-- 右侧操作 -->
-                  <div class="flex items-center gap-1">
-                    <Button
-                      v-access:code="['ai_quota:update_rate_limit']"
-                      type="text"
-                      size="small"
-                      @click="handleEditRateLimit(item)"
-                    >
-                      <template #icon>
-                        <IconifyIcon icon="lucide:pencil" class="size-4" />
-                      </template>
-                    </Button>
-                    <Button
-                      v-access:code="['ai_quota:delete_rate_limit']"
-                      type="text"
-                      danger
-                      size="small"
-                      @click="handleDeleteRateLimit(item)"
-                    >
-                      <template #icon>
-                        <IconifyIcon icon="lucide:trash-2" class="size-4" />
-                      </template>
-                    </Button>
-                  </div>
                 </div>
               </Card>
             </div>

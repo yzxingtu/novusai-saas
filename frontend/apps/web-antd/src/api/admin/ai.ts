@@ -355,6 +355,91 @@ export async function deleteAIQuotaApi(
 }
 
 // ============================================================
+// 类型定义 - 速率限制
+// ============================================================
+
+/** 速率限制信息 */
+export interface AIRateLimitInfo {
+  id: number;
+  tenant_id: number;
+  model_id: number;
+  rpm_limit: number | null;
+  tpm_limit: number | null;
+  description: string | null;
+  is_active: boolean;
+  model_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 创建速率限制请求（管理员） */
+export interface AIRateLimitCreateRequest {
+  tenant_id: number;
+  model_id: number;
+  rpm_limit?: number | null;
+  tpm_limit?: number | null;
+  description?: string | null;
+}
+
+/** 更新速率限制请求 */
+export interface AIRateLimitUpdateRequest {
+  rpm_limit?: number | null;
+  tpm_limit?: number | null;
+  description?: string | null;
+  is_active?: boolean | null;
+}
+
+// ============================================================
+// API 接口 - 速率限制
+// ============================================================
+
+const RATE_LIMIT_PREFIX = '/admin/ai/quotas/rate-limits';
+
+/** 获取速率限制列表 */
+export async function getAIRateLimitListApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<AIRateLimitInfo[]> {
+  return requestClient.get<AIRateLimitInfo[]>(
+    RATE_LIMIT_PREFIX,
+    { params, ...options },
+  );
+}
+
+/** 创建速率限制 */
+export async function createAIRateLimitApi(
+  data: AIRateLimitCreateRequest,
+  options?: ApiRequestOptions,
+): Promise<AIRateLimitInfo> {
+  return requestClient.post<AIRateLimitInfo>(
+    RATE_LIMIT_PREFIX,
+    data,
+    options,
+  );
+}
+
+/** 更新速率限制 */
+export async function updateAIRateLimitApi(
+  id: number,
+  data: AIRateLimitUpdateRequest,
+  options?: ApiRequestOptions,
+): Promise<AIRateLimitInfo> {
+  return requestClient.put<AIRateLimitInfo>(
+    `${RATE_LIMIT_PREFIX}/${id}`,
+    data,
+    options,
+  );
+}
+
+/** 删除速率限制 */
+export async function deleteAIRateLimitApi(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.delete(`${RATE_LIMIT_PREFIX}/${id}`, options);
+}
+
+// ============================================================
 // 技能管理 (Skill)
 // ============================================================
 

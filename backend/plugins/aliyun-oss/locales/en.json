@@ -3,6 +3,7 @@
   "plugin.aliyun-oss.description": "Alibaba Cloud Object Storage Service driver with native image processing",
   "plugin.aliyun-oss.config.access_key_id": "Access Key ID",
   "plugin.aliyun-oss.config.access_key_secret": "Access Key Secret",
+  "plugin.aliyun-oss.config.base_url": "Custom Domain",
   "plugin.aliyun-oss.config.endpoint": "Endpoint",
   "plugin.aliyun-oss.config.bucket": "Bucket",
   "plugin.aliyun-oss.config.prefix": "Key Prefix",

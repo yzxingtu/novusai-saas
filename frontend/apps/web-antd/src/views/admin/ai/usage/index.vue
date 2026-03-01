@@ -130,26 +130,26 @@ function renderCharts() {
 
   renderCallChart({
     tooltip: { trigger: 'axis' },
-    legend: { data: ['Calls', 'Success', 'Failed'], bottom: 0 },
+    legend: { data: [$t('admin.analytics.chart.calls'), $t('admin.analytics.chart.success'), $t('admin.analytics.chart.failed')], bottom: 0 },
     grid: { left: '3%', right: '4%', bottom: '14%', top: '8%', containLabel: true },
     xAxis: { type: 'category', data: dates, boundaryGap: false },
     yAxis: { type: 'value' },
     series: [
-      { name: 'Calls', type: 'line', data: data.map((i) => i.calls), smooth: true, itemStyle: { color: '#5B8FF9' } },
-      { name: 'Success', type: 'line', data: data.map((i) => i.success), smooth: true, itemStyle: { color: '#5AD8A6' } },
-      { name: 'Failed', type: 'line', data: data.map((i) => i.failed), smooth: true, itemStyle: { color: '#F6614E' } },
+      { name: $t('admin.analytics.chart.calls'), type: 'line', data: data.map((i) => i.calls), smooth: true, itemStyle: { color: '#5B8FF9' } },
+      { name: $t('admin.analytics.chart.success'), type: 'line', data: data.map((i) => i.success), smooth: true, itemStyle: { color: '#5AD8A6' } },
+      { name: $t('admin.analytics.chart.failed'), type: 'line', data: data.map((i) => i.failed), smooth: true, itemStyle: { color: '#F6614E' } },
     ],
   });
 
   renderTokenChart({
     tooltip: { trigger: 'axis' },
-    legend: { data: ['Input Tokens', 'Output Tokens'], bottom: 0 },
+    legend: { data: [$t('admin.analytics.chart.inputTokens'), $t('admin.analytics.chart.outputTokens')], bottom: 0 },
     grid: { left: '3%', right: '4%', bottom: '14%', top: '8%', containLabel: true },
     xAxis: { type: 'category', data: dates, boundaryGap: false },
     yAxis: { type: 'value' },
     series: [
-      { name: 'Input Tokens', type: 'line', areaStyle: { opacity: 0.3 }, data: data.map((i) => i.input_tokens), smooth: true, itemStyle: { color: '#5B8FF9' }, stack: 'tokens' },
-      { name: 'Output Tokens', type: 'line', areaStyle: { opacity: 0.3 }, data: data.map((i) => i.output_tokens), smooth: true, itemStyle: { color: '#5AD8A6' }, stack: 'tokens' },
+      { name: $t('admin.analytics.chart.inputTokens'), type: 'line', areaStyle: { opacity: 0.3 }, data: data.map((i) => i.input_tokens), smooth: true, itemStyle: { color: '#5B8FF9' }, stack: 'tokens' },
+      { name: $t('admin.analytics.chart.outputTokens'), type: 'line', areaStyle: { opacity: 0.3 }, data: data.map((i) => i.output_tokens), smooth: true, itemStyle: { color: '#5AD8A6' }, stack: 'tokens' },
     ],
   });
 }

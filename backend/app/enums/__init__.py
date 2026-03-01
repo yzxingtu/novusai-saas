@@ -50,6 +50,7 @@ from app.enums.knowledge_base import (
     SearchModeEnum,
     RewriteStrategyEnum,
 )
+from app.enums.cache import CacheCategoryEnum
 from app.enums.plugin import (
     PluginStatusEnum,
     PluginScopeEnum,
@@ -125,6 +126,8 @@ __all__ = [
     "ChunkStrategyEnum",
     "SearchModeEnum",
     "RewriteStrategyEnum",
+    # 缓存
+    "CacheCategoryEnum",
     # 插件
     "PluginStatusEnum",
     "PluginScopeEnum",

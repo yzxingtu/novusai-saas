@@ -278,6 +278,7 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
     dividerField('scope_divider', $t('admin.system.periodicTask.section.scope')),
     ...useScopeFields({
       allowedScopes: ['admin_only', 'all_tenants'],
+      showTenantId: true,
     }),
 
     dividerField('protection_divider', $t('admin.system.periodicTask.section.protection')),

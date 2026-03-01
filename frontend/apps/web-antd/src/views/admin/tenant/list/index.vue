@@ -37,6 +37,7 @@ import DomainsModal from './modules/DomainsModal.vue';
 import TenantAdminPanel from './modules/TenantAdminPanel.vue';
 import Form from './modules/TenantForm.vue';
 import ResetPasswordModal from './modules/ResetPasswordModal.vue';
+import TenantStorageDrawer from './modules/TenantStorageDrawer.vue';
 
 defineOptions({ name: 'TenantList' });
 
@@ -62,6 +63,9 @@ const domainsModalRef = ref<InstanceType<typeof DomainsModal>>();
 
 // 重置密码弹窗引用
 const resetPasswordModalRef = ref<InstanceType<typeof ResetPasswordModal>>();
+
+// 存储配置抽屉引用
+const storageDrawerRef = ref<InstanceType<typeof TenantStorageDrawer>>();
 
 
 /**
@@ -92,6 +96,16 @@ function onManageDomains(row: TenantInfo) {
  */
 function onResetPassword(row: TenantInfo) {
   resetPasswordModalRef.value?.open({
+    id: row.id,
+    name: row.name,
+  });
+}
+
+/**
+ * 打开存储配置抽屉
+ */
+function onStorageConfig(row: TenantInfo) {
+  storageDrawerRef.value?.open({
     id: row.id,
     name: row.name,
   });
@@ -189,6 +203,7 @@ const {
     impersonateInCurrentTab: onImpersonateInCurrentTab,
     manageDomains: onManageDomains,
     resetPassword: onResetPassword,
+    storageConfig: onStorageConfig,
   },
 });
 </script>
@@ -198,6 +213,7 @@ const {
     <FormDrawer @success="onRefresh" />
     <DomainsModal ref="domainsModalRef" @success="onRefresh" />
     <ResetPasswordModal ref="resetPasswordModalRef" @success="onRefresh" />
+    <TenantStorageDrawer ref="storageDrawerRef" />
     <ExportModal />
 
     <!-- 表格 -->
@@ -435,6 +451,12 @@ const {
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:globe" class="size-4" />
                       <span>{{ $t('admin.tenant.manageDomains') }}</span>
+                    </div>
+                  </MenuItem>
+                  <MenuItem @click="onStorageConfig(row)">
+                    <div class="flex items-center gap-2">
+                      <IconifyIcon icon="lucide:database" class="size-4" />
+                      <span>{{ $t('shared.storage.adminTab.title') }}</span>
                     </div>
                   </MenuItem>
                   <MenuItem @click="onResetPassword(row)">

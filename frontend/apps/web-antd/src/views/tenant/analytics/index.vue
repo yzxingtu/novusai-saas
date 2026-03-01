@@ -10,6 +10,7 @@ import { onMounted, ref } from 'vue';
 import { Page } from '@vben/common-ui';
 
 import { Card, DatePicker, Spin } from 'ant-design-vue';
+import type { Dayjs } from 'dayjs';
 
 import {
   type AgentRankingItem,
@@ -32,7 +33,7 @@ import CostTrendChart from './charts/CostTrendChart.vue';
 defineOptions({ name: 'TenantAnalytics' });
 
 const loading = ref(false);
-const dateRange = ref<[string, string] | undefined>(undefined);
+const dateRange = ref<[Dayjs, Dayjs] | undefined>();
 
 const callTrend = ref<CallTrendItem[]>([]);
 const modelDist = ref<ModelDistributionItem[]>([]);
@@ -41,7 +42,10 @@ const costTrend = ref<CostTrendItem[]>([]);
 
 function getParams() {
   if (!dateRange.value) return {};
-  return { start_date: dateRange.value[0], end_date: dateRange.value[1] };
+  return {
+    start_date: dateRange.value[0].format('YYYY-MM-DD'),
+    end_date: dateRange.value[1].format('YYYY-MM-DD'),
+  };
 }
 
 async function loadAll() {
@@ -87,10 +91,10 @@ onMounted(() => {
       <!-- Row 1: Call Trend + Token Trend -->
       <div class="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card :title="$t('tenant.analytics.callTrend')">
-          <AiCallTrendChart :data="callTrend" />
+          <AiCallTrendChart :data="callTrend" i18n-prefix="tenant.analytics" />
         </Card>
         <Card :title="$t('tenant.analytics.tokenTrend')">
-          <TokenTrendChart :data="callTrend" />
+          <TokenTrendChart :data="callTrend" i18n-prefix="tenant.analytics" />
         </Card>
       </div>
 

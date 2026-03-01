@@ -1,0 +1,84 @@
+{
+  "impactAnalysis": {
+    "title": "存储切换影响分析",
+    "totalFiles": "总文件数",
+    "totalSize": "总大小",
+    "privateFiles": "私有文件",
+    "publicFiles": "公开文件",
+    "sourceDriver": "源存储驱动",
+    "targetDriver": "目标存储驱动",
+    "driverNotAvailable": "驱动不可用",
+    "noFiles": "指定驱动下没有文件，可以安全切换"
+  },
+  "task": {
+    "title": "迁移任务",
+    "create": "创建迁移任务",
+    "created": "迁移任务已创建，共 {count} 个文件",
+    "status": {
+      "pending": "等待中",
+      "running": "迁移中",
+      "paused": "已暂停",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "rolling_back": "回滚中"
+    },
+    "progress": "迁移进度",
+    "migratedFiles": "已迁移",
+    "failedFiles": "失败文件",
+    "skippedFiles": "跳过文件",
+    "totalBytes": "总大小",
+    "migratedBytes": "已迁移大小",
+    "concurrency": "并发数",
+    "scope": "迁移范围",
+    "scopeAll": "全部文件",
+    "scopeTenant": "租户 {id} 的文件",
+    "startedAt": "开始时间",
+    "completedAt": "完成时间"
+  },
+  "action": {
+    "start": "开始迁移",
+    "pause": "暂停",
+    "paused": "迁移已暂停",
+    "resume": "恢复",
+    "resumed": "迁移已恢复",
+    "cancel": "取消",
+    "cancelled": "迁移已取消",
+    "retry": "重试失败文件",
+    "retryStarted": "正在重试失败文件",
+    "rollback": "回滚",
+    "rollbackDone": "迁移已回滚",
+    "cleanup": "清理源文件",
+    "cleanupDone": "已删除 {count} 个源文件",
+    "confirmCreate": "确定要创建迁移任务并开始迁移吗？",
+    "confirmCancel": "确定要取消此迁移任务吗？已迁移的文件不会回滚。",
+    "confirmRollback": "确定要回滚此迁移吗？已迁移的文件 DB 记录将恢复为原始驱动。",
+    "confirmCleanup": "确定要删除源存储中的旧文件吗？此操作不可逆。"
+  },
+  "switchWarning": {
+    "title": "存储切换影响提醒",
+    "description": "切换存储驱动前，请注意以下影响：",
+    "privateWarning": "有 {count} 个私有文件，切换后将不可访问，建议先迁移",
+    "publicWarning": "有 {count} 个公开文件，切换后旧 CDN 链接仍可访问",
+    "btnSwitch": "仍然切换",
+    "btnMigrate": "先去迁移"
+  },
+  "error": {
+    "selectDrivers": "请选择源驱动和目标驱动",
+    "sourceTargetSame": "源驱动和目标驱动不能相同",
+    "driverNotAvailable": "存储驱动不可用",
+    "noFilesToMigrate": "没有需要迁移的文件",
+    "taskNotFound": "迁移任务不存在",
+    "needTwoDrivers": "至少需要两个存储驱动可用才能创建迁移任务，请先安装并启用存储插件"
+  },
+  "history": {
+    "title": "迁移历史",
+    "empty": "暂无迁移记录"
+  },
+  "log": {
+    "title": "迁移日志",
+    "filePath": "文件路径",
+    "fileSize": "文件大小",
+    "error": "错误信息"
+  }
+}

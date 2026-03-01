@@ -264,12 +264,27 @@ class BaseEngine(ABC):
             skill_result.tool_consent_modes if skill_result else {}
         )
 
+        # 7. ModelRouter 多模型路由（赾容失败时自动向后兼容）
+        route_result = None
+        try:
+            from app.ai.routing.router import ModelRouter
+            from app.services.ai.metering_service import TokenCounter
+
+            estimated_tokens = TokenCounter.count_messages_tokens(
+                [{"content": m.content or "", "name": m.name or ""} for m in messages]
+            )
+            router = ModelRouter(self.db)
+            route_result = await router.route(agent, request, estimated_tokens)
+        except Exception as _routing_exc:
+            logger.warning("ModelRouter integration failed: %s", str(_routing_exc))
+
         return PreparedExecution(
             messages=messages,
             tools=tools,
             rag_sources=rag_sources,
             tool_consent_modes=tool_consent_modes,
             optimize_event=optimize_event,
+            route_result=route_result,
         )
 
     # ========================================
@@ -283,6 +298,7 @@ class BaseEngine(ABC):
         tools: list[ToolDefinition] | None = None,
         tenant_id: int | None = None,
         user_id: int | None = None,
+        route_result: Any | None = None,
     ) -> ChatResponse:
         """
         调用 LLM
@@ -293,19 +309,29 @@ class BaseEngine(ABC):
             tools: 工具定义列表
             tenant_id: 租户 ID
             user_id: 用户 ID
+            route_result: ModelRouter 路由结果（为 None 时使用 agent 原始模型）
         """
         # 构建 OpenAI tools 参数
         openai_tools = None
         if tools:
             openai_tools = to_openai_tools(tools)
 
-        # 获取模型信息
-        model_obj = agent.model
-        provider_code = model_obj.provider.code if model_obj and model_obj.provider else ""
-        model_code = model_obj.code if model_obj else ""
+        # 获取模型信息：路由覆写优先
+        if route_result is not None and getattr(route_result, "is_overridden", False):
+            provider_code: str = route_result.provider_code or ""
+            model_code: str = route_result.model_code or ""
+            # Vision 路由原因包含 "vision" 时保留图片附件，否则保守过滤
+            # 用 False 而非 None，确保非 vision 路由不遗漏过滤逻辑
+            is_vision: bool = "vision" in (route_result.reason or "")
+        else:
+            model_obj = agent.model
+            provider_code = model_obj.provider.code if model_obj and model_obj.provider else ""
+            model_code = model_obj.code if model_obj else ""
+            is_vision = model_obj.supports_vision if model_obj else False
 
         # 非视觉模型：移除图片附件，避免 API 报错
-        if model_obj and not model_obj.supports_vision:
+        # 路由到 vision 模型时（is_vision=True）不过滤
+        if is_vision is False:
             for msg in messages:
                 if msg.attachments:
                     msg.attachments = [
@@ -340,6 +366,7 @@ class BaseEngine(ABC):
         tools: list[ToolDefinition],
         request: ExecutionRequest,
         skip_final_call: bool = False,
+        route_result: Any | None = None,
     ) -> tuple[ChatResponse | None, list[ToolResult], int]:
         """
         处理工具调用循环
@@ -354,6 +381,7 @@ class BaseEngine(ABC):
             tools: 工具定义列表
             request: 原始请求
             skip_final_call: 跳过最终 LLM 调用（供流式路径使用，由调用方流式处理）
+            route_result: ModelRouter 路由结果（工具调用循环内保持模型一致性）
 
         Returns:
             (final_response, all_tool_results, total_tokens)
@@ -399,6 +427,7 @@ class BaseEngine(ABC):
                         tools=tools,
                         tenant_id=request.tenant_id,
                         user_id=request.user_id,
+                        route_result=route_result,
                     )
                     total_tokens += peek_response.total_tokens or 0
                     if peek_response.tool_calls:
@@ -406,13 +435,14 @@ class BaseEngine(ABC):
                         continue
                 return None, all_tool_results, total_tokens
 
-            # 再次调用 LLM
+            # 再次调用 LLM（保持与第一次调用相同的路由模型）
             current_response = await self._call_llm(
                 agent=agent,
                 messages=messages,
                 tools=tools,
                 tenant_id=request.tenant_id,
                 user_id=request.user_id,
+                route_result=route_result,
             )
             total_tokens += current_response.total_tokens or 0
 

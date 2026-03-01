@@ -214,15 +214,19 @@ class StorageDriver(StorageLoggerMixin):
 
     def get_base_url(self) -> str:
         """
-        获取存储的基础访问 URL
-        
-        用于前端拼接文件完整路径
-        
+        获取存储的基础访问 URL（含 prefix）
+
+        将 config.base_url 与驱动的 prefix 拼接，确保存入
+        附件记录的 base_url 可直接与 path 拼出完整 URL。
+
         Returns:
             基础 URL，不带尾部斜杠
         """
-        base_url = self.config.base_url or ""
-        return base_url.rstrip("/")
+        base_url = (self.config.base_url or "").rstrip("/")
+        prefix = getattr(self, "prefix", "").strip("/")
+        if prefix and base_url:
+            return f"{base_url}/{prefix}"
+        return base_url
 
 
 __all__ = [

@@ -1,7 +1,7 @@
 # 插件系统开发规范（代码验证版）
 
 > 本文档基于 `backend/app/plugins/` 实际代码审计编写，所有路径、类名、方法签名均与代码一致。
-> 最后审计时间：2026-02-26
+> 最后审计时间：2026-02-27
 
 ## 一、目录结构
 
@@ -28,7 +28,8 @@ backend/app/plugins/
 ├── event_bus.py         # 跨插件事件总线（PluginEventBus）
 ├── security_scan.py     # AST 安全扫描
 ├── health.py            # 健康监控（错误追踪 + 自动降级）
-├── startup.py           # 启动恢复（restore_enabled_plugins）
+├── startup.py           # 启动：自动发现（discover_and_register）+ 恢复（restore_enabled_plugins）
+├── progress.py          # 进度推送器（PluginProgressEmitter，INSTALL/ENABLE/UNINSTALL_STEPS）
 ├── scope.py             # 作用域可见性判定
 ├── version_manager.py   # 版本管理（升级/回滚/备份）
 ├── preview.py           # 安装预览（manifest 分析 + 冲突检测）
@@ -335,11 +336,17 @@ class MyPlugin(PluginBase):
 
 **lifecycle.py 调用顺序**：
 
-**安装（10 步）**：
+**自动发现（启动时，discover_and_register）**：
+1. 扫描 `backend/plugins/` 目录，发现含 `plugin.yaml` 的子目录
+2. 磁盘有 + DB 无 → 自动注册为 `installed`（disabled），执行安全扫描 + Alembic 迁移 + AI features + on_install
+3. 磁盘有 + DB 有 → 同步 manifest 到 DB
+4. DB 有 + 磁盘无 → 标记为 error（文件缺失）
+
+**安装（ZIP 上传，10 步）**：
 1. 复制源文件到 `backend/plugins/{name}/`
 2. 解析 `plugin.yaml` → `PluginManifest`
-3. 校验兼容性
-4. `pip install` Python 依赖 → 记录到 `Plugin.installed_packages`
+3. 校验兼容性 + 安全扫描
+4. 记录声明的依赖（**不安装 pip/npm**，延迟到 enable 阶段）
 5. `alembic upgrade plugin_{name}@head`
 6. 注册 AI features → `SystemAgentAssignment`（agent_id=NULL，需管理员手动绑定）
 7. 合并 i18n 翻译
@@ -347,26 +354,35 @@ class MyPlugin(PluginBase):
 9. 写入 `plugins` 表（status=installed）
 10. 创建 `PluginVersion` 记录
 
-**启用**：
-1. 通过 `ExtensionRegistry` 注册所有扩展点（skills/adapters/storage/hooks/events/webhooks/tasks/notifications/permissions）
-2. 调用 `on_enable(ctx)`
-3. 更新 status=enabled
+**启用（带进度推送 ENABLE_STEPS）**：
+1. 检查依赖插件是否已启用 + 版本约束
+2. `pip install` Python 依赖（fatal，失败阻止启用）→ emitter pip running/success
+3. `pnpm add` npm 依赖（non-fatal，仅 dev 模式）→ emitter npm running/success
+4. 通过 `ExtensionRegistry` 注册所有扩展点 → emitter extensions
+5. 创建/更新 SkillPackage + Skill DB 记录
+6. 调用 `on_enable(ctx)` → emitter on_enable
+7. 更新 status=enabled → emitter done
 
-**禁用**：
-1. `ExtensionRegistry.unregister_all(plugin_name)` 反注册所有扩展
-2. 调用 `on_disable(ctx)`
-3. 更新 status=disabled
+**禁用（不卸载依赖）**：
+1. 检查其他插件是否依赖此插件
+2. 检查存储驱动是否正在使用
+3. `ExtensionRegistry.unregister_all(plugin_name)` 反注册所有扩展
+4. 停用 SkillPackage + Skill 记录（is_active=False）
+5. 调用 `on_disable(ctx)`
+6. 更新 status=disabled（**不卸载 pip/npm 依赖**，重新启用时无需等待）
 
-**卸载（14 步）**：
-1. 检查依赖（TODO: Phase 3 完善）
+**卸载（14 步，带进度推送 UNINSTALL_STEPS）**：
+1. 检查依赖（其他插件依赖此插件则阻止）
 2. 禁用（如果启用中）
 3. 调用 `on_uninstall(ctx)`
 4. 反注册所有扩展点
-5-8. 清理 AI features / i18n / 通知 / 权限
-9. `alembic downgrade plugin_{name}@base`（仅 confirm_data_delete=true 时）
-10. 卸载独占 Python 依赖（引用计数）
-11-13. 删除 PluginVersion / PluginTenantAssignment / PluginLicense 记录
-14. 删除 Plugin 记录 + 物理文件 `shutil.rmtree`
+5. 删除 SkillPackage + Skill 记录
+6-8. 清理 AI features
+9. `alembic downgrade plugin_{name}@base` + DROP 插件表 + 清理版本戳
+10. 卸载独占 Python 依赖（三层安全检查：其他插件/项目/pip Required-by）
+10.5. 卸载独占 npm 依赖（共享检查：其他插件 + 宿主 package.json）
+11-13. 删除 PluginVersion / ResourceTenantAssignment / PluginLicense 记录
+14. 删除 Plugin 记录 + 物理文件 `shutil.rmtree` + 卸载模块缓存
 
 ---
 
@@ -392,7 +408,7 @@ logger = ctx.get_logger()                   # 返回 Logger（名称: plugin.{na
 # ── 存储 ──
 storage = await ctx.get_storage()           # 需 storage:read 或 storage:write
 # _NamespacedStorageProxy 限制路径在 plugins/{name}/
-# 方法: put(), get(), delete(), exists(), url()
+# 方法: put(), get(), delete(), exists(), get_url(), get_info()
 
 # ── HTTP ──
 result = await ctx.http_request("GET", url) # 需 http:outbound，自动 30s 超时
@@ -791,7 +807,7 @@ Webhook handler 签名是 `(plugin_name, path, method, headers, payload)`，与 
 
 ```
 plugins/{name}/frontend/
-├── package.json             # devDependencies: vite + @vitejs/plugin-vue
+├── package.json             # npm_dependencies: list[str] = Field(default_factory=list)
 ├── vite.config.ts           # UMD 构建配置（external + globals）
 ├── src/
 │   ├── index.ts             # 入口：export 组件 + setup() 注册 i18n

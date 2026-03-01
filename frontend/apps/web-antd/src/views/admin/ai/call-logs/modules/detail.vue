@@ -91,6 +91,22 @@ function getStatusColor(status: string): string {
               {{ getStatusText(detail.status) }}
             </Tag>
           </Descriptions.Item>
+          <!-- 路由覆写信息（模型被路由引擎替换时高亮显示） -->
+          <Descriptions.Item
+            v-if="detail.routed_model_id && detail.routed_model_id !== detail.model_id"
+            :label="$t('admin.ai.callLog.routedModel')"
+            :span="2"
+          >
+            <span class="font-medium text-warning">
+              {{ detail.routed_model_name || `#${detail.routed_model_id}` }}
+            </span>
+            <span
+              v-if="detail.route_reason"
+              class="ml-2 text-xs text-muted-foreground"
+            >
+              ({{ detail.route_reason }})
+            </span>
+          </Descriptions.Item>
           <Descriptions.Item :label="$t('admin.ai.callLog.inputTokens')">
             {{ detail.input_tokens }}
           </Descriptions.Item>

@@ -36,8 +36,11 @@ function stepLabel(step: string): string {
     cleanup_ai_features: $t('admin.plugin.progress.step.cleanup_ai'),
     cleanup_db: $t('admin.plugin.progress.step.cleanup_db'),
     cleanup_pip: $t('admin.plugin.progress.step.cleanup_pip'),
+    cleanup_npm: $t('admin.plugin.progress.step.cleanup_npm'),
     cleanup_records: $t('admin.plugin.progress.step.cleanup_records'),
     cleanup_files: $t('admin.plugin.progress.step.cleanup_files'),
+    extensions: $t('admin.plugin.progress.step.extensions'),
+    on_enable: $t('admin.plugin.progress.step.on_enable'),
   };
   return map[step] || step;
 }
@@ -94,7 +97,9 @@ watch(
     :open="progressStore.visible"
     :title="progressStore.currentAction === 'uninstall'
       ? $t('admin.plugin.progress.uninstallTitle')
-      : $t('admin.plugin.progress.installTitle')"
+      : progressStore.currentAction === 'enable'
+        ? $t('admin.plugin.progress.enableTitle')
+        : $t('admin.plugin.progress.installTitle')"
     :width="480"
     :closable="!progressStore.isRunning"
     :mask-closable="!progressStore.isRunning"

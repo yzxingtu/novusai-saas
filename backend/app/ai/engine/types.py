@@ -4,13 +4,18 @@
 定义执行请求、执行结果、批量处理等数据类
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
 from app.enums.agent import AgentExecutionModeEnum
 from app.enums.common import UserRoleEnum
+
+if TYPE_CHECKING:
+    from app.ai.routing.router import RouteResult
 
 
 @dataclass
@@ -95,6 +100,7 @@ class PreparedExecution:
         rag_sources: RAG 引用来源（无 RAG 时为 None）
         tool_consent_modes: 工具名 → consent_mode 映射
         optimize_event: 工具优化事件数据（SSE 推送用，无优化时为 None）
+        route_result: 路由结果（ModelRouter 选出，无路由时为 None）
     """
 
     messages: list[ChatMessage] = field(default_factory=list)
@@ -102,6 +108,7 @@ class PreparedExecution:
     rag_sources: list[dict[str, Any]] | None = None
     tool_consent_modes: dict[str, str] = field(default_factory=dict)
     optimize_event: dict[str, Any] | None = None
+    route_result: RouteResult | None = None
 
 
 @dataclass

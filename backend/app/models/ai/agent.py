@@ -166,6 +166,15 @@ class Agent(TenantModel):
         comment=_("enum.agent_model.quota_config"),
     )
 
+    # ==================== 多模型路由配置 ====================
+
+    routing_config: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
+        comment=_("enum.agent_model.routing_config"),
+    )
+
     # ==================== 变量 ====================
 
     input_variables: Mapped[list | None] = mapped_column(

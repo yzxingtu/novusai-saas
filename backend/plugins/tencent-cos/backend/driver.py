@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import mimetypes
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, BinaryIO, Optional
 
 import anyio
@@ -41,34 +41,32 @@ class CosStorageDriver(StorageDriver):
         "properties": {
             "root_path": {
                 "type": "string",
-                "title": "config.storage.cos.bucket",
-                "description": "config.storage.cos.bucket_desc",
+                "title": "plugin.tencent-cos.config.bucket",
             },
             "base_url": {
                 "type": "string",
-                "title": "config.storage.cos.base_url",
-                "description": "config.storage.cos.base_url_desc",
+                "title": "plugin.tencent-cos.config.base_url",
             },
             "secret_id": {
                 "type": "string",
-                "title": "config.storage.cos.secret_id",
+                "title": "plugin.tencent-cos.config.secret_id",
                 "x-encrypted": True,
             },
             "secret_key": {
                 "type": "string",
-                "title": "config.storage.cos.secret_key",
+                "title": "plugin.tencent-cos.config.secret_key",
                 "x-encrypted": True,
             },
             "region": {
                 "type": "string",
-                "title": "config.storage.cos.region",
+                "title": "plugin.tencent-cos.config.region",
             },
             "prefix": {
                 "type": "string",
-                "title": "config.storage.cos.prefix",
+                "title": "plugin.tencent-cos.config.prefix",
             },
         },
-        "required": ["root_path"],
+        "required": ["root_path", "secret_id", "secret_key", "region"],
     }
 
     MAX_PROCESS_SIZE = 32 * 1024 * 1024  # 32MB
@@ -78,8 +76,16 @@ class CosStorageDriver(StorageDriver):
         options = config.options or {}
         self.bucket_name = options.get("bucket") or config.root_path
         region = options.get("region")
-        if not self.bucket_name or not region:
-            raise StorageConfigError()
+        missing = []
+        if not self.bucket_name:
+            missing.append("bucket/root_path")
+        if not region:
+            missing.append("region")
+        if missing:
+            raise StorageConfigError(
+                message=f"Tencent COS missing required config: {', '.join(missing)}",
+            )
+        self.region = region
         self.base_url = config.base_url.rstrip("/") if config.base_url else None
         self.prefix = options.get("prefix", "").strip("/")
         cos_config = CosConfig(
@@ -137,6 +143,7 @@ class CosStorageDriver(StorageDriver):
             return size, hasher.hexdigest()
 
         size, file_hash = await anyio.to_thread.run_sync(_upload)
+        self.logger.debug("put %s (%d bytes)", path, size)
         final_mime_type = mime_type or mimetypes.guess_type(path)[0]
         return UploadResult(
             path=path,
@@ -160,7 +167,7 @@ class CosStorageDriver(StorageDriver):
             except CosServiceError as exc:
                 if exc.get_error_code() == "NoSuchKey":
                     raise StorageNotFoundError() from exc
-                raise StorageError() from exc
+                raise StorageError(message=str(exc)) from exc
 
         return await anyio.to_thread.run_sync(_get)
 
@@ -174,10 +181,12 @@ class CosStorageDriver(StorageDriver):
                     Key=key,
                 )
             except CosServiceError as exc:
-                raise StorageError() from exc
+                raise StorageError(message=str(exc)) from exc
             return True
 
-        return await anyio.to_thread.run_sync(_delete)
+        result = await anyio.to_thread.run_sync(_delete)
+        self.logger.debug("delete %s", path)
+        return result
 
     async def exists(self, path: str) -> bool:
         key = self._key(path)
@@ -238,7 +247,7 @@ class CosStorageDriver(StorageDriver):
                 path=path,
                 size=int(response.get("Content-Length", 0)),
                 mime_type=response.get("Content-Type", "application/octet-stream"),
-                last_modified=datetime.utcnow(),
+                last_modified=datetime.now(timezone.utc),
                 visibility=StorageVisibility(visibility_value),
                 metadata=metadata,
             )
@@ -257,14 +266,16 @@ class CosStorageDriver(StorageDriver):
                     CopySource={
                         "Bucket": self.bucket_name,
                         "Key": src_key,
-                        "Region": self.client._conf._region,
+                        "Region": self.region,
                     },
                 )
             except CosServiceError as exc:
-                raise StorageError() from exc
+                raise StorageError(message=str(exc)) from exc
             return True
 
-        return await anyio.to_thread.run_sync(_copy)
+        result = await anyio.to_thread.run_sync(_copy)
+        self.logger.debug("copy %s -> %s", source, destination)
+        return result
 
     async def move(self, source: str, destination: str) -> bool:
         copied = await self.copy(source, destination)

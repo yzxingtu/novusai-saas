@@ -1,7 +1,8 @@
 """
 插件健康监控
 
-记录错误、自动降级（连续错误>=10次自动禁用）。
+记录错误、自动降级（连续错误>=阈值自动禁用）。
+阈值通过平台配置 plugin_auto_disable_threshold 可调整，默认 10。
 """
 
 from __future__ import annotations
@@ -16,7 +17,20 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-AUTO_DISABLE_THRESHOLD = 10
+DEFAULT_AUTO_DISABLE_THRESHOLD = 10
+
+
+async def _get_auto_disable_threshold(db: AsyncSession) -> int:
+    """从平台配置读取自动禁用阈值，回退到默认值"""
+    try:
+        from app.services.common.config_service import ConfigService
+        config_service = ConfigService(db)
+        val = await config_service.get_value("plugin_auto_disable_threshold")
+        if val is not None:
+            return int(val)
+    except Exception:
+        pass
+    return DEFAULT_AUTO_DISABLE_THRESHOLD
 
 
 class PluginHealthMonitor:
@@ -98,19 +112,27 @@ class PluginHealthMonitor:
         if not plugin:
             return False
 
-        if plugin.error_count < AUTO_DISABLE_THRESHOLD:
+        threshold = await _get_auto_disable_threshold(self._db)
+        if plugin.error_count < threshold:
             return False
 
         if plugin.status != PluginStatusEnum.ENABLED.value:
             return False
 
-        # 自动禁用
-        from app.plugins.lifecycle import PluginLifecycle
+        # 自动禁用：先尝试正常 disable，失败则直接标记 error
+        try:
+            from app.plugins.lifecycle import PluginLifecycle
 
-        lifecycle = PluginLifecycle(self._db)
-        await lifecycle.disable(plugin.id)
+            lifecycle = PluginLifecycle(self._db)
+            await lifecycle.disable(plugin.id)
+        except Exception as exc:
+            logger.warning(
+                "Plugin %s auto-disable via lifecycle failed: %s, forcing error status",
+                plugin_name, exc,
+            )
 
         plugin.status = PluginStatusEnum.ERROR.value
+        plugin.error_message = f"Auto-disabled after {plugin.error_count} consecutive errors"
         plugin.updated_at = utc_now()
         await self._db.flush()
 
@@ -136,9 +158,11 @@ class PluginHealthMonitor:
         if not plugin:
             return {"status": "not_found"}
 
+        threshold = await _get_auto_disable_threshold(self._db)
         return {
             "status": plugin.status,
             "error_count": plugin.error_count,
             "error_message": plugin.error_message,
+            "auto_disable_threshold": threshold,
             "enabled_at": plugin.enabled_at.isoformat() if plugin.enabled_at else None,
         }

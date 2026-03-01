@@ -309,6 +309,65 @@ _FE_GITIGNORE = """node_modules/
 dist/
 """
 
+# ── Storage driver template ──
+
+_STORAGE_YAML_EXT = """
+extensions:
+  storage_drivers:
+    - code: {name}
+      display_name:
+        zh-CN: "{display_name}存储"
+        en: "{display_name_en} Storage"
+      entry_point: "backend.driver.{class_name}Driver"
+
+config_schema:
+  type: object
+  properties:
+    access_key:
+      type: string
+      x-encrypted: true
+      title: Access Key
+    secret_key:
+      type: string
+      x-encrypted: true
+      title: Secret Key
+    bucket:
+      type: string
+      title: Bucket Name
+  required: [access_key, secret_key, bucket]
+"""
+
+_STORAGE_DRIVER_PY = '''"""\n{display_name} 存储驱动\n"""
+from __future__ import annotations
+from typing import Any
+
+from app.storage.base import StorageDriver
+
+
+class {class_name}Driver(StorageDriver):
+    name = "{name}"
+
+    def __init__(self, config: dict[str, Any]) -> None:
+        self._access_key = config.get("access_key", "")
+        self._secret_key = config.get("secret_key", "")
+        self._bucket = config.get("bucket", "")
+
+    async def put(self, path: str, content: Any, mime_type: str | None = None, **kwargs: Any) -> Any:
+        raise NotImplementedError
+
+    async def get(self, path: str) -> Any:
+        raise NotImplementedError
+
+    async def delete(self, path: str) -> bool:
+        raise NotImplementedError
+
+    async def exists(self, path: str) -> bool:
+        raise NotImplementedError
+
+    async def get_url(self, path: str, expires: int = 3600, **kwargs: Any) -> str:
+        raise NotImplementedError
+'''
+
 
 def cmd_create(args: argparse.Namespace) -> None:
     """创建插件骨架"""
@@ -345,6 +404,17 @@ def cmd_create(args: argparse.Namespace) -> None:
             display_name_en=display_name, name_underscore=name_underscore,
         )
 
+    if template == "storage":
+        yaml_content = _MINIMAL_PLUGIN_YAML.format(
+            name=name, display_name=display_name,
+            display_name_en=display_name, description=f"{display_name} storage driver",
+            description_en=f"{display_name} storage driver",
+        ).replace("scope: all_tenants", "scope: admin_only")
+        yaml_content += _STORAGE_YAML_EXT.format(
+            name=name, display_name=display_name,
+            display_name_en=display_name, class_name=class_name,
+        )
+
     (output_dir / "plugin.yaml").write_text(yaml_content, encoding="utf-8")
 
     # backend/main.py
@@ -369,6 +439,15 @@ def cmd_create(args: argparse.Namespace) -> None:
         (output_dir / "backend" / "executors" / "__init__.py").touch()
         (output_dir / "backend" / "executors" / f"{name_underscore}_executor.py").write_text(
             _SKILL_EXECUTOR_PY.format(
+                name=name, display_name=display_name, class_name=class_name,
+            ),
+            encoding="utf-8",
+        )
+
+    # storage extras
+    if template == "storage":
+        (output_dir / "backend" / "driver.py").write_text(
+            _STORAGE_DRIVER_PY.format(
                 name=name, display_name=display_name, class_name=class_name,
             ),
             encoding="utf-8",
@@ -486,7 +565,16 @@ def cmd_validate(args: argparse.Namespace) -> None:
         with open(yaml_path, encoding="utf-8") as _yf:
             _ydata = _yaml.safe_load(_yf)
         _ext = (_ydata.get("extensions") or {}).get("frontend") or {}
-        _has_fe = bool(_ext.get("header_widgets") or _ext.get("menus"))
+        _has_fe = bool(
+            _ext.get("header_widgets")
+            or _ext.get("menus")
+            or _ext.get("floating_panels")
+            or _ext.get("dashboard_widgets")
+            or _ext.get("settings_tabs")
+            or _ext.get("standalone_pages")
+            or (_ext.get("admin") or {}).get("entry")
+            or (_ext.get("tenant") or {}).get("entry")
+        )
     except Exception:
         _has_fe = False
 
@@ -516,7 +604,31 @@ def cmd_validate(args: argparse.Namespace) -> None:
     else:
         print("  ℹ️  No frontend extensions declared")
 
-    # 4. Security scan
+    # 4. Capabilities consistency check
+    try:
+        import yaml as _yaml2
+        with open(yaml_path, encoding="utf-8") as _yf2:
+            _ydata2 = _yaml2.safe_load(_yf2)
+        from app.plugins.manifest import PluginManifest
+        _manifest2 = PluginManifest.model_validate(_ydata2)
+        _caps = set(_manifest2.capabilities)
+        _ext2 = _manifest2.extensions
+        if _manifest2.ai_requirements and _manifest2.ai_requirements.features and "ai:call" not in _caps:
+            warnings.append("ai_requirements.features declared but 'ai:call' not in capabilities")
+        if any(r.handler for r in [*_ext2.api.admin_routes, *_ext2.api.tenant_routes, *_ext2.api.public_routes]):
+            if not _caps:
+                pass  # API routes don't require specific capability
+        _encrypted_fields = []
+        if _manifest2.config_schema:
+            for _k, _v in (_manifest2.config_schema.get("properties") or {}).items():
+                if isinstance(_v, dict) and _v.get("x-encrypted"):
+                    _encrypted_fields.append(_k)
+        if _encrypted_fields:
+            print(f"  ℹ️  x-encrypted fields: {', '.join(_encrypted_fields)} (will be Fernet-encrypted)")
+    except Exception:
+        pass
+
+    # 5. Security scan
     from app.plugins.security_scan import scan_plugin_directory
 
     scan_result = scan_plugin_directory(plugin_dir)
@@ -613,7 +725,7 @@ def main() -> None:
     # create
     p_create = subparsers.add_parser("create", help="Create plugin skeleton")
     p_create.add_argument("name", help="Plugin name (kebab-case)")
-    p_create.add_argument("--template", choices=["minimal", "skill", "full-module"], default="minimal")
+    p_create.add_argument("--template", choices=["minimal", "skill", "full-module", "storage"], default="minimal")
     p_create.add_argument("--output", help="Output directory")
 
     # validate

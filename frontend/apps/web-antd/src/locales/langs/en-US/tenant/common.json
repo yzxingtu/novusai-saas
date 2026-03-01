@@ -30,6 +30,6 @@
   "createdAt": "Created At",
   "deletedAt": "Deleted At",
   "tenantAdmin": "Tenant Admin",
-  "noPlan": "No Plan Assigned",
-  "noPlanDesc": "All features are disabled. Please contact the platform administrator to assign a plan."
+  "noPlan": "No plan assigned",
+  "noPlanDesc": "Unable to use any features. Please contact the platform administrator to assign a plan."
 }

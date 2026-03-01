@@ -6,5 +6,15 @@
   "tokenTrend": "Token Consumption Trend",
   "modelDistribution": "Model Distribution",
   "agentRanking": "Agent Usage Ranking",
-  "costTrend": "Cost Trend"
+  "costTrend": "Cost Trend",
+  "chart": {
+    "calls": "Calls",
+    "success": "Success",
+    "failed": "Failed",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "tokens": "Tokens",
+    "cost": "Cost",
+    "costUnit": "$"
+  }
 }

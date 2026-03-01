@@ -56,6 +56,12 @@ ALLOWED_EXTENSIONS: dict[str, str] = {
     ".xlsx": DocumentTypeEnum.XLSX.value,
     ".html": DocumentTypeEnum.HTML.value,
     ".htm": DocumentTypeEnum.HTML.value,
+    ".pptx": DocumentTypeEnum.PPTX.value,
+    ".jpg": DocumentTypeEnum.IMAGE.value,
+    ".jpeg": DocumentTypeEnum.IMAGE.value,
+    ".png": DocumentTypeEnum.IMAGE.value,
+    ".webp": DocumentTypeEnum.IMAGE.value,
+    ".gif": DocumentTypeEnum.IMAGE.value,
 }
 
 
@@ -118,9 +124,15 @@ class AdminKnowledgeBaseController(GlobalController):
             for kb in items:
                 item = kb.to_dict()
                 item["embedding_model_name"] = None
+                item["vision_model_name"] = None
                 try:
                     if kb.embedding_model:
                         item["embedding_model_name"] = kb.embedding_model.name
+                except Exception:
+                    pass
+                try:
+                    if getattr(kb, "vision_model", None):
+                        item["vision_model_name"] = kb.vision_model.name
                 except Exception:
                     pass
                 result.append(item)
@@ -169,9 +181,15 @@ class AdminKnowledgeBaseController(GlobalController):
 
             result = kb.to_dict()
             result["embedding_model_name"] = None
+            result["vision_model_name"] = None
             try:
                 if kb.embedding_model:
                     result["embedding_model_name"] = kb.embedding_model.name
+            except Exception:
+                pass
+            try:
+                if getattr(kb, "vision_model", None):
+                    result["vision_model_name"] = kb.vision_model.name
             except Exception:
                 pass
 
@@ -216,9 +234,15 @@ class AdminKnowledgeBaseController(GlobalController):
 
             result = kb.to_dict()
             result["embedding_model_name"] = None
+            result["vision_model_name"] = None
             try:
                 if kb.embedding_model:
                     result["embedding_model_name"] = kb.embedding_model.name
+            except Exception:
+                pass
+            try:
+                if getattr(kb, "vision_model", None):
+                    result["vision_model_name"] = kb.vision_model.name
             except Exception:
                 pass
 
@@ -323,9 +347,15 @@ class AdminKnowledgeBaseController(GlobalController):
 
             result = kb.to_dict()
             result["embedding_model_name"] = None
+            result["vision_model_name"] = None
             try:
                 if kb.embedding_model:
                     result["embedding_model_name"] = kb.embedding_model.name
+            except Exception:
+                pass
+            try:
+                if getattr(kb, "vision_model", None):
+                    result["vision_model_name"] = kb.vision_model.name
             except Exception:
                 pass
 

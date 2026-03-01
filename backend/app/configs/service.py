@@ -5,6 +5,7 @@
 """
 
 import json
+import time
 from typing import Any
 
 from sqlalchemy import select, and_
@@ -25,6 +26,12 @@ logger = LogManager.get_logger("app")
 
 # 平台级配置使用 tenant_id = 0
 PLATFORM_TENANT_ID = 0
+
+# 内存 TTL 缓存（进程级，跨请求共享）
+_config_id_cache: dict[str, tuple[int | None, float]] = {}
+_config_value_cache: dict[str, tuple[Any, float]] = {}
+_CONFIG_ID_TTL = 300  # config key → id 映射很少变，缓存 5 分钟
+_CONFIG_VALUE_TTL = 60  # 配置值缓存 60 秒
 
 
 class ConfigService:
@@ -375,10 +382,20 @@ class ConfigService:
         default: Any = None,
         skip_default: bool = False,
     ) -> Any:
-        """获取配置值"""
+        """获取配置值（带内存缓存）"""
+        cache_key = f"{tenant_id}:{key}"
+        now = time.monotonic()
+        cached = _config_value_cache.get(cache_key)
+        if cached and (now - cached[1]) < _CONFIG_VALUE_TTL:
+            val = cached[0]
+            if val is not None:
+                return val
+            return default if not skip_default else None
+
         # 获取配置项 ID
         config_id = await self._get_config_id(key)
         if not config_id:
+            _config_value_cache[cache_key] = (None, now)
             return default if not skip_default else None
         
         # 查询配置值
@@ -394,8 +411,11 @@ class ConfigService:
         value_record = result.scalar_one_or_none()
         
         if value_record and value_record.value is not None:
-            return self._deserialize_value(value_record.value)
+            deserialized = self._deserialize_value(value_record.value)
+            _config_value_cache[cache_key] = (deserialized, now)
+            return deserialized
         
+        _config_value_cache[cache_key] = (None, now)
         if skip_default:
             return None
         
@@ -509,6 +529,10 @@ class ConfigService:
             self.db.add(value_record)
         
         await self.db.flush()
+
+        # 写入后立即失效缓存
+        cache_key = f"{tenant_id}:{key}"
+        _config_value_cache.pop(cache_key, None)
     
     async def _get_configs_by_group(
         self,
@@ -533,7 +557,12 @@ class ConfigService:
         return result
     
     async def _get_config_id(self, key: str) -> int | None:
-        """根据 key 获取配置项 ID"""
+        """根据 key 获取配置项 ID（带内存缓存）"""
+        now = time.monotonic()
+        cached = _config_id_cache.get(key)
+        if cached and (now - cached[1]) < _CONFIG_ID_TTL:
+            return cached[0]
+
         result = await self.db.execute(
             select(SystemConfig.id).where(
                 and_(
@@ -542,7 +571,9 @@ class ConfigService:
                 )
             )
         )
-        return result.scalar_one_or_none()
+        config_id = result.scalar_one_or_none()
+        _config_id_cache[key] = (config_id, now)
+        return config_id
     
     def _serialize_value(self, value: Any) -> str | None:
         """序列化值为 JSON 字符串"""

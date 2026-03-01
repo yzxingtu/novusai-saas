@@ -683,7 +683,11 @@
       "visibility": "Visibility",
       "tenant_id": "Tenant ID",
       "assigned_tenant_ids": "Assigned tenant IDs",
-      "embedding_model_id": "Embedding model",
+      "embedding_model_id": "Embedding Model",
+      "vision_model_id": "Vision Model",
+      "vision_model_name": "Vision Model Name",
+      "extract_images": "Extract Image Content",
+      "tenant_ids": "Assigned Tenant IDs",
       "embedding_model_name": "Embedding model name",
       "embedding_dimensions": "Embedding dimensions",
       "chunk_size": "Chunk size",
@@ -1255,7 +1259,14 @@
         "xlsx": "Excel Spreadsheet",
         "html": "HTML Page",
         "qa": "Q&A Pair",
-        "url": "Web URL"
+        "url": "Web URL",
+        "image": "Image File",
+        "pptx": "PowerPoint Presentation",
+        "audio": "Audio File"
+      },
+      "vision": {
+        "describe_prompt": "Please describe the content of this image in detail, including: text information, chart data, table content, flowchart logic, and key visual elements. This is for knowledge base retrieval, please extract all searchable information.",
+        "image_content_label": "Image Content"
       },
       "chunk_strategy": {
         "recursive": "Recursive Split",
@@ -1271,6 +1282,13 @@
         "none": "No Rewrite",
         "multi": "Multi-Query Rewrite",
         "hyde": "HyDE (Hypothetical Document)"
+      }
+    },
+    "ai_model": {
+      "tier": {
+        "fast": "Fast",
+        "standard": "Standard",
+        "premium": "Premium"
       }
     },
     "codegen": {
@@ -1340,7 +1358,31 @@
     "plugin_version_status": {
       "active": "Active",
       "archived": "Archived"
+    },
+    "cache": {
+      "category": {
+        "ai_response": "AI Response Cache",
+        "ai_schema": "Database Schema Cache",
+        "ai_sql_result": "SQL Query Result Cache",
+        "ai_action_rate": "Action Rate Limit",
+        "ai_action_confirm": "Action Confirm Cache",
+        "kb_search": "Knowledge Base Search Cache",
+        "ws_config": "WebSocket Config Cache",
+        "marketplace": "Plugin Marketplace Cache",
+        "ai_provider_health": "AI Provider Health Status",
+        "image_cache": "Image Processing Cache",
+        "config_memory": "Config Memory Cache",
+        "ai_rate_limit": "AI Rate Limit",
+        "celery_results": "Async Task Results",
+        "captcha": "Captcha Cache",
+        "plugin_update": "Plugin Update Check Cache"
+      }
     }
+  },
+  "cache_management": {
+    "clear_success": "Cache cleared successfully",
+    "clear_failed": "Cache clearing failed",
+    "no_categories": "Please select at least one cache category"
   },
   "plugin": {
     "error": {
@@ -1545,6 +1587,10 @@
       "image_cache_max_variants_per_image": {
         "name": "Max Cache Variants Per Image",
         "desc": "Maximum number of processed variants to cache per image, exceeding returns original"
+      },
+      "image_cache_max_total_size_mb": {
+        "name": "Max Image Cache Size (MB)",
+        "desc": "Maximum disk space allowed for processed image cache (MB)"
       },
       "image_process_rate_limit": {
         "name": "Image Process Rate Limit",

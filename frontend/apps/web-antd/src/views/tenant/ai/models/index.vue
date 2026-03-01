@@ -127,8 +127,20 @@ onMounted(loadModels);
             </div>
           </div>
 
-          <!-- 能力标签 -->
+          <!-- 能力标签 + Tier -->
           <div class="flex flex-wrap gap-1.5">
+            <!-- Tier Tag -->
+            <span
+              v-if="model.tier"
+              class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium"
+              :class="{
+                'bg-success/10 text-success': model.tier === 'fast',
+                'bg-primary/10 text-primary': model.tier === 'standard',
+                'bg-warning/10 text-warning': model.tier === 'premium',
+              }"
+            >
+              {{ $t(`tenant.ai.model.tier.${model.tier}`, model.tier) }}
+            </span>
             <Tag v-if="model.supports_function_calling" color="purple">
               {{ $t('tenant.ai.model.capability.functionCalling') }}
             </Tag>

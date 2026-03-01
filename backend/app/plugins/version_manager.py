@@ -155,9 +155,8 @@ class VersionManager:
             # 6. 更新 DB 记录
             plugin.version = new_version
             plugin.manifest = new_manifest.model_dump()
-            plugin.display_name = new_manifest.display_name.get(
-                "zh-CN", new_manifest.display_name.get("en", plugin_name)
-            )
+            from app.plugins.preview import resolve_i18n
+            plugin.display_name = resolve_i18n(new_manifest.display_name)
             plugin.installed_packages = new_manifest.dependencies.python or []
 
             # 旧版本归档
@@ -279,6 +278,7 @@ class VersionManager:
 
         plugin.version = target_version
         plugin.manifest = restored_manifest.model_dump()
+        plugin.installed_packages = restored_manifest.dependencies.python or []
         await self._db.flush()
 
         # 重新启用（调用 _enable_impl 避免嵌套锁）

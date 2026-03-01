@@ -50,7 +50,7 @@ import {
   getScopeOptions,
   getStatusText,
 } from './data';
-import { getScopeText } from '#/utils/scope-helpers';
+import { getScopeIcon, getScopeText } from '#/utils/scope-helpers';
 import AgentForm from './modules/form.vue';
 import VersionHistoryDrawer from './modules/VersionHistory.vue';
 
@@ -203,15 +203,6 @@ function getExecutionModeIcon(mode: string): string {
     case 'batch': return 'lucide:layers';
     case 'api': return 'lucide:code';
     default: return 'lucide:bot';
-  }
-}
-
-function getScopeIcon(scope: string): string {
-  switch (scope) {
-    case 'admin_and_all': return 'lucide:globe';
-    case 'admin_only': return 'lucide:shield';
-    case 'all_tenants': return 'lucide:building-2';
-    default: return 'lucide:circle';
   }
 }
 

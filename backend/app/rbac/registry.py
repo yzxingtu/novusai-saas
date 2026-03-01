@@ -99,6 +99,22 @@ class PermissionRegistry:
         from app.enums.rbac import PermissionType
         return self.get_by_type(PermissionType.OPERATION)
     
+    def unregister(self, code: str) -> bool:
+        """
+        移除指定 code 的权限（所有 scope）。
+
+        用于插件禁用时移除动态注册的菜单/权限。
+
+        Returns:
+            是否成功移除
+        """
+        keys_to_remove = [
+            k for k, p in self._permissions.items() if p.code == code
+        ]
+        for k in keys_to_remove:
+            del self._permissions[k]
+        return len(keys_to_remove) > 0
+
     def clear(self) -> None:
         """清空（测试用）"""
         self._permissions.clear()

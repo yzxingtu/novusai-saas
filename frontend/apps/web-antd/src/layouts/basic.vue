@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { AuthenticationLoginExpiredModal } from '@vben/common-ui';
@@ -31,6 +31,7 @@ import {
   usePluginFrontendInit,
 } from '#/composables/use-plugin-frontend-init';
 
+import CacheClearModal from '#/components/business/cache-clear-modal/CacheClearModal.vue';
 import LoginForm from '#/views/_core/authentication/login.vue';
 import GlobalAIChat from '#/views/_core/global-ai-chat/GlobalAIChat.vue';
 
@@ -46,12 +47,14 @@ const accessStore = useAccessStore();
 const tabbarStore = useTabbarStore();
 const pluginSlotsStore = usePluginSlotsStore();
 const { destroyWatermark, updateWatermark } = useWatermark();
+const cacheClearModalRef = ref<InstanceType<typeof CacheClearModal>>();
 
 // 初始化插件前端（动态加载已启用插件的 UMD 包并注册到插槽 Store）
 const currentEndpointPrefix = computed(() => {
   const path = router.currentRoute.value.path;
   return path.startsWith('/tenant') ? '/tenant' : '/admin';
 });
+
 usePluginFrontendInit(currentEndpointPrefix.value);
 
 watch(currentEndpointPrefix, async (endpoint, previousEndpoint) => {
@@ -217,7 +220,7 @@ watch(
 
 <template>
   <BasicLayout
-    @clear-preferences-and-logout="handleLogout"
+    @clear-preferences-and-logout="() => cacheClearModalRef?.open()"
     @locale-change="handleLocaleChange"
   >
     <template #user-dropdown>
@@ -303,6 +306,7 @@ watch(
         <LoginForm />
       </AuthenticationLoginExpiredModal>
       <GlobalAIChat />
+      <CacheClearModal ref="cacheClearModalRef" />
       <NotificationToast />
       <!-- 插件 floatingPanels 动态注入（全局浮动面板） -->
       <template v-for="panel in pluginSlotsStore.floatingPanels" :key="panel.pluginName + '-' + panel.name">

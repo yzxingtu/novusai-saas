@@ -316,5 +316,16 @@
     "featureAnalytics": "分析",
     "featureWhiteLabel": "白标",
     "featureSupport": "支持"
+  },
+  "aiUsage": {
+    "title": "AI 用量统计",
+    "totalCalls": "总调用次数",
+    "totalTokens": "总 Token 消耗",
+    "avgLatency": "平均响应时间",
+    "successRate": "成功率",
+    "totalCost": "总费用",
+    "inputTokens": "输入 Token",
+    "outputTokens": "输出 Token",
+    "viewUsage": "AI 用量"
   }
 }

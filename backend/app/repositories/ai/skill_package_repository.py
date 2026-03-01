@@ -130,10 +130,13 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
     async def get_by_id(
         self, id: int, include_deleted: bool = False
     ) -> SkillPackage | None:
-        """根据 ID 获取技能包，允许访问全局 + 已分配的技能包"""
+        """根据 ID 获取技能包，允许访问全局 + 全部租户可见 + 已分配的技能包"""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
             if instance.scope == ResourceScopeEnum.ADMIN_AND_ALL.value:
+                return instance
+            # 平台创建的全局资源（tenant_id=null，对全部租户可见）
+            if instance.scope == ResourceScopeEnum.ALL_TENANTS.value and instance.tenant_id is None:
                 return instance
             if instance.scope in _ASSIGNED_SCOPES:
                 from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
@@ -170,6 +173,11 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
             or_(
                 self.model.tenant_id == self.tenant_id,
                 self.model.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
+                # 平台创建的全局资源（tenant_id=null，对全部租户可见）
+                and_(
+                    self.model.scope == ResourceScopeEnum.ALL_TENANTS.value,
+                    self.model.tenant_id.is_(None),
+                ),
                 and_(
                     self.model.scope.in_(_ASSIGNED_SCOPES),
                     self.model.id.in_(assigned_subq),

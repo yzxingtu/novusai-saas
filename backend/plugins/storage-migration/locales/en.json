@@ -1,0 +1,76 @@
+{
+  "storage_migration": {
+    "plugin_name": "Storage Migration Tool",
+    "plugin_description": "Cross-driver storage file migration tool",
+    "menu": {
+      "title": "Storage Migration"
+    },
+    "impact_analysis": {
+      "title": "Storage Switch Impact Analysis",
+      "total_files": "Total Files",
+      "total_size": "Total Size",
+      "private_files": "Private Files",
+      "public_files": "Public Files",
+      "source_driver": "Source Driver",
+      "target_driver": "Target Driver",
+      "driver_not_available": "Driver not available",
+      "no_files": "No files found for specified driver"
+    },
+    "task": {
+      "title": "Migration Task",
+      "create": "Create Migration Task",
+      "status": {
+        "pending": "Pending",
+        "running": "Running",
+        "paused": "Paused",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+        "rolling_back": "Rolling Back"
+      },
+      "progress": "Migration Progress",
+      "migrated_files": "Migrated Files",
+      "failed_files": "Failed Files",
+      "skipped_files": "Skipped Files",
+      "total_bytes": "Total Size",
+      "migrated_bytes": "Migrated Size",
+      "concurrency": "Concurrency",
+      "scope": "Migration Scope",
+      "scope_all": "All files",
+      "scope_tenant": "Tenant {id} files",
+      "started_at": "Started At",
+      "completed_at": "Completed At"
+    },
+    "action": {
+      "start": "Start Migration",
+      "pause": "Pause",
+      "resume": "Resume",
+      "cancel": "Cancel",
+      "retry": "Retry Failed Files",
+      "rollback": "Rollback",
+      "cleanup": "Cleanup Source Files",
+      "confirm_cancel": "Are you sure you want to cancel this migration task?",
+      "confirm_rollback": "Are you sure you want to rollback? Migrated file records will be reverted to original driver.",
+      "confirm_cleanup": "Are you sure you want to delete source files? This action is irreversible."
+    },
+    "switch_warning": {
+      "title": "Storage Switch Impact Warning",
+      "description": "Before switching storage drivers, please note the following impact:",
+      "private_warning": "{count} private files will become inaccessible. Consider migrating first.",
+      "public_warning": "{count} public files (old CDN links will still be accessible).",
+      "btn_switch": "Switch Anyway",
+      "btn_migrate": "Migrate First"
+    },
+    "error": {
+      "source_target_same": "Source and target drivers must be different",
+      "driver_not_available": "Storage driver '{driver}' is not available",
+      "no_files_to_migrate": "No files to migrate",
+      "task_not_found": "Migration task not found",
+      "invalid_status": "Cannot perform this action in '{status}' status"
+    },
+    "history": {
+      "title": "Migration History",
+      "empty": "No migration records"
+    }
+  }
+}

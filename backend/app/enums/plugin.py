@@ -56,3 +56,14 @@ class PluginVersionStatusEnum(LabeledStrEnum):
 
     ACTIVE = ("active", "enum.plugin_version_status.active")
     ARCHIVED = ("archived", "enum.plugin_version_status.archived")
+
+
+class FrontendSlotTypeEnum(LabeledStrEnum):
+    """插件前端插槽类型"""
+
+    HEADER_WIDGET = ("header_widget", "enum.frontend_slot_type.header_widget")
+    DASHBOARD_WIDGET = ("dashboard_widget", "enum.frontend_slot_type.dashboard_widget")
+    SETTINGS_TAB = ("settings_tab", "enum.frontend_slot_type.settings_tab")
+    FLOATING_PANEL = ("floating_panel", "enum.frontend_slot_type.floating_panel")
+    STANDALONE_PAGE = ("standalone_page", "enum.frontend_slot_type.standalone_page")
+    NOTIFICATION_UI = ("notification_ui", "enum.frontend_slot_type.notification_ui")

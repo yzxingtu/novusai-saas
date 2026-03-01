@@ -13,7 +13,9 @@ from app.core.deps import DbSession, ActiveAdmin
 from app.core.i18n import _
 from app.core.response import success, created
 from app.core.security import get_password_hash
+from app.enums import ErrorCode
 from app.enums.rbac import PermissionScope
+from app.exceptions import BusinessException
 from app.rbac.decorators import (
     permission_resource,
     action_read,
@@ -171,6 +173,24 @@ class AdminTenantAdminController(GlobalController):
                     status_code=status.HTTP_409_CONFLICT,
                     detail=_("tenant_admin.username_or_email_exists"),
                 )
+
+            # 检查管理员数配额
+            from sqlalchemy.orm import selectinload as _sil
+            from app.models.tenant.tenant import Tenant
+            from app.services.tenant.quota_service import QuotaService
+            tenant_obj = (await db.execute(
+                select(Tenant)
+                .options(_sil(Tenant.tenant_plan))
+                .where(Tenant.id == tenant_id)
+            )).scalar_one_or_none()
+            if tenant_obj:
+                quota_svc = QuotaService(db, tenant_obj)
+                quota_check = await quota_svc.check_admin_quota()
+                if not quota_check.allowed:
+                    raise BusinessException(
+                        message=quota_check.message or _("quota.admins_exceeded"),
+                        code=ErrorCode.CONFLICT,
+                    )
 
             # 创建管理员
             new_admin = TenantAdmin(

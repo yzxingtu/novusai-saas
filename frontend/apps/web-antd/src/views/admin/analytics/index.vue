@@ -8,6 +8,7 @@ import { onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { Card, DatePicker, Spin } from 'ant-design-vue';
+import type { Dayjs } from 'dayjs';
 
 import {
   type CallTrendItem,
@@ -36,7 +37,7 @@ import SuccessRateChart from './charts/SuccessRateChart.vue';
 defineOptions({ name: 'AdminAnalytics' });
 
 const loading = ref(false);
-const dateRange = ref<[string, string] | null>(null);
+const dateRange = ref<[Dayjs, Dayjs] | undefined>();
 
 const callTrend = ref<CallTrendItem[]>([]);
 const modelDist = ref<ModelDistributionItem[]>([]);
@@ -47,7 +48,10 @@ const successRate = ref<SuccessRateTrendItem[]>([]);
 
 function getParams() {
   if (!dateRange.value) return {};
-  return { start_date: dateRange.value[0], end_date: dateRange.value[1] };
+  return {
+    start_date: dateRange.value[0].format('YYYY-MM-DD'),
+    end_date: dateRange.value[1].format('YYYY-MM-DD'),
+  };
 }
 
 async function loadAll() {

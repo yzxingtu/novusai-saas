@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -22,6 +23,17 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 BACKUPS_DIR = PLUGINS_DIR / ".backups"
+
+_SAFE_TABLE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+
+
+def _is_safe_plugin_table(table_name: str, expected_prefix: str) -> bool:
+    """校验表名安全性：必须匹配安全字符 + 必须以插件前缀开头"""
+    if not _SAFE_TABLE_RE.match(table_name):
+        return False
+    if not table_name.startswith(expected_prefix):
+        return False
+    return True
 
 
 async def backup_plugin_data(
@@ -91,10 +103,8 @@ async def backup_plugin_data(
             data_dir = backup_dir / "data"
             data_dir.mkdir(exist_ok=True)
 
-            import re
-            _SAFE_TABLE_RE = re.compile(r'^[a-z][a-z0-9_]*$')
             for table_name in table_names:
-                if not _SAFE_TABLE_RE.match(table_name):
+                if not _is_safe_plugin_table(table_name, table_prefix):
                     logger.warning("Skipping unsafe table name: %s", table_name)
                     continue
                 rows_result = await db.execute(text(f'SELECT * FROM "{table_name}"'))
@@ -183,11 +193,8 @@ async def export_plugin_data(
         )
         table_names = [row[0] for row in tables_result]
 
-        import re
-        _SAFE_TABLE_RE = re.compile(r'^[a-z][a-z0-9_]*$')
-
         for table_name in table_names:
-            if not _SAFE_TABLE_RE.match(table_name):
+            if not _is_safe_plugin_table(table_name, table_prefix):
                 logger.warning("Skipping unsafe table name in export: %s", table_name)
                 continue
             rows_result = await db.execute(text(f'SELECT * FROM "{table_name}"'))

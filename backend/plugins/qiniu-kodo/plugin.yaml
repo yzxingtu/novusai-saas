@@ -1,0 +1,38 @@
+name: qiniu-kodo
+version: "1.0.0"
+display_name:
+  zh-CN: "七牛云 Kodo 存储"
+  en: "Qiniu Kodo Storage"
+description:
+  zh-CN: "七牛云对象存储（Kodo）驱动，支持 imageView2 原生图片处理"
+  en: "Qiniu Kodo object storage driver with imageView2 native image processing"
+author: "NovusAI"
+icon: "icon.png"
+icon_color: "#07beff"
+scope: admin_and_all
+tags: ["storage", "kodo", "qiniu", "cloud"]
+
+capabilities:
+  - storage:read
+  - storage:write
+
+extensions:
+  storage_drivers:
+    - code: qiniu-kodo
+      display_name:
+        zh-CN: "七牛云 Kodo"
+        en: "Qiniu Kodo"
+      entry_point: "driver.KodoStorageDriver"
+
+# Storage credentials are managed by the platform Storage Settings (SystemConfig),
+# NOT here. The driver class (driver.py) has its own config_schema for the storage form.
+# No plugin-level config_schema needed — omitting prevents empty config button in plugin UI.
+
+dependencies:
+  python:
+    - "qiniu>=7.14"
+    - "httpx>=0.24"
+  plugins: []
+
+pricing:
+  type: free

@@ -62,6 +62,7 @@ export interface AgentInfo extends AgentListItem {
   suggested_questions: unknown[] | null;
   model_code: string | null;
   quota_config: Record<string, unknown> | null;
+  routing_config: Record<string, unknown> | null;
   context_config: Record<string, unknown> | null;
   output_schema: unknown[] | null;
   knowledge_base_ids: number[] | null;

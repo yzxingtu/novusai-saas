@@ -3,7 +3,7 @@
  * 知识库文档输入器
  *
  * 提供三种文档录入方式：
- * 1. 文件上传（支持 PDF/DOCX/TXT/MD/CSV/XLSX/HTML）
+ * 1. 文件上传（支持 PDF/DOCX/TXT/MD/CSV/XLSX/HTML/PPTX/图片）
  * 2. 直接文本粘贴
  * 3. Q&A 问答对手动输入
  *
@@ -37,7 +37,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ success: [] }>();
 
-const KB_ACCEPT = '.pdf,.docx,.txt,.md,.csv,.xlsx,.html,.htm';
+const KB_ACCEPT = '.pdf,.docx,.txt,.md,.csv,.xlsx,.html,.htm,.pptx,.jpg,.jpeg,.png,.webp,.gif';
 
 // ========== Modal visibility ==========
 const textModalVisible = ref(false);

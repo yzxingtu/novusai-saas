@@ -25,6 +25,7 @@ import {
   message,
   Select as ASelect,
   Spin,
+  Switch,
   Tabs,
   TabPane,
   Tag,
@@ -35,6 +36,7 @@ import {
   batchBindAIAgentSkillsApi,
   getAIAgentDetailApi,
   getAIAgentSkillsApi,
+  getAIModelListApi,
   updateAIAgentApi,
 } from '#/api/admin/ai';
 import { $t } from '#/locales';
@@ -213,6 +215,69 @@ function getStatusColor(status: string | undefined): string {
   }
 }
 
+// ==================== Routing Config Tab ====================
+const routingEnabled = ref(false);
+const routingMaxTier = ref<string | undefined>(undefined);
+const routingVisionModelId = ref<number | undefined>(undefined);
+const routingLongContextModelId = ref<number | undefined>(undefined);
+const routingLongContextThreshold = ref(32000);
+const visionModelOptions = ref<{ label: string; value: number }[]>([]);
+const chatModelOptions = ref<{ label: string; value: number }[]>([]);
+
+async function loadAdminRoutingModelOptions() {
+  try {
+    const visionRes = await getAIModelListApi({
+      'page[size]': 100,
+      'filter[type][eq]': 'chat',
+      'filter[is_active][eq]': true,
+      'filter[supports_vision][eq]': true,
+    });
+    visionModelOptions.value = (visionRes.items || []).map((m) => ({
+      label: `${m.name} (${m.provider_name || '-'})`,
+      value: m.id,
+    }));
+    const chatRes = await getAIModelListApi({
+      'page[size]': 200,
+      'filter[type][eq]': 'chat',
+      'filter[is_active][eq]': true,
+    });
+    chatModelOptions.value = (chatRes.items || []).map((m) => ({
+      label: `${m.name} (${m.provider_name || '-'})`,
+      value: m.id,
+    }));
+  } catch {
+    // fallback
+  }
+}
+
+const tierOptions = [
+  { label: $t('admin.ai.agent.routing.tier.fast'), value: 'fast' },
+  { label: $t('admin.ai.agent.routing.tier.standard'), value: 'standard' },
+  { label: $t('admin.ai.agent.routing.tier.premium'), value: 'premium' },
+];
+
+function initAdminRouting() {
+  if (!agent.value) return;
+  const rc = (agent.value.routing_config ?? {}) as Record<string, unknown>;
+  routingEnabled.value = Boolean(rc.enable_routing);
+  routingMaxTier.value = (rc.max_tier as string | undefined) ?? undefined;
+  routingVisionModelId.value = (rc.vision_model_id as number | undefined) ?? undefined;
+  routingLongContextModelId.value = (rc.long_context_model_id as number | undefined) ?? undefined;
+  routingLongContextThreshold.value = (rc.long_context_threshold as number) ?? 32000;
+}
+
+async function saveAdminRouting() {
+  await saveFields({
+    routing_config: {
+      enable_routing: routingEnabled.value,
+      max_tier: routingMaxTier.value || null,
+      vision_model_id: routingVisionModelId.value ?? null,
+      long_context_model_id: routingLongContextModelId.value ?? null,
+      long_context_threshold: routingLongContextThreshold.value,
+    },
+  });
+}
+
 // ==================== Tab Change ====================
 function onTabChange(key: string | number) {
   activeTab.value = String(key);
@@ -221,6 +286,7 @@ function onTabChange(key: string | number) {
     case 'modelParams': initModelParams(); break;
     case 'chatConfig': initChatConfig(); break;
     case 'skills': { loadBindings(); loadPackageOptions(); break; }
+    case 'routing': { initAdminRouting(); loadAdminRoutingModelOptions(); break; }
   }
 }
 </script>
@@ -456,6 +522,69 @@ function onTabChange(key: string | number) {
                 <Empty v-if="bindings.length === 0 && !bindingsLoading" />
               </div>
             </Spin>
+          </TabPane>
+
+          <!-- ========== 智能路由 Tab ========== -->
+          <TabPane key="routing" :tab="$t('admin.ai.agent.detail.routing')">
+            <Card>
+              <p class="mb-4 text-xs text-muted-foreground">{{ $t('admin.ai.agent.routing.description') }}</p>
+              <div class="grid max-w-xl grid-cols-1 gap-5">
+                <div class="flex items-center gap-3">
+                  <label class="text-sm font-medium">{{ $t('admin.ai.agent.routing.enableRouting') }}</label>
+                  <Switch v-model:checked="routingEnabled" />
+                </div>
+                <div>
+                  <label class="mb-1 block text-sm font-medium">{{ $t('admin.ai.agent.routing.maxTier') }}</label>
+                  <ASelect
+                    v-model:value="routingMaxTier"
+                    :options="tierOptions"
+                    class="w-full"
+                    :disabled="!routingEnabled"
+                    :allow-clear="true"
+                    :placeholder="$t('admin.ai.agent.routing.noLimit')"
+                  />
+                  <p class="mt-1 text-xs text-muted-foreground">{{ $t('admin.ai.agent.routing.maxTierHelp') }}</p>
+                </div>
+                <div>
+                  <label class="mb-1 block text-sm font-medium">{{ $t('admin.ai.agent.routing.visionModel') }}</label>
+                  <ASelect
+                    v-model:value="routingVisionModelId"
+                    :options="visionModelOptions"
+                    class="w-full"
+                    :disabled="!routingEnabled"
+                    :allow-clear="true"
+                    :placeholder="$t('admin.ai.agent.routing.autoSelect')"
+                  />
+                </div>
+                <div>
+                  <label class="mb-1 block text-sm font-medium">{{ $t('admin.ai.agent.routing.longContextModel') }}</label>
+                  <ASelect
+                    v-model:value="routingLongContextModelId"
+                    :options="chatModelOptions"
+                    class="w-full"
+                    :disabled="!routingEnabled"
+                    :allow-clear="true"
+                    :placeholder="$t('admin.ai.agent.routing.autoSelect')"
+                  />
+                </div>
+                <div>
+                  <label class="mb-1 block text-sm font-medium">{{ $t('admin.ai.agent.routing.longContextThreshold') }}</label>
+                  <InputNumber
+                    v-model:value="routingLongContextThreshold"
+                    :min="1000"
+                    :step="1000"
+                    class="w-full"
+                    :disabled="!routingEnabled"
+                  />
+                  <p class="mt-1 text-xs text-muted-foreground">{{ $t('admin.ai.agent.routing.longContextThresholdHelp') }}</p>
+                </div>
+                <div class="pt-2">
+                  <Button type="primary" :loading="saving" @click="saveAdminRouting">
+                    {{ $t('common.save') }}
+                  </Button>
+                </div>
+              </div>
+            </Card>
           </TabPane>
         </Tabs>
       </div>

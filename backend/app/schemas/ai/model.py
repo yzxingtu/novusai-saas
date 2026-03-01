@@ -35,6 +35,7 @@ class AIModelCreate(BaseCreateSchema):
     is_active: bool = Field(True, description=_("enum.ai_model.is_active"))
     config: dict | None = Field(None, description=_("enum.ai_model.config"))
     fallback_model_id: int | None = Field(None, description=_("enum.ai_model.fallback_model_id"))
+    tier: str | None = Field(None, description=_("enum.ai_model.tier"))
 
 
 class AIModelUpdate(BaseUpdateSchema):
@@ -56,6 +57,7 @@ class AIModelUpdate(BaseUpdateSchema):
     is_active: bool | None = Field(None, description=_("enum.ai_model.is_active"))
     config: dict | None = Field(None, description=_("enum.ai_model.config"))
     fallback_model_id: int | None = Field(None, description=_("enum.ai_model.fallback_model_id"))
+    tier: str | None = Field(None, description=_("enum.ai_model.tier"))
 
 
 class AIModelResponse(BaseResponseSchema):
@@ -79,6 +81,7 @@ class AIModelResponse(BaseResponseSchema):
     fallback_model_id: int | None = Field(None, description=_("enum.ai_model.fallback_model_id"))
     fallback_model_name: str | None = Field(None, description=_("enum.ai_model.fallback_model_name"))
     provider_name: str | None = Field(None, description=_("enum.ai_model.provider_name"))
+    tier: str | None = Field(None, description=_("enum.ai_model.tier"))
 
 
 __all__ = [

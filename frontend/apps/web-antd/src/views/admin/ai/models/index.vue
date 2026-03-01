@@ -21,7 +21,7 @@ import {
 } from '#/api/admin/ai';
 import { $t } from '#/locales';
 
-import { getFormDefaults, getModelTypeText, useColumns, useGridFormSchema } from './data';
+import { getFormDefaults, getModelTierText, getModelTypeText, useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
 /**
@@ -205,6 +205,22 @@ const { Grid, FormDrawer, onRefresh } =
               <span class="text-orange-600">{{ formatPrice(row.output_price_per_1k) }}</span>
             </span>
           </div>
+        </template>
+
+        <!-- 模型级别列：Tier Tag -->
+        <template #tier_cell="{ row }">
+          <span
+            v-if="row.tier"
+            class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium"
+            :class="{
+              'bg-success/10 text-success': row.tier === 'fast',
+              'bg-primary/10 text-primary': row.tier === 'standard',
+              'bg-warning/10 text-warning': row.tier === 'premium',
+            }"
+          >
+            {{ getModelTierText(row.tier) }}
+          </span>
+          <span v-else class="text-muted-foreground">-</span>
         </template>
 
         <!-- 启用状态列：Switch -->

@@ -205,10 +205,12 @@ function transformMenuItem(
   const routePath = transformRoutePath(item.path, endpoint);
 
   // 构建路由项
+  const transformedComponent = transformComponentPath(item.component, endpoint);
   const route: RouteRecordStringComponent = {
     name: routeName,
     path: routePath,
-    component: transformComponentPath(item.component, endpoint),
+    // 空组件路径（如插件菜单）用 undefined 而非 '' —— 避免 Vue Router 将空字符串视为无效 component 并报警告
+    component: transformedComponent || undefined,
     meta,
   };
 

@@ -475,6 +475,7 @@ defineExpose({
     :rules="formRules"
     ref="formRef"
     :disabled="disabled"
+    autocomplete="off"
   >
     <template v-for="cfg in orderedConfigs" :key="cfg.key">
       <Transition name="config-slide">
@@ -488,6 +489,7 @@ defineExpose({
           <Input
             v-if="cfg.value_type === 'string'"
             v-model:value="formModel[cfg.key]"
+            autocomplete="new-password"
           />
 
           <!-- number -->

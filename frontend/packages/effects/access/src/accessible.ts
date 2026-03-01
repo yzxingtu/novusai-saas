@@ -33,6 +33,24 @@ async function generateAccessible(
   // 获取已有的路由名称列表
   const names = root?.children?.map((item) => item.name) ?? [];
 
+  // 递归剔除无 component 的叶子路由，返回新对象（不修改原 accessibleRoutes，
+  // 保证 generateMenus 仍能从原数组生成侧边栏菜单项）。
+  // 场景：插件菜单挂载在 system_maintenance 等父级下，是嵌套子路由；
+  //       其 component 为 undefined，若直接注册进 router 会触发
+  //       "missing component" 警告并覆盖 registerPluginPageRoutes 注册的真实路由。
+  function stripComponentlessLeaves(route: RouteRecordRaw): RouteRecordRaw {
+    if (!route.children || route.children.length === 0) {
+      return route;
+    }
+    const cleanedChildren = (route.children as RouteRecordRaw[])
+      .filter((child) => {
+        const isLeaf = !child.children || child.children.length === 0;
+        return !isLeaf || !!child.component;
+      })
+      .map((child) => stripComponentlessLeaves(child));
+    return { ...route, children: cleanedChildren };
+  }
+
   // 动态添加到router实例内
   accessibleRoutes.forEach((route) => {
     if (root && !route.meta?.noBasicLayout) {
@@ -41,6 +59,16 @@ async function generateAccessible(
       if (route.children && route.children.length > 0) {
         delete route.component;
       }
+      // 无 component 且无子路由（如插件菜单）: 跳过向 router 注册。
+      const isComponentlessLeaf =
+        !route.component && (!route.children || route.children.length === 0);
+      if (isComponentlessLeaf) {
+        return;
+      }
+
+      // 向 router 注册时，用剔除了无 component 叶子节点的副本
+      const routeForRouter = stripComponentlessLeaves(route);
+
       // 根据router name判断，如果路由已经存在，则不再添加
       if (names?.includes(route.name)) {
         // 找到已存在的路由索引并更新，不更新会造成切换用户时，一级目录未更新，homePath 在二级目录导致的404问题
@@ -48,10 +76,10 @@ async function generateAccessible(
           (item) => item.name === route.name,
         );
         if (index !== undefined && index !== -1 && root.children) {
-          root.children[index] = route;
+          root.children[index] = routeForRouter;
         }
       } else {
-        root.children?.push(route);
+        root.children?.push(routeForRouter);
       }
     } else {
       router.addRoute(route);

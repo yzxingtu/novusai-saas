@@ -32,6 +32,7 @@ export interface AIAgentInfo {
   max_tokens: number;
   top_p: number | null;
   knowledge_base_ids: number[] | null;
+  routing_config: Record<string, unknown> | null;
   assigned_tenant_ids?: number[];
   created_at: string;
   updated_at: string;

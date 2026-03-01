@@ -4,7 +4,7 @@ AI 调用日志模型
 记录所有 AI 调用请求和响应，用于计量计费和监控
 """
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Numeric, Text, JSON, Index
+from sqlalchemy import ForeignKey, Index, Integer, JSON, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import TYPE_CHECKING
 
@@ -34,6 +34,7 @@ class AICallLog(TenantModel):
         "user_type": "user_type",
         "provider_id": "provider_id",
         "model_id": "model_id",
+        "routed_model_id": "routed_model_id",
         "request_type": "request_type",
         "status": "status",
         "created_at": "created_at",
@@ -149,6 +150,21 @@ class AICallLog(TenantModel):
         nullable=True,
         comment=_("enum.ai_call_log.request_metadata")
     )
+
+    # 路由信息（多模型路由结果）
+    routed_model_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("ai_models.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment=_("enum.ai_call_log.routed_model_id"),
+    )
+    route_reason: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True,
+        comment=_("enum.ai_call_log.route_reason"),
+    )
+
     
     # ==================== 索引 ====================
     

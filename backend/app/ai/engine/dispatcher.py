@@ -145,6 +145,27 @@ class ExecutionDispatcher:
                         config=quota_config,
                     )
 
+                # 3.6 套餐月 API 调用次数配额检查
+                if request.tenant_id:
+                    from sqlalchemy.orm import selectinload
+                    from app.models.tenant.tenant import Tenant
+                    from app.services.tenant.quota_service import QuotaService
+                    from app.enums import ErrorCode
+                    from app.exceptions import BusinessException
+                    tenant_obj = (await self.db.execute(
+                        select(Tenant)
+                        .options(selectinload(Tenant.tenant_plan))
+                        .where(Tenant.id == request.tenant_id)
+                    )).scalar_one_or_none()
+                    if tenant_obj:
+                        quota_svc = QuotaService(self.db, tenant_obj)
+                        api_check = await quota_svc.check_api_calls_quota()
+                        if not api_check.allowed:
+                            raise BusinessException(
+                                message=api_check.message or _("quota.api_calls_exceeded"),
+                                code=ErrorCode.CONFLICT,
+                            )
+
             # 4. BEFORE_EXECUTE 钩子
             hook_registry = get_hook_registry()
             hook_context = await hook_registry.trigger(

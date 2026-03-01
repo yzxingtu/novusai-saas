@@ -8,5 +8,22 @@
   "providerPerformance": "Provider Performance",
   "tenantRanking": "Tenant Usage Ranking",
   "successRate": "Success Rate Trend",
-  "latencyDistribution": "Latency Distribution"
+  "latencyDistribution": "Latency Distribution",
+  "chart": {
+    "calls": "Calls",
+    "success": "Success",
+    "failed": "Failed",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "total": "Total",
+    "rate": "Rate",
+    "count": "Count",
+    "percent": "%"
+  },
+  "radar": {
+    "calls": "Calls",
+    "successRate": "Success %",
+    "avgTokens": "Avg Tokens",
+    "speed": "Speed (inv)"
+  }
 }

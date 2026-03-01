@@ -33,7 +33,7 @@
   "copyPreferences": "复制偏好设置",
   "copyPreferencesSuccessTitle": "复制成功",
   "copyPreferencesSuccess": "复制成功，请在 app 下的 `src/preferences.ts`内进行覆盖",
-  "clearAndLogout": "清空缓存 & 退出登录",
+  "clearAndLogout": "清除缓存",
   "mode": "模式",
   "general": "通用",
   "language": "语言",

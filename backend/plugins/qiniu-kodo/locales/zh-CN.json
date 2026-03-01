@@ -1,0 +1,10 @@
+{
+  "plugin.qiniu-kodo.title": "七牛云 Kodo 存储",
+  "plugin.qiniu-kodo.description": "七牛云对象存储（Kodo）驱动，支持 imageView2 原生图片处理",
+  "plugin.qiniu-kodo.config.access_key": "Access Key",
+  "plugin.qiniu-kodo.config.secret_key": "Secret Key",
+  "plugin.qiniu-kodo.config.bucket": "Bucket",
+  "plugin.qiniu-kodo.config.base_url": "CDN 域名",
+  "plugin.qiniu-kodo.config.prefix": "Key 前缀",
+  "plugin.qiniu-kodo.config.is_private": "私有空间"
+}

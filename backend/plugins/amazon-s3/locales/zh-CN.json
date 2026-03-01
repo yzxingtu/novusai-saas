@@ -1,6 +1,7 @@
 {
   "plugin.amazon-s3.title": "S3 兼容存储",
   "plugin.amazon-s3.description": "Amazon S3 兼容对象存储驱动，支持 AWS/MinIO/R2/B2 等",
+  "plugin.amazon-s3.config.base_url": "自定义域名",
   "plugin.amazon-s3.config.access_key_id": "Access Key ID",
   "plugin.amazon-s3.config.secret_access_key": "Secret Access Key",
   "plugin.amazon-s3.config.region": "区域",

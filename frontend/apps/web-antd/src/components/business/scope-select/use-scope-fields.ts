@@ -15,13 +15,17 @@ import { $t } from '#/locales';
 import { getScopeOptions } from '#/utils/scope-helpers';
 
 export interface ScopeFieldsOptions {
-  /** 允许的 scope 值列表，不传则返回全部 5 种 */
+  /** 允许的 scope 値列表，不传则返回全部 5 种 */
   allowedScopes?: string[];
   /** scope 字段的 help 文本 */
   scopeHelp?: string;
   /** scope 字段是否禁用（编辑时锁定） */
   scopeDisabled?: boolean | ((values: Record<string, unknown>) => boolean);
-  /** 是否显示「所属租户」单选（scope=all_tenants），默认 true */
+  /**
+   * 是否在 scope=all_tenants 时显示「所属租户」单选，默认 false。
+   * 仅用于语义上不同的场景（如定时任务： all_tenants = 属于指定租户）。
+   * 普通资源（智能体/知识库/技能包）不传此项，all_tenants = 平台全局资源。
+   */
   showTenantId?: boolean;
   /** scope 字段名，默认 'scope' */
   scopeField?: string;
@@ -39,7 +43,7 @@ export function useScopeFields(options: ScopeFieldsOptions = {}): VbenFormSchema
     allowedScopes,
     scopeHelp,
     scopeDisabled = false,
-    showTenantId = true,
+    showTenantId = false,
     scopeField = 'scope',
     tenantIdField = 'tenant_id',
     tenantIdsField = 'tenant_ids',
@@ -47,9 +51,6 @@ export function useScopeFields(options: ScopeFieldsOptions = {}): VbenFormSchema
 
   const needsAssignment = (v: Record<string, unknown>) =>
     v[scopeField] === 'assigned_tenants' || v[scopeField] === 'admin_and_assigned';
-
-  const isTenantScope = (v: Record<string, unknown>) =>
-    v[scopeField] === 'all_tenants';
 
   const fields: VbenFormSchema[] = [];
 
@@ -70,18 +71,20 @@ export function useScopeFields(options: ScopeFieldsOptions = {}): VbenFormSchema
   if (scopeHelp) {
     scopeSchema.help = scopeHelp;
   }
-  if (scopeDisabled !== false) {
-    scopeSchema.dependencies = {
-      triggerFields: ['_mode'],
-      disabled: typeof scopeDisabled === 'function'
-        ? scopeDisabled
-        : () => scopeDisabled,
-    };
-  }
+  // Always set dependencies.disabled (even when scopeDisabled=false) so that
+  // when the schema switches from locked→unlocked the Vben dependency watcher
+  // calls resetConditionState() and clears the stale isDisabled=true state.
+  scopeSchema.dependencies = {
+    triggerFields: ['_mode'],
+    disabled: typeof scopeDisabled === 'function'
+      ? scopeDisabled
+      : () => Boolean(scopeDisabled),
+  };
   fields.push(scopeSchema);
 
-  // ── 2. 所属租户（scope=all_tenants 时显示） ──
+  // ── 2. 所属租户（scope=all_tenants 时显示，仅特定场景下需要） ──
   if (showTenantId) {
+    const isTenantScope = (v: Record<string, unknown>) => v[scopeField] === 'all_tenants';
     fields.push({
       component: 'ApiSelect',
       fieldName: tenantIdField,
@@ -143,16 +146,18 @@ export function scopeNeedsAssignment(scope: string): boolean {
  *
  * @param values 表单值
  * @param scopeField scope 字段名
+ * @param withTenantId 是否包含 tenant_id（仅用于语义上需要指定租户的 all_tenants 场景，如定时任务）
  */
 export function extractScopePayload(
   values: Record<string, unknown>,
   scopeField = 'scope',
+  withTenantId = false,
 ): Record<string, unknown> {
   const scope = values[scopeField] as string;
   const result: Record<string, unknown> = { [scopeField]: scope };
 
-  if (scope === 'all_tenants') {
-    result.tenant_id = values.tenant_id;
+  if (withTenantId && scope === 'all_tenants') {
+    result.tenant_id = values.tenant_id ?? null;
   } else {
     result.tenant_id = null;
   }

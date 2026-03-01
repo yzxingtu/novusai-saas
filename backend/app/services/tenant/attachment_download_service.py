@@ -171,17 +171,38 @@ class AttachmentDownloadService:
         expires: int,
         preview: bool,
     ) -> str:
-        """按存储驱动生成访问 URL"""
+        """按存储驱动生成访问 URL
+
+        Resolution chain (attachment self-describing priority):
+        1. local → API proxy endpoint
+        2. cloud + matching config → signed/direct URL via driver
+        3. cloud + public + has base_url → direct CDN URL from stored base_url
+        4. fallback → API proxy endpoint
+        """
+        # Local: always through API proxy
         if attachment.driver == "local":
             token = None
             if attachment.visibility == AttachmentVisibility.PRIVATE.value:
                 token = self.create_access_token(attachment, expires, preview)
             return self._build_public_access_url(attachment.id, token, preview)
 
-        storage_config = await self._resolve_storage_config_for_attachment(attachment)
-        driver = storage_manager.get_driver(storage_config)
-        visibility = StorageVisibility(attachment.visibility)
-        return await driver.get_url(attachment.path, expires=expires, visibility=visibility)
+        # Cloud: try to resolve a matching config for proper signed URL
+        try:
+            storage_config = await self._resolve_storage_config_for_attachment(attachment)
+            if storage_config.driver == attachment.driver:
+                driver = storage_manager.get_driver(storage_config)
+                visibility = StorageVisibility(attachment.visibility)
+                return await driver.get_url(attachment.path, expires=expires, visibility=visibility)
+        except Exception:
+            pass
+
+        # Config mismatch: use stored base_url for public cloud files
+        direct_url = self._build_direct_cdn_url(attachment)
+        if direct_url:
+            return direct_url
+
+        # Last resort: API proxy (private file with no matching config)
+        return self._build_public_access_url(attachment.id, None, preview)
 
     async def _resolve_storage_config_for_attachment(
         self, attachment: Attachment
@@ -194,6 +215,27 @@ class AttachmentDownloadService:
             driver=attachment.driver,
             tenant_id=self.tenant_id or 0,
         )
+
+    @staticmethod
+    def _build_direct_cdn_url(attachment: Attachment) -> str | None:
+        """Build a direct CDN URL from the attachment's own stored data.
+
+        Each attachment records its base_url at upload time. For public
+        cloud files this URL remains valid even after the platform/tenant
+        switches to a different storage driver.
+
+        Returns:
+            Direct URL string, or None if not possible (local, no base_url, private).
+        """
+        if attachment.driver == "local":
+            return None
+        if attachment.visibility != AttachmentVisibility.PUBLIC.value:
+            return None
+        base_url = attachment.base_url
+        if not base_url:
+            return None
+        path = attachment.path.lstrip("/")
+        return f"{base_url.rstrip('/')}/{path}"
 
     async def _record_download(self, attachment: Attachment, size: int) -> None:
         """写入下载统计到附件 meta"""

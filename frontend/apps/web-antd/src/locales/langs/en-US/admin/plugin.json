@@ -17,6 +17,7 @@
   "pricingType": "Pricing",
   "errorCount": "Error Count",
   "capabilitiesLabel": "Capabilities",
+  "readme": "Documentation",
   "create": "Install Plugin",
   "upload": "Upload & Install",
   "marketplaceBtn": "Marketplace",
@@ -73,13 +74,18 @@
     "assignTenant": "Assign Tenants",
     "upgrade": "Upgrade",
     "rollback": "Rollback",
-    "detail": "Details"
+    "detail": "Detail",
+    "forceCleanup": "Force Cleanup"
   },
   "confirm": {
     "enable": "Confirm enable plugin \"{name}\"?",
     "disable": "Confirm disable plugin \"{name}\"? All extensions will be unregistered.",
-    "uninstall": "Confirm uninstall plugin \"{name}\"? This cannot be undone.",
-    "uninstallWithData": "Also delete plugin data tables"
+    "uninstall": "Are you sure you want to uninstall plugin \"{name}\"? This action cannot be undone.",
+    "forceCleanup": "Force cleanup orphan records for \"{name}\"? Plugin files are missing from disk.",
+    "uninstallWithData": "Also delete plugin data tables",
+    "force_disable_title": "Force disable plugin \"{name}\"?",
+    "force_disable_content": "This plugin's storage driver is currently used by the platform or a tenant. Force disabling will automatically switch the storage configuration back to local storage, which may affect file access. Continue?",
+    "force_disable_ok": "Force Disable"
   },
   "tab": {
     "overview": "Overview",
@@ -203,6 +209,18 @@
     "revokeConfirm": "Revoke this license? Paid features will become unavailable.",
     "revokeSuccess": "License revoked"
   },
+  "menu_config": {
+    "title": "Menu Placement",
+    "description": "Choose menu location for plugin \"{name}\"",
+    "select_parent": "Select parent menu directory",
+    "no_menus": "This plugin has no menu extensions",
+    "save_success": "Menu placement updated",
+    "menu_location": "Menu Location",
+    "admin_parent": "Admin side",
+    "tenant_parent": "Tenant side",
+    "admin_section": "Admin Menus",
+    "tenant_section": "Tenant Menus"
+  },
   "messages": {
     "enableSuccess": "Plugin enabled",
     "disableSuccess": "Plugin disabled",
@@ -212,10 +230,12 @@
     "upgradeSuccess": "Plugin upgraded",
     "rollbackSuccess": "Plugin rolled back",
     "fileTooLarge": "File too large. Please upload a ZIP file under 50MB",
-    "assignSuccess": "Tenants assigned successfully"
+    "assignSuccess": "Tenants assigned successfully",
+    "forceCleanupSuccess": "Orphan records cleaned up"
   },
   "progress": {
     "installTitle": "Installation Progress",
+    "enableTitle": "Enable Progress",
     "uninstallTitle": "Uninstall Progress",
     "completed": "Completed",
     "failed": "Failed",
@@ -247,8 +267,11 @@
       "cleanup_ai": "Removing AI features",
       "cleanup_db": "Cleaning up database tables",
       "cleanup_pip": "Uninstalling Python dependencies",
+      "cleanup_npm": "Uninstalling frontend dependencies",
       "cleanup_records": "Removing plugin records",
-      "cleanup_files": "Removing plugin files"
+      "cleanup_files": "Removing plugin files",
+      "extensions": "Registering extensions",
+      "on_enable": "Running enable hook"
     }
   }
 }

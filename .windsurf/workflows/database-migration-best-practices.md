@@ -1,5 +1,6 @@
 ---
 description: 数据库迁移最佳实践。当需要创建/修改数据库模型、生成 Alembic 迁移文件、或排查迁移错误时，参考此文档。
+auto_execution_mode: 3
 ---
 
 # 数据库迁移最佳实践

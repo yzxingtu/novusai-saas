@@ -24,6 +24,12 @@ class TenantRateLimitCreate(TenantRateLimitBase):
     pass
 
 
+class AdminRateLimitCreate(TenantRateLimitBase):
+    """管理端创建速率限制配置（需指定 tenant_id）"""
+
+    tenant_id: int = Field(..., description="租户 ID")
+
+
 class TenantRateLimitUpdate(BaseModel):
     """更新租户速率限制配置"""
     
@@ -80,6 +86,7 @@ class EffectiveRateLimits(BaseModel):
 
 __all__ = [
     "TenantRateLimitCreate",
+    "AdminRateLimitCreate",
     "TenantRateLimitUpdate",
     "TenantRateLimitResponse",
     "EffectiveRateLimits",

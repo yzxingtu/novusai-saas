@@ -206,6 +206,7 @@ class ImageProcessService:
         根据存储驱动自动选择最优处理方式:
         - 云存储原生处理: 返回重定向 URL (str)
         - 本地处理: 返回图片数据 (bytes, mime_type)
+        - 配置不匹配: 返回 base_url 直接 CDN URL (str)
         
         Args:
             attachment: 附件对象
@@ -215,7 +216,21 @@ class ImageProcessService:
         Returns:
             重定向 URL 或 (图片数据, MIME 类型)
         """
-        storage_config = await self._resolve_storage_config(attachment)
+        try:
+            storage_config = await self._resolve_storage_config(attachment)
+        except Exception:
+            # Config resolution failed — try direct CDN URL fallback
+            direct = self._build_direct_cdn_url(attachment)
+            if direct:
+                return direct
+            raise
+
+        # Config driver doesn't match attachment driver — direct URL fallback
+        if storage_config.driver != attachment.driver:
+            direct = self._build_direct_cdn_url(attachment)
+            if direct:
+                return direct
+
         driver = storage_manager.get_driver(storage_config)
         
         # 云存储原生处理，返回重定向 URL
@@ -301,7 +316,26 @@ class ImageProcessService:
             driver=attachment.driver,
             tenant_id=self.tenant_id or 0,
         )
-    
+
+    @staticmethod
+    def _build_direct_cdn_url(attachment: "Attachment") -> str | None:
+        """Build direct CDN URL from attachment's own stored base_url + path.
+
+        Works for public cloud files regardless of current storage config.
+        Returns None for local driver, private files, or missing base_url.
+        """
+        from app.enums.attachment import AttachmentVisibility
+
+        if attachment.driver == "local":
+            return None
+        if attachment.visibility != AttachmentVisibility.PUBLIC.value:
+            return None
+        base_url = attachment.base_url
+        if not base_url:
+            return None
+        path = attachment.path.lstrip("/")
+        return f"{base_url.rstrip('/')}/{path}"
+
     async def _get_image_cache_path(self):
         """
         获取图片缓存路径（本地存储硬编码）

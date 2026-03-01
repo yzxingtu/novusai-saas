@@ -1,0 +1,21 @@
+{
+  "plugin.novusdoc-pro.name": "NovusDoc Pro — 协作增强",
+  "plugin.novusdoc-pro.description": "实时多人协作、评论批注、版本历史、文档权限、分享链接、Word/PDF 导出",
+  "plugin.novusdoc-pro.comment.add": "添加评论",
+  "plugin.novusdoc-pro.comment.resolve": "标记已解决",
+  "plugin.novusdoc-pro.comment.reply": "回复",
+  "plugin.novusdoc-pro.collab.online": "{count} 人在线",
+  "plugin.novusdoc-pro.version.history": "版本历史",
+  "plugin.novusdoc-pro.version.restore": "恢复此版本",
+  "plugin.novusdoc-pro.share.create": "创建分享链接",
+  "plugin.novusdoc-pro.share.revoke": "撤销分享",
+  "plugin.novusdoc-pro.export.pdf": "导出 PDF",
+  "plugin.novusdoc-pro.export.word": "导出 Word",
+  "plugin.novusdoc-pro.member.add": "添加成员",
+  "plugin.novusdoc-pro.member.role.owner": "所有者",
+  "plugin.novusdoc-pro.member.role.editor": "编辑者",
+  "plugin.novusdoc-pro.member.role.commenter": "评论者",
+  "plugin.novusdoc-pro.member.role.viewer": "查看者",
+  "plugin.novusdoc-pro.template.use": "使用模板",
+  "plugin.novusdoc-pro.license.required": "此功能需要 NovusDoc Pro 授权"
+}

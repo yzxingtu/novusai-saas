@@ -141,11 +141,27 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as celery_err:
             logger.warning(f"Celery broker connection failed: {celery_err}")
 
-        # 恢复已启用的插件扩展点注册
+        # 插件自动发现 + 恢复
         try:
-            from app.plugins.startup import restore_enabled_plugins
+            from app.plugins.startup import discover_and_register, restore_enabled_plugins
+
+            # Phase 1: 自动发现 — 扫描 plugins/ 目录，新插件自动注册到 DB（disabled）
+            async with async_session_factory() as db:
+                discover_result = await discover_and_register(db)
+                await db.commit()
+                if discover_result["discovered"] > 0 or discover_result["missing"] > 0:
+                    logger.info(
+                        f"Plugin discover: "
+                        f"discovered={discover_result['discovered']}, "
+                        f"synced={discover_result['synced']}, "
+                        f"missing={discover_result['missing']}, "
+                        f"failed={discover_result['failed']}"
+                    )
+
+            # Phase 2: 恢复 — 已启用插件的扩展点注册 + 依赖补装
             async with async_session_factory() as db:
                 plugin_result = await restore_enabled_plugins(db)
+                await db.commit()
                 if plugin_result["total"] > 0:
                     logger.info(
                         f"Plugin restore: "
@@ -154,7 +170,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                         f"total={plugin_result['total']}"
                     )
         except Exception as plugin_err:
-            logger.warning(f"Plugin restore failed: {plugin_err}")
+            logger.warning(f"Plugin startup failed: {plugin_err}")
+
+        # 插件恢复后重新加载翻译（插件可能有自己的 locales 文件）
+        reload_translations()
+
+        # 插件恢复后再次同步权限（插件可能注册了菜单到 permission_registry）
+        async with async_session_factory() as db:
+            plugin_perm_result = await sync_permissions_on_startup(db)
+            if plugin_perm_result["created"] > 0:
+                logger.info(
+                    f"Plugin permissions synced: "
+                    f"created={plugin_perm_result['created']}, "
+                    f"updated={plugin_perm_result['updated']}"
+                )
 
         # Check if configured storage driver is available
         try:
@@ -222,6 +251,23 @@ def create_application() -> FastAPI:
     # 注册中间件
     # ========================================
     
+    # API 响应禁止浏览器缓存中间件
+    # 仅对未设置 Cache-Control 的 JSON 响应添加 no-store，
+    # 避免浏览器缓存 GET 导致保存后数据不更新
+    from starlette.middleware.base import BaseHTTPMiddleware
+
+    class NoCacheAPIMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):
+            response = await call_next(request)
+            if "Cache-Control" not in response.headers:
+                content_type = response.headers.get("Content-Type", "")
+                if "application/json" in content_type:
+                    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+                    response.headers["Pragma"] = "no-cache"
+            return response
+
+    app.add_middleware(NoCacheAPIMiddleware)
+
     # CORS 中间件
     app.add_middleware(
         CORSMiddleware,
@@ -422,7 +468,7 @@ def create_application() -> FastAPI:
     # ========================================
     from fastapi.staticfiles import StaticFiles
     from fastapi.responses import Response as FastAPIResponse
-    from pathlib import Path as _Path
+    from pathlib import Path as _Path, PurePosixPath
 
     PLUGINS_ROOT = _Path(__file__).resolve().parent.parent / "plugins"
 
@@ -443,20 +489,25 @@ def create_application() -> FastAPI:
         from app.models.system.plugin import Plugin as _Plugin
         from app.plugins.asset_resolver import resolve_plugin_asset_file
 
-        # 仅允许已启用插件暴露前端资源
-        async with async_session_factory() as db:
-            status_result = await db.execute(
-                _select(_Plugin.status).where(
-                    _Plugin.name == plugin_name,
-                    _Plugin.is_deleted.is_(False),
+        # 图标文件（顶层 icon.*）允许任何状态访问；其他资源仅允许已启用插件
+        _icon_exts = frozenset({".png", ".jpg", ".jpeg", ".svg", ".webp", ".ico"})
+        _normalized = PurePosixPath(file_path.replace("\\", "/").lstrip("/"))
+        _is_icon = len(_normalized.parts) == 1 and _normalized.suffix.lower() in _icon_exts
+
+        if not _is_icon:
+            async with async_session_factory() as db:
+                status_result = await db.execute(
+                    _select(_Plugin.status).where(
+                        _Plugin.name == plugin_name,
+                        _Plugin.is_deleted.is_(False),
+                    )
                 )
-            )
-            plugin_status = status_result.scalar_one_or_none()
-            if plugin_status != _PluginStatusEnum.ENABLED.value:
-                return JSONResponse(
-                    status_code=404,
-                    content={"code": 4040, "message": "Plugin asset not found"},
-                )
+                plugin_status = status_result.scalar_one_or_none()
+                if plugin_status != _PluginStatusEnum.ENABLED.value:
+                    return JSONResponse(
+                        status_code=404,
+                        content={"code": 4040, "message": "Plugin asset not found"},
+                    )
 
         asset_file = resolve_plugin_asset_file(PLUGINS_ROOT, plugin_name, file_path)
         if asset_file is None:

@@ -41,7 +41,8 @@ backend/app/ai/
 │       └── builtin_executor.py    # 内置工具（日期、数学等）
 │
 ├── rag/                       # RAG 管线
-│   ├── parser.py              # 文件解析（PDF/DOCX/TXT/MD/CSV/QA）
+│   ├── parser.py              # 文件解析（PDF/DOCX/TXT/MD/CSV/QA/PPTX/图片）
+│   ├── vision_describer.py    # Vision 图片描述服务（M263 多模态RAG）
 │   ├── chunker.py             # 文本分块（recursive/semantic/paragraph）
 │   ├── embedding.py           # 向量嵌入
 │   ├── processor.py           # 索引编排（断点续传）
@@ -49,6 +50,10 @@ backend/app/ai/
 │   ├── retriever.py           # 混合检索（向量+关键词+RRF 融合）
 │   ├── reranker.py            # 结果重排序
 │   └── context_builder.py     # Token 预算上下文拼接
+│
+├── routing/                   # 多模型路由（M264）
+│   ├── complexity_classifier.py # 对话复杂度分类（SIMPLE/MEDIUM/COMPLEX）
+│   └── router.py              # ModelRouter 路由引擎（7级优先级）
 │
 ├── data_intelligence/         # 数据智能
 │   ├── schema_provider.py     # DB schema 元数据提取
@@ -273,3 +278,48 @@ results = await retriever.search(
 | B22 | JWT 双解码 → 单次 `decode_token` + scope 分发 | `permission.py` |
 | B23 | 软删除用户可登录 → `is_deleted` 过滤 | `auth_service.py` |
 | F7+F9 | `Optional[X]` → `X \| None` (59 处) | AI 核心+仓库 |
+
+---
+
+## 八、Skill 作用域规则（完整版）
+
+### 作用域矩阵
+
+| 包的 scope | tenant_id | 含义 | 租户可见 | 租户可编辑 |
+|-----------|-----------|------|---------|-----------|
+| `all_tenants` | `null` | 平台全局包（管理端创建） | ✅ 全部租户 | ❌ |
+| `all_tenants` | `X` | 租户 X 自有包（租户 X 创建） | ✅ 仅租户 X | ✅ 仅租户 X |
+| `admin_only` | `null` | 仅管理端可见 | ❌ | ❌ |
+| `admin_and_all` | `null` | 管理端 + 全部租户（全局共享） | ✅ 全部租户 | ❌ |
+| `admin_and_assigned` | `null` | 管理端 + 指定租户 | ✅ 指定租户 | ❌ |
+
+### 前端判断是否可编辑
+
+```typescript
+// ✅ 正确 — 必须同时检查 scope 和 tenant_id
+function isTenantOwned(pkg): boolean {
+  return !!pkg && pkg.scope === 'all_tenants' && pkg.tenant_id !== null;
+}
+
+// ❌ 错误 — 仅检查 scope，平台全局包（tenant_id=null）也会被误判为可编辑
+function isTenantOwned(pkg): boolean {
+  return !!pkg && pkg.scope === 'all_tenants';
+}
+```
+
+### 后端所有权保护
+
+```python
+# Service._before_update / _before_delete
+if pkg.tenant_id != self.tenant_id:  # ✅ 同时覆盖 null（平台包）和其他租户的包
+    raise BusinessException(message=_("skill_package.error.readonly"))
+
+# ❌ 错误：仅检查 scope — 平台全局包也会被误放行
+if pkg.scope != ResourceScopeEnum.ALL_TENANTS.value:
+    raise BusinessException(...)
+```
+
+### Skill 无独立 scope
+
+- **Skill 本身没有 `scope` 字段**，可见性和操作权限完全继承自所属 `SkillPackage`
+- 判断 Skill 是否可编辑时，检查其所属 SkillPackage 的 `scope + tenant_id`

@@ -95,22 +95,22 @@ export function toAvatarDisplayUrl(val: null | string | undefined): string {
 }
 
 /**
- * 根据附件的存储驱动构建可访问的 URL
+ * 根据附件 ID 构建可访问的 URL
+ *
+ * 始终通过后端 API 端点生成 URL，由后端处理：
+ * - 存储驱动路由（local / 各云存储）
+ * - 路径 prefix 拼接
+ * - 签名 URL / CDN URL 选择
+ * - 存储迁移兼容（config mismatch fallback）
+ *
+ * 后端对云存储返回 302 重定向到 CDN，浏览器自动跟随并缓存。
  *
  * @param attachment 附件对象（支持 camelCase 和 snake_case 格式）
- * @param options 图片处理选项（仅对 local driver 或无 baseUrl 的附件生效）
+ * @param options 图片处理选项
  */
 export function getAttachmentUrl(
   attachment: AttachmentLike,
   options?: ImageProcessOptions,
 ): string {
-  if (attachment.driver === 'local') {
-    return getProcessedImageUrl(attachment.id, options);
-  }
-  const baseUrl = attachment.baseUrl || attachment.base_url || '';
-  if (baseUrl) {
-    const path = attachment.path.replace(/^\/+/, '');
-    return `${baseUrl.replace(/\/+$/, '')}/${path}`;
-  }
   return getProcessedImageUrl(attachment.id, options);
 }

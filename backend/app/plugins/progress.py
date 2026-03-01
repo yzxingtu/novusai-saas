@@ -168,20 +168,34 @@ class PluginProgressEmitter:
         await self.emit_step("error", "error", message)
 
     async def _emit(self, data: dict[str, Any]) -> None:
-        """发送 Socket.IO 事件到操作者的 room"""
+        """发送 Socket.IO 事件到操作者的 room。
+
+        使用 asyncio.wait_for 设置 3 秒超时，防止 Redis 连接慢/不可达时
+        sio.emit() 永久阻塞导致整个 enable/install 流程挂死。
+        """
         if not self._operator_id:
             return
 
+        import asyncio
+
         try:
             from app.core.socketio_server import sio
-            await sio.emit(
-                EVENT_PLUGIN_PROGRESS,
-                data,
-                room=f"user:{self._operator_id}",
-                namespace=NAMESPACE_ADMIN,
+            await asyncio.wait_for(
+                sio.emit(
+                    EVENT_PLUGIN_PROGRESS,
+                    data,
+                    room=f"user:{self._operator_id}",
+                    namespace=NAMESPACE_ADMIN,
+                ),
+                timeout=3.0,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Timeout emitting plugin progress for %s (step=%s) — Redis/SIO may be slow, continuing anyway",
+                self._plugin_name, data.get("step"),
             )
         except Exception as exc:
-            logger.warning(
-                "Failed to emit plugin progress for %s: %s",
-                self._plugin_name, exc,
+            logger.error(
+                "Failed to emit plugin progress for %s (step=%s): %s",
+                self._plugin_name, data.get("step"), exc,
             )

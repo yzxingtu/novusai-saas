@@ -71,7 +71,7 @@ class AdminAICallLogController(GlobalController):
             权限: ai_call_log:list
             """
             service = CallLogService(db)
-            items, total = await service.query_list(spec)
+            items, total = await service.repo.query_list_with_names(spec)
 
             return success(
                 data=PageResponse.create(
@@ -143,6 +143,58 @@ class AdminAICallLogController(GlobalController):
             )
 
             return success(data=logs, message=_("common.success"))
+
+        @router.get("/export", summary="导出 AI 调用日志 CSV")
+        @action_read("action.ai_call_log.list")
+        async def export_call_logs(
+            request: Request,
+            db: DbSession,
+            spec: QueryParams,
+            admin: ActiveAdmin,
+        ):
+            """
+            导出 AI 调用日志为 CSV（最多 10000 条）
+
+            支持与列表相同的筛选参数
+
+            权限: ai_call_log:list
+            """
+            from app.core.csv_export import csv_streaming_response, MAX_EXPORT_ROWS
+
+            spec.size = MAX_EXPORT_ROWS
+            spec.page = 1
+            service = CallLogService(db)
+            items, _ = await service.query_list(spec)
+
+            rows = []
+            for item in items:
+                row = item.to_dict() if hasattr(item, 'to_dict') else item
+                if isinstance(row, dict):
+                    rows.append(row)
+                else:
+                    rows.append({
+                        "id": getattr(item, "id", ""),
+                        "tenant_id": getattr(item, "tenant_id", ""),
+                        "model_id": getattr(item, "model_id", ""),
+                        "status": getattr(item, "status", ""),
+                        "total_tokens": getattr(item, "total_tokens", ""),
+                        "cost": getattr(item, "cost", ""),
+                        "latency_ms": getattr(item, "latency_ms", ""),
+                        "created_at": str(getattr(item, "created_at", "")),
+                    })
+
+            columns = [
+                {"field": "id", "header": "ID"},
+                {"field": "tenant_id", "header": _("ai.callLog.tenantId")},
+                {"field": "model_id", "header": _("ai.callLog.modelId")},
+                {"field": "status", "header": _("ai.callLog.status")},
+                {"field": "total_tokens", "header": _("ai.callLog.totalTokens")},
+                {"field": "cost", "header": _("ai.callLog.cost")},
+                {"field": "latency_ms", "header": _("ai.callLog.latency")},
+                {"field": "created_at", "header": _("common.createdAt")},
+            ]
+
+            return csv_streaming_response(rows, columns, "ai_call_logs.csv")
 
         @router.get("/{log_id}", summary="获取调用日志详情")
         @action_read("action.ai_call_log.detail")

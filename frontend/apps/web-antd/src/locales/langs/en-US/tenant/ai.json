@@ -28,6 +28,11 @@
       "functionCalling": "Function Calling",
       "vision": "Vision",
       "streaming": "Streaming"
+    },
+    "tier": {
+      "fast": "Fast",
+      "standard": "Standard",
+      "premium": "Premium"
     }
   },
   "apiKey": {
@@ -164,9 +169,27 @@
       "chatConfig": "Chat Config",
       "skillBindings": "Skill Bindings",
       "quota": "Quota",
+      "routing": "Smart Routing",
       "basicInfo": "Basic Info",
       "saveSuccess": "Saved successfully",
       "noQuotaLimit": "0 means no limit"
+    },
+    "routing": {
+      "description": "Smart routing automatically selects the most suitable AI model based on conversation complexity, attachment type, and token count, balancing performance and cost.",
+      "enableRouting": "Enable Smart Routing",
+      "maxTier": "Cost Limit",
+      "maxTierHelp": "Limits the maximum model tier the router can use; automatically downgrades if exceeded",
+      "visionModel": "Vision Model",
+      "longContextModel": "Long-Context Model",
+      "longContextThreshold": "Long-Context Threshold (Tokens)",
+      "longContextThresholdHelp": "Automatically switches to the long-context model when input tokens exceed this threshold",
+      "autoSelect": "Auto Select",
+      "noLimit": "No Limit",
+      "tier": {
+        "fast": "Fast",
+        "standard": "Standard",
+        "premium": "Premium"
+      }
     },
     "system": "System",
     "name": "Agent Name",

@@ -7,7 +7,7 @@ description:
   zh-CN: "腾讯云对象存储（COS）驱动，支持 imageMogr2 原生图片处理"
   en: "Tencent Cloud Object Storage driver with imageMogr2 native image processing"
 author: "NovusAI"
-icon: "lucide:cloud"
+icon: "icon.png"
 icon_color: "#006eff"
 scope: admin_and_all
 tags: ["storage", "cos", "tencent", "cloud"]
@@ -25,11 +25,8 @@ extensions:
       entry_point: "driver.CosStorageDriver"
 
 # Storage credentials are managed by the platform Storage Settings (SystemConfig),
-# NOT here. The driver's config_schema (driver.py) describes required fields.
-# See: M12 Tenant Storage Multi-Mode Architecture (doc #427)
-config_schema:
-  type: object
-  properties: {}
+# NOT here. The driver class (driver.py) has its own config_schema for the storage form.
+# No plugin-level config_schema needed — omitting prevents empty config button in plugin UI.
 
 dependencies:
   python:

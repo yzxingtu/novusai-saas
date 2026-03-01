@@ -37,6 +37,9 @@ class DocumentTypeEnum(LabeledStrEnum):
     HTML = ("html", "enum.knowledge_base.document_type.html")
     QA = ("qa", "enum.knowledge_base.document_type.qa")
     URL = ("url", "enum.knowledge_base.document_type.url")
+    IMAGE = ("image", "enum.knowledge_base.document_type.image")
+    PPTX = ("pptx", "enum.knowledge_base.document_type.pptx")
+    AUDIO = ("audio", "enum.knowledge_base.document_type.audio")
 
 
 class KBVisibilityEnum(LabeledStrEnum):

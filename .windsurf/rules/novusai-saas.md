@@ -1,3 +1,6 @@
+---
+trigger: always_on
+---
 # NovusAI SaaS 开发规则
 
 ## 项目概述
@@ -34,6 +37,18 @@
 - 业务预设（如 planSelect）定义在业务模块 `data.ts`，不放 adapter
 - 字段映射用 `fields` 选项自动处理 camelCase ↔ snake_case
 - **禁止手写 CRUD 数据管理**（手动 loading/list/page/total + fetchList + watch 分页 + 手写删除确认 + 手写回收站）
+- 软删除资源的列表页开启 `recycleBin: true`，`useCrudList`/`useCrudPage` 自动处理回收站切换
+
+### 租户端资源操作按鈕显示规则
+
+**禁止仅检查 `scope === 'all_tenants'`**，必须同时检查 `tenant_id !== null`：
+
+```typescript
+// ✅ 正确
+const canEdit = row.scope === 'all_tenants' && row.tenant_id !== null;
+// ❌ 错误：平台全局包（scope=all_tenants, tenant_id=null）会被误判为可编辑
+const canEdit = row.scope === 'all_tenants';
+```
 
 ### 权限
 
@@ -65,7 +80,7 @@
 - 目录/TS 文件：kebab-case
 - Vue 组件：PascalCase
 - API 函数：`{action}{Resource}Api`
-- Store：`use{Endpoint}AuthStore`
+- Store：`use{Name}Store`（通用）/ `use{Endpoint}AuthStore`（仅限认证 Store）
 - Composable：`use{Name}`
 
 ### 样式
@@ -100,9 +115,10 @@
 ### 统一响应
 
 ```python
-success(data=obj)                         # 200
-created(data=obj)                         # 201 含义
-paginated(items, total, page, page_size)  # 分页
+success(data=obj)                         # 200 GET/POST 成功
+created(data=obj)                         # HTTP 201 创建成功
+updated(data=obj)                         # HTTP 200 更新成功（PUT）
+paginated(items, total, page, page_size)  # 分页列表
 deleted()                                 # 删除成功
 error(message, code, status_code)         # 自定义错误
 ```
@@ -113,6 +129,8 @@ error(message, code, status_code)         # 自定义错误
 - 排序：`sort=-created_at,name`
 - 分页：`page[number]=1&page[size]=20`
 - 模型声明 `__filterable__` / `__sortable__` / `__selectable__` / `__delete_deps__`（被 FK 引用的父 Model 必须声明）
+- 分页参数用 `query.size`，不是 `query.page_size`
+- 新 Model 必须注册到 `models/__init__.py` 和 `migrations/env.py`
 
 ### 权限（RBAC）
 
@@ -138,6 +156,37 @@ error(message, code, status_code)         # 自定义错误
 - `ActiveTenantAdmin` — 活跃租户管理员
 - `QueryParams` — JSON:API 查询参数
 - `SuperAdmin` — 超级管理员
+- `ActiveUser` — 活跃用户（用户端接口）
+
+### Service 基类选择
+
+| 场景 | 继承 |
+|------|------|
+| 租户级资源 | `TenantService` |
+| 平台级资源（无租户隔离） | `GlobalService` |
+| 跨租户共享 | `BaseService` |
+
+### Service 钩子方法（写操作保护必用）
+
+```python
+async def _before_create(self, data: dict) -> dict:
+    """POST 前验证，返回修改后的 data"""
+async def _before_update(self, obj, data: dict) -> dict:
+    """PUT 前检查权限/业务处理"""
+async def _before_delete(self, obj) -> None:
+    """DELETE 前检查（如有依赖则抛 BusinessException）"""
+async def _before_delete_check(self, obj) -> None:
+    """DELETE 前提前检查（不修改数据）"""
+```
+
+**Scope 保护模式**（租户端必须在 `_before_update` / `_before_delete` 中实现）：
+
+```python
+# 必须同时检查 tenant_id（不能只检查 scope）
+if obj.tenant_id != self.tenant_id:
+    raise BusinessException(message=_("平台资源不可修改"))
+# 错误：仅检查 scope 会误放行平台全局包（scope='all_tenants', tenant_id=null）
+```
 
 ### 中间件顺序
 
@@ -150,6 +199,12 @@ error(message, code, status_code)         # 自定义错误
 继承 `LabeledStrEnum`，支持 i18n。禁止 `status = "draft"`，用 `status = NoticeStatus.DRAFT`。
 比较也必须用枚举：禁止 `scope == "all_tenants"`，用 `scope == ResourceScopeEnum.ALL_TENANTS.value`。
 
+### 时间存储
+
+- 后端必须用 `utc_now()`（`app.core.base_model`），禁止 `datetime.now()` / `datetime.utcnow()`
+- 序列化输出为 ISO 8601 + `+00:00` 后缀
+- 前端用 `formatDate()` / `formatRelativeTime()` 自动转成本地时间
+
 ### 日志
 
 ```python
@@ -160,11 +215,14 @@ logger = LogManager.get_logger("auth")  # app/error/db/auth/storage/task/queue/c
 ### 迁移
 
 ```bash
+# 只需生成迁移文件，系统启动时自动执行 upgrade
 alembic revision --autogenerate -m "add xxx table"
-alembic upgrade head
+# ⚠️ 无需手动运行 alembic upgrade head，uvicorn reload 会自动触发
 ```
 
-启动时自动执行 `alembic upgrade head`。
+- 系统启动（含 uvicorn reload）时 `main.py lifespan` → `init_database()` → `alembic upgrade heads` 自动执行
+- 新建迁移文件后，保存任意 `app/` 内文件触发 reload 即可让迁移生效
+- **FK 约束命名**：`create_foreign_key` 必须传显式名称（禁止传 `None`），否则 `downgrade` 无法找到约束
 
 ## 前后端协作
 
@@ -176,73 +234,24 @@ alembic upgrade head
 
 ## AI 架构规则（强制）
 
-### 核心原则：Agent→Skill 全链路
+> 完整规范见 `.windsurf/rules/ai-architecture.md`（本节仅保留最关键禁令，避免与详细规则文件重复维护）
 
-**所有 AI 功能必须通过 Agent 调度 Skill 完成，禁止直接调用 AIGateway。**
+**核心禁令（任何情况不可违反）：**
+- ❌ 禁止在 Controller/Service 层直接调用 `AIGateway.chat()` / `embedding()`
+- ❌ 禁止绕过 Agent→Skill 链路新增 AI 端点
+- ❌ 禁止使用已废弃的 `ToolRegistry` / `tool_bindings` JSON 字段
 
-```
-外部请求 → Agent.run() → Skill.execute() → AIGateway → LLM Provider
-```
+**合法 AI 调用入口：**
+- ✅ `SystemAgentService`（Controller 层唯一 AI 入口）：`Controller → SystemAgentService → AIGateway`
+- ✅ Agent engine 内部（`conversation.py` / `base.py`）— 属于 Agent 实现层
+- ✅ RAG 管道内部（`rag/embedding.py` 等）— 属于 Skill 内部实现
+- ✅ `AIGateway.test_model` — 仅模型连通性测试
 
-- 禁止在 Controller/Service 层直接实例化 `AIGateway` 发起 LLM 调用
-- 禁止新增绕过 Agent→Skill 链路的 AI 端点
-- 禁止使用已废弃的 `ToolRegistry`（`app.ai.tools.registry`）注册工具
-- Agent engine 内部的 LLM 调用（conversation.py/base.py/dispatcher.py）属于 Agent 实现层，不受此限制
-- RAG 管道内部的 LLM 调用属于 Agent 技能内部实现，不受此限制
-- `SystemAgentService`（`app/ai/system_agent.py`）— Controller 层唯一合法的 AI 调用入口
-- `AIGateway.test_model` 仅限模型连通性测试，不用于业务功能
+**技能类型（7 种）：** `toolkit` / `knowledge_base` / `data_intelligence` / `builtin` / `http` / `email` / `code_execution`
 
-### Agent 定义规范
+**多模型路由（M264）：** 通过 `routing_config` 在 Agent 上启用智能路由 → 详见 `.windsurf/workflows/references/ai-routing.md`
 
-- Agent 必须通过 `AgentSkillBinding` 绑定 SkillPackage，禁止使用已废弃的 `tool_bindings` JSON 字段
-- 执行模式：`conversation`（多轮对话）/ `task`（单次）/ `batch`（批量）/ `api`（外部集成）
-- 授权模式（ToolConsentModeEnum）：`auto`（自动执行）/ `ask`（需用户确认）/ `reject`（禁止调用）
-- 写操作类工具建议设为 `ask` 模式
-
-### 技能（Skill）体系
-
-- **技能包（SkillPackage）是一级管理单元**，技能（Skill）必须归属于某个技能包
-- **绑定模式（bind_mode）**：`auto`（自动绑定，按 scope 匹配 Agent）/ `manual`（手动绑定，默认）
-- 系统技能包默认 `bind_mode=auto`，自动对匹配 scope 的 Agent 生效
-- **前端统一入口**：`/admin/ai/skill-packages`（管理端）和 `/tenant/ai/skill-packages`（租户端）为唯一技能管理入口
-- **禁止独立技能路由**：不允许存在独立的 `/admin/ai/skills` 或 `/tenant/ai/skills` 页面
-- 技能包详情页内嵌技能 CRUD，技能表单自动继承当前包的 `package_id`
-
-### 技能类型（7 种）
-
-| 类型 | 说明 |
-|------|------|
-| `toolkit` | Python 工具包（Tools 类，每个方法映射为一个 LLM 工具） |
-| `knowledge_base` | 知识库检索（RAG，注入 system_prompt） |
-| `data_intelligence` | 数据智能（Text-to-SQL + CRUD） |
-| `builtin` | 内置函数 |
-| `http` | 声明式 HTTP API 调用 |
-| `email` | 邮件发送 |
-| `code_execution` | 代码沙箱执行 |
-
-- **Toolkit 类型**：通过 `toolkit_content` 存储 Python 源码，`toolkit_meta` 存储解析结果，支持 Valves 配置，非系统 Toolkit 有安全扫描
-- 新增技能类型必须同时：创建 Executor、注册到 SkillResolver、添加枚举值、添加 i18n
-- `SkillResolver` 是唯一合法的 Skill→ToolDefinition 转换器，禁止使用 `ToolRegistry`
-
-### 系统 Agent 与系统 Skill
-
-- 系统级 Agent/Skill/SkillPackage 标记 `is_system=True`，不可删除/禁用
-- 系统 Agent 通过 seed migration 创建，scope=admin, tenant_id=NULL
-- 前端管理页面中系统记录显示紫色「系统」标签，操作受限
-- Controller 层通过 `SystemAgentService` 调用 AI 能力，架构：`Controller → SystemAgentService → AIGateway`
-
-### 新增 AI 功能标准流程
-
-```
-1. 定义 Skill 类型（如已有类型可复用则跳过）
-2. 实现 Executor（继承 BaseToolExecutor）
-3. 在 SkillResolver 注册类型→转换方法映射
-4. 创建 Skill 记录（可通过 migration 或 API）
-5. 将 Skill 绑定到 Agent（通过 AgentSkillBinding）
-6. 通过 Agent 对话或 Agent.run() 触发 Skill
-```
-
-详细规则 → `.windsurf/rules/ai-architecture.md`
+**多模态 RAG（M263）：** KnowledgeBase 支持 `vision_model_id` + `extract_images` → 详见 `.windsurf/workflows/references/multimodal-rag.md`
 
 ## DevGenius 治理规则
 
@@ -257,3 +266,27 @@ alembic upgrade head
 - 禁止不认领任务直接开发
 - 禁止硬编码敏感信息
 - 禁止忽略文档要求
+
+## 开发环境自动重载
+
+**无需手动重启前后端，修改代码后自动生效：**
+
+### 后端（FastAPI + uvicorn）
+- 启动命令：`uvicorn app.main:app --reload --reload-dir app`
+- 监听目录：`backend/app/`，任意 `.py` 文件保存后**自动热重载**（约 1-2 秒）
+- **不监听**：`migrations/`、`plugins/`、`.venv/` — 这些目录改动不会触发 reload
+- **数据库迁移自动执行**：`main.py` lifespan 启动时调用 `init_database()` → `run_migrations()` → `alembic upgrade heads`，每次 uvicorn reload 均自动执行，**无需手动运行迁移命令**
+- ⚠️ 新建迁移文件在 `migrations/versions/` 后，该目录不被监听，需保存任意 `app/` 内文件触发 reload 才能让新迁移生效
+
+### 前端（Vite + Vue 3）
+- 启动命令：`pnpm dev`（在 `frontend/` 目录下）
+- 任意 `.vue`、`.ts`、`.json`（含 i18n 翻译文件）保存后 **Vite HMR 即时热更新**，浏览器无需刷新
+- **路由/store 等全局状态变更**有时需要手动刷新浏览器（Ctrl+R），但不需要重启 dev server
+
+### AI 助手行为规范
+- **禁止**在代码变更后建议"重启后端/前端"，正确说法是"保存后自动生效"
+- 仅以下情况**确实需要重启**：
+  1. 修改了 `.env` 环境变量
+  2. 安装了新的 Python 包（`pip install`）
+  3. 安装了新的前端依赖（`pnpm install`）
+  4. 修改了 `backend/app/main.py` 中的中间件注册顺序（极少情况）

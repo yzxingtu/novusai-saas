@@ -133,13 +133,13 @@ function renderCharts() {
     const dates = data.map((i) => i.date.slice(5));
     renderCallChart({
       tooltip: { trigger: 'axis' },
-      legend: { data: ['Calls', 'Tokens'], bottom: 0 },
+      legend: { data: [$t('tenant.analytics.chart.calls'), $t('tenant.analytics.chart.tokens')], bottom: 0 },
       grid: { left: '3%', right: '4%', bottom: '14%', top: '8%', containLabel: true },
       xAxis: { type: 'category', data: dates, boundaryGap: false },
-      yAxis: [{ type: 'value', name: 'Calls' }, { type: 'value', name: 'Tokens' }],
+      yAxis: [{ type: 'value', name: $t('tenant.analytics.chart.calls') }, { type: 'value', name: $t('tenant.analytics.chart.tokens') }],
       series: [
-        { name: 'Calls', type: 'line', data: data.map((i) => i.calls), smooth: true, itemStyle: { color: '#5B8FF9' } },
-        { name: 'Tokens', type: 'line', areaStyle: { opacity: 0.2 }, data: data.map((i) => i.tokens), smooth: true, itemStyle: { color: '#5AD8A6' }, yAxisIndex: 1 },
+        { name: $t('tenant.analytics.chart.calls'), type: 'line', data: data.map((i) => i.calls), smooth: true, itemStyle: { color: '#5B8FF9' } },
+        { name: $t('tenant.analytics.chart.tokens'), type: 'line', areaStyle: { opacity: 0.2 }, data: data.map((i) => i.tokens), smooth: true, itemStyle: { color: '#5AD8A6' }, yAxisIndex: 1 },
       ],
     });
   }

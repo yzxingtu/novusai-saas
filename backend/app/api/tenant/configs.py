@@ -22,6 +22,7 @@ from app.rbac.decorators import (
     action_read,
     action_update,
 )
+from app.api.shared._storage_helpers import get_known_plugin_storage_drivers as _get_known_plugin_storage_drivers
 from app.schemas.system.config import (
     ConfigGroupResponse,
     ConfigGroupListResponse,
@@ -29,6 +30,35 @@ from app.schemas.system.config import (
     ConfigUpdateRequest,
     DisplayRuleSchema,
 )
+
+
+# 密钥类字段名关键词，匹配到的值做脱敏处理
+_SENSITIVE_KEYWORDS = {"secret", "key", "password", "token"}
+
+
+def _mask_sensitive_options(options: dict) -> dict:
+    """
+    对存储凭证中的密钥类字段做脱敏处理。
+
+    规则：字段名包含 secret/key/password/token 关键词的，值脱敏为前 2 位 + **** + 后 2 位。
+    非密钥字段（bucket、region、endpoint、prefix 等）原样返回。
+    """
+    if not options:
+        return {}
+    masked: dict = {}
+    for k, v in options.items():
+        if not isinstance(v, str) or not v:
+            masked[k] = v
+            continue
+        k_lower = k.lower()
+        is_sensitive = any(word in k_lower for word in _SENSITIVE_KEYWORDS)
+        if is_sensitive and len(v) > 4:
+            masked[k] = f"{v[:2]}{'*' * min(len(v) - 4, 8)}{v[-2:]}"
+        elif is_sensitive:
+            masked[k] = "****"
+        else:
+            masked[k] = v
+    return masked
 
 
 def _translate_config_item(config: dict) -> ConfigItemResponse:
@@ -286,6 +316,170 @@ class TenantConfigController(TenantController):
             )
 
 
+        @router.get("/storage/status", summary="获取租户存储状态")
+        @action_read("action.tenant_config.groups")
+        async def get_tenant_storage_status(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+        ):
+            """
+            获取租户当前存储状态（有效模式、驱动信息、自配置权限等）
+
+            权限: tenant_config:groups
+            """
+            from app.configs.service import ConfigService
+            from app.services.common.storage_config_resolver import StorageConfigResolver
+
+            tenant_id = current_admin.tenant_id
+            config_service = ConfigService(db)
+            resolver = StorageConfigResolver(db)
+
+            effective_mode = await resolver.get_storage_mode(tenant_id)
+
+            # 逐租户自主配置开关（不依赖全局开关）
+            tenant_self_config_enabled = await config_service.get_tenant_config(
+                tenant_id, "tenant_storage_self_config_enabled", default=False
+            )
+
+            # 当前租户配置值
+            tenant_mode = await config_service.get_tenant_config(
+                tenant_id, "tenant_storage_mode", default="platform"
+            )
+            tenant_driver = await config_service.get_tenant_config(
+                tenant_id, "tenant_storage_driver", default=None
+            )
+            tenant_root_path = await config_service.get_tenant_config(
+                tenant_id, "tenant_storage_root_path", default=""
+            )
+            tenant_base_url = await config_service.get_tenant_config(
+                tenant_id, "tenant_storage_base_url", default=""
+            )
+            tenant_options = await config_service.get_tenant_config(
+                tenant_id, "tenant_storage_options", default={}
+            )
+
+            # 当前生效的驱动
+            if effective_mode == "platform":
+                effective_driver = await config_service.get_platform_config(
+                    "platform_storage_driver", default="local"
+                )
+            else:
+                effective_driver = tenant_driver
+
+            # 构建返回数据
+            response_data: dict = {
+                "effective_mode": str(effective_mode),
+                "effective_driver": str(effective_driver) if effective_driver else "local",
+                "tenant_storage_mode": str(tenant_mode),
+                "can_self_config": bool(tenant_self_config_enabled),
+            }
+
+            if effective_mode == "admin_override":
+                # 管理员帮配模式：展示脱敏后的配置信息（租户只读）
+                response_data["tenant_storage_driver"] = str(tenant_driver) if tenant_driver else None
+                response_data["tenant_storage_root_path"] = str(tenant_root_path)
+                response_data["tenant_storage_base_url"] = str(tenant_base_url)
+                response_data["tenant_storage_options"] = _mask_sensitive_options(
+                    tenant_options or {}
+                )
+            elif effective_mode == "custom":
+                # 自定义模式：返回租户自己填写的配置（密钥同样脱敏）
+                response_data["tenant_storage_driver"] = str(tenant_driver) if tenant_driver else None
+                response_data["tenant_storage_root_path"] = str(tenant_root_path)
+                response_data["tenant_storage_base_url"] = str(tenant_base_url)
+                response_data["tenant_storage_options"] = _mask_sensitive_options(
+                    tenant_options or {}
+                )
+            else:
+                # 平台模式：不返回凭证细节
+                response_data["tenant_storage_driver"] = None
+                response_data["tenant_storage_root_path"] = ""
+                response_data["tenant_storage_base_url"] = ""
+                response_data["tenant_storage_options"] = {}
+
+            return success(data=response_data)
+
+        @router.put("/storage", summary="保存租户存储配置")
+        @action_update("action.tenant_config.update")
+        async def save_tenant_storage_config(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+            data: dict = Body(...),
+        ):
+            """
+            租户保存自主存储配置（Mode 3）
+
+            权限: tenant_config:update
+            """
+            from app.configs.service import ConfigService
+
+            tenant_id = current_admin.tenant_id
+            config_service = ConfigService(db)
+
+            # 检查逐租户自主配置开关（不依赖全局开关）
+            tenant_enabled = await config_service.get_tenant_config(
+                tenant_id, "tenant_storage_self_config_enabled", default=False
+            )
+            if not tenant_enabled:
+                raise BusinessException(
+                    message=_("config.storage.self_config_not_enabled"),
+                    code=ErrorCode.FORBIDDEN,
+                )
+
+            # 必填校验：驱动和 Bucket
+            driver = data.get("tenant_storage_driver")
+            if not driver:
+                raise BusinessException(
+                    message=_("error.common.invalid_parameter"),
+                    code=ErrorCode.INVALID_PARAMETER,
+                )
+            root_path = data.get("tenant_storage_root_path", "")
+            if not root_path or not str(root_path).strip():
+                raise BusinessException(
+                    message=_("error.common.invalid_parameter"),
+                    code=ErrorCode.INVALID_PARAMETER,
+                )
+
+            # 驱动不允许选 local
+            if driver == "local":
+                raise BusinessException(
+                    message=_("config.storage.local_not_allowed_for_tenant"),
+                    code=ErrorCode.INVALID_PARAMETER,
+                )
+
+            # Check allowed drivers
+            if driver:
+                allowed = await config_service.get_platform_config(
+                    "platform_storage_allowed_custom_drivers",
+                    default=["aliyun-oss", "qiniu-kodo", "tencent-cos", "s3"],
+                )
+                if isinstance(allowed, list) and driver not in allowed:
+                    raise BusinessException(
+                        message=_("config.storage.driver_not_allowed"),
+                        code=ErrorCode.INVALID_PARAMETER,
+                    )
+
+            config_map = {
+                "tenant_storage_mode": "tenant_storage_mode",
+                "tenant_storage_driver": "tenant_storage_driver",
+                "tenant_storage_root_path": "tenant_storage_root_path",
+                "tenant_storage_base_url": "tenant_storage_base_url",
+                "tenant_storage_options": "tenant_storage_options",
+            }
+
+            for field, config_key in config_map.items():
+                if field in data:
+                    await config_service.set_tenant_config(
+                        tenant_id=tenant_id,
+                        key=config_key,
+                        value=data[field],
+                    )
+
+            await db.commit()
+            return success(message=_("config.updated"))
+
         @router.post("/storage/test-connection", summary="测试租户存储连接")
         @action_update("action.tenant_config.update")
         async def test_tenant_storage_connection(
@@ -309,17 +503,14 @@ class TenantConfigController(TenantController):
             from app.storage import storage_manager
             from app.storage.base import StorageConfig
 
-            # Check Mode 3 switches
+            # 检查逐租户自主配置开关（不依赖全局开关）
             config_service = ConfigService(db)
-            platform_enabled = await config_service.get_platform_config(
-                "platform_tenant_storage_self_config_enabled", default=False
-            )
             tenant_enabled = await config_service.get_tenant_config(
                 current_admin.tenant_id,
                 "tenant_storage_self_config_enabled",
                 default=False,
             )
-            if not platform_enabled or not tenant_enabled:
+            if not tenant_enabled:
                 raise BusinessException(
                     message=_("config.storage.self_config_not_enabled"),
                     code=ErrorCode.FORBIDDEN,
@@ -374,7 +565,7 @@ class TenantConfigController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            获取租户允许选择的存储驱动列表（受平台白名单限制）
+            获取租户允许选择的存储驱动列表（受平台白名单限制，标记插件启用状态）
 
             权限: tenant_config:groups
             """
@@ -389,7 +580,8 @@ class TenantConfigController(TenantController):
             if not isinstance(allowed, list):
                 allowed = ["aliyun-oss", "qiniu-kodo", "tencent-cos", "s3"]
 
-            all_drivers = storage_manager.get_driver_info_list()
+            known_plugin_drivers = await _get_known_plugin_storage_drivers(db)
+            all_drivers = storage_manager.get_all_driver_info_list(known_plugin_drivers)
             # Filter to allowed + exclude local
             filtered = [
                 d for d in all_drivers

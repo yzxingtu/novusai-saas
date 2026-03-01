@@ -36,12 +36,15 @@ class SkillRepository(TenantRepository[Skill]):
             # 同租户的技能
             if instance.tenant_id == self.tenant_id:
                 return instance
-            # 检查所属包的 scope
+            # 检查所属包的 scope（技能本身没有独立 scope，继承自包）
             if instance.tenant_id is None:
                 pkg = await self.db.get(SkillPackage, instance.package_id)
                 if not pkg:
                     return None
                 if pkg.scope == ResourceScopeEnum.ADMIN_AND_ALL.value:
+                    return instance
+                # 平台创建的全局包（all_tenants, tenant_id=null）
+                if pkg.scope == ResourceScopeEnum.ALL_TENANTS.value and pkg.tenant_id is None:
                     return instance
                 if pkg.scope in _ASSIGNED_SCOPES:
                     from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
@@ -68,10 +71,17 @@ class SkillRepository(TenantRepository[Skill]):
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
 
-        # 查找 global scope 的技能包 ID
+        # 查找 global scope 的技能包 ID（admin_and_all + 平台创建的 all_tenants）
+        from sqlalchemy import and_ as sa_and_
         global_pkg_stmt = select(SkillPackage.id).where(
-            SkillPackage.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
             SkillPackage.is_deleted.is_(False),
+            or_(
+                SkillPackage.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
+                sa_and_(
+                    SkillPackage.scope == ResourceScopeEnum.ALL_TENANTS.value,
+                    SkillPackage.tenant_id.is_(None),
+                ),
+            ),
         )
         global_pkg_result = await self.db.execute(global_pkg_stmt)
         global_pkg_ids = [row[0] for row in global_pkg_result.all()]

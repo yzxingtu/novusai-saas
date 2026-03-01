@@ -1,5 +1,12 @@
 ---
+name: novusai-saas
 description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue 3 + Vben Admin）或后端接口（FastAPI + SQLAlchemy + PostgreSQL）时，提供分层架构、CRUD 流程、多租户、权限、国际化等项目专属规范。
+license: Proprietary
+compatibility: NovusAI SaaS monorepo (Vue 3 + FastAPI + PostgreSQL). Requires access to frontend/ and backend/ directories.
+metadata:
+  project: novusai-saas
+  stack: vue3-fastapi-postgresql
+auto_execution_mode: 3
 ---
 
 # NovusAI SaaS 全栈开发技能
@@ -52,7 +59,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 - 日志分类器：`LogManager.get_logger("app"/"auth"/"storage"/"task"/"queue"/"db")`
 - 上传必须通过 `AttachmentService`，前端用 `FilePicker` / `ImageUpload` / `smartUploadFile`
 
-→ 完整规范：`references/platform-infrastructure.md`
+→ 完整规范：[references/platform-infrastructure.md](references/platform-infrastructure.md)
 
 ---
 
@@ -74,8 +81,8 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 - 分页用 `query.size` 不是 `query.page_size`
 - 新 Model 必须注册到 `models/__init__.py` 和 `migrations/env.py`
 
-→ 完整代码示例：`references/backend-crud.md`
-→ 后端开发指南：`references/backend-spec.md`
+→ 完整代码示例：[references/backend-crud.md](references/backend-crud.md)
+→ 后端开发指南：[references/backend-spec.md](references/backend-spec.md)
 
 ---
 
@@ -118,16 +125,51 @@ const { list, total, loading, FormDrawer, loadList, onCreate, onSearch, onPageCh
   });
 ```
 
+### 统一作用域组件
+
+所有涉及资源作用域（`scope`）的场景必须使用统一组件，禁止手写 scope 选项数组或自定义选择器。
+
+| 场景 | 必须使用 | 位置 |
+|------|---------|------|
+| **表单中的 scope 选择字段** | `useScopeFields(options)` | `#/components/business/scope-select` |
+| **搜索过滤器中的 scope 下拉** | `getScopeOptions()` | `#/utils/scope-helpers` |
+| **列表/卡片中显示 scope 标签** | `getScopeText()` / `getScopeColor()` / `getScopeIcon()` | `#/utils/scope-helpers` |
+| **独立的 scope 选择控件** | `<ScopeSelect />` 组件 | `#/components/business/scope-select` |
+
+```typescript
+// ✅ 表单中的 scope 字段（管理端表单）
+...useScopeFields({
+  scopeHelp: $t('admin.ai.agent.help.scope'),
+  scopeDisabled: (values) => values._mode === 'edit', // 编辑时锁定
+  showTenantId: false, // 默认 false；仅定时任务等特殊场景传 true
+})
+
+// ✅ 搜索过滤器 scope 下拉
+select('filter[scope][eq]', $t('...'), {
+  options: getScopeOptions(), // 从 scope-helpers.ts 统一获取
+})
+
+// ✅ 租户端判断资源是否可编辑（必须同时检查 scope + tenant_id）
+show: (row) => row.scope === 'all_tenants' && row.tenant_id !== null
+```
+
+**`useScopeFields` 关键选项：**
+- `allowedScopes` — 限制可选 scope（如 `['admin_only', 'all_tenants']`）
+- `scopeDisabled` — 编辑时锁定（`(values) => values._mode === 'edit'`）
+- `showTenantId` — 仅当 `all_tenants` 语义为"指定租户"时传 `true`（如定时任务），普通资源不传
+
 ### 禁令
 
 - **禁止手写 CRUD 数据管理**：禁止手动管理 `loading`/`list`/`page`/`total` + `fetchList` + `watch` 分页 + 手写删除确认 + 手写回收站。必须使用 `useCrudPage` 或 `useCrudList`
 - 搜索/表单必须用辅助函数（`searchInput` / `inputField` 等），禁止手写 Schema
+- **禁止手写 scope 选项数组**：必须使用 `useScopeFields` / `getScopeOptions()` / `ScopeSelect`
+- **禁止仅用 `scope === 'all_tenants'` 做租户资源判断**：必须同时检查 `tenant_id !== null`
 - 业务预设（planSelect 等）定义在 `data.ts`，不放 adapter
 - `requestClient` 导入路径：`#/utils/request`
 - 权限指令：`v-access:code="['resource:action']"`
 
-→ 完整代码示例：`references/frontend-crud.md`
-→ 前端开发手册：`references/frontend-spec.md`
+→ 完整代码示例：[references/frontend-crud.md](references/frontend-crud.md)
+→ 前端开发手册：[references/frontend-spec.md](references/frontend-spec.md)
 
 ---
 
@@ -146,10 +188,20 @@ const { list, total, loading, FormDrawer, loadList, onCreate, onSearch, onPageCh
 **核心架构原则：所有 AI 功能必须通过 Agent → Skill → AIGateway 链路完成，禁止直接调用 AIGateway。**
 
 - 技能包（SkillPackage）是一级管理单元，技能必须归属于某个技能包
-- 技能类型：`toolkit` / `knowledge_base` / `data_intelligence` / `builtin`
+- 技能类型：`toolkit` / `knowledge_base` / `data_intelligence` / `builtin` / `http` / `email` / `code_execution`
 - 新增 AI 功能标准流程：定义类型 → 实现 Executor → 注册映射 → 创建 Skill → 绑定 Agent
+- **技能（Skill）无独立 `scope` 字段**，可见性和操作权限完全继承自所属 SkillPackage
 
-→ 完整规范：`references/ai-module.md`
+### Skill 作用域规则（摘要）
+
+- `all_tenants + tenant_id=null`：平台全局包，全部租户可见，**不可编辑**
+- `all_tenants + tenant_id=X`：租户 X 自有包，仅租户 X 可见且可编辑
+- `admin_only`：仅管理端，租户不可见
+- **Skill 无独立 `scope`**，权限完全继承自所属 SkillPackage
+
+**关键规则**：前端判断可编辑时必须**同时检查 `scope === 'all_tenants' && tenant_id !== null`**，仅检查 `scope` 会误放行平台全局包。后端 `_before_update/_before_delete` 检查 `pkg.tenant_id != self.tenant_id`。
+
+→ 完整代码示例（isTenantOwned + 后端保护）：[references/ai-module.md](references/ai-module.md) § 八
 
 ---
 
@@ -160,7 +212,7 @@ const { list, total, loading, FormDrawer, loadList, onCreate, onSearch, onPageCh
 - 5 个队列：`default` / `high_priority` / `ai_gateway` / `scheduled` / `notification`
 - 定时任务通过 `periodic_tasks` 表管理，禁止硬编码 `beat_schedule`
 
-→ 完整规范：`references/async-tasks.md`
+→ 完整规范：[references/async-tasks.md](references/async-tasks.md)
 
 ---
 
@@ -168,9 +220,9 @@ const { list, total, loading, FormDrawer, loadList, onCreate, onSearch, onPageCh
 
 任何 Model 被 FK 引用时，**必须**声明 `__delete_deps__`。五种策略：`BLOCK` / `CASCADE_SOFT` / `CASCADE_DELETE` / `NULLIFY` / `IGNORE`。`useCrudPage` 已集成 `DependencyBlockModal`（错误码 4221）。
 
-当前已声明的 Model（20 个）：Tenant, TenantPlan, Admin, TenantAdmin, TenantDomain, Permission, Plugin, SystemConfigGroup, SystemConfig, Agent, AIModel, AIProvider, KnowledgeBase, SkillPackage, TablePolicy, AdminRole, TenantAdminRole, AgentConversation, Attachment, KnowledgeDocument
+> 当前已声明 `__delete_deps__` 的 Model 列表见 `references/deletion-deps.md`（勿在此处维护静态列表，易过时）。
 
-→ 完整规范：`references/deletion-deps.md`
+→ 完整规范：[references/deletion-deps.md](references/deletion-deps.md)
 
 ---
 
@@ -178,7 +230,7 @@ const { list, total, loading, FormDrawer, loadList, onCreate, onSearch, onPageCh
 
 所有邮件必须通过 `send_email_task.delay()` 异步发送，禁止 Controller/Service 直接调用 `EmailService.send()`。
 
-→ 完整规范：`references/email-spec.md`
+→ 完整规范：[references/email-spec.md](references/email-spec.md)
 
 ---
 
@@ -186,7 +238,7 @@ const { list, total, loading, FormDrawer, loadList, onCreate, onSearch, onPageCh
 
 所有业务通知统一走 `NotificationService.send()` → 渠道驱动（WS / Inbox / Email）。模板编码格式：`{category}.{event_name}`。
 
-→ 完整规范：`references/notification-spec.md`
+→ 完整规范：[references/notification-spec.md](references/notification-spec.md)
 
 ---
 
@@ -194,7 +246,7 @@ const { list, total, loading, FormDrawer, loadList, onCreate, onSearch, onPageCh
 
 三端 namespace 隔离：`/admin` / `/tenant` / `/user`。后端用 `sio.emit()`，Celery 用 `sio_bridge.*_sync()`。
 
-→ 完整指南：`websocket-guide.md`
+→ 完整指南：[websocket-guide.md](websocket-guide.md)
 
 ---
 
@@ -218,8 +270,9 @@ const { list, total, loading, FormDrawer, loadList, onCreate, onSearch, onPageCh
 4. **autogenerate 后必须检查** — `alembic revision --autogenerate` 生成的文件可能是空的（`pass`），必须检查并补充实际逻辑，或删除空文件（未执行前可删）。
 5. **合并分支及时处理** — 出现多 head 时立即 `alembic merge`，不要留多个 head 长期共存。
 6. **命名规范** — 文件名格式：`YYYYMMDD_<revision_id>_<description>.py`。描述用英文 snake_case，清晰表达迁移目的。
+7. **FK 约束显式命名** — `op.create_foreign_key()` 第一个参数必须传显式名称（如 `'fk_table_col_ref'`），**禁止传 `None`**。传 `None` 会让 PostgreSQL 自动生成约束名，导致 `downgrade` 中 `op.f('fk_...')` 找不到约束而报错。
 
-→ 完整最佳实践：`database-migration-best-practices.md`
+→ 完整最佳实践：[database-migration-best-practices.md](database-migration-best-practices.md)
 
 ---
 
@@ -227,7 +280,46 @@ const { list, total, loading, FormDrawer, loadList, onCreate, onSearch, onPageCh
 
 核心流程：认领任务 → 查文档 → 开发 → 写文档 → 更新状态
 
-→ 详细工具用法：`references/devgenius-workflow.md`
+→ 详细工具用法：[references/devgenius-workflow.md](references/devgenius-workflow.md)
+
+---
+
+## 十五、后端单元测试
+
+使用 pytest + unittest.mock，所有测试不依赖真实 DB/Redis/网络。
+
+**核心要点**：
+- 共享 fixtures 在 `tests/services/conftest.py`：`mock_db`、`mock_redis`、`mock_celery`、sample data factories
+- Mock 工厂：`make_mock_model()` / `make_scalar_result()` / `make_scalars_result()` / `make_row_result()`
+- Service 实例化用 `__new__` 跳过 `__init__`，手动设置 `db` / `tenant_id` / `repo`
+- 每个 Service 一个测试文件，≥ 6 个用例，覆盖正常流程 + 边界 + 错误
+- 运行：`cd backend && pytest tests/services/ -v`
+
+→ 详细规范 + 示例：[references/testing-spec.md](references/testing-spec.md)
+
+---
+
+## 十六、运维就绪
+
+### Health Check
+
+- 端点：`GET /api/public/health`（`@public`，无需认证）
+- 检查 DB（`SELECT 1`）+ Redis（`ping`）
+- 返回 200 `{status:'ok', timestamp, checks}` 或 503 `{status:'error'}`
+- 文件：`app/api/public/health.py`
+
+### IP 速率限制
+
+- 工具类：`app/core/rate_limit.py` → `IPRateLimiter`（内存滑动窗口 + 定期清理）
+- 预置实例：`login_limiter`（10 req/min/IP）、`captcha_limiter`（20 req/min/IP）
+- 用法：在端点中 `rate_resp = login_limiter.check(request); if rate_resp: return rate_resp`
+- 超限返回 429 `{error, code: 4290, retry_after}`
+
+### ConfigService 内存缓存
+
+- `_config_id_cache`：key→id 映射，TTL 300s
+- `_config_value_cache`：配置值，TTL 60s
+- 写入时立即失效缓存（`_set_config_value` 中 `pop`）
 
 ---
 
@@ -249,6 +341,12 @@ const { list, total, loading, FormDrawer, loadList, onCreate, onSearch, onPageCh
 - [ ] 新 Model 已注册到 `models/__init__.py` 和 `migrations/env.py`
 - [ ] 敏感信息通过环境变量
 - [ ] 时间使用 `utc_now()`
+- [ ] 新 Service 有对应 `tests/services/test_{name}.py`（≥ 6 cases）
+- [ ] 公开敏感端点有 `IPRateLimiter` 保护
+- [ ] AI 功能通过 Agent→Skill 链路，禁止直接调用 AIGateway
+- [ ] 新增 AIModel 后已更新 `__filterable__`（含能力字段 supports_vision 等）
+- [ ] 迁移文件 `create_foreign_key` 使用显式名称（不传 `None`），否则 downgrade 找不到约束
+- [ ] 循环引用类型使用 `from __future__ import annotations` + `TYPE_CHECKING`
 
 ### 前端
 
@@ -258,356 +356,73 @@ const { list, total, loading, FormDrawer, loadList, onCreate, onSearch, onPageCh
 - [ ] 搜索/表单用辅助函数生成
 - [ ] 业务预设在 `data.ts` 定义，不在 adapter
 - [ ] 无跨端导入
+- [ ] 含 scope 字段的表单使用 `useScopeFields()`，不手写选项数组
+- [ ] 租户端资源操作按钮同时检查 `scope === 'all_tenants' && tenant_id !== null`
 - [ ] i18n JSON key 无重复、路径正确
 - [ ] 中英文翻译齐全（zh-CN 和 en-US 的 key 必须完全对齐）
 - [ ] Props 用 `defineProps<T>()`
 
 ---
 
-## 十五、插件开发
+## 十六、插件开发
 
 插件系统采用**零侵入架构**：plugin.yaml 声明式清单 + PluginBase 生命周期钩子 + PluginContext 沙箱 API + UMD 前端动态加载。
 
 **核心原则：插件代码（后端逻辑、前端组件、国际化文件）只能存在于 `backend/plugins/{name}/` 内，严禁写入主系统代码中。**
 
-### 核心文件
+> 完整规范（目录结构/manifest/config_schema/菜单注册/HookPoints/EventBus/前端加载/命名规范）见 [references/plugin-spec.md](references/plugin-spec.md)。
 
-| 框架文件 | 职责 |
-|----------|------|
-| `app/plugins/base.py` | PluginBase 抽象基类（5 个生命周期钩子） |
-| `app/plugins/manifest.py` | plugin.yaml Pydantic Schema（30+ 子 Schema） |
-| `app/plugins/loader.py` | 插件发现 / 清单解析 / 主类加载 / README / i18n |
-| `app/plugins/lifecycle.py` | install(10 步) / enable / disable / uninstall(14 步) |
-| `app/plugins/context.py` | PluginContext 沙箱 + PluginDbProxy 表前缀隔离 |
-| `app/plugins/registry.py` | ExtensionRegistry 单例（10 种扩展类型注册 + 反注册） |
-| `app/plugins/exceptions.py` | 7 个异常类（4230-4236 错误码） |
-
-### 插件目录结构
-
-```
-backend/plugins/{name}/
-├── plugin.yaml              # 清单（必须）
-├── README.md
-├── backend/
-│   ├── __init__.py          # 空文件（必须）
-│   ├── main.py              # PluginBase 子类（必须）
-│   ├── skills/              # Skill Resolver（按需）
-│   ├── executors/           # Tool Executor（按需）
-│   ├── api/                 # API handler（按需）
-│   └── migrations/versions/ # Alembic 迁移（按需）
-├── frontend/                # 前端 UMD 包（按需）
-│   ├── package.json         # 构建依赖
-│   ├── vite.config.ts       # UMD 构建配置
-│   ├── src/                 # Vue SFC 源码
-│   │   ├── index.ts         # 入口：export 组件 + setup()
-│   │   └── *.vue            # 组件文件
-│   └── dist/                # 构建产物（index.js + *.css）
-└── locales/                 # zh-CN.json + en.json
-```
-
-### plugin.yaml 最小模板
-
-```yaml
-name: my-plugin                    # 小写 kebab-case（正则: ^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$）
-version: "1.0.0"
-display_name:
-  zh-CN: "我的插件"
-  en: "My Plugin"
-scope: all_tenants                 # admin_only|all_tenants|assigned_tenants|admin_and_all|admin_and_assigned
-capabilities:
-  - db:own_tables                  # 按需声明: db:own_tables / http:outbound / storage:read / storage:write / ai:call / config:write / notifications:send
-extensions:
-  skills: []                       # 10 种扩展点: skills/adapters/storage_drivers/api/hooks/tasks/notifications/permissions/webhooks/events/socketio/frontend
-```
-
-### config_schema（插件配置表单）
-
-在 `plugin.yaml` 中声明 `config_schema`，前端配置抽屉会自动渲染表单。格式为简化版 JSON Schema：
-
-```yaml
-config_schema:
-  type: object
-  properties:
-    default_city:
-      type: string           # string / integer / boolean
-      title: "默认城市"       # 表单标签
-      description: "..."     # 说明文字（可选）
-      default: "Shanghai"    # 默认值
-    temperature_unit:
-      type: string
-      title: "温度单位"
-      enum: ["celsius", "fahrenheit"]  # 枚举 → 下拉框
-      default: "celsius"
-    forecast_days:
-      type: integer
-      title: "预报天数"
-      minimum: 1             # 数字最小值
-      maximum: 7             # 数字最大值
-      default: 3
-    auto_refresh:
-      type: boolean
-      title: "自动刷新"
-      default: true
-```
-
-**支持的字段类型：**
-- `string` → 文本输入框（有 `enum` 时渲染为下拉框）
-- `integer` / `number` → 数字输入框（支持 `minimum`/`maximum`）
-- `boolean` → 复选框
-
-**读取配置：** 在 handler/executor 中通过 `ctx.get_config()` 或 `config` 参数获取。
-
-### PluginBase 生命周期
+### 生命周期（必须实现）
 
 ```python
 from app.plugins.base import PluginBase
 
 class MyPlugin(PluginBase):
-    async def on_install(self, ctx):   ...  # 首次安装 → 初始化种子数据
-    async def on_enable(self, ctx):    ...  # 启用 → 启动后台任务
-    async def on_disable(self, ctx):   ...  # 禁用 → 清理后台任务
-    async def on_uninstall(self, ctx): ...  # 卸载前 → 清理自定义数据
-    async def on_upgrade(self, ctx, old_version): ...  # 升级后 → 数据迁移
+    async def on_install(self, ctx):   ...  # 初始化种子数据
+    async def on_enable(self, ctx):    ...  # 启动后台任务
+    async def on_disable(self, ctx):   ...  # 清理后台任务
+    async def on_uninstall(self, ctx): ...  # 清理自定义数据
+    async def on_upgrade(self, ctx, old_version): ...
 ```
 
 ### PluginContext 核心 API
 
 ```python
-await ctx.get_config()                        # 读取配置（自动解密 x-encrypted 字段）
-db = ctx.get_db()                             # PluginDbProxy（仅 px_{name}_* 表）→ 需 db:own_tables
-storage = await ctx.get_storage()             # 命名空间限定 plugins/{name}/ → 需 storage:read|write
-result = await ctx.http_request("GET", url)   # 自动 30s 超时 → 需 http:outbound
-text = await ctx.call_ai_feature("ai_writer", messages)  # 非流式 → 需 ai:call
-async for delta in ctx.call_ai_feature_stream("ai_writer", messages):  # 流式（yield 文本增量）→ 需 ai:call
-    ...
-logger = ctx.get_logger()                     # Logger 名称: plugin.{name}
+await ctx.get_config()                      # 读取配置（自动解密 x-encrypted）
+db = ctx.get_db()                           # PluginDbProxy（仅 px_{name}_* 表）
+await ctx.http_request("GET", url)          # 需 http:outbound capability
+await ctx.call_ai_feature("code", messages) # 非流式，需 ai:call
+async for delta in ctx.call_ai_feature_stream("code", messages): ...  # 流式
 ```
 
-**流式 AI 调用 + SSE 响应封装**（插件 API handler 推荐用法）：
-
-```python
-from app.plugins.sse import plugin_sse_response
-
-async def my_stream_handler(request, db, ctx):
-    """API handler 签名：(request, db, ctx) — ctx 为 PluginContext（可选，向后兼容旧 (request, db)）"""
-    messages = [{"role": "user", "content": request.query_params.get("q", "")}]
-    return plugin_sse_response(
-        ctx.call_ai_feature_stream("ai_writer", messages),
-        plugin_name=ctx.plugin_name,
-    )
-```
-
-- `call_ai_feature_stream` yield 纯文本 delta，不含 SSE 包装
-- `plugin_sse_response` 将 delta 生成器包装为标准 SSE StreamingResponse（含心跳、done、error 处理）
-- 上游不支持流式时自动降级为非流式单 chunk 输出，日志标记 `fallback=True`
-
-### 命名规范
+### 关键命名规则
 
 | 项目 | 格式 | 示例 |
 |------|------|------|
 | DB 表 | `px_{name_underscored}_*` | `px_novusdoc_documents` |
 | Alembic 分支 | `plugin_{name_underscored}` | `plugin_novusdoc` |
-| i18n Key | `plugin.{name}.*` | `plugin.novusdoc.title` |
-| API 路径 | `/admin/plugins/{name}/api/*` | `/admin/plugins/novusdoc/api/docs` |
-| AI feature_code | `plugin.{name}.{code}` | `plugin.novusdoc.ai_writer` |
-| 前端全局变量 | `NovusPlugin_{name_underscored}` | `NovusPlugin_novusdoc` |
+| API 路径 | `/admin/plugins/{name}/api/*` | `/admin/plugins/novusdoc/api/` |
+
+### 关键禁令
+
+- ❌ 禁止自定义技能类型（必须用 7 种内置 type，通过 `source_plugin` 区分）
+- ❌ 禁止在主系统代码写入插件组件/逻辑/i18n
+- ❌ 禁止操作非 `px_{name}_*` 前缀的表（PluginDbProxy 拦截）
+- ❌ 禁止 `eval/exec/subprocess`（安全扫描检测）
+- ❌ `Alembic 迁移必须声明 `branch_labels = ('plugin_{name_underscored}',)`
 
 ### CLI 工具
 
 ```bash
-# 创建插件骨架（3 种模板）
 python scripts/plugin_cli.py create my-plugin --template=minimal      # 纯后端
 python scripts/plugin_cli.py create my-plugin --template=skill        # + Skill/Executor
-python scripts/plugin_cli.py create my-plugin --template=full-module  # + 前端骨架 + API + 迁移
-
-# 校验（yaml + main.py + 前端 dist + scoped CSS 扫描 + 安全扫描）
-python scripts/plugin_cli.py validate plugins/my-plugin
-
-# 打包（自动排除 node_modules/__pycache__/.git）
-python scripts/plugin_cli.py pack plugins/my-plugin
+python scripts/plugin_cli.py create my-plugin --template=full-module  # + 前端 + API + 迁移
+python scripts/plugin_cli.py validate plugins/my-plugin               # 校验
+python scripts/plugin_cli.py pack plugins/my-plugin                   # 打包 zip
 ```
 
-### 插件前端双模式加载
-
-插件前端采用 **双模式加载**架构：
-
-| 模式 | 场景 | 加载方式 |
-|------|------|----------|
-| **dev 模式** | `pnpm dev` 开发调试 | Vite 直接编译插件 SFC（HMR 热更新） |
-| **build 内置** | `pnpm build` 生产构建 | 有源码的插件编入主 bundle（code split） |
-| **UMD 动态** | 生产环境运行时安装 | `<script>` 加载 `/plugin-assets/{name}/index.js` |
-
-**加载优先级**：`BUILTIN_PLUGINS`（Vite 编译）→ UMD `<script>` → 跳过
-
-**dev 模式开发体验**：
-1. 把插件目录放到 `backend/plugins/`
-2. 启动 `pnpm dev` → Vite 自动发现并编译插件 SFC
-3. 修改 `.vue` 文件 → 浏览器自动刷新（不需要 `npm install` 或 `vite build`）
-
-**发布/打包流程**（生产环境安装前必须完成）：
-```bash
-# 1. 编译前端（生成 UMD 产物）
-cd backend/plugins/my-plugin/frontend
-npm install && npx vite build    # → dist/index.js + *.css (UMD)
-
-# 2. 校验插件完整性
-python scripts/plugin_cli.py validate backend/plugins/my-plugin
-
-# 3. 打包为 zip（自动排除 node_modules/__pycache__/.git）
-python scripts/plugin_cli.py pack backend/plugins/my-plugin
-# → my-plugin-1.0.0.zip（通过管理后台上传安装）
-```
-
-**⚠️ 关键约束**：
-- 生产环境通过管理后台上传 zip 安装插件时，**前端必须是预编译的 `frontend/dist/` 产物**（UMD JS + CSS）
-- 生产环境**不会编译 TypeScript/SFC 源码**，只有 `dist/index.js` 会被加载
-- 若 zip 中只有 `frontend/src/` 而无 `frontend/dist/`，插件后端功能正常但**前端页面不会渲染**
-- Dev 模式下 Vite 会直接编译 `frontend/src/`，所以开发时**不需要** build
-
-**样式规范**：
-- ✅ 样式放 `styles.ts`，通过 `setup()` JS 注入到 `<head>`
-- ✅ CSS 类名以插件缩写前缀（如 `.wx-`、`.mp-`）
-- ❌ 禁止 `<style scoped>` — Popover/Modal portal 中失效
-- ❌ 禁止 `<style>` 块 — UMD 构建时提取为 CSS 文件需额外加载
-
-**插件 SFC 导入规则**：
-- `import { ref, computed } from 'vue'` — dev 模式由主项目 node_modules 解析，UMD 模式 external → `window.Vue`
-- `import { Popover } from 'ant-design-vue'` — 同上，UMD → `window.AntDesignVue`
-- `import { IconifyIcon, $t, requestClient } from '@novus/plugin-shared'` — dev 模式由 Vite alias 解析为 `plugin-shared.ts` 的 ES export，UMD 模式 external → `window.NovusPluginShared`
-- **禁止** `import { $t } from '#/locales'` — 这是宿主路径别名，插件不可用
-- **禁止** `export default` — 插件 `index.ts` 只使用命名导出（`export function setup`、`export { MyWidget }`），Vite 虚拟模块通过 `export *` 转发
-
-**宿主 `plugin-shared.ts` 双模式支持**：
-- UMD 模式：`exposePluginShared()` 将 `$t`/`IconifyIcon`/`requestClient` 等挂载到 `window.NovusPluginShared`
-- dev 模式：同一文件通过 `export { $t, IconifyIcon, requestClient, usePluginSlotsStore }` 提供 ES module 导出，Vite alias `@novus/plugin-shared` 指向此文件
-- **新增共享 API 时必须同时添加 `window` 挂载和 ES export**，否则 dev 或 UMD 模式之一会 break
-
-### 可用 HookPoint（28 个）
-
-插件可通过 `plugin.yaml` 的 `hooks` 声明注册任意钩子。BEFORE_* 可修改参数/阻止操作，AFTER_* 可修改结果。
-
-| 分组 | 钩子点 |
-|------|--------|
-| 执行 | `before_execute` / `after_execute` |
-| 消息 | `before_message_save` / `after_message_save` |
-| 工具 | `before_tool_call` / `after_tool_call` |
-| LLM | `before_llm_call` / `after_llm_call` |
-| 上下文 | `before_context_build` / `after_context_build` |
-| 技能解析 | `before_skill_resolve` / `after_skill_resolve` |
-| 技能 CRUD | `before/after_skill_create` / `update` / `delete` |
-| 智能体 CRUD | `before/after_agent_create` / `update` / `delete` |
-| 对话 | `before/after_agent_chat` / `before/after_conversation_create` |
-| 模型调用 | `before_model_call` / `after_model_call` |
-| 知识库 | `before_kb_search` / `after_kb_search` |
-| 数据智能 | `before_sql_execute` / `after_sql_execute` |
-
-### Hook vs PluginEvent 边界
-
-| 维度 | HookRegistry（hooks） | PluginEventBus（events） |
-|------|----------------------|-------------------------|
-| 模式 | 同步拦截链 | 异步通知（fire-and-forget） |
-| 数据 | 可修改 context dict | 只读，handler 不应修改 payload |
-| 异常 | handler 异常会中断链路 | handler 异常隔离，不影响发布方 |
-| 用途 | BEFORE_*/AFTER_* 拦截改写 | 跨插件解耦通信 |
-| 声明 | `plugin.yaml` → `hooks` | `plugin.yaml` → `events` + `ctx.subscribe_event()` |
-| 清理 | `unregister_all` 自动清理 | `unregister_all` 自动清理 |
-
-**跨插件通信用法**（插件 A 发布 → 插件 B 消费）：
-
-```python
-# 插件 A（novusdoc）— 发布事件
-await ctx.emit_event("document_saved", {"doc_id": 123, "title": "My Doc"})
-# 同时触发: PluginEventBus(异步通知) + HookRegistry(同步拦截)
-
-# 插件 B（novusdoc-pro）— 订阅事件（在 on_enable 中注册）
-async def on_doc_saved(event_name: str, payload: dict):
-    doc_id = payload.get("doc_id")
-    # ... 执行 AI 摘要等后续逻辑
-
-ctx.subscribe_event("plugin.novusdoc.document_saved", on_doc_saved)
-```
-
-### 可用 EventBus 事件（26 个）
-
-插件可通过 `plugin.yaml` 的 `events` 声明订阅事件（异步通知，只读不可修改）。
-
-- **智能体**: `AgentCreated` / `AgentPublished` / `AgentDisabled` / `AgentUpdated` / `AgentDeleted`
-- **技能**: `SkillCreated` / `SkillUpdated` / `SkillDeleted`
-- **对话**: `ConversationStarted` / `ConversationCreated` / `MessageAdded` / `MessageCreated` / `ConversationCompleted`
-- **工具**: `ToolCallRequested` / `ToolCallCompleted` / `ToolCallFailed`
-- **执行**: `ExecutionStarted` / `ExecutionCompleted` / `ExecutionFailed`
-- **插件**: `PluginInstalled` / `PluginEnabled` / `PluginDisabled` / `PluginUninstalled`
-- **知识库**: `KnowledgeBaseUpdated` / `DocumentUploaded`
-- **模型**: `ModelCallCompleted`
-
-### 插件技能类型规范
-
-插件声明 `extensions.skills` 时，`type` 字段**必须使用系统内置类型**（如 `toolkit`），**禁止自定义新类型**。
-
-**调度机制：** `SkillResolver._resolve_one()` 先检查 `SkillPackage.source_plugin`：
-- 有值 → 按 `plugin_name` 查找插件 resolver（`ExtensionRegistry._plugin_skill_resolvers[plugin_name]`）
-- 无值 → 按 `skill.type` 走内置 resolver（toolkit / knowledge_base / ...）
-
-因此插件技能可以安全使用 `toolkit` 等标准类型，不会与内置 resolver 冲突。系统通过 `source_plugin` 区分插件技能和手动创建的技能。
-
-**内置技能类型：**
-
-| type | 说明 |
-|------|------|
-| `toolkit` | Python 工具包（**插件推荐使用**） |
-| `knowledge_base` | RAG 知识库检索 |
-| `data_intelligence` | Text-to-SQL 数据库查询 |
-| `builtin` | 系统内置工具 |
-| `http` | 声明式 HTTP API 调用 |
-| `email` | 邮件发送 |
-| `code_execution` | 代码沙箱执行 |
-
-```yaml
-# ✅ 正确 — 使用标准类型
-extensions:
-  skills:
-    - name: weather-realtime
-      type: toolkit                    # 标准类型，UI 显示正常
-      display_name:
-        zh-CN: "天气查询"
-      entry_point: "skills.weather_resolver"
-
-# ❌ 错误 — 自定义类型
-extensions:
-  skills:
-    - name: weather-realtime
-      type: weather_widget             # 自定义类型会在 UI 中显示为异类
-```
-
-### 关键禁令
-
-- **禁止自定义技能类型** — 必须使用上述 7 种内置 type，系统通过 `source_plugin` 区分插件技能
-- **禁止在主系统代码中写入插件组件/逻辑/国际化** — 插件所有代码必须在 `backend/plugins/{name}/` 内
-- **禁止硬编码插件组件映射** — 不允许在宿主代码中 `import` 或 `import.meta.glob` 插件组件
-- **禁止在主系统 `locales/` 中放插件翻译** — 插件 i18n 通过 `setup()` 的 `registerLocale()` 动态注册
-- **禁止操作非 `px_{name}_*` 前缀的表** — PluginDbProxy 会拦截并抛出 `PluginSecurityError`
-- **禁止不声明 capability 就调用受限 API** — `_require()` 检查失败抛 `PluginSecurityError`
-- **禁止 `eval/exec/subprocess`** — 安全扫描 `security_scan.py` 会警告
-- **禁止直接 import 其他插件内部模块** — 通过 EventBus 或公开 API 通信
-- **Executor 文件名必须匹配** — `{skill_type}_executor.py`（type 中 `-` 替换为 `_`）
-- **Alembic 迁移必须声明 branch_labels** — `branch_labels = ('plugin_{name_underscored}',)`
-
-### 关键文件索引
-
-| 宿主文件 | 职责 |
-|----------|------|
-| `frontend/.../utils/plugin-shared.ts` | 暴露 `window.Vue` / `NovusPluginShared` 共享依赖 |
-| `frontend/.../utils/plugin-loader.ts` | UMD `<script>` 加载 + CSS 加载 + `setup()` 调用 |
-| `frontend/.../composables/use-plugin-frontend-init.ts` | 获取已启用插件 → 动态加载 UMD → 注册到 slots store |
-| `frontend/.../stores/plugin-slots.ts` | Pinia 插槽 Store（5 种插槽类型） |
-| `frontend/.../layouts/basic.vue` | `#header-right-89` 渲染 `headerWidgets` |
-| `backend/app/main.py` | `/plugin-assets/{name}/` 静态资源路由 |
-| `backend/app/plugins/sse.py` | `plugin_sse_response()` — 插件 SSE 流式响应封装 |
-| `backend/app/middleware/access_control.py` | `/plugin-assets` 在豁免路径列表中 |
-
-→ 完整规范 + 代码示例：`references/plugin-spec.md`
-→ 插件开发者指南：`docs/guides/plugin-developer-guide.md`
-→ 示例插件：`backend/plugins/weather-widget/`
+→ 完整规范 + 代码示例：[references/plugin-spec.md](references/plugin-spec.md)
+→ 插件开发者指南：[docs/guides/plugin-developer-guide.md](../../../docs/guides/plugin-developer-guide.md)
 
 ---
 
@@ -615,15 +430,17 @@ extensions:
 
 | 文件 | 内容 |
 |------|------|
-| `references/platform-infrastructure.md` | 多租户/认证/异常/日志/SSE/启动/存储/配置/组件 |
-| `references/backend-crud.md` | 后端 CRUD 7 步完整代码 + 响应/异常/权限/枚举/日志 |
-| `references/frontend-crud.md` | 前端 CRUD 完整代码（useCrudPage 表格 + useCrudList 自定义布局 + useCrudDrawer 表单） |
-| `references/frontend-spec.md` | 前端开发手册完整版（含拖拽排序、列表 UI 设计、CSS 动画等） |
-| `references/backend-spec.md` | 后端开发指南完整版（含存储、日志、枚举、Service 钩子等） |
-| `references/async-tasks.md` | 异步任务与定时任务开发规范（Celery/Redis/队列/定时任务） |
-| `references/devgenius-workflow.md` | DevGenius MCP 工作流详解（工具速查、流程图、文档管理） |
-| `references/ai-module.md` | AI 模块开发规范（引擎/网关/工具/RAG/数据智能/事件/安全） |
-| `references/email-spec.md` | 邮件发送规范（架构/触发来源/配置/规则） |
-| `references/deletion-deps.md` | 删除依赖保护规范（5 种策略/声明语法/前端弹窗/回收站） |
-| `references/notification-spec.md` | 通知系统规范（渠道驱动/模板编码/队列/扩展） |
-| `references/plugin-spec.md` | **插件系统开发规范（manifest/生命周期/Context/扩展点/迁移/安全）** |
+| [platform-infrastructure.md](references/platform-infrastructure.md) | 多租户/认证/异常/日志/SSE/启动/存储/配置/组件 |
+| [backend-crud.md](references/backend-crud.md) | 后端 CRUD 7 步完整代码 + 响应/异常/权限/枚举/日志 |
+| [frontend-crud.md](references/frontend-crud.md) | 前端 CRUD 完整代码（useCrudPage 表格 + useCrudList 自定义布局 + useCrudDrawer 表单） |
+| [frontend-spec.md](references/frontend-spec.md) | 前端开发手册完整版（含拖拽排序、列表 UI 设计、CSS 动画等） |
+| [backend-spec.md](references/backend-spec.md) | 后端开发指南完整版（含存储、日志、枚举、Service 钩子等） |
+| [async-tasks.md](references/async-tasks.md) | 异步任务与定时任务开发规范（Celery/Redis/队列/定时任务） |
+| [devgenius-workflow.md](references/devgenius-workflow.md) | DevGenius MCP 工作流详解（工具速查、流程图、文档管理） |
+| [ai-module.md](references/ai-module.md) | AI 模块开发规范（引擎/网关/工具/RAG/数据智能/事件/安全） |
+| [email-spec.md](references/email-spec.md) | 邮件发送规范（架构/触发来源/配置/规则） |
+| [deletion-deps.md](references/deletion-deps.md) | 删除依赖保护规范（5 种策略/声明语法/前端弹窗/回收站） |
+| [notification-spec.md](references/notification-spec.md) | 通知系统规范（渠道驱动/模板编码/队列/扩展） |
+| [plugin-spec.md](references/plugin-spec.md) | 插件系统开发规范（manifest/生命周期/Context/扩展点/迁移/安全） |
+| [ai-routing.md](references/ai-routing.md) | 多模型路由规范（M264：Tier枚举/路由优先级/ComplexityClassifier/routing_config） |
+| [multimodal-rag.md](references/multimodal-rag.md) | 多模态RAG规范（M263：VisionDescriber/ImageParser/PptxParser/KB配置） |

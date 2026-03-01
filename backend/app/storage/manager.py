@@ -87,7 +87,7 @@ class StorageManager:
 
     def get_driver_info_list(self) -> list[dict]:
         """
-        获取所有已注册驱动的详细信息（含 display_name + config_schema）
+        获取所有已注册驱动的详细信息（含 display_name + config_schema + is_available）
         """
         result = []
         for name, cls in self._drivers.items():
@@ -96,8 +96,49 @@ class StorageManager:
                 "display_name": getattr(cls, "display_name", name),
                 "config_schema": getattr(cls, "config_schema", None),
                 "is_builtin": name == "local",
+                "is_available": True,
             })
         return result
+
+    def get_all_driver_info_list(
+        self,
+        known_plugin_drivers: list[dict] | None = None,
+    ) -> list[dict]:
+        """
+        获取所有驱动的详细信息，包含未注册（插件未启用）的驱动
+
+        Args:
+            known_plugin_drivers: 从 DB 插件表获取的已知存储驱动列表，
+                每项含 name/display_name/plugin_name/plugin_status
+
+        Returns:
+            包含 is_available 字段的驱动列表
+        """
+        registered = self.get_driver_info_list()
+        registered_names = {d["name"] for d in registered}
+
+        if known_plugin_drivers:
+            # 为已注册的插件驱动补充 plugin_name/plugin_status
+            plugin_map = {pd["name"]: pd for pd in known_plugin_drivers}
+            for d in registered:
+                if d["name"] in plugin_map:
+                    d["plugin_name"] = plugin_map[d["name"]].get("plugin_name")
+                    d["plugin_status"] = plugin_map[d["name"]].get("plugin_status")
+
+            # 补充未注册（插件未启用）的驱动
+            for pd in known_plugin_drivers:
+                if pd["name"] not in registered_names:
+                    registered.append({
+                        "name": pd["name"],
+                        "display_name": pd.get("display_name", pd["name"]),
+                        "config_schema": None,
+                        "is_builtin": False,
+                        "is_available": False,
+                        "plugin_name": pd.get("plugin_name"),
+                        "plugin_status": pd.get("plugin_status"),
+                    })
+
+        return registered
 
 
 storage_manager = StorageManager()

@@ -24,6 +24,19 @@ function getModelTypeOptions() {
   ];
 }
 
+function getModelTierOptions() {
+  return [
+    { label: $t('admin.ai.model.tier_options.fast'), value: 'fast' },
+    { label: $t('admin.ai.model.tier_options.standard'), value: 'standard' },
+    { label: $t('admin.ai.model.tier_options.premium'), value: 'premium' },
+  ];
+}
+
+export function getModelTierText(tier: string | null | undefined): string {
+  if (!tier) return '-';
+  return $t(`admin.ai.model.tier_options.${tier}` as never, tier);
+}
+
 /**
  * 获取模型类型文本
  */
@@ -123,6 +136,13 @@ export function useColumns<T = AIModelInfo>(
       width: 160,
       align: 'center',
       slots: { default: 'price_cell' },
+    },
+    {
+      field: 'tier',
+      title: $t('admin.ai.model.tier'),
+      width: 110,
+      align: 'center',
+      slots: { default: 'tier_cell' },
     },
     {
       field: 'is_active',
@@ -311,6 +331,16 @@ export function useFormSchema(
       }),
       help: $t('admin.ai.model.help.fallbackModel'),
     },
+
+    dividerField('routing_divider', $t('admin.ai.model.section.routing')),
+    {
+      ...select('tier', $t('admin.ai.model.tier'), {
+        options: getModelTierOptions(),
+        placeholder: $t('admin.ai.model.placeholder.selectTier'),
+        required: false,
+      }),
+      help: $t('admin.ai.model.help.tier'),
+    },
   ];
 }
 
@@ -326,5 +356,6 @@ export function getFormDefaults(): Record<string, unknown> {
     supports_streaming: true,
     max_image_count: 5,
     max_image_size_mb: 10,
+    tier: null,
   };
 }

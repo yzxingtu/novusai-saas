@@ -130,12 +130,29 @@ class PluginDbProxy:
         return any(table_name.startswith(prefix) for prefix in self._allowed_prefixes)
 
     def _check_table_access(self, sql_text: str) -> None:
-        """检查 SQL 是否只涉及插件自有表（基础检查）"""
+        """检查 SQL 是否只涉及插件自有表（基础检查 + CTE 检测）
+
+        已知限制（defense-in-depth，非完美沙箱）：
+        - 字符串常量中的 "FROM xxx" 可能误触发检查
+        - 不检查 raw SQL 中的函数调用（如 pg_catalog.*）
+        - SQLAlchemy ORM 查询经过 add/execute 时有额外 _check_instance_access 保护
+        - CTE 内部的表名已通过 "FROM|JOIN|INTO|UPDATE|TABLE" 关键字检测（M52-T6）
+        - 生产环境强烈建议通过 PostgreSQL RLS (Row-Level Security) 做最终防线：
+          ALTER TABLE px_{name}_* ENABLE ROW LEVEL SECURITY;
+          CREATE POLICY plugin_isolation ON px_{name}_* USING (true);
+
+        注意：WITH cte AS (SELECT ... FROM real_table ...) 中的 real_table 会被
+        内部的 FROM 关键字扫描捕获，故 CTE 自身不需要额外处理。
+        """
         sql_lower = sql_text.lower()
         # 跳过空语句和参数化查询占位
         if not sql_lower.strip():
             return
-        # 检查常见的表操作关键字后的表名
+
+        # 允许名单：alembic 元数据表 + 系统 schema
+        _ALLOW_LIST = {"alembic_version", "information_schema", "pg_catalog", "dual"}
+
+        # 检查常见的表操作关键字后的表名（含 CTE 内部通过 FROM/JOIN 引用的表）
         for keyword in ("from ", "join ", "into ", "update ", "table "):
             pos = 0
             while True:
@@ -153,9 +170,9 @@ class PluginDbProxy:
                         table_end = ch_pos
                 table_name = rest[:table_end].strip()
 
-                # 允许的表：插件自有表、声明依赖插件表、alembic 元表
+                # 允许的表：插件自有表、声明依赖插件表、允许名单
                 if table_name and not self._is_allowed_table(table_name):
-                    if table_name not in ("alembic_version", "information_schema"):
+                    if table_name not in _ALLOW_LIST:
                         raise PluginSecurityError(
                             message=f"Plugin can only access tables with prefixes "
                             f"{self._allowed_prefixes}, attempted: '{table_name}'",
@@ -818,6 +835,48 @@ class PluginContext:
             return self._request_context.request_id
         return ""
 
+    async def push_to_user(
+        self,
+        user_id: int,
+        event: str,
+        data: dict | None = None,
+        side: str = "tenant",
+    ) -> bool:
+        """
+        通过 Socket.IO 向指定用户实时推送数据。
+
+        需 notifications:send 能力。
+
+        Args:
+            user_id: 目标用户 ID
+            event:   事件名（前端监听该名称）；框架自动添加 plugin.{name}. 前缀防止冲突
+            data:    要推送的数据字典
+            side:    目标端  "admin" | "tenant"（决定 SIO namespace /admin 或 /tenant）
+
+        Returns:
+            True = 推送成功，False = SIO 不可用（非阻塞降级）
+        """
+        self._require("notifications:send")
+        full_event = f"plugin.{self.plugin_name}.{event}"
+        namespace = "/admin" if side == "admin" else "/tenant"
+        room = f"user:{user_id}"
+        payload = {**(data or {}), "plugin": self.plugin_name, "event": event}
+        try:
+            from app.core.socketio_server import get_sio
+            sio = get_sio()
+            await sio.emit(full_event, payload, room=room, namespace=namespace)
+            logger.debug(
+                "Plugin %s: pushed event '%s' to user %d (%s)",
+                self.plugin_name, event, user_id, side,
+            )
+            return True
+        except Exception as exc:
+            logger.warning(
+                "Plugin %s: push_to_user failed (user=%d event=%s): %s",
+                self.plugin_name, user_id, event, exc,
+            )
+            return False
+
     async def is_feature_enabled(self, feature_code: str) -> bool:
         """
         检查 Feature Flag 是否启用。
@@ -857,7 +916,10 @@ class PluginContext:
 
 
 class _NamespacedStorageProxy:
-    """存储代理 — 限制插件只能访问 plugins/{name}/ 路径下的文件"""
+    """存储代理 — 限制插件只能访问 plugins/{name}/ 路径下的文件
+
+    方法签名与 StorageDriver 基类对齐，但路径自动加 plugins/{name}/ 前缀。
+    """
 
     def __init__(self, driver: Any, namespace: str) -> None:
         self._driver = driver
@@ -866,10 +928,16 @@ class _NamespacedStorageProxy:
     def _ns_path(self, path: str) -> str:
         return f"{self._namespace}/{path.lstrip('/')}"
 
-    async def put(self, path: str, content: bytes, **kwargs: Any) -> str:
-        return await self._driver.put(self._ns_path(path), content, **kwargs)
+    async def put(
+        self,
+        path: str,
+        content: Any,
+        mime_type: str | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        return await self._driver.put(self._ns_path(path), content, mime_type=mime_type, **kwargs)
 
-    async def get(self, path: str) -> bytes:
+    async def get(self, path: str) -> Any:
         return await self._driver.get(self._ns_path(path))
 
     async def delete(self, path: str) -> bool:
@@ -878,5 +946,8 @@ class _NamespacedStorageProxy:
     async def exists(self, path: str) -> bool:
         return await self._driver.exists(self._ns_path(path))
 
-    async def url(self, path: str, expires: int = 3600) -> str:
-        return await self._driver.url(self._ns_path(path), expires)
+    async def get_url(self, path: str, expires: int = 3600, **kwargs: Any) -> str:
+        return await self._driver.get_url(self._ns_path(path), expires=expires, **kwargs)
+
+    async def get_info(self, path: str) -> Any:
+        return await self._driver.get_info(self._ns_path(path))

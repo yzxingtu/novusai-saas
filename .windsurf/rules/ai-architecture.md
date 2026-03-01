@@ -1,3 +1,6 @@
+---
+trigger: always_on
+---
 # AI 架构规则（强制）
 
 > 本规则适用于 NovusAI SaaS 项目中所有涉及 AI 功能的开发。违反任何一条均视为代码缺陷。
@@ -19,7 +22,7 @@
 ### 允许事项
 
 - ✅ Agent engine 内部的 LLM 调用（`conversation.py` / `base.py` / `task.py` / `dispatcher.py`）— 属于 Agent 实现层
-- ✅ RAG 管道内部的 LLM 调用（`rag/embedding.py` / `query_rewriter.py` / `reranker.py` / `processor.py`）— 属于 Agent 技能内部实现
+- ✅ RAG 管道内部的 LLM 调用（`rag/embedding.py` / `query_rewriter.py` / `reranker.py` / `processor.py` / `vision_describer.py`）— 属于 Agent 技能内部实现
 - ✅ `AIGateway.test_model` — 仅限模型连通性测试，不用于业务功能
 - ✅ `SystemAgentService`（`app/ai/system_agent.py`）— 系统 Agent 调度服务，Controller 层唯一合法的 AI 调用入口
 - ✅ **引擎装配（Engine Wiring）**：编排层（`AgentChatService` / Celery Task）创建 `AIGateway(db)` 并注入给 Engine 构造函数，但**禁止直接调用** gateway 的 LLM 方法
@@ -50,13 +53,15 @@
 
 作用域使用统一的 `ResourceScopeEnum`（5 值）：
 
-| scope 值 | 含义 | tenant_id |
-|----------|------|-----------|
-| `admin_only` | 仅管理端可见 | NULL |
-| `all_tenants` | 全部租户可见 | N |
-| `admin_and_all` | 管理端 + 全部租户 | NULL |
-| `admin_and_assigned` | 管理端 + 部分租户 | NULL |
-| `assigned_tenants` | 部分租户 | NULL |
+| scope 值 | 含义 | tenant_id | 说明 |
+|----------|------|-----------|------|
+| `admin_only` | 仅管理端可见 | NULL | 平台创建，租户不可见 |
+| `all_tenants` | 视 tenant_id 而定 | NULL **或** X | `NULL`=平台创建，全部租户可见（只读）；`X`=租户 X 创建，仅租户 X 可见/编辑 |
+| `admin_and_all` | 管理端 + 全部租户 | NULL | 平台创建，全局共享 |
+| `admin_and_assigned` | 管理端 + 部分租户 | NULL | 需 `ResourceTenantAssignment` 记录 |
+| `assigned_tenants` | 仅指定租户 | NULL | 需 `ResourceTenantAssignment` 记录 |
+
+> ⚠️ **`all_tenants` 的双重语义**：`tenant_id=NULL` 表示平台全局资源（租户只读），`tenant_id=X` 表示租户 X 自有资源。判断资源是否可编辑时**必须同时检查 `scope + tenant_id`**，仅检查 `scope` 会误放行平台全局资源。
 
 - `is_system=True` → 系统 Agent，**不可删除/禁用**
 - `visibility`：控制 Agent 对终端用户的可见性
@@ -69,6 +74,7 @@
 - `welcome_message`：对话开场白
 - `suggested_questions`（JSON array）：建议问题列表
 - `knowledge_base_ids` / `rag_config`：RAG 能力配置（Agent 级别）
+- `routing_config`（JSON）：多模型路由配置，字段包括：`enable_routing`（开关）/ `max_tier`（fast/standard/premium/null）/ `vision_model_id`（Vision模型 ID）/ `long_context_model_id`（长上下文模型 ID）/ `long_context_threshold`（token 阈值，默认 32000）— 详见 `.windsurf/workflows/references/ai-routing.md`
 
 ### 禁止事项
 
@@ -324,6 +330,10 @@ POST /tenant/ai/agent-chat/{agent_id}/chat/stream
 | `backend/app/ai/engine/dispatcher.py` | 执行模式分发器 |
 | `backend/app/ai/system_agent.py` | 系统 Agent 服务（Controller 层 AI 调用入口） |
 | `backend/app/ai/gateway.py` | AI 网关（仅由 SystemAgentService/Executor/Engine 调用） |
+| `backend/app/ai/routing/router.py` | ModelRouter 路由引擎（7 级优先级，包含健康检查 + 兑底）（M264） |
+| `backend/app/ai/routing/complexity_classifier.py` | 对话复杂度分类器（SIMPLE/MEDIUM/COMPLEX）（M264） |
+| `backend/app/ai/rag/vision_describer.py` | Vision 图片描述服务（RAG 内部，静默处理所有异常）（M263） |
+| `backend/app/enums/ai.py` | `ModelTierEnum`（fast/standard/premium）（M264） |
 | `backend/migrations/versions/20260214_seed_system_agents_skills.py` | 系统 Agent/Skill 种子数据迁移 |
 
 ## 十、上传与存储系统规则（强制）

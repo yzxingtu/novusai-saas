@@ -47,7 +47,7 @@ const [Form, formApi] = useVbenForm({
 const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<AIAgentInfo>({
   formApi,
   apiPath: '/admin/ai/agents',
-  schema: (edit) => useFormSchema(edit, isSystemAgent.value),
+  schema: (edit) => useFormSchema(edit, edit && isSystemAgent.value),
   defaults: getFormDefaults,
   transform: (values, edit) => {
     // suggested_questions: newline-separated text → JSON array

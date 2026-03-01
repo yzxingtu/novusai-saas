@@ -7,7 +7,7 @@ import type { AdminKnowledgeBaseItem } from '#/api/admin/knowledge-bases';
 
 import type { AIModelInfo } from '#/api/admin/ai';
 
-import { inputField, numberField, searchInput, select, textareaField } from '#/adapter/form';
+import { inputField, numberField, searchInput, select, switchField, textareaField } from '#/adapter/form';
 import { getAIModelListApi } from '#/api/admin/ai';
 import { useScopeFields } from '#/components/business/scope-select';
 import { $t } from '#/locales';
@@ -33,7 +33,7 @@ export function getVisibilityOptions() {
   ];
 }
 
-// ============ Embedding 模型下拉 ============
+// ============ Embedding / Vision 模型下拉 ============
 
 export async function getEmbeddingModelOptions() {
   try {
@@ -51,6 +51,26 @@ export async function getEmbeddingModelOptions() {
   }
 }
 
+export async function getVisionModelOptions() {
+  try {
+    const res = await getAIModelListApi({
+      'page[size]': 100,
+      'filter[type][eq]': 'chat',
+      'filter[is_active][eq]': true,
+      'filter[supports_vision][eq]': true,
+    });
+    return [
+      { label: $t('admin.knowledgeBase.field.visionModelAuto'), value: null },
+      ...(res.items || []).map((m: AIModelInfo) => ({
+        label: `${m.name} (${m.provider_name || '-'})`,
+        value: m.id,
+      })),
+    ];
+  } catch {
+    return [{ label: $t('admin.knowledgeBase.field.visionModelAuto'), value: null }];
+  }
+}
+
 // ============ 表单默认值 ============
 
 export function getFormDefaults() {
@@ -61,6 +81,8 @@ export function getFormDefaults() {
     tenant_id: null,
     tenant_ids: [],
     embedding_model_id: undefined,
+    vision_model_id: null,
+    extract_images: false,
     chunk_size: 512,
     chunk_overlap: 50,
     chunk_strategy: 'recursive',
@@ -186,6 +208,17 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
         required: !isEdit,
       }),
       help: $t('admin.knowledgeBase.help.embeddingModel'),
+    },
+    {
+      ...select('vision_model_id', $t('admin.knowledgeBase.field.visionModel'), {
+        api: getVisionModelOptions,
+        required: false,
+      }),
+      help: $t('admin.knowledgeBase.help.visionModel'),
+    },
+    {
+      ...switchField('extract_images', $t('admin.knowledgeBase.field.extractImages')),
+      help: $t('admin.knowledgeBase.help.extractImages'),
     },
   ];
 

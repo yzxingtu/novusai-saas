@@ -124,6 +124,7 @@ onMounted(() => {
 function onSelectionChange(rows: OperationLogInfo[]) {
   selectedRows.value = rows;
 }
+
 </script>
 
 <template>
@@ -218,6 +219,7 @@ function onSelectionChange(rows: OperationLogInfo[]) {
             }}</span>
           </Tooltip>
         </template>
+
 
         <!-- 左侧工具栏：批量删除 -->
         <template #toolbar-actions>

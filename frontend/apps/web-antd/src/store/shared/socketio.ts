@@ -98,14 +98,16 @@ export const useSocketIOStore = defineStore('socketio', () => {
 
   /**
    * 断开连接
+   *
+   * 注意：不清 handlers map，保留已注册的 handler，以便重新 connect() 时
+   * _bindHandlers() 能自动回绑，避免断线重连后收不到 Socket.IO 事件。
+   * 明确登出时需调用 $reset()（会同时清 handlers）。
    */
   function disconnect() {
     if (sioInstance) {
       sioInstance.disconnect();
       sioInstance = null;
     }
-    // 清理所有 handlers，防止重登录后 initSocketHandlers() 重复注册
-    handlers.clear();
     currentEndpoint.value = '';
     status.value = 'disconnected';
   }
@@ -170,11 +172,12 @@ export const useSocketIOStore = defineStore('socketio', () => {
   // 内部方法
   // ============================================================
 
-  /** 将所有已注册 handlers 绑定到当前 socket */
+  /** 将所有已注册 handlers 绑定到当前 socket（先 off 防止重复注册） */
   function _bindHandlers() {
     if (!sioInstance) return;
     for (const [event, eventHandlers] of handlers) {
       for (const handler of eventHandlers) {
+        sioInstance.off(event, handler as (...args: unknown[]) => void);
         sioInstance.on(event, handler);
       }
     }
@@ -192,10 +195,18 @@ export const useSocketIOStore = defineStore('socketio', () => {
     }
   }
 
-  /** 重置 */
+  /**
+   * 完全重置（登出时调用）
+   * 断开连接 + 清空 handlers map（防止重登录后重复注册）
+   */
   function $reset() {
-    disconnect();
+    if (sioInstance) {
+      sioInstance.disconnect();
+      sioInstance = null;
+    }
     handlers.clear();
+    currentEndpoint.value = '';
+    status.value = 'disconnected';
   }
 
   return {

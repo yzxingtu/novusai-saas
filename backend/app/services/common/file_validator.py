@@ -127,14 +127,8 @@ class FileValidator:
         if not ext_result.allowed:
             return ext_result
 
-        # 文件大小验证由配额服务处理，这里不重复验证
-        # 但如果需要，可以添加平台级别的最大文件限制
-        if file_size is not None:
-            max_size_mb = await self._get_platform_max_file_size()
-            if max_size_mb > 0:
-                size_result = self._validate_size(file_size, max_size_mb)
-                if not size_result.allowed:
-                    return size_result
+        # 文件大小验证统一由 AttachmentService._check_quota() 处理
+        # 该方法取 min(套餐限制, 系统配置限制)，此处不重复验证
 
         return FileValidationResult.ok()
 

@@ -51,8 +51,12 @@ class PluginEventBus:
 
     _instance: PluginEventBus | None = None
 
+    # 死信队列最大容量（内存环形缓冲）
+    _MAX_DEAD_LETTERS = 100
+
     def __init__(self) -> None:
         self._subscribers: dict[str, list[_Subscription]] = defaultdict(list)
+        self._dead_letters: list[dict[str, Any]] = []
 
     @classmethod
     def get_instance(cls) -> PluginEventBus:
@@ -216,6 +220,10 @@ class PluginEventBus:
                     "PluginEventBus: handler failed for '%s' (plugin=%s): %s",
                     event_name, subs[i].plugin_name, result,
                 )
+                # 记入死信队列
+                self._record_dead_letter(
+                    event_name, source_plugin, subs[i].plugin_name, str(result),
+                )
             else:
                 delivered += 1
 
@@ -243,6 +251,35 @@ class PluginEventBus:
             )
         else:
             sub.handler(event_name, payload)
+
+    def _record_dead_letter(
+        self,
+        event_name: str,
+        source_plugin: str,
+        handler_plugin: str,
+        error: str,
+    ) -> None:
+        """记录失败事件到死信队列（内存环形缓冲，超容量丢弃最旧的）"""
+        entry = {
+            "event": event_name,
+            "source": source_plugin,
+            "handler": handler_plugin,
+            "error": error,
+            "timestamp": time.time(),
+        }
+        self._dead_letters.append(entry)
+        if len(self._dead_letters) > self._MAX_DEAD_LETTERS:
+            self._dead_letters = self._dead_letters[-self._MAX_DEAD_LETTERS:]
+
+    def get_dead_letters(self, limit: int = 50) -> list[dict[str, Any]]:
+        """获取最近的死信记录（供管理员健康页查看）"""
+        return list(reversed(self._dead_letters[-limit:]))
+
+    def clear_dead_letters(self) -> int:
+        """清空死信队列，返回清除的数量"""
+        count = len(self._dead_letters)
+        self._dead_letters.clear()
+        return count
 
     def has_subscribers(self, event_name: str) -> bool:
         return bool(self._subscribers.get(event_name))

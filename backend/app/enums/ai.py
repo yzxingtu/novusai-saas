@@ -60,6 +60,14 @@ class UserTypeEnum(LabeledStrEnum):
     TENANT_ADMIN = ("tenant_admin", "enum.ai_user.type.tenant_admin")
 
 
+class ModelTierEnum(LabeledStrEnum):
+    """AI 模型级别枚举（用于多模型路由策略）"""
+
+    FAST = ("fast", "enum.ai_model.tier.fast")
+    STANDARD = ("standard", "enum.ai_model.tier.standard")
+    PREMIUM = ("premium", "enum.ai_model.tier.premium")
+
+
 class ToolParameterTypeEnum(LabeledStrEnum):
     """工具参数类型枚举"""
 
@@ -74,6 +82,7 @@ class ToolParameterTypeEnum(LabeledStrEnum):
 __all__ = [
     "ProviderTypeEnum",
     "ModelTypeEnum",
+    "ModelTierEnum",
     "RequestTypeEnum",
     "CallStatusEnum",
     "QuotaTypeEnum",

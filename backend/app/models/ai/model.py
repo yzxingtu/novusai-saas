@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from app.core.base_model import BaseModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
-from app.enums.ai import ModelTypeEnum
+from app.enums.ai import ModelTierEnum, ModelTypeEnum
 
 
 class AIModel(BaseModel):
@@ -34,6 +34,8 @@ class AIModel(BaseModel):
                     label_field="id", i18n_key="tenant_rate_limit"),
         DeletionDep("AIModel", "fallback_model_id", DeletionStrategy.NULLIFY,
                     label_field="name", i18n_key="ai_model"),
+        DeletionDep("KnowledgeBase", "vision_model_id", DeletionStrategy.NULLIFY,
+                    label_field="name", i18n_key="knowledge_base_vision"),
     ]
     
     # 允许前端筛选的字段
@@ -43,7 +45,11 @@ class AIModel(BaseModel):
         "name": "name",
         "code": "code",
         "type": "type",
+        "tier": "tier",
         "is_active": "is_active",
+        "supports_vision": "supports_vision",
+        "supports_function_calling": "supports_function_calling",
+        "supports_streaming": "supports_streaming",
         "created_at": "created_at",
     }
     
@@ -171,6 +177,14 @@ class AIModel(BaseModel):
         comment=_("enum.ai_model.config")
     )
     
+    # 模型级别（用于多模型路由策略）
+    tier: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        index=True,
+        comment=_("enum.ai_model.tier"),
+    )
+
     # 备用模型（故障转移链）
     fallback_model_id: Mapped[int | None] = mapped_column(
         Integer,

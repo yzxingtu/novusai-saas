@@ -146,6 +146,56 @@ class AdminOperationLogController(GlobalController):
                 message=_("common.success"),
             )
         
+        @router.get("/export", summary="导出操作日志 CSV")
+        @action_read("action.operation_log.list")
+        async def export_logs(
+            request: Request,
+            db: DbSession,
+            spec: QueryParams,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            导出操作日志为 CSV（最多 10000 条）
+
+            支持与列表相同的筛选参数
+
+            权限: operation_log:list
+            """
+            from app.core.csv_export import csv_streaming_response, MAX_EXPORT_ROWS
+
+            spec.size = MAX_EXPORT_ROWS
+            spec.page = 1
+            service = OperationLogService(db)
+            items, _ = await service.query_admin_logs_by_permission(
+                admin=current_admin,
+                spec=spec,
+            )
+
+            rows = [
+                {
+                    "id": item.id,
+                    "username": getattr(item, "username", ""),
+                    "module": getattr(item, "module", ""),
+                    "action": getattr(item, "action", ""),
+                    "ip": getattr(item, "ip", ""),
+                    "response_code": getattr(item, "response_code", ""),
+                    "created_at": str(getattr(item, "created_at", "")),
+                }
+                for item in items
+            ]
+
+            columns = [
+                {"field": "id", "header": "ID"},
+                {"field": "username", "header": _("operation_log.username")},
+                {"field": "module", "header": _("operation_log.module")},
+                {"field": "action", "header": _("operation_log.action")},
+                {"field": "ip", "header": "IP"},
+                {"field": "response_code", "header": _("operation_log.response_code")},
+                {"field": "created_at", "header": _("common.createdAt")},
+            ]
+
+            return csv_streaming_response(rows, columns, "operation_logs.csv")
+
         @router.delete("", summary="批量删除操作日志")
         @action_delete("action.operation_log.delete")
         async def delete_logs(

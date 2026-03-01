@@ -28,6 +28,11 @@
       "functionCalling": "函数调用",
       "vision": "视觉",
       "streaming": "流式"
+    },
+    "tier": {
+      "fast": "快速型",
+      "standard": "标准型",
+      "premium": "高级型"
     }
   },
   "apiKey": {
@@ -164,9 +169,27 @@
       "chatConfig": "对话配置",
       "skillBindings": "技能绑定",
       "quota": "配额管理",
+      "routing": "智能路由",
       "basicInfo": "基本信息",
       "saveSuccess": "保存成功",
       "noQuotaLimit": "0 表示不限制"
+    },
+    "routing": {
+      "description": "智能路由根据对话复杂度、附件类型和 Token 数量自动选择最合适的 AI 模型，平衡性能与成本。",
+      "enableRouting": "启用智能路由",
+      "maxTier": "成本上限",
+      "maxTierHelp": "限制路由最高可使用的模型级别，超出后自动降级",
+      "visionModel": "Vision 专用模型",
+      "longContextModel": "长上下文模型",
+      "longContextThreshold": "长上下文触发阈值 (Token)",
+      "longContextThresholdHelp": "输入 Token 超过此阈值时自动切换到长上下文模型",
+      "autoSelect": "自动选择",
+      "noLimit": "不限制",
+      "tier": {
+        "fast": "快速型",
+        "standard": "标准型",
+        "premium": "高级型"
+      }
     },
     "system": "系统",
     "name": "智能体名称",

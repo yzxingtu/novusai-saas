@@ -31,6 +31,7 @@ class _AgentOptionalFields(BaseModel):
     context_config: dict | None = Field(None, description=_("enum.agent_model.context_config"))
     output_schema: list | None = Field(None, description=_("enum.agent_model.output_schema"))
     quota_config: dict | None = Field(None, description=_("enum.agent_model.quota_config"))
+    routing_config: dict | None = Field(None, description=_("enum.agent_model.routing_config"))
 
 
 # ============================================

@@ -56,6 +56,9 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
         # 全局作用域的 KB（admin_and_all）
         if getattr(instance, "scope", None) == ResourceScopeEnum.ADMIN_AND_ALL.value:
             return instance
+        # 平台创建的全局 KB（scope=all_tenants, tenant_id=null）
+        if getattr(instance, "scope", None) == ResourceScopeEnum.ALL_TENANTS.value and instance.tenant_id is None:
+            return instance
         # assigned_tenants / admin_and_assigned scope：检查 resource_tenant_assignments
         if getattr(instance, "scope", None) in _ASSIGNED_SCOPES:
             from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
@@ -118,6 +121,11 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
                 ),
                 # 全局共享 KB（admin_and_all）
                 self.model.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
+                # 平台创建的全局 KB（scope=all_tenants, tenant_id=null）
+                and_(
+                    self.model.scope == ResourceScopeEnum.ALL_TENANTS.value,
+                    self.model.tenant_id.is_(None),
+                ),
                 # assigned_tenants / admin_and_assigned scope
                 and_(
                     self.model.scope.in_(_ASSIGNED_SCOPES),

@@ -59,13 +59,24 @@ function chatBaseUrl(apiPrefix: string): string {
 
 /**
  * 获取已发布智能体列表
+ *
+ * 管理端：仅返回管理端可见的作用域（admin_only / admin_and_all / admin_and_assigned），
+ * 排除仅租户端作用域（all_tenants / assigned_tenants）。
+ * 租户端：后端已自动按 tenant_id + scope 过滤，无需额外传参。
  */
 export async function getChatAgentsApi<T = Record<string, unknown>>(
   apiPrefix: string,
 ): Promise<PaginatedResponse<T>> {
+  const params: Record<string, string | number> = {
+    'filter[status][eq]': 'published',
+    'page[size]': 100,
+  };
+  if (apiPrefix.includes('/admin')) {
+    params['filter[scope][in]'] = 'admin_only,admin_and_all,admin_and_assigned';
+  }
   return requestClient.get<PaginatedResponse<T>>(
     `${apiPrefix}/ai/agents`,
-    { params: { 'filter[status][eq]': 'published', 'page[size]': 100 } },
+    { params },
   );
 }
 

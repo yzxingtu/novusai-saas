@@ -71,6 +71,25 @@ backend/
 
 ---
 
+## 类型注解规范
+
+所有后端文件**必须**在文件头部加 `from __future__ import annotations`，避免运行时循环引用报错。
+
+```python
+from __future__ import annotations   # 必须放第一行（docstring 后）
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.ai.agent import Agent   # 仅用于类型注解，不产生运行时导入
+```
+
+- `from __future__ import annotations` 使所有注解变为字符串（延迟求值），解决循环导入问题
+- 只用于类型注解的导入放在 `if TYPE_CHECKING:` 块中
+- 运行时需要的导入放在模块顶层（不在 TYPE_CHECKING 块内）
+
+---
+
 ## 架构分层
 
 ```
@@ -544,6 +563,55 @@ Request → CORS → Tenant → AccessControl → AuditLog → Permission → I1
 
 ---
 
+## Health Check
+
+```
+GET /api/public/health    # @public，无需认证
+```
+
+- 检查 DB（`SELECT 1`）+ Redis（`ping`）
+- 200 `{status:'ok', timestamp, checks:{db,redis}}` 或 503 `{status:'error'}`
+- 文件：`app/api/public/health.py`，注册于 `app/api/public/__init__.py`
+
+---
+
+## IP 速率限制
+
+```python
+from app.core.rate_limit import login_limiter, captcha_limiter, IPRateLimiter
+
+# 在端点中使用
+rate_resp = login_limiter.check(request)
+if rate_resp:
+    return rate_resp  # 429 Too Many Requests
+```
+
+| 实例 | 限制 | 用途 |
+|------|------|------|
+| `login_limiter` | 10 req/min/IP | admin/tenant 登录 |
+| `captcha_limiter` | 20 req/min/IP | 验证码端点 |
+
+自定义：`IPRateLimiter(max_requests=30, window_seconds=60)`
+
+超限返回 429 `{error, code: 4290, retry_after}`。内存滑动窗口，5 分钟周期清理过期 IP。
+
+---
+
+## ConfigService 内存缓存
+
+`app/configs/service.py` 对配置读取使用进程级 TTL 缓存：
+
+| 缓存 | TTL | 用途 |
+|------|-----|------|
+| `_config_id_cache` | 300s | key → config_id 映射（极少变动） |
+| `_config_value_cache` | 60s | tenant_id:key → 配置值 |
+
+- 读取时先查缓存，命中直接返回，未命中查 DB 并写入缓存
+- 写入时（`_set_config_value`）立即 `pop` 失效缓存
+- 无需手动管理，自动过期
+
+---
+
 ## 开发检查清单
 
 - [ ] 模型继承 `BaseModel` 或 `TenantModel`
@@ -556,3 +624,5 @@ Request → CORS → Tenant → AccessControl → AuditLog → Permission → I1
 - [ ] 枚举使用 `LabeledEnum`，禁止魔法字符串
 - [ ] 生成并执行 Alembic 迁移
 - [ ] 敏感信息通过环境变量配置
+- [ ] 新 Service 有对应 `tests/services/test_{name}.py`
+- [ ] 公开敏感端点有 `IPRateLimiter` 保护

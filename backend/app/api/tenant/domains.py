@@ -168,6 +168,27 @@ class TenantDomainController(TenantController):
 
             权限: tenant_domain:create
             """
+            # 检查自定义域名配额（allow_custom_domain + max_custom_domains）
+            from sqlalchemy import select
+            from sqlalchemy.orm import selectinload
+            from app.models.tenant.tenant import Tenant
+            from app.services.tenant.quota_service import QuotaService
+            from app.enums import ErrorCode
+            from app.exceptions import BusinessException
+            tenant_obj = (await db.execute(
+                select(Tenant)
+                .options(selectinload(Tenant.tenant_plan))
+                .where(Tenant.id == current_admin.tenant_id)
+            )).scalar_one_or_none()
+            if tenant_obj:
+                quota_svc = QuotaService(db, tenant_obj)
+                domain_check = await quota_svc.check_domain_quota()
+                if not domain_check.allowed:
+                    raise BusinessException(
+                        message=domain_check.message or _("quota.custom_domain_not_supported"),
+                        code=ErrorCode.CONFLICT,
+                    )
+
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.add_custom_domain(
                 tenant_id=current_admin.tenant_id,

@@ -103,7 +103,7 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
       autoConnect: false,
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 30_000,
+      reconnectionDelayMax: 5_000,
       reconnectionAttempts: Number.POSITIVE_INFINITY,
       transports: ['websocket'],
     });

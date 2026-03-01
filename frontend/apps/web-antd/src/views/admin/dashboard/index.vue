@@ -7,12 +7,15 @@
  * A9: 近期活动时间线
  * A10: 系统健康状态指示卡片
  */
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import type { EchartsUIType } from '@vben/plugins/echarts';
+
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useUserStore } from '@vben/stores';
 import { IconifyIcon } from '@vben/icons';
 
 import { Card, Progress, Spin, Tag } from 'ant-design-vue';
+import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
 import {
   type ActivityItem,
@@ -127,7 +130,27 @@ const quickActions = computed(() => [
 function navigateTo(route: string) { router.push(route); }
 
 // ── A8: 租户增长趋势（简单条形图） ──
-const maxGrowth = computed(() => Math.max(...tenantGrowth.value.map(i => i.count), 1));
+const growthChartRef = ref<EchartsUIType>();
+const { renderEcharts: renderGrowthChart } = useEcharts(growthChartRef);
+
+function renderTenantGrowthChart() {
+  const data = tenantGrowth.value.slice(-10);
+  if (!data.length) return;
+  renderGrowthChart({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: '3%', right: '4%', bottom: '3%', top: '8%', containLabel: true },
+    xAxis: { type: 'category', data: data.map((i) => i.date.slice(5)), axisLabel: { fontSize: 10 } },
+    yAxis: { type: 'value', minInterval: 1 },
+    series: [{
+      type: 'bar',
+      data: data.map((i) => i.count),
+      itemStyle: { color: '#5B8FF9', borderRadius: [4, 4, 0, 0] },
+      barMaxWidth: 24,
+    }],
+  });
+}
+
+watch(tenantGrowth, renderTenantGrowthChart);
 
 const currentTime = ref('');
 let timeInterval: ReturnType<typeof setInterval> | null = null;
@@ -279,21 +302,9 @@ onUnmounted(() => { if (timeInterval) clearInterval(timeInterval); });
         </div>
       </Card>
 
-      <!-- A8: Tenant Growth Trend (CSS bar chart) -->
+      <!-- A8: Tenant Growth Trend (ECharts) -->
       <Card :title="$t('admin.dashboard.tenantGrowth.title')">
-        <div v-if="tenantGrowth.length" class="space-y-1.5">
-          <div v-for="item in tenantGrowth.slice(-10)" :key="item.date" class="flex items-center gap-2">
-            <span class="w-16 shrink-0 text-right text-xs text-muted-foreground">{{ item.date.slice(5) }}</span>
-            <div class="flex-1">
-              <div
-                class="h-5 rounded bg-primary/20 transition-all"
-                :style="{ width: `${Math.max((item.count / maxGrowth) * 100, 4)}%` }"
-              >
-                <span class="px-1 text-xs font-medium leading-5 text-primary">{{ item.count }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <EchartsUI v-if="tenantGrowth.length" ref="growthChartRef" height="220px" />
         <div v-else class="py-8 text-center text-sm text-muted-foreground">{{ $t('admin.dashboard.tenantGrowth.empty') }}</div>
       </Card>
 

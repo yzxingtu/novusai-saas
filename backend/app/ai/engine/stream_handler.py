@@ -111,6 +111,7 @@ class StreamExecutionHandler:
                     agent=self.agent,
                     messages=messages,
                     tenant_id=self.request.tenant_id,
+                    route_result=self.prep.route_result,
                 ):
                     if chunk.delta:
                         output += chunk.delta
@@ -297,6 +298,7 @@ class StreamExecutionHandler:
             tools=tools,
             tenant_id=self.request.tenant_id,
             user_id=self.request.user_id,
+            route_result=self.prep.route_result,
         )
         self._total_tokens += response.total_tokens or 0
 
@@ -403,6 +405,7 @@ class StreamExecutionHandler:
                         tools=tools,
                         tenant_id=self.request.tenant_id,
                         user_id=self.request.user_id,
+                        route_result=self.prep.route_result,
                     )
                     self._total_tokens += peek_response.total_tokens or 0
                     if peek_response.tool_calls:
@@ -428,6 +431,7 @@ class StreamExecutionHandler:
                     agent=self.agent,
                     messages=messages,
                     tenant_id=self.request.tenant_id,
+                    route_result=self.prep.route_result,
                 ):
                     if chunk.delta:
                         cleaned = strip_fc_tokens(chunk.delta)

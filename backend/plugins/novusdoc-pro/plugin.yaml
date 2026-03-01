@@ -1,0 +1,341 @@
+name: novusdoc-pro
+version: "1.0.0"
+display_name:
+  zh-CN: "NovusDoc Pro — 协作增强"
+  en: "NovusDoc Pro — Collaboration"
+description:
+  zh-CN: "NovusDoc 商业扩展：实时多人协作、评论批注、版本历史、文档权限、分享链接、Word/PDF 导出、文档模板"
+  en: "NovusDoc commercial extension: real-time collaboration, comments, version history, document permissions, sharing, Word/PDF export, templates"
+author: "NovusAI"
+icon: "icon.png"
+icon_color: "#8B5CF6"
+scope: admin_and_assigned
+tags: ["collaboration", "comments", "version-history", "export"]
+
+capabilities:
+  - db:own_tables
+  - storage:read
+  - storage:write
+  - config:write
+  - notifications:send
+
+dependencies:
+  python: []
+  plugins:
+    - "novusdoc"
+
+extensions:
+  api:
+    tenant_routes:
+      # 评论
+      - method: GET
+        path: "docs/{doc_id}/comments"
+        handler: "api.comments.list_comments"
+        summary: "评论列表"
+        auth: required
+      - method: POST
+        path: "docs/{doc_id}/comments"
+        handler: "api.comments.create_comment"
+        summary: "创建评论"
+        auth: required
+        permission: "novusdoc-pro:comment"
+      - method: PUT
+        path: "docs/{doc_id}/comments/{cid}"
+        handler: "api.comments.update_comment"
+        summary: "更新评论"
+        auth: required
+        permission: "novusdoc-pro:comment"
+      - method: DELETE
+        path: "docs/{doc_id}/comments/{cid}"
+        handler: "api.comments.delete_comment"
+        summary: "删除评论"
+        auth: required
+        permission: "novusdoc-pro:comment"
+      - method: POST
+        path: "docs/{doc_id}/comments/{cid}/resolve"
+        handler: "api.comments.resolve_comment"
+        summary: "标记评论已解决"
+        auth: required
+        permission: "novusdoc-pro:comment"
+      - method: POST
+        path: "docs/{doc_id}/comments/{cid}/replies"
+        handler: "api.comments.reply_comment"
+        summary: "回复评论"
+        auth: required
+        permission: "novusdoc-pro:comment"
+      # 版本
+      - method: GET
+        path: "docs/{doc_id}/versions"
+        handler: "api.versions.list_versions"
+        summary: "版本列表"
+        auth: required
+      - method: POST
+        path: "docs/{doc_id}/versions"
+        handler: "api.versions.create_version"
+        summary: "创建版本快照"
+        auth: required
+      - method: GET
+        path: "docs/{doc_id}/versions/{vid}"
+        handler: "api.versions.get_version"
+        summary: "版本详情"
+        auth: required
+      - method: POST
+        path: "docs/{doc_id}/versions/{vid}/restore"
+        handler: "api.versions.restore_version"
+        summary: "恢复版本"
+        auth: required
+      # 分享
+      - method: POST
+        path: "docs/{doc_id}/share"
+        handler: "api.shares.create_share"
+        summary: "创建分享链接"
+        auth: required
+        permission: "novusdoc-pro:share"
+      - method: DELETE
+        path: "docs/{doc_id}/share/{token}"
+        handler: "api.shares.revoke_share"
+        summary: "撤销分享"
+        auth: required
+        permission: "novusdoc-pro:share"
+      # 成员
+      - method: GET
+        path: "docs/{doc_id}/members"
+        handler: "api.members.list_members"
+        summary: "成员列表"
+        auth: required
+      - method: POST
+        path: "docs/{doc_id}/members"
+        handler: "api.members.add_member"
+        summary: "添加成员"
+        auth: required
+        permission: "novusdoc-pro:manage_members"
+      - method: PUT
+        path: "docs/{doc_id}/members/{mid}"
+        handler: "api.members.update_member"
+        summary: "更新成员权限"
+        auth: required
+        permission: "novusdoc-pro:manage_members"
+      - method: DELETE
+        path: "docs/{doc_id}/members/{mid}"
+        handler: "api.members.remove_member"
+        summary: "移除成员"
+        auth: required
+        permission: "novusdoc-pro:manage_members"
+      # 导出
+      - method: POST
+        path: "docs/{doc_id}/export/word"
+        handler: "api.export.export_word"
+        summary: "导出 Word"
+        auth: required
+        permission: "novusdoc-pro:export"
+      - method: POST
+        path: "docs/{doc_id}/export/pdf"
+        handler: "api.export.export_pdf"
+        summary: "导出 PDF"
+        auth: required
+        permission: "novusdoc-pro:export"
+      - method: POST
+        path: "docs/import/word"
+        handler: "api.export.import_word"
+        summary: "导入 Word"
+        auth: required
+        permission: "novusdoc-pro:export"
+      # 模板
+      - method: GET
+        path: "templates"
+        handler: "api.templates.list_templates"
+        summary: "模板列表"
+        auth: required
+      - method: POST
+        path: "templates"
+        handler: "api.templates.create_template"
+        summary: "创建模板"
+        auth: required
+      - method: GET
+        path: "templates/{id}"
+        handler: "api.templates.get_template"
+        summary: "模板详情"
+        auth: required
+    admin_routes:
+      # 评论（管理员）
+      - method: GET
+        path: "docs/{doc_id}/comments"
+        handler: "api.comments.list_comments"
+        summary: "评论列表（管理员）"
+        auth: required
+      - method: POST
+        path: "docs/{doc_id}/comments"
+        handler: "api.comments.create_comment"
+        summary: "创建评论（管理员）"
+        auth: required
+      - method: PUT
+        path: "docs/{doc_id}/comments/{cid}"
+        handler: "api.comments.update_comment"
+        summary: "更新评论（管理员）"
+        auth: required
+      - method: DELETE
+        path: "docs/{doc_id}/comments/{cid}"
+        handler: "api.comments.delete_comment"
+        summary: "删除评论（管理员）"
+        auth: required
+      - method: POST
+        path: "docs/{doc_id}/comments/{cid}/resolve"
+        handler: "api.comments.resolve_comment"
+        summary: "标记评论已解决（管理员）"
+        auth: required
+      - method: POST
+        path: "docs/{doc_id}/comments/{cid}/replies"
+        handler: "api.comments.reply_comment"
+        summary: "回复评论（管理员）"
+        auth: required
+      # 版本（管理员）
+      - method: GET
+        path: "docs/{doc_id}/versions"
+        handler: "api.versions.list_versions"
+        summary: "版本列表（管理员）"
+        auth: required
+      - method: POST
+        path: "docs/{doc_id}/versions"
+        handler: "api.versions.create_version"
+        summary: "创建版本快照（管理员）"
+        auth: required
+      - method: GET
+        path: "docs/{doc_id}/versions/{vid}"
+        handler: "api.versions.get_version"
+        summary: "版本详情（管理员）"
+        auth: required
+      - method: POST
+        path: "docs/{doc_id}/versions/{vid}/restore"
+        handler: "api.versions.restore_version"
+        summary: "恢复版本（管理员）"
+        auth: required
+      # 分享（管理员）
+      - method: POST
+        path: "docs/{doc_id}/share"
+        handler: "api.shares.create_share"
+        summary: "创建分享链接（管理员）"
+        auth: required
+      - method: DELETE
+        path: "docs/{doc_id}/share/{token}"
+        handler: "api.shares.revoke_share"
+        summary: "撤销分享（管理员）"
+        auth: required
+      # 成员（管理员）
+      - method: GET
+        path: "docs/{doc_id}/members"
+        handler: "api.members.list_members"
+        summary: "成员列表（管理员）"
+        auth: required
+      - method: POST
+        path: "docs/{doc_id}/members"
+        handler: "api.members.add_member"
+        summary: "添加成员（管理员）"
+        auth: required
+      - method: PUT
+        path: "docs/{doc_id}/members/{mid}"
+        handler: "api.members.update_member"
+        summary: "更新成员权限（管理员）"
+        auth: required
+      - method: DELETE
+        path: "docs/{doc_id}/members/{mid}"
+        handler: "api.members.remove_member"
+        summary: "移除成员（管理员）"
+        auth: required
+      # 导出（管理员）
+      - method: POST
+        path: "docs/{doc_id}/export/word"
+        handler: "api.export.export_word"
+        summary: "导出 Word（管理员）"
+        auth: required
+      - method: POST
+        path: "docs/{doc_id}/export/pdf"
+        handler: "api.export.export_pdf"
+        summary: "导出 PDF（管理员）"
+        auth: required
+      - method: POST
+        path: "docs/import/word"
+        handler: "api.export.import_word"
+        summary: "导入 Word（管理员）"
+        auth: required
+      # 模板（管理员）
+      - method: GET
+        path: "templates"
+        handler: "api.templates.list_templates"
+        summary: "模板列表（管理员）"
+        auth: required
+      - method: POST
+        path: "templates"
+        handler: "api.templates.create_template"
+        summary: "创建模板（管理员）"
+        auth: required
+      - method: GET
+        path: "templates/{id}"
+        handler: "api.templates.get_template"
+        summary: "模板详情（管理员）"
+        auth: required
+    public_routes:
+      - method: GET
+        path: "share/{token}"
+        handler: "api.shares.access_share"
+        auth: none
+        summary: "公开访问分享链接"
+
+  skills: []
+
+  socketio:
+    - path: "collab"
+      handler: "sio.collab_namespace.CollabNamespace"
+      auth_required: true
+      auth_scopes: ["admin", "tenant_admin"]
+
+  notifications:
+    - code: "comment_added"
+      title:
+        zh-CN: "新评论"
+        en: "New Comment"
+      channels: ["ws", "inbox"]
+    - code: "mention"
+      title:
+        zh-CN: "有人@了你"
+        en: "Someone mentioned you"
+      channels: ["ws", "inbox"]
+    - code: "share_received"
+      title:
+        zh-CN: "收到文档分享"
+        en: "Document shared"
+      channels: ["ws", "inbox"]
+
+  permissions:
+    - code: "novusdoc-pro"
+      name:
+        zh-CN: "文档协作"
+        en: "Document Collaboration"
+      scope: "admin_and_assigned"
+      actions: ["collab", "comment", "share", "export", "manage_members"]
+
+  events:
+    - event: "plugin.novusdoc.document_saved"
+      handler: "services.version_service.on_document_saved"
+
+  frontend:
+    npm_dependencies:
+      - "@tiptap/extension-collaboration"
+      - "@tiptap/extension-collaboration-cursor"
+      - "yjs"
+      - "y-protocols"
+
+    tenant:
+      entry: "src/index.ts"
+      styles: []
+
+    admin:
+      entry: "src/index.ts"
+      styles: []
+
+pricing:
+  type: paid
+  price: 9999
+  currency: CNY
+  trial:
+    enabled: true
+    days: 14

@@ -25,7 +25,7 @@ from app.models.tenant.attachment import Attachment
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
 
-logger = LogManager.get_logger("app")
+logger = LogManager.get_logger("dashboard")
 
 
 class AdminDashboardService:
@@ -75,20 +75,13 @@ class AdminDashboardService:
         if not db_ok:
             overall = "unhealthy"
 
-        # 内存使用（进程 RSS）
+        # 内存使用 + 进程运行时间（复用同一个 Process 对象）
         memory_mb = 0.0
-        try:
-            import psutil
-            process = psutil.Process(os.getpid())
-            memory_mb = round(process.memory_info().rss / 1024 / 1024, 1)
-        except Exception:
-            pass
-
-        # 进程运行时间
         uptime_seconds = 0
         try:
             import psutil
             process = psutil.Process(os.getpid())
+            memory_mb = round(process.memory_info().rss / 1024 / 1024, 1)
             uptime_seconds = int(time.time() - process.create_time())
         except Exception:
             pass
@@ -118,10 +111,14 @@ class AdminDashboardService:
 
     async def _check_celery(self) -> bool:
         try:
-            from app.celery_app import celery_app
-            inspect = celery_app.control.inspect(timeout=2.0)
-            result = inspect.ping()
-            return bool(result)
+            import anyio
+
+            def _sync_ping() -> bool:
+                from app.celery_app import celery_app
+                insp = celery_app.control.inspect(timeout=2.0)
+                return bool(insp.ping())
+
+            return await anyio.to_thread.run_sync(_sync_ping)
         except Exception:
             return False
 

@@ -63,9 +63,9 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         """启用插件"""
         await self._lifecycle.enable(plugin_id, operator_id=operator_id)
 
-    async def disable_plugin(self, plugin_id: int, operator_id: int | None = None) -> None:
+    async def disable_plugin(self, plugin_id: int, force: bool = False, operator_id: int | None = None) -> None:
         """禁用插件"""
-        await self._lifecycle.disable(plugin_id, operator_id=operator_id)
+        await self._lifecycle.disable(plugin_id, force=force, operator_id=operator_id)
 
     async def uninstall_plugin(
         self, plugin_id: int, confirm_data_delete: bool = False, operator_id: int | None = None,
@@ -214,3 +214,57 @@ class PluginService(BaseService[Plugin, PluginRepository]):
     async def list_enabled(self) -> list[Plugin]:
         """查询所有已启用的插件"""
         return await self.repo.list_enabled()
+
+    async def get_tenant_visible_plugin_names(self, tenant_id: int) -> set[str]:
+        """
+        获取当前租户可见的已启用插件名称集合。
+
+        过滤规则（基于 ResourceScopeEnum）：
+        - ADMIN_ONLY        → 租户端不可见
+        - ALL_TENANTS       → 所有租户可见
+        - ADMIN_AND_ALL     → 所有租户可见
+        - ASSIGNED_TENANTS  → 仅分配了当前租户的插件
+        - ADMIN_AND_ASSIGNED→ 仅分配了当前租户的插件
+        """
+        from sqlalchemy import select
+
+        from app.enums.common import ResourceScopeEnum
+        from app.enums.plugin import PluginStatusEnum
+        from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
+
+        # 查询当前租户被分配的插件 ID
+        assignment_result = await self.db.execute(
+            select(ResourceTenantAssignment.resource_id).where(
+                ResourceTenantAssignment.resource_type == "plugin",
+                ResourceTenantAssignment.tenant_id == tenant_id,
+                ResourceTenantAssignment.is_active.is_(True),
+            )
+        )
+        assigned_plugin_ids = set(assignment_result.scalars().all())
+
+        # 查询所有已启用插件的名称+scope+id
+        plugin_result = await self.db.execute(
+            select(Plugin.name, Plugin.scope, Plugin.id).where(
+                Plugin.status == PluginStatusEnum.ENABLED.value,
+                Plugin.is_deleted.is_(False),
+            )
+        )
+        plugin_rows = plugin_result.all()
+
+        _TENANT_ALL_SCOPES = {
+            ResourceScopeEnum.ALL_TENANTS.value,
+            ResourceScopeEnum.ADMIN_AND_ALL.value,
+        }
+        _TENANT_ASSIGNED_SCOPES = {
+            ResourceScopeEnum.ASSIGNED_TENANTS.value,
+            ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+        }
+
+        visible: set[str] = set()
+        for row in plugin_rows:
+            pname, pscope, pid = row[0], row[1], row[2]
+            if pscope in _TENANT_ALL_SCOPES:
+                visible.add(pname)
+            elif pscope in _TENANT_ASSIGNED_SCOPES and pid in assigned_plugin_ids:
+                visible.add(pname)
+        return visible

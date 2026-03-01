@@ -73,6 +73,7 @@
     "maxImageCount": "最大图片数量",
     "maxImageSizeMb": "单图最大 (MB)",
     "isActive": "启用状态",
+    "tier": "模型级别",
     "fallbackModel": "备用模型",
     "rpmLimit": "RPM 限制",
     "tpmLimit": "TPM 限制",
@@ -86,7 +87,8 @@
       "pricing": "定价信息",
       "rateLimit": "速率限制",
       "capability": "模型能力",
-      "failover": "故障转移"
+      "failover": "故障转移",
+      "routing": "路由策略"
     },
     "fetchRemote": "拉取远程模型",
     "fetchRemoteLoading": "正在拉取...",
@@ -94,6 +96,11 @@
     "fetchRemoteFailed": "拉取远程模型失败",
     "fetchRemoteTip": "请先选择供应商",
     "selectRemoteModel": "选择远程模型",
+    "tier_options": {
+      "fast": "快速型（优先低延迟）",
+      "standard": "标准型（平衡性能与成本）",
+      "premium": "高级型（最强性能）"
+    },
     "placeholder": {
       "searchName": "搜索模型名称",
       "inputName": "请输入模型名称",
@@ -110,6 +117,7 @@
       "inputRpmLimit": "每分钟请求数限制（留空不限制）",
       "inputTpmLimit": "每分钟 Token 数限制（留空不限制）",
       "selectFallback": "选择备用模型（可选）",
+      "selectTier": "选择模型级别（可选）",
       "inputMaxImageCount": "如 5",
       "inputMaxImageSizeMb": "如 10"
     },
@@ -124,6 +132,7 @@
       "contextWindow": "模型能处理的最大 Token 数（输入+输出）。GPT-4 为 128K，Claude 3 为 200K",
       "maxOutputTokens": "单次请求的最大输出 Token 数。设置过大可能增加成本和延迟",
       "functionCalling": "启用后模型可调用工具函数。需要模型本身支持 Function Calling 能力",
+      "tier": "模型级别用于多模型路由策略。快速型优先用于简单任务，高级型用于复杂分析。不设置则不参与自动路由",
       "fallbackModel": "当前模型不可用时自动切换到备用模型，确保服务不中断",
       "rpmLimit": "每分钟最大请求数。超出后请求会被限流，保护供应商 API 不被过度调用",
       "tpmLimit": "每分钟最大 Token 数。控制总 Token 消耗速率",
@@ -206,6 +215,7 @@
     "providerName": "供应商",
     "userId": "用户 ID",
     "errorMessage": "错误信息",
+    "routedModel": "路由模型",
     "createdAt": "调用时间",
     "placeholder": {
       "allStatuses": "全部状态",
@@ -312,6 +322,27 @@
       "allTypes": "全部类型"
     }
   },
+  "rateLimit": {
+    "title": "速率限制",
+    "tenantId": "租户",
+    "tenantName": "租户名称",
+    "tenantLabel": "租户",
+    "modelId": "模型",
+    "rpmLimit": "RPM 限制",
+    "tpmLimit": "TPM 限制",
+    "description": "描述",
+    "isActive": "启用状态",
+    "create": "添加速率限制",
+    "noLimit": "不限制",
+    "confirmDelete": "确认删除该速率限制配置？",
+    "placeholder": {
+      "selectTenant": "请选择租户",
+      "selectModel": "请选择模型",
+      "inputRpm": "每分钟最大请求数",
+      "inputTpm": "每分钟最大 Token 数",
+      "inputDescription": "请输入描述"
+    }
+  },
   "agent": {
     "title": "智能体管理",
     "pageDesc": "管理全平台智能体，支持创建全局/租户/管理端专属智能体。可发布、禁用或删除。",
@@ -322,9 +353,27 @@
       "chatConfig": "对话配置",
       "skillBindings": "技能绑定",
       "quota": "配额管理",
+      "routing": "智能路由",
       "basicInfo": "基本信息",
       "saveSuccess": "保存成功",
       "noQuotaLimit": "0 表示不限制"
+    },
+    "routing": {
+      "description": "智能路由根据对话复杂度、附件类型和 Token 数量自动选择最合适的 AI 模型，平衡性能与成本。",
+      "enableRouting": "启用智能路由",
+      "maxTier": "成本上限",
+      "maxTierHelp": "限制路由最高可使用的模型级别，超出后自动降级",
+      "visionModel": "Vision 专用模型",
+      "longContextModel": "长上下文模型",
+      "longContextThreshold": "长上下文触发阈值 (Token)",
+      "longContextThresholdHelp": "输入 Token 超过此阈值时自动切换到长上下文模型",
+      "autoSelect": "自动选择",
+      "noLimit": "不限制",
+      "tier": {
+        "fast": "快速型",
+        "standard": "标准型",
+        "premium": "高级型"
+      }
     },
     "system": "系统",
     "systemAgent": "系统智能体",
