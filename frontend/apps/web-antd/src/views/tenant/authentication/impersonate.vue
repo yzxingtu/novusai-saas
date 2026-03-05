@@ -35,6 +35,11 @@ const impersonateToken = computed(() => {
   return (route.query.token as string) || '';
 });
 
+/** 从 URL 获取 tenant_code 参数 */
+const tenantCode = computed(() => {
+  return (route.query.tenant_code as string) || '';
+});
+
 /**
  * 执行一键登录流程
  */
@@ -46,6 +51,12 @@ async function doImpersonateLogin() {
     status.value = 'error';
     errorMessage.value = $t('tenant.impersonate.invalidLink');
     return;
+  }
+
+  // 存储 tenant_code 到 localStorage，确保品牌配置正确加载
+  const code = tenantCode.value;
+  if (code) {
+    localStorage.setItem('__tenant_code__', code);
   }
 
   try {

@@ -1,7 +1,6 @@
 ---
 name: novusai-saas
 description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue 3 + Vben Admin）或后端接口（FastAPI + SQLAlchemy + PostgreSQL）时，提供分层架构、CRUD 流程、多租户、权限、国际化等项目专属规范。
-auto_execution_mode: 2
 ---
 
 # NovusAI SaaS 全栈开发技能
@@ -23,6 +22,7 @@ auto_execution_mode: 2
 1. 确认任务归属的端：admin / tenant / user
 2. 查阅对应 reference 文件了解规范
 3. 确认相关模块是否已有类似实现，复用已有组件和模式
+4. **禁止启动前端/后端开发服务器**：用户已预先启动，直接使用即可（后端 `localhost:8000`，前端 `localhost:5666`）
 
 ---
 
@@ -490,3 +490,6 @@ python scripts/plugin_cli.py pack plugins/my-plugin                   # 打包 z
 | [rbac-permission-spec.md](references/rbac-permission-spec.md) | RBAC 权限注册规范（parent_resource/i18n 翻译/插件权限同步/权限树结构） |
 | [ai-routing.md](references/ai-routing.md) | 多模型路由规范（M264：Tier枚举/路由优先级/ComplexityClassifier/routing_config） |
 | [multimodal-rag.md](references/multimodal-rag.md) | 多模态RAG规范（M263：VisionDescriber/ImageParser/PptxParser/KB配置） |
+| [upload-storage-spec.md](references/upload-storage-spec.md) | 上传与存储系统规范（附件系统/FilePicker/ImageUpload/smartUploadFile/分片上传） |
+| [plugin-menu-registration.md](references/plugin-menu-registration.md) | 插件菜单注册全链路规范（plugin.yaml/后端注册/权限同步/前端路由/管理员配置） |
+| [browser-testing-spec.md](references/browser-testing-spec.md) | 浏览器测试规范（MCP 工具优先级/登录凭据/租户端进入方式/测试步骤） |

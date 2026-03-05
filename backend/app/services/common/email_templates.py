@@ -229,6 +229,32 @@ def render_ssl_expiry_email(
     return subject, html, text
 
 
+def render_manual_email(
+    subject: str,
+    content: str,
+    lang: str = "zh-CN",
+) -> tuple[str, str]:
+    """
+    渲染手动发送邮件（管理员后台手动发送）
+
+    将用户输入的内容包裹在品牌 HTML 模板中，确保统一风格。
+    content 允许包含 HTML 标签（模板中使用 | safe 渲染）。
+
+    Args:
+        subject: 邮件主题（同时作为模板 header 标题）
+        content: 邮件正文内容（支持 HTML）
+        lang: 语言
+
+    Returns:
+        (html_body, text_body)
+    """
+    return render_email("manual_send", {
+        "subject": subject,
+        "content": content,
+        "platform_name": _default_platform_name(),
+    }, lang=lang)
+
+
 def render_notification_html(
     title: str,
     body: str | None = None,
@@ -378,6 +404,7 @@ def _get_translations(lang: str) -> dict[str, Any]:
 
 __all__ = [
     "render_email",
+    "render_manual_email",
     "render_test_email",
     "render_task_failure_email",
     "render_password_reset_email",

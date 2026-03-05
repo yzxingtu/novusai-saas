@@ -25,6 +25,7 @@ from app.schemas.system.email_log import (
     EmailTestRequest,
 )
 from app.services.common.email_service import EmailMessage, EmailService
+from app.services.common.email_templates import render_manual_email, render_test_email
 
 
 @permission_resource(
@@ -105,12 +106,19 @@ class AdminEmailLogController(GlobalController):
             current_admin: ActiveAdmin,
             body: EmailSendRequest,
         ):
+            # 将用户输入的内容包裹在品牌 HTML 模板中
+            raw_content = body.html_body or body.text_body or ""
+            html_body, text_body = render_manual_email(
+                subject=body.subject,
+                content=raw_content,
+            )
+
             service = EmailService(db)
             message = EmailMessage(
                 to=body.to,
                 subject=body.subject,
-                html_body=body.html_body,
-                text_body=body.text_body,
+                html_body=html_body,
+                text_body=text_body,
                 cc=body.cc or [],
                 bcc=body.bcc or [],
             )
@@ -126,8 +134,8 @@ class AdminEmailLogController(GlobalController):
                 subject=body.subject,
                 triggered_by="manual",
                 status="sent" if result.success else "failed",
-                html_body=body.html_body[:50000] if body.html_body else None,
-                text_body=body.text_body[:50000] if body.text_body else None,
+                html_body=html_body[:50000],
+                text_body=text_body[:50000] if text_body else None,
                 error_message=result.error,
                 sent_at=utc_now() if result.success else None,
             )
@@ -148,19 +156,17 @@ class AdminEmailLogController(GlobalController):
             current_admin: ActiveAdmin,
             body: EmailTestRequest,
         ):
+            # 使用品牌模板渲染测试邮件
+            subject, html_body, text_body = render_test_email(
+                admin_name=current_admin.username,
+            )
+
             service = EmailService(db)
             message = EmailMessage(
                 to=[body.to],
-                subject=_("email.test.subject"),
-                html_body=f"""
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2 style="color: #1890ff;">NovusAI SaaS</h2>
-                    <p>{_("email.test.body")}</p>
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-                    <p style="color: #999; font-size: 12px;">{_("email.test.footer")}</p>
-                </div>
-                """,
-                text_body=_("email.test.body"),
+                subject=subject,
+                html_body=html_body,
+                text_body=text_body,
             )
             result = await service.send(message)
 
@@ -169,11 +175,11 @@ class AdminEmailLogController(GlobalController):
             from app.models.system.email_log import EmailLog
             log = EmailLog(
                 to_address=body.to,
-                subject=_("email.test.subject"),
+                subject=subject,
                 triggered_by="test",
                 status="sent" if result.success else "failed",
-                html_body=message.html_body[:50000] if message.html_body else None,
-                text_body=message.text_body[:50000] if message.text_body else None,
+                html_body=html_body[:50000],
+                text_body=text_body[:50000] if text_body else None,
                 error_message=result.error,
                 sent_at=utc_now() if result.success else None,
             )

@@ -128,7 +128,7 @@ class LocalStorageDriver(StorageDriver):
             同步写入文件并计算哈希与大小
             """
             size = 0
-            hasher = hashlib.md5()
+            hasher = hashlib.sha256()
             with open(full_path, "wb") as f:
                 while True:
                     chunk = content.read(8192)

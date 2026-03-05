@@ -25,6 +25,21 @@ _GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 # ── 请求超时 ──
 _TIMEOUT = 10.0
 
+# ── SSL 验证（公共天气 API，非敏感数据；部分网络环境代理/防火墙导致 SSL 握手失败）──
+_VERIFY_SSL = False
+
+
+def _make_client() -> httpx.AsyncClient:
+    """Create httpx client with explicit transport to bypass proxy env vars.
+
+    Environment variables like HTTPS_PROXY can cause SSL tunnel failures
+    (e.g. [SSL: UNEXPECTED_EOF_WHILE_READING]) with some local proxies.
+    Using an explicit transport avoids inheriting proxy settings.
+    """
+    transport = httpx.AsyncHTTPTransport(verify=_VERIFY_SSL)
+    return httpx.AsyncClient(timeout=_TIMEOUT, transport=transport)
+
+
 # ── 内存缓存（TTL = 600s = 10 分钟）──
 _cache: dict[str, tuple[float, Any]] = {}
 _CACHE_TTL = 600
@@ -126,7 +141,7 @@ async def search_city(name: str, count: int = 5) -> list[dict]:
         return cached
 
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with _make_client() as client:
             resp = await client.get(
                 _NOMINATIM_SEARCH_URL,
                 params={
@@ -180,7 +195,7 @@ async def search_city(name: str, count: int = 5) -> list[dict]:
         logger.warning("Nominatim search timeout for: %s", query)
         return []
     except Exception as exc:
-        logger.warning("Nominatim search error for %s: %s", query, exc)
+        logger.warning("Nominatim search error for %s: %r", query, exc)
         return []
 
 
@@ -201,7 +216,7 @@ async def reverse_geocode(latitude: float, longitude: float) -> dict | None:
         return cached
 
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with _make_client() as client:
             resp = await client.get(
                 _NOMINATIM_REVERSE_URL,
                 params={
@@ -238,7 +253,7 @@ async def reverse_geocode(latitude: float, longitude: float) -> dict | None:
         return None
 
     except Exception as exc:
-        logger.warning("Reverse geocoding error for %s,%s: %s", latitude, longitude, exc)
+        logger.warning("Reverse geocoding error for %s,%s: %r", latitude, longitude, exc)
         return None
 
 
@@ -265,13 +280,8 @@ async def get_current_weather(
             "is_day": True,
         }
     """
-    cache_key = f"current:{latitude:.2f}:{longitude:.2f}"
-    cached = _cache_get(cache_key)
-    if cached is not None:
-        return cached
-
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with _make_client() as client:
             resp = await client.get(
                 _BASE_URL,
                 params={
@@ -307,14 +317,13 @@ async def get_current_weather(
             "is_day": bool(current.get("is_day", 1)),
         }
 
-        _cache_set(cache_key, result)
         return result
 
     except httpx.TimeoutException:
         logger.warning("Weather API timeout for: %s, %s", latitude, longitude)
         raise
     except Exception as exc:
-        logger.warning("Weather API error: %s", exc)
+        logger.warning("Weather API error: %r", exc)
         raise
 
 
@@ -347,13 +356,8 @@ async def get_forecast(
     """
     days = max(1, min(days, 7))
 
-    cache_key = f"forecast:{latitude:.2f}:{longitude:.2f}:{days}"
-    cached = _cache_get(cache_key)
-    if cached is not None:
-        return cached
-
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with _make_client() as client:
             resp = await client.get(
                 _BASE_URL,
                 params={
@@ -391,12 +395,11 @@ async def get_forecast(
                 "weather_text_en": wmo["en"],
             })
 
-        _cache_set(cache_key, results)
         return results
 
     except httpx.TimeoutException:
         logger.warning("Forecast API timeout for: %s, %s", latitude, longitude)
         raise
     except Exception as exc:
-        logger.warning("Forecast API error: %s", exc)
+        logger.warning("Forecast API error: %r", exc)
         raise

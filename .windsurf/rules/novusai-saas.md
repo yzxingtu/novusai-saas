@@ -1,6 +1,3 @@
----
-trigger: always_on
----
 # NovusAI SaaS 开发规则
 
 ## 项目概述

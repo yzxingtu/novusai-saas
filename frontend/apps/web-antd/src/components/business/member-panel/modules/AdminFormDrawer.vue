@@ -68,12 +68,12 @@ async function handleAvatarUpload(file: File) {
   try {
     const result =
       props.apiPrefix === 'tenant'
-        ? await tenant.uploadAttachmentApi({
+        ? await tenant.smartUploadFile({
             file,
             visibility: 'public',
             business_type: 'avatar',
           })
-        : await admin.uploadAttachmentApi({
+        : await admin.smartUploadFile({
             file,
             visibility: 'public',
             business_type: 'avatar',

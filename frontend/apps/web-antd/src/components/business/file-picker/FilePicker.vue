@@ -27,11 +27,15 @@ import {
 } from 'ant-design-vue';
 
 import {
+  batchUploadAttachmentsApi as adminBatchUploadApi,
   getAttachmentListApi as adminGetAttachmentListApi,
-  uploadAttachmentApi as adminUploadAttachmentApi,
+  getUploadRulesApi as adminGetUploadRulesApi,
+  smartUploadFile as adminSmartUploadFile,
 } from '#/api/admin/attachment';
 import {
+  batchUploadAttachmentsApi as tenantBatchUploadApi,
   getAttachmentListApi as tenantGetAttachmentListApi,
+  getUploadRulesApi as tenantGetUploadRulesApi,
   smartUploadFile as tenantSmartUploadFile,
 } from '#/api/tenant/attachment';
 import { $t } from '#/locales';
@@ -87,9 +91,49 @@ interface UploadTask {
   abortController?: AbortController;
 }
 
+/** 服务端上传规则（动态加载） */
+interface UploadRules {
+  allowedExtensions: string;
+  deniedExtensions: string;
+  maxFileSizeMb: number;
+}
+
+const uploadRules = ref<UploadRules | null>(null);
+const uploadRulesLoaded = ref(false);
+
+/** 动态计算最大文件大小：优先服务端规则，其次 prop */
+const effectiveMaxFileSize = computed(() => {
+  if (uploadRules.value) {
+    return uploadRules.value.maxFileSizeMb * 1024 * 1024;
+  }
+  return props.maxFileSize;
+});
+
+async function loadUploadRules() {
+  if (uploadRulesLoaded.value) return;
+  try {
+    const api =
+      resolvedEndpoint.value === 'admin'
+        ? adminGetUploadRulesApi
+        : tenantGetUploadRulesApi;
+    const rules = await api();
+    uploadRules.value = {
+      allowedExtensions: rules.allowed_extensions ?? '',
+      deniedExtensions: rules.denied_extensions ?? '',
+      maxFileSizeMb: rules.max_file_size_mb ?? 100,
+    };
+    uploadRulesLoaded.value = true;
+  } catch {
+    // 加载失败时使用 prop 默认值
+  }
+}
+
 const [Modal, modalApi] = useVbenModal({
   onOpenChange: (isOpen) => {
-    if (isOpen) loadFiles();
+    if (isOpen) {
+      loadFiles();
+      loadUploadRules();
+    }
   },
 });
 
@@ -249,13 +293,41 @@ function handleFileClick(file: AttachmentInfo) {
 // ============ 上传 ============
 
 function validateFile(file: File): null | string {
-  if (file.size > props.maxFileSize)
+  const maxSize = effectiveMaxFileSize.value;
+  if (file.size > maxSize)
     return $t('shared.filePicker.fileTooLarge', {
-      maxSize: formatFileSize(props.maxFileSize),
+      maxSize: formatFileSize(maxSize),
     });
   if (props.imageOnly && !file.type.startsWith('image/'))
     return $t('shared.filePicker.onlyImages');
   if (!file.name?.trim()) return $t('shared.filePicker.invalidFileName');
+
+  // 服务端扩展名白/黑名单校验
+  if (uploadRules.value) {
+    const ext = file.name.includes('.')
+      ? file.name.split('.').pop()!.toLowerCase()
+      : '';
+    if (ext) {
+      const { allowedExtensions, deniedExtensions } = uploadRules.value;
+      if (allowedExtensions) {
+        const allowed = allowedExtensions
+          .split(',')
+          .map((s) => s.trim().toLowerCase().replace(/^\./, ''));
+        if (allowed.length > 0 && !allowed.includes(ext)) {
+          return $t('shared.filePicker.extensionNotAllowed', { ext });
+        }
+      }
+      if (deniedExtensions) {
+        const denied = deniedExtensions
+          .split(',')
+          .map((s) => s.trim().toLowerCase().replace(/^\./, ''));
+        if (denied.includes(ext)) {
+          return $t('shared.filePicker.extensionDenied', { ext });
+        }
+      }
+    }
+  }
+
   return null;
 }
 
@@ -272,7 +344,7 @@ async function executeUploadTask(task: UploadTask): Promise<void> {
             onProg: (pg: { percent: number }) => void,
             opts: Record<string, unknown>,
           ) =>
-            adminUploadAttachmentApi(
+            adminSmartUploadFile(
               {
                 file: p.file,
                 tenant_id: 0,
@@ -345,13 +417,89 @@ function processQueue() {
   }
 }
 
+const BATCH_SIZE_THRESHOLD = 5 * 1024 * 1024; // ≤ 5MB 的文件可批量打包
+const BATCH_MAX_FILES = 20; // 每批最多文件数
+
+/**
+ * 尝试将符合条件的小文件批量上传，剩余文件走单文件队列
+ */
+async function executeBatchUpload(batchFiles: File[]): Promise<void> {
+  // 为批量中每个文件创建 task 用于 UI 展示
+  const batchTasks: UploadTask[] = batchFiles.map((file) => ({
+    uid: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    file,
+    name: file.name,
+    size: file.size,
+    status: 'uploading' as const,
+    percent: 50,
+    retryCount: 0,
+  }));
+  uploadTasks.value.unshift(...batchTasks);
+
+  try {
+    const batchApi =
+      resolvedEndpoint.value === 'admin'
+        ? (p: { files: File[]; visibility?: 'private' | 'public' }) =>
+            adminBatchUploadApi({ ...p, tenant_id: 0 })
+        : tenantBatchUploadApi;
+
+    const result = await batchApi({
+      files: batchFiles,
+      visibility: 'private',
+    });
+
+    for (let i = 0; i < result.items.length; i++) {
+      const item = result.items[i]!;
+      const task = batchTasks[i];
+      if (task) {
+        if (item.success) {
+          task.status = 'success';
+          task.percent = 100;
+          if (item.attachment?.id) {
+            if (!props.multiple) selectedIds.value.clear();
+            if (selectedIds.value.size < props.maxCount) {
+              selectedIds.value.add(item.attachment.id);
+              selectedIds.value = new Set(selectedIds.value);
+            }
+          }
+        } else {
+          task.status = 'error';
+          task.error = item.error ?? $t('shared.filePicker.uploadFailed');
+        }
+      }
+    }
+  } catch (err: unknown) {
+    const errMsg = (err as Error).message || $t('shared.filePicker.uploadFailed');
+    for (const task of batchTasks) {
+      if (task.status === 'uploading') {
+        task.status = 'error';
+        task.error = errMsg;
+      }
+    }
+  } finally {
+    await nextTick();
+    checkAllUploadsComplete();
+  }
+}
+
 function addFilesToQueue(fileList: File[]) {
+  const validFiles: File[] = [];
   for (const file of fileList) {
     const error = validateFile(file);
     if (error) {
       message.error(`${file.name}: ${error}`);
       continue;
     }
+    validFiles.push(file);
+  }
+  if (validFiles.length === 0) return;
+
+  // 将小文件和大文件分组
+  const smallFiles = validFiles.filter((f) => f.size <= BATCH_SIZE_THRESHOLD);
+  const largeFiles = validFiles.filter((f) => f.size > BATCH_SIZE_THRESHOLD);
+
+  // 大文件走单文件队列
+  for (const file of largeFiles) {
     uploadTasks.value.unshift({
       uid: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       file,
@@ -362,8 +510,31 @@ function addFilesToQueue(fileList: File[]) {
       retryCount: 0,
     });
   }
+
+  uploading.value = true;
+
+  // 小文件 ≥ 2 个时批量上传，否则也走单文件队列
+  if (smallFiles.length >= 2) {
+    // 按 BATCH_MAX_FILES 分批
+    for (let i = 0; i < smallFiles.length; i += BATCH_MAX_FILES) {
+      const batch = smallFiles.slice(i, i + BATCH_MAX_FILES);
+      executeBatchUpload(batch).finally(() => processQueue());
+    }
+  } else {
+    for (const file of smallFiles) {
+      uploadTasks.value.unshift({
+        uid: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        file,
+        name: file.name,
+        size: file.size,
+        status: 'pending',
+        percent: 0,
+        retryCount: 0,
+      });
+    }
+  }
+
   if (uploadTasks.value.some((t) => t.status === 'pending')) {
-    uploading.value = true;
     processQueue();
   }
 }

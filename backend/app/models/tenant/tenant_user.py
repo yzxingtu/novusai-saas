@@ -6,7 +6,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import TenantModel
@@ -22,6 +22,12 @@ class TenantUser(TenantModel):
     """
 
     __tablename__ = "tenant_users"
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "username", name="uq_tenant_user_tenant_username"),
+        UniqueConstraint("tenant_id", "email", name="uq_tenant_user_tenant_email"),
+        UniqueConstraint("tenant_id", "phone", name="uq_tenant_user_tenant_phone"),
+    )
 
     # 基本信息
     username: Mapped[str | None] = mapped_column(

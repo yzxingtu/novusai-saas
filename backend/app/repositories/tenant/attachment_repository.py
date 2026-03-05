@@ -56,17 +56,24 @@ class AttachmentRepository(TenantRepository[Attachment]):
         },
     }
 
-    async def get_by_hash(self, file_hash: str) -> Attachment | None:
+    async def get_by_hash(
+        self, file_hash: str, driver: str | None = None
+    ) -> Attachment | None:
         """
         根据哈希获取附件
+
+        Args:
+            file_hash: 文件哈希
+            driver: 存储驱动名称，传入时仅匹配同驱动的记录（防止驱动切换后误命中）
         """
-        result = await self.db.execute(
-            select(self.model).where(
-                self.model.tenant_id == self.tenant_id,
-                self.model.hash == file_hash,
-                self.model.is_deleted.is_(False),
-            )
+        query = select(self.model).where(
+            self.model.tenant_id == self.tenant_id,
+            self.model.hash == file_hash,
+            self.model.is_deleted.is_(False),
         )
+        if driver is not None:
+            query = query.where(self.model.driver == driver)
+        result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
     async def get_by_path(self, path: str) -> Attachment | None:

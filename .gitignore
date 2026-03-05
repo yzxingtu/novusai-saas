@@ -171,8 +171,8 @@ lerna-debug.log*
 !.cursor/rules/
 .trae/
 .windsurf/*
-!.windsurf/workflows/
 !.windsurf/rules/
+!.windsurf/skills/
 
 # VS Code
 .vscode/

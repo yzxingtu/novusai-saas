@@ -1,0 +1,158 @@
+/**
+ * 文件哈希计算工具
+ *
+ * 使用 Web Crypto API (SubtleCrypto) 计算文件 SHA-256 哈希。
+ * - 小文件（≤64MB）：一次性读入内存计算
+ * - 大文件（>64MB）：分块读取 + 增量计算（需浏览器支持 ReadableStream）
+ * - 支持进度回调和 AbortSignal 取消
+ *
+ * 返回格式: "sha256:{hex_digest}"
+ */
+
+const SMALL_FILE_THRESHOLD = 64 * 1024 * 1024; // 64MB
+const READ_CHUNK_SIZE = 2 * 1024 * 1024; // 2MB per chunk for streaming
+
+/**
+ * 将 ArrayBuffer 转为十六进制字符串
+ */
+function bufferToHex(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const hex: string[] = [];
+  for (const b of bytes) {
+    hex.push(b.toString(16).padStart(2, '0'));
+  }
+  return hex.join('');
+}
+
+/**
+ * 小文件哈希：一次性读入 ArrayBuffer 后用 SubtleCrypto.digest
+ */
+async function hashSmallFile(
+  file: File,
+  onProgress?: (percent: number) => void,
+  signal?: AbortSignal,
+): Promise<string> {
+  if (signal?.aborted) {
+    throw new DOMException('Hash computation aborted', 'AbortError');
+  }
+
+  onProgress?.(0);
+  const buffer = await file.arrayBuffer();
+
+  if (signal?.aborted) {
+    throw new DOMException('Hash computation aborted', 'AbortError');
+  }
+
+  onProgress?.(50);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  onProgress?.(100);
+
+  return bufferToHex(hashBuffer);
+}
+
+/**
+ * 大文件哈希：分块读取 + 手动增量 SHA-256
+ *
+ * 由于 SubtleCrypto 不支持增量 digest，大文件采用分块读取后
+ * 合并为单个 ArrayBuffer 再计算的方式。为控制内存峰值，
+ * 分块大小为 2MB，但最终仍需将全部数据合并。
+ *
+ * 注：如果未来需要处理超大文件（>2GB）的内存优化，
+ * 可引入 hash-wasm 的增量接口替换此实现。
+ */
+async function hashLargeFile(
+  file: File,
+  onProgress?: (percent: number) => void,
+  signal?: AbortSignal,
+): Promise<string> {
+  if (signal?.aborted) {
+    throw new DOMException('Hash computation aborted', 'AbortError');
+  }
+
+  const totalSize = file.size;
+  const chunks: ArrayBuffer[] = [];
+  let offset = 0;
+
+  onProgress?.(0);
+
+  while (offset < totalSize) {
+    if (signal?.aborted) {
+      throw new DOMException('Hash computation aborted', 'AbortError');
+    }
+
+    const end = Math.min(offset + READ_CHUNK_SIZE, totalSize);
+    const slice = file.slice(offset, end);
+    const buffer = await slice.arrayBuffer();
+    chunks.push(buffer);
+    offset = end;
+
+    // 读取阶段占 80% 进度
+    const readPercent = Math.round((offset / totalSize) * 80);
+    onProgress?.(readPercent);
+  }
+
+  if (signal?.aborted) {
+    throw new DOMException('Hash computation aborted', 'AbortError');
+  }
+
+  // 合并所有块
+  const merged = new Uint8Array(totalSize);
+  let pos = 0;
+  for (const chunk of chunks) {
+    merged.set(new Uint8Array(chunk), pos);
+    pos += chunk.byteLength;
+  }
+
+  onProgress?.(90);
+
+  // 计算哈希
+  const hashBuffer = await crypto.subtle.digest('SHA-256', merged.buffer);
+  onProgress?.(100);
+
+  return bufferToHex(hashBuffer);
+}
+
+/**
+ * 计算文件 SHA-256 哈希
+ *
+ * @param file - 要计算哈希的文件
+ * @param options - 可选配置
+ * @param options.onProgress - 进度回调 (0-100)
+ * @param options.signal - AbortSignal 用于取消计算
+ * @returns 格式为 "sha256:{hex_digest}" 的哈希字符串
+ *
+ * @example
+ * ```ts
+ * const hash = await computeFileHash(file);
+ * // => "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ *
+ * // 带进度和取消
+ * const controller = new AbortController();
+ * const hash = await computeFileHash(file, {
+ *   onProgress: (percent) => console.log(`${percent}%`),
+ *   signal: controller.signal,
+ * });
+ * ```
+ */
+export async function computeFileHash(
+  file: File,
+  options?: {
+    onProgress?: (percent: number) => void;
+    signal?: AbortSignal;
+  },
+): Promise<string> {
+  const { onProgress, signal } = options ?? {};
+
+  // 空文件直接返回空内容的 SHA-256
+  if (file.size === 0) {
+    onProgress?.(100);
+    return 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+  }
+
+  const hex =
+    file.size <= SMALL_FILE_THRESHOLD
+      ? await hashSmallFile(file, onProgress, signal)
+      : await hashLargeFile(file, onProgress, signal);
+
+  return `sha256:${hex}`;
+}

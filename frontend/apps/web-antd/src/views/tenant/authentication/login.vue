@@ -22,6 +22,10 @@ const multiAuthStore = useMultiAuthStore();
 const captchaRef = ref<InstanceType<typeof CaptchaImage>>();
 // 验证码用户输入
 const captchaSolution = ref('');
+// 是否需要显示租户编码输入
+const showTenantCode = ref(false);
+// 租户编码输入值
+const tenantCode = ref('');
 
 // 首次访问加载租户公开配置
 onMounted(() => {
@@ -45,7 +49,7 @@ const captchaDifficulty = computed((): CaptchaDifficulty => {
 });
 
 const formSchema = computed((): VbenFormSchema[] => {
-  return [
+  const schema: VbenFormSchema[] = [
     {
       component: 'VbenInput',
       componentProps: {
@@ -65,6 +69,7 @@ const formSchema = computed((): VbenFormSchema[] => {
       rules: z.string().min(1, { message: $t('authentication.passwordTip') }),
     },
   ];
+  return schema;
 });
 
 // 刷新验证码
@@ -79,6 +84,11 @@ async function handleLogin(values: Record<string, any>) {
     password: values.password,
     username: values.username,
   };
+
+  // 如果需要租户编码，添加到参数
+  if (showTenantCode.value && tenantCode.value) {
+    loginParams.tenantCode = tenantCode.value;
+  }
 
   // 如果需要验证码，添加验证码参数
   if (showCaptcha.value && captchaRef.value) {
@@ -106,6 +116,11 @@ async function handleLogin(values: Record<string, any>) {
     // 如果后端要求显示验证码，设置强制要求状态
     if (result.captchaRequired) {
       publicConfigStore.setTenantCaptchaRequired(true);
+    }
+
+    // 如果后端要求指定租户编码
+    if (result.tenantCodeRequired) {
+      showTenantCode.value = true;
     }
 
     // 刷新验证码
@@ -139,9 +154,21 @@ async function handleLogin(values: Record<string, any>) {
       :sub-title="$t('authentication.tenantAdminDesc')"
       @submit="handleLogin"
     >
-      <!-- 验证码插槽 - 显示在密码输入框下方 -->
-      <template v-if="showCaptcha" #form-extend>
-        <div class="captcha-section">
+      <!-- 租户编码 + 验证码插槽 -->
+      <template v-if="showTenantCode || showCaptcha" #form-extend>
+        <!-- 租户编码输入 -->
+        <div v-if="showTenantCode" class="tenant-code-section">
+          <Input
+            v-model:value="tenantCode"
+            :placeholder="$t('tenant.auth.tenantCodePlaceholder')"
+            size="large"
+          >
+            <template #prefix>
+              <span class="i-lucide-building text-muted-foreground"></span>
+            </template>
+          </Input>
+        </div>
+        <div v-if="showCaptcha" class="captcha-section">
           <div class="captcha-row">
             <Input
               v-model:value="captchaSolution"
@@ -163,6 +190,10 @@ async function handleLogin(values: Record<string, any>) {
 </template>
 
 <style scoped>
+.tenant-code-section {
+  margin-bottom: 16px;
+}
+
 .captcha-section {
   margin-top: 8px;
   margin-bottom: 16px;

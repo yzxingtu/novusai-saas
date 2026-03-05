@@ -485,6 +485,8 @@ class AuthService:
         self,
         username: str,
         password: str,
+        tenant_code: str | None = None,
+        tenant_id_from_ctx: int | None = None,
         client_ip: str | None = None,
         captcha_challenge_id: str | None = None,
         captcha_solution: str | None = None,
@@ -496,6 +498,8 @@ class AuthService:
         Args:
             username: 用户名或邮箱
             password: 密码
+            tenant_code: 租户编码（优先级最高）
+            tenant_id_from_ctx: 来自域名中间件的租户 ID（回退）
             client_ip: 客户端 IP
             captcha_challenge_id: 验证码挑战ID
             captcha_solution: 验证码解决方案
@@ -508,16 +512,35 @@ class AuthService:
             AuthenticationException: 认证失败
         """
         # 查询租户管理员
-        result = await self.db.execute(
-            select(TenantAdmin).where(
-                or_(
-                    TenantAdmin.username == username,
-                    TenantAdmin.email == username,
-                ),
-                TenantAdmin.is_deleted.is_(False),
-            )
+        query = select(TenantAdmin).where(
+            or_(
+                TenantAdmin.username == username,
+                TenantAdmin.email == username,
+            ),
+            TenantAdmin.is_deleted.is_(False),
         )
-        tenant_admin = result.scalar_one_or_none()
+
+        # 按优先级限定租户范围
+        if tenant_code:
+            query = query.join(Tenant, TenantAdmin.tenant_id == Tenant.id).where(
+                Tenant.code == tenant_code,
+                Tenant.is_active.is_(True),
+                Tenant.is_deleted.is_(False),
+            )
+        elif tenant_id_from_ctx:
+            query = query.where(TenantAdmin.tenant_id == tenant_id_from_ctx)
+
+        result = await self.db.execute(query)
+        results = result.scalars().all()
+
+        # 多条匹配 → 要求指定 tenant_code
+        if len(results) > 1:
+            raise AuthenticationException(
+                message=_("auth.tenant_code_required"),
+                data={"tenant_code_required": True},
+            )
+
+        tenant_admin = results[0] if results else None
 
         # 检查账户是否存在
         if tenant_admin is None:
@@ -758,6 +781,8 @@ class AuthService:
         self,
         username: str,
         password: str,
+        tenant_code: str | None = None,
+        tenant_id_from_ctx: int | None = None,
         client_ip: str | None = None,
         captcha_challenge_id: str | None = None,
         captcha_solution: str | None = None,
@@ -769,6 +794,8 @@ class AuthService:
         Args:
             username: 用户名、邮箱或手机号
             password: 密码
+            tenant_code: 租户编码（优先级最高）
+            tenant_id_from_ctx: 来自域名中间件的租户 ID（回退）
             client_ip: 客户端 IP
 
         Returns:
@@ -778,17 +805,36 @@ class AuthService:
             AuthenticationException: 认证失败
         """
         # 查询用户
-        result = await self.db.execute(
-            select(TenantUser).where(
-                or_(
-                    TenantUser.username == username,
-                    TenantUser.email == username,
-                    TenantUser.phone == username,
-                ),
-                TenantUser.is_deleted.is_(False),
-            )
+        query = select(TenantUser).where(
+            or_(
+                TenantUser.username == username,
+                TenantUser.email == username,
+                TenantUser.phone == username,
+            ),
+            TenantUser.is_deleted.is_(False),
         )
-        user = result.scalar_one_or_none()
+
+        # 按优先级限定租户范围
+        if tenant_code:
+            query = query.join(Tenant, TenantUser.tenant_id == Tenant.id).where(
+                Tenant.code == tenant_code,
+                Tenant.is_active.is_(True),
+                Tenant.is_deleted.is_(False),
+            )
+        elif tenant_id_from_ctx:
+            query = query.where(TenantUser.tenant_id == tenant_id_from_ctx)
+
+        result = await self.db.execute(query)
+        results = result.scalars().all()
+
+        # 多条匹配 → 要求指定 tenant_code
+        if len(results) > 1:
+            raise AuthenticationException(
+                message=_("auth.tenant_code_required"),
+                data={"tenant_code_required": True},
+            )
+
+        user = results[0] if results else None
 
         # 检查账户是否存在
         if user is None:

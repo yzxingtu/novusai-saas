@@ -23,6 +23,8 @@
   "fileTooLarge": "File size exceeds limit ({maxSize})",
   "onlyImages": "Only images are allowed",
   "invalidFileName": "Invalid file name",
+  "extensionNotAllowed": "File type .{ext} is not allowed",
+  "extensionDenied": "File type .{ext} is blocked",
   "selectedCount": "{count} file(s) selected",
   "maxCountExceeded": "You can select up to {count} files",
   "categories": {

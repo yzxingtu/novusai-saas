@@ -223,18 +223,22 @@ export const usePublicConfigStore = defineStore('publicConfig', {
 
       try {
         let tenantCode: string | undefined;
-        if (import.meta.env.DEV) {
-          const urlParams = new URLSearchParams(window.location.search);
-          const fromUrl = urlParams.get('tenant_code');
-          if (fromUrl) {
-            localStorage.setItem('__dev_tenant_code__', fromUrl);
-            tenantCode = fromUrl;
-          } else {
-            tenantCode =
-              localStorage.getItem('__dev_tenant_code__') ??
-              import.meta.env.VITE_DEV_TENANT_CODE ??
-              undefined;
-          }
+
+        // 从 URL 参数读取 tenant_code（所有环境通用）
+        const urlParams = new URLSearchParams(window.location.search);
+        const fromUrl = urlParams.get('tenant_code');
+        if (fromUrl) {
+          localStorage.setItem('__tenant_code__', fromUrl);
+          tenantCode = fromUrl;
+        } else {
+          // 从 localStorage 读取（支持一键登录后的品牌配置加载）
+          tenantCode =
+            localStorage.getItem('__tenant_code__') ?? undefined;
+        }
+
+        // 开发环境额外支持环境变量兜底
+        if (!tenantCode && import.meta.env.DEV) {
+          tenantCode = import.meta.env.VITE_DEV_TENANT_CODE ?? undefined;
         }
 
         const config = await getTenantPublicConfigApi(tenantCode);

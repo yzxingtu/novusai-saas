@@ -1,6 +1,3 @@
----
-auto_execution_mode: 2
----
 # AI 模块开发规范
 
 ## 一、模块架构

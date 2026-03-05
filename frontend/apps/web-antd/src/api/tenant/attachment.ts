@@ -16,6 +16,7 @@ import type { PaginatedResponse, SelectOption } from '#/types/query';
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { inferCategory } from '#/types/attachment';
+import { computeFileHash } from '#/utils/file-hash';
 import { requestClient } from '#/utils/request';
 
 // ============================================================
@@ -251,7 +252,8 @@ export interface ChunkUploadResponse {
  *
  * 权限: attachment:upload
  */
-export async function uploadAttachmentApi(
+/** @internal 仅供 smartUploadFile 内部调用，外部请使用 smartUploadFile */
+async function uploadAttachmentApi(
   params: UploadAttachmentParams,
   onProgress?: (progress: { percent: number }) => void,
   options?: ApiRequestOptions,
@@ -380,8 +382,111 @@ export async function cancelChunkUploadApi(
   await requestClient.delete(`${API_PREFIX}/chunk/${uploadId}`, options);
 }
 
+/** 批量上传单文件结果 */
+export interface BatchUploadItemResult {
+  filename: string;
+  success: boolean;
+  attachment?: AttachmentInfoRaw;
+  url?: string;
+  error?: string;
+}
+
+/** 批量上传响应 */
+export interface BatchUploadResponse {
+  items: BatchUploadItemResult[];
+  success_count: number;
+  failure_count: number;
+  used_bytes: number;
+}
+
+/**
+ * 批量上传附件
+ * POST /tenant/attachments/batch-upload
+ *
+ * 一次提交多个文件（最多 20 个），单文件失败不影响其他。
+ * 大文件请改用多次调用 smartUploadFile。
+ *
+ * 权限: attachment:upload
+ */
+export async function batchUploadAttachmentsApi(
+  params: {
+    files: File[];
+    visibility?: 'private' | 'public';
+    business_type?: string;
+    business_id?: number;
+  },
+  options?: ApiRequestOptions,
+): Promise<BatchUploadResponse> {
+  const { files, visibility = 'private', business_type, business_id } = params;
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append('files', file);
+  }
+  if (visibility) formData.append('visibility', visibility);
+  if (business_type) formData.append('business_type', business_type);
+  if (business_id) formData.append('business_id', String(business_id));
+  return requestClient.post<BatchUploadResponse>(
+    `${API_PREFIX}/batch-upload`,
+    formData,
+    { ...options, headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+}
+
+/** 预检响应 */
+export interface PreflightResponse {
+  exists: boolean;
+  attachment: AttachmentInfoRaw | null;
+  url: string | null;
+  used_bytes: number | null;
+}
+
+/** 上传规则响应 */
+export interface UploadRulesResponse {
+  allowed_extensions: string;
+  denied_extensions: string;
+  max_file_size_mb: number;
+}
+
+/**
+ * 预检文件是否已存在（秒传检查）
+ * POST /tenant/attachments/preflight
+ */
+export async function preflightCheckApi(
+  params: {
+    hash: string;
+    filename: string;
+    size: number;
+    visibility?: 'private' | 'public';
+  },
+  options?: ApiRequestOptions,
+): Promise<PreflightResponse> {
+  return requestClient.post<PreflightResponse>(
+    `${API_PREFIX}/preflight`,
+    params,
+    options,
+  );
+}
+
+/**
+ * 获取上传规则
+ * GET /tenant/attachments/upload-rules
+ */
+export async function getUploadRulesApi(
+  options?: ApiRequestOptions,
+): Promise<UploadRulesResponse> {
+  return requestClient.get<UploadRulesResponse>(
+    `${API_PREFIX}/upload-rules`,
+    options,
+  );
+}
+
 /**
  * 智能上传文件（自动选择普通上传或分片上传）
+ *
+ * 流程：
+ * 1. 计算文件 SHA-256 哈希（进度 0~5%）
+ * 2. 预检接口检查秒传（进度 5%）
+ * 3. 未命中→根据文件大小选择普通/分片上传（进度 5~100%）
  */
 export async function smartUploadFile(
   params: UploadAttachmentParams,
@@ -391,13 +496,63 @@ export async function smartUploadFile(
   const file = params.file as File;
   const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
   const CHUNK_THRESHOLD = 10 * 1024 * 1024; // 10MB
+  const HASH_PROGRESS_END = 5; // 哈希计算占总进度的 0~5%
+
+  // ===== 第一步：计算文件哈希 =====
+  const fileHash = await computeFileHash(file, {
+    onProgress: (pct) => {
+      onProgress?.({ percent: Math.round((pct / 100) * HASH_PROGRESS_END) });
+    },
+    signal: options?.signal,
+  });
+
+  // ===== 第二步：预检（秒传）=====
+  onProgress?.({ percent: HASH_PROGRESS_END });
+  try {
+    const preflight = await preflightCheckApi(
+      {
+        hash: fileHash,
+        filename: file.name,
+        size: file.size,
+        visibility: params.visibility ?? 'private',
+      },
+      options,
+    );
+    if (preflight.exists && preflight.attachment) {
+      onProgress?.({ percent: 100 });
+      return {
+        attachment: preflight.attachment,
+        url: preflight.url ?? '',
+        used_bytes: preflight.used_bytes ?? 0,
+      };
+    }
+  } catch {
+    // 预检失败不影响正常上传流程，静默继续
+  }
+
+  // ===== 第三步：实际上传 =====
+  const uploadProgressStart = HASH_PROGRESS_END;
+  const uploadProgressRange = 100 - uploadProgressStart;
+
+  /** 将上传实际进度 (0~100) 映射到总进度 (5%~100%) */
+  const mapProgress = (uploadPercent: number) => {
+    return Math.round(
+      uploadProgressStart + (uploadPercent / 100) * uploadProgressRange,
+    );
+  };
 
   // 小文件直接上传
   if (file.size <= CHUNK_THRESHOLD) {
-    return uploadAttachmentApi(params, onProgress, options);
+    return uploadAttachmentApi(
+      params,
+      onProgress
+        ? (p) => onProgress({ percent: mapProgress(p.percent) })
+        : undefined,
+      options,
+    );
   }
 
-  // 大文件分片上传
+  // 大文件分片上传（带片内实时进度）
   const { visibility = 'private', business_type, business_id } = params;
 
   // 1. 初始化
@@ -416,13 +571,16 @@ export async function smartUploadFile(
 
   const { upload_id, uploaded_chunks } = initResult;
   const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+  let completedBytes = 0;
+
+  // 统计已上传分片的字节数
+  for (const idx of uploaded_chunks) {
+    completedBytes += Math.min(CHUNK_SIZE, file.size - idx * CHUNK_SIZE);
+  }
 
   // 2. 上传分片
   for (let i = 0; i < totalChunks; i++) {
-    // 检查是否取消
     if (options?.signal?.aborted) {
-      // 尝试调用后端取消接口
-      // 注意：这里可能需要忽略错误，因为 abort 信号可能已经触发
       try {
         await cancelChunkUploadApi(upload_id);
       } catch {
@@ -438,24 +596,30 @@ export async function smartUploadFile(
     const start = i * CHUNK_SIZE;
     const end = Math.min(start + CHUNK_SIZE, file.size);
     const chunk = file.slice(start, end);
+    const chunkSize = end - start;
 
     await uploadChunkApi(
       upload_id,
       i,
       chunk,
-      (_progress) => {
-        // 计算当前分片对总进度的贡献
-        // 简单估算：总进度 = (已完成分片数 + 当前分片进度) / 总分片数
-        // 为了平滑，我们只在分片上传时更新 UI
-      },
+      onProgress
+        ? (chunkProgress) => {
+            const chunkBytes = (chunkProgress.percent / 100) * chunkSize;
+            const totalBytes = completedBytes + chunkBytes;
+            const uploadPercent = Math.round(
+              (totalBytes / file.size) * 100,
+            );
+            onProgress({ percent: mapProgress(Math.min(uploadPercent, 99)) });
+          }
+        : undefined,
       options,
     );
 
-    // 更新总进度
-    const overallProgress = Math.round(((i + 1) / totalChunks) * 100);
-    onProgress?.({ percent: overallProgress });
+    completedBytes += chunkSize;
   }
 
   // 3. 完成上传
-  return completeChunkUploadApi(upload_id, options);
+  const result = await completeChunkUploadApi(upload_id, options);
+  onProgress?.({ percent: 100 });
+  return result;
 }

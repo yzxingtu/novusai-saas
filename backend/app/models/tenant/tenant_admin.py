@@ -7,7 +7,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
@@ -25,6 +25,11 @@ class TenantAdmin(TenantModel):
     """
 
     __tablename__ = "tenant_admins"
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "username", name="uq_tenant_admin_tenant_username"),
+        UniqueConstraint("tenant_id", "email", name="uq_tenant_admin_tenant_email"),
+    )
 
     __delete_deps__ = [
         DeletionDep("TenantAdminRole", "leader_id", DeletionStrategy.NULLIFY,

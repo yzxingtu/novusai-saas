@@ -119,7 +119,7 @@ class S3StorageDriver(StorageDriver):
 
         def _upload() -> tuple[int, str]:
             size = 0
-            hasher = hashlib.md5()
+            hasher = hashlib.sha256()
             with tempfile.TemporaryFile() as tmp:
                 while True:
                     chunk = content.read(8192)

@@ -123,13 +123,50 @@ class AdminChunkUploadInitRequest(BaseSchema):
     business_id: int | None = Field(None, description="业务 ID")
 
 
+class AttachmentPreflightRequest(BaseSchema):
+    """附件预检请求（秒传检查）"""
+    hash: str = Field(..., min_length=10, max_length=128, description="文件哈希，格式: sha256:{hex_digest}")
+    filename: str = Field(..., min_length=1, max_length=255, description="文件名")
+    size: int = Field(..., gt=0, description="文件大小（字节）")
+    visibility: str = Field("private", description="可见性 (private/public)")
+
+
+class AttachmentPreflightResponse(BaseSchema):
+    """附件预检响应"""
+    exists: bool = Field(..., description="文件是否已存在")
+    attachment: AttachmentResponse | None = Field(None, description="已存在的附件信息")
+    url: str | None = Field(None, description="已存在附件的访问 URL")
+    used_bytes: int | None = Field(None, description="已使用存储空间（字节）")
+
+
+class BatchUploadItem(BaseSchema):
+    """批量上传单文件结果"""
+    filename: str = Field(..., description="原始文件名")
+    success: bool = Field(..., description="是否上传成功")
+    attachment: AttachmentResponse | None = Field(None, description="附件信息（成功时）")
+    url: str | None = Field(None, description="访问 URL（成功时）")
+    error: str | None = Field(None, description="错误信息（失败时）")
+
+
+class BatchUploadResponse(BaseSchema):
+    """批量上传响应"""
+    items: list[BatchUploadItem] = Field(..., description="每个文件的上传结果")
+    success_count: int = Field(..., description="成功数量")
+    failure_count: int = Field(..., description="失败数量")
+    used_bytes: int = Field(0, description="已使用存储空间（字节），租户端有效")
+
+
 __all__ = [
     "AttachmentAccessUrlResponse",
     "AttachmentResponse",
     "AttachmentListItem",
     "TenantStorageQuotaResponse",
     # 上传相关
+    "AttachmentPreflightRequest",
+    "AttachmentPreflightResponse",
     "AttachmentUploadResponse",
+    "BatchUploadItem",
+    "BatchUploadResponse",
     "ChunkUploadInitRequest",
     "ChunkUploadInitResponse",
     "ChunkUploadProgressResponse",

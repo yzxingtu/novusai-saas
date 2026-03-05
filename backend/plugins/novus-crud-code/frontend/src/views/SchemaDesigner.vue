@@ -1,9 +1,12 @@
 <script lang="ts" setup>
 import type { Edge, Node } from '@vue-flow/core';
+import type { SortableEvent } from 'sortablejs';
 import type { NccField, NccRelation, NccTableSchema } from '../types';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+
+import Sortable from 'sortablejs';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -28,7 +31,7 @@ import {
   message,
 } from 'ant-design-vue';
 
-import { createSchemaApi, deleteSchemaApi, listRelationsApi, listSchemasApi, updateSchemaApi } from '../api';
+import { createRelationApi, createSchemaApi, deleteRelationApi, deleteSchemaApi, listRelationsApi, listSchemasApi, updateSchemaApi } from '../api';
 import { FIELD_TYPE_COLORS, t } from '../data';
 
 defineOptions({ name: 'NccSchemaDesigner' });
@@ -46,12 +49,25 @@ const selectedSchema = ref<NccTableSchema | null>(null);
 const editingField = ref<NccField | null>(null);
 const editingFieldIdx = ref(-1);
 const saving = ref(false);
+const fieldListRef = ref<HTMLElement | null>(null);
 const showCreateModal = ref(false);
 const showPropsModal = ref(false);
 const createForm = ref({ name: '', display_name: '', description: '' });
 const propsForm = ref({ display_name: '', description: '' });
 const creatingSaving = ref(false);
 const propsSaving = ref(false);
+const showRelationModal = ref(false);
+const relationForm = ref({
+  from_schema_id: 0,
+  from_field: '',
+  to_schema_id: 0,
+  to_field: '',
+  relation_type: 'one_to_many',
+  label: '',
+});
+const relationSaving = ref(false);
+
+const RELATION_TYPES = ['one_to_many', 'many_to_one', 'one_to_one', 'many_to_many'] as const;
 
 const FIELD_TEMPLATES: Record<string, NccField[]> = {
   basic: [
@@ -110,12 +126,13 @@ async function loadData() {
 
 const { onNodeDragStop } = useVueFlow();
 onNodeDragStop(async ({ node }) => {
-  const s = schemas.value.find((x) => String(x.id) === node.id);
-  if (!s) return;
+  const idx = schemas.value.findIndex((x) => String(x.id) === node.id);
+  if (idx < 0) return;
+  const s = schemas.value[idx]!;
   const newUiConfig = { ...(s.ui_config ?? {}), [`node_${s.id}`]: node.position };
   try {
     await updateSchemaApi(projectId.value, s.id, { ui_config: newUiConfig });
-    s.ui_config = newUiConfig;
+    schemas.value[idx] = { ...s, ui_config: newUiConfig };
   } catch {
     // handled
   }
@@ -193,6 +210,69 @@ async function saveSchema() {
   }
 }
 
+function openCreateRelation() {
+  relationForm.value = {
+    from_schema_id: selectedSchema.value?.id ?? (schemas.value[0]?.id ?? 0),
+    from_field: '',
+    to_schema_id: schemas.value[1]?.id ?? (schemas.value[0]?.id ?? 0),
+    to_field: '',
+    relation_type: 'one_to_many',
+    label: '',
+  };
+  showRelationModal.value = true;
+}
+
+async function createRelation() {
+  if (!relationForm.value.from_schema_id || !relationForm.value.to_schema_id) return;
+  relationSaving.value = true;
+  try {
+    const newRel = await createRelationApi(projectId.value, {
+      from_schema_id: relationForm.value.from_schema_id,
+      from_field: relationForm.value.from_field,
+      to_schema_id: relationForm.value.to_schema_id,
+      to_field: relationForm.value.to_field,
+      relation_type: relationForm.value.relation_type,
+      label: relationForm.value.label || undefined,
+    });
+    relations.value.push(newRel);
+    showRelationModal.value = false;
+  } catch {
+    // handled
+  } finally {
+    relationSaving.value = false;
+  }
+}
+
+function confirmDeleteRelation(relId: number) {
+  Modal.confirm({
+    title: t('relations.delete'),
+    content: t('relations.confirmDelete'),
+    okType: 'danger',
+    okText: t('common.delete'),
+    cancelText: t('common.cancel'),
+    onOk: async () => {
+      try {
+        await deleteRelationApi(projectId.value, relId);
+        relations.value = relations.value.filter((r) => r.id !== relId);
+      } catch {
+        // handled
+      }
+    },
+  });
+}
+
+function getSchemaName(id: number) {
+  const s = schemas.value.find((s) => s.id === id);
+  return s?.display_name || s?.name || String(id);
+}
+
+const RELATION_TYPE_LABELS: Record<string, string> = {
+  one_to_many: 'relations.oneToMany',
+  many_to_one: 'relations.manyToOne',
+  one_to_one: 'relations.oneToOne',
+  many_to_many: 'relations.manyToMany',
+};
+
 function openCreateTable() {
   createForm.value = { name: '', display_name: '', description: '' };
   showCreateModal.value = true;
@@ -231,7 +311,7 @@ function confirmDeleteTable() {
         await deleteSchemaApi(projectId.value, selectedSchema.value!.id);
         schemas.value = schemas.value.filter((s) => s.id !== selectedSchema.value!.id);
         selectedSchema.value = schemas.value.length > 0 ? schemas.value[0]! : null;
-        message.success(t('common.delete'));
+        message.success(t('schema.deleteSuccess'));
       } catch {
         // handled
       }
@@ -279,6 +359,84 @@ function applyFieldTemplate(key: string) {
     ...selectedSchema.value,
     schema_config: { ...selectedSchema.value.schema_config, fields: [...existing, ...newFields] },
   };
+}
+
+let sortableInstance: Sortable | null = null;
+
+function initSortable() {
+  if (sortableInstance) {
+    sortableInstance.destroy();
+    sortableInstance = null;
+  }
+  if (!fieldListRef.value) return;
+  sortableInstance = Sortable.create(fieldListRef.value, {
+    animation: 150,
+    handle: '.drag-handle',
+    ghostClass: 'ncc-fb-ghost',
+    chosenClass: 'ncc-fb-chosen',
+    onEnd(evt: SortableEvent) {
+      if (!selectedSchema.value) return;
+      const oldIdx = evt.oldIndex;
+      const newIdx = evt.newIndex;
+      if (oldIdx === undefined || newIdx === undefined || oldIdx === newIdx) return;
+      const fields = [...(selectedSchema.value.schema_config?.fields ?? [])];
+      const [moved] = fields.splice(oldIdx, 1);
+      if (moved) fields.splice(newIdx, 0, moved);
+      selectedSchema.value = {
+        ...selectedSchema.value,
+        schema_config: { ...selectedSchema.value.schema_config, fields },
+      };
+    },
+  });
+}
+
+watch([fieldListRef, () => selectedSchema.value?.id, () => editingField.value], async () => {
+  if (editingField.value) return;
+  await nextTick();
+  initSortable();
+});
+
+function exportSchema() {
+  if (!selectedSchema.value) return;
+  const data = {
+    name: selectedSchema.value.name,
+    display_name: selectedSchema.value.display_name,
+    description: selectedSchema.value.description,
+    schema_config: selectedSchema.value.schema_config,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${selectedSchema.value.name}_schema.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importSchema(event: Event) {
+  if (!selectedSchema.value) return;
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target?.result as string);
+      if (!data.schema_config?.fields) {
+        message.error(t('schema.importError'));
+        return;
+      }
+      selectedSchema.value = {
+        ...selectedSchema.value!,
+        schema_config: data.schema_config,
+      };
+      message.success(t('schema.importSuccess'));
+    } catch {
+      message.error(t('schema.importError'));
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
 }
 
 onMounted(() => loadData());
@@ -342,6 +500,49 @@ onMounted(() => loadData());
           <div class="mt-0.5 font-mono text-[11px] text-muted-foreground">
             {{ s.name }} · {{ (s.schema_config?.fields ?? []).length }} {{ t('schema.fields') }}
           </div>
+        </div>
+
+        <!-- Relations Section -->
+        <div class="flex items-center justify-between border-b border-t bg-muted/50 px-4 py-2.5">
+          <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground">
+            <IconifyIcon icon="lucide:git-branch" class="h-3.5 w-3.5" />
+            {{ t('tab.relations') }}
+          </span>
+          <Tooltip :title="t('relations.add')">
+            <button
+              class="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+              :disabled="schemas.length < 2"
+              @click="openCreateRelation"
+            >
+              <IconifyIcon icon="lucide:plus" class="h-3.5 w-3.5" />
+            </button>
+          </Tooltip>
+        </div>
+        <div v-if="relations.length === 0" class="py-3 text-center text-[11px] text-muted-foreground">
+          {{ t('relations.empty') }}
+        </div>
+        <div
+          v-for="rel in relations"
+          :key="rel.id"
+          class="group flex items-center gap-2 border-b px-3 py-2"
+        >
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1 text-xs text-foreground">
+              <span class="font-medium">{{ getSchemaName(rel.from_schema_id) }}</span>
+              <IconifyIcon icon="lucide:arrow-right" class="h-3 w-3 shrink-0 text-muted-foreground" />
+              <span class="font-medium">{{ getSchemaName(rel.to_schema_id) }}</span>
+            </div>
+            <div class="mt-0.5 text-[11px] text-muted-foreground">
+              {{ rel.from_field }} → {{ rel.to_field }}
+              <span v-if="rel.label" class="ml-1 italic">· {{ rel.label }}</span>
+            </div>
+          </div>
+          <button
+            class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+            @click="confirmDeleteRelation(rel.id)"
+          >
+            <IconifyIcon icon="lucide:trash-2" class="h-3 w-3" />
+          </button>
         </div>
       </div>
 
@@ -439,6 +640,20 @@ onMounted(() => loadData());
                   </Menu>
                 </template>
               </Dropdown>
+              <Tooltip :title="t('schema.export')">
+                <button
+                  class="inline-flex h-7 items-center justify-center rounded px-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  @click="exportSchema"
+                >
+                  <IconifyIcon icon="lucide:download" class="h-3 w-3" />
+                </button>
+              </Tooltip>
+              <Tooltip :title="t('schema.import')">
+                <label class="inline-flex h-7 cursor-pointer items-center justify-center rounded px-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                  <IconifyIcon icon="lucide:upload" class="h-3 w-3" />
+                  <input type="file" accept=".json" class="hidden" @change="importSchema" />
+                </label>
+              </Tooltip>
             </div>
           </div>
 
@@ -449,31 +664,15 @@ onMounted(() => loadData());
               :description="t('field.empty')"
               class="py-5"
             />
+            <div ref="fieldListRef">
             <div
               v-for="(f, idx) in (selectedSchema.schema_config?.fields ?? [])"
-              :key="idx"
+              :key="f.name + idx"
               class="group flex items-center gap-2 border-b px-3 py-2"
             >
-              <!-- Move buttons -->
-              <div class="flex flex-col gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                <Tooltip :title="t('field.moveUp')" placement="left">
-                  <button
-                    class="inline-flex h-4 w-4 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
-                    :disabled="idx === 0"
-                    @click="moveField(idx, -1)"
-                  >
-                    <IconifyIcon icon="lucide:chevron-up" class="h-3 w-3" />
-                  </button>
-                </Tooltip>
-                <Tooltip :title="t('field.moveDown')" placement="left">
-                  <button
-                    class="inline-flex h-4 w-4 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
-                    :disabled="idx === (selectedSchema.schema_config?.fields ?? []).length - 1"
-                    @click="moveField(idx, 1)"
-                  >
-                    <IconifyIcon icon="lucide:chevron-down" class="h-3 w-3" />
-                  </button>
-                </Tooltip>
+              <!-- Drag handle -->
+              <div class="drag-handle flex cursor-grab items-center opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing">
+                <IconifyIcon icon="lucide:grip-vertical" class="h-4 w-4 text-muted-foreground" />
               </div>
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-medium text-foreground">{{ f.label || f.name }}</div>
@@ -498,6 +697,7 @@ onMounted(() => loadData());
               >
                 <IconifyIcon icon="lucide:trash-2" class="h-3 w-3" />
               </button>
+            </div>
             </div>
           </div>
 
@@ -524,12 +724,12 @@ onMounted(() => loadData());
             </div>
             <div>
               <div class="mb-1 text-xs font-medium text-foreground">{{ t('field.default') }}</div>
-              <Input v-model:value="(editingField as Record<string, unknown>).default" :placeholder="t('field.defaultPlaceholder')" size="small" allow-clear />
+              <Input v-model:value="(editingField! as unknown as Record<string, unknown>).default" :placeholder="t('field.defaultPlaceholder')" size="small" allow-clear />
             </div>
             <Checkbox v-model:checked="editingField!.required">{{ t('field.required') }}</Checkbox>
             <div class="flex gap-2 pt-2">
               <Button class="flex-1" @click="editingField = null">{{ t('common.cancel') }}</Button>
-              <Button class="flex-1" type="primary" :disabled="!editingField?.name" @click="saveField">
+              <Button class="flex-1" type="primary" :disabled="!editingField!.name" @click="saveField">
                 {{ t('common.save') }}
               </Button>
             </div>
@@ -583,6 +783,64 @@ onMounted(() => loadData());
         <div>
           <div class="mb-1 text-sm font-medium text-foreground">{{ t('schema.field.description') }}</div>
           <Textarea v-model:value="propsForm.description" :placeholder="t('schema.field.descriptionPlaceholder')" :rows="3" />
+        </div>
+      </div>
+    </Modal>
+
+    <!-- Create Relation Modal -->
+    <Modal
+      v-model:open="showRelationModal"
+      :title="t('relations.add')"
+      :confirm-loading="relationSaving"
+      :ok-text="t('common.save')"
+      :cancel-text="t('common.cancel')"
+      :ok-button-props="{ disabled: !relationForm.from_schema_id || !relationForm.to_schema_id || !relationForm.from_field || !relationForm.to_field }"
+      @ok="createRelation"
+    >
+      <div class="space-y-4 pt-2">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <div class="mb-1 text-sm font-medium text-foreground">{{ t('relations.fromTable') }} *</div>
+            <Select v-model:value="relationForm.from_schema_id" class="w-full" size="small">
+              <SelectOption v-for="s in schemas" :key="s.id" :value="s.id">{{ s.display_name || s.name }}</SelectOption>
+            </Select>
+          </div>
+          <div>
+            <div class="mb-1 text-sm font-medium text-foreground">{{ t('relations.fromField') }} *</div>
+            <Select v-model:value="relationForm.from_field" class="w-full" size="small" allow-clear>
+              <SelectOption
+                v-for="f in (schemas.find(s => s.id === relationForm.from_schema_id)?.schema_config?.fields ?? [])"
+                :key="f.name"
+                :value="f.name"
+              >{{ f.label || f.name }}</SelectOption>
+            </Select>
+          </div>
+          <div>
+            <div class="mb-1 text-sm font-medium text-foreground">{{ t('relations.toTable') }} *</div>
+            <Select v-model:value="relationForm.to_schema_id" class="w-full" size="small">
+              <SelectOption v-for="s in schemas" :key="s.id" :value="s.id">{{ s.display_name || s.name }}</SelectOption>
+            </Select>
+          </div>
+          <div>
+            <div class="mb-1 text-sm font-medium text-foreground">{{ t('relations.toField') }} *</div>
+            <Select v-model:value="relationForm.to_field" class="w-full" size="small" allow-clear>
+              <SelectOption
+                v-for="f in (schemas.find(s => s.id === relationForm.to_schema_id)?.schema_config?.fields ?? [])"
+                :key="f.name"
+                :value="f.name"
+              >{{ f.label || f.name }}</SelectOption>
+            </Select>
+          </div>
+        </div>
+        <div>
+          <div class="mb-1 text-sm font-medium text-foreground">{{ t('relations.type') }}</div>
+          <Select v-model:value="relationForm.relation_type" class="w-full">
+            <SelectOption v-for="rt in RELATION_TYPES" :key="rt" :value="rt">{{ t(RELATION_TYPE_LABELS[rt] ?? rt) }}</SelectOption>
+          </Select>
+        </div>
+        <div>
+          <div class="mb-1 text-sm font-medium text-foreground">{{ t('relations.label') }}</div>
+          <Input v-model:value="relationForm.label" :placeholder="t('relations.labelPlaceholder')" allow-clear />
         </div>
       </div>
     </Modal>

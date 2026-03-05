@@ -48,11 +48,11 @@ const isDev = computed(() => import.meta.env.DEV);
 
 /**
  * 构建租户端 origin URL
- * 开发模式下使用当前 origin（通过 tenant_code 参数识别租户）
- * 生产模式下使用租户主域名
+ * 开发模式或无域名时使用当前 origin（通过 tenant_code 参数识别租户）
+ * 生产模式下优先使用租户主域名
  */
-function getTenantOrigin(domain: string): string {
-  if (isDev.value) {
+function getTenantOrigin(domain?: null | string): string {
+  if (isDev.value || !domain) {
     return window.location.origin;
   }
   return `${window.location.protocol}//${domain}`;
@@ -114,11 +114,6 @@ function onStorageConfig(row: TenantInfo) {
  * 一键登录租户后台(新窗口)
  */
 async function onImpersonate(row: TenantInfo) {
-  // 租户端通过域名识别租户，必须有主域名
-  if (!row.primaryDomain?.domain) {
-    message.warning($t('admin.tenant.messages.noPrimaryDomain'));
-    return;
-  }
   const hideLoading = message.loading({
     content: $t('admin.tenant.messages.impersonating', { name: row.name }),
     duration: 0,
@@ -130,8 +125,8 @@ async function onImpersonate(row: TenantInfo) {
       content: $t('admin.tenant.messages.impersonateSuccess'),
       key: 'impersonate_tenant',
     });
-    // 通过租户主域名跳转，租户端根据域名识别租户
-    const targetUrl = `${getTenantOrigin(row.primaryDomain.domain)}/tenant/impersonate?token=${encodeURIComponent(result.impersonateToken)}&tenant_code=${encodeURIComponent(row.code)}`;
+    // 有域名用域名跳转，无域名用同域名 + tenant_code
+    const targetUrl = `${getTenantOrigin(row.primaryDomain?.domain)}/tenant/impersonate?token=${encodeURIComponent(result.impersonateToken)}&tenant_code=${encodeURIComponent(row.code)}`;
     window.open(targetUrl, '_blank');
   } catch {
     hideLoading();
@@ -146,11 +141,6 @@ async function onImpersonate(row: TenantInfo) {
  * 一键登录租户后台(当前标签页) - 仅开发模式
  */
 async function onImpersonateInCurrentTab(row: TenantInfo) {
-  // 租户端通过域名识别租户，必须有主域名
-  if (!row.primaryDomain?.domain) {
-    message.warning($t('admin.tenant.messages.noPrimaryDomain'));
-    return;
-  }
   const hideLoading = message.loading({
     content: $t('admin.tenant.messages.impersonating', { name: row.name }),
     duration: 0,
@@ -162,8 +152,8 @@ async function onImpersonateInCurrentTab(row: TenantInfo) {
       content: $t('admin.tenant.messages.impersonateSuccess'),
       key: 'impersonate_tenant_current',
     });
-    // 通过租户主域名跳转，租户端根据域名识别租户
-    const targetUrl = `${getTenantOrigin(row.primaryDomain.domain)}/tenant/impersonate?token=${encodeURIComponent(result.impersonateToken)}&tenant_code=${encodeURIComponent(row.code)}`;
+    // 有域名用域名跳转，无域名用同域名 + tenant_code
+    const targetUrl = `${getTenantOrigin(row.primaryDomain?.domain)}/tenant/impersonate?token=${encodeURIComponent(result.impersonateToken)}&tenant_code=${encodeURIComponent(row.code)}`;
     window.location.href = targetUrl;
   } catch {
     hideLoading();

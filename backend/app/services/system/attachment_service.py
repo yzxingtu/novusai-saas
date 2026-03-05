@@ -28,6 +28,7 @@ from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.attachment import Attachment
 from app.repositories.system.attachment_repository import AdminAttachmentRepository
 from app.services.common.file_validator import FileValidator, validate_result_or_raise
+from app.services.common.storage_config_resolver import StorageConfigResolver
 from app.storage import StorageConfig, StorageVisibility, storage_manager
 
 
@@ -92,8 +93,10 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         storage_config = await self._resolve_platform_storage_config()
         temp_path, _size, file_hash = await self._save_to_temp(content)
 
-        # 检查同租户是否已存在相同哈希的文件
-        existing = await self.repo.get_by_hash(file_hash, tenant_id=tenant_id)
+        # 检查同租户是否已存在相同哈希的文件（同时匹配当前存储驱动）
+        existing = await self.repo.get_by_hash(
+            file_hash, tenant_id=tenant_id, driver=storage_config.driver
+        )
         if existing:
             await self._remove_temp_file(temp_path)
             driver = storage_manager.get_driver(storage_config)
@@ -129,6 +132,51 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             storage_config=storage_config,
         )
         return {"attachment": attachment, "url": upload_result.url}
+
+    async def preflight_check(
+        self,
+        tenant_id: int,
+        file_hash: str,
+        filename: str,
+        size: int,
+    ) -> dict[str, Any]:
+        """
+        预检查文件是否已存在（秒传）
+
+        Args:
+            tenant_id: 目标租户 ID
+            file_hash: 文件哈希（纯 hex digest）
+            filename: 文件名
+            size: 文件大小
+
+        Returns:
+            {"exists": bool, "attachment": Attachment|None, "url": str|None}
+        """
+        validation_result = await self._file_validator.validate_for_platform(
+            filename, size
+        )
+        validate_result_or_raise(validation_result)
+
+        storage_config = await self._resolve_platform_storage_config()
+        existing = await self.repo.get_by_hash(
+            file_hash, tenant_id=tenant_id, driver=storage_config.driver
+        )
+        if existing:
+            driver = storage_manager.get_driver(storage_config)
+            url = await driver.get_url(
+                existing.path,
+                visibility=StorageVisibility(existing.visibility),
+            )
+            return {
+                "exists": True,
+                "attachment": existing,
+                "url": url,
+            }
+        return {
+            "exists": False,
+            "attachment": None,
+            "url": None,
+        }
 
     async def start_chunk_upload(
         self,
@@ -220,8 +268,10 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         storage_config = await self._resolve_platform_storage_config()
         tenant_id = int(session["tenant_id"])
 
-        # 检查是否已存在
-        existing = await self.repo.get_by_hash(file_hash, tenant_id=tenant_id)
+        # 检查是否已存在（同时匹配当前存储驱动）
+        existing = await self.repo.get_by_hash(
+            file_hash, tenant_id=tenant_id, driver=storage_config.driver
+        )
         if existing:
             await self._remove_temp_file(temp_path)
             await self._remove_session(upload_id)
@@ -312,7 +362,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         """
         def _write() -> tuple[str, int, str]:
             size = 0
-            hasher = hashlib.md5()
+            hasher = hashlib.sha256()
             with tempfile.NamedTemporaryFile(delete=False) as temp:
                 while True:
                     chunk = content.read(8192)
@@ -484,7 +534,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
     async def _merge_chunks(self, upload_id: str, chunk_count: int) -> tuple[str, int, str]:
         def _merge() -> tuple[str, int, str]:
             size = 0
-            hasher = hashlib.md5()
+            hasher = hashlib.sha256()
             with tempfile.NamedTemporaryFile(delete=False) as temp:
                 for index in range(chunk_count):
                     chunk_path = self._get_chunk_path(upload_id, index)
@@ -520,20 +570,72 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
 
     # ========== 管理方法 ==========
 
-    async def soft_delete(self, attachment_id: int) -> bool:
+    async def delete(self, id: int, soft: bool = True) -> bool:
         """
-        软删除附件
+        删除附件（含依赖检查 + 物理文件删除）
+
+        流程：
+        1. 获取附件信息（driver / path / tenant_id）
+        2. 调用 BaseService.delete() 执行 __delete_deps__ 检查与软删除
+        3. 删除存储中的物理文件（本地 / 七牛 / S3 等）
 
         Args:
-            attachment_id: 附件 ID
+            id: 附件 ID
+            soft: 是否软删除（默认 True）
 
         Returns:
             是否删除成功
         """
-        attachment = await self.repo.get_by_id(attachment_id)
+        attachment = await self.repo.get_by_id(id)
         if not attachment:
             raise NotFoundException(message=_("error.common.not_found"))
-        return await self.repo.delete(attachment_id, soft=True)
+
+        # 保存物理文件信息（删除后 instance 可能不可用）
+        file_driver = attachment.driver
+        file_path = attachment.path
+        file_tenant_id = attachment.tenant_id or 0
+
+        # BaseService.delete() 自动执行 __delete_deps__ 检查
+        result = await super().delete(id, soft=soft)
+
+        if result:
+            await self._delete_storage_file(file_driver, file_path, file_tenant_id)
+
+        return result
+
+    async def _delete_storage_file(
+        self, driver_name: str, path: str, tenant_id: int
+    ) -> None:
+        """
+        从存储驱动中删除物理文件
+
+        Args:
+            driver_name: 存储驱动名称（local / qiniu / s3 等）
+            path: 文件存储路径
+            tenant_id: 租户 ID（用于解析存储配置）
+        """
+        from app.core.logging import LogManager
+        logger = LogManager.get_logger("storage")
+        try:
+            resolver = StorageConfigResolver(self.db)
+            config = await resolver.resolve_for_attachment(driver_name, tenant_id)
+            driver = storage_manager.get_driver(config)
+            deleted = await driver.delete(path)
+            if deleted:
+                logger.info(
+                    "Storage file deleted: driver=%s path=%s",
+                    driver_name, path,
+                )
+            else:
+                logger.warning(
+                    "Storage file not found (already removed?): driver=%s path=%s",
+                    driver_name, path,
+                )
+        except Exception as e:
+            logger.error(
+                "Failed to delete storage file: driver=%s path=%s error=%s",
+                driver_name, path, str(e),
+            )
 
     async def get_storage_stats(self, tenant_id: int | None = None) -> dict[str, Any]:
         """

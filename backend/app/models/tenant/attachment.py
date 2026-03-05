@@ -9,8 +9,8 @@ class Attachment(TenantModel):
     __tablename__ = "attachments"
 
     __delete_deps__ = [
-        DeletionDep("KnowledgeDocument", "attachment_id", DeletionStrategy.NULLIFY,
-                    label_field="title", i18n_key="knowledge_document"),
+        DeletionDep("KnowledgeDocument", "attachment_id", DeletionStrategy.BLOCK,
+                    label_field="file_name", i18n_key="knowledge_document"),
     ]
 
     # 覆盖 TenantModel 的 tenant_id：允许 NULL（全局/管理端 KB 附件无租户归属）

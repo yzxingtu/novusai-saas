@@ -22,7 +22,7 @@ import {
   Upload,
 } from 'ant-design-vue';
 
-import { uploadAttachmentApi } from '#/api/tenant/attachment';
+import { smartUploadFile } from '#/api/tenant/attachment';
 import {
   getTenantAdminInfoApi,
   tenantChangePasswordApi,
@@ -159,7 +159,7 @@ async function handleChangePassword() {
 async function handleAvatarUpload(file: File) {
   avatarUploading.value = true;
   try {
-    const result = await uploadAttachmentApi({
+    const result = await smartUploadFile({
       file,
       visibility: 'public',
       business_type: 'avatar',

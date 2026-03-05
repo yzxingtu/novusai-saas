@@ -424,11 +424,11 @@ extensions:
 
     tenant:
       entry: "src/index.ts"
-      styles: ["style.css"]
+      styles: ["novusdoc.css"]
 
     admin:
       entry: "src/index.ts"
-      styles: ["style.css"]
+      styles: ["novusdoc.css"]
 
 config_schema:
   type: object

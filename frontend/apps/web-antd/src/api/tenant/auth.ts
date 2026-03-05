@@ -37,6 +37,11 @@ export async function tenantLoginApi(
     username: data.username,
   };
 
+  // 添加租户编码（如果有）
+  if (data.tenantCode) {
+    requestBody.tenant_code = data.tenantCode;
+  }
+
   // 添加验证码参数（如果有）
   if (data.captchaChallengeId) {
     requestBody.captcha_challenge_id = data.captchaChallengeId;

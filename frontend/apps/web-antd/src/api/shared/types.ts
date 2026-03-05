@@ -7,6 +7,8 @@
 export interface LoginParams {
   username: string;
   password: string;
+  /** 租户编码（可选，用于限定登录范围） */
+  tenantCode?: string;
   /** 验证码挑战 ID（可选） */
   captchaChallengeId?: string;
   /** 验证码答案（可选） */

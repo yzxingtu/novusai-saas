@@ -44,13 +44,19 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
         },
     }
 
-    async def get_by_hash(self, file_hash: str, tenant_id: int | None = None) -> Attachment | None:
+    async def get_by_hash(
+        self,
+        file_hash: str,
+        tenant_id: int | None = None,
+        driver: str | None = None,
+    ) -> Attachment | None:
         """
         根据哈希获取附件
 
         Args:
             file_hash: 文件哈希
             tenant_id: 可选的租户 ID
+            driver: 存储驱动名称，传入时仅匹配同驱动的记录（防止驱动切换后误命中）
 
         Returns:
             附件实例或 None
@@ -61,6 +67,8 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
         )
         if tenant_id is not None:
             query = query.where(self.model.tenant_id == tenant_id)
+        if driver is not None:
+            query = query.where(self.model.driver == driver)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 

@@ -116,6 +116,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
 
     let userInfo: BaseUserInfo | null = null;
     let captchaRequired = false;
+    let tenantCodeRequired = false;
 
     try {
       loginLoading.value = true;
@@ -127,6 +128,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
         captchaSolution: params.captchaSolution,
         captchaType: params.captchaType,
         password: params.password,
+        tenantCode: params.tenantCode,
         username: params.username,
       });
 
@@ -177,20 +179,30 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
         }
       }
     } catch (error: unknown) {
-      // 检查错误响应中是否包含 captcha_required 字段
+      // 检查错误响应中是否包含 captcha_required / tenant_code_required 字段
       const err = error as {
-        response?: { data?: { data?: { captcha_required?: boolean } } };
+        response?: {
+          data?: {
+            data?: {
+              captcha_required?: boolean;
+              tenant_code_required?: boolean;
+            };
+          };
+        };
       };
       const responseData = err?.response?.data;
       if (responseData?.data?.captcha_required) {
         captchaRequired = true;
+      }
+      if (responseData?.data?.tenant_code_required) {
+        tenantCodeRequired = true;
       }
       // 错误已由 axios 拦截器处理并显示，此处仅捕获以防止冒泡到 Vue 事件处理器
     } finally {
       loginLoading.value = false;
     }
 
-    return { captchaRequired, userInfo };
+    return { captchaRequired, tenantCodeRequired, userInfo };
   }
 
   /**

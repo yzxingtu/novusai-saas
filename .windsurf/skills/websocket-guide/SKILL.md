@@ -1,6 +1,6 @@
 ---
+name: websocket-guide
 description: Socket.IO 实时通信系统使用指南。当需要使用 WebSocket 实时推送（通知、在线状态、AI 对话通知）或新增实时事件类型时，参考此文档。
-auto_execution_mode: 3
 ---
 
 # Socket.IO 实时通信系统 — 使用指南

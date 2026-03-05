@@ -63,16 +63,39 @@ export interface NccRecord {
   updated_at: string;
 }
 
+export type FormWidgetType =
+  | 'input' | 'password' | 'email' | 'url'
+  | 'number' | 'slider' | 'rate'
+  | 'select' | 'radio' | 'checkbox-group'
+  | 'switch' | 'checkbox'
+  | 'date' | 'datetime' | 'time'
+  | 'textarea'
+  | 'upload'
+  | 'json-editor'
+  | 'divider';
+
 export interface FormField {
   id: string;
   name: string;
   label: string;
   type: NccField['type'];
+  widget: FormWidgetType;
   required: boolean;
   placeholder: string;
   helpText: string;
   options: string[];
   span: 12 | 24;
+  defaultValue: string;
+  disabled: boolean;
+  minLength?: number;
+  maxLength?: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  rows?: number;
+  pattern?: string;
+  multiple?: boolean;
+  locales?: Record<string, { label?: string; placeholder?: string; helpText?: string }>;
 }
 
 // ── Plugin shared API type ───────────────────────────────────────────────────

@@ -198,7 +198,8 @@
     }
   },
   "auth": {
-    "title": "Tenant Management"
+    "title": "Tenant Management",
+    "tenantCodePlaceholder": "Enter tenant code"
   },
   "common": {
     "operation": "Operation",

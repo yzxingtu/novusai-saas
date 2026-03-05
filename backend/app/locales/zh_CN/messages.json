@@ -38,7 +38,8 @@
     "impersonate_token_invalid": "一键登录令牌无效或已过期",
     "impersonate_success": "一键登录成功",
     "profile_updated": "个人资料更新成功",
-    "email_already_exists": "邮箱已被注册"
+    "email_already_exists": "邮箱已被注册",
+    "tenant_code_required": "存在多个匹配账户，请指定租户编码"
   },
   "user": {
     "not_found": "用户不存在",

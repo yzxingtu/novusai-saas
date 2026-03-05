@@ -121,10 +121,10 @@ async def get_current_weather(request, ctx) -> dict:
         except Exception as exc:
             last_exc = exc
             if attempt == 0:
-                logger.warning("Weather API attempt 1 failed, retrying: %s", exc)
+                logger.warning("Weather API attempt 1 failed, retrying: %r", exc)
 
-    logger.warning("Failed to get current weather after retry: %s", last_exc)
-    return {"error": str(last_exc), "code": 5000}
+    logger.warning("Failed to get current weather after retry: %r", last_exc)
+    return {"error": str(last_exc) or repr(last_exc), "code": 5000}
 
 
 async def get_forecast(request, ctx) -> dict:
@@ -174,10 +174,10 @@ async def get_forecast(request, ctx) -> dict:
         except Exception as exc:
             last_exc = exc
             if attempt == 0:
-                logger.warning("Forecast API attempt 1 failed, retrying: %s", exc)
+                logger.warning("Forecast API attempt 1 failed, retrying: %r", exc)
 
-    logger.warning("Failed to get forecast after retry: %s", last_exc)
-    return {"error": str(last_exc), "code": 5000}
+    logger.warning("Failed to get forecast after retry: %r", last_exc)
+    return {"error": str(last_exc) or repr(last_exc), "code": 5000}
 
 
 async def search_city(request, ctx) -> dict:
@@ -206,7 +206,7 @@ async def search_city(request, ctx) -> dict:
             city = await _get_open_meteo().reverse_geocode(latitude, longitude)
             return {"cities": [city] if city else []}
         except Exception as exc:
-            logger.warning("Failed to reverse geocode: %s", exc)
+            logger.warning("Failed to reverse geocode: %r", exc)
             return {"cities": []}
 
     # 正向搜索模式：name
@@ -222,5 +222,5 @@ async def search_city(request, ctx) -> dict:
         cities = await _get_open_meteo().search_city(name, count)
         return {"cities": cities}
     except Exception as exc:
-        logger.warning("Failed to search city: %s", exc)
-        return {"error": str(exc), "code": 5000}
+        logger.warning("Failed to search city: %r", exc)
+        return {"error": str(exc) or repr(exc), "code": 5000}

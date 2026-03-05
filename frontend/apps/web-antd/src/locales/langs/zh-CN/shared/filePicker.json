@@ -23,6 +23,8 @@
   "fileTooLarge": "文件大小超过限制 ({maxSize})",
   "onlyImages": "仅允许上传图片",
   "invalidFileName": "文件名无效",
+  "extensionNotAllowed": "不允许上传 .{ext} 类型的文件",
+  "extensionDenied": ".{ext} 类型的文件已被禁止上传",
   "selectedCount": "已选择 {count} 个文件",
   "maxCountExceeded": "最多只能选择 {count} 个文件",
   "categories": {

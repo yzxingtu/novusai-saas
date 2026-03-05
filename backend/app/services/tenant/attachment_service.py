@@ -34,6 +34,7 @@ from app.models.tenant.attachment import Attachment
 from app.models.tenant.tenant import Tenant
 from app.repositories.tenant.attachment_repository import AttachmentRepository
 from app.services.common.file_validator import FileValidator, validate_result_or_raise
+from app.services.common.storage_config_resolver import StorageConfigResolver
 from app.services.tenant.quota_service import QuotaService
 from app.storage import StorageConfig, StorageVisibility, storage_manager
 
@@ -85,7 +86,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
         # 检查配额
         await self._check_quota(actual_size)
-        existing = await self.repo.get_by_hash(file_hash)
+        existing = await self.repo.get_by_hash(file_hash, driver=storage_config.driver)
         if existing:
             await self._remove_temp_file(temp_path)
             url = await self._get_existing_url(storage_config, existing)
@@ -118,6 +119,55 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         )
         used_bytes = await self.repo.sum_size()
         return {"attachment": attachment, "url": upload_result.url, "used_bytes": used_bytes}
+
+    async def preflight_check(
+        self,
+        file_hash: str,
+        filename: str,
+        size: int,
+        visibility: AttachmentVisibility = AttachmentVisibility.PRIVATE,
+    ) -> dict[str, Any]:
+        """
+        预检查文件是否已存在（秒传）
+
+        前端先计算 SHA-256 哈希，发送到此方法检查。
+        如果同租户、同驱动下已存在相同哈希的文件，返回已有记录（零上传）。
+
+        Args:
+            file_hash: 文件哈希（纯 hex digest，不含 sha256: 前缀）
+            filename: 文件名（用于验证文件类型）
+            size: 文件大小（用于验证配额）
+            visibility: 可见性
+
+        Returns:
+            {"exists": bool, "attachment": Attachment|None, "url": str|None, "used_bytes": int|None}
+        """
+        await self._ensure_upload_enabled()
+
+        validation_result = await self._file_validator.validate_for_tenant(
+            self.tenant_id, filename, size
+        )
+        validate_result_or_raise(validation_result)
+
+        _storage_mode, storage_config, _apply_quota = await self._resolve_storage_context()
+        existing = await self.repo.get_by_hash(file_hash, driver=storage_config.driver)
+        if existing:
+            url = await self._get_existing_url(storage_config, existing)
+            return {
+                "exists": True,
+                "attachment": existing,
+                "url": url,
+                "used_bytes": await self.repo.sum_size(),
+            }
+
+        # 文件不存在时才检查配额（秒传不消耗新空间）
+        await self._check_quota(size)
+        return {
+            "exists": False,
+            "attachment": None,
+            "url": None,
+            "used_bytes": None,
+        }
 
     async def start_chunk_upload(
         self,
@@ -224,7 +274,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         await self._check_quota(size)
         storage_config = await self._resolve_storage_config(storage_mode)
 
-        existing = await self.repo.get_by_hash(file_hash)
+        existing = await self.repo.get_by_hash(file_hash, driver=storage_config.driver)
         if existing:
             await self._remove_temp_file(temp_path)
             await self._remove_session(upload_id)
@@ -357,7 +407,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         """
         def _write() -> tuple[str, int, str]:
             size = 0
-            hasher = hashlib.md5()
+            hasher = hashlib.sha256()
             with tempfile.NamedTemporaryFile(delete=False) as temp:
                 while True:
                     chunk = content.read(8192)
@@ -611,7 +661,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         """
         def _merge() -> tuple[str, int, str]:
             size = 0
-            hasher = hashlib.md5()
+            hasher = hashlib.sha256()
             with tempfile.NamedTemporaryFile(delete=False) as temp:
                 for index in range(chunk_count):
                     chunk_path = self._get_chunk_path(upload_id, index)
@@ -664,20 +714,72 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
     # 附件管理方法
     # ========================================
 
-    async def soft_delete(self, attachment_id: int) -> bool:
+    async def delete(self, id: int, soft: bool = True) -> bool:
         """
-        软删除附件
+        删除附件（含依赖检查 + 物理文件删除）
+
+        流程：
+        1. 获取附件信息（driver / path / tenant_id）
+        2. 调用 BaseService.delete() 执行 __delete_deps__ 检查与软删除
+        3. 删除存储中的物理文件（本地 / 七牛 / S3 等）
 
         Args:
-            attachment_id: 附件 ID
+            id: 附件 ID
+            soft: 是否软删除（默认 True）
 
         Returns:
             是否删除成功
         """
-        attachment = await self.repo.get_by_id(attachment_id)
+        attachment = await self.repo.get_by_id(id)
         if not attachment:
             raise NotFoundException(message=_("error.common.not_found"))
-        return await self.repo.delete(attachment_id, soft=True)
+
+        # 保存物理文件信息（删除后 instance 可能不可用）
+        file_driver = attachment.driver
+        file_path = attachment.path
+        file_tenant_id = attachment.tenant_id or 0
+
+        # BaseService.delete() 自动执行 __delete_deps__ 检查
+        result = await super().delete(id, soft=soft)
+
+        if result:
+            await self._delete_storage_file(file_driver, file_path, file_tenant_id)
+
+        return result
+
+    async def _delete_storage_file(
+        self, driver_name: str, path: str, tenant_id: int
+    ) -> None:
+        """
+        从存储驱动中删除物理文件
+
+        Args:
+            driver_name: 存储驱动名称（local / qiniu / s3 等）
+            path: 文件存储路径
+            tenant_id: 租户 ID（用于解析存储配置）
+        """
+        from app.core.logging import LogManager
+        logger = LogManager.get_logger("storage")
+        try:
+            resolver = StorageConfigResolver(self.db)
+            config = await resolver.resolve_for_attachment(driver_name, tenant_id)
+            driver = storage_manager.get_driver(config)
+            deleted = await driver.delete(path)
+            if deleted:
+                logger.info(
+                    "Storage file deleted: driver=%s path=%s",
+                    driver_name, path,
+                )
+            else:
+                logger.warning(
+                    "Storage file not found (already removed?): driver=%s path=%s",
+                    driver_name, path,
+                )
+        except Exception as e:
+            logger.error(
+                "Failed to delete storage file: driver=%s path=%s error=%s",
+                driver_name, path, str(e),
+            )
 
     async def get_storage_stats(self) -> dict[str, Any]:
         """

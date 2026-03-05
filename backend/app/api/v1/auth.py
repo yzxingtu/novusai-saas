@@ -10,6 +10,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.core.deps import ActiveTenantUser, DbSession
 from app.core.i18n import _
 from app.core.response import success
+from app.middleware.tenant import get_tenant_context
 from app.rbac.decorators import auth_only, public
 from app.schemas.common import RefreshTokenRequest, TokenResponse
 from app.schemas.tenant import (
@@ -42,9 +43,15 @@ async def login_oauth2(
     auth_service = AuthService(db)
     form = await request.form()
 
+    # 从域名中间件获取 tenant_ctx 作为回退
+    tenant_ctx = get_tenant_context(request)
+    tenant_id_from_ctx = tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+
     tokens = await auth_service.authenticate_tenant_user(
         username=form_data.username,
         password=form_data.password,
+        tenant_code=form.get("tenant_code"),
+        tenant_id_from_ctx=tenant_id_from_ctx,
         client_ip=request.client.host if request.client else None,
         captcha_challenge_id=form.get("captcha_challenge_id"),
         captcha_solution=form.get("captcha_solution"),
@@ -73,9 +80,15 @@ async def login_json(
     """
     auth_service = AuthService(db)
 
+    # 从域名中间件获取 tenant_ctx 作为回退
+    tenant_ctx = get_tenant_context(request)
+    tenant_id_from_ctx = tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
+
     tokens = await auth_service.authenticate_tenant_user(
         username=login_data.username,
         password=login_data.password,
+        tenant_code=login_data.tenant_code,
+        tenant_id_from_ctx=tenant_id_from_ctx,
         client_ip=request.client.host if request.client else None,
         captcha_challenge_id=login_data.captcha_challenge_id,
         captcha_solution=login_data.captcha_solution,

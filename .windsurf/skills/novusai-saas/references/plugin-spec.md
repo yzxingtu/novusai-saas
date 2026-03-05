@@ -59,7 +59,12 @@ backend/plugins/{plugin-name}/
 │   └── migrations/
 │       └── versions/        # Alembic 迁移文件（按需）
 ├── frontend/
-│   └── dist/                # 前端 UMD 包（按需）
+│   ├── package.json         # npm 依赖声明（dev 模式用）
+│   ├── vite.config.ts       # UMD 构建配置（prod 构建用）
+│   ├── src/                 # 源码（dev 模式实时转译）
+│   │   ├── index.ts         # 入口：export 组件 + setup()
+│   │   └── *.vue            # Vue 组件
+│   └── dist/                # UMD 构建产物（prod 模式）
 └── locales/
     ├── zh-CN.json           # 中文翻译
     └── en.json              # 英文翻译
@@ -904,6 +909,56 @@ import { getPluginListApi, enablePluginApi } from '#/api/admin/plugin';
 // 市场 API: frontend/apps/web-antd/src/api/admin/plugin-marketplace.ts
 import { getMarketplaceListApi } from '#/api/admin/plugin-marketplace';
 ```
+
+### 11.6 Dev 模式 vs 生产模式（前端加载）
+
+插件前端在 Dev 模式和生产模式下的加载方式完全不同：
+
+| 维度 | Dev 模式（Vite dev server） | 生产模式（构建产物） |
+|------|---------------------------|-------------------|
+| **JS 加载** | ESM `import()` 动态导入，Vite 实时转译源码 | `<script>` 标签注入 UMD 包 |
+| **源码位置** | `plugins/{name}/frontend/src/index.ts` | `plugins/{name}/frontend/dist/index.js` |
+| **热更新** | 修改插件 `.vue`/`.ts` 后刷新浏览器即可 | 需重新 `npx vite build` 生成 UMD |
+| **依赖解析** | Vite 从插件 `node_modules` 解析专有依赖 | 所有依赖打包进 UMD bundle |
+| **共享依赖** | `@novus/plugin-shared` → 宿主 `plugin-shared.ts`（ESM） | `@novus/plugin-shared` → `window.NovusPluginShared`（UMD external） |
+| **npm 安装** | 后端 `_install_npm_deps()` 通过 `pnpm add --filter=@vben/web-antd` 安装 | 跳过（UMD 已包含所有依赖） |
+| **CSS** | 按 manifest `styles` 声明注入 `<link>` | 同左 |
+
+#### Vite 插件 `novus-plugins-loader`（`vite-plugin-novus-plugins.ts`）
+
+**Dev 模式行为**：
+1. `config()` — 设置 `server.fs.strict = false`（允许 Vite 访问 `backend/plugins/` 目录），收集插件 `package.json` 依赖加入 `optimizeDeps.include`
+2. `resolveId()` — 拦截裸模块导入：
+   - `@novus/plugin-shared` → 解析到宿主 `src/utils/plugin-shared.ts`
+   - 插件 `package.json` 中声明的依赖 → 从插件自身 `node_modules` 解析（`createRequire()`）
+   - 其他依赖（`vue`/`ant-design-vue` 等） → Vite 默认解析（使用宿主版本）
+3. `configureServer()` — 中间件拦截 `/plugin-assets/{name}/index.js` 请求 → 通过 `server.transformRequest()` 实时转译 `src/index.ts` 源码返回 ESM；同时 `server.watcher.add()` 监听插件源码目录变动
+
+**Build 模式行为**：
+1. `writeBundle()` — 将每个插件的 `frontend/dist/` 复制到构建输出目录 `plugin-assets/{name}/`
+
+#### plugin-loader.ts 加载分支
+
+```typescript
+if (import.meta.env.DEV) {
+  // Dev: ESM import() → Vite 转译 src/index.ts
+  const devUrl = `/plugin-assets/${pluginName}/index.js?t=${Date.now()}`;
+  mod = await import(devUrl);
+} else {
+  // Prod: <script> 注入 → 读取 window.NovusPlugin_{name_underscored}
+  mod = await loadViaScript(pluginName);
+}
+```
+
+#### 后端 npm 依赖安装（`lifecycle.py: _install_npm_deps`）
+
+仅在 `settings.DEBUG = True` 时执行：
+1. 检查 `apps/web-antd/node_modules` 和 `frontend/node_modules` 是否已存在声明的包
+2. 安全校验：拒绝 `--` 开头的包名和含 shell 元字符的包名
+3. 解析包名（去版本号）：`@scope/name@^1.0` → `@scope/name`
+4. 仅安装缺失的包：`pnpm add <missing> --filter=@vben/web-antd`
+5. 工作目录：`frontend/`（`backend/` 的兄弟目录）
+6. 生产模式直接跳过（日志记录 "production mode uses UMD bundles"）
 
 ---
 

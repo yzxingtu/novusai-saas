@@ -1,6 +1,3 @@
----
-auto_execution_mode: 2
----
 # 详情页 UI 模式规范
 
 本文档描述 NovusAI SaaS 中**资源详情页**的标准布局和可复用组件模式，  

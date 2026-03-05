@@ -12,7 +12,7 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Button, message, Spin, Upload } from 'ant-design-vue';
 
-import { uploadAttachmentApi as adminUploadApi } from '#/api/admin/attachment';
+import { smartUploadFile as adminUploadApi } from '#/api/admin/attachment';
 import { smartUploadFile as tenantUploadApi } from '#/api/tenant/attachment';
 import { $t as t } from '#/locales';
 import { getProcessedImageUrl } from '#/utils/image';

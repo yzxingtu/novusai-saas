@@ -198,7 +198,8 @@
     }
   },
   "auth": {
-    "title": "租户管理系统"
+    "title": "租户管理系统",
+    "tenantCodePlaceholder": "请输入租户编码"
   },
   "common": {
     "operation": "操作",

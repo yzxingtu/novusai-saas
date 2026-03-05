@@ -91,8 +91,31 @@ class TenantMiddleware:
     def __init__(self, app: ASGIApp):
         self.app = app
 
+    # 需要执行租户域名解析的路径前缀
+    TENANT_PATHS = (
+        "/tenant/",
+        "/api/v1/",
+        "/api/public/tenant",
+    )
+
+    @staticmethod
+    def _needs_tenant_resolution(path: str) -> bool:
+        """判断请求路径是否需要执行租户域名解析"""
+        return any(path.startswith(prefix) for prefix in TenantMiddleware.TENANT_PATHS)
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+
+        # 获取请求路径
+        path = scope.get("path", "")
+
+        # 非租户路径跳过域名解析，设置空上下文避免下游报错
+        if not self._needs_tenant_resolution(path):
+            if "state" not in scope:
+                scope["state"] = {}
+            scope["state"]["tenant_ctx"] = TenantContext()
             await self.app(scope, receive, send)
             return
 

@@ -6,7 +6,7 @@ from app.core.base_controller import TenantController
 from app.core.base_schema import PageResponse
 from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import success
+from app.core.response import deleted, success
 from app.enums.attachment import AttachmentSource, AttachmentVisibility
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
@@ -20,8 +20,12 @@ from app.rbac.decorators import (
 from app.schemas.tenant.attachment import (
     AttachmentAccessUrlResponse,
     AttachmentListItem,
+    AttachmentPreflightRequest,
+    AttachmentPreflightResponse,
     AttachmentResponse,
     AttachmentUploadResponse,
+    BatchUploadItem,
+    BatchUploadResponse,
     ChunkUploadInitRequest,
     ChunkUploadInitResponse,
     ChunkUploadProgressResponse,
@@ -97,6 +101,49 @@ class TenantAttachmentController(TenantController):
                 "max_file_size_mb": int(max_size) if max_size else 100,
             })
 
+        # ========== 预检接口（秒传） ==========
+
+        @router.post("/preflight", summary="预检文件是否已存在（秒传）")
+        @action_create("action.attachment.upload")
+        async def preflight_check(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+            body: AttachmentPreflightRequest,
+        ):
+            """
+            预检文件是否已存在
+
+            前端计算文件 SHA-256 哈希后调用此接口，如果服务端已有相同文件，
+            则直接返回已有附件信息（秒传），无需再次上传文件。
+
+            hash 格式: sha256:{hex_digest}
+
+            权限: attachment:upload
+            """
+            raw_hash = body.hash
+            if raw_hash.startswith("sha256:"):
+                raw_hash = raw_hash[7:]
+
+            service = AttachmentService(db, current_admin.tenant_id)
+            result = await service.preflight_check(
+                file_hash=raw_hash,
+                filename=body.filename,
+                size=body.size,
+                visibility=AttachmentVisibility(body.visibility) if body.visibility else AttachmentVisibility.PRIVATE,
+            )
+            resp = AttachmentPreflightResponse(
+                exists=result["exists"],
+                attachment=(
+                    AttachmentResponse.model_validate(result["attachment"], from_attributes=True)
+                    if result["attachment"]
+                    else None
+                ),
+                url=result["url"],
+                used_bytes=result["used_bytes"],
+            )
+            return success(data=resp, message=_("common.success"))
+
         # ========== 上传接口 ==========
 
         @router.post("/upload", summary="上传附件")
@@ -144,6 +191,78 @@ class TenantAttachmentController(TenantController):
                     used_bytes=result["used_bytes"],
                 ),
                 message=_("file.upload_success"),
+            )
+
+        @router.post("/batch-upload", summary="批量上传附件")
+        @action_create("action.attachment.upload")
+        async def batch_upload_attachments(
+            request: Request,
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+            files: list[UploadFile] = File(..., description="上传的文件列表（最多 20 个）"),
+            visibility: str = Form("", description="可见性 (private/public)，空值使用平台默认"),
+            business_type: str | None = Form(None, description="业务类型"),
+            business_id: int | None = Form(None, description="业务 ID"),
+        ):
+            """
+            批量上传附件（普通上传，每文件独立处理）
+
+            - 最多一次上传 20 个文件
+            - 单个文件失败不影响其他文件
+            - 返回每个文件的成功/失败状态
+
+            权限: attachment:upload
+            """
+            if len(files) > 20:
+                files = files[:20]
+            if not visibility:
+                config_svc = ConfigService(db)
+                visibility = await config_svc.get_platform_config(
+                    "platform_storage_default_visibility", default="private"
+                )
+            service = AttachmentService(db, current_admin.tenant_id)
+            items: list[BatchUploadItem] = []
+            for f in files:
+                try:
+                    result = await service.upload_file(
+                        content=f.file,
+                        filename=f.filename or "unnamed",
+                        file_size=f.size,
+                        mime_type=f.content_type,
+                        visibility=AttachmentVisibility(visibility),
+                        source=AttachmentSource.TENANT_ADMIN,
+                        uploader_id=current_admin.id,
+                        business_type=business_type,
+                        business_id=business_id,
+                    )
+                    items.append(BatchUploadItem(
+                        filename=f.filename or "unnamed",
+                        success=True,
+                        attachment=AttachmentResponse.model_validate(
+                            result["attachment"], from_attributes=True
+                        ),
+                        url=result["url"],
+                    ))
+                except Exception as exc:
+                    items.append(BatchUploadItem(
+                        filename=f.filename or "unnamed",
+                        success=False,
+                        error=str(exc),
+                    ))
+            success_count = sum(1 for i in items if i.success)
+            used_bytes = await service.repo.sum_size()
+            return success(
+                data=BatchUploadResponse(
+                    items=items,
+                    success_count=success_count,
+                    failure_count=len(items) - success_count,
+                    used_bytes=used_bytes,
+                ),
+                message=_(
+                    "file.upload_success"
+                    if success_count == len(items)
+                    else "file.partial_upload_success"
+                ),
             )
 
         @router.post("/chunk/init", summary="初始化分片上传")
@@ -388,13 +507,13 @@ class TenantAttachmentController(TenantController):
             current_admin: ActiveTenantAdmin,
         ):
             """
-            删除附件（软删除）
+            删除附件（软删除 + 物理文件删除 + 依赖检查）
 
             权限: attachment:delete
             """
             service = AttachmentService(db, current_admin.tenant_id)
-            await service.soft_delete(attachment_id)
-            return success(message=_("common.deleted"))
+            await service.delete(attachment_id)
+            return deleted()
 
         # ========== 附件访问接口 ==========
 

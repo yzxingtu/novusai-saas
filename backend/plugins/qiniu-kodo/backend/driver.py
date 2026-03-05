@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import io
 import mimetypes
+import tempfile
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, BinaryIO
 
@@ -133,24 +134,26 @@ class KodoStorageDriver(StorageDriver):
         final_mime_type = mime_type or mimetypes.guess_type(path)[0] or "application/octet-stream"
 
         def _upload() -> tuple[int, str]:
-            chunks: list[bytes] = []
-            hasher = hashlib.md5()
-            while True:
-                chunk = content.read(65536)
-                if not chunk:
-                    break
-                chunks.append(chunk)
-                hasher.update(chunk)
-            data = b"".join(chunks)
-            size = len(data)
-            file_hash = hasher.hexdigest()
-            token = self.auth.upload_token(self.bucket_name, key, 3600)
-            ret, info = self._sdk.put_data(
-                token,
-                key,
-                data,
-                mime_type=final_mime_type,
-            )
+            size = 0
+            hasher = hashlib.sha256()
+            with tempfile.TemporaryFile() as tmp:
+                while True:
+                    chunk = content.read(8192)
+                    if not chunk:
+                        break
+                    tmp.write(chunk)
+                    hasher.update(chunk)
+                    size += len(chunk)
+                tmp.seek(0)
+                file_hash = hasher.hexdigest()
+                token = self.auth.upload_token(self.bucket_name, key, 3600)
+                ret, info = self._sdk.put_stream(
+                    token,
+                    key,
+                    tmp,
+                    size,
+                    mime_type=final_mime_type,
+                )
             if info.status_code != 200:
                 raise StorageError(
                     message=f"Qiniu upload failed: {info.error} (status={info.status_code})",

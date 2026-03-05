@@ -105,6 +105,18 @@ export function listRelationsApi(projectId: number) {
     .then((res: unknown) => unwrapApiData<{ items: NccRelation[] }>(res));
 }
 
+export function createRelationApi(projectId: number, data: Partial<NccRelation>) {
+  return requestClient
+    .post<unknown>(`${PLUGIN_API_BASE}/projects/${projectId}/relations`, data)
+    .then((res: unknown) => unwrapApiData<NccRelation>(res));
+}
+
+export function deleteRelationApi(projectId: number, relationId: number) {
+  return requestClient
+    .delete<unknown>(`${PLUGIN_API_BASE}/projects/${projectId}/relations/${relationId}`)
+    .then((res: unknown) => unwrapApiData<void>(res));
+}
+
 // ── Records ──────────────────────────────────────────────────────────────────
 
 export function listRecordsApi(projectId: number, schemaId: number, page = 1, size = 50) {

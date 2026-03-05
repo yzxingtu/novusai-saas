@@ -67,29 +67,29 @@ export function getWeatherCodeInfo(
  */
 export interface WeatherBgInfo {
   bgClass: string;
-  particles: 'none' | 'rain' | 'snow' | 'cloud';
+  scene: 'sun' | 'moon-star' | 'cloud' | 'rain' | 'snow' | 'thunder' | 'fog' | 'none';
 }
 
 const BG_MAP: Record<string, WeatherBgInfo> = {
-  'clear-day':   { bgClass: 'wx-bg--clear-day',   particles: 'none' },
-  'clear-night': { bgClass: 'wx-bg--clear-night',  particles: 'none' },
-  'cloudy-day':  { bgClass: 'wx-bg--cloudy-day',   particles: 'cloud' },
-  'cloudy-night': { bgClass: 'wx-bg--cloudy-night', particles: 'cloud' },
-  'fog-day':     { bgClass: 'wx-bg--fog',           particles: 'cloud' },
-  'fog-night':   { bgClass: 'wx-bg--fog',           particles: 'cloud' },
-  'drizzle-day': { bgClass: 'wx-bg--rain-day',      particles: 'rain' },
-  'drizzle-night': { bgClass: 'wx-bg--rain-night',  particles: 'rain' },
-  'rain-day':    { bgClass: 'wx-bg--rain-day',      particles: 'rain' },
-  'rain-night':  { bgClass: 'wx-bg--rain-night',    particles: 'rain' },
-  'snow-day':    { bgClass: 'wx-bg--snow-day',      particles: 'snow' },
-  'snow-night':  { bgClass: 'wx-bg--snow-night',    particles: 'snow' },
-  'thunderstorm-day':  { bgClass: 'wx-bg--thunder',  particles: 'rain' },
-  'thunderstorm-night': { bgClass: 'wx-bg--thunder', particles: 'rain' },
+  'clear-day':   { bgClass: 'wx-bg--clear-day',   scene: 'sun' },
+  'clear-night': { bgClass: 'wx-bg--clear-night',  scene: 'moon-star' },
+  'cloudy-day':  { bgClass: 'wx-bg--cloudy-day',   scene: 'cloud' },
+  'cloudy-night': { bgClass: 'wx-bg--cloudy-night', scene: 'cloud' },
+  'fog-day':     { bgClass: 'wx-bg--fog',           scene: 'fog' },
+  'fog-night':   { bgClass: 'wx-bg--fog',           scene: 'fog' },
+  'drizzle-day': { bgClass: 'wx-bg--rain-day',      scene: 'rain' },
+  'drizzle-night': { bgClass: 'wx-bg--rain-night',  scene: 'rain' },
+  'rain-day':    { bgClass: 'wx-bg--rain-day',      scene: 'rain' },
+  'rain-night':  { bgClass: 'wx-bg--rain-night',    scene: 'rain' },
+  'snow-day':    { bgClass: 'wx-bg--snow-day',      scene: 'snow' },
+  'snow-night':  { bgClass: 'wx-bg--snow-night',    scene: 'snow' },
+  'thunderstorm-day':  { bgClass: 'wx-bg--thunder',  scene: 'thunder' },
+  'thunderstorm-night': { bgClass: 'wx-bg--thunder', scene: 'thunder' },
 };
 
 export function getWeatherBg(code: number, isDay = true): WeatherBgInfo {
   const info = WMO_MAP[code] ?? DEFAULT_INFO;
   const suffix = isDay ? 'day' : 'night';
   const key = `${info.animation}-${suffix}`;
-  return BG_MAP[key] ?? { bgClass: 'wx-bg--cloudy-day', particles: 'cloud' };
+  return BG_MAP[key] ?? { bgClass: 'wx-bg--cloudy-day', scene: 'cloud' };
 }
