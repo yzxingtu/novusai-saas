@@ -30,6 +30,18 @@ const getEnabledTransition = computed(() => {
   return transitionName && transition.enable;
 });
 
+/**
+ * KeepAlive 上限
+ * 防止长会话中缓存页面过多导致同标签页主线程与内存压力持续增长。
+ */
+const keepAliveMax = computed(() => {
+  const maxCount = preferences.tabbar.maxCount;
+  if (maxCount > 0) {
+    return Math.min(maxCount, 20);
+  }
+  return 20;
+});
+
 // 页面切换动画
 function getTransitionName(_route: RouteLocationNormalizedLoaded) {
   // 如果偏好设置未设置，则不使用动画
@@ -110,6 +122,7 @@ function transformComponent(
           v-if="keepAlive"
           :exclude="getExcludeCachedTabs"
           :include="getCachedTabs"
+          :max="keepAliveMax"
         >
           <component
             :is="transformComponent(Component, route)"
@@ -129,6 +142,7 @@ function transformComponent(
           v-if="keepAlive"
           :exclude="getExcludeCachedTabs"
           :include="getCachedTabs"
+          :max="keepAliveMax"
         >
           <component
             :is="transformComponent(Component, route)"

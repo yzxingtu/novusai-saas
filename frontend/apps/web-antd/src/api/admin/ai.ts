@@ -14,64 +14,11 @@ import { requestClient } from '#/utils/request';
 // ============================================================
 
 export {
-  type AdapterTypeInfo,
-  type AIApiKeyCreateRequest,
-  type AIApiKeyInfo,
-  type AIApiKeyUpdateRequest,
-  type AIHealthStatus,
-  type AIProviderCreateRequest,
-  type AIProviderInfo,
-  type AIProviderUpdateRequest,
-  type ProviderType,
-  type TestAIGatewayRequest,
-  type TestAIGatewayResult,
-  createAIProviderApi,
-  deleteAIProviderApi,
-  getAdapterTypesApi,
-  getAIApiKeyDetailApi,
-  getAIApiKeyListApi,
-  getAIApiKeysByProviderApi,
-  getAIHealthStatusApi,
-  getAIProviderDetailApi,
-  getAIProviderListApi,
-  createAIApiKeyApi,
-  deleteAIApiKeyApi,
-  reorderAIProvidersApi,
-  testAIGatewayApi,
-  toggleAIApiKeyStatusApi,
-  toggleAIProviderStatusApi,
-  updateAIApiKeyApi,
-  updateAIProviderApi,
-} from './ai-providers';
-
-// ============================================================
-// 向后兼容 re-export — 模型
-// ============================================================
-
-export {
-  type AIModelCreateRequest,
-  type AIModelInfo,
-  type AIModelUpdateRequest,
-  type ModelType,
-  type RemoteModelInfo,
-  createAIModelApi,
-  deleteAIModelApi,
-  fetchRemoteModelsApi,
-  getAIModelDetailApi,
-  getAIModelListApi,
-  getAIModelsByProviderApi,
-  toggleAIModelStatusApi,
-  updateAIModelApi,
-} from './ai-models';
-
-// ============================================================
-// 向后兼容 re-export — 智能体
-// ============================================================
-
-export {
   type AIAgentAccessConfig,
   type AIAgentCreateRequest,
   type AIAgentInfo,
+  type AIAgentMemoryConfig,
+  type AIAgentMemoryUpdateRequest,
   type AIAgentSkillBatchBindRequest,
   type AIAgentSkillBindingInfo,
   type AIAgentSkillBindingUpdateRequest,
@@ -85,6 +32,7 @@ export {
   getAIAgentAccessApi,
   getAIAgentDetailApi,
   getAIAgentListApi,
+  getAIAgentMemoryConfigApi,
   getAIAgentRecycleBinApi,
   getAIAgentRecycleBinCountApi,
   getAIAgentSkillsApi,
@@ -97,12 +45,13 @@ export {
   unbindAIAgentSkillApi,
   updateAIAgentAccessApi,
   updateAIAgentApi,
+  updateAIAgentMemoryConfigApi,
   updateAIAgentSkillBindingApi,
   updateAIAgentStatusApi,
 } from './ai-agents';
 
 // ============================================================
-// 向后兼容 re-export — 调用日志 & 使用量
+// 向后兼容 re-export — 模型
 // ============================================================
 
 export {
@@ -118,7 +67,7 @@ export {
 } from './ai-call-logs';
 
 // ============================================================
-// 向后兼容 re-export — 对话管理
+// 向后兼容 re-export — 智能体
 // ============================================================
 
 export {
@@ -126,6 +75,61 @@ export {
   getAIConversationDetailApi,
   getAIConversationListApi,
 } from './ai-conversations';
+
+// ============================================================
+// 向后兼容 re-export — 调用日志 & 使用量
+// ============================================================
+
+export {
+  type AIModelCreateRequest,
+  type AIModelInfo,
+  type AIModelUpdateRequest,
+  createAIModelApi,
+  deleteAIModelApi,
+  fetchRemoteModelsApi,
+  getAIModelDetailApi,
+  getAIModelListApi,
+  getAIModelsByProviderApi,
+  type ModelType,
+  type RemoteModelInfo,
+  toggleAIModelStatusApi,
+  updateAIModelApi,
+} from './ai-models';
+
+// ============================================================
+// 向后兼容 re-export — 对话管理
+// ============================================================
+
+export {
+  type AdapterTypeInfo,
+  type AIApiKeyCreateRequest,
+  type AIApiKeyInfo,
+  type AIApiKeyUpdateRequest,
+  type AIHealthStatus,
+  type AIProviderCreateRequest,
+  type AIProviderInfo,
+  type AIProviderUpdateRequest,
+  createAIApiKeyApi,
+  createAIProviderApi,
+  deleteAIApiKeyApi,
+  deleteAIProviderApi,
+  getAdapterTypesApi,
+  getAIApiKeyDetailApi,
+  getAIApiKeyListApi,
+  getAIApiKeysByProviderApi,
+  getAIHealthStatusApi,
+  getAIProviderDetailApi,
+  getAIProviderListApi,
+  type ProviderType,
+  reorderAIProvidersApi,
+  testAIGatewayApi,
+  type TestAIGatewayRequest,
+  type TestAIGatewayResult,
+  toggleAIApiKeyStatusApi,
+  toggleAIProviderStatusApi,
+  updateAIApiKeyApi,
+  updateAIProviderApi,
+} from './ai-providers';
 
 // ============================================================
 // 类型定义 - AI 表策略
@@ -136,16 +140,16 @@ export interface AITablePolicyInfo {
   id: number;
   table_name: string;
   label: string;
-  description: string | null;
-  keywords: string[] | null;
-  column_descriptions: Record<string, string> | null;
+  description: null | string;
+  keywords: null | string[];
+  column_descriptions: null | Record<string, string>;
   allow_read: boolean;
   allow_create: boolean;
   allow_update: boolean;
   allow_delete: boolean;
   max_rows: number;
-  blocked_columns: string[] | null;
-  readonly_columns: string[] | null;
+  blocked_columns: null | string[];
+  readonly_columns: null | string[];
   permission_code: string;
   sort_order: number;
   is_active: boolean;
@@ -156,16 +160,16 @@ export interface AITablePolicyInfo {
 /** 更新表策略请求 */
 export interface AITablePolicyUpdateRequest {
   label?: string;
-  description?: string | null;
-  keywords?: string[] | null;
-  column_descriptions?: Record<string, string> | null;
+  description?: null | string;
+  keywords?: null | string[];
+  column_descriptions?: null | Record<string, string>;
   allow_read?: boolean;
   allow_create?: boolean;
   allow_update?: boolean;
   allow_delete?: boolean;
   max_rows?: number;
-  blocked_columns?: string[] | null;
-  readonly_columns?: string[] | null;
+  blocked_columns?: null | string[];
+  readonly_columns?: null | string[];
   permission_code?: string;
   sort_order?: number;
   is_active?: boolean;
@@ -260,15 +264,15 @@ export async function syncAITablePoliciesApi(
 export interface AIQuotaInfo {
   id: number;
   tenant_id: number;
-  model_id: number | null;
+  model_id: null | number;
   period: string;
   limit: number;
   quota_type: string;
-  warning_threshold: number | null;
+  warning_threshold: null | number;
   is_active: boolean;
-  description: string | null;
-  tenant_name: string | null;
-  model_name: string | null;
+  description: null | string;
+  tenant_name: null | string;
+  model_name: null | string;
   created_at: string;
   updated_at: string;
 }
@@ -276,20 +280,20 @@ export interface AIQuotaInfo {
 /** 创建配额请求（管理员） */
 export interface AIQuotaCreateRequest {
   tenant_id: number;
-  model_id?: number | null;
+  model_id?: null | number;
   period: string;
   limit: number;
   quota_type?: string;
-  warning_threshold?: number | null;
-  description?: string | null;
+  warning_threshold?: null | number;
+  description?: null | string;
 }
 
 /** 更新配额请求 */
 export interface AIQuotaUpdateRequest {
-  limit?: number | null;
-  quota_type?: string | null;
-  warning_threshold?: number | null;
-  description?: string | null;
+  limit?: null | number;
+  quota_type?: null | string;
+  warning_threshold?: null | number;
+  description?: null | string;
   is_active?: boolean | null;
 }
 
@@ -304,10 +308,10 @@ export async function getAIQuotaListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<PageResponse<AIQuotaInfo>> {
-  return requestClient.get<PageResponse<AIQuotaInfo>>(
-    QUOTA_PREFIX,
-    { params, ...options },
-  );
+  return requestClient.get<PageResponse<AIQuotaInfo>>(QUOTA_PREFIX, {
+    params,
+    ...options,
+  });
 }
 
 /** 获取配额详情 */
@@ -315,10 +319,7 @@ export async function getAIQuotaDetailApi(
   id: number,
   options?: ApiRequestOptions,
 ): Promise<AIQuotaInfo> {
-  return requestClient.get<AIQuotaInfo>(
-    `${QUOTA_PREFIX}/${id}`,
-    options,
-  );
+  return requestClient.get<AIQuotaInfo>(`${QUOTA_PREFIX}/${id}`, options);
 }
 
 /** 创建配额 */
@@ -326,11 +327,7 @@ export async function createAIQuotaApi(
   data: AIQuotaCreateRequest,
   options?: ApiRequestOptions,
 ): Promise<AIQuotaInfo> {
-  return requestClient.post<AIQuotaInfo>(
-    QUOTA_PREFIX,
-    data,
-    options,
-  );
+  return requestClient.post<AIQuotaInfo>(QUOTA_PREFIX, data, options);
 }
 
 /** 更新配额 */
@@ -339,11 +336,7 @@ export async function updateAIQuotaApi(
   data: AIQuotaUpdateRequest,
   options?: ApiRequestOptions,
 ): Promise<AIQuotaInfo> {
-  return requestClient.put<AIQuotaInfo>(
-    `${QUOTA_PREFIX}/${id}`,
-    data,
-    options,
-  );
+  return requestClient.put<AIQuotaInfo>(`${QUOTA_PREFIX}/${id}`, data, options);
 }
 
 /** 删除配额 */
@@ -363,11 +356,11 @@ export interface AIRateLimitInfo {
   id: number;
   tenant_id: number;
   model_id: number;
-  rpm_limit: number | null;
-  tpm_limit: number | null;
-  description: string | null;
+  rpm_limit: null | number;
+  tpm_limit: null | number;
+  description: null | string;
   is_active: boolean;
-  model_name: string | null;
+  model_name: null | string;
   created_at: string;
   updated_at: string;
 }
@@ -376,16 +369,16 @@ export interface AIRateLimitInfo {
 export interface AIRateLimitCreateRequest {
   tenant_id: number;
   model_id: number;
-  rpm_limit?: number | null;
-  tpm_limit?: number | null;
-  description?: string | null;
+  rpm_limit?: null | number;
+  tpm_limit?: null | number;
+  description?: null | string;
 }
 
 /** 更新速率限制请求 */
 export interface AIRateLimitUpdateRequest {
-  rpm_limit?: number | null;
-  tpm_limit?: number | null;
-  description?: string | null;
+  rpm_limit?: null | number;
+  tpm_limit?: null | number;
+  description?: null | string;
   is_active?: boolean | null;
 }
 
@@ -400,10 +393,10 @@ export async function getAIRateLimitListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<AIRateLimitInfo[]> {
-  return requestClient.get<AIRateLimitInfo[]>(
-    RATE_LIMIT_PREFIX,
-    { params, ...options },
-  );
+  return requestClient.get<AIRateLimitInfo[]>(RATE_LIMIT_PREFIX, {
+    params,
+    ...options,
+  });
 }
 
 /** 创建速率限制 */
@@ -411,11 +404,7 @@ export async function createAIRateLimitApi(
   data: AIRateLimitCreateRequest,
   options?: ApiRequestOptions,
 ): Promise<AIRateLimitInfo> {
-  return requestClient.post<AIRateLimitInfo>(
-    RATE_LIMIT_PREFIX,
-    data,
-    options,
-  );
+  return requestClient.post<AIRateLimitInfo>(RATE_LIMIT_PREFIX, data, options);
 }
 
 /** 更新速率限制 */
@@ -490,9 +479,6 @@ export async function toggleSkillStatusApi(
 }
 
 /** 删除技能 */
-export async function deleteSkillApi(
-  id: number,
-  options?: ApiRequestOptions,
-) {
+export async function deleteSkillApi(id: number, options?: ApiRequestOptions) {
   return requestClient.delete(`${SKILL_PREFIX}/${id}`, options);
 }

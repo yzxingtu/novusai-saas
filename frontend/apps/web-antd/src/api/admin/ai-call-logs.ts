@@ -48,7 +48,7 @@ export interface AICallLogInfo {
 export interface AIUsageStatInfo {
   id: number;
   tenant_id: number;
-  user_id: number | null;
+  user_id: null | number;
   model_id: number;
   request_type: string;
   stat_date: string;
@@ -59,8 +59,8 @@ export interface AIUsageStatInfo {
   success_count: number;
   failed_count: number;
   total_cost: number;
-  avg_latency_ms: number | null;
-  max_latency_ms: number | null;
+  avg_latency_ms: null | number;
+  max_latency_ms: null | number;
   // 关联名称
   tenant_name?: null | string;
   model_name?: null | string;
@@ -90,10 +90,10 @@ export async function getAICallLogListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<PageResponse<AICallLogInfo>> {
-  return requestClient.get<PageResponse<AICallLogInfo>>(
-    CALL_LOG_PREFIX,
-    { params, ...options },
-  );
+  return requestClient.get<PageResponse<AICallLogInfo>>(CALL_LOG_PREFIX, {
+    params,
+    ...options,
+  });
 }
 
 /** 获取调用日志详情 */
@@ -101,10 +101,7 @@ export async function getAICallLogDetailApi(
   id: number,
   options?: ApiRequestOptions,
 ): Promise<AICallLogInfo> {
-  return requestClient.get<AICallLogInfo>(
-    `${CALL_LOG_PREFIX}/${id}`,
-    options,
-  );
+  return requestClient.get<AICallLogInfo>(`${CALL_LOG_PREFIX}/${id}`, options);
 }
 
 /** 获取调用统计 */
@@ -123,10 +120,10 @@ export async function getAICallLogFailedApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<AICallLogInfo[]> {
-  return requestClient.get<AICallLogInfo[]>(
-    `${CALL_LOG_PREFIX}/failed`,
-    { params, ...options },
-  );
+  return requestClient.get<AICallLogInfo[]>(`${CALL_LOG_PREFIX}/failed`, {
+    params,
+    ...options,
+  });
 }
 
 // ============================================================

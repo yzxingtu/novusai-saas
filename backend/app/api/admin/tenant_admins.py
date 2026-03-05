@@ -9,21 +9,20 @@ from fastapi import HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, ActiveAdmin
+from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
-from app.core.response import success, created
+from app.core.response import created, success
 from app.core.security import get_password_hash
 from app.enums import ErrorCode
 from app.enums.rbac import PermissionScope
 from app.exceptions import BusinessException
 from app.rbac.decorators import (
-    permission_resource,
-    action_read,
     action_create,
+    action_read,
     action_update,
+    permission_resource,
 )
 from app.services.system import TenantService
-
 
 # ==========================================
 # 请求/响应 Schema
@@ -105,6 +104,7 @@ class AdminTenantAdminController(GlobalController):
 
             from sqlalchemy import select
             from sqlalchemy.orm import selectinload
+
             from app.models import TenantAdmin
 
             result = await db.execute(
@@ -154,7 +154,8 @@ class AdminTenantAdminController(GlobalController):
             """
             await _verify_tenant(db, tenant_id)
 
-            from sqlalchemy import select, or_
+            from sqlalchemy import or_, select
+
             from app.models import TenantAdmin
 
             # 验证用户名/邮箱唯一性
@@ -176,6 +177,7 @@ class AdminTenantAdminController(GlobalController):
 
             # 检查管理员数配额
             from sqlalchemy.orm import selectinload as _sil
+
             from app.models.tenant.tenant import Tenant
             from app.services.tenant.quota_service import QuotaService
             tenant_obj = (await db.execute(
@@ -234,6 +236,7 @@ class AdminTenantAdminController(GlobalController):
             await _verify_tenant(db, tenant_id)
 
             from sqlalchemy import select
+
             from app.models import TenantAdmin
 
             result = await db.execute(
@@ -292,6 +295,7 @@ class AdminTenantAdminController(GlobalController):
             await _verify_tenant(db, tenant_id)
 
             from sqlalchemy import select
+
             from app.models import TenantAdmin
 
             result = await db.execute(

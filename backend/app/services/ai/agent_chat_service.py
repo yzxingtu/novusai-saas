@@ -5,12 +5,11 @@
 """
 
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import async_session_factory
 from app.ai.agent_quota import (
     AgentConcurrencyExceeded,
     AgentConcurrencyLimiter,
@@ -19,26 +18,37 @@ from app.ai.agent_quota import (
     AgentQuotaManager,
 )
 from app.ai.agent_stats import AgentStatsManager
+from app.ai.constants import (
+    DEFAULT_MEMORY_SCENE,
+    MEMORY_CHANNEL_SYSTEM,
+)
 from app.ai.engine.base import BaseEngine
 from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.dispatcher import ExecutionDispatcher
-from app.ai.utils.token_estimator import estimate_tokens
 from app.ai.engine.types import ExecutionRequest, ExecutionResult
 from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.gateway import AIGateway
 from app.ai.tools.sandbox import ToolSandbox
 from app.ai.types import ChatMessage
+from app.ai.utils.token_estimator import estimate_tokens
+from app.core.database import async_session_factory
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import (
     AgentExecutionModeEnum,
     AgentStatusEnum,
+    MemoryChannelEnum,
+    MemorySceneEnum,
 )
 from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.repositories.ai.agent_repository import AgentRepository
 from app.schemas.ai.agent_chat import AgentChatResponse
 from app.services.ai.conversation_service import ConversationService
+from app.services.ai.session_memory_service import SessionMemoryService
+
+if TYPE_CHECKING:
+    from app.models.ai.agent import Agent
 
 logger = LogManager.get_logger("ai.agent_chat_service")
 
@@ -99,6 +109,233 @@ class AgentChatService:
             raise BusinessException(message=_("agent.error.not_published"))
         return agent
 
+    @staticmethod
+    def _extract_memory_delta(
+        message: str,
+        response: str,
+    ) -> dict[str, list[str]]:
+        """
+        从本轮对话中提取会话记忆增量（轻量规则版）
+
+        仅提取偏好/约束/任务状态/可验证事实，避免全量污染。
+        """
+        text = (message or "").strip()
+        if not text:
+            return {
+                "preferences": [],
+                "constraints": [],
+                "task_states": [],
+                "verified_facts": [],
+            }
+
+        lowered = text.lower()
+        preferences: list[str] = []
+        constraints: list[str] = []
+        task_states: list[str] = []
+        verified_facts: list[str] = []
+
+        # 偏好信号
+        pref_markers = ["请用", "以后都用", "prefer", "please use", "use "]
+        if any(m in text for m in pref_markers) or any(m in lowered for m in ["prefer", "please use"]):
+            preferences.append(text[:300])
+
+        # 约束信号
+        constraint_markers = ["不要", "禁止", "必须", "不超过", "must", "do not", "don't", "should not"]
+        if any(m in text for m in constraint_markers) or any(m in lowered for m in ["must", "do not", "should not"]):
+            constraints.append(text[:300])
+
+        # 任务状态信号
+        task_markers = ["继续", "下一步", "待办", "todo", "next step", "continue"]
+        if any(m in text for m in task_markers) or any(m in lowered for m in ["todo", "next step", "continue"]):
+            task_states.append(text[:300])
+
+        # 可验证事实（首版仅记录用户明确陈述；不做模型推断）
+        fact_markers = ["我是", "我们是", "my ", "our ", "我的", "我们"]
+        if any(m in text for m in fact_markers) or any(m in lowered for m in ["my ", "our "]):
+            verified_facts.append(text[:300])
+
+        # 显式“记住”指令，提高召回价值
+        if "记住" in text or "remember" in lowered:
+            constraints.append(f"[explicit_remember] {text[:300]}")
+
+        # assistant 响应摘要（任务状态补充）
+        resp = (response or "").strip()
+        if resp:
+            task_states.append(resp[:300])
+
+        return {
+            "preferences": preferences[:5],
+            "constraints": constraints[:5],
+            "task_states": task_states[:5],
+            "verified_facts": verified_facts[:5],
+        }
+
+    async def _load_session_memory_context(
+        self,
+        *,
+        request: ExecutionRequest,
+    ) -> str:
+        """
+        读取会话记忆并拼装为可注入 system 的文本
+        """
+        if not request.memory_enabled:
+            return ""
+        if not request.conversation_id or not request.user_id:
+            return ""
+
+        try:
+            memory_svc = SessionMemoryService(self.tenant_id)
+            _, state = await memory_svc.get_state(
+                channel=request.memory_channel,
+                source=request.memory_source,
+                agent_id=request.agent_id,
+                user_id=request.user_id,
+                conversation_id=request.conversation_id,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Session memory load degraded: tenant=%s agent=%s user=%s conversation=%s err=%s",
+                self.tenant_id,
+                request.agent_id,
+                request.user_id,
+                request.conversation_id,
+                str(exc),
+            )
+            return ""
+
+        parts: list[str] = []
+        if state.get("constraints"):
+            parts.append("Constraints: " + " | ".join(state["constraints"][:6]))
+        if state.get("preferences"):
+            parts.append("Preferences: " + " | ".join(state["preferences"][:6]))
+        if state.get("task_states"):
+            parts.append("Task States: " + " | ".join(state["task_states"][:6]))
+        if state.get("verified_facts"):
+            parts.append("Verified Facts: " + " | ".join(state["verified_facts"][:6]))
+
+        if not parts:
+            logger.info(
+                "Session memory context empty: tenant=%s agent=%s user=%s conversation=%s",
+                self.tenant_id,
+                request.agent_id,
+                request.user_id,
+                request.conversation_id,
+            )
+            return ""
+        logger.info(
+            "Session memory context injected: tenant=%s agent=%s user=%s conversation=%s",
+            self.tenant_id,
+            request.agent_id,
+            request.user_id,
+            request.conversation_id,
+        )
+        return "[SESSION MEMORY CONTEXT]\n" + "\n".join(parts)
+
+    async def _persist_session_memory(
+        self,
+        *,
+        request: ExecutionRequest,
+        message: str,
+        response: str,
+        event_id: str,
+    ) -> None:
+        """
+        将本轮对话增量写入会话记忆
+        """
+        if not request.memory_enabled:
+            return
+        if not request.conversation_id or not request.user_id:
+            return
+
+        delta = self._extract_memory_delta(message, response)
+        if not any(delta.values()):
+            return
+
+        memory_svc = SessionMemoryService(self.tenant_id)
+        await memory_svc.upsert_state(
+            channel=request.memory_channel,
+            source=request.memory_source,
+            agent_id=request.agent_id,
+            user_id=request.user_id,
+            conversation_id=request.conversation_id,
+            event_id=event_id,
+            delta=delta,
+            metadata={"scene": request.memory_scene},
+        )
+
+    @staticmethod
+    def _resolve_memory_context(
+        memory_scene: str,
+        memory_channel: str,
+        memory_source: str,
+    ) -> tuple[str, str, str, bool]:
+        """
+        解析并归一化会话记忆场景参数。
+
+        Returns:
+            (scene, channel, source, enabled)
+        """
+        scene = (
+            memory_scene
+            if MemorySceneEnum.has_value(memory_scene)
+            else MemorySceneEnum.UNKNOWN.value
+        )
+        channel = (
+            memory_channel
+            if MemoryChannelEnum.has_value(memory_channel)
+            else MemoryChannelEnum.SYSTEM.value
+        )
+        source = memory_source or scene
+        enabled = scene == MemorySceneEnum.AI_CHAT_PAGE.value
+        return scene, channel, source, enabled
+
+    async def _resolve_effective_memory_enabled(
+        self,
+        *,
+        agent_id: int,
+        scene: str,
+        scene_enabled: bool,
+    ) -> bool:
+        """
+        解析运行时最终记忆开关（入口场景 + 三层开关）
+
+        规则：
+        1) 非 ai_chat_page 场景直接关闭
+        2) ai_chat_page 场景下叠加平台/管理端/租户三层开关
+        """
+        if not scene_enabled:
+            return False
+
+        try:
+            if self.tenant_id == 0:
+                from app.services.ai.agent_service import AdminAgentService
+
+                config = await AdminAgentService(self.db).get_memory_config(agent_id)
+            else:
+                from app.services.ai.agent_service import AgentService
+
+                config = await AgentService(self.db, self.tenant_id).get_memory_config(agent_id)
+
+            enabled = bool(config.get("effective_memory_enabled", False))
+            logger.info(
+                "Session memory switch resolved: tenant=%s agent=%s scene=%s enabled=%s",
+                self.tenant_id,
+                agent_id,
+                scene,
+                enabled,
+            )
+            return enabled
+        except Exception as exc:
+            # 记忆开关解析失败时降级，不影响主对话链路
+            logger.warning(
+                "Resolve session memory switch degraded: tenant=%s agent=%s scene=%s err=%s",
+                self.tenant_id,
+                agent_id,
+                scene,
+                str(exc),
+            )
+            return False
+
     # ========================================
     # 非流式对话
     # ========================================
@@ -115,6 +352,9 @@ class AgentChatService:
         permissions: set[str] | None = None,
         consented_actions: list[str] | None = None,
         attachments: list[dict[str, Any]] | None = None,
+        memory_scene: str = DEFAULT_MEMORY_SCENE,
+        memory_channel: str = MEMORY_CHANNEL_SYSTEM,
+        memory_source: str = "",
     ) -> AgentChatResponse:
         """
         非流式对话
@@ -176,7 +416,6 @@ class AgentChatService:
         all_messages = [*history_messages, user_msg]
 
         # 3.5 BEFORE_AGENT_CHAT 钩子（插件可修改 messages/注入 system prompt/阻止对话）
-        from app.ai.events.hooks import HookPoint, get_hook_registry
         hook_registry = get_hook_registry()
         if hook_registry.has_hooks(HookPoint.BEFORE_AGENT_CHAT):
             hook_ctx = await hook_registry.trigger(
@@ -191,6 +430,16 @@ class AgentChatService:
             all_messages = hook_ctx.get("messages", all_messages)
 
         # 4. 构建执行请求
+        normalized_scene, normalized_channel, normalized_source, memory_enabled = self._resolve_memory_context(
+            memory_scene=memory_scene,
+            memory_channel=memory_channel,
+            memory_source=memory_source,
+        )
+        memory_enabled = await self._resolve_effective_memory_enabled(
+            agent_id=agent_id,
+            scene=normalized_scene,
+            scene_enabled=memory_enabled,
+        )
         request = ExecutionRequest(
             agent_id=agent_id,
             tenant_id=self.tenant_id,
@@ -203,11 +452,24 @@ class AgentChatService:
             consented_actions=consented_actions,
             user_role=user_role,
             permissions=permissions,
+            memory_scene=normalized_scene,
+            memory_channel=normalized_channel,
+            memory_source=normalized_source,
+            memory_enabled=memory_enabled,
         )
 
-        # 5. 调用分发器
+        # 4.1 会话记忆注入（仅 ai_chat_page 生效）
+        mem_text = await self._load_session_memory_context(request=request)
+        if mem_text:
+            # system 消息优先，其次插入首位
+            if request.messages and request.messages[0].role == "system":
+                request.messages[0].content = f"{request.messages[0].content}\n\n{mem_text}"
+            else:
+                request.messages.insert(0, ChatMessage(role="system", content=mem_text))
+
+        # 5. 调用分发器（传入已校验的 agent，避免 Dispatcher 内二次 DB 查询）
         dispatcher = ExecutionDispatcher(self.db)
-        result = await dispatcher.dispatch(request)
+        result = await dispatcher.dispatch(request, pre_loaded_agent=agent)
 
         if not result.success:
             raise BusinessException(message=result.error or _("agent_chat.error.execution_failed"))
@@ -225,10 +487,11 @@ class AgentChatService:
                 result.output = hook_ctx["response"]
 
         # 6. 持久化新消息（用户消息 + 引擎生成的消息）
+        history_count = len(history_messages)
         tool_calls_collected = await self.conversation_svc.persist_chat_messages(
             conversation=conversation,
             result=result,
-            history_count=len(history_messages),
+            history_count=history_count,
         )
 
         # 7. 更新对话统计 + 智能体用量统计
@@ -238,6 +501,22 @@ class AgentChatService:
             agent_id=agent_id,
             tokens=result.total_tokens,
         )
+
+        # 7.1 写入会话记忆（非阻塞主流程，失败仅告警）
+        try:
+            await self._persist_session_memory(
+                request=request,
+                message=message,
+                response=result.output or "",
+                event_id=f"{conversation.id}:{history_count}:{int(time.time())}",
+            )
+        except Exception as exc:
+            logger.warning(
+                "Persist session memory failed: tenant=%s conversation=%s err=%s",
+                self.tenant_id,
+                conversation.id,
+                str(exc),
+            )
         await self.db.commit()
 
         duration_ms = int((time.perf_counter() - start) * 1000)
@@ -275,6 +554,9 @@ class AgentChatService:
         consented_actions: list[str] | None = None,
         attachments: list[dict[str, Any]] | None = None,
         image_params: dict[str, Any] | None = None,
+        memory_scene: str = DEFAULT_MEMORY_SCENE,
+        memory_channel: str = MEMORY_CHANNEL_SYSTEM,
+        memory_source: str = "",
     ) -> StreamingResponse:
         """
         流式对话（返回 StreamingResponse）
@@ -332,7 +614,6 @@ class AgentChatService:
         all_messages = [*history_messages, user_msg]
 
         # 3.5 BEFORE_AGENT_CHAT 钩子（插件可修改 messages/注入 system prompt/阻止对话）
-        from app.ai.events.hooks import HookPoint, get_hook_registry
         hook_registry = get_hook_registry()
         if hook_registry.has_hooks(HookPoint.BEFORE_AGENT_CHAT):
             hook_ctx = await hook_registry.trigger(
@@ -347,6 +628,16 @@ class AgentChatService:
             all_messages = hook_ctx.get("messages", all_messages)
 
         # 4. 构建执行请求（标记为流式）
+        normalized_scene, normalized_channel, normalized_source, memory_enabled = self._resolve_memory_context(
+            memory_scene=memory_scene,
+            memory_channel=memory_channel,
+            memory_source=memory_source,
+        )
+        memory_enabled = await self._resolve_effective_memory_enabled(
+            agent_id=agent_id,
+            scene=normalized_scene,
+            scene_enabled=memory_enabled,
+        )
         request = ExecutionRequest(
             agent_id=agent_id,
             tenant_id=self.tenant_id,
@@ -360,7 +651,19 @@ class AgentChatService:
             consented_actions=consented_actions,
             user_role=user_role,
             permissions=permissions,
+            memory_scene=normalized_scene,
+            memory_channel=normalized_channel,
+            memory_source=normalized_source,
+            memory_enabled=memory_enabled,
         )
+
+        # 4.1 会话记忆注入（仅 ai_chat_page 生效）
+        mem_text = await self._load_session_memory_context(request=request)
+        if mem_text:
+            if request.messages and request.messages[0].role == "system":
+                request.messages[0].content = f"{request.messages[0].content}\n\n{mem_text}"
+            else:
+                request.messages.insert(0, ChatMessage(role="system", content=mem_text))
 
         # 5. 配额/并发/钩子前置检查（与 dispatcher.dispatch 对等）
         quota_config = AgentQuotaConfig.from_dict(agent.quota_config)
@@ -436,24 +739,19 @@ class AgentChatService:
             from app.ai.engine.image_generation import ImageGenerationEngine
             engine = ImageGenerationEngine(gateway=gateway)
             skill_result = None
-            skill_warnings: list[str] = []
         else:
             # 解析 Skill（在 Service 层完成，不在 Engine 内部查 DB）
             from app.ai.skills.resolver import resolve_for_agent
-            skill_warnings = []
             try:
                 skill_result = await resolve_for_agent(
                     self.db, agent, tenant_id=self.tenant_id,
                 )
-                if skill_result and skill_result.warnings:
-                    skill_warnings = skill_result.warnings
             except Exception as skill_exc:
                 logger.error(
                     "Skill resolution failed for agent %d: %s",
                     agent_id, str(skill_exc),
                 )
                 skill_result = None
-                skill_warnings = [_("agent_chat.skill_load_failed")]
 
             # 读取平台 Toolkit 安全配置
             from app.configs.service import ConfigService
@@ -516,6 +814,22 @@ class AgentChatService:
                                 agent_id=agent_id,
                                 tokens=result.total_tokens,
                             )
+
+                            # 写入会话记忆（流式完成后）
+                            try:
+                                await self._persist_session_memory(
+                                    request=request,
+                                    message=message,
+                                    response=result.output or "",
+                                    event_id=f"{conversation.id}:{history_count}:{int(time.time())}",
+                                )
+                            except Exception as mem_exc:
+                                logger.warning(
+                                    "Persist stream session memory failed: tenant=%s conversation=%s err=%s",
+                                    self.tenant_id,
+                                    conversation.id,
+                                    str(mem_exc),
+                                )
                             await cb_db.commit()
                         except Exception:
                             await cb_db.rollback()
@@ -610,8 +924,8 @@ class AgentChatService:
         Returns:
             {"status": "cancelled" | "expired"}
         """
-        from app.core.redis import get_redis
         from app.ai.constants import action_confirm_key
+        from app.core.redis import get_redis
 
         redis = await get_redis()
         key = action_confirm_key(confirm_id)
@@ -628,25 +942,34 @@ class AgentChatService:
         user_id: int,
     ) -> dict[str, Any]:
         """
-        确认并执行 AI 操作
+        确认 AI 操作（兼容接口）
 
-        旧版 ActionExecutor 已废弃，新的 CRUD 工具使用内联确认（confirmed 参数）。
-        此方法仅处理遗留的 Redis 确认数据。
+        旧版 ActionExecutor 已废弃，新的确认流程为内联文本触发：
+        用户在对话中输入「确认执行」等触发词，引擎自动在消息历史中
+        查找待确认的工具调用并注入 confirmed=True 直接执行，
+        无需调用此 REST 端点。
+
+        此方法保留以避免旧客户端接收 422，返回 deprecated 状态
+        提醒调用方迁移到内联确认流程。
 
         Args:
-            confirm_id: 确认 ID
+            confirm_id: 确认 ID（不再使用）
             tenant_id: 租户 ID
             user_id: 用户 ID
 
         Returns:
-            操作执行结果
-
-        Raises:
-            BusinessException: 确认已过期
+            {"status": "deprecated", "message": "..."}
         """
-        raise BusinessException(
-            message=_("data_intelligence.action.confirm_expired"),
+        logger.warning(
+            "confirm_action called via REST endpoint (deprecated): "
+            "confirm_id=%s tenant=%d user=%d — "
+            "new flow uses inline confirmation text in conversation",
+            confirm_id, tenant_id, user_id,
         )
+        return {
+            "status": "deprecated",
+            "message": _("data_intelligence.action.use_inline_confirmation"),
+        }
 
 
 

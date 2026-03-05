@@ -81,7 +81,8 @@ async function loadDomains() {
       currentTenant.value.tenantId,
     );
     domains.value = result.items as TenantDomainInfo[];
-  } catch {} finally {
+  } catch {
+  } finally {
     loading.value = false;
   }
 }
@@ -299,7 +300,9 @@ defineExpose({ open });
             <!-- 状态标签 -->
             <div class="mt-3 flex flex-wrap items-center gap-4">
               <!-- 域名类型 -->
-              <div class="flex items-center gap-1 text-sm text-muted-foreground">
+              <div
+                class="flex items-center gap-1 text-sm text-muted-foreground"
+              >
                 <span>{{ $t('admin.tenant.domain.type') }}:</span>
                 <span>{{
                   domain.domainType === 'default'
@@ -310,7 +313,9 @@ defineExpose({ open });
 
               <!-- 验证状态 -->
               <div class="flex items-center gap-1">
-                <span class="text-sm text-muted-foreground">{{ $t('admin.tenant.domain.verificationStatus') }}:</span>
+                <span class="text-sm text-muted-foreground"
+                  >{{ $t('admin.tenant.domain.verificationStatus') }}:</span
+                >
                 <Tag
                   :color="
                     getVerificationTagConfig(domain.verificationStatus).color
@@ -343,8 +348,13 @@ defineExpose({ open });
             </div>
 
             <!-- 备注 -->
-            <div v-if="domain.remark" class="mt-2 text-sm text-muted-foreground">
-              <span class="font-medium">{{ $t('admin.tenant.domain.remark') }}:</span>
+            <div
+              v-if="domain.remark"
+              class="mt-2 text-sm text-muted-foreground"
+            >
+              <span class="font-medium"
+                >{{ $t('admin.tenant.domain.remark') }}:</span
+              >
               <span class="ml-1">{{ domain.remark }}</span>
             </div>
 

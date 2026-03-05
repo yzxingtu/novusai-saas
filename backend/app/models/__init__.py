@@ -11,78 +11,78 @@
 """
 
 # 平台级模型
-from app.models.system import (
-    Admin,
-    SystemConfigGroup,
-    SystemConfig,
-    SystemConfigValue,
-    OperationLog,
-    TaskLog,
-    PeriodicTask,
-    SystemAgentAssignment,
-    Plugin,
-    PluginVersion,
-    PluginLicense,
-    ResourceTenantAssignment,
-)
-
-# 租户级模型
-from app.models.tenant import (
-    Tenant,
-    TenantAdmin,
-    TenantUser,
-    TenantDomain,
-    DomainSslCertificate,
-    TenantPlan,
-    tenant_plan_permissions,
-    Attachment,
+# AI 模型
+from app.models.ai import (
+    Agent,
+    AgentAccess,
+    AgentConversation,
+    AgentMemoryOverride,
+    AgentSkillBinding,
+    AgentVersion,
+    AIActionLog,
+    AICallLog,
+    AIModel,
+    AIProvider,
+    AIQueryLog,
+    AITablePolicy,
+    AITablePolicyOverride,
+    BatchRun,
+    ConversationMessage,
+    DocumentChunk,
+    KnowledgeBase,
+    KnowledgeBaseTenantAccess,
+    KnowledgeDocument,
+    ProviderApiKey,
+    Skill,
+    SkillCallLog,
+    SkillPackage,
+    TenantModelRateLimit,
+    TenantQuota,
+    UsageStat,
 )
 
 # RBAC 模型
 from app.models.auth import (
-    Permission,
     AdminRole,
-    admin_role_permissions,
+    Permission,
     TenantAdminRole,
+    admin_role_permissions,
     tenant_admin_role_permissions,
 )
-
-# 通知模型
-from app.models.common.notification_template import NotificationTemplate
 from app.models.common.notification import Notification
 from app.models.common.notification_preference import NotificationPreference
 
-# AI 模型
-from app.models.ai import (
-    AIProvider,
-    AIModel,
-    ProviderApiKey,
-    AICallLog,
-    AIQueryLog,
-    UsageStat,
-    TenantModelRateLimit,
-    TenantQuota,
-    Agent,
-    AgentConversation,
-    ConversationMessage,
-    BatchRun,
-    AgentVersion,
-    AgentAccess,
-    AIActionLog,
-    AITablePolicy,
-    AITablePolicyOverride,
-    KnowledgeBase,
-    KnowledgeBaseTenantAccess,
-    KnowledgeDocument,
-    DocumentChunk,
-    SkillPackage,
-    Skill,
-    AgentSkillBinding,
-    SkillCallLog,
+# 通知模型
+from app.models.common.notification_template import NotificationTemplate
+from app.models.system import (
+    Admin,
+    OperationLog,
+    PeriodicTask,
+    Plugin,
+    PluginLicense,
+    PluginVersion,
+    ResourceTenantAssignment,
+    SystemAgentAssignment,
+    SystemConfig,
+    SystemConfigGroup,
+    SystemConfigValue,
+    TaskLog,
 )
 
 # 系统模型（补充）
 from app.models.system.email_log import EmailLog
+
+# 租户级模型
+from app.models.tenant import (
+    Attachment,
+    DomainSslCertificate,
+    Tenant,
+    TenantAdmin,
+    TenantDomain,
+    TenantPlan,
+    TenantUser,
+    tenant_plan_permissions,
+)
 
 __all__ = [
     # 平台级
@@ -126,6 +126,7 @@ __all__ = [
     "AgentVersion",
     # 智能体访问权限
     "AgentAccess",
+    "AgentMemoryOverride",
     # AI 操作审计日志
     "AIActionLog",
     # AI 表策略

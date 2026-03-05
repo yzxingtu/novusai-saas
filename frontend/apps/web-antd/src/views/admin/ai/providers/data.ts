@@ -30,7 +30,13 @@ export async function loadAdapterTypes(): Promise<AdapterTypeInfo[]> {
     adapterTypesCache.value = data;
     return data;
   } catch {
-    return [{ type: 'openai_compatible', source: 'builtin', display_name: 'OpenAI Compatible' }];
+    return [
+      {
+        type: 'openai_compatible',
+        source: 'builtin',
+        display_name: 'OpenAI Compatible',
+      },
+    ];
   }
 }
 
@@ -38,12 +44,16 @@ function getProviderTypeOptions() {
   const types = adapterTypesCache.value;
   if (types.length > 0) {
     return types.map((t) => ({
-      label: t.source === 'plugin' ? `${t.display_name} (Plugin)` : t.display_name,
+      label:
+        t.source === 'plugin' ? `${t.display_name} (Plugin)` : t.display_name,
       value: t.type,
     }));
   }
   return [
-    { label: $t('admin.ai.provider.type_options.openai_compatible'), value: 'openai_compatible' },
+    {
+      label: $t('admin.ai.provider.type_options.openai_compatible'),
+      value: 'openai_compatible',
+    },
   ];
 }
 
@@ -67,7 +77,9 @@ export function getProviderTypeText(type: string | undefined): string {
 /**
  * 获取适配器来源文本
  */
-export function getAdapterSource(type: string | undefined): 'builtin' | 'plugin' {
+export function getAdapterSource(
+  type: string | undefined,
+): 'builtin' | 'plugin' {
   if (!type) return 'builtin';
   const cached = adapterTypesCache.value.find((t) => t.type === type);
   return cached?.source ?? 'builtin';

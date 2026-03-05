@@ -13,21 +13,21 @@ export interface TaskLogInfo {
   taskName: string;
   queue: string;
   status: string;
-  args: Record<string, unknown> | null;
-  kwargs: Record<string, unknown> | null;
-  result: Record<string, unknown> | null;
-  errorMessage: string | null;
-  startedAt: string | null;
-  finishedAt: string | null;
-  durationMs: number | null;
+  args: null | Record<string, unknown>;
+  kwargs: null | Record<string, unknown>;
+  result: null | Record<string, unknown>;
+  errorMessage: null | string;
+  startedAt: null | string;
+  finishedAt: null | string;
+  durationMs: null | number;
   retryCount: number;
-  tenantId: number | null;
+  tenantId: null | number;
   createdAt: string;
 }
 
 /** 任务日志详情（含堆栈） */
 export interface TaskLogDetailInfo extends TaskLogInfo {
-  traceback: string | null;
+  traceback: null | string;
 }
 
 /** 任务统计项 */

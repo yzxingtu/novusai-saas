@@ -14,7 +14,7 @@ from app.core.i18n import _
 
 class AICallLogResponse(TenantResponseSchema):
     """AI 调用日志响应"""
-    
+
     user_id: int | None = Field(None, description=_("enum.ai_call_log.user_id"))
     user_type: str | None = Field(None, description=_("enum.ai_call_log.user_type"))
     provider_id: int = Field(..., description=_("enum.ai_call_log.provider_id"))
@@ -35,7 +35,7 @@ class AICallLogResponse(TenantResponseSchema):
 
 class AICallLogSummary(BaseResponseSchema):
     """AI 调用统计摘要"""
-    
+
     total_calls: int = Field(..., description=_("enum.ai_call_summary.total_calls"))
     total_tokens: int = Field(..., description=_("enum.ai_call_summary.total_tokens"))
     total_cost: Decimal = Field(..., description=_("enum.ai_call_summary.total_cost"))

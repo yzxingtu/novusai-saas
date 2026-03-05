@@ -6,7 +6,8 @@ KnowledgeBaseService 单元测试
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+import contextlib
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -57,18 +58,16 @@ class TestKBCreate:
         service.repo.find_by_name = AsyncMock(return_value=None)
 
         # Should not raise for unique name (may raise for other reasons like quota)
-        try:
+        with contextlib.suppress(Exception):
             await service._before_create({"name": "Unique KB"})
-        except Exception:
-            pass
 
 
 class TestKBDelete:
 
     @pytest.mark.asyncio
     async def test_delete_not_found_raises(self, mock_db):
-        from app.services.ai.knowledge_base_service import KnowledgeBaseService
         from app.exceptions import NotFoundException
+        from app.services.ai.knowledge_base_service import KnowledgeBaseService
 
         service = KnowledgeBaseService.__new__(KnowledgeBaseService)
         service.db = mock_db
@@ -84,8 +83,8 @@ class TestKBDetail:
 
     @pytest.mark.asyncio
     async def test_get_kb_detail_not_found(self, mock_db):
-        from app.services.ai.knowledge_base_service import KnowledgeBaseService
         from app.exceptions import NotFoundException
+        from app.services.ai.knowledge_base_service import KnowledgeBaseService
 
         service = KnowledgeBaseService.__new__(KnowledgeBaseService)
         service.db = mock_db
@@ -101,8 +100,8 @@ class TestKBUpdate:
 
     @pytest.mark.asyncio
     async def test_update_name_conflict(self, mock_db):
-        from app.services.ai.knowledge_base_service import KnowledgeBaseService
         from app.exceptions import BusinessException
+        from app.services.ai.knowledge_base_service import KnowledgeBaseService
 
         existing = _make_kb(id=99, name="Taken")
         service = KnowledgeBaseService.__new__(KnowledgeBaseService)
@@ -132,8 +131,8 @@ class TestKBQuota:
 
     @pytest.mark.asyncio
     async def test_check_kb_quota_exceeded(self, mock_db):
-        from app.services.ai.knowledge_base_service import KnowledgeBaseService
         from app.exceptions import BusinessException
+        from app.services.ai.knowledge_base_service import KnowledgeBaseService
 
         service = KnowledgeBaseService.__new__(KnowledgeBaseService)
         service.db = mock_db

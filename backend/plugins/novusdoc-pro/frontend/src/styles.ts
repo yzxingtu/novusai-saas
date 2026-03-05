@@ -36,25 +36,6 @@ export const NDP_STYLES = `
   pointer-events: none;
 }
 
-/* Online users avatars */
-.ndp-collab-avatars {
-  display: flex;
-  align-items: center;
-  gap: 0;
-}
-.ndp-collab-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 2px solid hsl(var(--background));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 600;
-  color: white;
-}
-
 /* Comment highlight in editor */
 .ndp-comment-mark {
   background: rgba(251, 191, 36, 0.2);

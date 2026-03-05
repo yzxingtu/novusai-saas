@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.core.deps import DbSession, ActiveTenantAdmin
+from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.logging import get_logger
 from app.core.response import success
 from app.rbac.decorators import auth_only
@@ -69,11 +69,8 @@ async def list_available_plugins(
     visible_plugins = []
     for plugin in all_enabled:
         scope = plugin.scope
-        if scope in TENANT_ALL_SCOPES:
+        if scope in TENANT_ALL_SCOPES or scope in TENANT_ASSIGNED_SCOPES and plugin.id in assigned_plugin_ids:
             visible_plugins.append(plugin)
-        elif scope in TENANT_ASSIGNED_SCOPES:
-            if plugin.id in assigned_plugin_ids:
-                visible_plugins.append(plugin)
         # admin_only → 不返回
 
     items = []
@@ -119,6 +116,7 @@ async def get_plugin_slots(
       "notification_ui": [...]
     }
     """
+    from app.plugins.loader import PluginLoader
     from app.plugins.registry import ExtensionRegistry
     from app.services.system.plugin_service import PluginService
 
@@ -137,4 +135,26 @@ async def get_plugin_slots(
         for slot_key, slots in grouped.items()
     }
 
-    return success(data=filtered)
+    loader = PluginLoader()
+    plugin_styles: dict[str, list[str]] = {}
+    for plugin_name in visible_names:
+        styles: list[str] = []
+        try:
+            manifest = loader.load_manifest(plugin_name)
+            frontend = (
+                manifest.extensions.frontend
+                if manifest.extensions
+                else None
+            )
+            if frontend and frontend.tenant:
+                styles = list(frontend.tenant.styles or [])
+        except Exception:
+            styles = []
+        plugin_styles[plugin_name] = styles
+
+    return success(
+        data={
+            **filtered,
+            "plugin_styles": plugin_styles,
+        }
+    )

@@ -6,7 +6,7 @@ AdminService + AdminRoleService 单元测试
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -95,7 +95,7 @@ class TestAdminStatus:
         service.repo = AsyncMock()
         service.repo.get_by_id = AsyncMock(return_value=admin)
 
-        result = await service.toggle_status(1, is_active=False)
+        await service.toggle_status(1, is_active=False)
         service.repo.get_by_id.assert_called_once_with(1)
 
     @pytest.mark.asyncio
@@ -108,7 +108,7 @@ class TestAdminStatus:
         service.repo = AsyncMock()
         service.repo.get_by_id = AsyncMock(return_value=admin)
 
-        result = await service.toggle_status(1, is_active=True)
+        await service.toggle_status(1, is_active=True)
         service.repo.get_by_id.assert_called_once_with(1)
 
 

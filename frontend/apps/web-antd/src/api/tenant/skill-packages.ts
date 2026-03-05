@@ -12,16 +12,16 @@ export interface TenantSkillPackageInfo {
   id: number;
   tenant_id: number;
   name: string;
-  description: string | null;
-  avatar: string | null;
+  description: null | string;
+  avatar: null | string;
   scope: string;
   is_system: boolean;
   is_active: boolean;
   sort_order: number;
   skill_count: number;
-  source_plugin: string | null;
-  valves_schema: Record<string, unknown> | null;
-  valves_config: Record<string, unknown> | null;
+  source_plugin: null | string;
+  valves_schema: null | Record<string, unknown>;
+  valves_config: null | Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -29,8 +29,8 @@ export interface TenantSkillPackageInfo {
 /** 创建技能包请求 */
 export interface SkillPackageCreateParams {
   name: string;
-  description?: string | null;
-  avatar?: string | null;
+  description?: null | string;
+  avatar?: null | string;
   is_active?: boolean;
   sort_order?: number;
 }
@@ -38,8 +38,8 @@ export interface SkillPackageCreateParams {
 /** 更新技能包请求 */
 export interface SkillPackageUpdateParams {
   name?: string;
-  description?: string | null;
-  avatar?: string | null;
+  description?: null | string;
+  avatar?: null | string;
   is_active?: boolean;
   sort_order?: number;
 }
@@ -88,15 +88,13 @@ export interface AvailablePackageOption {
   label: string;
   value: number;
   scope: string;
-  description: string | null;
+  description: null | string;
   is_system: boolean;
 }
 
 /** 获取可绑定的技能包列表（自有 + admin 共享） */
 export function getAvailablePackagesApi() {
-  return requestClient.get<AvailablePackageOption[]>(
-    `${BASE_URL}/available`,
-  );
+  return requestClient.get<AvailablePackageOption[]>(`${BASE_URL}/available`);
 }
 
 /** 上传技能 ZIP 包 */
@@ -121,12 +119,12 @@ interface ValvesProperty {
 
 /** Valves 配置响应 */
 export interface SkillPackageValvesInfo {
-  valves_schema: {
-    type: string;
+  valves_schema: null | {
     properties: Record<string, ValvesProperty>;
     required?: string[];
-  } | null;
-  valves_config: Record<string, unknown> | null;
+    type: string;
+  };
+  valves_config: null | Record<string, unknown>;
 }
 
 /** 获取技能包 Valves 配置 */
@@ -176,10 +174,10 @@ export function cloneFromTemplateApi(
   data?: { new_name?: string },
 ) {
   return requestClient.post<{
-    status: string;
     package_id: number;
     package_name: string;
     skills_created: number;
+    status: string;
   }>(`${BASE_URL}/from-template/${packageId}`, data ?? {});
 }
 

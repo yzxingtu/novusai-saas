@@ -5,7 +5,7 @@ AI 数据查询审计日志模型
 用于安全追溯、异常检测和合规审计
 """
 
-from sqlalchemy import Index, Integer, String, Text, JSON
+from sqlalchemy import Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import TenantModel

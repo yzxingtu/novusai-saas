@@ -30,10 +30,7 @@ export function inferCategory(mimeType?: null | string): AttachmentCategory {
     /zip|rar|7z|tar|gz|bz2/.test(mimeType)
   )
     return 'archive';
-  if (
-    mimeType.startsWith('application/') ||
-    mimeType.startsWith('text/')
-  )
+  if (mimeType.startsWith('application/') || mimeType.startsWith('text/'))
     return 'document';
   return 'other';
 }
@@ -60,7 +57,7 @@ export interface AttachmentInfoRaw {
   uploader_id?: null | number;
   business_type?: null | string;
   business_id?: null | number;
-  meta?: Record<string, unknown> | null;
+  meta?: null | Record<string, unknown>;
   created_at: string;
   updated_at?: string;
 }
@@ -86,7 +83,7 @@ export interface AttachmentInfo {
   uploaderId?: null | number;
   businessType?: null | string;
   businessId?: null | number;
-  meta?: Record<string, unknown> | null;
+  meta?: null | Record<string, unknown>;
   /** 推算分类（后端不返回，前端通过 mimeType 推算） */
   category?: AttachmentCategory | null;
   createdAt: string;

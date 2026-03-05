@@ -2,11 +2,11 @@
 租户 AI 模型速率限制配置 Repository
 """
 
-from typing import List
-from sqlalchemy import select, and_
 
-from app.models.ai import TenantModelRateLimit
+from sqlalchemy import and_, select
+
 from app.core.base_repository import TenantRepository
+from app.models.ai import TenantModelRateLimit
 
 
 class TenantModelRateLimitRepository(TenantRepository[TenantModelRateLimit]):
@@ -31,7 +31,7 @@ class TenantModelRateLimitRepository(TenantRepository[TenantModelRateLimit]):
                 TenantModelRateLimit.is_deleted.is_(False),
             )
         )
-        
+
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -39,7 +39,7 @@ class TenantModelRateLimitRepository(TenantRepository[TenantModelRateLimit]):
         self,
         tenant_id: int,
         model_id: int | None = None
-    ) -> List[TenantModelRateLimit]:
+    ) -> list[TenantModelRateLimit]:
         """
         获取租户所有激活的速率限制配置
         """

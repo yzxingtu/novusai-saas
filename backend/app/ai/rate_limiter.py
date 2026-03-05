@@ -8,11 +8,11 @@ TPM（每分钟 Token 数）使用独立的 INCRBY 累加计数器。
 
 import os
 import time
-from app.core.redis import get_redis
-from app.core.logging import LogManager
-from app.exceptions.base import BusinessException
-from app.core.i18n import _
 
+from app.core.i18n import _
+from app.core.logging import LogManager
+from app.core.redis import get_redis
+from app.exceptions.base import BusinessException
 
 logger = LogManager.get_logger("ai.rate_limiter")
 

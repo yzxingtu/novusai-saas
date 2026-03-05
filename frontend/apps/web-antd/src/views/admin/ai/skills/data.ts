@@ -12,21 +12,32 @@ import { $t } from '#/locales';
 function getSkillTypeOptions(currentType?: string) {
   const predefined = [
     { label: $t('admin.ai.skill.type_options.toolkit'), value: 'toolkit' },
-    { label: $t('admin.ai.skill.type_options.knowledge_base'), value: 'knowledge_base' },
-    { label: $t('admin.ai.skill.type_options.data_intelligence'), value: 'data_intelligence' },
+    {
+      label: $t('admin.ai.skill.type_options.knowledge_base'),
+      value: 'knowledge_base',
+    },
+    {
+      label: $t('admin.ai.skill.type_options.data_intelligence'),
+      value: 'data_intelligence',
+    },
     { label: $t('admin.ai.skill.type_options.builtin'), value: 'builtin' },
     { label: $t('admin.ai.skill.type_options.http'), value: 'http' },
     { label: $t('admin.ai.skill.type_options.email'), value: 'email' },
-    { label: $t('admin.ai.skill.type_options.code_execution'), value: 'code_execution' },
+    {
+      label: $t('admin.ai.skill.type_options.code_execution'),
+      value: 'code_execution',
+    },
   ];
   if (currentType && !predefined.some((o) => o.value === currentType)) {
     const key = `admin.ai.skill.type_options.${currentType}`;
     const text = $t(key);
-    predefined.push({ label: text === key ? currentType : text, value: currentType });
+    predefined.push({
+      label: text === key ? currentType : text,
+      value: currentType,
+    });
   }
   return predefined;
 }
-
 
 /**
  * 获取技能类型文本
@@ -37,7 +48,9 @@ export function getSkillTypeText(type: string | undefined): string {
   const text = $t(key);
   // fallback: 插件注册的 type 没有系统 i18n key，显示人类可读的格式
   if (text === key) {
-    return type.replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    return type
+      .replaceAll('_', ' ')
+      .replaceAll(/\b\w/g, (c) => c.toUpperCase());
   }
   return text;
 }
@@ -102,7 +115,11 @@ export function useColumns<T = AdminSkillInfo>(
         },
         name: 'CellOperation',
         options: [
-          { code: 'test', text: $t('admin.ai.skill.testBtn'), icon: 'lucide:play' },
+          {
+            code: 'test',
+            text: $t('admin.ai.skill.testBtn'),
+            icon: 'lucide:play',
+          },
           'edit',
           { code: 'delete', show: (row: AdminSkillInfo) => !row.is_system },
         ],

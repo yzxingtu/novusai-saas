@@ -66,8 +66,7 @@ const mainRoutes: RouteRecordRaw = {
     {
       name: 'AdminAISkillPackageDetail',
       path: 'ai/skill-packages/:id',
-      component: () =>
-        import('#/views/admin/ai/skill-packages/detail.vue'),
+      component: () => import('#/views/admin/ai/skill-packages/detail.vue'),
       meta: {
         hideInMenu: true,
         title: $t('admin.ai.skillPackage.detail.title'),
@@ -78,8 +77,7 @@ const mainRoutes: RouteRecordRaw = {
     {
       name: 'AdminAIAgentDetail',
       path: 'ai/agents/:id',
-      component: () =>
-        import('#/views/admin/ai/agents/detail.vue'),
+      component: () => import('#/views/admin/ai/agents/detail.vue'),
       meta: {
         hideInMenu: true,
         title: $t('admin.ai.agent.detail.title'),

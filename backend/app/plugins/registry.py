@@ -6,8 +6,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from app.core.logging import get_logger
 
@@ -16,6 +17,18 @@ logger = get_logger(__name__)
 # 共享事件循环（Celery worker 中运行异步插件任务用）
 _bg_loop = None
 _bg_thread = None
+_bg_lock = None  # 延迟初始化，避免模块导入时创建线程对象
+
+
+def _get_bg_lock():
+    """获取全局锁（懒初始化，线程安全）"""
+    import threading
+
+    global _bg_lock
+    if _bg_lock is None:
+        # 模块级初始化 — CPython GIL 保证此赋值原子，无需双重检查
+        _bg_lock = threading.Lock()
+    return _bg_lock
 
 
 def _run_async(coro):
@@ -24,13 +37,15 @@ def _run_async(coro):
     import threading
 
     global _bg_loop, _bg_thread
-    if _bg_loop is None or _bg_loop.is_closed():
-        _bg_loop = asyncio.new_event_loop()
-        _bg_thread = threading.Thread(
-            target=_bg_loop.run_forever, daemon=True, name="plugin-task-loop",
-        )
-        _bg_thread.start()
-    future = asyncio.run_coroutine_threadsafe(coro, _bg_loop)
+    with _get_bg_lock():
+        if _bg_loop is None or _bg_loop.is_closed():
+            _bg_loop = asyncio.new_event_loop()
+            _bg_thread = threading.Thread(
+                target=_bg_loop.run_forever, daemon=True, name="plugin-task-loop",
+            )
+            _bg_thread.start()
+        loop = _bg_loop
+    future = asyncio.run_coroutine_threadsafe(coro, loop)
     return future.result()
 
 
@@ -71,6 +86,8 @@ class ExtensionRegistry:
         self._plugin_custom_extensions: dict[str, list[dict[str, Any]]] = {}
         # middleware: plugin_name -> list of middleware class refs
         self._plugin_middlewares: dict[str, list[dict[str, Any]]] = {}
+        # menu i18n fallback: plugin_name -> {i18n_key: {"zh-CN": "...", "en": "..."}}
+        self._plugin_menu_titles: dict[str, dict[str, dict[str, str]]] = {}
 
     @classmethod
     def get_instance(cls) -> ExtensionRegistry:
@@ -266,7 +283,7 @@ class ExtensionRegistry:
         auth_config: dict | None = None,
     ) -> None:
         """注册 Webhook 端点
-        
+
         路径规范化：path 不以 / 开头时自动补齐，确保生成的 full_path 与
         webhook_dispatcher.py 的 f"/plugins/{name}/{url_path}" 查找格式一致。
         """
@@ -524,9 +541,13 @@ class ExtensionRegistry:
         menu_code = f"menu:{scope_prefix}.plugin_{safe_name}_{name}"
         parent_code = f"menu:{scope_prefix}.{parent}" if parent else None
 
-        # i18n key: 映射到插件 locales 文件结构
-        # 例如 storage_migration.menu.title → plugins/storage-migration/locales/zh-CN.json
-        i18n_key = f"{safe_name}.menu.title"
+        # i18n key: 为每个菜单独立生成 key，避免多菜单插件标题冲突
+        # 例如 plugin.novusdoc.menu.novusdoc_docs_admin.title
+        i18n_key = f"plugin.{plugin_name}.menu.{name}.title"
+        if title:
+            self._plugin_menu_titles.setdefault(plugin_name, {})[i18n_key] = {
+                k: str(v) for k, v in title.items() if isinstance(v, str)
+            }
 
         perm = PermissionMeta(
             code=menu_code,
@@ -544,7 +565,7 @@ class ExtensionRegistry:
         )
 
         permission_registry.register(perm)
-        self._track(plugin_name, "menu", menu_code)
+        self._track(plugin_name, "menu", menu_code, {"i18n_key": i18n_key})
         logger.info(
             "Plugin %s registered menu: %s -> %s (parent=%s)",
             plugin_name, menu_code, path, parent,
@@ -555,6 +576,61 @@ class ExtensionRegistry:
         from app.rbac.registry import permission_registry
 
         permission_registry.unregister(ext.key)
+        i18n_key = (ext.ref or {}).get("i18n_key")
+        if i18n_key:
+            plugin_titles = self._plugin_menu_titles.get(ext.plugin_name)
+            if plugin_titles:
+                plugin_titles.pop(i18n_key, None)
+                if not plugin_titles:
+                    self._plugin_menu_titles.pop(ext.plugin_name, None)
+
+    def resolve_plugin_menu_title(
+        self,
+        i18n_key: str,
+        locale: str | None = None,
+    ) -> str | None:
+        """
+        解析插件菜单 i18n key 的运行时标题（用于 i18n 缺失时回退）。
+
+        Args:
+            i18n_key: 例如 plugin.novusdoc.menu.docs_admin.title
+            locale: 语言代码（zh_CN / zh-CN / en / en-US）
+        """
+        from app.core.i18n import get_locale
+
+        if locale is None:
+            locale = get_locale()
+        normalized = (locale or "").replace("-", "_").lower()
+
+        for plugin_titles in self._plugin_menu_titles.values():
+            title_map = plugin_titles.get(i18n_key)
+            if not title_map:
+                continue
+
+            # locale 优先级：精确 -> 前缀 -> zh-CN -> en -> 首个
+            exact = (
+                title_map.get(locale)
+                or title_map.get(locale.replace("_", "-"))
+                or title_map.get(normalized)
+            )
+            if exact:
+                return exact
+            if normalized.startswith("zh"):
+                zh = title_map.get("zh-CN") or title_map.get("zh_CN") or title_map.get("zh")
+                if zh:
+                    return zh
+            if normalized.startswith("en"):
+                en = title_map.get("en") or title_map.get("en-US") or title_map.get("en_US")
+                if en:
+                    return en
+
+            return (
+                title_map.get("zh-CN")
+                or title_map.get("zh_CN")
+                or title_map.get("en")
+                or next(iter(title_map.values()), None)
+            )
+        return None
 
     # ── 11. Socket.IO Namespace ──
 
@@ -693,15 +769,16 @@ class ExtensionRegistry:
                     continue
                 if scope:
                     slot_scope = slot.get("scope", "")
-                    # all_tenants / admin_and_all 对两端都可见
-                    # admin_only 只对 admin 端
+                    # 按请求端过滤插槽可见性：
+                    # - slot_scope="tenant"    → 仅 tenant 端可见
+                    # - slot_scope="admin"/"admin_only" → 仅 admin 端可见
+                    # - 其他（空/all_tenants/admin_and_all 等） → 两端都可见
                     from app.enums.common import ResourceScopeEnum
                     _ADMIN_ONLY = ResourceScopeEnum.ADMIN_ONLY.value
-                    if scope == "admin":
-                        pass  # admin 可见所有插槽
-                    elif scope == "tenant":
-                        if slot_scope == _ADMIN_ONLY:
-                            continue
+                    if scope == "admin" and slot_scope == "tenant":
+                        continue
+                    elif scope == "tenant" and slot_scope in (_ADMIN_ONLY, "admin"):
+                        continue
                 all_slots.append(slot)
         return all_slots
 
@@ -756,6 +833,8 @@ class ExtensionRegistry:
         self._plugin_custom_extensions.pop(plugin_name, None)
         # 清理中间件
         self._plugin_middlewares.pop(plugin_name, None)
+        # 清理菜单 i18n 回退缓存
+        self._plugin_menu_titles.pop(plugin_name, None)
 
         # 清理 PluginEventBus 订阅
         try:

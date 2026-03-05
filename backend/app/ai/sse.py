@@ -5,9 +5,9 @@ SSE 流式响应封装
 """
 
 import json
-from typing import Any, AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import Any
 
-from fastapi import Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,34 +21,34 @@ logger = LogManager.get_logger("ai.sse")
 class SSEChunkEncoder:
     """
     SSE 块编码器
-    
+
     将数据块编码为 SSE 格式：data: {json}\n\n
     """
-    
+
     @staticmethod
     def encode(data: dict[str, Any] | str) -> str:
         """
         编码数据块为 SSE 格式
-        
+
         Args:
             data: 数据（字典或字符串）
-            
+
         Returns:
             SSE 格式的字符串
         """
         if isinstance(data, str):
             # 特殊标记（如 [DONE]）
             return f"data: {data}\n\n"
-        
+
         # 普通 JSON 数据
         json_str = json.dumps(data, ensure_ascii=False)
         return f"data: {json_str}\n\n"
-    
+
     @staticmethod
     def done() -> str:
         """
         生成结束标记
-        
+
         Returns:
             SSE 结束标记
         """
@@ -58,11 +58,11 @@ class SSEChunkEncoder:
 class SSEStreamingResponse:
     """
     SSE 流式响应封装
-    
+
     将 AsyncIterator[ChatChunk] 转换为 SSE 格式的流式响应
     支持 Token 计数和完成回调
     """
-    
+
     def __init__(
         self,
         chunk_iterator: AsyncIterator[ChatChunk],
@@ -71,7 +71,7 @@ class SSEStreamingResponse:
     ):
         """
         初始化 SSE 流式响应
-        
+
         Args:
             chunk_iterator: ChatChunk 异步迭代器
             db: 数据库会话
@@ -80,12 +80,12 @@ class SSEStreamingResponse:
         self.chunk_iterator = chunk_iterator
         self.db = db
         self.on_complete = on_complete
-        
+
         # Token 计数累加器
         self.input_tokens = 0
         self.output_tokens = 0
         self.total_tokens = 0
-    
+
     async def _generate(self) -> AsyncIterator[str]:
         """
         生成 SSE 流式响应
@@ -162,11 +162,11 @@ class SSEStreamingResponse:
                     )
                 except Exception as e:
                     logger.error("SSE callback error: %s", str(e))
-    
+
     def response(self) -> StreamingResponse:
         """
         创建 FastAPI StreamingResponse
-        
+
         Returns:
             FastAPI StreamingResponse 对象
         """

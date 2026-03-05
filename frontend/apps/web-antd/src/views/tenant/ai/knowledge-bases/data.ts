@@ -28,17 +28,29 @@ export function getStatusOptions() {
 export function getKBStatusText(status: string | undefined): string {
   if (!status) return '-';
   switch (status) {
-    case 'active': return $t('tenant.knowledgeBase.status.active');
-    case 'disabled': return $t('tenant.knowledgeBase.status.disabled');
-    default: return status;
+    case 'active': {
+      return $t('tenant.knowledgeBase.status.active');
+    }
+    case 'disabled': {
+      return $t('tenant.knowledgeBase.status.disabled');
+    }
+    default: {
+      return status;
+    }
   }
 }
 
 export function getKBStatusColor(status: string | undefined): string {
   switch (status) {
-    case 'active': return 'success';
-    case 'disabled': return 'error';
-    default: return 'default';
+    case 'active': {
+      return 'success';
+    }
+    case 'disabled': {
+      return 'error';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
@@ -50,13 +62,23 @@ export function getDocStatusText(status: string | undefined): string {
 
 export function getDocStatusColor(status: string | undefined): string {
   switch (status) {
-    case 'completed': return 'success';
-    case 'error': return 'error';
-    case 'pending': return 'default';
-    case 'parsing':
     case 'chunking':
-    case 'embedding': return 'processing';
-    default: return 'default';
+    case 'embedding':
+    case 'parsing': {
+      return 'processing';
+    }
+    case 'completed': {
+      return 'success';
+    }
+    case 'error': {
+      return 'error';
+    }
+    case 'pending': {
+      return 'default';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
@@ -90,7 +112,9 @@ export async function getTenantVisionModelOptions() {
       ...visionModels,
     ];
   } catch {
-    return [{ label: $t('tenant.knowledgeBase.field.visionModelAuto'), value: null }];
+    return [
+      { label: $t('tenant.knowledgeBase.field.visionModelAuto'), value: null },
+    ];
   }
 }
 
@@ -98,17 +122,35 @@ export async function getTenantVisionModelOptions() {
 
 export function getChunkStrategyOptions() {
   return [
-    { label: $t('tenant.knowledgeBase.field.chunkStrategyRecursive'), value: 'recursive' },
-    { label: $t('tenant.knowledgeBase.field.chunkStrategySemantic'), value: 'semantic' },
-    { label: $t('tenant.knowledgeBase.field.chunkStrategyParagraph'), value: 'paragraph' },
+    {
+      label: $t('tenant.knowledgeBase.field.chunkStrategyRecursive'),
+      value: 'recursive',
+    },
+    {
+      label: $t('tenant.knowledgeBase.field.chunkStrategySemantic'),
+      value: 'semantic',
+    },
+    {
+      label: $t('tenant.knowledgeBase.field.chunkStrategyParagraph'),
+      value: 'paragraph',
+    },
   ];
 }
 
 export function getSearchModeOptions() {
   return [
-    { label: $t('tenant.knowledgeBase.field.searchModeHybrid'), value: 'hybrid' },
-    { label: $t('tenant.knowledgeBase.field.searchModeVector'), value: 'vector' },
-    { label: $t('tenant.knowledgeBase.field.searchModeKeyword'), value: 'keyword' },
+    {
+      label: $t('tenant.knowledgeBase.field.searchModeHybrid'),
+      value: 'hybrid',
+    },
+    {
+      label: $t('tenant.knowledgeBase.field.searchModeVector'),
+      value: 'vector',
+    },
+    {
+      label: $t('tenant.knowledgeBase.field.searchModeKeyword'),
+      value: 'keyword',
+    },
   ];
 }
 
@@ -186,8 +228,16 @@ export function useColumns<T = KnowledgeBaseItem>(
             icon: 'lucide:eye',
             accessCodes: ['knowledge_base:list'],
           },
-          { code: 'edit', show: (row: KnowledgeBaseItem) => row.scope === 'all_tenants' && row.tenant_id !== null },
-          { code: 'delete', show: (row: KnowledgeBaseItem) => row.scope === 'all_tenants' && row.tenant_id !== null },
+          {
+            code: 'edit',
+            show: (row: KnowledgeBaseItem) =>
+              row.scope === 'all_tenants' && row.tenant_id !== null,
+          },
+          {
+            code: 'delete',
+            show: (row: KnowledgeBaseItem) =>
+              row.scope === 'all_tenants' && row.tenant_id !== null,
+          },
         ],
       },
       field: 'operation',
@@ -219,21 +269,32 @@ export function useFormSchema(): VbenFormSchema[] {
       rows: 3,
     }),
     {
-      ...select('embedding_model_id', $t('tenant.knowledgeBase.field.embeddingModel'), {
-        api: getEmbeddingModelOptions,
-        required: true,
-      }),
+      ...select(
+        'embedding_model_id',
+        $t('tenant.knowledgeBase.field.embeddingModel'),
+        {
+          api: getEmbeddingModelOptions,
+          required: true,
+        },
+      ),
       help: $t('tenant.knowledgeBase.help.embeddingModel'),
     },
     {
-      ...select('vision_model_id', $t('tenant.knowledgeBase.field.visionModel'), {
-        api: getTenantVisionModelOptions,
-        required: false,
-      }),
+      ...select(
+        'vision_model_id',
+        $t('tenant.knowledgeBase.field.visionModel'),
+        {
+          api: getTenantVisionModelOptions,
+          required: false,
+        },
+      ),
       help: $t('tenant.knowledgeBase.help.visionModel'),
     },
     {
-      ...switchField('extract_images', $t('tenant.knowledgeBase.field.extractImages')),
+      ...switchField(
+        'extract_images',
+        $t('tenant.knowledgeBase.field.extractImages'),
+      ),
       help: $t('tenant.knowledgeBase.help.extractImages'),
     },
     {
@@ -245,17 +306,25 @@ export function useFormSchema(): VbenFormSchema[] {
       help: $t('tenant.knowledgeBase.help.chunkSize'),
     },
     {
-      ...numberField('chunk_overlap', $t('tenant.knowledgeBase.field.chunkOverlap'), {
-        min: 0,
-        max: 200,
-        defaultValue: 50,
-      }),
+      ...numberField(
+        'chunk_overlap',
+        $t('tenant.knowledgeBase.field.chunkOverlap'),
+        {
+          min: 0,
+          max: 200,
+          defaultValue: 50,
+        },
+      ),
       help: $t('tenant.knowledgeBase.help.chunkOverlap'),
     },
     {
-      ...select('chunk_strategy', $t('tenant.knowledgeBase.field.chunkStrategy'), {
-        options: getChunkStrategyOptions(),
-      }),
+      ...select(
+        'chunk_strategy',
+        $t('tenant.knowledgeBase.field.chunkStrategy'),
+        {
+          options: getChunkStrategyOptions(),
+        },
+      ),
       help: $t('tenant.knowledgeBase.help.chunkStrategy'),
     },
     {
@@ -273,12 +342,16 @@ export function useFormSchema(): VbenFormSchema[] {
       help: $t('tenant.knowledgeBase.help.topK'),
     },
     {
-      ...numberField('score_threshold', $t('tenant.knowledgeBase.field.scoreThreshold'), {
-        min: 0,
-        max: 1,
-        defaultValue: 0.5,
-        precision: 2,
-      }),
+      ...numberField(
+        'score_threshold',
+        $t('tenant.knowledgeBase.field.scoreThreshold'),
+        {
+          min: 0,
+          max: 1,
+          defaultValue: 0.5,
+          precision: 2,
+        },
+      ),
       help: $t('tenant.knowledgeBase.help.scoreThreshold'),
     },
   ];

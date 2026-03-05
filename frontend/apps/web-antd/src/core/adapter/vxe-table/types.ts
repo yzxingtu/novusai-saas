@@ -188,7 +188,7 @@ export interface RecycleBinConfig {
   /** 名称字段，默认 'name' */
   nameField?: string;
   /** 自定义列配置 */
-  columns?: Array<{ title: string; dataIndex: string; width?: number }>;
+  columns?: Array<{ dataIndex: string; title: string; width?: number }>;
 }
 
 /**

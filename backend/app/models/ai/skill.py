@@ -5,7 +5,7 @@
 Skill 是面向用户的管理单元，通过 SkillResolver 转换为面向 LLM 的 ToolDefinition
 """
 
-from sqlalchemy import Boolean, Column, ForeignKey, Index, Integer, String, Text, JSON
+from sqlalchemy import JSON, Boolean, Column, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel

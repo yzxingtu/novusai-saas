@@ -6,13 +6,13 @@ AI 模型 Service
 
 from app.core.base_service import BaseService
 from app.core.i18n import _
-from app.exceptions import NotFoundException, ConflictException, BusinessException
+from app.exceptions import BusinessException, ConflictException, NotFoundException
+from app.models.ai import AIModel
 from app.repositories.ai import AIModelRepository
 from app.schemas.ai.model import (
     AIModelCreate,
     AIModelUpdate,
 )
-from app.models.ai import AIModel
 
 
 class AIModelService(BaseService[AIModel, AIModelRepository]):
@@ -109,9 +109,12 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
         # 校验 fallback 不可自引用
         self._validate_fallback(id, update_data)
 
-        if "code" in update_data and update_data["code"] != model_obj.code:
-            if await self.repo.code_exists(update_data["code"], exclude_id=id):
-                raise ConflictException(message=_("ai.error.model_code_exists"))
+        if (
+            "code" in update_data
+            and update_data["code"] != model_obj.code
+            and await self.repo.code_exists(update_data["code"], exclude_id=id)
+        ):
+            raise ConflictException(message=_("ai.error.model_code_exists"))
 
         model_obj.update_from_dict(update_data)
         await self.db.flush()
@@ -150,9 +153,9 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
             ExternalServiceException: 远程调用失败
         """
         from app.ai.adapters import AdapterRegistry
+        from app.core.logging import LogManager
         from app.exceptions import ExternalServiceException
         from app.repositories.ai import AIProviderRepository, ProviderApiKeyRepository
-        from app.core.logging import LogManager
 
         _logger = LogManager.get_logger("ai")
 

@@ -9,8 +9,11 @@
  */
 import type { Component } from 'vue';
 
-import { defineStore } from 'pinia';
 import { markRaw, ref } from 'vue';
+
+import { preferences } from '@vben/preferences';
+
+import { defineStore } from 'pinia';
 
 import { getPluginSlotsApi } from '#/api/admin/plugin';
 import { getTenantPluginSlotsApi } from '#/api/tenant/plugin';
@@ -37,7 +40,6 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
   const floatingPanels = ref<PluginSlotItem[]>([]);
   const dashboardWidgets = ref<PluginSlotItem[]>([]);
   const settingsTabs = ref<PluginSlotItem[]>([]);
-  const sidebarMenus = ref<PluginSlotItem[]>([]);
   /** 通知中心自定义 UI 组件（notification_ui slot） */
   const notificationUI = ref<PluginSlotItem[]>([]);
   /** 独立页面路由（standalone_pages slot，无侧边菜单） */
@@ -66,18 +68,25 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
   async function fetchSlots(side: 'admin' | 'tenant' = 'admin'): Promise<void> {
     loading.value = true;
     try {
-      const resp = side === 'tenant'
-        ? await getTenantPluginSlotsApi()
-        : await getPluginSlotsApi();
+      const resp =
+        side === 'tenant'
+          ? await getTenantPluginSlotsApi()
+          : await getPluginSlotsApi();
 
       clearAll();
+      const pluginStyles = resp.plugin_styles ?? {};
 
       // 按 slot 类型聚合需要加载的插件模块
       const pluginModCache: Record<string, Record<string, unknown>> = {};
-      async function getPluginMod(pluginName: string): Promise<Record<string, unknown>> {
+      async function getPluginMod(
+        pluginName: string,
+      ): Promise<Record<string, unknown>> {
         if (!pluginModCache[pluginName]) {
           try {
-            pluginModCache[pluginName] = await loadPluginComponents(pluginName);
+            pluginModCache[pluginName] = await loadPluginComponents(
+              pluginName,
+              pluginStyles[pluginName] ?? [],
+            );
           } catch {
             pluginModCache[pluginName] = {};
           }
@@ -95,7 +104,10 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
       ];
 
       for (const [apiKey, storeKey] of SLOT_MAP) {
-        const items = (resp as unknown as Record<string, typeof resp.header_widgets>)[apiKey] ?? [];
+        const items =
+          (resp as unknown as Record<string, typeof resp.header_widgets>)[
+            apiKey
+          ] ?? [];
         for (const slot of items) {
           let comp: Component | undefined;
           if (slot.component) {
@@ -114,20 +126,27 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
             icon: slot.icon,
             position: slot.position,
             grid: slot.grid,
-            event: slot.name, // for notification_ui
+            event: typeof slot.event === 'string' ? slot.event : slot.name,
             hidden: storeKey === 'standalonePages',
           });
         }
       }
-    } catch (err: unknown) {
-      console.warn('[PluginSlotsStore] fetchSlots failed:', err);
+    } catch (error: unknown) {
+      console.warn('[PluginSlotsStore] fetchSlots failed:', error);
     } finally {
       loading.value = false;
     }
   }
 
   function unregisterPlugin(pluginName: string) {
-    for (const list of [headerWidgets, floatingPanels, dashboardWidgets, settingsTabs, sidebarMenus, notificationUI, standalonePages]) {
+    for (const list of [
+      headerWidgets,
+      floatingPanels,
+      dashboardWidgets,
+      settingsTabs,
+      notificationUI,
+      standalonePages,
+    ]) {
       list.value = list.value.filter((item) => item.pluginName !== pluginName);
     }
   }
@@ -137,7 +156,6 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
     floatingPanels.value = [];
     dashboardWidgets.value = [];
     settingsTabs.value = [];
-    sidebarMenus.value = [];
     notificationUI.value = [];
     standalonePages.value = [];
   }
@@ -148,18 +166,47 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
       floatingPanels,
       dashboardWidgets,
       settingsTabs,
-      sidebarMenus,
       notificationUI,
       standalonePages,
     };
     return map[slotType];
   }
 
-  function _resolveTitle(title: Record<string, string> | string | undefined): string | undefined {
+  function _resolveTitle(
+    title: Record<string, string> | string | undefined,
+  ): string | undefined {
     if (!title) return undefined;
     if (typeof title === 'string') return title;
-    // i18n dict: prefer zh-CN, then en
-    return title['zh-CN'] ?? title['en'] ?? Object.values(title)[0];
+
+    const locale = (preferences.app.locale ?? '').toLowerCase();
+    const normalized = locale.replaceAll('_', '-');
+
+    const exact =
+      title[preferences.app.locale] ??
+      title[normalized] ??
+      title[normalized.replaceAll('-', '_')];
+    if (exact) return exact;
+
+    if (normalized.startsWith('zh')) {
+      return (
+        title['zh-CN'] ??
+        title.zh ??
+        title.zh_CN ??
+        title.en ??
+        Object.values(title)[0]
+      );
+    }
+    if (normalized.startsWith('en')) {
+      return (
+        title.en ??
+        title['en-US'] ??
+        title.en_US ??
+        title['zh-CN'] ??
+        Object.values(title)[0]
+      );
+    }
+
+    return title['zh-CN'] ?? title.en ?? Object.values(title)[0];
   }
 
   return {
@@ -167,7 +214,6 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
     floatingPanels,
     dashboardWidgets,
     settingsTabs,
-    sidebarMenus,
     notificationUI,
     standalonePages,
     loading,

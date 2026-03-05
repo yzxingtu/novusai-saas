@@ -15,12 +15,11 @@ from app.core.logging import LogManager
 from app.core.security import get_password_hash
 from app.enums import ErrorCode, RoleType
 from app.exceptions import BusinessException, NotFoundException
+from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
-from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.repositories.system.tenant_repository import TenantRepository
 from app.services.system.tenant_domain_service import TenantDomainService
-
 
 logger = LogManager.get_logger("app")
 
@@ -28,50 +27,50 @@ logger = LogManager.get_logger("app")
 class TenantService(GlobalService[Tenant, TenantRepository]):
     """
     租户服务
-    
+
     提供租户特有的业务方法（全局级别，由平台管理员操作）
     """
-    
+
     model = Tenant
     repository_class = TenantRepository
-    
+
     async def get_by_code(self, code: str) -> Tenant | None:
         """
         根据编码获取租户
-        
+
         Args:
             code: 租户编码
-        
+
         Returns:
             租户实例或 None
         """
         return await self.repo.get_by_code(code)
-    
+
     async def _generate_tenant_code(self) -> str:
         """
         生成唯一的租户编码
-        
+
         格式: t + 8位小写字母数字（如 t3a8k2m9x）
-        
+
         Returns:
             唯一的租户编码
         """
         charset = string.ascii_lowercase + string.digits
         max_attempts = 10
-        
-        for _ in range(max_attempts):
+
+        for _attempt in range(max_attempts):
             # 生成 t + 8位随机字符
             random_part = ''.join(secrets.choice(charset) for _ in range(8))
             code = f"t{random_part}"
-            
+
             # 检查是否已存在
             if not await self.repo.code_exists(code):
                 return code
-        
+
         # 极端情况：多次尝试后仍重复，加长随机部分
         random_part = ''.join(secrets.choice(charset) for _ in range(12))
         return f"t{random_part}"
-    
+
     async def create_tenant(
         self,
         name: str,
@@ -89,7 +88,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
     ) -> Tenant:
         """
         创建租户
-        
+
         Args:
             name: 租户名称
             admin_username: 租户超级管理员用户名
@@ -103,13 +102,13 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             quota: 配额配置（可覆盖套餐默认值）
             expires_at: 到期时间
             remark: 备注
-        
+
         Returns:
             创建的租户
         """
         # 自动生成租户编码
         code = await self._generate_tenant_code()
-        
+
         # 创建租户
         data = {
             "code": code,
@@ -124,16 +123,16 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             "remark": remark,
             "is_active": True,
         }
-        
+
         tenant = await self.create(data)
-        
+
         # 创建默认域名
         domain_service = TenantDomainService(self.db)
         await domain_service.create_default_domain(tenant.id, tenant.code)
-        
+
         # 创建租户组织架构根节点
         root_node = await self._create_tenant_root_node(tenant.id, tenant.name)
-        
+
         # 创建租户超级管理员（owner）
         await self._create_tenant_owner(
             tenant_id=tenant.id,
@@ -143,7 +142,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             phone=contact_phone,
             root_node=root_node,
         )
-        
+
         # 异步发送欢迎邮件（失败不阻塞创建流程）
         self._send_welcome_email(
             tenant_name=name,
@@ -151,12 +150,12 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             admin_email=admin_email,
             tenant_id=tenant.id,
         )
-        
+
         # 自动绑定插件（scope=global/all_tenants 的已启用插件）
         await self._provision_tenant_plugins(tenant.id)
-        
+
         return tenant
-    
+
     @staticmethod
     def _send_welcome_email(
         tenant_name: str,
@@ -169,6 +168,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
         走 notification 队列异步发送，失败不影响租户创建流程。
         """
+        _ = admin_email
         try:
             from app.services.common.email_templates import render_welcome_email
             from app.services.common.notification_service import notify_sync
@@ -194,11 +194,11 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
     async def _create_tenant_root_node(self, tenant_id: int, tenant_name: str) -> TenantAdminRole:
         """
         为租户创建组织架构根节点
-        
+
         Args:
             tenant_id: 租户 ID
             tenant_name: 租户名称（用作根节点名称）
-        
+
         Returns:
             创建的根节点
         """
@@ -215,16 +215,16 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             type=RoleType.DEPARTMENT.value,
             allow_members=True,
         )
-        
+
         self.db.add(root_node)
         await self.db.flush()
-        
+
         # 更新 path
         root_node.path = f"/{root_node.id}/"
         await self.db.flush()
-        
+
         return root_node
-    
+
     async def _create_tenant_owner(
         self,
         tenant_id: int,
@@ -236,7 +236,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
     ) -> TenantAdmin:
         """
         为租户创建超级管理员（owner）
-        
+
         Args:
             tenant_id: 租户 ID
             username: 用户名
@@ -244,7 +244,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             password: 明文密码
             root_node: 租户根节点
             phone: 手机号
-        
+
         Returns:
             创建的管理员
         """
@@ -258,14 +258,14 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             is_owner=True,
             role_id=root_node.id,
         )
-        
+
         self.db.add(owner)
         await self.db.flush()
-        
+
         # 设置根节点的负责人为 owner
         root_node.leader_id = owner.id
         await self.db.flush()
-        
+
         return owner
 
     async def _provision_tenant_plugins(self, tenant_id: int) -> None:
@@ -281,26 +281,26 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
     ) -> TenantAdmin:
         """
         重置租户超级管理员密码
-        
+
         Args:
             tenant_id: 租户 ID
             new_password: 新密码（明文）
-        
+
         Returns:
             更新后的管理员
-        
+
         Raises:
             NotFoundException: 租户或超级管理员不存在
         """
         from sqlalchemy import select
-        
+
         # 检查租户是否存在
         tenant = await self.get_by_id(tenant_id)
         if not tenant:
             raise NotFoundException(
                 message=_("tenant.not_found"),
             )
-        
+
         # 查找租户的超级管理员（owner）
         result = await self.db.execute(
             select(TenantAdmin).where(
@@ -310,16 +310,16 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             )
         )
         owner = result.scalar_one_or_none()
-        
+
         if not owner:
             raise NotFoundException(
                 message=_("tenant.owner_not_found"),
             )
-        
+
         # 更新密码
         owner.password_hash = get_password_hash(new_password)
         await self.db.flush()
-        
+
         # 异步发送密码重置通知邮件（失败不阻塞重置流程）
         if owner.email:
             self._send_password_reset_notification(
@@ -327,9 +327,9 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
                 user_email=owner.email,
                 tenant_id=tenant_id,
             )
-        
+
         return owner
-    
+
     @staticmethod
     def _send_password_reset_notification(
         user_name: str,
@@ -341,6 +341,7 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
 
         走 notification 队列异步发送。
         """
+        _ = user_email
         try:
             from app.services.common.email_templates import render_password_reset_email
             from app.services.common.notification_service import notify_sync
@@ -370,14 +371,14 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
     ) -> Tenant:
         """
         更新租户
-        
+
         Args:
             tenant_id: 租户 ID
             data: 更新数据
-        
+
         Returns:
             更新后的租户
-        
+
         Raises:
             NotFoundException: 租户不存在
             BusinessException: 编码已存在
@@ -387,31 +388,34 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             raise NotFoundException(
                 message=_("tenant.not_found"),
             )
-        
+
         # 如果要更新编码，检查是否已被占用
-        if "code" in data and data["code"]:
-            if data["code"] != tenant.code:
-                if await self.repo.code_exists(data["code"], exclude_id=tenant_id):
-                    raise BusinessException(
-                        message=_("tenant.code_exists"),
-                        code=ErrorCode.DUPLICATE_ENTRY,
-                    )
-        
+        if (
+            "code" in data
+            and data["code"]
+            and data["code"] != tenant.code
+            and await self.repo.code_exists(data["code"], exclude_id=tenant_id)
+        ):
+            raise BusinessException(
+                message=_("tenant.code_exists"),
+                code=ErrorCode.DUPLICATE_ENTRY,
+            )
+
         result = await self.update(tenant_id, data)
         if not result:
             raise NotFoundException(message=_("tenant.not_found"))
         return result
-    
+
     async def enable_tenant(self, tenant_id: int) -> Tenant:
         """
         启用租户
-        
+
         Args:
             tenant_id: 租户 ID
-        
+
         Returns:
             更新后的租户
-        
+
         Raises:
             NotFoundException: 租户不存在
         """
@@ -420,22 +424,22 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             raise NotFoundException(
                 message=_("tenant.not_found"),
             )
-        
+
         result = await self.update(tenant_id, {"is_active": True})
         if not result:
             raise NotFoundException(message=_("tenant.not_found"))
         return result
-    
+
     async def disable_tenant(self, tenant_id: int) -> Tenant:
         """
         禁用租户
-        
+
         Args:
             tenant_id: 租户 ID
-        
+
         Returns:
             更新后的租户
-        
+
         Raises:
             NotFoundException: 租户不存在
         """
@@ -444,23 +448,23 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             raise NotFoundException(
                 message=_("tenant.not_found"),
             )
-        
+
         result = await self.update(tenant_id, {"is_active": False})
         if not result:
             raise NotFoundException(message=_("tenant.not_found"))
         return result
-    
+
     async def toggle_status(self, tenant_id: int, is_active: bool) -> Tenant:
         """
         切换租户状态
-        
+
         Args:
             tenant_id: 租户 ID
             is_active: 是否启用
-        
+
         Returns:
             更新后的租户
-        
+
         Raises:
             NotFoundException: 租户不存在
         """

@@ -21,9 +21,8 @@ name 字段使用 i18n key，前端渲染时翻译。
 图标名称使用 kebab-case（小写字母，单词间用连字符分隔）
 """
 
-from app.enums.rbac import PermissionType, PermissionScope
+from app.enums.rbac import PermissionScope, PermissionType
 from app.rbac.decorators import PermissionMeta
-
 
 # 平台管理端目录菜单
 ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
@@ -42,7 +41,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
         component="dashboard/Index",
         sort_order=0,
     ),
-    
+
     # ========================================
     # 权限管理（目录）
     # ========================================
@@ -61,7 +60,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:admin.admin_user (用户管理)
     # - menu:admin.permission (权限管理) - 可选，一般隐藏
     # - menu:admin.organization (组织架构) - 由 roles.py 控制器声明
-    
+
     # ========================================
     # 租户管理（目录）
     # ========================================
@@ -78,7 +77,7 @@ ADMIN_DIRECTORY_MENUS: list[PermissionMeta] = [
     ),
     # 子菜单由控制器声明:
     # - menu:admin.tenant (租户列表)
-    
+
     # ========================================
     # 系统管理（目录）
     # ========================================

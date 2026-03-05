@@ -20,7 +20,7 @@ export interface ScopeFieldsOptions {
   /** scope 字段的 help 文本 */
   scopeHelp?: string;
   /** scope 字段是否禁用（编辑时锁定） */
-  scopeDisabled?: boolean | ((values: Record<string, unknown>) => boolean);
+  scopeDisabled?: ((values: Record<string, unknown>) => boolean) | boolean;
   /**
    * 是否在 scope=all_tenants 时显示「所属租户」单选，默认 false。
    * 仅用于语义上不同的场景（如定时任务： all_tenants = 属于指定租户）。
@@ -38,7 +38,9 @@ export interface ScopeFieldsOptions {
 /**
  * 生成 scope 相关的 VbenForm schema 字段组
  */
-export function useScopeFields(options: ScopeFieldsOptions = {}): VbenFormSchema[] {
+export function useScopeFields(
+  options: ScopeFieldsOptions = {},
+): VbenFormSchema[] {
   const {
     allowedScopes,
     scopeHelp,
@@ -50,7 +52,8 @@ export function useScopeFields(options: ScopeFieldsOptions = {}): VbenFormSchema
   } = options;
 
   const needsAssignment = (v: Record<string, unknown>) =>
-    v[scopeField] === 'assigned_tenants' || v[scopeField] === 'admin_and_assigned';
+    v[scopeField] === 'assigned_tenants' ||
+    v[scopeField] === 'admin_and_assigned';
 
   const fields: VbenFormSchema[] = [];
 
@@ -76,15 +79,17 @@ export function useScopeFields(options: ScopeFieldsOptions = {}): VbenFormSchema
   // calls resetConditionState() and clears the stale isDisabled=true state.
   scopeSchema.dependencies = {
     triggerFields: ['_mode'],
-    disabled: typeof scopeDisabled === 'function'
-      ? scopeDisabled
-      : () => Boolean(scopeDisabled),
+    disabled:
+      typeof scopeDisabled === 'function'
+        ? scopeDisabled
+        : () => Boolean(scopeDisabled),
   };
   fields.push(scopeSchema);
 
   // ── 2. 所属租户（scope=all_tenants 时显示，仅特定场景下需要） ──
   if (showTenantId) {
-    const isTenantScope = (v: Record<string, unknown>) => v[scopeField] === 'all_tenants';
+    const isTenantScope = (v: Record<string, unknown>) =>
+      v[scopeField] === 'all_tenants';
     fields.push({
       component: 'ApiSelect',
       fieldName: tenantIdField,
@@ -154,13 +159,13 @@ export function extractScopePayload(
   withTenantId = false,
 ): Record<string, unknown> {
   const scope = values[scopeField] as string;
-  const result: Record<string, unknown> = { [scopeField]: scope };
-
-  if (withTenantId && scope === 'all_tenants') {
-    result.tenant_id = values.tenant_id ?? null;
-  } else {
-    result.tenant_id = null;
-  }
+  const result: Record<string, unknown> = {
+    [scopeField]: scope,
+    tenant_id:
+      withTenantId && scope === 'all_tenants'
+        ? (values.tenant_id ?? null)
+        : null,
+  };
 
   if (scopeNeedsAssignment(scope)) {
     result.tenant_ids = values.tenant_ids ?? [];
@@ -172,9 +177,12 @@ export function extractScopePayload(
 /**
  * 从详情数据中提取 scope 相关的表单回填值
  */
-export function extractScopeFormValues(
-  data: { scope?: string; tenant_id?: number | null; assigned_tenant_ids?: number[]; [k: string]: unknown },
-): Record<string, unknown> {
+export function extractScopeFormValues(data: {
+  [k: string]: unknown;
+  assigned_tenant_ids?: number[];
+  scope?: string;
+  tenant_id?: null | number;
+}): Record<string, unknown> {
   return {
     scope: data.scope,
     tenant_id: data.tenant_id ?? null,

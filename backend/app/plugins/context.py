@@ -7,17 +7,28 @@ PluginContext 是插件与核心系统交互的唯一入口。
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
+import re as _re
 import time
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from dataclasses import dataclass, field
-
 from app.core.logging import get_logger
+from app.enums.agent import (
+    MemoryChannelEnum,
+    MemorySceneEnum,
+)
 from app.enums.plugin import PluginLicenseTypeEnum
 from app.plugins.exceptions import PluginSecurityError
+
+# 预编译：匹配 SQL 关键字后跟表名（含 \t \n 等空白分隔符）
+_TABLE_KEYWORD_RE = _re.compile(
+    r'\b(?:from|join|into|update|table)\s+["\']?([a-z0-9_][a-z0-9_.]*)',
+    _re.IGNORECASE,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -81,10 +92,27 @@ class PluginDbProxy:
         await self._db.flush()
 
     async def commit(self) -> None:
-        await self._db.commit()
+        """
+        在当前事务内 flush 插件数据（不提交外层事务）。
+
+        注意：为保护生命周期事务原子性，此方法等同于 flush()。
+        若需要确保跨会话可见性，请在插件代码的最终响应路径使用 flush()；
+        生命周期框架会在请求结束时统一 commit。
+        """
+        await self._db.flush()
 
     async def rollback(self) -> None:
-        await self._db.rollback()
+        """
+        禁止插件回滚整个数据库会话。
+
+        调用 rollback() 会撤销所有生命周期变更（如 plugin.status=ENABLED），
+        导致系统进入不一致状态。如需撤销插件自身写入，
+        请避免在 on_enable 等 Hook 中写入 DB 或使用业务逻辑判断。
+        """
+        raise PluginSecurityError(
+            message="Plugins cannot rollback the database session — "
+            "this would undo lifecycle changes. Use flush() to persist your data.",
+        )
 
     def add(self, instance: Any) -> None:
         self._check_instance_access(instance)
@@ -153,31 +181,15 @@ class PluginDbProxy:
         _ALLOW_LIST = {"alembic_version", "information_schema", "pg_catalog", "dual"}
 
         # 检查常见的表操作关键字后的表名（含 CTE 内部通过 FROM/JOIN 引用的表）
-        for keyword in ("from ", "join ", "into ", "update ", "table "):
-            pos = 0
-            while True:
-                idx = sql_lower.find(keyword, pos)
-                if idx == -1:
-                    break
-                table_start = idx + len(keyword)
-                # 提取表名（去除引号和空格）
-                rest = sql_lower[table_start:].lstrip().lstrip('"').lstrip("'")
-                # 取到空格或括号为止
-                table_end = len(rest)
-                for ch in (" ", "(", ")", ",", ";", "\n", "\t", '"', "'"):
-                    ch_pos = rest.find(ch)
-                    if 0 <= ch_pos < table_end:
-                        table_end = ch_pos
-                table_name = rest[:table_end].strip()
-
-                # 允许的表：插件自有表、声明依赖插件表、允许名单
-                if table_name and not self._is_allowed_table(table_name):
-                    if table_name not in _ALLOW_LIST:
-                        raise PluginSecurityError(
-                            message=f"Plugin can only access tables with prefixes "
-                            f"{self._allowed_prefixes}, attempted: '{table_name}'",
-                        )
-                pos = table_start
+        # _TABLE_KEYWORD_RE 定义在模块级，处理 \t/\n 等任意空白分隔符
+        for match in _TABLE_KEYWORD_RE.finditer(sql_lower):
+            table_name = match.group(1).strip('"\'')
+            # 允许的表：插件自有表（由 allowed_prefixes 限定）+ 允许名单
+            if table_name and not self._is_allowed_table(table_name) and table_name not in _ALLOW_LIST:
+                raise PluginSecurityError(
+                    message=f"Plugin can only access tables with prefixes "
+                    f"{self._allowed_prefixes}, attempted: '{table_name}'",
+                )
 
 
 class PluginContext:
@@ -253,7 +265,9 @@ class PluginContext:
         from sqlalchemy import select
 
         from app.models.system.plugin import Plugin
-        from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
+        from app.models.system.resource_tenant_assignment import (
+            ResourceTenantAssignment,
+        )
 
         result = await self._db.execute(
             select(ResourceTenantAssignment.config).join(
@@ -301,15 +315,12 @@ class PluginContext:
     # ── 数据库 ──
 
     def get_db(self) -> PluginDbProxy:
-        """返回数据库代理（默认仅自有表；可扩展到声明依赖插件表），需 db:own_tables 能力"""
+        """返回数据库代理（仅允许当前插件自有表），需 db:own_tables 能力"""
         self._require("db:own_tables")
 
         own_prefix = f"px_{self.plugin_name.replace('-', '_')}_"
-        allowed_prefixes = [own_prefix]
-        dependencies = getattr(getattr(self.manifest, "dependencies", None), "plugins", []) or []
-        for dep_name in dependencies:
-            allowed_prefixes.append(f"px_{str(dep_name).replace('-', '_')}_")
-
+        extra_prefixes = getattr(self.manifest, "db_table_prefixes", None) or []
+        allowed_prefixes = [own_prefix, *extra_prefixes]
         return PluginDbProxy(
             self._db,
             self.plugin_name,
@@ -361,15 +372,21 @@ class PluginContext:
 
         now = utc_now()
         _TRIAL = PluginLicenseTypeEnum.TRIAL.value
-        if license_record.license_type == _TRIAL:
-            if license_record.trial_expires_at and now < license_record.trial_expires_at:
-                remaining = (license_record.trial_expires_at - now).days
+        license_type = getattr(license_record, "license_type", None)
+        trial_expires_at = getattr(license_record, "trial_expires_at", None)
+        expires_at = getattr(license_record, "expires_at", None)
+        activated_at = getattr(license_record, "activated_at", None)
+        is_valid = bool(getattr(license_record, "is_valid", False))
+
+        if license_type == _TRIAL:
+            if trial_expires_at and now < trial_expires_at:
+                remaining = (trial_expires_at - now).days
                 return {
                     "status": "trial",
                     "license_type": _TRIAL,
                     "is_valid": True,
                     "trial_days_remaining": remaining,
-                    "expires_at": str(license_record.trial_expires_at),
+                    "expires_at": str(trial_expires_at),
                 }
             return {
                 "status": "expired",
@@ -378,32 +395,32 @@ class PluginContext:
                 "message": "Trial period expired",
             }
 
-        if license_record.is_valid:
+        if is_valid:
             # 检查付费 License 是否过期
-            if license_record.expires_at and now >= license_record.expires_at:
+            if expires_at and now >= expires_at:
                 return {
                     "status": "expired",
-                    "license_type": license_record.license_type,
+                    "license_type": license_type,
                     "is_valid": False,
                     "message": "License expired",
-                    "expires_at": str(license_record.expires_at),
+                    "expires_at": str(expires_at),
                 }
             remaining_days = None
-            if license_record.expires_at:
-                remaining_days = (license_record.expires_at - now).days
+            if expires_at:
+                remaining_days = (expires_at - now).days
             return {
                 "status": "active",
-                "license_type": license_record.license_type,
+                "license_type": license_type,
                 "is_valid": True,
                 "license_key": "****",
-                "activated_at": str(license_record.activated_at) if license_record.activated_at else None,
-                "expires_at": str(license_record.expires_at) if license_record.expires_at else None,
+                "activated_at": str(activated_at) if activated_at else None,
+                "expires_at": str(expires_at) if expires_at else None,
                 "remaining_days": remaining_days,
             }
 
         return {
             "status": "expired",
-            "license_type": license_record.license_type,
+            "license_type": license_type,
             "is_valid": False,
             "message": "License expired or revoked",
         }
@@ -451,11 +468,16 @@ class PluginContext:
         发送 HTTP 请求，需 http:outbound 能力。
 
         自动添加 30 秒超时保护。
+        SSRF 防护：禁止访问私有网络段和 cloud-metadata 端点。
         """
         self._require("http:outbound")
+        self._check_ssrf(url)
         import httpx
 
         kwargs.setdefault("timeout", 30.0)
+        # 强制禁止 follow_redirects，防止恶意重定向绕过 SSRF 检查
+        # (e.g., external URL → redirect → 169.254.169.254)
+        kwargs["follow_redirects"] = False
         async with httpx.AsyncClient() as client:
             response = await client.request(method, url, **kwargs)
             return {
@@ -463,6 +485,61 @@ class PluginContext:
                 "headers": dict(response.headers),
                 "body": response.text,
             }
+
+    @staticmethod
+    def _check_ssrf(url: str) -> None:
+        """
+        SSRF 防护：解析目标 URL，拒绝访问私有/保留 IP 段。
+
+        阻断：
+        - 127.x.x.x / ::1 — localhost
+        - 10.x.x.x — 私有 A 类
+        - 172.16–31.x.x — 私有 B 类
+        - 192.168.x.x — 私有 C 类
+        - 169.254.x.x — link-local / cloud metadata (AWS IMDS 等)
+        - 0.x.x.x — 保留
+        - file:// / gopher:// / ftp:// 等非 HTTP 协议
+        """
+        import ipaddress
+        import urllib.parse
+
+        parsed = urllib.parse.urlparse(url)
+        scheme = (parsed.scheme or "").lower()
+        if scheme not in ("http", "https"):
+            raise PluginSecurityError(
+                message=f"Plugin http_request only supports http/https (got '{scheme}')",
+            )
+
+        host = parsed.hostname or ""
+        if not host:
+            raise PluginSecurityError(message="Invalid URL: missing host")
+
+        try:
+            addr = ipaddress.ip_address(host)
+            # IPv4-mapped IPv6 (e.g., ::ffff:127.0.0.1) — Python's is_loopback/is_private
+            # returns False for these, so we unwrap to the embedded IPv4 address first.
+            if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
+                addr = addr.ipv4_mapped
+            if (
+                addr.is_private
+                or addr.is_loopback
+                or addr.is_link_local
+                or addr.is_reserved
+                or addr.is_unspecified
+                or addr.is_multicast
+            ):
+                raise PluginSecurityError(
+                    message=f"SSRF blocked: plugin http_request cannot access private/reserved IP '{host}'",
+                )
+        except ValueError:
+            # host is a domain name (not an IP literal) — allow it
+            # Note: DNS rebinding attacks are still possible; for stronger protection
+            # use an egress proxy with IP-level filtering at the network layer.
+            blocked_domains = ("localhost", "metadata.google.internal")
+            if host.lower() in blocked_domains or host.lower().endswith(".local"):
+                raise PluginSecurityError(
+                    message=f"SSRF blocked: plugin http_request cannot access '{host}'",
+                )
 
     # ── AI ──
 
@@ -519,8 +596,8 @@ class PluginContext:
             )
 
         # 校验绑定的 Agent 仍然存在且已发布
-        from app.models.ai.agent import Agent
         from app.enums.agent import AgentStatusEnum
+        from app.models.ai.agent import Agent
 
         agent_check = await self._db.execute(
             select(Agent.id).where(
@@ -553,6 +630,23 @@ class PluginContext:
             return messages[-1].get("content", "")
         return ""
 
+    @staticmethod
+    def _filter_callable_kwargs(callable_obj: Any, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """
+        根据可调用对象签名过滤 kwargs，兼容旧实现不支持的新参数。
+        """
+        try:
+            sig = inspect.signature(callable_obj)
+        except (TypeError, ValueError):
+            return kwargs
+
+        params = sig.parameters.values()
+        if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params):
+            return kwargs
+
+        accepted = set(sig.parameters.keys())
+        return {k: v for k, v in kwargs.items() if k in accepted}
+
     async def call_ai_feature(
         self, feature_code: str, messages: list[dict]
     ) -> str:
@@ -580,10 +674,15 @@ class PluginContext:
         chat_service = AgentChatService(self._db, effective_tenant_id)
         user_message = self._extract_user_message(messages)
 
-        response = await chat_service.chat(
-            agent_id=agent_id,
-            message=user_message,
-        )
+        chat_kwargs = {
+            "agent_id": agent_id,
+            "message": user_message,
+            "memory_scene": MemorySceneEnum.PLUGIN.value,
+            "memory_channel": MemoryChannelEnum.PLUGIN.value,
+            "memory_source": f"plugin.{self.plugin_name}",
+        }
+        chat_kwargs = self._filter_callable_kwargs(chat_service.chat, chat_kwargs)
+        response = await chat_service.chat(**chat_kwargs)
         return response.message
 
     async def call_ai_feature_stream(
@@ -630,10 +729,15 @@ class PluginContext:
             from app.services.ai.agent_chat_service import AgentChatService
 
             chat_service = AgentChatService(self._db, effective_tenant_id)
-            sse_response = await chat_service.stream_chat(
-                agent_id=agent_id,
-                message=user_message,
-            )
+            stream_kwargs = {
+                "agent_id": agent_id,
+                "message": user_message,
+                "memory_scene": MemorySceneEnum.PLUGIN.value,
+                "memory_channel": MemoryChannelEnum.PLUGIN.value,
+                "memory_source": f"plugin.{self.plugin_name}",
+            }
+            stream_kwargs = self._filter_callable_kwargs(chat_service.stream_chat, stream_kwargs)
+            sse_response = await chat_service.stream_chat(**stream_kwargs)
 
             async for raw_chunk in sse_response.body_iterator:
                 text = raw_chunk if isinstance(raw_chunk, str) else raw_chunk.decode("utf-8")
@@ -721,6 +825,7 @@ class PluginContext:
         variables: dict | None = None,
     ) -> None:
         """发送通知，需 notifications:send 能力"""
+        _ = tenant_id
         self._require("notifications:send")
         from app.services.common.notification_service import notify
 
@@ -926,7 +1031,18 @@ class _NamespacedStorageProxy:
         self._namespace = namespace
 
     def _ns_path(self, path: str) -> str:
-        return f"{self._namespace}/{path.lstrip('/')}"
+        """规范化路径并确保不逃逸命名空间（防止 ../ 路径遍历）"""
+        import posixpath
+
+        # 去除前导斜杠后规范化（posixpath.normpath 会折叠 ../ 和 ./）
+        normalized = posixpath.normpath(path.lstrip("/"))
+        # 若规范化后路径以 .. 开头，说明尝试逃逸命名空间
+        if normalized.startswith(".."):
+            from app.plugins.exceptions import PluginSecurityError
+            raise PluginSecurityError(
+                message=f"Path traversal attempt detected in storage access: '{path}'",
+            )
+        return f"{self._namespace}/{normalized}"
 
     async def put(
         self,

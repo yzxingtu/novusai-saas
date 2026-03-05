@@ -5,12 +5,12 @@ AI 适配器抽象基类
 """
 
 from abc import ABC, abstractmethod
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from app.ai.types import (
+    ChatChunk,
     ChatMessage,
     ChatResponse,
-    ChatChunk,
     EmbeddingResponse,
     ImageGenerationResponse,
 )
@@ -19,10 +19,10 @@ from app.ai.types import (
 class BaseAdapter(ABC):
     """
     AI 供应商适配器抽象基类
-    
+
     所有供应商适配器必须继承此类并实现抽象方法
     """
-    
+
     def __init__(
         self,
         api_key: str,
@@ -31,7 +31,7 @@ class BaseAdapter(ABC):
     ):
         """
         初始化适配器
-        
+
         Args:
             api_key: API 密钥
             base_url: API 基础 URL（可选，用于自定义端点）
@@ -40,7 +40,7 @@ class BaseAdapter(ABC):
         self.api_key = api_key
         self.base_url = base_url
         self.config = kwargs
-    
+
     @abstractmethod
     async def chat(
         self,
@@ -55,7 +55,7 @@ class BaseAdapter(ABC):
     ) -> ChatResponse:
         """
         聊天对话（同步模式）
-        
+
         Args:
             messages: 聊天消息列表
             model: 模型名称
@@ -65,12 +65,12 @@ class BaseAdapter(ABC):
             stream: 是否使用流式响应
             tools: 工具列表（Function Calling）
             **kwargs: 其他参数
-            
+
         Returns:
             ChatResponse: 聊天响应
         """
         pass
-    
+
     @abstractmethod
     async def stream_chat(
         self,
@@ -84,7 +84,7 @@ class BaseAdapter(ABC):
     ) -> AsyncIterator[ChatChunk]:
         """
         聊天对话（流式模式）
-        
+
         Args:
             messages: 聊天消息列表
             model: 模型名称
@@ -93,12 +93,12 @@ class BaseAdapter(ABC):
             top_p: 核采样参数
             tools: 工具列表
             **kwargs: 其他参数
-            
+
         Yields:
             ChatChunk: 流式响应块
         """
         pass
-    
+
     @abstractmethod
     async def embedding(
         self,
@@ -108,17 +108,17 @@ class BaseAdapter(ABC):
     ) -> EmbeddingResponse:
         """
         文本嵌入
-        
+
         Args:
             texts: 文本列表
             model: 模型名称
             **kwargs: 其他参数
-            
+
         Returns:
             EmbeddingResponse: 嵌入向量响应
         """
         pass
-    
+
     async def generate_image(
         self,
         prompt: str,
@@ -154,30 +154,30 @@ class BaseAdapter(ABC):
     async def list_models(self) -> list[dict]:
         """
         列出供应商可用的模型列表
-        
+
         Returns:
             模型信息列表，每项包含 id（模型代码）和 owned_by（所属者）
         """
         # 默认实现：返回空列表（子类可覆盖）
         return []
-    
+
     def validate_model(self, model: str) -> bool:
         """
         验证模型名称是否有效
-        
+
         Args:
             model: 模型名称
-            
+
         Returns:
             是否有效
         """
         # 默认实现：非空字符串即可
         return bool(model and isinstance(model, str))
-    
+
     def get_supported_features(self) -> dict[str, bool]:
         """
         获取适配器支持的功能
-        
+
         Returns:
             功能字典，例如：
             {

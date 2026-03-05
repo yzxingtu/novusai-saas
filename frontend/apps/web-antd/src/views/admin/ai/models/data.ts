@@ -32,7 +32,7 @@ function getModelTierOptions() {
   ];
 }
 
-export function getModelTierText(tier: string | null | undefined): string {
+export function getModelTierText(tier: null | string | undefined): string {
   if (!tier) return '-';
   return $t(`admin.ai.model.tier_options.${tier}` as never, tier);
 }
@@ -66,7 +66,7 @@ export function getModelTypeText(type: string | undefined): string {
 export async function getModelSelectOptions(excludeId?: number) {
   const response = await getAIModelListApi({
     'page[size]': 200,
-    'sort': 'name',
+    sort: 'name',
     'filter[is_active]': true,
   });
   return response.items
@@ -83,7 +83,7 @@ export async function getModelSelectOptions(excludeId?: number) {
 async function getProviderSelectOptions() {
   const response = await getAIProviderListApi({
     'page[size]': 100,
-    'sort': 'sort_order',
+    sort: 'sort_order',
   });
   return response.items.map((item) => ({
     label: item.name,
@@ -132,7 +132,9 @@ export function useColumns<T = AIModelInfo>(
     },
     {
       field: 'input_price_per_1k',
-      title: $t('admin.ai.model.inputPrice') + ' / ' + $t('admin.ai.model.outputPrice'),
+      title: `${$t('admin.ai.model.inputPrice')} / ${$t(
+        'admin.ai.model.outputPrice',
+      )}`,
       width: 160,
       align: 'center',
       slots: { default: 'price_cell' },
@@ -249,10 +251,14 @@ export function useFormSchema(
       help: $t('admin.ai.model.help.contextWindow'),
     },
     {
-      ...numberField('max_output_tokens', $t('admin.ai.model.maxOutputTokens'), {
-        min: 0,
-        placeholder: $t('admin.ai.model.placeholder.inputMaxOutput'),
-      }),
+      ...numberField(
+        'max_output_tokens',
+        $t('admin.ai.model.maxOutputTokens'),
+        {
+          min: 0,
+          placeholder: $t('admin.ai.model.placeholder.inputMaxOutput'),
+        },
+      ),
       help: $t('admin.ai.model.help.maxOutputTokens'),
     },
     switchField('is_active', $t('admin.ai.model.isActive'), {
@@ -287,9 +293,13 @@ export function useFormSchema(
 
     dividerField('capability_divider', $t('admin.ai.model.section.capability')),
     {
-      ...switchField('supports_function_calling', $t('admin.ai.model.functionCalling'), {
-        defaultValue: false,
-      }),
+      ...switchField(
+        'supports_function_calling',
+        $t('admin.ai.model.functionCalling'),
+        {
+          defaultValue: false,
+        },
+      ),
       help: $t('admin.ai.model.help.functionCalling'),
     },
     switchField('supports_vision', $t('admin.ai.model.vision'), {

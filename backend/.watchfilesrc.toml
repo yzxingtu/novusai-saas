@@ -1,0 +1,9 @@
+# watchfiles 配置：排除不需要监听的目录，防止插件备份等文件触发无意义重载
+[watchfiles]
+ignore_paths = [
+    "plugins/.backups",
+    ".venv",
+    "__pycache__",
+    "*.pyc",
+    "*.pyo",
+]

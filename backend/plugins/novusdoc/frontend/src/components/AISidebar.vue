@@ -78,11 +78,11 @@ defineExpose({ addAssistantMessage, clearChat });
 </script>
 
 <template>
-  <div class="nd-ai-sidebar">
+  <div class="flex h-full min-h-0 w-80 min-w-[280px] max-w-[400px] flex-col overflow-hidden border-l border-border bg-background max-lg:w-[280px] max-lg:min-w-[240px] max-md:fixed max-md:inset-y-0 max-md:right-0 max-md:z-[100] max-md:w-full max-md:max-w-full max-md:shadow-lg">
     <!-- Header -->
-    <div class="nd-ai-sidebar-header">
+    <div class="flex items-center justify-between border-b border-border px-4 py-3">
       <div class="flex items-center gap-2">
-        <div class="nd-ai-avatar-sm">
+        <div class="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
           <IconifyIcon icon="lucide:sparkles" class="size-3.5" />
         </div>
         <span class="font-semibold text-sm text-foreground">{{ $t('plugin.novusdoc.ai.assistant') }}</span>
@@ -98,10 +98,10 @@ defineExpose({ addAssistantMessage, clearChat });
     </div>
 
     <!-- Messages -->
-    <div ref="chatContainer" class="nd-ai-sidebar-messages">
+    <div ref="chatContainer" class="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
       <!-- Empty state -->
-      <div v-if="messages.length === 0 && !loading" class="nd-ai-sidebar-empty">
-        <div class="nd-ai-empty-icon">
+      <div v-if="messages.length === 0 && !loading" class="flex flex-1 flex-col items-center justify-center px-4 py-8 opacity-70">
+        <div class="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
           <IconifyIcon icon="lucide:sparkles" class="size-8" />
         </div>
         <p class="text-sm font-medium text-foreground mt-3">{{ $t('plugin.novusdoc.ai.assistant') }}</p>
@@ -111,25 +111,25 @@ defineExpose({ addAssistantMessage, clearChat });
       <!-- Chat messages -->
       <template v-for="(msg, idx) in messages" :key="idx">
         <!-- User message -->
-        <div v-if="msg.role === 'user'" class="nd-ai-msg nd-ai-msg-user">
-          <div class="nd-ai-bubble nd-ai-bubble-user">
+        <div v-if="msg.role === 'user'" class="nd-ai-msg flex justify-end gap-2">
+          <div class="max-w-[85%] whitespace-pre-wrap break-words rounded-[10px] rounded-br-[4px] bg-primary px-3 py-2 text-[13px] leading-normal text-primary-foreground">
             {{ msg.content }}
           </div>
         </div>
 
         <!-- AI message -->
-        <div v-else-if="msg.role === 'assistant'" class="nd-ai-msg nd-ai-msg-ai">
-          <div class="nd-ai-avatar-sm nd-ai-avatar-ai">
+        <div v-else-if="msg.role === 'assistant'" class="nd-ai-msg flex items-start justify-start gap-2">
+          <div class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
             <IconifyIcon icon="lucide:sparkles" class="size-3" />
           </div>
-          <div class="nd-ai-bubble nd-ai-bubble-ai">
+          <div class="max-w-[85%] whitespace-pre-wrap break-words rounded-[10px] rounded-bl-[4px] bg-muted px-3 py-2 text-[13px] leading-normal text-foreground">
             {{ msg.content }}
           </div>
         </div>
 
         <!-- Error message -->
-        <div v-else-if="msg.role === 'error'" class="nd-ai-msg nd-ai-msg-error">
-          <div class="nd-ai-error-card">
+        <div v-else-if="msg.role === 'error'" class="nd-ai-msg flex justify-center gap-2">
+          <div class="flex max-w-[90%] items-start gap-2 rounded-md bg-destructive/[0.08] px-3 py-2 text-xs leading-snug text-destructive">
             <IconifyIcon icon="lucide:alert-circle" class="size-4 shrink-0" />
             <span>{{ msg.content }}</span>
           </div>
@@ -137,56 +137,56 @@ defineExpose({ addAssistantMessage, clearChat });
       </template>
 
       <!-- Loading indicator -->
-      <div v-if="loading" class="nd-ai-msg nd-ai-msg-ai">
-        <div class="nd-ai-avatar-sm nd-ai-avatar-ai">
+      <div v-if="loading" class="nd-ai-msg flex items-start justify-start gap-2">
+        <div class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
           <IconifyIcon icon="lucide:sparkles" class="size-3" />
         </div>
-        <div class="nd-ai-bubble nd-ai-bubble-ai">
-          <span class="nd-ai-typing">
-            <span class="nd-ai-dot"></span>
-            <span class="nd-ai-dot"></span>
-            <span class="nd-ai-dot"></span>
+        <div class="max-w-[85%] whitespace-pre-wrap break-words rounded-[10px] rounded-bl-[4px] bg-muted px-3 py-2 text-[13px] leading-normal text-foreground">
+          <span class="flex gap-1 py-1">
+            <span class="nd-ai-dot size-1.5 rounded-full bg-muted-foreground"></span>
+            <span class="nd-ai-dot size-1.5 rounded-full bg-muted-foreground"></span>
+            <span class="nd-ai-dot size-1.5 rounded-full bg-muted-foreground"></span>
           </span>
         </div>
       </div>
     </div>
 
     <!-- Quick AI actions (全功能，不需要选中文字) -->
-    <div class="nd-ai-sidebar-actions">
-      <button class="nd-ai-quick-btn" @click="emit('action', 'continue')" :disabled="loading">
+    <div class="flex shrink-0 flex-wrap gap-1.5 border-t border-border px-4 py-2">
+      <button class="flex cursor-pointer items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1 text-xs text-foreground transition-all hover:border-primary/30 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50" @click="emit('action', 'continue')" :disabled="loading">
         <IconifyIcon icon="lucide:pen-line" class="size-3" />
         <span>{{ $t('plugin.novusdoc.ai.continue') }}</span>
       </button>
-      <button class="nd-ai-quick-btn" @click="emit('action', 'optimize')" :disabled="loading">
+      <button class="flex cursor-pointer items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1 text-xs text-foreground transition-all hover:border-primary/30 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50" @click="emit('action', 'optimize')" :disabled="loading">
         <IconifyIcon icon="lucide:wand-2" class="size-3" />
         <span>{{ $t('plugin.novusdoc.ai.optimize') }}</span>
       </button>
-      <button class="nd-ai-quick-btn" @click="emit('action', 'translate', { target_lang: 'English' })" :disabled="loading">
+      <button class="flex cursor-pointer items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1 text-xs text-foreground transition-all hover:border-primary/30 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50" @click="emit('action', 'translate', { target_lang: 'English' })" :disabled="loading">
         <IconifyIcon icon="lucide:languages" class="size-3" />
         <span>{{ $t('plugin.novusdoc.ai.translate') }}</span>
       </button>
-      <button class="nd-ai-quick-btn" @click="emit('action', 'expand')" :disabled="loading">
+      <button class="flex cursor-pointer items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1 text-xs text-foreground transition-all hover:border-primary/30 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50" @click="emit('action', 'expand')" :disabled="loading">
         <IconifyIcon icon="lucide:expand" class="size-3" />
         <span>{{ $t('plugin.novusdoc.ai.expand') }}</span>
       </button>
     </div>
 
     <!-- Input -->
-    <div class="nd-ai-sidebar-input">
-      <div class="nd-ai-input-wrapper">
+    <div class="border-t border-border px-4 py-3">
+      <div class="flex items-center gap-2">
         <Input
           v-model:value="inputText"
           :placeholder="$t('plugin.novusdoc.ai.askPlaceholder')"
           :disabled="loading"
           @keydown="handleKeydown"
-          class="nd-ai-input"
+          class="flex-1"
         />
         <Button
           type="primary"
           size="small"
           :disabled="!inputText.trim() || loading"
           @click="handleSend"
-          class="nd-ai-send-btn"
+          class="flex size-8 shrink-0 items-center justify-center rounded-full p-0"
         >
           <IconifyIcon icon="lucide:send" class="size-3.5" />
         </Button>
@@ -194,213 +194,3 @@ defineExpose({ addAssistantMessage, clearChat });
     </div>
   </div>
 </template>
-
-<style scoped>
-.nd-ai-sidebar {
-  display: flex;
-  flex-direction: column;
-  width: 320px;
-  min-width: 280px;
-  max-width: 400px;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  border-left: 1px solid hsl(var(--border));
-  background: hsl(var(--background));
-}
-
-.nd-ai-sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid hsl(var(--border));
-}
-
-.nd-ai-sidebar-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.nd-ai-sidebar-empty {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 32px 16px;
-  opacity: 0.7;
-}
-
-.nd-ai-empty-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: hsl(var(--primary) / 0.1);
-  color: hsl(var(--primary));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.nd-ai-avatar-sm {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: hsl(var(--primary) / 0.1);
-  color: hsl(var(--primary));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.nd-ai-avatar-ai {
-  margin-top: 2px;
-}
-
-.nd-ai-msg {
-  display: flex;
-  gap: 8px;
-  animation: nd-fade-in var(--nd-transition-normal, 200ms ease);
-}
-
-.nd-ai-msg-user {
-  justify-content: flex-end;
-}
-
-.nd-ai-msg-ai {
-  justify-content: flex-start;
-  align-items: flex-start;
-}
-
-.nd-ai-msg-error {
-  justify-content: center;
-}
-
-.nd-ai-bubble {
-  max-width: 85%;
-  padding: 8px 12px;
-  border-radius: var(--nd-radius-md, 10px);
-  font-size: 13px;
-  line-height: 1.5;
-  word-break: break-word;
-  white-space: pre-wrap;
-}
-
-.nd-ai-bubble-user {
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-  border-bottom-right-radius: 4px;
-}
-
-.nd-ai-bubble-ai {
-  background: hsl(var(--muted));
-  color: hsl(var(--foreground));
-  border-bottom-left-radius: 4px;
-}
-
-.nd-ai-error-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: var(--nd-radius-sm, 6px);
-  background: hsl(var(--destructive) / 0.08);
-  color: hsl(var(--destructive));
-  font-size: 12px;
-  line-height: 1.4;
-  max-width: 90%;
-}
-
-/* Typing animation */
-.nd-ai-typing {
-  display: flex;
-  gap: 4px;
-  padding: 4px 0;
-}
-
-.nd-ai-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: hsl(var(--muted-foreground));
-  animation: nd-typing 1.4s infinite ease-in-out;
-}
-
-.nd-ai-dot:nth-child(2) { animation-delay: 0.2s; }
-.nd-ai-dot:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes nd-typing {
-  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-  40% { transform: scale(1); opacity: 1; }
-}
-
-@keyframes nd-fade-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Input area */
-.nd-ai-sidebar-input {
-  padding: 12px 16px;
-  border-top: 1px solid hsl(var(--border));
-}
-
-.nd-ai-input-wrapper {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.nd-ai-input {
-  flex: 1;
-}
-
-/* Quick AI actions */
-.nd-ai-sidebar-actions {
-  display: flex;
-  gap: 6px;
-  padding: 8px 16px;
-  border-top: 1px solid hsl(var(--border));
-  flex-wrap: wrap;
-  flex-shrink: 0;
-}
-
-.nd-ai-quick-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid hsl(var(--border));
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.nd-ai-quick-btn:hover {
-  background: hsl(var(--accent));
-  border-color: hsl(var(--primary) / 0.3);
-}
-.nd-ai-quick-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.nd-ai-send-btn {
-  flex-shrink: 0;
-  border-radius: 50%;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-}
-</style>

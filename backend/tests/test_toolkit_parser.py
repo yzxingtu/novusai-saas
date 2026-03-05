@@ -57,7 +57,8 @@ def test_validate():
 
     errors = validate_toolkit_source("")
     assert len(errors) == 1
-    assert "empty" in errors[0].lower()
+    msg = errors[0].lower()
+    assert "empty" in msg or "不能为空" in errors[0]
 
     errors = validate_toolkit_source("class Foo:\n    pass")
     assert len(errors) == 1
@@ -65,7 +66,8 @@ def test_validate():
 
     errors = validate_toolkit_source("class Tools:\n    def _private(self): pass")
     assert len(errors) == 1
-    assert "no public" in errors[0].lower()
+    msg = errors[0].lower()
+    assert "no public" in msg or "公开方法" in errors[0]
 
     print("PASS: validate_toolkit_source")
 

@@ -4,7 +4,7 @@ AI 数据查询审计日志 Repository
 提供 AI 数据查询日志的存储和查询功能
 """
 
-from sqlalchemy import select, func, case
+from sqlalchemy import case, func, select
 
 from app.core.base_repository import TenantRepository
 from app.models.ai.query_log import AIQueryLog

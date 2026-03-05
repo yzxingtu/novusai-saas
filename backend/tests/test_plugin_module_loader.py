@@ -8,14 +8,11 @@
 - unload_plugin_modules: 清理 sys.modules
 """
 
-import importlib.util
 import sys
-import types
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-
 
 # ── fixtures ──
 

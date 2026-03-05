@@ -1,7 +1,6 @@
-from app.configs.meta import ConfigMeta, ConfigOption, DisplayRule
 from app.configs.definitions.groups import TENANT_STORAGE_GROUP
+from app.configs.meta import ConfigMeta, ConfigOption, DisplayRule
 from app.enums.config import ConfigScope, ConfigValueType
-
 
 TENANT_STORAGE_MODE = ConfigMeta(
     key="tenant_storage_mode",

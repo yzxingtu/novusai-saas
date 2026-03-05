@@ -9,9 +9,8 @@
 - maintenance_message: str — 维护提示信息
 """
 
-from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.responses import JSONResponse
-
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 # 豁免路径：维护模式下仍可访问
 _EXEMPT_PREFIXES = (
@@ -82,8 +81,8 @@ class MaintenanceMiddleware:
 
         # Redis miss → 从 DB 读取
         try:
-            from app.core.database import async_session_factory
             from app.configs.service import ConfigService
+            from app.core.database import async_session_factory
 
             async with async_session_factory() as db:
                 service = ConfigService(db)
@@ -115,8 +114,8 @@ class MaintenanceMiddleware:
             pass
 
         try:
-            from app.core.database import async_session_factory
             from app.configs.service import ConfigService
+            from app.core.database import async_session_factory
 
             async with async_session_factory() as db:
                 service = ConfigService(db)

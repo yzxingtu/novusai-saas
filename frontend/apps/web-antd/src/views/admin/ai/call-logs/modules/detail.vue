@@ -1,20 +1,20 @@
 <script lang="ts" setup>
+import type { AICallLogInfo } from '#/api/admin/ai';
+
 /**
  * 调用日志详情抽屉组件
  */
-defineOptions({ name: 'CallLogDetail' });
-
 import { ref, watch } from 'vue';
 
 import { Descriptions, Drawer, Spin, Tag } from 'ant-design-vue';
-
-import type { AICallLogInfo } from '#/api/admin/ai';
 
 import { getAICallLogDetailApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
 import { formatCost, getStatusText } from '../data';
+
+defineOptions({ name: 'CallLogDetail' });
 
 const props = defineProps<{
   logId: null | number;
@@ -25,14 +25,11 @@ const visible = defineModel<boolean>('visible', { default: false });
 const loading = ref(false);
 const detail = ref<AICallLogInfo | null>(null);
 
-watch(
-  [() => props.logId, visible],
-  async ([id, isVisible]) => {
-    if (id && isVisible) {
-      await loadDetail(id);
-    }
-  },
-);
+watch([() => props.logId, visible], async ([id, isVisible]) => {
+  if (id && isVisible) {
+    await loadDetail(id);
+  }
+});
 
 async function loadDetail(id: number) {
   loading.value = true;
@@ -54,11 +51,11 @@ function formatJson(data: unknown): string {
 
 function getStatusColor(status: string): string {
   switch (status) {
-    case 'success': {
-      return 'success';
-    }
     case 'failed': {
       return 'error';
+    }
+    case 'success': {
+      return 'success';
     }
     default: {
       return 'warning';
@@ -93,7 +90,10 @@ function getStatusColor(status: string): string {
           </Descriptions.Item>
           <!-- 路由覆写信息（模型被路由引擎替换时高亮显示） -->
           <Descriptions.Item
-            v-if="detail.routed_model_id && detail.routed_model_id !== detail.model_id"
+            v-if="
+              detail.routed_model_id &&
+              detail.routed_model_id !== detail.model_id
+            "
             :label="$t('admin.ai.callLog.routedModel')"
             :span="2"
           >
@@ -135,7 +135,8 @@ function getStatusColor(status: string): string {
             </div>
             <pre
               class="rounded bg-destructive/5 p-3 text-xs text-destructive"
-            >{{ detail.error_message }}</pre>
+              >{{ detail.error_message }}</pre
+            >
           </div>
         </template>
 
@@ -145,9 +146,9 @@ function getStatusColor(status: string): string {
             <div class="mb-1 font-medium text-foreground">
               {{ $t('admin.ai.callLog.detail.requestData') }}
             </div>
-            <pre
-              class="max-h-64 overflow-auto rounded bg-accent p-3 text-xs"
-            >{{ formatJson(detail.request_data) }}</pre>
+            <pre class="max-h-64 overflow-auto rounded bg-accent p-3 text-xs">{{
+              formatJson(detail.request_data)
+            }}</pre>
           </div>
         </template>
 
@@ -157,9 +158,9 @@ function getStatusColor(status: string): string {
             <div class="mb-1 font-medium text-foreground">
               {{ $t('admin.ai.callLog.detail.responseData') }}
             </div>
-            <pre
-              class="max-h-64 overflow-auto rounded bg-accent p-3 text-xs"
-            >{{ formatJson(detail.response_data) }}</pre>
+            <pre class="max-h-64 overflow-auto rounded bg-accent p-3 text-xs">{{
+              formatJson(detail.response_data)
+            }}</pre>
           </div>
         </template>
       </template>

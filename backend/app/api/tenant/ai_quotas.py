@@ -7,32 +7,31 @@
 from fastapi import Query, Request
 
 from app.core.base_controller import TenantController
-from app.core.deps import DbSession, ActiveTenantAdmin
+from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException, AuthorizationException
+from app.exceptions import AuthorizationException, NotFoundException
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
-    action_read,
     action_create,
-    action_update,
     action_delete,
+    action_read,
+    action_update,
+    permission_resource,
 )
 from app.schemas.ai.tenant_quota import (
     TenantQuotaCreate,
-    TenantQuotaUpdate,
     TenantQuotaResponse,
+    TenantQuotaUpdate,
 )
 from app.schemas.ai.tenant_rate_limit import (
     TenantRateLimitCreate,
-    TenantRateLimitUpdate,
     TenantRateLimitResponse,
+    TenantRateLimitUpdate,
 )
 from app.services.ai.tenant_quota_service import TenantQuotaService
 from app.services.ai.tenant_rate_limit_service import TenantRateLimitService
-
 
 
 @permission_resource(

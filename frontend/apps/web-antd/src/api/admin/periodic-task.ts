@@ -1,3 +1,9 @@
+import type {
+  PeriodicTaskFormData,
+  PeriodicTaskInfo,
+  PeriodicTaskListParams,
+  PeriodicTaskListResponse,
+} from '#/api/shared/periodic-task-types';
 /**
  * 定时任务 API
  * 对接后端 /admin/periodic-tasks/* 接口
@@ -17,35 +23,28 @@ export type {
   PeriodicTaskListResponse,
 } from '#/api/shared/periodic-task-types';
 
-import type {
-  PeriodicTaskFormData,
-  PeriodicTaskInfo,
-  PeriodicTaskListParams,
-  PeriodicTaskListResponse,
-} from '#/api/shared/periodic-task-types';
-
 /** 定时任务信息（后端原始格式 snake_case） */
 export interface PeriodicTaskInfoRaw {
   id: number;
   name: string;
   task_path: string;
   schedule_type: string;
-  cron_expression: string | null;
-  interval_seconds: number | null;
+  cron_expression: null | string;
+  interval_seconds: null | number;
   is_active: boolean;
-  last_run_at: string | null;
-  next_run_at: string | null;
-  description: string | null;
+  last_run_at: null | string;
+  next_run_at: null | string;
+  description: null | string;
   created_at: string;
-  scope: string | null;
-  tenant_id: number | null;
+  scope: null | string;
+  tenant_id: null | number;
   is_locked: boolean;
   is_editable: boolean;
   max_retries: number;
   retry_delay: number;
-  timeout: number | null;
+  timeout: null | number;
   notify_on_failure: boolean;
-  notify_emails: string | null;
+  notify_emails: null | string;
 }
 
 // ============================================================

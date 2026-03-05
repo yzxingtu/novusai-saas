@@ -6,15 +6,14 @@ Open-Meteo API 客户端单元测试
 
 from __future__ import annotations
 
-import time
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
-
 # 动态导入 open_meteo 模块（插件名含连字符）
 import importlib.util
 import sys
+import time
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 _MODULE_FILE = Path(__file__).parent.parent / "open_meteo.py"
 _MODULE_NAME = "plugins.weather_widget_test.open_meteo"

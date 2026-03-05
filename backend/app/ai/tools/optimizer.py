@@ -12,8 +12,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 from app.ai.tools.types import ToolDefinition
 from app.core.logging import LogManager
@@ -153,19 +152,22 @@ def _score_tool(
         score += 10.0
 
     # 3. 数据类工具加权
-    if tool.name.startswith("data_") or tool.tool_type in ("text_to_sql", "crud"):
-        if query_tokens & _DATA_KEYWORDS:
-            score += 5.0
+    if (
+        (tool.name.startswith("data_") or tool.tool_type in ("text_to_sql", "crud"))
+        and query_tokens & _DATA_KEYWORDS
+    ):
+        score += 5.0
 
     # 4. 知识库工具加权
-    if "knowledge" in tool_name_lower or "kb" in tool_name_lower:
-        if query_tokens & _KB_KEYWORDS:
-            score += 5.0
+    if ("knowledge" in tool_name_lower or "kb" in tool_name_lower) and query_tokens & _KB_KEYWORDS:
+        score += 5.0
 
     # 4.5 联网搜索工具加权
-    if "search" in tool_name_lower or "fetch" in tool_name_lower or "web" in tool_name_lower:
-        if query_tokens & _WEB_KEYWORDS:
-            score += 8.0
+    if (
+        ("search" in tool_name_lower or "fetch" in tool_name_lower or "web" in tool_name_lower)
+        and query_tokens & _WEB_KEYWORDS
+    ):
+        score += 8.0
 
     # 5. 历史偏好：已使用过的工具加权
     if used_tool_names and tool.name in used_tool_names:

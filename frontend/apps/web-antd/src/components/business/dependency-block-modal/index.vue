@@ -141,14 +141,20 @@ defineExpose({ open, close });
             :key="item.id"
             class="flex items-center gap-1.5 text-xs text-muted-foreground"
           >
-            <span class="inline-block size-1 rounded-full bg-muted-foreground/40" />
+            <span
+              class="inline-block size-1 rounded-full bg-muted-foreground/40"
+            ></span>
             <span>{{ item.label || `#${item.id}` }}</span>
           </div>
           <div
             v-if="dep.count > MAX_PREVIEW"
-            class="text-xs text-muted-foreground/60 italic"
+            class="text-xs italic text-muted-foreground/60"
           >
-            {{ $t('common.dependency.moreItems', { count: dep.count - MAX_PREVIEW }) }}
+            {{
+              $t('common.dependency.moreItems', {
+                count: dep.count - MAX_PREVIEW,
+              })
+            }}
           </div>
         </div>
       </div>

@@ -1162,7 +1162,23 @@
         "partial_failed": "Partial Failed",
         "failed": "Failed",
         "cancelled": "Cancelled"
-      }
+      },
+      "memory_scene": {
+        "ai_chat_page": "AI Chat Page",
+        "admin_chat": "Admin Chat",
+        "plugin": "Plugin",
+        "ai_gateway": "AI Gateway",
+        "unknown": "Unknown"
+      },
+      "memory_channel": {
+        "tenant_chat": "Tenant Chat",
+        "admin_chat": "Admin Chat",
+        "plugin": "Plugin",
+        "system": "System"
+      },
+      "memory_enabled": "Memory Enabled",
+      "effective_memory_enabled": "Effective Memory Enabled",
+      "memory_disabled_by_tenant": "Memory Disabled by Tenant"
     },
     "action_level": {
       "read": "Read Only",
@@ -1467,6 +1483,10 @@
       "tenant_storage": {
         "name": "Storage Settings",
         "desc": "Tenant storage mode and cloud storage configuration"
+      },
+      "platform_ai_memory": {
+        "name": "AI Memory",
+        "desc": "Platform memory default switch settings"
       }
     },
     "platform": {
@@ -1788,6 +1808,10 @@
       "notification_max_per_user": {
         "name": "Max Notifications per User",
         "desc": "Maximum number of notifications kept in each user's inbox, oldest are auto-cleaned when exceeded"
+      },
+      "platform_default_memory_enabled": {
+        "name": "Default Memory Enabled",
+        "desc": "Default memory switch for all agents"
       }
     },
     "tenant": {
@@ -2360,7 +2384,9 @@
   "periodic_task": {
     "error": {
       "name_exists": "Periodic task with name '{name}' already exists",
-      "scope_requires_tenant_id": "tenant_id is required when scope is all_tenants"
+      "scope_requires_tenant_id": "tenant_id is required when scope is all_tenants",
+      "edit_locked": "This task is protected and only supports toggling active status",
+      "delete_locked": "Task '{name}' is protected and cannot be deleted"
     }
   },
   "quota": {
@@ -2372,5 +2398,20 @@
     "domains_exceeded": "Custom domain limit reached: {limit}",
     "api_calls_exceeded": "Monthly API call limit reached: {limit}",
     "file_size_exceeded": "File size exceeds limit: {limit}MB"
+  },
+  "agent_memory_override.field.agent_id": "Agent ID",
+  "agent_memory_override.field.disabled": "Memory Disabled",
+  "enum.agent_model.memory_enabled": "Memory Enabled",
+  "enum.agent_model.effective_memory_enabled": "Effective Memory Enabled",
+  "enum.agent_model.memory_disabled_by_tenant": "Memory Disabled by Tenant",
+  "config.group.platform_ai_memory.name": "AI Memory",
+  "config.group.platform_ai_memory.desc": "Platform memory default switch settings",
+  "config.platform.platform_default_memory_enabled.name": "Default Memory Enabled",
+  "config.platform.platform_default_memory_enabled.desc": "Default memory switch for all agents",
+  "agent_memory_override": {
+    "field": {
+      "agent_id": "Agent ID",
+      "disabled": "Memory Disabled"
+    }
   }
 }

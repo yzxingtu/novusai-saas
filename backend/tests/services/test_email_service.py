@@ -6,7 +6,7 @@ EmailService 单元测试
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -20,12 +20,12 @@ from app.services.common.email_service import (
 
 
 def _smtp_config(**overrides) -> SmtpConfig:
-    defaults = dict(
-        host="smtp.example.com", port=587, encryption="tls",
-        username="user", password="pass",
-        from_address="noreply@example.com", from_name="Test",
-        enabled=True,
-    )
+    defaults = {
+        "host": "smtp.example.com", "port": 587, "encryption": "tls",
+        "username": "user", "password": "pass",
+        "from_address": "noreply@example.com", "from_name": "Test",
+        "enabled": True,
+    }
     defaults.update(overrides)
     return SmtpConfig(**defaults)
 

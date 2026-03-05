@@ -6,13 +6,23 @@
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, Float, ForeignKey, Index, Integer, String, Text, JSON
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
-from app.enums.agent import AgentStatusEnum, AgentExecutionModeEnum, AgentVisibilityEnum
+from app.enums.agent import AgentExecutionModeEnum, AgentStatusEnum, AgentVisibilityEnum
 from app.enums.common import ResourceScopeEnum
 
 
@@ -175,6 +185,15 @@ class Agent(TenantModel):
         comment=_("enum.agent_model.routing_config"),
     )
 
+    # ==================== 会话记忆配置 ====================
+
+    memory_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        comment=_("enum.agent_model.memory_enabled"),
+    )
+
     # ==================== 变量 ====================
 
     input_variables: Mapped[list | None] = mapped_column(
@@ -276,9 +295,7 @@ class Agent(TenantModel):
 
 
 if TYPE_CHECKING:
-    from app.models.ai.model import AIModel
-    from app.models.ai.agent_conversation import AgentConversation
-    from app.models.ai.agent_skill_binding import AgentSkillBinding
+    pass
 
 
 __all__ = ["Agent"]

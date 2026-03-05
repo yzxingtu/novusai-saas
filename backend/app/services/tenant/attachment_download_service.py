@@ -8,21 +8,21 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.service import ConfigService
+from app.core.base_model import utc_now
 from app.core.config import settings
 from app.core.i18n import _
 from app.enums import ErrorCode
 from app.enums.attachment import AttachmentVisibility
-from app.exceptions import BusinessException, NotFoundException, StorageNotFoundError
+from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.attachment import Attachment
 from app.repositories.tenant.attachment_repository import AttachmentRepository
 from app.storage import StorageConfig, StorageVisibility, storage_manager
-from app.core.base_model import utc_now
 
 
 class AttachmentDownloadService:
     """
     附件下载/预览服务
-    
+
     负责生成访问链接、签名控制、权限校验与下载统计。
     """
     def __init__(self, db: AsyncSession, tenant_id: int | None = None):

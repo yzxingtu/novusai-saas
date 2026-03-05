@@ -4,6 +4,19 @@ import { defineConfig } from '@vben/eslint-config';
 
 export default defineConfig([
   {
+    // 交由 Prettier 统一处理模板换行，避免与 Vue closing bracket 规则循环修复
+    rules: {
+      'vue/html-closing-bracket-newline': 'off',
+    },
+  },
+  {
+    // Vue 模板插值 {{ value }} 与该规则存在误报，交由 Prettier 统一处理
+    files: ['**/*.vue'],
+    rules: {
+      'unicorn/empty-brace-spaces': 'off',
+    },
+  },
+  {
     // Prettier 和 vue/html-closing-bracket-newline 规则冲突
     // 这些文件的模板中有大量 code 标签嵌套，导致循环修复
     files: [

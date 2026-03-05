@@ -14,8 +14,8 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.quota import QuotaExceeded, QuotaManager
 from app.ai.rate_limiter import RateLimiter, RateLimitExceeded
-from app.ai.quota import QuotaManager, QuotaExceeded
 from app.ai.types import (
     ChatMessage,
     ChatResponse,
@@ -23,10 +23,10 @@ from app.ai.types import (
 )
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.enums.ai import RequestTypeEnum, CallStatusEnum, UserTypeEnum
-from app.models.ai import AIProvider, ProviderApiKey, AIModel
-from app.services.ai.metering_service import MeteringService
+from app.enums.ai import CallStatusEnum, RequestTypeEnum, UserTypeEnum
+from app.models.ai import AIModel, AIProvider, ProviderApiKey
 from app.services.ai.call_log_service import CallLogService
+from app.services.ai.metering_service import MeteringService
 
 logger = LogManager.get_logger("ai")
 
@@ -165,6 +165,7 @@ class UsageRecorder:
         """
         记录失败调用日志到 DB（用于审计追踪）
         """
+        _ = model
         if not tenant_id:
             return
         try:

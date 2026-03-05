@@ -12,7 +12,7 @@ from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.base_model import TenantModel, utc_now
+from app.core.base_model import TenantModel
 
 from ..enums import DocStatus
 

@@ -14,7 +14,6 @@ import asyncio
 import hashlib
 import importlib
 import importlib.util
-import inspect
 import json
 import os
 import sys
@@ -149,6 +148,7 @@ class ToolkitExecutor(BaseToolExecutor):
         context: ExecutionContext | None = None,
     ) -> ToolResult:
         """执行 Toolkit 方法调用"""
+        _ = context
         start = time.perf_counter()
         method_name = definition.config.get("_toolkit_method", definition.name)
         toolkit_content = definition.config.get("_toolkit_content", "")

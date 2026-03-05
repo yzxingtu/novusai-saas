@@ -14,15 +14,16 @@ from __future__ import annotations
 import asyncio
 import inspect
 import re
+from collections.abc import Callable
 from functools import lru_cache
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.deps import DbSession, ActiveAdmin, ActiveTenantAdmin
+from app.core.deps import ActiveAdmin, ActiveTenantAdmin, DbSession
 from app.core.logging import get_logger
 from app.core.response import success
 from app.core.scope import ScopeChecker
@@ -31,6 +32,7 @@ from app.core.security import (
     TOKEN_SCOPE_TENANT_ADMIN,
 )
 from app.enums.plugin import PluginStatusEnum
+from app.exceptions.base import AppException
 from app.models.system.plugin import Plugin
 from app.plugins.module_loader import load_plugin_handler
 from app.rbac.decorators import auth_only, public
@@ -237,27 +239,29 @@ async def _dispatch_plugin_api(
                     5000: 500,
                     5001: 500,
                 }.get(code, 422)
-            return JSONResponse(
+            # 以异常返回错误，确保 get_db 触发 rollback，避免插件写入后逻辑失败仍被 commit
+            raise AppException(
+                message=str(result["error"]),
+                code=code,
                 status_code=status_code,
-                content={
-                    "code": code,
-                    "message": result["error"],
-                },
             )
         # 正常 dict 包装为 success 响应
         if isinstance(result, dict):
             return success(data=result)
         # M4: 非 dict/JSONResponse 兜底 — 包装为 success
         return success(data=result)
+    except AppException:
+        raise
     except Exception as exc:
         logger.error(
             "Plugin API handler error: %s/%s: %s",
             plugin_name, path, exc, exc_info=True,
         )
         err_message = str(exc) if settings.DEBUG else "Internal server error"
-        return JSONResponse(
+        raise AppException(
+            message=err_message,
+            code=5000,
             status_code=500,
-            content={"code": 5000, "message": err_message},
         )
 
 

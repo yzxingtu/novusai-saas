@@ -83,15 +83,15 @@ watch(() => props.visible, (v) => {
 <template>
   <div
     v-if="visible && commands.length > 0"
-    class="nd-slash-menu"
+    class="fixed z-[9000] min-w-[180px] rounded-lg border border-border bg-popover p-1 shadow-lg"
     :style="{ top: `${position.top}px`, left: `${position.left}px` }"
     @keydown="handleKeydown"
   >
     <div
       v-for="(cmd, idx) in commands"
       :key="cmd.id"
-      class="nd-slash-item"
-      :class="{ 'nd-slash-active': idx === selectedIndex }"
+      class="flex cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 text-[13px] text-popover-foreground transition-colors hover:bg-accent"
+      :class="{ 'bg-primary/10 text-primary': idx === selectedIndex }"
       @click="selectCommand(cmd)"
       @mouseenter="selectedIndex = idx"
     >

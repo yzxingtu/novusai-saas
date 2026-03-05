@@ -5,31 +5,31 @@
 """
 
 from app.configs.meta import (
-    ConfigMeta,
     ConfigGroupMeta,
+    ConfigMeta,
     ConfigOption,
     ValidationRule,
-    # 便捷函数
-    min_value,
+    max_length,
     max_value,
     min_length,
-    max_length,
-    pattern,
+    # 便捷函数
+    min_value,
     option,
+    pattern,
 )
 from app.configs.registry import (
     ConfigRegistry,
     config_registry,
     get_config_registry,
 )
+from app.configs.service import (
+    PLATFORM_TENANT_ID,
+    ConfigService,
+    get_config_service,
+)
 from app.configs.sync import (
     ConfigSyncService,
     sync_configs_on_startup,
-)
-from app.configs.service import (
-    ConfigService,
-    get_config_service,
-    PLATFORM_TENANT_ID,
 )
 
 __all__ = [

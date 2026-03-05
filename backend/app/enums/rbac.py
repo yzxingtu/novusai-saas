@@ -10,7 +10,7 @@ from app.enums.common import ResourceScopeEnum
 
 class PermissionType(StrEnum):
     """权限类型"""
-    
+
     MENU = ("menu", "enum.permission_type.menu")
     OPERATION = ("operation", "enum.permission_type.operation")
 

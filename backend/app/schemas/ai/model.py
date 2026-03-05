@@ -10,15 +10,15 @@ from pydantic import Field
 
 from app.core.base_schema import (
     BaseCreateSchema,
-    BaseUpdateSchema,
     BaseResponseSchema,
+    BaseUpdateSchema,
 )
 from app.core.i18n import _
 
 
 class AIModelCreate(BaseCreateSchema):
     """创建 AI 模型请求"""
-    
+
     provider_id: int = Field(..., description=_("enum.ai_model.provider_id"))
     name: str = Field(..., max_length=100, description=_("enum.ai_model.name"))
     code: str = Field(..., max_length=100, description=_("enum.ai_model.code"))
@@ -40,7 +40,7 @@ class AIModelCreate(BaseCreateSchema):
 
 class AIModelUpdate(BaseUpdateSchema):
     """更新 AI 模型请求"""
-    
+
     provider_id: int | None = Field(None, description=_("enum.ai_model.provider_id"))
     name: str | None = Field(None, max_length=100, description=_("enum.ai_model.name"))
     code: str | None = Field(None, max_length=100, description=_("enum.ai_model.code"))
@@ -62,7 +62,7 @@ class AIModelUpdate(BaseUpdateSchema):
 
 class AIModelResponse(BaseResponseSchema):
     """AI 模型响应"""
-    
+
     provider_id: int = Field(..., description=_("enum.ai_model.provider_id"))
     name: str = Field(..., description=_("enum.ai_model.name"))
     code: str = Field(..., description=_("enum.ai_model.code"))

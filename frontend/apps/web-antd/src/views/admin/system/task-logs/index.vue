@@ -4,8 +4,6 @@
  */
 import type { adminApi } from '#/api';
 
-defineOptions({ name: 'SystemTaskLogList' });
-
 import { Page, useVbenDrawer } from '@vben/common-ui';
 
 import { Badge, Card, message, Tag, Tooltip } from 'ant-design-vue';
@@ -25,6 +23,8 @@ import {
   useGridFormSchema,
 } from './data';
 import TaskLogDetail from './modules/TaskLogDetail.vue';
+
+defineOptions({ name: 'SystemTaskLogList' });
 
 type TaskLogInfo = adminApi.TaskLogInfo;
 
@@ -85,10 +85,7 @@ const { Grid, onRefresh } = useCrudPage<TaskLogInfo>({
 
         <!-- 状态列 -->
         <template #status_cell="{ row }">
-          <Badge
-            v-if="row.status === 'running'"
-            status="processing"
-          />
+          <Badge v-if="row.status === 'running'" status="processing" />
           <Tag :color="getStatusColor(row.status)">
             {{ $t(`admin.system.taskLog.status.${row.status}`) }}
           </Tag>
@@ -105,8 +102,8 @@ const { Grid, onRefresh } = useCrudPage<TaskLogInfo>({
         <template #durationMs_cell="{ row }">
           <span
             v-if="row.durationMs !== null && row.durationMs !== undefined"
+            class="tabular-nums"
             :class="[
-              'tabular-nums',
               row.durationMs > 5000
                 ? 'font-medium text-warning'
                 : 'text-muted-foreground',

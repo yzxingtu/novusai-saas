@@ -20,15 +20,19 @@ import {
   Tag,
 } from 'ant-design-vue';
 
-import { requestClient } from '#/utils/request';
 import { $t } from '#/locales';
+import { requestClient } from '#/utils/request';
 
 const emit = defineEmits<{ saved: [] }>();
 
 const visible = ref(false);
 const saving = ref(false);
 const testing = ref(false);
-const testResult = ref<{ ok: boolean; latency_ms: number; error?: string } | null>(null);
+const testResult = ref<null | {
+  error?: string;
+  latency_ms: number;
+  ok: boolean;
+}>(null);
 
 const form = ref({
   preferred_source: 'auto',
@@ -41,12 +45,14 @@ async function open() {
   visible.value = true;
   testResult.value = null;
   try {
-    const res = await requestClient.get('/admin/config', {
+    const res = (await requestClient.get('/admin/config', {
       params: {
         keys: 'marketplace_preferred_source,marketplace_github_url,marketplace_gitee_url,marketplace_cache_ttl',
       },
-    }) as Record<string, unknown>;
-    const data = (res as Record<string, unknown>)?.data as Record<string, string> | undefined;
+    })) as Record<string, unknown>;
+    const data = (res as Record<string, unknown>)?.data as
+      | Record<string, string>
+      | undefined;
     if (data) {
       form.value.preferred_source = data.marketplace_preferred_source || 'auto';
       form.value.github_url = data.marketplace_github_url || '';
@@ -90,10 +96,15 @@ async function handleTestConnection() {
       sourceUrl = form.value.gitee_url || '';
     }
 
-    const res = await requestClient.post('/admin/plugins/marketplace/test-connection', null, {
-      params: { source_url: sourceUrl },
-    }) as Record<string, unknown>;
-    testResult.value = (res as Record<string, unknown>)?.data as typeof testResult.value;
+    const res = (await requestClient.post(
+      '/admin/plugins/marketplace/test-connection',
+      null,
+      {
+        params: { source_url: sourceUrl },
+      },
+    )) as Record<string, unknown>;
+    testResult.value = (res as Record<string, unknown>)
+      ?.data as typeof testResult.value;
   } catch {
     testResult.value = { ok: false, latency_ms: -1, error: 'Request failed' };
   } finally {
@@ -119,8 +130,12 @@ defineExpose({ open });
         <RadioGroup v-model:value="form.preferred_source">
           <Space direction="vertical">
             <Radio value="auto">
-              <span class="font-medium">{{ $t('admin.plugin.marketplace.sourceAuto') }}</span>
-              <span class="ml-2 text-xs text-muted-foreground">{{ $t('admin.plugin.marketplace.sourceAutoDesc') }}</span>
+              <span class="font-medium">{{
+                $t('admin.plugin.marketplace.sourceAuto')
+              }}</span>
+              <span class="ml-2 text-xs text-muted-foreground">{{
+                $t('admin.plugin.marketplace.sourceAutoDesc')
+              }}</span>
             </Radio>
             <Radio value="github">
               <span class="font-medium">GitHub</span>
@@ -150,7 +165,14 @@ defineExpose({ open });
 
       <!-- 缓存 TTL -->
       <FormItem :label="$t('admin.plugin.marketplace.cacheTtl')">
-        <InputNumber v-model:value="form.cache_ttl" :min="60" :max="86400" :step="300" addon-after="s" class="!w-40" />
+        <InputNumber
+          v-model:value="form.cache_ttl"
+          :min="60"
+          :max="86400"
+          :step="300"
+          addon-after="s"
+          class="!w-40"
+        />
       </FormItem>
 
       <!-- 测试连接 -->

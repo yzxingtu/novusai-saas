@@ -104,7 +104,7 @@ export function useFormSchema(_policyId?: number): VbenFormSchema[] {
     }),
     numberField('max_rows', $t('admin.ai.tablePolicy.maxRows'), {
       min: 1,
-      max: 10000,
+      max: 10_000,
       placeholder: $t('admin.ai.tablePolicy.placeholder.inputMaxRows'),
     }),
     switchField('allow_read', $t('admin.ai.tablePolicy.allowRead'), {
@@ -121,24 +121,36 @@ export function useFormSchema(_policyId?: number): VbenFormSchema[] {
     }),
     {
       ...select('blocked_columns', $t('admin.ai.tablePolicy.blockedColumns'), {
-        placeholder: $t('admin.ai.tablePolicy.placeholder.selectBlockedColumns'),
+        placeholder: $t(
+          'admin.ai.tablePolicy.placeholder.selectBlockedColumns',
+        ),
       }),
       componentProps: {
         class: 'w-full',
         mode: 'multiple',
         options: [],
-        placeholder: $t('admin.ai.tablePolicy.placeholder.selectBlockedColumns'),
+        placeholder: $t(
+          'admin.ai.tablePolicy.placeholder.selectBlockedColumns',
+        ),
       },
     },
     {
-      ...select('readonly_columns', $t('admin.ai.tablePolicy.readonlyColumns'), {
-        placeholder: $t('admin.ai.tablePolicy.placeholder.selectReadonlyColumns'),
-      }),
+      ...select(
+        'readonly_columns',
+        $t('admin.ai.tablePolicy.readonlyColumns'),
+        {
+          placeholder: $t(
+            'admin.ai.tablePolicy.placeholder.selectReadonlyColumns',
+          ),
+        },
+      ),
       componentProps: {
         class: 'w-full',
         mode: 'multiple',
         options: [],
-        placeholder: $t('admin.ai.tablePolicy.placeholder.selectReadonlyColumns'),
+        placeholder: $t(
+          'admin.ai.tablePolicy.placeholder.selectReadonlyColumns',
+        ),
       },
     },
     numberField('sort_order', $t('admin.ai.tablePolicy.sortOrder'), {

@@ -1,11 +1,11 @@
 <script lang="ts" setup>
-defineOptions({ name: 'TenantAIGuide' });
-
 import { IconifyIcon } from '@vben/icons';
 
 import { Card, Collapse, CollapsePanel } from 'ant-design-vue';
 
 import { $t } from '#/locales';
+
+defineOptions({ name: 'TenantAIGuide' });
 
 const features = [
   {
@@ -34,7 +34,11 @@ const features = [
 const quickSteps = [
   { key: 'step1', icon: 'lucide:bot', link: '/tenant/ai/agents' },
   { key: 'step2', icon: 'lucide:sparkles', link: '/tenant/ai/skills' },
-  { key: 'step3', icon: 'lucide:book-open', link: '/tenant/ai/knowledge-bases' },
+  {
+    key: 'step3',
+    icon: 'lucide:book-open',
+    link: '/tenant/ai/knowledge-bases',
+  },
   { key: 'step4', icon: 'lucide:rocket', link: '/tenant/ai/agents' },
   { key: 'step5', icon: 'lucide:message-circle', link: '/tenant/ai/chat' },
 ];
@@ -70,7 +74,11 @@ const faqKeys = ['faq1', 'faq2', 'faq3', 'faq4', 'faq5'];
             class="mb-3 flex size-10 items-center justify-center rounded-lg"
             :class="feature.bg"
           >
-            <IconifyIcon :icon="feature.icon" class="size-5" :class="feature.color" />
+            <IconifyIcon
+              :icon="feature.icon"
+              class="size-5"
+              :class="feature.color"
+            />
           </div>
           <h3 class="text-sm font-semibold text-foreground">
             {{ $t(`tenant.ai.guidePage.features.${feature.key}.title`) }}
@@ -91,7 +99,9 @@ const faqKeys = ['faq1', 'faq2', 'faq3', 'faq4', 'faq5'];
           :to="step.link"
           class="group flex items-start gap-4 rounded-lg border border-border p-4 transition-all hover:border-primary/40 hover:bg-primary/5"
         >
-          <div class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+          <div
+            class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary"
+          >
             {{ idx + 1 }}
           </div>
           <div class="min-w-0 flex-1">

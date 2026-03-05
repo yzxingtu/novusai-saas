@@ -32,6 +32,7 @@ dependencies:
   python:
     - "qiniu>=7.14"
     - "httpx>=0.24"
+    - "anyio>=4.0.0"
   plugins: []
 
 pricing:

@@ -6,7 +6,7 @@ AI 表策略相关 Schema
 
 from pydantic import Field
 
-from app.core.base_schema import BaseUpdateSchema, BaseResponseSchema
+from app.core.base_schema import BaseResponseSchema, BaseUpdateSchema
 from app.core.i18n import _
 
 

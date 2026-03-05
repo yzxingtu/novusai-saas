@@ -9,11 +9,11 @@ export interface ToolkitToolInfo {
   name: string;
   description: string;
   parameters: Array<{
-    name: string;
-    type: string;
-    description: string;
-    required: boolean;
     default?: unknown;
+    description: string;
+    name: string;
+    required: boolean;
+    type: string;
   }>;
   is_async: boolean;
 }

@@ -5,3 +5,5 @@
 
 // 示例：导出组件
 // export { default as NovusCard } from './card/index.vue';
+
+export const novusComponents: Record<string, never> = {};

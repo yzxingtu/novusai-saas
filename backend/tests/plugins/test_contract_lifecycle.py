@@ -21,8 +21,12 @@
 
 import pytest
 
-from app.plugins.registry import ExtensionRegistry
 from app.plugins.event_bus import PluginEventBus
+from app.plugins.registry import ExtensionRegistry
+
+
+def _noop_handler(_event_name: str, _payload: dict) -> None:
+    """测试用空处理器，避免 lambda 触发 lint 警告。"""
 
 
 @pytest.fixture(autouse=True)
@@ -50,7 +54,7 @@ class TestRegistryLifecycle:
         reg._track("test-plugin", "hook", "before_execute")
         reg._track("test-plugin", "skill", "test-plugin")
 
-        count = reg.unregister_all("test-plugin")
+        reg.unregister_all("test-plugin")
         # hook 和 skill 类型有 _unregister_* 方法，即使实际资源不存在也会尝试
         assert reg.get_registered_count("test-plugin") == 0
 
@@ -62,11 +66,72 @@ class TestRegistryLifecycle:
     def test_dispatch_table_covers_all_types(self):
         """确保 _DISPATCH 包含所有已知扩展类型"""
         reg = ExtensionRegistry.get_instance()
-        expected_types = {
+        core_types = {
             "adapter", "hook", "storage", "skill", "event",
             "webhook", "task", "notification", "permission", "socketio",
         }
-        assert set(reg._DISPATCH.keys()) == expected_types
+        actual = set(reg._DISPATCH.keys())
+        # 允许新增扩展类型，但核心生命周期类型必须始终覆盖。
+        assert core_types.issubset(actual)
+
+
+class TestPluginMenuI18n:
+    """插件菜单标题 i18n 回退契约测试"""
+
+    def test_menu_title_fallback_uses_manifest_title_by_locale(self):
+        from app.core.i18n import set_locale
+        from app.rbac.services.permission_service import PermissionService
+
+        reg = ExtensionRegistry.get_instance()
+        try:
+            reg.register_menu(
+                plugin_name="demo-plugin",
+                name="docs",
+                path="/admin/plugins/demo-plugin/docs",
+                title={"zh-CN": "文档管理", "en": "Documents"},
+            )
+
+            set_locale("zh_CN")
+            assert PermissionService._translate_name(
+                "plugin.demo-plugin.menu.docs.title"
+            ) == "文档管理"
+
+            set_locale("en")
+            assert PermissionService._translate_name(
+                "plugin.demo-plugin.menu.docs.title"
+            ) == "Documents"
+        finally:
+            # 清理 registry + permission_registry 侧影响
+            reg.unregister_all("demo-plugin")
+            set_locale("zh_CN")
+
+    def test_menu_i18n_key_is_unique_per_menu(self):
+        reg = ExtensionRegistry.get_instance()
+        try:
+            reg.register_menu(
+                plugin_name="demo-plugin",
+                name="list",
+                path="/admin/plugins/demo-plugin/list",
+                title={"zh-CN": "列表", "en": "List"},
+            )
+            reg.register_menu(
+                plugin_name="demo-plugin",
+                name="detail",
+                path="/admin/plugins/demo-plugin/detail",
+                title={"zh-CN": "详情", "en": "Detail"},
+            )
+
+            assert reg.resolve_plugin_menu_title(
+                "plugin.demo-plugin.menu.list.title", locale="en"
+            ) == "List"
+            assert reg.resolve_plugin_menu_title(
+                "plugin.demo-plugin.menu.detail.title", locale="en"
+            ) == "Detail"
+            assert reg.resolve_plugin_menu_title(
+                "plugin.demo-plugin.menu.title", locale="en"
+            ) is None
+        finally:
+            reg.unregister_all("demo-plugin")
 
 
 class TestPluginEventBusLifecycle:
@@ -74,20 +139,20 @@ class TestPluginEventBusLifecycle:
 
     def test_subscribe_and_count(self):
         bus = PluginEventBus.get_instance()
-        bus.subscribe("plugin.a.doc_saved", lambda e, p: None, plugin_name="a")
+        bus.subscribe("plugin.a.doc_saved", _noop_handler, plugin_name="a")
         assert bus.get_subscriber_count("plugin.a.doc_saved") == 1
 
     def test_subscribe_dedup(self):
         bus = PluginEventBus.get_instance()
-        handler = lambda e, p: None
+        handler = _noop_handler
         bus.subscribe("plugin.a.doc_saved", handler, plugin_name="a")
         bus.subscribe("plugin.a.doc_saved", handler, plugin_name="a")
         assert bus.get_subscriber_count("plugin.a.doc_saved") == 1
 
     def test_unsubscribe_by_plugin(self):
         bus = PluginEventBus.get_instance()
-        bus.subscribe("plugin.a.doc_saved", lambda e, p: None, plugin_name="plugin-b")
-        bus.subscribe("plugin.a.event2", lambda e, p: None, plugin_name="plugin-b")
+        bus.subscribe("plugin.a.doc_saved", _noop_handler, plugin_name="plugin-b")
+        bus.subscribe("plugin.a.event2", _noop_handler, plugin_name="plugin-b")
 
         removed = bus.unsubscribe_all("plugin-b")
         assert removed == 2
@@ -95,8 +160,8 @@ class TestPluginEventBusLifecycle:
 
     def test_unsubscribe_does_not_affect_other_plugins(self):
         bus = PluginEventBus.get_instance()
-        bus.subscribe("plugin.a.doc_saved", lambda e, p: None, plugin_name="plugin-b")
-        bus.subscribe("plugin.a.doc_saved", lambda e, p: None, plugin_name="plugin-c")
+        bus.subscribe("plugin.a.doc_saved", _noop_handler, plugin_name="plugin-b")
+        bus.subscribe("plugin.a.doc_saved", _noop_handler, plugin_name="plugin-c")
 
         bus.unsubscribe_all("plugin-b")
         assert bus.get_subscriber_count("plugin.a.doc_saved") == 1
@@ -172,7 +237,7 @@ class TestSSEResponse:
     @pytest.mark.asyncio
     async def test_sse_message_done_sequence(self):
         """正常流：message chunks → done → [DONE]"""
-        from app.plugins.sse import plugin_sse_response, _encode, _done
+        from app.plugins.sse import _done, _encode, plugin_sse_response
 
         async def gen():
             yield "hello"
@@ -214,11 +279,11 @@ class TestSSEResponse:
     @pytest.mark.asyncio
     async def test_sse_empty_generator(self):
         """空生成器：直接 done → [DONE]"""
-        from app.plugins.sse import plugin_sse_response, _encode, _done
+        from app.plugins.sse import _done, _encode, plugin_sse_response
 
         async def gen():
-            return
-            yield  # noqa: make it an async generator
+            if False:
+                yield ""
 
         resp = plugin_sse_response(gen(), heartbeat=False, plugin_name="test")
         chunks = []
@@ -232,8 +297,9 @@ class TestSSEResponse:
     async def test_sse_heartbeat_emitted(self):
         """heartbeat=True 时，空闲超时会发送心跳"""
         import asyncio
-        from app.plugins.sse import plugin_sse_response, _HEARTBEAT_LINE
+
         import app.plugins.sse as sse_module
+        from app.plugins.sse import _HEARTBEAT_LINE, plugin_sse_response
 
         # 临时缩短心跳间隔以加速测试
         original = sse_module._HEARTBEAT_INTERVAL
@@ -271,6 +337,7 @@ class TestRequestContext:
     def test_plugin_context_with_request_context(self):
         """PluginContext 注入 RequestContext 后，getter 返回正确值"""
         from unittest.mock import MagicMock
+
         from app.plugins.context import PluginContext, RequestContext
 
         mock_manifest = MagicMock()
@@ -298,6 +365,7 @@ class TestRequestContext:
     def test_plugin_context_without_request_context(self):
         """无 RequestContext 时（lifecycle hook 场景），返回安全默认值"""
         from unittest.mock import MagicMock
+
         from app.plugins.context import PluginContext
 
         mock_manifest = MagicMock()
@@ -390,6 +458,7 @@ class TestPluginContextAIStream:
                 self.tenant_id = tenant_id
 
             async def stream_chat(self, *, agent_id: int, message: str):
+                _ = agent_id, message
                 return _FakeStreamingResponse()
 
         monkeypatch.setattr(
@@ -443,6 +512,7 @@ class TestPluginContextAIStream:
                 self.tenant_id = tenant_id
 
             async def stream_chat(self, *, agent_id: int, message: str):
+                _ = agent_id, message
                 return _FakeStreamingResponse()
 
         monkeypatch.setattr(
@@ -483,6 +553,7 @@ class TestPluginContextAIStream:
                 self.tenant_id = tenant_id
 
             async def stream_chat(self, *, agent_id: int, message: str):
+                _ = agent_id, message
                 raise RuntimeError("stream not supported")
 
         monkeypatch.setattr(
@@ -494,7 +565,7 @@ class TestPluginContextAIStream:
             return "fallback"
 
         # 让 fallback 分支不依赖真实 AgentChatService.chat
-        setattr(ctx, "call_ai_feature", fake_call_ai_feature)
+        ctx.call_ai_feature = fake_call_ai_feature
 
         deltas: list[str] = []
         async for delta in ctx.call_ai_feature_stream(
@@ -510,9 +581,9 @@ class TestSocketIONamespaceRegistry:
     """Socket.IO namespace 动态注册/反注册契约测试"""
 
     def test_register_and_unregister_socketio_namespace(self, monkeypatch):
-        from app.plugins.registry import ExtensionRegistry
-
         import socketio
+
+        from app.plugins.registry import ExtensionRegistry
 
         class DummyNS(socketio.AsyncNamespace):
             pass

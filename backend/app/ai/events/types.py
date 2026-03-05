@@ -7,8 +7,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
-from app.core.base_model import utc_now
 
+from app.core.base_model import utc_now
 
 # ============================================
 # 事件基类

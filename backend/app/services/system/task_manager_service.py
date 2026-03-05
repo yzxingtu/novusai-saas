@@ -5,8 +5,6 @@
 """
 
 from app.celery_app import celery_app
-from app.exceptions import NotFoundException, BusinessException
-from app.core.i18n import _
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("queue")

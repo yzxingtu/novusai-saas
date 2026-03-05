@@ -1,8 +1,6 @@
 /**
- * NovusDoc 插件样式
- *
- * 通过 setup() JS 注入到 <head>，避免 scoped CSS 在 portal 中失效。
- * 以 .nd- 前缀避免全局冲突。
+ * @deprecated CSS has been extracted to novusdoc.css.
+ * This file is kept only for backward compatibility and will be removed in a future release.
  */
 export const ND_STYLES = `
 /* ── NovusDoc plugin styles ── */
@@ -333,6 +331,360 @@ export const ND_STYLES = `
   gap: 8px;
   padding: 6px 0;
   color: hsl(var(--destructive));
+}
+
+/* ── AI BubbleMenu ── */
+.nd-ai-bubble-menu {
+  z-index: 50;
+}
+.nd-ai-bm-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nd-ai-bm-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border-radius: var(--nd-radius-md, 10px);
+  background: hsl(var(--popover));
+  border: 1px solid hsl(var(--border));
+  box-shadow: var(--nd-shadow-md, 0 4px 16px rgba(0, 0, 0, 0.08));
+  color: hsl(var(--popover-foreground));
+  font-size: 12px;
+  max-width: 480px;
+}
+.nd-ai-bm-active {
+  background: hsl(var(--primary) / 0.15) !important;
+  color: hsl(var(--primary)) !important;
+}
+.nd-ai-bm-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--nd-radius-sm, 6px);
+  border: none;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: all var(--nd-transition-fast, 120ms ease);
+}
+.nd-ai-bm-icon:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+.nd-ai-bm-sep {
+  width: 1px;
+  height: 16px;
+  background: hsl(var(--border));
+  margin: 0 2px;
+}
+.nd-ai-bm-loading {
+  gap: 6px;
+  padding: 6px 10px;
+}
+.nd-ai-bm-text {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+.nd-ai-bm-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  margin-left: 4px;
+}
+.nd-ai-bm-close:hover {
+  background: hsl(var(--accent));
+}
+.nd-ai-bm-result {
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  max-width: 400px;
+}
+.nd-ai-bm-preview {
+  font-size: 12px;
+  line-height: 1.5;
+  color: hsl(var(--foreground));
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.nd-ai-bm-result-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.nd-ai-bm-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--nd-radius-sm, 6px);
+  border: 1px solid hsl(var(--border));
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--nd-transition-fast, 120ms ease);
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+.nd-ai-bm-btn:hover {
+  background: hsl(var(--accent));
+}
+.nd-ai-bm-accept {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+}
+.nd-ai-bm-accept:hover {
+  opacity: 0.9;
+}
+.nd-ai-bm-dismiss {
+  background: transparent;
+}
+.nd-ai-bm-error {
+  gap: 6px;
+  padding: 6px 10px;
+  color: hsl(var(--destructive));
+  font-size: 12px;
+}
+.nd-ai-bm-custom {
+  display: flex;
+  gap: 6px;
+  padding: 4px 6px;
+  margin-top: 4px;
+}
+.nd-ai-bm-custom-input {
+  width: 200px;
+}
+.nd-ai-bm-dots {
+  display: flex;
+  gap: 3px;
+}
+.nd-ai-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  animation: nd-bm-typing 1.4s infinite ease-in-out;
+}
+.nd-ai-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.nd-ai-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes nd-bm-typing {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ── AI Sidebar Chat Panel ── */
+.nd-ai-sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 320px;
+  min-width: 280px;
+  max-width: 400px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+}
+.nd-ai-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid hsl(var(--border));
+}
+.nd-ai-sidebar-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.nd-ai-sidebar-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  opacity: 0.7;
+}
+.nd-ai-empty-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nd-ai-avatar-sm {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.nd-ai-avatar-ai {
+  margin-top: 2px;
+}
+.nd-ai-msg {
+  display: flex;
+  gap: 8px;
+  animation: nd-fade-in var(--nd-transition-normal, 200ms ease);
+}
+.nd-ai-msg-user {
+  justify-content: flex-end;
+}
+.nd-ai-msg-ai {
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+.nd-ai-msg-error {
+  justify-content: center;
+}
+.nd-ai-bubble {
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: var(--nd-radius-md, 10px);
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.nd-ai-bubble-user {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-bottom-right-radius: 4px;
+}
+.nd-ai-bubble-ai {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  border-bottom-left-radius: 4px;
+}
+.nd-ai-error-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--nd-radius-sm, 6px);
+  background: hsl(var(--destructive) / 0.08);
+  color: hsl(var(--destructive));
+  font-size: 12px;
+  line-height: 1.4;
+  max-width: 90%;
+}
+.nd-ai-typing {
+  display: flex;
+  gap: 4px;
+  padding: 4px 0;
+}
+.nd-ai-sidebar .nd-ai-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: hsl(var(--muted-foreground));
+  animation: nd-typing 1.4s infinite ease-in-out;
+}
+@keyframes nd-typing {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes nd-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.nd-ai-sidebar-input {
+  padding: 12px 16px;
+  border-top: 1px solid hsl(var(--border));
+}
+.nd-ai-input-wrapper {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.nd-ai-input {
+  flex: 1;
+}
+.nd-ai-sidebar-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px 16px;
+  border-top: 1px solid hsl(var(--border));
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.nd-ai-quick-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.nd-ai-quick-btn:hover {
+  background: hsl(var(--accent));
+  border-color: hsl(var(--primary) / 0.3);
+}
+.nd-ai-quick-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.nd-ai-send-btn {
+  flex-shrink: 0;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 /* ══════════════════════════════════════════════════════════

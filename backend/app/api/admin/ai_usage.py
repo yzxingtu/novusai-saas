@@ -5,20 +5,19 @@ AI 使用量统计管理 API (Admin)
 """
 
 from datetime import date
-from typing import Optional
 
 from fastapi import Query, Request
 
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, QueryParams, ActiveAdmin
 from app.core.base_schema import PageResponse
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
     action_read,
+    permission_resource,
 )
 from app.services.ai import MeteringService
 
@@ -56,8 +55,8 @@ class AdminAIUsageController(GlobalController):
             db: DbSession,
             tenant_id: int,
             admin: ActiveAdmin,
-            start_date: Optional[date] = Query(None, description="开始日期"),
-            end_date: Optional[date] = Query(None, description="结束日期"),
+            start_date: date | None = Query(None, description="开始日期"),
+            end_date: date | None = Query(None, description="结束日期"),
         ):
             """
             获取指定租户的使用量汇总
@@ -80,8 +79,8 @@ class AdminAIUsageController(GlobalController):
             db: DbSession,
             model_id: int,
             admin: ActiveAdmin,
-            start_date: Optional[date] = Query(None, description="开始日期"),
-            end_date: Optional[date] = Query(None, description="结束日期"),
+            start_date: date | None = Query(None, description="开始日期"),
+            end_date: date | None = Query(None, description="结束日期"),
         ):
             """
             获取指定模型的使用量汇总

@@ -7,7 +7,6 @@
 from app.enums.base import StrEnum
 from app.enums.common import ResourceScopeEnum
 
-
 # [DEPRECATED] ConfigScope 已统一为 ResourceScopeEnum，保留别名兼容旧代码引用
 # 旧值映射: PLATFORM→ADMIN_ONLY, TENANT→ALL_TENANTS
 ConfigScope = ResourceScopeEnum
@@ -15,7 +14,7 @@ ConfigScope = ResourceScopeEnum
 
 class ConfigValueType(StrEnum):
     """配置值类型枚举"""
-    
+
     STRING = ("string", "enum.config_value_type.string")  # 字符串
     NUMBER = ("number", "enum.config_value_type.number")  # 数字
     BOOLEAN = ("boolean", "enum.config_value_type.boolean")  # 布尔值

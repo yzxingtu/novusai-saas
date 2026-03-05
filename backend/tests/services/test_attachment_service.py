@@ -35,8 +35,8 @@ class TestAttachmentUpload:
 
     @pytest.mark.asyncio
     async def test_file_too_large_raises(self, mock_db):
-        from app.services.tenant.attachment_service import AttachmentService
         from app.exceptions import BusinessException
+        from app.services.tenant.attachment_service import AttachmentService
 
         service = AttachmentService.__new__(AttachmentService)
         service.db = mock_db
@@ -54,8 +54,8 @@ class TestAttachmentDelete:
 
     @pytest.mark.asyncio
     async def test_delete_not_found_raises(self, mock_db):
-        from app.services.tenant.attachment_service import AttachmentService
         from app.exceptions import NotFoundException
+        from app.services.tenant.attachment_service import AttachmentService
 
         service = AttachmentService.__new__(AttachmentService)
         service.db = mock_db
@@ -134,16 +134,19 @@ class TestAttachmentMimeType:
 
     @pytest.mark.asyncio
     async def test_attachment_has_correct_mime(self, mock_db):
+        _ = mock_db
         att = _make_attachment(mime_type="image/png", filename="photo.png")
         assert att.mime_type == "image/png"
         assert att.filename == "photo.png"
 
     @pytest.mark.asyncio
     async def test_attachment_driver_local(self, mock_db):
+        _ = mock_db
         att = _make_attachment(driver="local")
         assert att.driver == "local"
 
     @pytest.mark.asyncio
     async def test_attachment_driver_cloud(self, mock_db):
+        _ = mock_db
         att = _make_attachment(driver="aliyun-oss")
         assert att.driver == "aliyun-oss"

@@ -73,24 +73,33 @@ async function loadData() {
     let driversData: StorageDriverInfo[] = [];
     try {
       driversData = await getStorageDriversApi();
-    } catch (e) {
-      console.error('[TenantStorageDrawer] getStorageDriversApi failed:', e);
+    } catch (error) {
+      console.error(
+        '[TenantStorageDrawer] getStorageDriversApi failed:',
+        error,
+      );
     }
     drivers.value = driversData;
 
     const configData = await getTenantStorageConfigApi(tenantId.value);
 
-    storageMode.value = (configData.tenant_storage_mode as string) || 'platform';
-    const savedDriver = (configData.tenant_storage_driver as string) || undefined;
+    storageMode.value =
+      (configData.tenant_storage_mode as string) || 'platform';
+    const savedDriver =
+      (configData.tenant_storage_driver as string) || undefined;
 
     // If saved driver's plugin is not available, clear selection
-    const driverInfo = driversData.find((d: StorageDriverInfo) => d.name === savedDriver);
-    selectedDriver.value = (driverInfo && driverInfo.is_available) ? savedDriver : undefined;
+    const driverInfo = driversData.find(
+      (d: StorageDriverInfo) => d.name === savedDriver,
+    );
+    selectedDriver.value =
+      driverInfo && driverInfo.is_available ? savedDriver : undefined;
 
     credentials.value = {
       root_path: (configData.tenant_storage_root_path as string) || '',
       base_url: (configData.tenant_storage_base_url as string) || '',
-      options: (configData.tenant_storage_options as Record<string, unknown>) || {},
+      options:
+        (configData.tenant_storage_options as Record<string, unknown>) || {},
     };
     credentialsVersion.value++;
   } finally {
@@ -106,7 +115,9 @@ async function onSave() {
       return;
     }
     if (!credentials.value.root_path?.trim()) {
-      message.warning($t('shared.storage.field.bucket') + ' ' + $t('shared.storage.required'));
+      message.warning(
+        `${$t('shared.storage.field.bucket')} ${$t('shared.storage.required')}`,
+      );
       return;
     }
   }
@@ -114,14 +125,30 @@ async function onSave() {
   try {
     // selfConfigEnabled 由模式自动决定：custom=true，其他=false
     const isSelfConfig = storageMode.value === 'custom';
-    await updateTenantStorageConfigApi(tenantId.value, {
-      tenant_storage_mode: storageMode.value,
-      tenant_storage_driver: storageMode.value === 'admin_override' ? (selectedDriver.value || null) : null,
-      tenant_storage_root_path: storageMode.value === 'admin_override' ? credentials.value.root_path : '',
-      tenant_storage_base_url: storageMode.value === 'admin_override' ? credentials.value.base_url : '',
-      tenant_storage_options: storageMode.value === 'admin_override' ? credentials.value.options : {},
-      tenant_storage_self_config_enabled: isSelfConfig,
-    }, { showSuccessMessage: true });
+    await updateTenantStorageConfigApi(
+      tenantId.value,
+      {
+        tenant_storage_mode: storageMode.value,
+        tenant_storage_driver:
+          storageMode.value === 'admin_override'
+            ? selectedDriver.value || null
+            : null,
+        tenant_storage_root_path:
+          storageMode.value === 'admin_override'
+            ? credentials.value.root_path
+            : '',
+        tenant_storage_base_url:
+          storageMode.value === 'admin_override'
+            ? credentials.value.base_url
+            : '',
+        tenant_storage_options:
+          storageMode.value === 'admin_override'
+            ? credentials.value.options
+            : {},
+        tenant_storage_self_config_enabled: isSelfConfig,
+      },
+      { showSuccessMessage: true },
+    );
   } finally {
     saving.value = false;
   }
@@ -167,20 +194,32 @@ defineExpose({ open });
             <div class="flex flex-col gap-3">
               <Radio value="platform">
                 <div>
-                  <div class="font-medium">{{ $t('shared.storage.mode.platform') }}</div>
-                  <div class="text-xs text-muted-foreground">{{ $t('shared.storage.modeDesc.platform') }}</div>
+                  <div class="font-medium">
+                    {{ $t('shared.storage.mode.platform') }}
+                  </div>
+                  <div class="text-xs text-muted-foreground">
+                    {{ $t('shared.storage.modeDesc.platform') }}
+                  </div>
                 </div>
               </Radio>
               <Radio value="admin_override">
                 <div>
-                  <div class="font-medium">{{ $t('shared.storage.mode.adminOverride') }}</div>
-                  <div class="text-xs text-muted-foreground">{{ $t('shared.storage.modeDesc.adminOverride') }}</div>
+                  <div class="font-medium">
+                    {{ $t('shared.storage.mode.adminOverride') }}
+                  </div>
+                  <div class="text-xs text-muted-foreground">
+                    {{ $t('shared.storage.modeDesc.adminOverride') }}
+                  </div>
                 </div>
               </Radio>
               <Radio value="custom">
                 <div>
-                  <div class="font-medium">{{ $t('shared.storage.mode.custom') }}</div>
-                  <div class="text-xs text-muted-foreground">{{ $t('shared.storage.modeDesc.custom') }}</div>
+                  <div class="font-medium">
+                    {{ $t('shared.storage.mode.custom') }}
+                  </div>
+                  <div class="text-xs text-muted-foreground">
+                    {{ $t('shared.storage.modeDesc.custom') }}
+                  </div>
                 </div>
               </Radio>
             </div>
@@ -243,11 +282,7 @@ defineExpose({ open });
         <Button @click="visible = false">
           {{ $t('shared.common.cancel') }}
         </Button>
-        <Button
-          type="primary"
-          :loading="saving"
-          @click="onSave"
-        >
+        <Button type="primary" :loading="saving" @click="onSave">
           {{ $t('shared.storage.save') }}
         </Button>
       </div>

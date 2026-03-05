@@ -58,11 +58,11 @@ export function getPeriodText(period: string | undefined): string {
 export function getQuotaTypeText(type: string | undefined): string {
   if (!type) return '-';
   switch (type) {
-    case 'soft': {
-      return $t('admin.ai.quota.type_options.soft');
-    }
     case 'hard': {
       return $t('admin.ai.quota.type_options.hard');
+    }
+    case 'soft': {
+      return $t('admin.ai.quota.type_options.soft');
     }
     default: {
       return type;
@@ -76,7 +76,7 @@ export function getQuotaTypeText(type: string | undefined): string {
 async function getModelSelectOptions() {
   const response = await getAIModelListApi({
     'page[size]': 200,
-    'sort': 'name',
+    sort: 'name',
     'filter[is_active]': true,
   });
   return response.items.map((item) => ({

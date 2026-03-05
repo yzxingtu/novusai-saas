@@ -1,14 +1,24 @@
 <script lang="ts" setup>
-defineOptions({ name: 'TenantAgentForm' });
 /**
  * 租户端智能体新建/编辑表单抽屉
  * 支持向导模式（新建）和经典模式（编辑）
  */
-import type { AgentInfo, AgentListItem, AgentSkillBindingInfo } from '#/api/tenant/agents';
+import type {
+  AgentInfo,
+  AgentListItem,
+  AgentSkillBindingInfo,
+} from '#/api/tenant/agents';
 
 import { computed, onMounted, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
+
+import {
+  Button as AButton,
+  Select as ASelect,
+  Steps as ASteps,
+  Tag as ATag,
+} from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
 import {
@@ -20,10 +30,6 @@ import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
-import { Button as AButton, Select as ASelect, Steps as ASteps, Tag as ATag } from 'ant-design-vue';
-
-const AStep = ASteps.Step;
-
 import {
   getFormDefaults,
   getPackageSelectOptions,
@@ -32,15 +38,19 @@ import {
   useWizardFormSchema,
 } from '../data';
 
-const TOTAL_STEPS = 2;
+defineOptions({ name: 'TenantAgentForm' });
 
 const emits = defineEmits<{ success: [] }>();
+
+const AStep = ASteps.Step;
+
+const TOTAL_STEPS = 2;
 
 const wizardMode = ref(false);
 const currentStep = ref(0);
 const pendingPackageIds = ref<number[]>([]);
 const consentModes = ref<Record<string, string>>({});
-const selectedPackages = ref<Array<{ label: string; value: number }>>([]); 
+const selectedPackages = ref<Array<{ label: string; value: number }>>([]);
 const autoBindPackages = ref<AgentSkillBindingInfo[]>([]);
 
 interface TenantPkgOption {
@@ -75,7 +85,7 @@ const wizardSteps = computed(() => getWizardSteps());
 /**
  * 安全解析 JSON 数组字符串
  */
-function safeJsonArrayParse(str: string | undefined): unknown[] | null {
+function safeJsonArrayParse(str: string | undefined): null | unknown[] {
   if (!str || str.trim() === '' || str.trim() === '[]') return null;
   try {
     const parsed = JSON.parse(str);
@@ -88,12 +98,18 @@ function safeJsonArrayParse(str: string | undefined): unknown[] | null {
 /**
  * 数组转 JSON 字符串（美化格式）
  */
-function toJsonArrayString(arr: unknown[] | null | undefined): string {
+function toJsonArrayString(arr: null | undefined | unknown[]): string {
   if (!arr || arr.length === 0) return '[]';
   return JSON.stringify(arr, null, 2);
 }
 
-const { Drawer, isEdit, recordId, openNew: _openNew, openEdit: _openEdit } = useCrudDrawer<AgentInfo>({
+const {
+  Drawer,
+  isEdit,
+  recordId,
+  openNew: _openNew,
+  openEdit: _openEdit,
+} = useCrudDrawer<AgentInfo>({
   formApi,
   schema: useFormSchema,
   defaults: getFormDefaults,
@@ -125,7 +141,9 @@ const { Drawer, isEdit, recordId, openNew: _openNew, openEdit: _openEdit } = use
       max_tokens: data.max_tokens,
       top_p: data.top_p,
       welcome_message: data.welcome_message,
-      suggested_questions_str: toJsonArrayString(data.suggested_questions as unknown[] | null),
+      suggested_questions_str: toJsonArrayString(
+        data.suggested_questions as null | unknown[],
+      ),
     };
   },
   onSuccess: async () => {
@@ -215,11 +233,8 @@ function setConsentMode(pkgId: number, mode: string) {
   }
 }
 
-
 const title = computed(() =>
-  isEdit.value
-    ? $t('common.edit')
-    : $t('tenant.ai.agent.create'),
+  isEdit.value ? $t('common.edit') : $t('tenant.ai.agent.create'),
 );
 
 const isLastStep = computed(() => currentStep.value === TOTAL_STEPS - 1);
@@ -228,7 +243,8 @@ const isFirstStep = computed(() => currentStep.value === 0);
 async function loadTenantPackageOptions() {
   tenantPackageLoading.value = true;
   try {
-    tenantPackageOptions.value = await getPackageSelectOptions() as TenantPkgOption[];
+    tenantPackageOptions.value =
+      (await getPackageSelectOptions()) as TenantPkgOption[];
   } finally {
     tenantPackageLoading.value = false;
   }
@@ -247,7 +263,10 @@ function onTenantPackageChange(val: unknown) {
   const items = raw.map((item) => {
     if (typeof item === 'object' && item !== null) {
       const obj = item as Record<string, unknown>;
-      return { label: String(obj.label || ''), value: Number(obj.value || obj.key || 0) };
+      return {
+        label: String(obj.label || ''),
+        value: Number(obj.value || obj.key || 0),
+      };
     }
     return { label: `#${item}`, value: Number(item) };
   });
@@ -290,19 +309,35 @@ function onTenantPackageChange(val: unknown) {
       />
 
       <!-- Unified binding list: auto-bind + manual, each with consent mode -->
-      <div v-if="autoBindPackages.length > 0 || selectedPackages.length > 0" class="mt-3 space-y-2">
+      <div
+        v-if="autoBindPackages.length > 0 || selectedPackages.length > 0"
+        class="mt-3 space-y-2"
+      >
         <!-- Auto-bind packages (locked, with consent mode) -->
         <div
           v-for="pkg in autoBindPackages"
           :key="`auto-${pkg.package_id}`"
           class="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2"
         >
-          <IconifyIcon icon="lucide:lock" class="size-3.5 shrink-0 text-primary/60" />
-          <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ pkg.package_name }}</span>
-          <ATag v-if="pkg.package_is_system" color="red" class="!m-0 shrink-0 !text-[10px]">
+          <IconifyIcon
+            icon="lucide:lock"
+            class="size-3.5 shrink-0 text-primary/60"
+          />
+          <span class="min-w-0 flex-1 truncate text-sm font-medium">{{
+            pkg.package_name
+          }}</span>
+          <ATag
+            v-if="pkg.package_is_system"
+            color="red"
+            class="!m-0 shrink-0 !text-[10px]"
+          >
             {{ $t('tenant.ai.skillPackage.system') }}
           </ATag>
-          <ATag v-if="pkg.package_scope" :color="getScopeColor(pkg.package_scope)" class="!m-0 shrink-0 !text-[10px]">
+          <ATag
+            v-if="pkg.package_scope"
+            :color="getScopeColor(pkg.package_scope)"
+            class="!m-0 shrink-0 !text-[10px]"
+          >
             {{ getScopeText(pkg.package_scope) }}
           </ATag>
           <ATag color="green" class="!m-0 shrink-0 !text-[10px]">
@@ -316,7 +351,9 @@ function onTenantPackageChange(val: unknown) {
           :key="`manual-${pkg.value}`"
           class="flex items-center gap-2 rounded-md border border-border px-3 py-2"
         >
-          <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ pkg.label }}</span>
+          <span class="min-w-0 flex-1 truncate text-sm font-medium">{{
+            pkg.label
+          }}</span>
           <ASelect
             :value="getConsentMode(pkg.value)"
             :options="consentModeOptions"

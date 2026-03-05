@@ -15,11 +15,11 @@ export interface KnowledgeBaseItem {
   id: number;
   tenant_id: number;
   name: string;
-  description: string | null;
-  avatar: string | null;
+  description: null | string;
+  avatar: null | string;
   scope: string;
   embedding_model_id: number;
-  embedding_model_name: string | null;
+  embedding_model_name: null | string;
   chunk_size: number;
   chunk_overlap: number;
   chunk_strategy: string;
@@ -37,8 +37,8 @@ export interface KnowledgeBaseItem {
 /** 创建知识库请求 */
 export interface KnowledgeBaseCreateRequest {
   name: string;
-  description?: string | null;
-  avatar?: string | null;
+  description?: null | string;
+  avatar?: null | string;
   embedding_model_id: number;
   chunk_size?: number;
   chunk_overlap?: number;
@@ -50,16 +50,16 @@ export interface KnowledgeBaseCreateRequest {
 
 /** 更新知识库请求 */
 export interface KnowledgeBaseUpdateRequest {
-  name?: string | null;
-  description?: string | null;
-  avatar?: string | null;
-  chunk_size?: number | null;
-  chunk_overlap?: number | null;
-  chunk_strategy?: string | null;
-  search_mode?: string | null;
-  top_k?: number | null;
-  score_threshold?: number | null;
-  status?: string | null;
+  name?: null | string;
+  description?: null | string;
+  avatar?: null | string;
+  chunk_size?: null | number;
+  chunk_overlap?: null | number;
+  chunk_strategy?: null | string;
+  search_mode?: null | string;
+  top_k?: null | number;
+  score_threshold?: null | number;
+  status?: null | string;
 }
 
 /** 知识库文档 */
@@ -69,10 +69,10 @@ export interface KnowledgeDocumentItem {
   file_name: string;
   file_type: string;
   file_size: number;
-  file_hash: string | null;
+  file_hash: null | string;
   status: string;
-  error_message: string | null;
-  error_stage: string | null;
+  error_message: null | string;
+  error_stage: null | string;
   chunk_count: number;
   token_count: number;
   char_count: number;
@@ -85,10 +85,10 @@ export interface SearchResultItem {
   chunk_id: number;
   content: string;
   score: number;
-  metadata: Record<string, unknown> | null;
+  metadata: null | Record<string, unknown>;
   document_name: string;
   document_id: number;
-  highlight: string | null;
+  highlight: null | string;
 }
 
 /** Q&A 对创建请求 */
@@ -124,10 +124,10 @@ export async function getKnowledgeBaseListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<PageResponse<KnowledgeBaseItem>> {
-  return requestClient.get<PageResponse<KnowledgeBaseItem>>(
-    PREFIX,
-    { params, ...options },
-  );
+  return requestClient.get<PageResponse<KnowledgeBaseItem>>(PREFIX, {
+    params,
+    ...options,
+  });
 }
 
 /** 获取知识库详情 */
@@ -135,10 +135,7 @@ export async function getKnowledgeBaseDetailApi(
   id: number,
   options?: ApiRequestOptions,
 ): Promise<KnowledgeBaseItem> {
-  return requestClient.get<KnowledgeBaseItem>(
-    `${PREFIX}/${id}`,
-    options,
-  );
+  return requestClient.get<KnowledgeBaseItem>(`${PREFIX}/${id}`, options);
 }
 
 /** 创建知识库 */
@@ -146,11 +143,7 @@ export async function createKnowledgeBaseApi(
   data: KnowledgeBaseCreateRequest,
   options?: ApiRequestOptions,
 ): Promise<KnowledgeBaseItem> {
-  return requestClient.post<KnowledgeBaseItem>(
-    PREFIX,
-    data,
-    options,
-  );
+  return requestClient.post<KnowledgeBaseItem>(PREFIX, data, options);
 }
 
 /** 更新知识库 */
@@ -159,11 +152,7 @@ export async function updateKnowledgeBaseApi(
   data: KnowledgeBaseUpdateRequest,
   options?: ApiRequestOptions,
 ): Promise<KnowledgeBaseItem> {
-  return requestClient.put<KnowledgeBaseItem>(
-    `${PREFIX}/${id}`,
-    data,
-    options,
-  );
+  return requestClient.put<KnowledgeBaseItem>(`${PREFIX}/${id}`, data, options);
 }
 
 /** 删除知识库 */
@@ -210,10 +199,7 @@ export async function deleteDocumentApi(
   docId: number,
   options?: ApiRequestOptions,
 ): Promise<void> {
-  await requestClient.delete(
-    `${PREFIX}/${kbId}/documents/${docId}`,
-    options,
-  );
+  await requestClient.delete(`${PREFIX}/${kbId}/documents/${docId}`, options);
 }
 
 /** 重试文档 */
@@ -256,7 +242,7 @@ export async function reindexKnowledgeBaseApi(
 /** 直接文本输入创建文档 */
 export async function createTextDocumentApi(
   kbId: number,
-  data: { title: string; content: string },
+  data: { content: string; title: string },
   options?: ApiRequestOptions,
 ): Promise<KnowledgeDocumentItem> {
   return requestClient.post<KnowledgeDocumentItem>(
@@ -299,7 +285,7 @@ export async function batchImportQAApi(
   kbId: number,
   file: File,
   options?: ApiRequestOptions,
-): Promise<{ imported: number; skipped: number; errors: string[] }> {
+): Promise<{ errors: string[]; imported: number; skipped: number }> {
   const formData = new FormData();
   formData.append('file', file);
   return requestClient.post(
@@ -314,17 +300,14 @@ export interface SelectableKBItem {
   id: number;
   name: string;
   scope: string;
-  description: string | null;
+  description: null | string;
 }
 
 /** 获取可选知识库列表（租户端：自己的 + global） */
 export async function getTenantSelectableKBApi(
   options?: ApiRequestOptions,
 ): Promise<SelectableKBItem[]> {
-  return requestClient.get<SelectableKBItem[]>(
-    `${PREFIX}/selectable`,
-    options,
-  );
+  return requestClient.get<SelectableKBItem[]>(`${PREFIX}/selectable`, options);
 }
 
 /** 文档分块预览 */
@@ -333,17 +316,32 @@ export async function getDocumentChunksApi(
   docId: number,
   params?: { page?: number; page_size?: number },
   options?: ApiRequestOptions,
-): Promise<{ chunks: Array<{ id: number; chunk_index: number; content: string; char_count: number; token_count: number; metadata: Record<string, unknown> }>; total: number }> {
-  return requestClient.get(
-    `${PREFIX}/${kbId}/documents/${docId}/chunks`,
-    { params, ...options },
-  );
+): Promise<{
+  chunks: Array<{
+    char_count: number;
+    chunk_index: number;
+    content: string;
+    id: number;
+    metadata: Record<string, unknown>;
+    token_count: number;
+  }>;
+  total: number;
+}> {
+  return requestClient.get(`${PREFIX}/${kbId}/documents/${docId}/chunks`, {
+    params,
+    ...options,
+  });
 }
 
 /** 检索测试 */
 export async function searchKnowledgeBaseApi(
   kbId: number,
-  data: { query: string; top_k?: number; score_threshold?: number; search_mode?: string },
+  data: {
+    query: string;
+    score_threshold?: number;
+    search_mode?: string;
+    top_k?: number;
+  },
   options?: ApiRequestOptions,
 ): Promise<SearchResultItem[]> {
   return requestClient.post<SearchResultItem[]>(

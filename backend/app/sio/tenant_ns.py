@@ -36,6 +36,7 @@ class TenantNamespace(socketio.AsyncNamespace):
         从 auth.token 提取 JWT，验证 scope=tenant_admin。
         从 DB 查询 TenantAdmin 获取 tenant_id。
         """
+        _ = environ
         # 检查实时通信总开关
         from app.sio.ws_config import get_ws_configs
         ws_cfg = await get_ws_configs("ws_enabled", "ws_max_connections_per_user")
@@ -74,9 +75,10 @@ class TenantNamespace(socketio.AsyncNamespace):
             raise ConnectionRefusedError("max_connections_exceeded")
 
         # 查询租户管理员获取 tenant_id
+        from sqlalchemy import select
+
         from app.core.database import async_session_factory
         from app.models import TenantAdmin
-        from sqlalchemy import select
 
         async with async_session_factory() as db:
             result = await db.execute(

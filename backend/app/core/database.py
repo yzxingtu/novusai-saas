@@ -5,10 +5,10 @@
 """
 
 import asyncio
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager, suppress
 
-from sqlalchemy import text, create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -16,8 +16,8 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import sessionmaker
 
-from app.core.config import settings
 from app.core.base_model import Base
+from app.core.config import settings
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("db")
@@ -119,7 +119,7 @@ sync_session_factory = sessionmaker(
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     获取数据库会话（FastAPI 依赖注入）
-    
+
     使用示例:
         @router.get("/users")
         async def get_users(db: AsyncSession = Depends(get_db)):
@@ -140,7 +140,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
     """
     获取数据库会话（上下文管理器）
-    
+
     使用示例:
         async with get_db_context() as db:
             ...
@@ -163,7 +163,7 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
 async def check_database_connection() -> bool:
     """
     检查数据库连接是否正常
-    
+
     Returns:
         连接是否成功
     """
@@ -184,7 +184,6 @@ def create_database_if_not_exists() -> bool:
         是否成功
     """
     from sqlalchemy import create_engine, text
-    from sqlalchemy.exc import ProgrammingError
 
     # 连接到 postgres 默认数据库来创建目标数据库
     admin_url = (
@@ -226,15 +225,18 @@ def run_migrations() -> bool:
     """
     运行数据库迁移（同步方式，用于启动时）
 
+    使用子进程 + PYTHONUTF8=1 运行 Alembic，避免 Windows GBK 环境下
+    Alembic 内部用系统默认编码（GBK）读取含 UTF-8 字符的迁移文件时报错。
+
     Returns:
         是否成功
     """
+    import os
+    import subprocess
+    import sys
     from pathlib import Path
 
     try:
-        from alembic.config import Config
-        from alembic import command
-
         backend_dir = Path(__file__).parent.parent.parent
         alembic_ini = backend_dir / "alembic.ini"
 
@@ -249,19 +251,141 @@ def run_migrations() -> bool:
 
         logger.info("Running database migrations...")
 
-        alembic_cfg = Config(str(alembic_ini))
-        alembic_cfg.set_main_option(
-            "script_location", str(backend_dir / "migrations")
-        )
-        alembic_cfg.set_main_option(
-            "sqlalchemy.url", settings.DATABASE_URL_SYNC
-        )
+        # 通过子进程运行 Alembic，设置 PYTHONUTF8=1 强制 UTF-8 文件 I/O。
+        # 直接调用 Python API（command.upgrade）时，Alembic 内部用系统默认编码
+        # 打开迁移文件，在 Windows GBK 环境下若迁移文件含 em dash 等 UTF-8 字符
+        # 会报 'gbk' codec can't decode 错误。
+        env = os.environ.copy()
+        env["PYTHONUTF8"] = "1"
 
-        command.upgrade(alembic_cfg, "heads")
+        db_url = settings.DATABASE_URL_SYNC.replace("\\", "/")
+
+        versions_path = str(backend_dir / "migrations" / "versions")
+
+        # 将迁移脚本写入临时文件，避免复杂 one-liner 的字符串转义问题
+        import tempfile
+        migration_script = f"""
+import os
+import re
+from sqlalchemy import create_engine, text
+from alembic.config import Config
+from alembic import command
+
+# Step 1: 清除 alembic_version 中不存在于迁移文件的孤立 stamp
+# 兼容迁移写法：
+#   - revision = 'xxx'
+#   - revision: str = 'xxx'
+# 并同时扫描主应用 + plugins/* 的迁移目录，避免误删合法插件 revision。
+versions_dir = {versions_path!r}
+known_revs = set()
+_rev_pat = re.compile(r'^revision\\s*(?::[^=]*)?=\\s*[\"\\']([^\"\\']+)[\"\\']', re.MULTILINE)
+
+def _collect_revisions_from_dir(_dir: str) -> None:
+    if not os.path.isdir(_dir):
+        return
+    for _f in os.listdir(_dir):
+        if not _f.endswith('.py') or _f == '__init__.py':
+            continue
+        try:
+            _src = open(os.path.join(_dir, _f), encoding='utf-8').read()
+            _m = _rev_pat.search(_src)
+            if _m:
+                known_revs.add(_m.group(1))
+        except Exception:
+            pass
+
+# 主应用迁移
+_collect_revisions_from_dir(versions_dir)
+
+# 插件迁移（全部插件目录；跳过隐藏目录）
+plugins_root = os.path.join(os.path.dirname(os.path.dirname(versions_dir)), 'plugins')
+if os.path.isdir(plugins_root):
+    for _plugin_name in os.listdir(plugins_root):
+        if _plugin_name.startswith('.'):
+            continue
+        _plugin_versions_dir = os.path.join(
+            plugins_root, _plugin_name, 'backend', 'migrations', 'versions'
+        )
+        _collect_revisions_from_dir(_plugin_versions_dir)
+
+print(f'[migration] Known revisions (main+plugins): {{len(known_revs)}}')
+
+# 安全检查：若 known_revs 为空（regex 未匹配到任何文件），跳过清理，避免误删合法 stamp
+if known_revs:
+    engine = create_engine({db_url!r})
+    with engine.connect() as conn:
+        rows = conn.execute(text('SELECT version_num FROM alembic_version')).fetchall()
+        for row in rows:
+            stamp = row[0]
+            if stamp not in known_revs:
+                print(f'[migration] Purging orphaned stamp: {{stamp}}')
+                conn.execute(text('DELETE FROM alembic_version WHERE version_num = :v'), {{'v': stamp}})
+        conn.commit()
+    engine.dispose()
+else:
+    print('[migration] WARNING: no revisions found in migration files, skipping stamp purge')
+
+# Step 2: 运行迁移（主应用 + 插件 revision 可解析）
+cfg = Config({str(alembic_ini)!r})
+cfg.set_main_option('script_location', {str(backend_dir / 'migrations')!r})
+cfg.set_main_option('sqlalchemy.url', {db_url!r})
+
+# 关键：command.upgrade 在创建 ScriptDirectory 时就会读取 version_locations，
+# 不能只依赖 env.py 里后置 set_main_option（那时已太晚）。
+_version_locations = [versions_dir]
+if os.path.isdir(plugins_root):
+    for _plugin_name in os.listdir(plugins_root):
+        if _plugin_name.startswith('.'):
+            continue
+        _plugin_versions_dir = os.path.join(
+            plugins_root, _plugin_name, 'backend', 'migrations', 'versions'
+        )
+        if os.path.isdir(_plugin_versions_dir):
+            _version_locations.append(_plugin_versions_dir)
+cfg.set_main_option('version_locations', ' '.join(_version_locations))
+
+try:
+    command.upgrade(cfg, 'heads')
+except Exception as e:
+    err_str = str(e)
+    # 若 upgrade 失败原因是"表已存在"（DuplicateTable），说明表结构完整但 stamp 缺失
+    # 用 stamp heads 恢复一致性，而非报错
+    if 'already exists' in err_str or 'DuplicateTable' in type(e).__name__:
+        print('[migration] Tables exist but stamps missing, stamping heads to recover...')
+        command.stamp(cfg, 'heads')
+    else:
+        raise
+"""
+
+        # 写入临时文件并执行
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".py", delete=False, encoding="utf-8"
+        ) as tf:
+            tf.write(migration_script)
+            tmp_script = tf.name
+
+        try:
+            result = subprocess.run(
+                [sys.executable, tmp_script],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=180,
+                cwd=str(backend_dir),
+                env=env,
+            )
+        finally:
+            with suppress(Exception):
+                os.unlink(tmp_script)
+
+        if result.returncode != 0:
+            err = (result.stderr or result.stdout or "unknown error").strip()
+            raise RuntimeError(err)
 
         logger.info("Database migrations completed")
         return True
-    except ImportError:
+    except FileNotFoundError:
         logger.warning("Alembic not installed, skipping migrations")
         return True
     except Exception as e:
@@ -272,11 +396,11 @@ def run_migrations() -> bool:
 async def init_database() -> bool:
     """
     初始化数据库（启动时调用）
-    
+
     1. 检查/创建数据库
     2. 运行迁移
     3. 验证连接
-    
+
     Returns:
         是否成功
     """

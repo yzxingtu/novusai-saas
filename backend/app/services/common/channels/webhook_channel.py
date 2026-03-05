@@ -50,6 +50,19 @@ class WebhookChannel(NotificationChannel):
         **kwargs: Any,
     ) -> bool:
         """预留：后续实现 HTTP POST 到配置的 Webhook URL"""
+        _ = (
+            db,
+            user_type,
+            user_id,
+            title,
+            body,
+            data,
+            link,
+            priority,
+            template_code,
+            tenant_id,
+            kwargs,
+        )
         logger.debug("WebhookChannel: not implemented, skip")
         return False
 

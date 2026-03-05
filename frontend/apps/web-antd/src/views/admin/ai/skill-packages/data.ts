@@ -7,12 +7,22 @@ import type { AdminSkillPackageInfo } from '#/api/admin/skill-packages';
 
 import { searchInput, select } from '#/adapter/form';
 import { $t } from '#/locales';
-import { getScopeColor, getScopeOptions, getScopeText } from '#/utils/scope-helpers';
+import {
+  getScopeColor,
+  getScopeOptions,
+  getScopeText,
+} from '#/utils/scope-helpers';
 
 export { getScopeColor, getScopeText };
 
 function getScopeFilterOptions() {
-  return getScopeOptions(['admin_only', 'all_tenants', 'admin_and_all', 'admin_and_assigned', 'assigned_tenants']);
+  return getScopeOptions([
+    'admin_only',
+    'all_tenants',
+    'admin_and_all',
+    'admin_and_assigned',
+    'assigned_tenants',
+  ]);
 }
 
 /** 表格列定义 */
@@ -71,7 +81,13 @@ export function useColumns<T = AdminSkillPackageInfo>(
           onClick: onActionClick,
         },
         name: 'CellOperation',
-        options: ['edit', { code: 'delete', show: (row: AdminSkillPackageInfo) => !row.is_system }],
+        options: [
+          'edit',
+          {
+            code: 'delete',
+            show: (row: AdminSkillPackageInfo) => !row.is_system,
+          },
+        ],
       },
       field: 'operation',
       fixed: 'right',

@@ -4,8 +4,6 @@
  */
 import type { AIModelInfo } from '#/api/admin/ai';
 
-defineOptions({ name: 'AIModelList' });
-
 import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -21,15 +19,23 @@ import {
 } from '#/api/admin/ai';
 import { $t } from '#/locales';
 
-import { getFormDefaults, getModelTierText, getModelTypeText, useColumns, useGridFormSchema } from './data';
+import {
+  getFormDefaults,
+  getModelTierText,
+  getModelTypeText,
+  useColumns,
+  useGridFormSchema,
+} from './data';
 import Form from './modules/form.vue';
+
+defineOptions({ name: 'AIModelList' });
 
 /**
  * 格式化 Token 数量
  */
 function formatTokens(num: null | number | undefined): string {
   if (!num) return '-';
-  if (num >= 1000000) return `${(num / 1000000).toFixed(0)}M`;
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(0)}M`;
   if (num >= 1000) return `${(num / 1000).toFixed(0)}K`;
   return `${num}`;
 }
@@ -98,29 +104,32 @@ async function onTestModel(row: AIModelInfo) {
   }
 }
 
-const { Grid, FormDrawer, onRefresh } =
-  useCrudPage<AIModelInfo>({
-    api: {
-      list: getAIModelListApi,
-      resource: '/admin/ai/models',
-    },
-    columns: useColumns,
-    searchSchema: useGridFormSchema(),
-    formComponent: Form,
-    formDefaults: getFormDefaults,
-    i18nPrefix: 'admin.ai.model',
-    nameField: 'name',
-    defaultSort: '-created_at',
-    recycleBin: true,
-    createPermission: 'ai_model:create',
-    customActions: {
-      test: onTestModel,
-    },
-  });
+const { Grid, FormDrawer, onRefresh } = useCrudPage<AIModelInfo>({
+  api: {
+    list: getAIModelListApi,
+    resource: '/admin/ai/models',
+  },
+  columns: useColumns,
+  searchSchema: useGridFormSchema(),
+  formComponent: Form,
+  formDefaults: getFormDefaults,
+  i18nPrefix: 'admin.ai.model',
+  nameField: 'name',
+  defaultSort: '-created_at',
+  recycleBin: true,
+  createPermission: 'ai_model:create',
+  customActions: {
+    test: onTestModel,
+  },
+});
 </script>
 
 <template>
-  <Page auto-content-height :description="$t('admin.ai.model.pageDesc')" content-class="flex flex-col gap-4">
+  <Page
+    auto-content-height
+    :description="$t('admin.ai.model.pageDesc')"
+    content-class="flex flex-col gap-4"
+  >
     <FormDrawer @success="onRefresh" />
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
@@ -133,9 +142,17 @@ const { Grid, FormDrawer, onRefresh } =
               :class="row.is_active ? 'bg-primary/10' : 'bg-muted'"
             >
               <IconifyIcon
-                :icon="row.type === 'embedding' ? 'lucide:database' : row.type === 'image' ? 'lucide:image' : 'lucide:brain'"
+                :icon="
+                  row.type === 'embedding'
+                    ? 'lucide:database'
+                    : row.type === 'image'
+                      ? 'lucide:image'
+                      : 'lucide:brain'
+                "
                 class="size-4"
-                :class="row.is_active ? 'text-primary' : 'text-muted-foreground'"
+                :class="
+                  row.is_active ? 'text-primary' : 'text-muted-foreground'
+                "
               />
             </div>
             <div class="flex flex-col gap-0.5">
@@ -188,7 +205,10 @@ const { Grid, FormDrawer, onRefresh } =
 
         <!-- 上下文窗口列 -->
         <template #contextWindow_cell="{ row }">
-          <Tooltip v-if="row.context_window" :title="row.context_window.toLocaleString() + ' tokens'">
+          <Tooltip
+            v-if="row.context_window"
+            :title="`${row.context_window.toLocaleString()} tokens`"
+          >
             <span class="font-mono text-sm text-muted-foreground">
               {{ formatTokens(row.context_window) }}
             </span>
@@ -200,9 +220,13 @@ const { Grid, FormDrawer, onRefresh } =
         <template #price_cell="{ row }">
           <div class="flex flex-col items-center gap-0.5 text-xs">
             <span class="text-muted-foreground">
-              <span class="text-green-600">{{ formatPrice(row.input_price_per_1k) }}</span>
+              <span class="text-green-600">{{
+                formatPrice(row.input_price_per_1k)
+              }}</span>
               /
-              <span class="text-orange-600">{{ formatPrice(row.output_price_per_1k) }}</span>
+              <span class="text-orange-600">{{
+                formatPrice(row.output_price_per_1k)
+              }}</span>
             </span>
           </div>
         </template>

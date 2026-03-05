@@ -3,7 +3,6 @@
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
-
 import type { ActionLogItem } from '#/api/tenant/action-logs';
 
 import { searchInput, select } from '#/adapter/form';
@@ -21,50 +20,95 @@ function getTypeOptions() {
 
 function getStatusOptions() {
   return [
-    { label: $t('tenant.ai.actionLog.status_options.success'), value: 'success' },
+    {
+      label: $t('tenant.ai.actionLog.status_options.success'),
+      value: 'success',
+    },
     { label: $t('tenant.ai.actionLog.status_options.failed'), value: 'failed' },
-    { label: $t('tenant.ai.actionLog.status_options.rejected'), value: 'rejected' },
-    { label: $t('tenant.ai.actionLog.status_options.pending'), value: 'pending' },
+    {
+      label: $t('tenant.ai.actionLog.status_options.rejected'),
+      value: 'rejected',
+    },
+    {
+      label: $t('tenant.ai.actionLog.status_options.pending'),
+      value: 'pending',
+    },
   ];
 }
 
 export function getTypeText(type: string | undefined): string {
   if (!type) return '-';
   switch (type) {
-    case 'query': return $t('tenant.ai.actionLog.type_options.query');
-    case 'action': return $t('tenant.ai.actionLog.type_options.action');
-    case 'confirm': return $t('tenant.ai.actionLog.type_options.confirm');
-    default: return type;
+    case 'action': {
+      return $t('tenant.ai.actionLog.type_options.action');
+    }
+    case 'confirm': {
+      return $t('tenant.ai.actionLog.type_options.confirm');
+    }
+    case 'query': {
+      return $t('tenant.ai.actionLog.type_options.query');
+    }
+    default: {
+      return type;
+    }
   }
 }
 
 export function getStatusText(status: string | undefined): string {
   if (!status) return '-';
   switch (status) {
-    case 'success': return $t('tenant.ai.actionLog.status_options.success');
-    case 'failed': return $t('tenant.ai.actionLog.status_options.failed');
-    case 'rejected': return $t('tenant.ai.actionLog.status_options.rejected');
-    case 'pending': return $t('tenant.ai.actionLog.status_options.pending');
-    default: return status;
+    case 'failed': {
+      return $t('tenant.ai.actionLog.status_options.failed');
+    }
+    case 'pending': {
+      return $t('tenant.ai.actionLog.status_options.pending');
+    }
+    case 'rejected': {
+      return $t('tenant.ai.actionLog.status_options.rejected');
+    }
+    case 'success': {
+      return $t('tenant.ai.actionLog.status_options.success');
+    }
+    default: {
+      return status;
+    }
   }
 }
 
 export function getStatusColor(status: string | undefined): string {
   switch (status) {
-    case 'success': return 'success';
-    case 'failed': return 'error';
-    case 'rejected': return 'warning';
-    case 'pending': return 'processing';
-    default: return 'default';
+    case 'failed': {
+      return 'error';
+    }
+    case 'pending': {
+      return 'processing';
+    }
+    case 'rejected': {
+      return 'warning';
+    }
+    case 'success': {
+      return 'success';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
 export function getTypeColor(type: string | undefined): string {
   switch (type) {
-    case 'query': return 'blue';
-    case 'action': return 'purple';
-    case 'confirm': return 'orange';
-    default: return 'default';
+    case 'action': {
+      return 'purple';
+    }
+    case 'confirm': {
+      return 'orange';
+    }
+    case 'query': {
+      return 'blue';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
@@ -146,9 +190,13 @@ export function useColumns<T = ActionLogItem>(
  */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
-    searchInput('filter[action_name][ilike]', $t('tenant.ai.actionLog.actionName'), {
-      placeholder: $t('tenant.ai.actionLog.placeholder.searchName'),
-    }),
+    searchInput(
+      'filter[action_name][ilike]',
+      $t('tenant.ai.actionLog.actionName'),
+      {
+        placeholder: $t('tenant.ai.actionLog.placeholder.searchName'),
+      },
+    ),
     select('filter[action_type][eq]', $t('tenant.ai.actionLog.actionType'), {
       options: getTypeOptions(),
       placeholder: $t('tenant.ai.actionLog.placeholder.allTypes'),

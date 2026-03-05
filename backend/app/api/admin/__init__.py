@@ -9,39 +9,82 @@
 
 from fastapi import APIRouter
 
-from app.api.admin.auth import router as auth_router
-from app.api.admin.permissions import router as permissions_router, AdminPermissionController
-from app.api.admin.roles import router as roles_router, AdminRoleController
-from app.api.admin.tenants import router as tenants_router, AdminTenantController
-from app.api.admin.tenant_domains import router as tenant_domains_router, AdminTenantDomainController
-from app.api.admin.configs import router as configs_router, AdminConfigController
-from app.api.admin.plans import router as plans_router, AdminPlanController
-from app.api.admin.operation_logs import router as operation_logs_router, AdminOperationLogController
-from app.api.admin.system_logs import router as system_logs_router, AdminSystemLogController
-from app.api.admin.attachments import router as attachments_router, AdminAttachmentController
-from app.api.admin.tasks import router as tasks_router, AdminTaskController
-from app.api.admin.periodic_tasks import router as periodic_tasks_router, AdminPeriodicTaskController
-from app.api.admin.ai_providers import router as ai_providers_router, AdminAIProviderController
-from app.api.admin.ai_models import router as ai_models_router, AdminAIModelController
-from app.api.admin.ai_api_keys import router as ai_api_keys_router, AdminAIApiKeyController
-from app.api.admin.ai_call_logs import router as ai_call_logs_router, AdminAICallLogController
-from app.api.admin.ai_gateway import router as ai_gateway_router, AdminAIGatewayController
-from app.api.admin.ai_usage import router as ai_usage_router, AdminAIUsageController
-from app.api.admin.ai_health import router as ai_health_router, AdminAIHealthController
-from app.api.admin.ai_quotas import router as ai_quotas_router, AdminAIQuotaController
-from app.api.admin.ai_conversations import router as ai_conversations_router, AdminAIConversationController
-from app.api.admin.agents import router as ai_agents_router, AdminAgentController
-from app.api.admin.ai_action_logs import router as ai_action_logs_router, AdminAIActionLogController
-from app.api.admin.ai_agent_chat import router as ai_agent_chat_router, AdminAgentChatController
-from app.api.admin.knowledge_bases import router as ai_knowledge_bases_router, AdminKnowledgeBaseController
-from app.api.admin.ai_table_policies import router as ai_table_policies_router, AdminAITablePolicyController
-from app.api.admin.skill_packages import router as ai_skill_packages_router, AdminSkillPackageController
-from app.api.admin.skills import router as ai_skills_router, AdminSkillController
-from app.api.admin.agent_assignments import router as agent_assignments_router, AdminAgentAssignmentController
-from app.api.admin.email_logs import router as email_logs_router, AdminEmailLogController
-from app.api.admin.recycle_bin import router as recycle_bin_router, AdminRecycleBinController
-from app.api.admin.dashboard import router as dashboard_router
+from app.api.admin.agent_assignments import AdminAgentAssignmentController
+from app.api.admin.agent_assignments import router as agent_assignments_router
+from app.api.admin.agents import AdminAgentController
+from app.api.admin.agents import router as ai_agents_router
+from app.api.admin.ai_action_logs import AdminAIActionLogController
+from app.api.admin.ai_action_logs import router as ai_action_logs_router
+from app.api.admin.ai_agent_chat import AdminAgentChatController
+from app.api.admin.ai_agent_chat import router as ai_agent_chat_router
+from app.api.admin.ai_api_keys import AdminAIApiKeyController
+from app.api.admin.ai_api_keys import router as ai_api_keys_router
+from app.api.admin.ai_call_logs import AdminAICallLogController
+from app.api.admin.ai_call_logs import router as ai_call_logs_router
+from app.api.admin.ai_conversations import AdminAIConversationController
+from app.api.admin.ai_conversations import router as ai_conversations_router
+from app.api.admin.ai_gateway import AdminAIGatewayController
+from app.api.admin.ai_gateway import router as ai_gateway_router
+from app.api.admin.ai_health import AdminAIHealthController
+from app.api.admin.ai_health import router as ai_health_router
+from app.api.admin.ai_models import AdminAIModelController
+from app.api.admin.ai_models import router as ai_models_router
+from app.api.admin.ai_providers import AdminAIProviderController
+from app.api.admin.ai_providers import router as ai_providers_router
+from app.api.admin.ai_quotas import AdminAIQuotaController
+from app.api.admin.ai_quotas import router as ai_quotas_router
+from app.api.admin.ai_table_policies import AdminAITablePolicyController
+from app.api.admin.ai_table_policies import router as ai_table_policies_router
+from app.api.admin.ai_usage import AdminAIUsageController
+from app.api.admin.ai_usage import router as ai_usage_router
 from app.api.admin.analytics import router as analytics_router
+from app.api.admin.attachments import AdminAttachmentController
+from app.api.admin.attachments import router as attachments_router
+from app.api.admin.auth import router as auth_router
+from app.api.admin.cache import AdminCacheController
+from app.api.admin.cache import router as cache_router
+from app.api.admin.configs import AdminConfigController
+from app.api.admin.configs import router as configs_router
+from app.api.admin.dashboard import router as dashboard_router
+from app.api.admin.email_logs import AdminEmailLogController
+from app.api.admin.email_logs import router as email_logs_router
+from app.api.admin.knowledge_bases import AdminKnowledgeBaseController
+from app.api.admin.knowledge_bases import router as ai_knowledge_bases_router
+from app.api.admin.notification_preferences import (
+    router as notification_preferences_router,
+)
+from app.api.admin.notification_templates import AdminNotificationTemplateController
+from app.api.admin.notification_templates import router as notification_templates_router
+from app.api.admin.notifications import router as notifications_router
+from app.api.admin.operation_logs import AdminOperationLogController
+from app.api.admin.operation_logs import router as operation_logs_router
+from app.api.admin.periodic_tasks import AdminPeriodicTaskController
+from app.api.admin.periodic_tasks import router as periodic_tasks_router
+from app.api.admin.permissions import AdminPermissionController
+from app.api.admin.permissions import router as permissions_router
+from app.api.admin.plans import AdminPlanController
+from app.api.admin.plans import router as plans_router
+from app.api.admin.plugins import AdminPluginController
+from app.api.admin.plugins import router as plugins_router
+from app.api.admin.recycle_bin import AdminRecycleBinController
+from app.api.admin.recycle_bin import router as recycle_bin_router
+from app.api.admin.roles import AdminRoleController
+from app.api.admin.roles import router as roles_router
+from app.api.admin.skill_packages import AdminSkillPackageController
+from app.api.admin.skill_packages import router as ai_skill_packages_router
+from app.api.admin.skills import AdminSkillController
+from app.api.admin.skills import router as ai_skills_router
+from app.api.admin.system_logs import AdminSystemLogController
+from app.api.admin.system_logs import router as system_logs_router
+from app.api.admin.tasks import AdminTaskController
+from app.api.admin.tasks import router as tasks_router
+from app.api.admin.tenant_admins import AdminTenantAdminController
+from app.api.admin.tenant_admins import router as tenant_admins_router
+from app.api.admin.tenant_domains import AdminTenantDomainController
+from app.api.admin.tenant_domains import router as tenant_domains_router
+from app.api.admin.tenants import AdminTenantController
+from app.api.admin.tenants import router as tenants_router
+from app.api.admin.ws import router as ws_router
 
 # 创建平台管理后台路由器
 admin_router = APIRouter()
@@ -91,25 +134,18 @@ admin_router.include_router(email_logs_router)
 # 总回收站
 admin_router.include_router(recycle_bin_router)
 # WebSocket 在线状态
-from app.api.admin.ws import router as ws_router
 admin_router.include_router(ws_router)
 # 租户管理员管理
-from app.api.admin.tenant_admins import router as tenant_admins_router, AdminTenantAdminController
 admin_router.include_router(tenant_admins_router)
 # 通知
-from app.api.admin.notifications import router as notifications_router
 admin_router.include_router(notifications_router)
 # 通知偏好
-from app.api.admin.notification_preferences import router as notification_preferences_router
 admin_router.include_router(notification_preferences_router)
 # 通知模板管理
-from app.api.admin.notification_templates import router as notification_templates_router, AdminNotificationTemplateController
 admin_router.include_router(notification_templates_router)
 # 插件管理
-from app.api.admin.plugins import router as plugins_router, AdminPluginController
 admin_router.include_router(plugins_router)
 # 缓存管理
-from app.api.admin.cache import router as cache_router, AdminCacheController
 admin_router.include_router(cache_router)
 
 
@@ -153,6 +189,8 @@ __all__ = [
     "AdminSkillController",
     # 系统智能体绑定
     "AdminAgentAssignmentController",
+    "AdminEmailLogController",
+    "AdminTenantAdminController",
     # 总回收站
     "AdminRecycleBinController",
     # 通知模板

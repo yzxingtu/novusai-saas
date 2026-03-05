@@ -6,12 +6,14 @@ from typing import Any
 
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.enums.common import ResourceScopeEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent_skill_binding import AgentSkillBinding
-from app.repositories.ai.agent_skill_binding_repository import AgentSkillBindingRepository
-from app.repositories.ai.skill_package_repository import SkillPackageRepository
 from app.repositories.ai.agent_repository import AgentRepository
-from app.enums.common import ResourceScopeEnum
+from app.repositories.ai.agent_skill_binding_repository import (
+    AgentSkillBindingRepository,
+)
+from app.repositories.ai.skill_package_repository import SkillPackageRepository
 
 logger = LogManager.get_logger("ai")
 
@@ -31,8 +33,10 @@ class AgentSkillBindingService:
             self.package_repo = SkillPackageRepository(db, tenant_id)
             self.agent_repo = AgentRepository(db, tenant_id)
         else:
-            from app.repositories.ai.skill_package_repository import AdminSkillPackageRepository
             from app.repositories.ai.agent_repository import AdminAgentRepository
+            from app.repositories.ai.skill_package_repository import (
+                AdminSkillPackageRepository,
+            )
             # admin/global agent 的绑定记录 tenant_id 存储为 NULL
             self.binding_repo = AgentSkillBindingRepository(db, None)
             self.package_repo = AdminSkillPackageRepository(db)  # type: ignore[assignment]

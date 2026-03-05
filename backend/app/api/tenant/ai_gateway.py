@@ -10,16 +10,20 @@ from app.ai.exceptions import AIGatewayError
 from app.ai.quota import QuotaExceeded
 from app.ai.rate_limiter import RateLimitExceeded
 from app.ai.system_agent import SystemAgentService
-from app.ai.utils import parse_provider_and_model, parse_messages
+from app.ai.utils import parse_messages, parse_provider_and_model
 from app.core.base_controller import TenantController
-from app.core.deps import DbSession, ActiveTenantAdmin
+from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
-from app.exceptions import ExternalServiceException, BusinessException, NotFoundException
+from app.exceptions import (
+    BusinessException,
+    ExternalServiceException,
+    NotFoundException,
+)
 from app.rbac.decorators import (
-    permission_resource,
     action_create,
+    permission_resource,
 )
 from app.schemas.ai.gateway import (
     ChatRequest,

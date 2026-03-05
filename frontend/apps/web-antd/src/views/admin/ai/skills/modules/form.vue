@@ -1,11 +1,12 @@
 <script lang="ts" setup>
-defineOptions({ name: 'AdminSkillForm' });
 /**
  * 管理端技能新建/编辑表单抽屉
  */
-import type { AdminSkillInfo } from '#/api/admin/skills';
+import type { AdminSkillInfo, PluginToolDefinition } from '#/api/admin/skills';
 
 import { computed, ref, watch } from 'vue';
+
+import { Divider, Tag } from 'ant-design-vue';
 
 import {
   inputField,
@@ -13,8 +14,8 @@ import {
   select,
   switchField,
   textareaField,
+  useVbenForm,
 } from '#/adapter/form';
-import { useVbenForm } from '#/adapter/form';
 import { getAITablePolicyListApi } from '#/api/admin/ai';
 import { getAdminKnowledgeBaseListApi } from '#/api/admin/knowledge-bases';
 import { getSkillPackageSelectApi } from '#/api/admin/skill-packages';
@@ -23,12 +24,12 @@ import {
   getSkillToolsApi,
   parseToolkitApi,
 } from '#/api/admin/skills';
-import type { PluginToolDefinition } from '#/api/admin/skills';
 import { useCrudDrawer } from '#/composables';
-import { Divider, Tag } from 'ant-design-vue';
-
 import { $t } from '#/locales';
 
+defineOptions({ name: 'AdminSkillForm' });
+
+const emits = defineEmits<{ success: [] }>();
 
 async function getKbSelectOptions() {
   try {
@@ -53,38 +54,67 @@ async function getTablePolicySelectOptions() {
 
 function getSearchModeOptions() {
   return [
-    { label: $t('admin.ai.skill.knowledgeBaseConfig.searchModeOptions.vector'), value: 'vector' },
-    { label: $t('admin.ai.skill.knowledgeBaseConfig.searchModeOptions.keyword'), value: 'keyword' },
-    { label: $t('admin.ai.skill.knowledgeBaseConfig.searchModeOptions.hybrid'), value: 'hybrid' },
+    {
+      label: $t('admin.ai.skill.knowledgeBaseConfig.searchModeOptions.vector'),
+      value: 'vector',
+    },
+    {
+      label: $t('admin.ai.skill.knowledgeBaseConfig.searchModeOptions.keyword'),
+      value: 'keyword',
+    },
+    {
+      label: $t('admin.ai.skill.knowledgeBaseConfig.searchModeOptions.hybrid'),
+      value: 'hybrid',
+    },
   ];
 }
 
 function getRewriteStrategyOptions() {
   return [
-    { label: $t('admin.ai.skill.knowledgeBaseConfig.rewriteOptions.none'), value: 'none' },
-    { label: $t('admin.ai.skill.knowledgeBaseConfig.rewriteOptions.multi'), value: 'multi' },
-    { label: $t('admin.ai.skill.knowledgeBaseConfig.rewriteOptions.hyde'), value: 'hyde' },
+    {
+      label: $t('admin.ai.skill.knowledgeBaseConfig.rewriteOptions.none'),
+      value: 'none',
+    },
+    {
+      label: $t('admin.ai.skill.knowledgeBaseConfig.rewriteOptions.multi'),
+      value: 'multi',
+    },
+    {
+      label: $t('admin.ai.skill.knowledgeBaseConfig.rewriteOptions.hyde'),
+      value: 'hyde',
+    },
   ];
 }
-
-
-const emits = defineEmits<{ success: [] }>();
 
 function getSkillTypeOptions(currentType?: string) {
   const predefined = [
     { label: $t('admin.ai.skill.type_options.toolkit'), value: 'toolkit' },
-    { label: $t('admin.ai.skill.type_options.knowledge_base'), value: 'knowledge_base' },
-    { label: $t('admin.ai.skill.type_options.data_intelligence'), value: 'data_intelligence' },
+    {
+      label: $t('admin.ai.skill.type_options.knowledge_base'),
+      value: 'knowledge_base',
+    },
+    {
+      label: $t('admin.ai.skill.type_options.data_intelligence'),
+      value: 'data_intelligence',
+    },
     { label: $t('admin.ai.skill.type_options.builtin'), value: 'builtin' },
     { label: $t('admin.ai.skill.type_options.http'), value: 'http' },
     { label: $t('admin.ai.skill.type_options.email'), value: 'email' },
-    { label: $t('admin.ai.skill.type_options.code_execution'), value: 'code_execution' },
+    {
+      label: $t('admin.ai.skill.type_options.code_execution'),
+      value: 'code_execution',
+    },
   ];
   if (currentType && !predefined.some((o) => o.value === currentType)) {
     const key = `admin.ai.skill.type_options.${currentType}`;
     const text = $t(key);
-    const fallbackLabel = currentType.replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-    predefined.push({ label: text === key ? fallbackLabel : text, value: currentType });
+    const fallbackLabel = currentType
+      .replaceAll('_', ' ')
+      .replaceAll(/\b\w/g, (c) => c.toUpperCase());
+    predefined.push({
+      label: text === key ? fallbackLabel : text,
+      value: currentType,
+    });
   }
   return predefined;
 }
@@ -97,17 +127,20 @@ async function getSkillPackageSelectOptions(params?: Record<string, unknown>) {
   }
 }
 
-const currentValvesSchema = ref<Record<string, unknown> | null>(null);
+const currentValvesSchema = ref<null | Record<string, unknown>>(null);
 
 interface BuiltinToolInfo {
   name: string;
   description: string;
-  parameters?: { properties?: Record<string, { type?: string; description?: string }> };
+  parameters?: {
+    properties?: Record<string, { description?: string; type?: string }>;
+  };
 }
 const builtinTools = ref<BuiltinToolInfo[]>([]);
 const pluginTools = ref<PluginToolDefinition[]>([]);
 
-const isToolkit = (v: Record<string, unknown>) => v.type === 'toolkit' && !isPluginSkill.value;
+const isToolkit = (v: Record<string, unknown>) =>
+  v.type === 'toolkit' && !isPluginSkill.value;
 const isKb = (v: Record<string, unknown>) => v.type === 'knowledge_base';
 const isDi = (v: Record<string, unknown>) => v.type === 'data_intelligence';
 const isDiNonSystem = (v: Record<string, unknown>) =>
@@ -115,9 +148,12 @@ const isDiNonSystem = (v: Record<string, unknown>) =>
 const isHttp = (v: Record<string, unknown>) => v.type === 'http';
 const isEmail = (v: Record<string, unknown>) => v.type === 'email';
 const isCode = (v: Record<string, unknown>) => v.type === 'code_execution';
-const isHttpBearer = (v: Record<string, unknown>) => v.type === 'http' && v.http_auth_type === 'bearer';
-const isHttpApiKey = (v: Record<string, unknown>) => v.type === 'http' && v.http_auth_type === 'api_key';
-const isHttpBasic = (v: Record<string, unknown>) => v.type === 'http' && v.http_auth_type === 'basic';
+const isHttpBearer = (v: Record<string, unknown>) =>
+  v.type === 'http' && v.http_auth_type === 'bearer';
+const isHttpApiKey = (v: Record<string, unknown>) =>
+  v.type === 'http' && v.http_auth_type === 'api_key';
+const isHttpBasic = (v: Record<string, unknown>) =>
+  v.type === 'http' && v.http_auth_type === 'basic';
 
 function getHttpMethodOptions() {
   return [
@@ -131,10 +167,22 @@ function getHttpMethodOptions() {
 
 function getAuthTypeOptions() {
   return [
-    { label: $t('admin.ai.skill.httpConfig.authTypeOptions.none'), value: 'none' },
-    { label: $t('admin.ai.skill.httpConfig.authTypeOptions.bearer'), value: 'bearer' },
-    { label: $t('admin.ai.skill.httpConfig.authTypeOptions.api_key'), value: 'api_key' },
-    { label: $t('admin.ai.skill.httpConfig.authTypeOptions.basic'), value: 'basic' },
+    {
+      label: $t('admin.ai.skill.httpConfig.authTypeOptions.none'),
+      value: 'none',
+    },
+    {
+      label: $t('admin.ai.skill.httpConfig.authTypeOptions.bearer'),
+      value: 'bearer',
+    },
+    {
+      label: $t('admin.ai.skill.httpConfig.authTypeOptions.api_key'),
+      value: 'api_key',
+    },
+    {
+      label: $t('admin.ai.skill.httpConfig.authTypeOptions.basic'),
+      value: 'basic',
+    },
   ];
 }
 
@@ -211,7 +259,8 @@ function useFormSchema() {
       },
       dependencies: {
         triggerFields: ['type'],
-        if: (values: Record<string, unknown>) => !!values.type && !isPluginSkill.value,
+        if: (values: Record<string, unknown>) =>
+          !!values.type && !isPluginSkill.value,
         componentProps: (values: Record<string, unknown>) => {
           const key = `admin.ai.skill.typeDesc.${values.type as string}`;
           const text = $t(key);
@@ -239,7 +288,9 @@ function useFormSchema() {
         componentProps: () => ({
           type: 'warning',
           showIcon: true,
-          message: $t('admin.ai.skill.pluginTools.managedBy', { plugin: pluginSourceName.value }),
+          message: $t('admin.ai.skill.pluginTools.managedBy', {
+            plugin: pluginSourceName.value,
+          }),
         }),
       },
     },
@@ -269,7 +320,9 @@ function useFormSchema() {
       label: '',
       hideLabel: true,
       componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('admin.ai.skill.toolkitEditor.title') }),
+      renderComponentContent: () => ({
+        default: () => $t('admin.ai.skill.toolkitEditor.title'),
+      }),
       dependencies: { triggerFields: ['type'], if: isToolkit },
     },
     {
@@ -279,7 +332,7 @@ function useFormSchema() {
       componentProps: {
         parseApi: parseToolkitApi,
         localePrefix: 'admin.ai.skill',
-        onParseComplete: (schema: Record<string, unknown> | null) => {
+        onParseComplete: (schema: null | Record<string, unknown>) => {
           currentValvesSchema.value = schema;
         },
       },
@@ -305,15 +358,23 @@ function useFormSchema() {
       label: '',
       hideLabel: true,
       componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('admin.ai.skill.knowledgeBaseConfig.title') }),
+      renderComponentContent: () => ({
+        default: () => $t('admin.ai.skill.knowledgeBaseConfig.title'),
+      }),
       dependencies: { triggerFields: ['type'], if: isKb },
     },
     {
       component: 'ApiSelect',
       componentProps: {
-        allowClear: true, api: getKbSelectOptions, class: 'w-full', mode: 'multiple',
-        placeholder: $t('admin.ai.skill.knowledgeBaseConfig.selectKbPlaceholder'),
-        showSearch: true, optionFilterProp: 'label',
+        allowClear: true,
+        api: getKbSelectOptions,
+        class: 'w-full',
+        mode: 'multiple',
+        placeholder: $t(
+          'admin.ai.skill.knowledgeBaseConfig.selectKbPlaceholder',
+        ),
+        showSearch: true,
+        optionFilterProp: 'label',
       },
       fieldName: 'kb_ids',
       label: $t('admin.ai.skill.knowledgeBaseConfig.selectKb'),
@@ -321,31 +382,57 @@ function useFormSchema() {
       dependencies: { triggerFields: ['type'], if: isKb },
     },
     {
-      ...switchField('rag_enabled', $t('admin.ai.skill.knowledgeBaseConfig.ragEnabled')),
+      ...switchField(
+        'rag_enabled',
+        $t('admin.ai.skill.knowledgeBaseConfig.ragEnabled'),
+      ),
       dependencies: { triggerFields: ['type'], if: isKb },
     },
     {
-      ...numberField('rag_top_k', $t('admin.ai.skill.knowledgeBaseConfig.topK'), { min: 1, max: 20 }),
+      ...numberField(
+        'rag_top_k',
+        $t('admin.ai.skill.knowledgeBaseConfig.topK'),
+        { min: 1, max: 20 },
+      ),
       dependencies: { triggerFields: ['type'], if: isKb },
     },
     {
-      ...numberField('rag_score_threshold', $t('admin.ai.skill.knowledgeBaseConfig.scoreThreshold'), { min: 0, max: 1 }),
+      ...numberField(
+        'rag_score_threshold',
+        $t('admin.ai.skill.knowledgeBaseConfig.scoreThreshold'),
+        { min: 0, max: 1 },
+      ),
       dependencies: { triggerFields: ['type'], if: isKb },
     },
     {
-      ...select('rag_search_mode', $t('admin.ai.skill.knowledgeBaseConfig.searchMode'), { options: getSearchModeOptions() }),
+      ...select(
+        'rag_search_mode',
+        $t('admin.ai.skill.knowledgeBaseConfig.searchMode'),
+        { options: getSearchModeOptions() },
+      ),
       dependencies: { triggerFields: ['type'], if: isKb },
     },
     {
-      ...select('rag_rewrite_strategy', $t('admin.ai.skill.knowledgeBaseConfig.rewriteStrategy'), { options: getRewriteStrategyOptions() }),
+      ...select(
+        'rag_rewrite_strategy',
+        $t('admin.ai.skill.knowledgeBaseConfig.rewriteStrategy'),
+        { options: getRewriteStrategyOptions() },
+      ),
       dependencies: { triggerFields: ['type'], if: isKb },
     },
     {
-      ...switchField('rag_reranker_enabled', $t('admin.ai.skill.knowledgeBaseConfig.rerankerEnabled')),
+      ...switchField(
+        'rag_reranker_enabled',
+        $t('admin.ai.skill.knowledgeBaseConfig.rerankerEnabled'),
+      ),
       dependencies: { triggerFields: ['type'], if: isKb },
     },
     {
-      ...numberField('rag_context_token_ratio', $t('admin.ai.skill.knowledgeBaseConfig.contextTokenRatio'), { min: 0, max: 1 }),
+      ...numberField(
+        'rag_context_token_ratio',
+        $t('admin.ai.skill.knowledgeBaseConfig.contextTokenRatio'),
+        { min: 0, max: 1 },
+      ),
       dependencies: { triggerFields: ['type'], if: isKb },
     },
     // ============ builtin 专属字段 ============
@@ -355,8 +442,13 @@ function useFormSchema() {
       label: '',
       hideLabel: true,
       componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('admin.ai.skill.builtinTools.title') }),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'builtin' },
+      renderComponentContent: () => ({
+        default: () => $t('admin.ai.skill.builtinTools.title'),
+      }),
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'builtin',
+      },
     },
     {
       component: 'Alert',
@@ -368,7 +460,10 @@ function useFormSchema() {
         showIcon: true,
         message: $t('admin.ai.skill.builtinTools.hint'),
       },
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'builtin' },
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'builtin',
+      },
     },
     // ============ http 专属字段 ============
     {
@@ -377,7 +472,9 @@ function useFormSchema() {
       label: '',
       hideLabel: true,
       componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('admin.ai.skill.httpConfig.title') }),
+      renderComponentContent: () => ({
+        default: () => $t('admin.ai.skill.httpConfig.title'),
+      }),
       dependencies: { triggerFields: ['type'], if: isHttp },
     },
     {
@@ -395,25 +492,37 @@ function useFormSchema() {
       dependencies: { triggerFields: ['type'], if: isHttp },
     },
     {
-      ...textareaField('http_headers', $t('admin.ai.skill.httpConfig.headers'), {
-        placeholder: $t('admin.ai.skill.httpConfig.headersPlaceholder'),
-        rows: 3,
-      }),
+      ...textareaField(
+        'http_headers',
+        $t('admin.ai.skill.httpConfig.headers'),
+        {
+          placeholder: $t('admin.ai.skill.httpConfig.headersPlaceholder'),
+          rows: 3,
+        },
+      ),
       dependencies: { triggerFields: ['type'], if: isHttp },
     },
     {
-      ...textareaField('http_body_template', $t('admin.ai.skill.httpConfig.bodyTemplate'), {
-        placeholder: $t('admin.ai.skill.httpConfig.bodyTemplatePlaceholder'),
-        rows: 4,
-      }),
+      ...textareaField(
+        'http_body_template',
+        $t('admin.ai.skill.httpConfig.bodyTemplate'),
+        {
+          placeholder: $t('admin.ai.skill.httpConfig.bodyTemplatePlaceholder'),
+          rows: 4,
+        },
+      ),
       help: $t('admin.ai.skill.httpConfig.bodyTemplateHelp'),
       dependencies: { triggerFields: ['type'], if: isHttp },
     },
     {
-      ...textareaField('http_query_params', $t('admin.ai.skill.httpConfig.queryParams'), {
-        placeholder: $t('admin.ai.skill.httpConfig.queryParamsPlaceholder'),
-        rows: 2,
-      }),
+      ...textareaField(
+        'http_query_params',
+        $t('admin.ai.skill.httpConfig.queryParams'),
+        {
+          placeholder: $t('admin.ai.skill.httpConfig.queryParamsPlaceholder'),
+          rows: 2,
+        },
+      ),
       dependencies: { triggerFields: ['type'], if: isHttp },
     },
     {
@@ -423,33 +532,69 @@ function useFormSchema() {
       dependencies: { triggerFields: ['type'], if: isHttp },
     },
     {
-      ...inputField('http_auth_token', $t('admin.ai.skill.httpConfig.authToken'), {
-        placeholder: $t('admin.ai.skill.httpConfig.authTokenPlaceholder'),
-      }),
-      dependencies: { triggerFields: ['type', 'http_auth_type'], if: isHttpBearer },
+      ...inputField(
+        'http_auth_token',
+        $t('admin.ai.skill.httpConfig.authToken'),
+        {
+          placeholder: $t('admin.ai.skill.httpConfig.authTokenPlaceholder'),
+        },
+      ),
+      dependencies: {
+        triggerFields: ['type', 'http_auth_type'],
+        if: isHttpBearer,
+      },
     },
     {
-      ...inputField('http_auth_key_name', $t('admin.ai.skill.httpConfig.authKeyName'), {
-        placeholder: $t('admin.ai.skill.httpConfig.authKeyNamePlaceholder'),
-      }),
-      dependencies: { triggerFields: ['type', 'http_auth_type'], if: isHttpApiKey },
+      ...inputField(
+        'http_auth_key_name',
+        $t('admin.ai.skill.httpConfig.authKeyName'),
+        {
+          placeholder: $t('admin.ai.skill.httpConfig.authKeyNamePlaceholder'),
+        },
+      ),
+      dependencies: {
+        triggerFields: ['type', 'http_auth_type'],
+        if: isHttpApiKey,
+      },
     },
     {
-      ...inputField('http_auth_key_value', $t('admin.ai.skill.httpConfig.authKeyValue')),
-      dependencies: { triggerFields: ['type', 'http_auth_type'], if: isHttpApiKey },
+      ...inputField(
+        'http_auth_key_value',
+        $t('admin.ai.skill.httpConfig.authKeyValue'),
+      ),
+      dependencies: {
+        triggerFields: ['type', 'http_auth_type'],
+        if: isHttpApiKey,
+      },
     },
     {
-      ...inputField('http_auth_username', $t('admin.ai.skill.httpConfig.authUsername')),
-      dependencies: { triggerFields: ['type', 'http_auth_type'], if: isHttpBasic },
+      ...inputField(
+        'http_auth_username',
+        $t('admin.ai.skill.httpConfig.authUsername'),
+      ),
+      dependencies: {
+        triggerFields: ['type', 'http_auth_type'],
+        if: isHttpBasic,
+      },
     },
     {
-      ...inputField('http_auth_password', $t('admin.ai.skill.httpConfig.authPassword')),
-      dependencies: { triggerFields: ['type', 'http_auth_type'], if: isHttpBasic },
+      ...inputField(
+        'http_auth_password',
+        $t('admin.ai.skill.httpConfig.authPassword'),
+      ),
+      dependencies: {
+        triggerFields: ['type', 'http_auth_type'],
+        if: isHttpBasic,
+      },
     },
     {
-      ...inputField('http_response_path', $t('admin.ai.skill.httpConfig.responsePath'), {
-        placeholder: $t('admin.ai.skill.httpConfig.responsePathPlaceholder'),
-      }),
+      ...inputField(
+        'http_response_path',
+        $t('admin.ai.skill.httpConfig.responsePath'),
+        {
+          placeholder: $t('admin.ai.skill.httpConfig.responsePathPlaceholder'),
+        },
+      ),
       help: $t('admin.ai.skill.httpConfig.responsePathHelp'),
       dependencies: { triggerFields: ['type'], if: isHttp },
     },
@@ -460,7 +605,9 @@ function useFormSchema() {
       label: '',
       hideLabel: true,
       componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('admin.ai.skill.emailConfig.title') }),
+      renderComponentContent: () => ({
+        default: () => $t('admin.ai.skill.emailConfig.title'),
+      }),
       dependencies: { triggerFields: ['type'], if: isEmail },
     },
     {
@@ -468,37 +615,64 @@ function useFormSchema() {
       fieldName: '_email_smtp_hint',
       label: '',
       hideLabel: true,
-      componentProps: { type: 'info', showIcon: true, message: $t('admin.ai.skill.emailConfig.smtpHint') },
+      componentProps: {
+        type: 'info',
+        showIcon: true,
+        message: $t('admin.ai.skill.emailConfig.smtpHint'),
+      },
       dependencies: { triggerFields: ['type'], if: isEmail },
     },
     {
-      ...inputField('email_subject_prefix', $t('admin.ai.skill.emailConfig.subjectPrefix'), {
-        placeholder: $t('admin.ai.skill.emailConfig.subjectPrefixPlaceholder'),
-      }),
+      ...inputField(
+        'email_subject_prefix',
+        $t('admin.ai.skill.emailConfig.subjectPrefix'),
+        {
+          placeholder: $t(
+            'admin.ai.skill.emailConfig.subjectPrefixPlaceholder',
+          ),
+        },
+      ),
       help: $t('admin.ai.skill.emailConfig.subjectPrefixHelp'),
       dependencies: { triggerFields: ['type'], if: isEmail },
     },
     {
-      ...inputField('email_allowed_domains', $t('admin.ai.skill.emailConfig.allowedDomains'), {
-        placeholder: $t('admin.ai.skill.emailConfig.allowedDomainsPlaceholder'),
-      }),
+      ...inputField(
+        'email_allowed_domains',
+        $t('admin.ai.skill.emailConfig.allowedDomains'),
+        {
+          placeholder: $t(
+            'admin.ai.skill.emailConfig.allowedDomainsPlaceholder',
+          ),
+        },
+      ),
       help: $t('admin.ai.skill.emailConfig.allowedDomainsHelp'),
       dependencies: { triggerFields: ['type'], if: isEmail },
     },
     {
-      ...numberField('email_max_recipients', $t('admin.ai.skill.emailConfig.maxRecipients'), {
-        min: 1, max: 50,
-      }),
+      ...numberField(
+        'email_max_recipients',
+        $t('admin.ai.skill.emailConfig.maxRecipients'),
+        {
+          min: 1,
+          max: 50,
+        },
+      ),
       help: $t('admin.ai.skill.emailConfig.maxRecipientsHelp'),
       dependencies: { triggerFields: ['type'], if: isEmail },
     },
     {
-      ...switchField('email_require_confirmation', $t('admin.ai.skill.emailConfig.requireConfirmation')),
+      ...switchField(
+        'email_require_confirmation',
+        $t('admin.ai.skill.emailConfig.requireConfirmation'),
+      ),
       help: $t('admin.ai.skill.emailConfig.requireConfirmationHelp'),
       dependencies: { triggerFields: ['type'], if: isEmail },
     },
     {
-      ...switchField('email_allow_cc', $t('admin.ai.skill.emailConfig.allowCc')),
+      ...switchField(
+        'email_allow_cc',
+        $t('admin.ai.skill.emailConfig.allowCc'),
+      ),
       dependencies: { triggerFields: ['type'], if: isEmail },
     },
     // ============ code_execution 专属字段 ============
@@ -508,7 +682,9 @@ function useFormSchema() {
       label: '',
       hideLabel: true,
       componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('admin.ai.skill.codeExecutionConfig.title') }),
+      renderComponentContent: () => ({
+        default: () => $t('admin.ai.skill.codeExecutionConfig.title'),
+      }),
       dependencies: { triggerFields: ['type'], if: isCode },
     },
     {
@@ -516,26 +692,52 @@ function useFormSchema() {
       fieldName: '_code_sandbox_hint',
       label: '',
       hideLabel: true,
-      componentProps: { type: 'info', showIcon: true, message: $t('admin.ai.skill.codeExecutionConfig.sandboxHint') },
+      componentProps: {
+        type: 'info',
+        showIcon: true,
+        message: $t('admin.ai.skill.codeExecutionConfig.sandboxHint'),
+      },
       dependencies: { triggerFields: ['type'], if: isCode },
     },
     {
-      ...select('code_language', $t('admin.ai.skill.codeExecutionConfig.language'), {
-        options: [{ label: $t('admin.ai.skill.codeExecutionConfig.languageOptions.python'), value: 'python' }],
-      }),
+      ...select(
+        'code_language',
+        $t('admin.ai.skill.codeExecutionConfig.language'),
+        {
+          options: [
+            {
+              label: $t(
+                'admin.ai.skill.codeExecutionConfig.languageOptions.python',
+              ),
+              value: 'python',
+            },
+          ],
+        },
+      ),
       dependencies: { triggerFields: ['type'], if: isCode },
     },
     {
-      ...numberField('code_memory_limit_mb', $t('admin.ai.skill.codeExecutionConfig.memoryLimitMb'), {
-        min: 64, max: 1024,
-      }),
+      ...numberField(
+        'code_memory_limit_mb',
+        $t('admin.ai.skill.codeExecutionConfig.memoryLimitMb'),
+        {
+          min: 64,
+          max: 1024,
+        },
+      ),
       help: $t('admin.ai.skill.codeExecutionConfig.memoryLimitHelp'),
       dependencies: { triggerFields: ['type'], if: isCode },
     },
     {
-      ...inputField('code_allowed_modules', $t('admin.ai.skill.codeExecutionConfig.allowedModules'), {
-        placeholder: $t('admin.ai.skill.codeExecutionConfig.allowedModulesPlaceholder'),
-      }),
+      ...inputField(
+        'code_allowed_modules',
+        $t('admin.ai.skill.codeExecutionConfig.allowedModules'),
+        {
+          placeholder: $t(
+            'admin.ai.skill.codeExecutionConfig.allowedModulesPlaceholder',
+          ),
+        },
+      ),
       help: $t('admin.ai.skill.codeExecutionConfig.allowedModulesHelp'),
       dependencies: { triggerFields: ['type'], if: isCode },
     },
@@ -546,7 +748,9 @@ function useFormSchema() {
       label: '',
       hideLabel: true,
       componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('admin.ai.skill.dataIntelligenceConfig.title') }),
+      renderComponentContent: () => ({
+        default: () => $t('admin.ai.skill.dataIntelligenceConfig.title'),
+      }),
       dependencies: { triggerFields: ['type'], if: isDi },
     },
     {
@@ -568,9 +772,15 @@ function useFormSchema() {
     {
       component: 'ApiSelect',
       componentProps: {
-        allowClear: true, api: getTablePolicySelectOptions, class: 'w-full', mode: 'multiple',
-        placeholder: $t('admin.ai.skill.dataIntelligenceConfig.tablePoliciesPlaceholder'),
-        showSearch: true, optionFilterProp: 'label',
+        allowClear: true,
+        api: getTablePolicySelectOptions,
+        class: 'w-full',
+        mode: 'multiple',
+        placeholder: $t(
+          'admin.ai.skill.dataIntelligenceConfig.tablePoliciesPlaceholder',
+        ),
+        showSearch: true,
+        optionFilterProp: 'label',
       },
       fieldName: 'di_table_policy_ids',
       label: $t('admin.ai.skill.dataIntelligenceConfig.tablePolicies'),
@@ -578,7 +788,11 @@ function useFormSchema() {
       dependencies: { triggerFields: ['type'], if: isDiNonSystem },
     },
     {
-      ...numberField('di_max_rows_override', $t('admin.ai.skill.dataIntelligenceConfig.maxRowsOverride'), { min: 0, max: 10000 }),
+      ...numberField(
+        'di_max_rows_override',
+        $t('admin.ai.skill.dataIntelligenceConfig.maxRowsOverride'),
+        { min: 0, max: 10_000 },
+      ),
       help: $t('admin.ai.skill.dataIntelligenceConfig.maxRowsOverrideHelp'),
       dependencies: { triggerFields: ['type'], if: isDiNonSystem },
     },
@@ -630,7 +844,8 @@ function getFormDefaults(): Record<string, unknown> {
     // code_execution defaults
     code_language: 'python',
     code_memory_limit_mb: 256,
-    code_allowed_modules: 'math,json,datetime,re,collections,itertools,functools,statistics,random,string',
+    code_allowed_modules:
+      'math,json,datetime,re,collections,itertools,functools,statistics,random,string',
   };
 }
 
@@ -645,74 +860,119 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
   defaults: getFormDefaults,
   apiPath: '/admin/ai/skills',
   transform: (values) => {
-    let config: Record<string, unknown> | null = null;
+    let config: null | Record<string, unknown> = null;
     const type = values.type as string;
 
-    if (type === 'knowledge_base') {
-      config = {
-        knowledge_base_ids: values.kb_ids || [],
-        rag_config: {
-          enabled: values.rag_enabled ?? true,
-          top_k: values.rag_top_k ?? 5,
-          score_threshold: values.rag_score_threshold ?? 0.5,
-          search_mode: values.rag_search_mode || 'hybrid',
-          rewrite_strategy: values.rag_rewrite_strategy || 'none',
-          reranker_enabled: values.rag_reranker_enabled ?? false,
-          context_token_ratio: values.rag_context_token_ratio ?? 0.3,
-        },
-      };
-    } else if (type === 'data_intelligence') {
-      config = {
-        table_policy_ids: values.di_table_policy_ids || [],
-        max_rows_override: values.di_max_rows_override ?? 0,
-      };
-    } else if (type === 'toolkit') {
-      const valvesConfig = values.valves_config as Record<string, unknown> | undefined;
-      config = valvesConfig && Object.keys(valvesConfig).length > 0
-        ? { valves: valvesConfig }
-        : null;
-    } else if (type === 'http') {
-      let headers: Record<string, string> = {};
-      let queryParams: Record<string, string> = {};
-      try { headers = JSON.parse((values.http_headers as string) || '{}'); } catch { /* empty */ }
-      try { queryParams = JSON.parse((values.http_query_params as string) || '{}'); } catch { /* empty */ }
-      const authConfig: Record<string, string> = {};
-      const authType = (values.http_auth_type as string) || 'none';
-      if (authType === 'bearer') authConfig.token = (values.http_auth_token as string) || '';
-      if (authType === 'api_key') {
-        authConfig.key_name = (values.http_auth_key_name as string) || 'X-API-Key';
-        authConfig.key_value = (values.http_auth_key_value as string) || '';
+    switch (type) {
+      case 'code_execution': {
+        const modulesRaw = (values.code_allowed_modules as string) || '';
+        config = {
+          language: values.code_language || 'python',
+          memory_limit_mb: values.code_memory_limit_mb ?? 256,
+          allowed_modules: modulesRaw
+            ? modulesRaw
+                .split(',')
+                .map((m: string) => m.trim())
+                .filter(Boolean)
+            : [],
+        };
+
+        break;
       }
-      if (authType === 'basic') {
-        authConfig.username = (values.http_auth_username as string) || '';
-        authConfig.password = (values.http_auth_password as string) || '';
+      case 'data_intelligence': {
+        config = {
+          table_policy_ids: values.di_table_policy_ids || [],
+          max_rows_override: values.di_max_rows_override ?? 0,
+        };
+
+        break;
       }
-      config = {
-        url: values.http_url || '',
-        method: values.http_method || 'GET',
-        headers,
-        body_template: values.http_body_template || '',
-        query_params: queryParams,
-        auth_type: authType,
-        auth_config: authConfig,
-        response_path: values.http_response_path || '',
-      };
-    } else if (type === 'email') {
-      const domainsRaw = (values.email_allowed_domains as string) || '';
-      config = {
-        subject_prefix: values.email_subject_prefix || '',
-        allowed_domains: domainsRaw ? domainsRaw.split(',').map((d: string) => d.trim()).filter(Boolean) : [],
-        max_recipients: values.email_max_recipients ?? 5,
-        require_confirmation: values.email_require_confirmation ?? true,
-        allow_cc: values.email_allow_cc ?? true,
-      };
-    } else if (type === 'code_execution') {
-      const modulesRaw = (values.code_allowed_modules as string) || '';
-      config = {
-        language: values.code_language || 'python',
-        memory_limit_mb: values.code_memory_limit_mb ?? 256,
-        allowed_modules: modulesRaw ? modulesRaw.split(',').map((m: string) => m.trim()).filter(Boolean) : [],
-      };
+      case 'email': {
+        const domainsRaw = (values.email_allowed_domains as string) || '';
+        config = {
+          subject_prefix: values.email_subject_prefix || '',
+          allowed_domains: domainsRaw
+            ? domainsRaw
+                .split(',')
+                .map((d: string) => d.trim())
+                .filter(Boolean)
+            : [],
+          max_recipients: values.email_max_recipients ?? 5,
+          require_confirmation: values.email_require_confirmation ?? true,
+          allow_cc: values.email_allow_cc ?? true,
+        };
+
+        break;
+      }
+      case 'http': {
+        let headers: Record<string, string> = {};
+        let queryParams: Record<string, string> = {};
+        try {
+          headers = JSON.parse((values.http_headers as string) || '{}');
+        } catch {
+          /* empty */
+        }
+        try {
+          queryParams = JSON.parse(
+            (values.http_query_params as string) || '{}',
+          );
+        } catch {
+          /* empty */
+        }
+        const authConfig: Record<string, string> = {};
+        const authType = (values.http_auth_type as string) || 'none';
+        if (authType === 'bearer')
+          authConfig.token = (values.http_auth_token as string) || '';
+        if (authType === 'api_key') {
+          authConfig.key_name =
+            (values.http_auth_key_name as string) || 'X-API-Key';
+          authConfig.key_value = (values.http_auth_key_value as string) || '';
+        }
+        if (authType === 'basic') {
+          authConfig.username = (values.http_auth_username as string) || '';
+          authConfig.password = (values.http_auth_password as string) || '';
+        }
+        config = {
+          url: values.http_url || '',
+          method: values.http_method || 'GET',
+          headers,
+          body_template: values.http_body_template || '',
+          query_params: queryParams,
+          auth_type: authType,
+          auth_config: authConfig,
+          response_path: values.http_response_path || '',
+        };
+
+        break;
+      }
+      case 'knowledge_base': {
+        config = {
+          knowledge_base_ids: values.kb_ids || [],
+          rag_config: {
+            enabled: values.rag_enabled ?? true,
+            top_k: values.rag_top_k ?? 5,
+            score_threshold: values.rag_score_threshold ?? 0.5,
+            search_mode: values.rag_search_mode || 'hybrid',
+            rewrite_strategy: values.rag_rewrite_strategy || 'none',
+            reranker_enabled: values.rag_reranker_enabled ?? false,
+            context_token_ratio: values.rag_context_token_ratio ?? 0.3,
+          },
+        };
+
+        break;
+      }
+      case 'toolkit': {
+        const valvesConfig = values.valves_config as
+          | Record<string, unknown>
+          | undefined;
+        config =
+          valvesConfig && Object.keys(valvesConfig).length > 0
+            ? { valves: valvesConfig }
+            : null;
+
+        break;
+      }
+      // No default
     }
 
     const result: Record<string, unknown> = {
@@ -741,11 +1001,10 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
     isPluginSkill.value = !!data.source_plugin;
     pluginSourceName.value = data.source_plugin || '';
 
-    if (data.type === 'builtin' && Array.isArray(cfg.tools)) {
-      builtinTools.value = cfg.tools as BuiltinToolInfo[];
-    } else {
-      builtinTools.value = [];
-    }
+    builtinTools.value =
+      data.type === 'builtin' && Array.isArray(cfg.tools)
+        ? (cfg.tools as BuiltinToolInfo[])
+        : [];
 
     // 加载数据智能技能的可用工具信息
     if (data.type === 'data_intelligence') {
@@ -758,7 +1017,15 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
     if (data.source_plugin && Array.isArray(data.plugin_tools)) {
       pluginTools.value = data.plugin_tools;
     } else {
-      const standardTypes = new Set(['toolkit', 'builtin', 'knowledge_base', 'data_intelligence', 'http', 'email', 'code_execution']);
+      const standardTypes = new Set([
+        'builtin',
+        'code_execution',
+        'data_intelligence',
+        'email',
+        'http',
+        'knowledge_base',
+        'toolkit',
+      ]);
       if (data.id && !standardTypes.has(data.type)) {
         loadPluginTools(data.id);
       } else {
@@ -790,24 +1057,34 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
       http_method: (cfg.method as string) || 'GET',
       http_headers: cfg.headers ? JSON.stringify(cfg.headers, null, 2) : '',
       http_body_template: (cfg.body_template as string) || '',
-      http_query_params: cfg.query_params ? JSON.stringify(cfg.query_params, null, 2) : '',
+      http_query_params: cfg.query_params
+        ? JSON.stringify(cfg.query_params, null, 2)
+        : '',
       http_auth_type: (cfg.auth_type as string) || 'none',
-      http_auth_token: ((cfg.auth_config as Record<string, string>)?.token) || '',
-      http_auth_key_name: ((cfg.auth_config as Record<string, string>)?.key_name) || 'X-API-Key',
-      http_auth_key_value: ((cfg.auth_config as Record<string, string>)?.key_value) || '',
-      http_auth_username: ((cfg.auth_config as Record<string, string>)?.username) || '',
-      http_auth_password: ((cfg.auth_config as Record<string, string>)?.password) || '',
+      http_auth_token: (cfg.auth_config as Record<string, string>)?.token || '',
+      http_auth_key_name:
+        (cfg.auth_config as Record<string, string>)?.key_name || 'X-API-Key',
+      http_auth_key_value:
+        (cfg.auth_config as Record<string, string>)?.key_value || '',
+      http_auth_username:
+        (cfg.auth_config as Record<string, string>)?.username || '',
+      http_auth_password:
+        (cfg.auth_config as Record<string, string>)?.password || '',
       http_response_path: (cfg.response_path as string) || '',
       // email fields
       email_subject_prefix: (cfg.subject_prefix as string) || '',
-      email_allowed_domains: Array.isArray(cfg.allowed_domains) ? (cfg.allowed_domains as string[]).join(', ') : '',
+      email_allowed_domains: Array.isArray(cfg.allowed_domains)
+        ? (cfg.allowed_domains as string[]).join(', ')
+        : '',
       email_max_recipients: (cfg.max_recipients as number) ?? 5,
       email_require_confirmation: (cfg.require_confirmation as boolean) ?? true,
       email_allow_cc: (cfg.allow_cc as boolean) ?? true,
       // code_execution fields
       code_language: (cfg.language as string) || 'python',
       code_memory_limit_mb: (cfg.memory_limit_mb as number) ?? 256,
-      code_allowed_modules: Array.isArray(cfg.allowed_modules) ? (cfg.allowed_modules as string[]).join(',') : '',
+      code_allowed_modules: Array.isArray(cfg.allowed_modules)
+        ? (cfg.allowed_modules as string[]).join(',')
+        : '',
     };
   },
   onSuccess: () => {
@@ -818,10 +1095,7 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
   },
 });
 
-async function loadDiTools(
-  isSystem: boolean,
-  tablePolicyIds?: number[],
-) {
+async function loadDiTools(isSystem: boolean, tablePolicyIds?: number[]) {
   try {
     const res = await getAITablePolicyListApi({ 'page[size]': 200 });
     let policies = res.items.filter((p) => p.is_active);
@@ -835,7 +1109,9 @@ async function loadDiTools(
     if (readTables.length > 0) {
       tools.push({
         name: 'data_query',
-        description: $t('admin.ai.skill.dataIntelligenceConfig.tools.dataQuery'),
+        description: $t(
+          'admin.ai.skill.dataIntelligenceConfig.tools.dataQuery',
+        ),
         tables: readTables,
       });
     }
@@ -845,7 +1121,9 @@ async function loadDiTools(
     if (createTables.length > 0) {
       tools.push({
         name: 'data_create',
-        description: $t('admin.ai.skill.dataIntelligenceConfig.tools.dataCreate'),
+        description: $t(
+          'admin.ai.skill.dataIntelligenceConfig.tools.dataCreate',
+        ),
         tables: createTables,
       });
     }
@@ -855,7 +1133,9 @@ async function loadDiTools(
     if (updateTables.length > 0) {
       tools.push({
         name: 'data_update',
-        description: $t('admin.ai.skill.dataIntelligenceConfig.tools.dataUpdate'),
+        description: $t(
+          'admin.ai.skill.dataIntelligenceConfig.tools.dataUpdate',
+        ),
         tables: updateTables,
       });
     }
@@ -865,7 +1145,9 @@ async function loadDiTools(
     if (deleteTables.length > 0) {
       tools.push({
         name: 'data_delete',
-        description: $t('admin.ai.skill.dataIntelligenceConfig.tools.dataDelete'),
+        description: $t(
+          'admin.ai.skill.dataIntelligenceConfig.tools.dataDelete',
+        ),
         tables: deleteTables,
       });
     }
@@ -884,21 +1166,22 @@ async function loadPluginTools(skillId: number) {
 }
 
 const title = computed(() =>
-  isEdit.value
-    ? $t('admin.common.edit')
-    : $t('admin.ai.skill.create'),
+  isEdit.value ? $t('admin.common.edit') : $t('admin.ai.skill.create'),
 );
 
 const currentSkillType = ref('');
 watch(
   () => formApi.form?.values?.type,
-  (v) => { currentSkillType.value = (v as string) || ''; },
+  (v) => {
+    currentSkillType.value = (v as string) || '';
+  },
   { immediate: true },
 );
 const drawerWidthClass = computed(() =>
-  currentSkillType.value === 'toolkit' && !isPluginSkill.value ? 'w-[900px]' : 'w-[600px]',
+  currentSkillType.value === 'toolkit' && !isPluginSkill.value
+    ? 'w-[900px]'
+    : 'w-[600px]',
 );
-
 </script>
 
 <template>
@@ -919,14 +1202,12 @@ const drawerWidthClass = computed(() =>
         >
           <div class="mb-1 flex items-center gap-2">
             <Tag color="processing">{{ tool.name }}</Tag>
-            <span class="text-xs text-muted-foreground">{{ tool.description }}</span>
+            <span class="text-xs text-muted-foreground">{{
+              tool.description
+            }}</span>
           </div>
           <div class="mt-1 flex flex-wrap gap-1">
-            <Tag
-              v-for="table in tool.tables"
-              :key="table"
-              class="!text-[10px]"
-            >
+            <Tag v-for="table in tool.tables" :key="table" class="!text-[10px]">
               {{ table }}
             </Tag>
           </div>
@@ -989,10 +1270,7 @@ const drawerWidthClass = computed(() =>
           <p class="mb-0 text-xs text-muted-foreground">
             {{ tool.description }}
           </p>
-          <div
-            v-if="tool.parameters?.length"
-            class="mt-2 flex flex-wrap gap-1"
-          >
+          <div v-if="tool.parameters?.length" class="mt-2 flex flex-wrap gap-1">
             <Tag
               v-for="param in tool.parameters"
               :key="param.name"

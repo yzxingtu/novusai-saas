@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'TaskLogListDrawer' });
 /**
  * 定时任务 - 执行日志抽屉
  * 按 task_path 过滤展示该任务的历史执行记录，支持查看详情
@@ -26,13 +25,15 @@ import { getTaskLogDetailApi, getTaskLogListApi } from '#/api/admin/task-log';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
+defineOptions({ name: 'TaskLogListDrawer' });
+
 type TaskLogInfo = adminApi.TaskLogInfo;
 type TaskLogDetailInfo = adminApi.TaskLogDetailInfo;
 
 const [Drawer, drawerApi] = useVbenDrawer({
   onOpenChange(isOpen: boolean) {
     if (isOpen) {
-      const data = drawerApi.getData<{ taskPath: string; taskName: string }>();
+      const data = drawerApi.getData<{ taskName: string; taskPath: string }>();
       if (data) {
         taskPath.value = data.taskPath;
         taskName.value = data.taskName;
@@ -48,7 +49,7 @@ const taskName = ref('');
 const loading = ref(false);
 const logs = ref<TaskLogInfo[]>([]);
 const total = ref(0);
-const selectedLog = ref<TaskLogDetailInfo | null>(null);
+const selectedLog = ref<null | TaskLogDetailInfo>(null);
 const detailLoading = ref(false);
 
 async function loadLogs() {
@@ -56,7 +57,7 @@ async function loadLogs() {
   try {
     const res = await getTaskLogListApi({
       'filter[task_name][eq]': taskPath.value,
-      'sort': '-created_at',
+      sort: '-created_at',
       'page[size]': 50,
     });
     logs.value = res.items;
@@ -85,25 +86,45 @@ function onBackToList() {
 
 function getStatusColor(status: string): string {
   switch (status) {
-    case 'success': return 'green';
-    case 'failed': return 'red';
-    case 'running': return 'blue';
-    case 'retrying': return 'orange';
-    default: return 'default';
+    case 'failed': {
+      return 'red';
+    }
+    case 'retrying': {
+      return 'orange';
+    }
+    case 'running': {
+      return 'blue';
+    }
+    case 'success': {
+      return 'green';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
 function getStatusIcon(status: string): string {
   switch (status) {
-    case 'success': return 'lucide:circle-check';
-    case 'failed': return 'lucide:circle-x';
-    case 'running': return 'lucide:loader-2';
-    case 'retrying': return 'lucide:refresh-cw';
-    default: return 'lucide:circle-dashed';
+    case 'failed': {
+      return 'lucide:circle-x';
+    }
+    case 'retrying': {
+      return 'lucide:refresh-cw';
+    }
+    case 'running': {
+      return 'lucide:loader-2';
+    }
+    case 'success': {
+      return 'lucide:circle-check';
+    }
+    default: {
+      return 'lucide:circle-dashed';
+    }
   }
 }
 
-function formatDuration(ms: number | null | undefined): string {
+function formatDuration(ms: null | number | undefined): string {
   if (ms === null || ms === undefined) return '-';
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
@@ -117,19 +138,32 @@ function getResultText(row: TaskLogInfo): string {
   if (!row.result || typeof row.result !== 'object') return '';
   const r = row.result as Record<string, unknown>;
   const parts: string[] = [];
-  if ('total_cleaned' in r) parts.push(`${$t('admin.system.taskLog.resultKeys.cleaned')}: ${r.total_cleaned}`);
-  if ('cleaned' in r) parts.push(`${$t('admin.system.taskLog.resultKeys.cleaned')}: ${r.cleaned}`);
-  if ('reset_count' in r) parts.push(`${$t('admin.system.taskLog.resultKeys.reset')}: ${r.reset_count}`);
+  if ('total_cleaned' in r)
+    parts.push(
+      `${$t('admin.system.taskLog.resultKeys.cleaned')}: ${r.total_cleaned}`,
+    );
+  if ('cleaned' in r)
+    parts.push(
+      `${$t('admin.system.taskLog.resultKeys.cleaned')}: ${r.cleaned}`,
+    );
+  if ('reset_count' in r)
+    parts.push(
+      `${$t('admin.system.taskLog.resultKeys.reset')}: ${r.reset_count}`,
+    );
   if ('db' in r) parts.push(`DB: ${r.db}`);
   if ('redis' in r) parts.push(`Redis: ${r.redis}`);
   if ('error' in r) return String(r.error);
   return parts.length > 0 ? parts.join(' | ') : JSON.stringify(r);
 }
 
-const successCount = () => logs.value.filter((l) => l.status === 'success').length;
-const failedCount = () => logs.value.filter((l) => l.status === 'failed').length;
+const successCount = () =>
+  logs.value.filter((l) => l.status === 'success').length;
+const failedCount = () =>
+  logs.value.filter((l) => l.status === 'failed').length;
 const avgDuration = () => {
-  const durations = logs.value.filter((l) => l.durationMs !== null).map((l) => l.durationMs!);
+  const durations = logs.value
+    .filter((l) => l.durationMs !== null)
+    .map((l) => l.durationMs!);
   if (durations.length === 0) return 0;
   return Math.round(durations.reduce((a, b) => a + b, 0) / durations.length);
 };
@@ -161,7 +195,10 @@ const avgDuration = () => {
         <Statistic
           :title="$t('admin.system.periodicTask.stats.failed')"
           :value="failedCount()"
-          :value-style="{ fontSize: '20px', color: failedCount() > 0 ? 'var(--destructive)' : undefined }"
+          :value-style="{
+            fontSize: '20px',
+            color: failedCount() > 0 ? 'var(--destructive)' : undefined,
+          }"
         />
         <Statistic
           :title="$t('admin.system.periodicTask.stats.avgDuration')"
@@ -201,14 +238,14 @@ const avgDuration = () => {
                   :class="{
                     'text-success': log.status === 'success',
                     'text-destructive': log.status === 'failed',
-                    'text-primary animate-spin': log.status === 'running',
+                    'animate-spin text-primary': log.status === 'running',
                     'text-warning': log.status === 'retrying',
                   }"
                 />
                 <Tag :color="getStatusColor(log.status)" class="!m-0">
                   {{ $t(`admin.system.taskLog.status.${log.status}`) }}
                 </Tag>
-                <span class="tabular-nums text-xs text-muted-foreground">
+                <span class="text-xs tabular-nums text-muted-foreground">
                   {{ formatDuration(log.durationMs) }}
                 </span>
               </div>
@@ -227,7 +264,9 @@ const avgDuration = () => {
             <div
               v-if="getResultText(log)"
               class="mt-1.5 line-clamp-1 pl-6 text-xs"
-              :class="log.errorMessage ? 'text-destructive' : 'text-muted-foreground'"
+              :class="
+                log.errorMessage ? 'text-destructive' : 'text-muted-foreground'
+              "
             >
               {{ getResultText(log) }}
             </div>
@@ -254,17 +293,26 @@ const avgDuration = () => {
               {{ $t('admin.system.taskLog.basicInfo') }}
             </div>
             <Descriptions :column="2" bordered size="small">
-              <DescriptionsItem :label="$t('admin.system.taskLog.taskId')" :span="2">
+              <DescriptionsItem
+                :label="$t('admin.system.taskLog.taskId')"
+                :span="2"
+              >
                 <code class="break-all text-xs">{{ selectedLog.taskId }}</code>
               </DescriptionsItem>
-              <DescriptionsItem :label="$t('admin.system.taskLog.status.label')">
+              <DescriptionsItem
+                :label="$t('admin.system.taskLog.status.label')"
+              >
                 <Tag :color="getStatusColor(selectedLog.status)">
                   {{ $t(`admin.system.taskLog.status.${selectedLog.status}`) }}
                 </Tag>
               </DescriptionsItem>
               <DescriptionsItem :label="$t('admin.system.taskLog.duration')">
                 <span
-                  :class="selectedLog.durationMs && selectedLog.durationMs > 5000 ? 'font-medium text-warning' : ''"
+                  :class="
+                    selectedLog.durationMs && selectedLog.durationMs > 5000
+                      ? 'font-medium text-warning'
+                      : ''
+                  "
                 >
                   {{ formatDuration(selectedLog.durationMs) }}
                 </span>
@@ -280,16 +328,30 @@ const avgDuration = () => {
             </div>
             <Descriptions :column="1" bordered size="small">
               <DescriptionsItem :label="$t('admin.system.taskLog.startedAt')">
-                {{ selectedLog.startedAt ? formatDate(selectedLog.startedAt) : '-' }}
+                {{
+                  selectedLog.startedAt
+                    ? formatDate(selectedLog.startedAt)
+                    : '-'
+                }}
               </DescriptionsItem>
               <DescriptionsItem :label="$t('admin.system.taskLog.finishedAt')">
-                {{ selectedLog.finishedAt ? formatDate(selectedLog.finishedAt) : '-' }}
+                {{
+                  selectedLog.finishedAt
+                    ? formatDate(selectedLog.finishedAt)
+                    : '-'
+                }}
               </DescriptionsItem>
             </Descriptions>
           </div>
 
           <!-- 结果 -->
-          <template v-if="selectedLog.result || selectedLog.errorMessage || selectedLog.traceback">
+          <template
+            v-if="
+              selectedLog.result ||
+              selectedLog.errorMessage ||
+              selectedLog.traceback
+            "
+          >
             <div>
               <div class="mb-2 flex items-center gap-2 text-sm font-medium">
                 <IconifyIcon icon="lucide:terminal" class="text-primary" />
@@ -300,19 +362,27 @@ const avgDuration = () => {
                   v-if="selectedLog.result"
                   :label="$t('admin.system.taskLog.result')"
                 >
-                  <pre class="m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-accent p-2 text-xs">{{ JSON.stringify(selectedLog.result, null, 2) }}</pre>
+                  <pre
+                    class="m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-accent p-2 text-xs"
+                    >{{ JSON.stringify(selectedLog.result, null, 2) }}</pre
+                  >
                 </DescriptionsItem>
                 <DescriptionsItem
                   v-if="selectedLog.errorMessage"
                   :label="$t('admin.system.taskLog.errorMessage')"
                 >
-                  <span class="text-destructive">{{ selectedLog.errorMessage }}</span>
+                  <span class="text-destructive">{{
+                    selectedLog.errorMessage
+                  }}</span>
                 </DescriptionsItem>
                 <DescriptionsItem
                   v-if="selectedLog.traceback"
                   :label="$t('admin.system.taskLog.traceback')"
                 >
-                  <pre class="m-0 max-h-60 overflow-auto whitespace-pre-wrap break-all rounded bg-destructive/5 p-2 text-xs text-destructive">{{ selectedLog.traceback }}</pre>
+                  <pre
+                    class="m-0 max-h-60 overflow-auto whitespace-pre-wrap break-all rounded bg-destructive/5 p-2 text-xs text-destructive"
+                    >{{ selectedLog.traceback }}</pre
+                  >
                 </DescriptionsItem>
               </Descriptions>
             </div>

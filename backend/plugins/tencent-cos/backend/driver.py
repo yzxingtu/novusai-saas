@@ -11,12 +11,11 @@ import hashlib
 import mimetypes
 import tempfile
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, BinaryIO, Optional
+from typing import TYPE_CHECKING, BinaryIO
 
 import anyio
-from qcloud_cos import CosConfig, CosS3Client
-from qcloud_cos.cos_exception import CosServiceError
 
+from app.core.i18n import _
 from app.exceptions import StorageConfigError, StorageError, StorageNotFoundError
 from app.storage.base import (
     FileInfo,
@@ -28,6 +27,30 @@ from app.storage.base import (
 
 if TYPE_CHECKING:
     from app.utils.image import ImageProcessParams
+
+try:
+    from qcloud_cos import CosConfig, CosS3Client
+    from qcloud_cos.cos_exception import CosServiceError
+except ModuleNotFoundError:
+    CosConfig = None
+    CosS3Client = None
+
+    class CosServiceError(Exception):
+        """Fallback error type when COS SDK is unavailable."""
+
+
+def _require_cos_sdk() -> tuple[type, type]:
+    """Ensure optional COS SDK is available before runtime use."""
+    if CosConfig is None or CosS3Client is None:
+        raise StorageConfigError(
+            message=(
+                _(
+                    "Tencent COS SDK is not installed. "
+                    "Install dependency: pip install cos-python-sdk-v5"
+                )
+            ),
+        )
+    return CosConfig, CosS3Client
 
 
 class CosStorageDriver(StorageDriver):
@@ -73,6 +96,7 @@ class CosStorageDriver(StorageDriver):
 
     def __init__(self, config: StorageConfig):
         super().__init__(config)
+        cos_config_cls, cos_client_cls = _require_cos_sdk()
         options = config.options or {}
         self.bucket_name = options.get("bucket") or config.root_path
         region = options.get("region")
@@ -88,13 +112,13 @@ class CosStorageDriver(StorageDriver):
         self.region = region
         self.base_url = config.base_url.rstrip("/") if config.base_url else None
         self.prefix = options.get("prefix", "").strip("/")
-        cos_config = CosConfig(
+        cos_config = cos_config_cls(
             Region=region,
             SecretId=options.get("secret_id"),
             SecretKey=options.get("secret_key"),
             Scheme="https",
         )
-        self.client = CosS3Client(cos_config)
+        self.client = cos_client_cls(cos_config)
 
     def _key(self, path: str) -> str:
         clean = path.lstrip("/")
@@ -226,10 +250,10 @@ class CosStorageDriver(StorageDriver):
 
         return await anyio.to_thread.run_sync(_presign)
 
-    async def get_info(self, path: str) -> Optional[FileInfo]:
+    async def get_info(self, path: str) -> FileInfo | None:
         key = self._key(path)
 
-        def _head() -> Optional[FileInfo]:
+        def _head() -> FileInfo | None:
             try:
                 response = self.client.head_object(
                     Bucket=self.bucket_name,
@@ -285,7 +309,7 @@ class CosStorageDriver(StorageDriver):
 
     # ========== Image Processing ==========
 
-    def _build_cos_process_params(self, params: "ImageProcessParams") -> str:
+    def _build_cos_process_params(self, params: ImageProcessParams) -> str:
         """Build COS imageMogr2 URL suffix"""
         parts: list[str] = ["imageMogr2"]
         if params.width or params.height:
@@ -310,7 +334,7 @@ class CosStorageDriver(StorageDriver):
     async def get_image_url(
         self,
         path: str,
-        params: "ImageProcessParams",
+        params: ImageProcessParams,
         expires: int = 3600,
         visibility: StorageVisibility | None = None,
     ) -> str:
@@ -343,7 +367,7 @@ class CosStorageDriver(StorageDriver):
     async def get_processed_image(
         self,
         path: str,
-        params: "ImageProcessParams",
+        params: ImageProcessParams,
     ) -> tuple[bytes, str] | None:
         if params.is_empty():
             return None

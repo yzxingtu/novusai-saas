@@ -9,11 +9,10 @@ from sqlalchemy import select
 from app.core.logging import get_logger
 
 from ..models.template import NovusdocProTemplate
+from .utils import resolve_tenant_id
+from .utils import safe_int as _safe_int
 
 logger = get_logger("plugin.novusdoc-pro.api")
-
-
-from .utils import resolve_tenant_id, safe_int as _safe_int
 
 
 async def list_templates(request, db, ctx):

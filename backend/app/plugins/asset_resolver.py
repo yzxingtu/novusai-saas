@@ -36,9 +36,8 @@ def resolve_plugin_asset_file(
     if len(normalized.parts) == 1 and normalized.suffix.lower() in _ICON_EXTENSIONS:
         plugin_root = (plugins_root / plugin_name).resolve()
         icon_file = (plugin_root / normalized).resolve()
-        if plugin_root in icon_file.parents or plugin_root == icon_file.parent:
-            if icon_file.is_file():
-                return icon_file
+        if (plugin_root in icon_file.parents or plugin_root == icon_file.parent) and icon_file.is_file():
+            return icon_file
 
     # frontend/dist 下的常规资源文件
     dist_root = (plugins_root / plugin_name / "frontend" / "dist").resolve()

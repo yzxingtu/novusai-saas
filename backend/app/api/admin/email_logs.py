@@ -7,24 +7,24 @@
 from fastapi import Request
 
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, QueryParams, ActiveAdmin
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import success, paginated
-from app.exceptions import NotFoundException
+from app.core.response import paginated, success
 from app.enums.rbac import PermissionScope
+from app.exceptions import NotFoundException
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
-    action_read,
     action_create,
+    action_read,
+    permission_resource,
 )
+from app.repositories.system.email_log_repository import EmailLogRepository
 from app.schemas.system.email_log import (
     EmailLogResponse,
     EmailSendRequest,
     EmailTestRequest,
 )
-from app.services.common.email_service import EmailService, EmailMessage
-from app.repositories.system.email_log_repository import EmailLogRepository
+from app.services.common.email_service import EmailMessage, EmailService
 
 
 @permission_resource(
@@ -117,8 +117,8 @@ class AdminEmailLogController(GlobalController):
             result = await service.send(message)
 
             # 记录日志
-            from app.models.system.email_log import EmailLog
             from app.core.base_model import utc_now
+            from app.models.system.email_log import EmailLog
             log = EmailLog(
                 to_address=", ".join(body.to),
                 cc=", ".join(body.cc) if body.cc else None,
@@ -165,8 +165,8 @@ class AdminEmailLogController(GlobalController):
             result = await service.send(message)
 
             # 记录日志
-            from app.models.system.email_log import EmailLog
             from app.core.base_model import utc_now
+            from app.models.system.email_log import EmailLog
             log = EmailLog(
                 to_address=body.to,
                 subject=_("email.test.subject"),

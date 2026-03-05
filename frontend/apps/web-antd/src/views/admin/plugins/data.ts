@@ -43,14 +43,17 @@ export function getTierText(tier: string): string {
 }
 
 /** 从 manifest.extensions 派生插件类型 */
-export function derivePluginType(manifest: Record<string, unknown> | null | undefined): string {
+export function derivePluginType(
+  manifest: null | Record<string, unknown> | undefined,
+): string {
   if (!manifest) return 'basic';
   const ext = (manifest.extensions || {}) as Record<string, unknown>;
   const types: string[] = [];
   if (ext.skills && (ext.skills as unknown[]).length > 0) types.push('skill');
   if (ext.hooks && (ext.hooks as unknown[]).length > 0) types.push('hook');
   if (ext.api) types.push('api');
-  if (ext.webhooks && (ext.webhooks as unknown[]).length > 0) types.push('webhook');
+  if (ext.webhooks && (ext.webhooks as unknown[]).length > 0)
+    types.push('webhook');
   if (ext.events && (ext.events as unknown[]).length > 0) types.push('event');
   if (types.length === 0) return 'basic';
   if (types.length > 1) return 'composite';
@@ -92,19 +95,37 @@ export function getTypeText(type: string): string {
 
 /** 插件类型列表（用于筛选） */
 export const PLUGIN_TYPES = [
-  'skill', 'hook', 'api', 'webhook', 'event', 'composite', 'basic',
+  'skill',
+  'hook',
+  'api',
+  'webhook',
+  'event',
+  'composite',
+  'basic',
 ] as const;
 
 /** 列定义 */
 export function useColumns(): VxeTableGridOptions['columns'] {
   return [
-    { field: 'display_name', title: $t('admin.plugin.displayName'), minWidth: 200 },
+    {
+      field: 'display_name',
+      title: $t('admin.plugin.displayName'),
+      minWidth: 200,
+    },
     { field: 'version', title: $t('admin.plugin.versionLabel'), width: 100 },
     { field: 'scope', title: $t('admin.plugin.scope'), width: 140 },
     { field: 'status', title: $t('admin.plugin.status'), width: 100 },
     { field: 'tier', title: $t('admin.plugin.tier'), width: 100 },
-    { field: 'install_source', title: $t('admin.plugin.installSource'), width: 120 },
-    { field: 'installed_at', title: $t('admin.plugin.installedAt'), width: 160 },
+    {
+      field: 'install_source',
+      title: $t('admin.plugin.installSource'),
+      width: 120,
+    },
+    {
+      field: 'installed_at',
+      title: $t('admin.plugin.installedAt'),
+      width: 160,
+    },
     { field: 'action', title: '', width: 200, fixed: 'right' },
   ];
 }

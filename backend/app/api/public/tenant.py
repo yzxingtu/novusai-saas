@@ -7,17 +7,16 @@
 from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy import select
 
+from app.configs.service import ConfigService
 from app.core.config import settings
 from app.core.deps import DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.middleware.tenant import get_tenant_context
-from app.configs.service import ConfigService
 from app.models import Tenant
-from app.schemas.public import TenantPublicConfig, DomainVerificationInfo
-from app.schemas.public.platform import StoragePublicConfig
 from app.rbac.decorators import public
-
+from app.schemas.public import DomainVerificationInfo, TenantPublicConfig
+from app.schemas.public.platform import StoragePublicConfig
 
 router = APIRouter(prefix="/tenant", tags=["租户公开接口"])
 
@@ -27,23 +26,23 @@ router = APIRouter(prefix="/tenant", tags=["租户公开接口"])
 async def get_tenant_public_config(request: Request, db: DbSession, tenant_code: str | None = None):
     """
     获取当前租户的公开配置
-    
+
     根据请求的域名自动识别租户，返回该租户的公开配置信息。
-    
+
     **域名识别规则:**
     - 子域名模式: `{tenant_code}.app.novusai.com`
     - 自定义域名模式: 用户绑定的独立域名
     - 开发环境: 支持通过 `?tenant_code=xxx` 查询参数指定租户
-    
+
     **返回内容:**
     - 租户基本信息（名称、logo 等）
     - 登录配置（验证码、登录方式等）
     - 品牌设置（主题色等）
-    
+
     此接口无需认证，用于前端登录页面获取租户信息。
     """
     tenant_ctx = get_tenant_context(request)
-    
+
     tenant = None
     if tenant_ctx and tenant_ctx.is_resolved:
         tenant = tenant_ctx.tenant
@@ -56,13 +55,13 @@ async def get_tenant_public_config(request: Request, db: DbSession, tenant_code:
             )
         )
         tenant = result.scalar_one_or_none()
-    
+
     if not tenant:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=_("tenant.not_found"),
         )
-    
+
     config_service = ConfigService(db)
     general_config = await config_service.get_tenant_configs_by_group(
         tenant_id=tenant.id,
@@ -81,17 +80,17 @@ async def get_tenant_public_config(request: Request, db: DbSession, tenant_code:
         group_code="tenant_storage",
     )
     configs = {**general_config, **appearance_config, **feature_config, **storage_config}
-    
+
     # 加载平台品牌配置（用于租户未设置时的 fallback）
     platform_general_config = await config_service.get_platform_configs_by_group(
         group_code="platform_general",
     )
-    
+
     # 确定存储配置：如果租户使用平台托管存储，则使用平台的配置
     platform_storage_config = await config_service.get_platform_configs_by_group(
         group_code="platform_storage",
     )
-    
+
     if configs.get("tenant_storage_mode") == "custom":
         storage_base_url = configs.get("tenant_storage_base_url")
         # 租户自定义 allowed_extensions，如果未设置则使用平台配置
@@ -100,14 +99,14 @@ async def get_tenant_public_config(request: Request, db: DbSession, tenant_code:
         # 平台托管模式，全部使用平台配置
         storage_base_url = platform_storage_config.get("platform_storage_base_url")
         allowed_extensions = platform_storage_config.get("platform_storage_allowed_extensions")
-    
+
     # chunk_size 和 max_file_size 始终使用平台配置
     # driver: 自定义模式使用租户配置，平台托管模式使用平台配置
     if configs.get("tenant_storage_mode") == "custom":
         storage_driver = configs.get("tenant_storage_driver")
     else:
         storage_driver = platform_storage_config.get("platform_storage_driver")
-    
+
     storage_config_obj = StoragePublicConfig(
         driver=storage_driver,
         base_url=storage_base_url,
@@ -117,7 +116,7 @@ async def get_tenant_public_config(request: Request, db: DbSession, tenant_code:
     )
 
     subdomain_url = f"https://{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
-    
+
     # 品牌 fallback：租户未设置 → 平台默认
     logo_url = configs.get("tenant_logo") or platform_general_config.get("site_logo") or ""
     favicon_url = configs.get("tenant_favicon") or platform_general_config.get("site_favicon") or ""
@@ -173,36 +172,36 @@ async def get_domain_verification_info(
 ):
     """
     获取域名验证信息
-    
+
     用于指导用户配置 DNS 记录，将自定义域名解析到租户子域名。
-    
+
     **参数:**
     - `domain`: 待绑定的域名（如 `app.example.com`）
-    
+
     **返回:**
     - CNAME 解析目标
     - TXT 验证记录（可选）
     - 配置说明
-    
+
     此接口无需认证。
     """
     tenant_ctx = get_tenant_context(request)
-    
+
     if not tenant_ctx or not tenant_ctx.is_resolved:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=_("tenant.not_found"),
         )
-    
+
     tenant = tenant_ctx.tenant
-    
+
     # CNAME 目标
     cname_target = f"{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
-    
+
     # TXT 验证记录
     txt_name = f"{settings.DOMAIN_VERIFICATION_PREFIX}.{domain}"
     txt_value = f"novusai-verification={tenant.code}"
-    
+
     # 配置说明
     instructions = f"""请在您的 DNS 服务商处添加以下记录：
 
@@ -218,7 +217,7 @@ async def get_domain_verification_info(
 
 DNS 记录生效可能需要几分钟到几小时，请耐心等待。
 """
-    
+
     return success(
         data=DomainVerificationInfo(
             domain=domain,

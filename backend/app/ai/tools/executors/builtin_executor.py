@@ -8,8 +8,9 @@ import ast
 import json
 import operator
 import time
+from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Callable, Coroutine
+from typing import TYPE_CHECKING, Any
 
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
@@ -83,6 +84,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
         context: "ExecutionContext | None" = None,
     ) -> ToolResult:
         """执行内置函数"""
+        _ = context
         start = time.perf_counter()
         func_name = definition.name
 
@@ -204,9 +206,10 @@ class BuiltinToolExecutor(BaseToolExecutor):
         if not query:
             return "Error: query parameter is required"
 
-        import httpx
-        from html import unescape
         import re
+        from html import unescape
+
+        import httpx
 
         max_results = min(max(1, max_results), 10)
         url = "https://html.duckduckgo.com/html/"
@@ -275,8 +278,9 @@ class BuiltinToolExecutor(BaseToolExecutor):
         if ssrf_err:
             return f"Error: {ssrf_err}"
 
-        import httpx
         import re
+
+        import httpx
 
         max_length = min(max(500, max_length), 20000)
 

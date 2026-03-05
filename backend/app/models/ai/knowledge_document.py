@@ -7,7 +7,16 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
@@ -208,8 +217,7 @@ class KnowledgeDocument(TenantModel):
 
 
 if TYPE_CHECKING:
-    from app.models.ai.knowledge_base import KnowledgeBase
-    from app.models.ai.document_chunk import DocumentChunk
+    pass
 
 
 __all__ = ["KnowledgeDocument"]

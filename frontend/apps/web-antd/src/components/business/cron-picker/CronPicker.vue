@@ -1,23 +1,18 @@
 <script lang="ts" setup>
-defineOptions({ name: 'CronPicker' });
-
 import { computed, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import {
-  Input,
-  Select,
-  Segmented,
-  Tag,
-} from 'ant-design-vue';
+import { Input, Segmented, Select, Tag } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
+defineOptions({ name: 'CronPicker' });
+
 const props = withDefaults(
   defineProps<{
-    value?: string;
     disabled?: boolean;
+    value?: string;
   }>(),
   {
     value: '',
@@ -146,12 +141,14 @@ function getNextExecutions(expr: string, count: number): string[] {
 
   const results: string[] = [];
   const now = new Date();
-  let current = new Date(now.getTime());
+  let current = new Date(now);
   current.setSeconds(0, 0);
   current.setMinutes(current.getMinutes() + 1);
 
   for (let i = 0; i < 365 * 24 * 60 && results.length < count; i++) {
-    if (matchesCron(current, parts as [string, string, string, string, string])) {
+    if (
+      matchesCron(current, parts as [string, string, string, string, string])
+    ) {
       results.push(formatDateTime(current));
     }
     current = new Date(current.getTime() + 60_000);
@@ -172,7 +169,12 @@ function matchesCron(
   );
 }
 
-function matchField(value: number, field: string, _min: number, _max: number): boolean {
+function matchField(
+  value: number,
+  field: string,
+  _min: number,
+  _max: number,
+): boolean {
   if (field === '*') return true;
   if (field.includes('/')) {
     const [, step] = field.split('/');
@@ -210,7 +212,7 @@ function onFieldChange() {
   emit('update:value', buildExpression.value);
 }
 
-function onModeChange(val: string | number) {
+function onModeChange(val: number | string) {
   mode.value = val as 'custom' | 'preset';
   if (val === 'preset' && cronValue.value) {
     parseCron(cronValue.value);
@@ -233,7 +235,9 @@ if (props.value) {
   mode.value = isPreset ? 'preset' : 'custom';
 }
 
-const activePreset = computed(() => presets.value.find((p) => p.value === cronValue.value));
+const activePreset = computed(() =>
+  presets.value.find((p) => p.value === cronValue.value),
+);
 
 const minuteOptions = computed(() => {
   const opts = [{ label: `* (${$t('common.cronPicker.every')})`, value: '*' }];
@@ -266,7 +270,10 @@ const monthOptions = computed(() => {
   const names = $t('common.cronPicker.monthNames').split(',');
   const opts = [{ label: `* (${$t('common.cronPicker.every')})`, value: '*' }];
   for (let i = 1; i <= 12; i++) {
-    opts.push({ label: `${i} - ${names[i - 1]?.trim() ?? ''}`, value: String(i) });
+    opts.push({
+      label: `${i} - ${names[i - 1]?.trim() ?? ''}`,
+      value: String(i),
+    });
   }
   return opts;
 });
@@ -313,11 +320,19 @@ const dayOfWeekOptions = computed(() => {
           <IconifyIcon
             :icon="preset.icon"
             class="size-3.5 shrink-0"
-            :class="activePreset?.value === preset.value ? 'text-primary' : 'text-muted-foreground'"
+            :class="
+              activePreset?.value === preset.value
+                ? 'text-primary'
+                : 'text-muted-foreground'
+            "
           />
           <span
             class="text-xs font-medium"
-            :class="activePreset?.value === preset.value ? 'text-primary' : 'text-foreground'"
+            :class="
+              activePreset?.value === preset.value
+                ? 'text-primary'
+                : 'text-foreground'
+            "
           >
             {{ preset.label }}
           </span>
@@ -332,13 +347,42 @@ const dayOfWeekOptions = computed(() => {
     <div v-else>
       <!-- 可视化字段选择器 -->
       <div class="mb-3 grid grid-cols-5 gap-2">
-        <div v-for="field in [
-          { key: 'minute', label: $t('common.cronPicker.fields.minute'), model: minute, options: minuteOptions },
-          { key: 'hour', label: $t('common.cronPicker.fields.hour'), model: hour, options: hourOptions },
-          { key: 'dayOfMonth', label: $t('common.cronPicker.fields.dayOfMonth'), model: dayOfMonth, options: dayOfMonthOptions },
-          { key: 'month', label: $t('common.cronPicker.fields.month'), model: month, options: monthOptions },
-          { key: 'dayOfWeek', label: $t('common.cronPicker.fields.dayOfWeek'), model: dayOfWeek, options: dayOfWeekOptions },
-        ]" :key="field.key" class="flex flex-col gap-1">
+        <div
+          v-for="field in [
+            {
+              key: 'minute',
+              label: $t('common.cronPicker.fields.minute'),
+              model: minute,
+              options: minuteOptions,
+            },
+            {
+              key: 'hour',
+              label: $t('common.cronPicker.fields.hour'),
+              model: hour,
+              options: hourOptions,
+            },
+            {
+              key: 'dayOfMonth',
+              label: $t('common.cronPicker.fields.dayOfMonth'),
+              model: dayOfMonth,
+              options: dayOfMonthOptions,
+            },
+            {
+              key: 'month',
+              label: $t('common.cronPicker.fields.month'),
+              model: month,
+              options: monthOptions,
+            },
+            {
+              key: 'dayOfWeek',
+              label: $t('common.cronPicker.fields.dayOfWeek'),
+              model: dayOfWeek,
+              options: dayOfWeekOptions,
+            },
+          ]"
+          :key="field.key"
+          class="flex flex-col gap-1"
+        >
           <span class="text-center text-xs font-medium text-muted-foreground">
             {{ field.label }}
           </span>
@@ -348,15 +392,17 @@ const dayOfWeekOptions = computed(() => {
             :disabled="disabled"
             show-search
             :options="field.options"
-            @change="(val: unknown) => {
-              const v = String(val);
-              if (field.key === 'minute') minute = v;
-              else if (field.key === 'hour') hour = v;
-              else if (field.key === 'dayOfMonth') dayOfMonth = v;
-              else if (field.key === 'month') month = v;
-              else if (field.key === 'dayOfWeek') dayOfWeek = v;
-              onFieldChange();
-            }"
+            @change="
+              (val: unknown) => {
+                const v = String(val);
+                if (field.key === 'minute') minute = v;
+                else if (field.key === 'hour') hour = v;
+                else if (field.key === 'dayOfMonth') dayOfMonth = v;
+                else if (field.key === 'month') month = v;
+                else if (field.key === 'dayOfWeek') dayOfWeek = v;
+                onFieldChange();
+              }
+            "
           />
         </div>
       </div>
@@ -372,7 +418,9 @@ const dayOfWeekOptions = computed(() => {
           :placeholder="$t('common.cronPicker.placeholder')"
           size="small"
           class="font-mono"
-          @change="(e: Event) => onCustomInput((e.target as HTMLInputElement).value)"
+          @change="
+            (e: Event) => onCustomInput((e.target as HTMLInputElement).value)
+          "
         />
       </div>
     </div>

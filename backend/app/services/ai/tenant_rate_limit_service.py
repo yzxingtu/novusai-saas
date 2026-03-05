@@ -2,14 +2,14 @@
 租户 AI 模型速率限制配置 Service
 """
 
-from typing import Optional
 
-from app.repositories.ai.tenant_rate_limit_repository import TenantModelRateLimitRepository
-from app.models.ai import TenantModelRateLimit, AIModel
 from app.core.base_service import TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager
-
+from app.models.ai import TenantModelRateLimit
+from app.repositories.ai.tenant_rate_limit_repository import (
+    TenantModelRateLimitRepository,
+)
 
 logger = LogManager.get_logger("ai.rate_limit_service")
 
@@ -25,7 +25,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
     async def get_rate_limit(
         self,
         model_id: int
-    ) -> Optional[TenantModelRateLimit]:
+    ) -> TenantModelRateLimit | None:
         """
         获取租户对指定模型的速率限制配置
 
@@ -81,7 +81,7 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
 
     async def get_active_limits(
         self,
-        model_id: Optional[int] = None,
+        model_id: int | None = None,
     ) -> list[TenantModelRateLimit]:
         """
         获取租户活跃速率限制列表
@@ -100,9 +100,9 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
     async def create_rate_limit(
         self,
         model_id: int,
-        rpm_limit: Optional[int] = None,
-        tpm_limit: Optional[int] = None,
-        description: Optional[str] = None
+        rpm_limit: int | None = None,
+        tpm_limit: int | None = None,
+        description: str | None = None
     ) -> TenantModelRateLimit:
         """
         创建速率限制配置

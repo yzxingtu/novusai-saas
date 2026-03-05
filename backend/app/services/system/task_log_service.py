@@ -6,13 +6,11 @@
 
 from datetime import datetime
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.core.base_model import utc_now
 from app.core.base_service import GlobalService
 from app.enums.task import TaskStatusEnum
 from app.models.system.task_log import TaskLog
 from app.repositories.system.task_log_repository import TaskLogRepository
-from app.core.base_model import utc_now
 
 
 class TaskLogService(GlobalService[TaskLog, TaskLogRepository]):

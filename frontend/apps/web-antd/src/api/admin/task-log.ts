@@ -1,3 +1,10 @@
+import type {
+  TaskLogDetailInfo,
+  TaskLogInfo,
+  TaskLogListParams,
+  TaskLogListResponse,
+  TaskStatsItem,
+} from '#/api/shared/task-log-types';
 /**
  * 任务日志 API
  * 对接后端 /admin/tasks/* 接口
@@ -18,14 +25,6 @@ export type {
   TaskStatsItem,
 } from '#/api/shared/task-log-types';
 
-import type {
-  TaskLogDetailInfo,
-  TaskLogInfo,
-  TaskLogListParams,
-  TaskLogListResponse,
-  TaskStatsItem,
-} from '#/api/shared/task-log-types';
-
 /** 任务日志信息（后端原始格式 snake_case） */
 export interface TaskLogInfoRaw {
   id: number;
@@ -33,21 +32,21 @@ export interface TaskLogInfoRaw {
   task_name: string;
   queue: string;
   status: string;
-  args: Record<string, unknown> | null;
-  kwargs: Record<string, unknown> | null;
-  result: Record<string, unknown> | null;
-  error_message: string | null;
-  started_at: string | null;
-  finished_at: string | null;
-  duration_ms: number | null;
+  args: null | Record<string, unknown>;
+  kwargs: null | Record<string, unknown>;
+  result: null | Record<string, unknown>;
+  error_message: null | string;
+  started_at: null | string;
+  finished_at: null | string;
+  duration_ms: null | number;
   retry_count: number;
-  tenant_id: number | null;
+  tenant_id: null | number;
   created_at: string;
 }
 
 /** 任务日志详情原始格式 */
 interface TaskLogDetailInfoRaw extends TaskLogInfoRaw {
-  traceback: string | null;
+  traceback: null | string;
 }
 
 /** 任务统计项（后端原始格式） */
@@ -62,7 +61,7 @@ interface ActiveTaskRaw {
   task_id: string;
   task_name: string;
   worker: string;
-  started_at: number | null;
+  started_at: null | number;
 }
 
 /** 活跃任务 */
@@ -70,7 +69,7 @@ export interface ActiveTaskInfo {
   taskId: string;
   taskName: string;
   worker: string;
-  startedAt: number | null;
+  startedAt: null | number;
 }
 
 // ============================================================

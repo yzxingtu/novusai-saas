@@ -12,22 +12,22 @@ export interface PeriodicTaskInfo {
   name: string;
   taskPath: string;
   scheduleType: string;
-  cronExpression: string | null;
-  intervalSeconds: number | null;
+  cronExpression: null | string;
+  intervalSeconds: null | number;
   isActive: boolean;
-  lastRunAt: string | null;
-  nextRunAt: string | null;
-  description: string | null;
+  lastRunAt: null | string;
+  nextRunAt: null | string;
+  description: null | string;
   createdAt: string;
-  scope: string | null;
-  tenantId: number | null;
+  scope: null | string;
+  tenantId: null | number;
   isLocked: boolean;
   isEditable: boolean;
   maxRetries: number;
   retryDelay: number;
-  timeout: number | null;
+  timeout: null | number;
   notifyOnFailure: boolean;
-  notifyEmails: string | null;
+  notifyEmails: null | string;
 }
 
 /** 定时任务创建/更新请求 */
@@ -35,12 +35,12 @@ export interface PeriodicTaskFormData {
   name: string;
   task_path: string;
   schedule_type: string;
-  cron_expression?: string | null;
-  interval_seconds?: number | null;
-  args?: Record<string, unknown> | null;
-  kwargs?: Record<string, unknown> | null;
+  cron_expression?: null | string;
+  interval_seconds?: null | number;
+  args?: null | Record<string, unknown>;
+  kwargs?: null | Record<string, unknown>;
   is_active?: boolean;
-  description?: string | null;
+  description?: null | string;
 }
 
 /** 分页列表响应 */

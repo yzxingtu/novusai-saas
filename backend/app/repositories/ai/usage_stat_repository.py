@@ -5,7 +5,8 @@
 """
 
 from datetime import date
-from sqlalchemy import select, func, and_
+
+from sqlalchemy import and_, func, select
 
 from app.core.base_repository import BaseRepository
 from app.models.ai import UsageStat

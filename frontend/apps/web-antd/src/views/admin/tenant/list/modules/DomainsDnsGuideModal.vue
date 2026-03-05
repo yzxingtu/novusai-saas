@@ -94,7 +94,8 @@ async function onVerify() {
     } else {
       message.warning($t('admin.tenant.domain.verifyFailed'));
     }
-  } catch {} finally {
+  } catch {
+  } finally {
     verifying.value = false;
   }
 }

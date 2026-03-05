@@ -54,14 +54,19 @@ const DatePickerRaw = defineAsyncComponent(
 const DatePicker = (props: any, { attrs, slots }: any) => {
   // 如果没有自定义 format,使用统一格式
   const format = attrs?.format || props?.format || 'YYYY-MM-DD HH:mm:ss';
-  const valueFormat = attrs?.valueFormat || props?.valueFormat || 'YYYY-MM-DD HH:mm:ss';
-  
-  return h(DatePickerRaw, {
-    ...props,
-    ...attrs,
-    format,
-    valueFormat,
-  }, slots);
+  const valueFormat =
+    attrs?.valueFormat || props?.valueFormat || 'YYYY-MM-DD HH:mm:ss';
+
+  return h(
+    DatePickerRaw,
+    {
+      ...props,
+      ...attrs,
+      format,
+      valueFormat,
+    },
+    slots,
+  );
 };
 const Divider = defineAsyncComponent(() => import('ant-design-vue/es/divider'));
 const Input = defineAsyncComponent(() => import('ant-design-vue/es/input'));
@@ -386,14 +391,14 @@ export type ComponentType =
   | 'RangePicker'
   | 'Rate'
   | 'Select'
-  | 'ToolkitEditor'
-  | 'ValvesConfigForm'
   | 'Space'
   | 'Switch'
   | 'Textarea'
   | 'TimePicker'
+  | 'ToolkitEditor'
   | 'TreeSelect'
   | 'Upload'
+  | 'ValvesConfigForm'
   | BaseFormComponentType;
 
 async function initComponentAdapter() {

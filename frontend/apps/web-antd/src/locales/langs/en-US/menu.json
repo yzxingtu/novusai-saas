@@ -1,6 +1,7 @@
 {
   "tenant": {
     "dashboard": "Dashboard",
+    "tenant_workspace": "Workspace",
     "system": "Access Control",
     "system_mgmt": "System Management",
     "system_maintenance": "Maintenance",

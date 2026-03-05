@@ -7,7 +7,7 @@
 import type { NovusPluginSharedAPI } from './types';
 
 import { zhCN, enUS } from './locales';
-import { ND_STYLES } from './styles';
+import './novusdoc.css';
 
 export function setup(): void {
   const shared = (window as unknown as Record<string, unknown>)
@@ -20,12 +20,6 @@ export function setup(): void {
     shared.registerLocale('en', 'plugin.novusdoc', enUS);
   }
 
-  if (!document.getElementById('nd-plugin-styles')) {
-    const style = document.createElement('style');
-    style.id = 'nd-plugin-styles';
-    style.textContent = ND_STYLES;
-    document.head.appendChild(style);
-  }
 }
 
 // Phase A: 页面组件（通过插件菜单路由加载）

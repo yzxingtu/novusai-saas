@@ -5,21 +5,20 @@ AI 调用日志管理 API (Admin)
 """
 
 from datetime import date
-from typing import Optional
 
 from fastapi import Query, Request
 
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, QueryParams, ActiveAdmin
 from app.core.base_schema import PageResponse
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
     action_read,
+    permission_resource,
 )
 from app.services.ai import CallLogService
 
@@ -89,10 +88,10 @@ class AdminAICallLogController(GlobalController):
             request: Request,
             db: DbSession,
             admin: ActiveAdmin,
-            tenant_id: Optional[int] = Query(None, description="租户 ID"),
-            start_date: Optional[date] = Query(None, description="开始日期"),
-            end_date: Optional[date] = Query(None, description="结束日期"),
-            group_by: Optional[str] = Query(None, description="分组维度: daily/model/user，缺省返回汇总"),
+            tenant_id: int | None = Query(None, description="租户 ID"),
+            start_date: date | None = Query(None, description="开始日期"),
+            end_date: date | None = Query(None, description="结束日期"),
+            group_by: str | None = Query(None, description="分组维度: daily/model/user，缺省返回汇总"),
         ):
             """
             获取调用统计信息
@@ -126,8 +125,8 @@ class AdminAICallLogController(GlobalController):
             request: Request,
             db: DbSession,
             admin: ActiveAdmin,
-            tenant_id: Optional[int] = Query(None, description="租户 ID"),
-            start_date: Optional[date] = Query(None, description="开始日期"),
+            tenant_id: int | None = Query(None, description="租户 ID"),
+            start_date: date | None = Query(None, description="开始日期"),
             limit: int = Query(100, ge=1, le=1000, description="返回数量"),
         ):
             """
@@ -159,7 +158,7 @@ class AdminAICallLogController(GlobalController):
 
             权限: ai_call_log:list
             """
-            from app.core.csv_export import csv_streaming_response, MAX_EXPORT_ROWS
+            from app.core.csv_export import MAX_EXPORT_ROWS, csv_streaming_response
 
             spec.size = MAX_EXPORT_ROWS
             spec.page = 1

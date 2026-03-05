@@ -21,10 +21,9 @@
 - 会话超时：60-120分钟
 """
 
-from app.configs.meta import ConfigMeta, DisplayRule, min_value, max_value, option
 from app.configs.definitions.groups import PLATFORM_SECURITY_GROUP
+from app.configs.meta import ConfigMeta, DisplayRule, max_value, min_value, option
 from app.enums.config import ConfigScope, ConfigValueType
-
 
 # ==========================================
 # 密码策略

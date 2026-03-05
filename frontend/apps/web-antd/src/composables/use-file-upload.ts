@@ -6,9 +6,6 @@
  */
 import { message } from 'ant-design-vue';
 
-import { $t } from '#/locales';
-import { requestClient } from '#/utils/request';
-
 import {
   CHAT_MAX_FILE_SIZE_MB,
   isExtensionAllowed,
@@ -16,6 +13,8 @@ import {
   PLATFORM_DENIED_EXTENSIONS,
   PLATFORM_MAX_FILE_SIZE_MB,
 } from '#/constants/upload';
+import { $t } from '#/locales';
+import { requestClient } from '#/utils/request';
 
 // ============ Types ============
 
@@ -69,7 +68,9 @@ export function useFileUpload() {
     // 1. Extension check
     if (!isExtensionAllowed(file.name, allowedExtensions, deniedExtensions)) {
       const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
-      const msg = $t('common.uploadValidation.extensionNotAllowed', { extension: ext });
+      const msg = $t('common.uploadValidation.extensionNotAllowed', {
+        extension: ext,
+      });
       message.warning(msg);
       return { valid: false, errorMessage: msg };
     }
@@ -78,7 +79,9 @@ export function useFileUpload() {
     if (maxSizeMb > 0) {
       const fileSizeMb = file.size / (1024 * 1024);
       if (fileSizeMb > maxSizeMb) {
-        const msg = $t('common.uploadValidation.fileTooLarge', { max: maxSizeMb });
+        const msg = $t('common.uploadValidation.fileTooLarge', {
+          max: maxSizeMb,
+        });
         message.warning(msg);
         return { valid: false, errorMessage: msg };
       }
@@ -94,10 +97,10 @@ export function useFileUpload() {
   function validateChatFile(
     file: File,
     options: {
-      supportsVision?: boolean;
-      maxImageCount?: number;
       currentImageCount?: number;
+      maxImageCount?: number;
       maxImageSizeMb?: number;
+      supportsVision?: boolean;
     } = {},
   ): FileValidationResult {
     const {
@@ -163,14 +166,12 @@ export function useFileUpload() {
       }
       const data = await requestClient.upload<T>(
         url,
-        uploadData as { file: File; [key: string]: Blob | File | string },
+        uploadData as { [key: string]: Blob | File | string; file: File },
         {},
         onProgress
           ? (progressEvent) => {
               const percent = progressEvent.total
-                ? Math.round(
-                    (progressEvent.loaded * 100) / progressEvent.total,
-                  )
+                ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
                 : 0;
               onProgress({ percent });
             }
@@ -190,9 +191,7 @@ export function useFileUpload() {
   /**
    * Revoke all preview URLs from an array of attachments to prevent memory leaks.
    */
-  function revokePreviewUrls(
-    attachments: Array<{ preview?: string }>,
-  ): void {
+  function revokePreviewUrls(attachments: Array<{ preview?: string }>): void {
     for (const att of attachments) {
       if (att.preview) {
         URL.revokeObjectURL(att.preview);

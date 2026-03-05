@@ -10,12 +10,9 @@ AI 自动修复 Loop — 单元测试
 - FixContext / AutoFixResult 序列化
 """
 
-import pytest
-
 from app.codegen.auto_fix import (
     MAX_FIX_RETRIES,
     AutoFixResult,
-    FixAttempt,
     FixContext,
     apply_fix_patch,
     build_fix_context,
@@ -24,7 +21,6 @@ from app.codegen.auto_fix import (
     suggest_human_steps,
     validate_project,
 )
-
 
 # ============================================================
 # 辅助

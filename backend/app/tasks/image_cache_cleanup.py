@@ -5,12 +5,10 @@ Cleans up expired image processing cache files from the local filesystem.
 Runs as a scheduled Celery task.
 """
 
-import shutil
 import time
-from pathlib import Path
 
 from app.core.logging import LogManager
-from app.tasks.base import register_task, BaseTask
+from app.tasks.base import BaseTask, register_task
 
 logger = LogManager.get_logger("task")
 

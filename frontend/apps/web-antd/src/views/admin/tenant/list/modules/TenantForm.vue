@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'TenantForm' });
 /**
  * 租户新建/编辑表单抽屉
  *
@@ -18,9 +17,11 @@ import { $t } from '#/locales';
 
 import { useFormSchema } from '../data';
 
-type TenantInfo = adminApi.TenantInfo;
+defineOptions({ name: 'TenantForm' });
 
 const emits = defineEmits<{ success: [] }>();
+
+type TenantInfo = adminApi.TenantInfo;
 
 // 基础字段
 const baseFields = [

@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'PeriodicTaskForm' });
 /**
  * 定时任务新建/编辑表单抽屉
  */
@@ -14,9 +13,11 @@ import { $t } from '#/locales';
 
 import { getFormDefaults, useFormSchema } from '../data';
 
-type PeriodicTaskInfo = adminApi.PeriodicTaskInfo;
+defineOptions({ name: 'PeriodicTaskForm' });
 
 const emits = defineEmits<{ success: [] }>();
+
+type PeriodicTaskInfo = adminApi.PeriodicTaskInfo;
 
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(false),

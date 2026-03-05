@@ -68,7 +68,9 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
         // 转换为vben UserInfo格式
         const vbenUserInfo: UserInfo = {
           avatar: toAvatarDisplayUrl(userInfo?.avatar),
-          desc: userInfo?.isSuperAdmin ? $t('admin.system.admin.superAdmin') : $t('admin.system.admin.normalAdmin'),
+          desc: userInfo?.isSuperAdmin
+            ? $t('admin.system.admin.superAdmin')
+            : $t('admin.system.admin.normalAdmin'),
           homePath: userInfo?.homePath || ADMIN_HOME_PATH,
           realName: userInfo?.realName || '',
           roles: userInfo?.roles || [],
@@ -132,9 +134,7 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
 
     await router.replace({
       path: ADMIN_LOGIN_PATH,
-      query: redirect
-        ? { redirect: router.currentRoute.value.fullPath }
-        : {},
+      query: redirect ? { redirect: router.currentRoute.value.fullPath } : {},
     });
   }
 

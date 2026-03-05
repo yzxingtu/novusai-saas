@@ -5,15 +5,15 @@ AI 表策略自动发现与同步服务
 支持启动时自动同步和管理员手动触发同步。
 """
 
-import re
 from enum import Enum
 from typing import Any
 
-from sqlalchemy import inspect as sa_inspect, select
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapper
 
-from app.core.base_model import Base, BaseModel, TenantModel, utc_now
+from app.core.base_model import Base, BaseModel, utc_now
 from app.core.logging import get_logger
 from app.models.ai.table_policy import AITablePolicy
 
@@ -193,7 +193,6 @@ def _try_extract_enum_from_default(
     desc_parts: list[str],
 ) -> None:
     """尝试从列默认值反查枚举类并提取合法值"""
-    import importlib
     import sys
 
     module = sys.modules.get(model_cls.__module__)
@@ -201,7 +200,7 @@ def _try_extract_enum_from_default(
         return
 
     # 扫描模块级别的枚举导入
-    for name, obj in vars(module).items():
+    for _name, obj in vars(module).items():
         if not isinstance(obj, type) or not issubclass(obj, Enum):
             continue
         # 检查默认值是否属于该枚举

@@ -8,27 +8,59 @@
 /** 技能类型颜色映射 */
 export function getSkillTypeColor(type: string | undefined): string {
   switch (type) {
-    case 'toolkit': return 'volcano';
-    case 'knowledge_base': return 'green';
-    case 'data_intelligence': return 'blue';
-    case 'builtin': return 'default';
-    case 'http': return 'orange';
-    case 'email': return 'cyan';
-    case 'code_execution': return 'purple';
-    default: return 'default';
+    case 'builtin': {
+      return 'default';
+    }
+    case 'code_execution': {
+      return 'purple';
+    }
+    case 'data_intelligence': {
+      return 'blue';
+    }
+    case 'email': {
+      return 'cyan';
+    }
+    case 'http': {
+      return 'orange';
+    }
+    case 'knowledge_base': {
+      return 'green';
+    }
+    case 'toolkit': {
+      return 'volcano';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
 /** 技能类型图标映射 */
 export function getSkillTypeIcon(type: string | undefined): string {
   switch (type) {
-    case 'toolkit': return 'lucide:wrench';
-    case 'knowledge_base': return 'lucide:book-open';
-    case 'data_intelligence': return 'lucide:database';
-    case 'builtin': return 'lucide:cpu';
-    case 'http': return 'lucide:globe';
-    case 'email': return 'lucide:mail';
-    case 'code_execution': return 'lucide:terminal';
-    default: return 'lucide:sparkles';
+    case 'builtin': {
+      return 'lucide:cpu';
+    }
+    case 'code_execution': {
+      return 'lucide:terminal';
+    }
+    case 'data_intelligence': {
+      return 'lucide:database';
+    }
+    case 'email': {
+      return 'lucide:mail';
+    }
+    case 'http': {
+      return 'lucide:globe';
+    }
+    case 'knowledge_base': {
+      return 'lucide:book-open';
+    }
+    case 'toolkit': {
+      return 'lucide:wrench';
+    }
+    default: {
+      return 'lucide:sparkles';
+    }
   }
 }

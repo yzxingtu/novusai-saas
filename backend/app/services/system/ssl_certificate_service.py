@@ -8,15 +8,14 @@ SSL 证书服务
 from datetime import datetime
 
 from cryptography import x509
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import ec, rsa
-from cryptography.x509.oid import NameOID
 from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import serialization
+from cryptography.x509.oid import NameOID
 
+from app.core.base_model import utc_now
 from app.core.base_service import GlobalService
 from app.core.config import settings
 from app.core.i18n import _
-from app.core.base_model import utc_now
 from app.enums import ErrorCode
 from app.enums.domain import DomainSslStatus, SslCertStatus, SslCertType
 from app.exceptions import BusinessException, NotFoundException
@@ -279,9 +278,7 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
         # 签发机构
         issuer_parts = []
         for attr in cert.issuer:
-            if attr.oid == NameOID.ORGANIZATION_NAME:
-                issuer_parts.append(attr.value)
-            elif attr.oid == NameOID.COMMON_NAME:
+            if attr.oid == NameOID.ORGANIZATION_NAME or attr.oid == NameOID.COMMON_NAME:
                 issuer_parts.append(attr.value)
         issuer = ", ".join(issuer_parts) if issuer_parts else str(cert.issuer)
 

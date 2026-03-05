@@ -137,7 +137,7 @@ class TestGetForecast:
         req = _make_request({"lat": "31.23", "lon": "121.47"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await get_forecast(req, ctx=_make_ctx())
+            await get_forecast(req, ctx=_make_ctx())
 
         mock_open_meteo.get_forecast.assert_called_once_with(31.23, 121.47, 3)
 
@@ -149,7 +149,7 @@ class TestGetForecast:
         req = _make_request({"lat": "31.23", "lon": "121.47", "days": "5"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await get_forecast(req, ctx=_make_ctx())
+            await get_forecast(req, ctx=_make_ctx())
 
         mock_open_meteo.get_forecast.assert_called_once_with(31.23, 121.47, 5)
 
@@ -161,7 +161,7 @@ class TestGetForecast:
         req = _make_request({"lat": "31.23", "lon": "121.47", "days": "abc"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await get_forecast(req, ctx=_make_ctx())
+            await get_forecast(req, ctx=_make_ctx())
 
         mock_open_meteo.get_forecast.assert_called_once_with(31.23, 121.47, 3)
 
@@ -221,7 +221,7 @@ class TestSearchCity:
         req = _make_request({"name": "Shanghai"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await search_city(req, ctx=_make_ctx())
+            await search_city(req, ctx=_make_ctx())
 
         mock_open_meteo.search_city.assert_called_once_with("Shanghai", 5)
 
@@ -233,7 +233,7 @@ class TestSearchCity:
         req = _make_request({"name": "Shanghai", "count": "3"})
 
         with patch.object(mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await search_city(req, ctx=_make_ctx())
+            await search_city(req, ctx=_make_ctx())
 
         mock_open_meteo.search_city.assert_called_once_with("Shanghai", 3)
 

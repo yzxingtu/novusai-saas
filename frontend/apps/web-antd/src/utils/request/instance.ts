@@ -11,12 +11,13 @@ import type { ApiEndpoint, RefreshTokenResultRaw } from './types';
  * @module utils/request/instance
  */
 import { useAppConfig } from '@vben/hooks';
+import { $t } from '@vben/locales';
 import { preferences } from '@vben/preferences';
 import { useAccessStore } from '@vben/stores';
 
 import { message } from 'ant-design-vue';
 
-import { LOGIN_PATHS, TokenStorage } from '#/store';
+import { TokenStorage } from '#/store/shared/token-storage';
 
 import {
   createAuthInterceptor,
@@ -41,6 +42,13 @@ const REFRESH_TOKEN_URLS: Record<ApiEndpoint, string> = {
   admin: '/admin/auth/refresh',
   tenant: '/tenant/auth/refresh',
   user: '/api/v1/auth/refresh',
+};
+
+/** 登录页 URL 映射（避免依赖 store 入口造成循环依赖） */
+const LOGIN_PATHS: Record<ApiEndpoint, string> = {
+  admin: '/admin/login',
+  tenant: '/tenant/login',
+  user: '/login',
 };
 
 // ============================================================
@@ -152,27 +160,10 @@ const messageHandler = {
     message[type](msg);
   },
   showLoading: (loadingMsg?: string): (() => void) => {
-    const hide = message.loading(loadingMsg || '加载中...', 0);
+    const hide = message.loading(loadingMsg || $t('common.http.loading'), 0);
     return hide;
   },
-  t: (key: string) => {
-    // 简单的 fallback，实际使用时可以接入 i18n
-    const fallbacks: Record<string, string> = {
-      'ui.fallback.http.networkError': '网络错误',
-      'ui.fallback.http.requestTimeout': '请求超时',
-      'ui.fallback.http.badRequest': '请求参数错误',
-      'ui.fallback.http.unauthorized': '未授权',
-      'ui.fallback.http.forbidden': '禁止访问',
-      'ui.fallback.http.notFound': '资源不存在',
-      'ui.fallback.http.internalServerError': '服务器内部错误',
-      'ui.fallback.http.badGateway': '网关错误',
-      'ui.fallback.http.serviceUnavailable': '服务不可用',
-      'ui.fallback.http.gatewayTimeout': '网关超时',
-      'ui.fallback.http.loading': '加载中...',
-      'ui.fallback.http.operationSuccess': '操作成功',
-    };
-    return fallbacks[key] || key;
-  },
+  t: (key: string) => $t(key as never),
 };
 
 // ============================================================

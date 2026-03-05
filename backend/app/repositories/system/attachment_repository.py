@@ -6,7 +6,7 @@
 
 from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 
 from app.core.base_repository import BaseRepository
 from app.models.tenant.attachment import Attachment
@@ -15,12 +15,12 @@ from app.models.tenant.attachment import Attachment
 class AdminAttachmentRepository(BaseRepository[Attachment]):
     """
     平台端附件仓储
-    
+
     提供跨租户的附件数据访问方法
     """
-    
+
     model = Attachment
-    
+
     # 不同 scope 下允许筛选的字段
     _scope_fields: dict[str, set[str]] = {
         "admin": {
@@ -47,11 +47,11 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
     async def get_by_hash(self, file_hash: str, tenant_id: int | None = None) -> Attachment | None:
         """
         根据哈希获取附件
-        
+
         Args:
             file_hash: 文件哈希
             tenant_id: 可选的租户 ID
-        
+
         Returns:
             附件实例或 None
         """
@@ -67,10 +67,10 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
     async def sum_size(self, tenant_id: int | None = None) -> int:
         """
         统计附件总占用大小
-        
+
         Args:
             tenant_id: 可选的租户 ID，不传则统计所有租户
-        
+
         Returns:
             总大小（字节）
         """
@@ -85,10 +85,10 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
     async def get_storage_stats(self, tenant_id: int | None = None) -> dict[str, Any]:
         """
         获取存储统计
-        
+
         Args:
             tenant_id: 可选的租户 ID
-        
+
         Returns:
             存储统计信息
         """
@@ -102,7 +102,7 @@ class AdminAttachmentRepository(BaseRepository[Attachment]):
     async def get_storage_stats_by_tenant(self) -> list[dict[str, Any]]:
         """
         获取按租户分组的存储统计
-        
+
         Returns:
             各租户存储统计列表
         """

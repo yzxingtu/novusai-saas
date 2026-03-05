@@ -9,7 +9,6 @@ but the model declares DateTime(timezone=True). This migration fixes the mismatc
 """
 
 from alembic import op
-import sqlalchemy as sa
 
 revision = "novusdoc_002"
 down_revision = "novusdoc_001"

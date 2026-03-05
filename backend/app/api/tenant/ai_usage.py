@@ -5,19 +5,18 @@ AI 使用量统计 API (Tenant)
 """
 
 from datetime import date
-from typing import Optional
 
 from fastapi import Query, Request
 
 from app.core.base_controller import TenantController
-from app.core.deps import DbSession, ActiveTenantAdmin
+from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
     action_read,
+    permission_resource,
 )
 from app.services.ai import MeteringService
 
@@ -54,8 +53,8 @@ class TenantAIUsageController(TenantController):
             request: Request,
             db: DbSession,
             tenant_admin: ActiveTenantAdmin,
-            start_date: Optional[date] = Query(None, description="开始日期"),
-            end_date: Optional[date] = Query(None, description="结束日期"),
+            start_date: date | None = Query(None, description="开始日期"),
+            end_date: date | None = Query(None, description="结束日期"),
         ):
             """
             获取当前租户使用量汇总
@@ -78,8 +77,8 @@ class TenantAIUsageController(TenantController):
             db: DbSession,
             user_id: int,
             tenant_admin: ActiveTenantAdmin,
-            start_date: Optional[date] = Query(None, description="开始日期"),
-            end_date: Optional[date] = Query(None, description="结束日期"),
+            start_date: date | None = Query(None, description="开始日期"),
+            end_date: date | None = Query(None, description="结束日期"),
         ):
             """
             获取租户下指定用户的使用量汇总

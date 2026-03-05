@@ -11,7 +11,6 @@ from app.repositories.tenant import (
     TenantRoleRepository,
 )
 
-
 __all__ = [
     # 平台级
     "AdminRepository",

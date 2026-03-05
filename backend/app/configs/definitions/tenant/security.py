@@ -4,10 +4,9 @@
 包含租户级的登录安全、密码策略等配置
 """
 
-from app.configs.meta import ConfigMeta, DisplayRule, min_value, max_value, option
 from app.configs.definitions.groups import TENANT_GENERAL_GROUP
+from app.configs.meta import ConfigMeta, DisplayRule, max_value, min_value, option
 from app.enums.config import ConfigScope, ConfigValueType
-
 
 # ==========================================
 # 登录安全

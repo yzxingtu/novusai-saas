@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'AIApiKeyForm' });
 /**
  * AI API Key 新建/编辑表单抽屉
  */
@@ -13,6 +12,8 @@ import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
 import { getFormDefaults, useFormSchema } from '../data';
+
+defineOptions({ name: 'AIApiKeyForm' });
 
 const emits = defineEmits<{ success: [] }>();
 
@@ -55,9 +56,7 @@ const { Drawer, isEdit } = useCrudDrawer<AIApiKeyInfo>({
 });
 
 const title = computed(() =>
-  isEdit.value
-    ? $t('admin.common.edit')
-    : $t('admin.ai.apiKey.create'),
+  isEdit.value ? $t('admin.common.edit') : $t('admin.ai.apiKey.create'),
 );
 </script>
 

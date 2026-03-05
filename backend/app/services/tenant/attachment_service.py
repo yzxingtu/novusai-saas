@@ -10,8 +10,9 @@ import hashlib
 import json
 import tempfile
 import uuid
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, BinaryIO, Callable
+from typing import Any, BinaryIO
 
 import anyio
 from sqlalchemy import select
@@ -19,10 +20,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.configs.service import ConfigService
+from app.core.base_model import utc_now
 from app.core.base_service import TenantService
 from app.core.i18n import _
 from app.enums import ErrorCode
-from app.enums.attachment import AttachmentSource, AttachmentStatus, AttachmentVisibility
+from app.enums.attachment import (
+    AttachmentSource,
+    AttachmentStatus,
+    AttachmentVisibility,
+)
 from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.attachment import Attachment
 from app.models.tenant.tenant import Tenant
@@ -30,7 +36,6 @@ from app.repositories.tenant.attachment_repository import AttachmentRepository
 from app.services.common.file_validator import FileValidator, validate_result_or_raise
 from app.services.tenant.quota_service import QuotaService
 from app.storage import StorageConfig, StorageVisibility, storage_manager
-from app.core.base_model import utc_now
 
 ProgressCallback = Callable[[dict[str, Any]], Any]
 
@@ -190,7 +195,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
 
         uploaded_chunks = set(session.get("uploaded_chunks", []))
         uploaded_chunks.add(chunk_index)
-        session["uploaded_chunks"] = sorted(list(uploaded_chunks))
+        session["uploaded_chunks"] = sorted(uploaded_chunks)
 
         uploaded_bytes = await self._calc_uploaded_bytes(upload_id, session["uploaded_chunks"])
         response = self._build_session_response(session, uploaded_bytes=uploaded_bytes)
@@ -427,7 +432,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         落库附件记录
         """
         extension = Path(filename).suffix.lstrip(".") if filename else None
-        
+
         # 获取 base_url
         if storage_config:
             driver = storage_manager.get_driver(storage_config)
@@ -435,7 +440,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         else:
             # 容错处理：如果没有 storage_config，使用空字符串
             base_url = ""
-        
+
         attachment = await self.repo.create(
             {
                 "name": filename or Path(storage_path).name,
@@ -662,10 +667,10 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
     async def soft_delete(self, attachment_id: int) -> bool:
         """
         软删除附件
-        
+
         Args:
             attachment_id: 附件 ID
-        
+
         Returns:
             是否删除成功
         """
@@ -677,7 +682,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
     async def get_storage_stats(self) -> dict[str, Any]:
         """
         获取租户存储统计
-        
+
         Returns:
             存储统计信息
         """

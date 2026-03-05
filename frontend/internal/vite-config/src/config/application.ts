@@ -6,7 +6,6 @@ import path, { relative } from 'node:path';
 
 import { findMonorepoRoot } from '@vben/node-utils';
 
-import { NodePackageImporter } from 'sass-embedded';
 import { defineConfig, loadEnv, mergeConfig } from 'vite';
 
 import { defaultImportmapOptions, getDefaultPwaOptions } from '../options';
@@ -113,7 +112,6 @@ function createCssOptions(injectGlobalScss = true): CSSOptions {
               return content;
             },
             // api: 'modern',
-            importers: [new NodePackageImporter()],
           },
         }
       : {},

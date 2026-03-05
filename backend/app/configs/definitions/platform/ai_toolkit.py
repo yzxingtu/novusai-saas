@@ -4,10 +4,9 @@
 控制用户上传 Toolkit 的安全策略：安全等级、内存限制、超时上限
 """
 
-from app.configs.meta import ConfigMeta, min_value, max_value, option
 from app.configs.definitions.groups import PLATFORM_AI_TOOLKIT_GROUP
+from app.configs.meta import ConfigMeta, max_value, min_value, option
 from app.enums.config import ConfigScope, ConfigValueType
-
 
 # ==========================================
 # Toolkit 安全等级

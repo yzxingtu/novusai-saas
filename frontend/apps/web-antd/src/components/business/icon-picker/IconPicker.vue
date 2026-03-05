@@ -22,8 +22,8 @@ defineOptions({ name: 'IconPicker' });
 
 withDefaults(
   defineProps<{
-    value?: string;
     placeholder?: string;
+    value?: string;
   }>(),
   {
     value: '',
@@ -288,7 +288,10 @@ const displayCount = computed(() => {
             class="mb-3"
           >
             <template #prefix>
-              <IconifyIcon icon="lucide:search" class="size-3.5 text-muted-foreground" />
+              <IconifyIcon
+                icon="lucide:search"
+                class="size-3.5 text-muted-foreground"
+              />
             </template>
           </Input>
 
@@ -297,27 +300,39 @@ const displayCount = computed(() => {
             <div class="flex gap-1 text-xs">
               <button
                 class="rounded px-2 py-0.5 transition-colors"
-                :class="activeTab === 'preset'
-                  ? 'bg-primary/10 text-primary font-medium'
-                  : 'text-muted-foreground hover:text-foreground'"
-                @click="activeTab = 'preset'; searchKeyword = ''"
+                :class="
+                  activeTab === 'preset'
+                    ? 'bg-primary/10 font-medium text-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                "
+                @click="
+                  activeTab = 'preset';
+                  searchKeyword = '';
+                "
               >
                 {{ $t('admin.ai.provider.iconPicker.preset') }}
               </button>
               <button
                 class="rounded px-2 py-0.5 transition-colors"
-                :class="activeTab === 'browse'
-                  ? 'bg-primary/10 text-primary font-medium'
-                  : 'text-muted-foreground hover:text-foreground'"
-                @click="activeTab = 'browse'; searchKeyword = ''"
+                :class="
+                  activeTab === 'browse'
+                    ? 'bg-primary/10 font-medium text-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                "
+                @click="
+                  activeTab = 'browse';
+                  searchKeyword = '';
+                "
               >
                 {{ $t('admin.ai.provider.iconPicker.browse') }}
               </button>
               <button
                 class="rounded px-2 py-0.5 transition-colors"
-                :class="activeTab === 'search'
-                  ? 'bg-primary/10 text-primary font-medium'
-                  : 'text-muted-foreground hover:text-foreground'"
+                :class="
+                  activeTab === 'search'
+                    ? 'bg-primary/10 font-medium text-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                "
                 @click="activeTab = 'search'"
               >
                 {{ $t('admin.ai.provider.iconPicker.search') }}
@@ -353,7 +368,9 @@ const displayCount = computed(() => {
               >
                 <button
                   class="flex size-10 items-center justify-center rounded-lg border border-transparent transition-all hover:border-primary/30 hover:bg-primary/5"
-                  :class="value === item.icon ? 'border-primary bg-primary/10' : ''"
+                  :class="
+                    value === item.icon ? 'border-primary bg-primary/10' : ''
+                  "
                   @click="onSelectIcon(item.icon)"
                 >
                   <IconifyIcon
@@ -375,9 +392,10 @@ const displayCount = computed(() => {
               v-else-if="activeTab === 'search' && !searchLoading"
               class="flex h-[100px] items-center justify-center text-sm text-muted-foreground"
             >
-              {{ searchKeyword
-                ? $t('admin.ai.provider.iconPicker.noResults')
-                : $t('admin.ai.provider.iconPicker.searchTip')
+              {{
+                searchKeyword
+                  ? $t('admin.ai.provider.iconPicker.noResults')
+                  : $t('admin.ai.provider.iconPicker.searchTip')
               }}
             </div>
           </Spin>

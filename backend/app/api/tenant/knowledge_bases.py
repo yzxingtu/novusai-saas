@@ -7,36 +7,36 @@
 import hashlib
 import os
 
-from fastapi import Request, UploadFile, File, Form
+from fastapi import File, Form, Request, UploadFile
 
 from app.core.base_controller import TenantController
-from app.core.deps import DbSession, ActiveTenantAdmin, QueryParams
+from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.schemas.common.query import FilterRule, FilterOp
-from app.core.response import success, created, deleted, paginated
+from app.core.recycle_bin import register_tenant_recycle_bin_routes
+from app.core.response import created, deleted, paginated, success
 from app.enums.knowledge_base import DocumentStatusEnum, DocumentTypeEnum
 from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException, BusinessException
+from app.exceptions import BusinessException, NotFoundException
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
-    action_read,
     action_create,
-    action_update,
     action_delete,
+    action_read,
+    action_update,
+    permission_resource,
 )
 from app.schemas.ai.knowledge_base import (
     KnowledgeBaseCreate,
-    KnowledgeBaseUpdate,
     KnowledgeBaseSearchRequest,
+    KnowledgeBaseUpdate,
     QAPairCreate,
     TextDocumentCreate,
 )
-from app.core.recycle_bin import register_tenant_recycle_bin_routes
+from app.schemas.common.query import FilterOp, FilterRule
 from app.services.ai.knowledge_base_service import (
+    DocumentChunkService,
     KnowledgeBaseService,
     KnowledgeDocumentService,
-    DocumentChunkService,
 )
 
 
@@ -130,11 +130,13 @@ class TenantKnowledgeBaseController(TenantController):
 
             权限: knowledge_base:selectable
             """
-            from sqlalchemy import select, or_, and_
-            from app.models.ai.knowledge_base import KnowledgeBase
-            from app.enums.common import ResourceScopeEnum
+            from sqlalchemy import and_, or_, select
 
-            from app.repositories.system.resource_tenant_assignment_repository import assigned_resource_ids_subquery
+            from app.enums.common import ResourceScopeEnum
+            from app.models.ai.knowledge_base import KnowledgeBase
+            from app.repositories.system.resource_tenant_assignment_repository import (
+                assigned_resource_ids_subquery,
+            )
 
             tenant_id = tenant_admin.tenant_id
             assigned_subq = assigned_resource_ids_subquery("knowledge_base", tenant_id)
@@ -402,7 +404,7 @@ class TenantKnowledgeBaseController(TenantController):
             from app.services.tenant.attachment_service import AttachmentService
 
             # 验证知识库存在且为租户自有
-            kb = await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
+            await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
 
             # 配额检查
             kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
@@ -513,7 +515,7 @@ class TenantKnowledgeBaseController(TenantController):
             """
             import hashlib
 
-            kb = await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
+            await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
 
             kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)
             await kb_service.check_document_quota(kb_id)
@@ -886,6 +888,7 @@ class TenantKnowledgeBaseController(TenantController):
 
             file_bytes = await file.read()
             import io
+
             import pandas as pd
 
             if ext == ".csv":
@@ -988,7 +991,7 @@ class TenantKnowledgeBaseController(TenantController):
             每个 URL 创建一个文档，异步爬取和处理。
             权限: knowledge_base:document_url
             """
-            kb = await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
+            await _ensure_tenant_owned_kb(db, tenant_admin.tenant_id, kb_id)
 
             # 配额检查
             kb_service = KnowledgeBaseService(db, tenant_admin.tenant_id)

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import re
 import time
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
@@ -85,6 +85,7 @@ class HttpToolExecutor(BaseToolExecutor):
         context: ExecutionContext | None = None,
     ) -> ToolResult:
         """执行 HTTP 请求"""
+        _ = context
         start = time.perf_counter()
         cfg = definition.config or {}
 
@@ -201,6 +202,7 @@ class HttpToolExecutor(BaseToolExecutor):
         arguments: dict[str, Any],
     ) -> bool:
         """校验 HTTP 工具参数"""
+        _ = arguments
         cfg = definition.config or {}
         url = cfg.get("_http_url", "")
         return bool(url)

@@ -163,9 +163,7 @@ def _is_placeholder(value: str) -> bool:
     if lower.startswith("cli_xxxx"):
         return True
     # 全 x 占位符
-    if re.match(r"^[xX]+$", value):
-        return True
-    return False
+    return bool(re.match(r"^[xX]+$", value))
 
 
 def _infer_type(value: str) -> str:

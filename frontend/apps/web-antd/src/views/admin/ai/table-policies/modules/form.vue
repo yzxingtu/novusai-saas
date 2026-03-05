@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'AITablePolicyForm' });
 /**
  * AI 表策略编辑表单抽屉
  *
@@ -16,6 +15,8 @@ import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
 import { loadColumnOptions, useFormSchema } from '../data';
+
+defineOptions({ name: 'AITablePolicyForm' });
 
 const emits = defineEmits<{ success: [] }>();
 
@@ -81,7 +82,9 @@ watch(recordId, async (newId) => {
           componentProps: {
             mode: 'multiple',
             options,
-            placeholder: $t('admin.ai.tablePolicy.placeholder.selectBlockedColumns'),
+            placeholder: $t(
+              'admin.ai.tablePolicy.placeholder.selectBlockedColumns',
+            ),
           },
         },
         {
@@ -89,7 +92,9 @@ watch(recordId, async (newId) => {
           componentProps: {
             mode: 'multiple',
             options,
-            placeholder: $t('admin.ai.tablePolicy.placeholder.selectReadonlyColumns'),
+            placeholder: $t(
+              'admin.ai.tablePolicy.placeholder.selectReadonlyColumns',
+            ),
           },
         },
       ]);

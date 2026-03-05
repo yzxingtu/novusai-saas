@@ -80,8 +80,8 @@ function getEndpointByUrl(url: string): ApiEndpoint {
   if (url.startsWith('/tenant')) return 'tenant';
   // 双端插件路由：/plugins/{name}/admin/* 或 /plugins/{name}/tenant/*
   if (url.startsWith('/plugins/')) {
-    if (/^\/plugins\/[^/]+\/admin(\/|$)/.test(url)) return 'admin';
-    if (/^\/plugins\/[^/]+\/tenant(\/|$)/.test(url)) return 'tenant';
+    if (/^\/plugins\/[^/]+\/admin(?:\/|$)/.test(url)) return 'admin';
+    if (/^\/plugins\/[^/]+\/tenant(?:\/|$)/.test(url)) return 'tenant';
   }
   return 'user';
 }
@@ -155,7 +155,7 @@ export class RequestClient {
       headers: {
         'Content-Type': 'application/json;charset=utf-8',
         'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
+        Pragma: 'no-cache',
         ...headers,
       },
       paramsSerializer: getParamsSerializer(
@@ -239,14 +239,19 @@ export class RequestClient {
         // 解析 JSON 错误
         const text = await blob.text();
         const errorData = JSON.parse(text);
-        throw new Error(errorData.message || errorData.error || '下载失败');
+        throw new Error(
+          errorData.message || errorData.error || 'Download failed',
+        );
       }
 
       return response.data;
     } catch (error: any) {
       // 显示友好的错误提示
       if (this.showMessage) {
-        const message = error?.message || '文件下载失败';
+        const message =
+          error?.message ||
+          this.t?.('common.http.downloadFailed') ||
+          'Download failed';
         this.showMessage('error', message);
       }
       throw error;

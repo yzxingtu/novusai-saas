@@ -10,8 +10,6 @@
  */
 import type { AIChatPanelProps } from './types';
 
-defineOptions({ name: 'AIChatPanel', inheritAttrs: false });
-
 import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
@@ -19,11 +17,11 @@ import { IconifyIcon } from '@vben/icons';
 import {
   Button,
   Input,
+  message,
   Modal,
   Select,
   Spin,
   Tooltip,
-  message,
 } from 'ant-design-vue';
 
 import { KbMentionSelector } from '#/components/business/kb-mention-selector';
@@ -33,6 +31,8 @@ import { toAvatarDisplayUrl } from '#/utils/image';
 
 import ChatMessageItem from './ChatMessageItem.vue';
 import { useAIChat } from './use-ai-chat';
+
+defineOptions({ name: 'AIChatPanel', inheritAttrs: false });
 
 const props = withDefaults(defineProps<AIChatPanelProps>(), {
   showKbSelector: false,
@@ -44,9 +44,9 @@ const props = withDefaults(defineProps<AIChatPanelProps>(), {
 
 const emit = defineEmits<{
   /** Emitted when the selected agent changes */
-  'agent-change': [agentId: number];
+  agentChange: [agentId: number];
   /** Emitted when the active conversation changes */
-  'conversation-change': [conversationId: number | null];
+  conversationChange: [conversationId: null | number];
 }>();
 
 const chat = useAIChat({
@@ -71,6 +71,8 @@ const {
   loadConversations,
   startNewConversation,
   deleteConversation,
+  clearConversationMemory,
+  clearingMemory,
   loadConversationMessages,
   chatMessages,
   inputMessage,
@@ -126,7 +128,9 @@ const effectiveSuggestedQuestions = computed<string[]>(() => {
   if (props.suggestedQuestions.length > 0) return props.suggestedQuestions;
   const raw = selectedAgent.value?.suggested_questions;
   if (!Array.isArray(raw)) return [];
-  return raw.filter((q): q is string => typeof q === 'string' && q.trim() !== '');
+  return raw.filter(
+    (q): q is string => typeof q === 'string' && q.trim() !== '',
+  );
 });
 
 /** Click a suggested question: fill + send */
@@ -142,8 +146,8 @@ const conversationSearch = ref('');
 const filteredConversations = computed(() => {
   const keyword = conversationSearch.value.trim().toLowerCase();
   if (!keyword) return conversations.value;
-  return conversations.value.filter(
-    (c) => (c.title || '').toLowerCase().includes(keyword),
+  return conversations.value.filter((c) =>
+    (c.title || '').toLowerCase().includes(keyword),
   );
 });
 
@@ -157,8 +161,12 @@ const groupedConversations = computed<ConversationGroup[]>(() => {
   if (list.length === 0) return [];
 
   const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const yesterdayStart = todayStart - 86400000;
+  const todayStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime();
+  const yesterdayStart = todayStart - 86_400_000;
 
   const today: typeof list = [];
   const yesterday: typeof list = [];
@@ -172,9 +180,15 @@ const groupedConversations = computed<ConversationGroup[]>(() => {
   }
 
   const groups: ConversationGroup[] = [];
-  if (today.length) groups.push({ label: $t('common.globalAiChat.today'), items: today });
-  if (yesterday.length) groups.push({ label: $t('common.globalAiChat.yesterday'), items: yesterday });
-  if (earlier.length) groups.push({ label: $t('common.globalAiChat.earlier'), items: earlier });
+  if (today.length > 0)
+    groups.push({ label: $t('common.globalAiChat.today'), items: today });
+  if (yesterday.length > 0)
+    groups.push({
+      label: $t('common.globalAiChat.yesterday'),
+      items: yesterday,
+    });
+  if (earlier.length > 0)
+    groups.push({ label: $t('common.globalAiChat.earlier'), items: earlier });
   return groups;
 });
 
@@ -223,6 +237,21 @@ function onDeleteConversation(convId: number) {
   });
 }
 
+function onClearConversationMemory() {
+  if (!activeConversationId.value) return;
+  Modal.confirm({
+    title: $t('common.globalAiChat.clearMemoryConfirm'),
+    onOk: async () => {
+      const ok = await clearConversationMemory();
+      if (ok) {
+        message.success($t('common.globalAiChat.clearMemorySuccess'));
+      } else {
+        message.error($t('common.globalAiChat.clearMemoryFailed'));
+      }
+    },
+  });
+}
+
 async function onCopyMessage(content: string) {
   await copyMessage(content);
   message.success($t('common.globalAiChat.copySuccess'));
@@ -230,7 +259,7 @@ async function onCopyMessage(content: string) {
 
 // ============ Avatar helper ============
 
-function agentAvatar(agent: { avatar?: string | null; name: string }) {
+function agentAvatar(agent: { avatar?: null | string; name: string }) {
   return agent.avatar ? toAvatarDisplayUrl(agent.avatar) : null;
 }
 
@@ -242,13 +271,13 @@ function agentInitial(agent: { name: string }) {
 
 watch(selectedAgentId, (id) => {
   loadConversations();
-  if (id != null) {
-    emit('agent-change', id);
+  if (id !== null && id !== undefined) {
+    emit('agentChange', id);
   }
 });
 
 watch(activeConversationId, (id) => {
-  emit('conversation-change', id);
+  emit('conversationChange', id);
 });
 
 onMounted(() => {
@@ -265,10 +294,14 @@ onUnmounted(() => {
   <template v-if="props.mode === 'page'">
     <div class="flex h-full gap-4">
       <!-- Left sidebar: Agent list + Conversations -->
-      <div class="flex w-72 shrink-0 flex-col overflow-hidden rounded-2xl border border-border/50 bg-card">
+      <div
+        class="flex w-72 shrink-0 flex-col overflow-hidden rounded-2xl border border-border/50 bg-card"
+      >
         <div class="flex-1 overflow-y-auto p-3">
           <!-- Agent list -->
-          <div class="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <div
+            class="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+          >
             {{ $t('common.globalAiChat.selectAgent') }}
           </div>
 
@@ -287,7 +320,7 @@ onUnmounted(() => {
                 :class="
                   selectedAgentId === agent.id
                     ? 'bg-primary/10 text-primary shadow-sm'
-                    : 'hover:bg-muted text-foreground'
+                    : 'text-foreground hover:bg-muted'
                 "
                 @click="selectAgent(agent.id)"
               >
@@ -327,11 +360,13 @@ onUnmounted(() => {
           </Spin>
 
           <!-- Divider -->
-          <div class="my-3 border-t border-border/40" />
+          <div class="my-3 border-t border-border/40"></div>
 
           <!-- Conversation history -->
           <div class="mb-2 flex items-center justify-between px-1">
-            <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <span
+              class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+            >
               {{ $t('common.globalAiChat.history') }}
             </span>
             <button
@@ -352,7 +387,10 @@ onUnmounted(() => {
             class="mb-2 !rounded-lg"
           >
             <template #prefix>
-              <IconifyIcon icon="lucide:search" class="size-3 text-muted-foreground" />
+              <IconifyIcon
+                icon="lucide:search"
+                class="size-3 text-muted-foreground"
+              />
             </template>
           </Input>
 
@@ -363,8 +401,14 @@ onUnmounted(() => {
             >
               {{ $t('common.globalAiChat.noHistory') }}
             </div>
-            <div v-for="group in groupedConversations" :key="group.label" class="mb-2">
-              <div class="mb-1 px-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
+            <div
+              v-for="group in groupedConversations"
+              :key="group.label"
+              class="mb-2"
+            >
+              <div
+                class="mb-1 px-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60"
+              >
                 {{ group.label }}
               </div>
               <div class="space-y-0.5">
@@ -374,18 +418,23 @@ onUnmounted(() => {
                   class="group flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm transition-all duration-150"
                   :class="
                     activeConversationId === conv.id
-                      ? 'bg-accent text-foreground font-medium'
+                      ? 'bg-accent font-medium text-foreground'
                       : 'text-muted-foreground hover:bg-accent/50'
                   "
                   @click="loadConversationMessages(conv.id)"
                 >
                   <div class="flex min-w-0 items-center gap-2">
-                    <IconifyIcon icon="lucide:message-square" class="size-3.5 shrink-0 opacity-50" />
+                    <IconifyIcon
+                      icon="lucide:message-square"
+                      class="size-3.5 shrink-0 opacity-50"
+                    />
                     <span class="truncate">
                       {{ conv.title || `#${conv.id}` }}
                     </span>
                   </div>
-                  <Tooltip :title="$t('common.globalAiChat.deleteConversation')">
+                  <Tooltip
+                    :title="$t('common.globalAiChat.deleteConversation')"
+                  >
                     <IconifyIcon
                       icon="lucide:trash-2"
                       class="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
@@ -400,7 +449,9 @@ onUnmounted(() => {
       </div>
 
       <!-- Right: Chat area -->
-      <div class="flex flex-1 flex-col overflow-hidden rounded-2xl border border-border/50 bg-card">
+      <div
+        class="flex flex-1 flex-col overflow-hidden rounded-2xl border border-border/50 bg-card"
+      >
         <!-- Header: Current agent info -->
         <div
           v-if="selectedAgent"
@@ -431,6 +482,21 @@ onUnmounted(() => {
             </div>
           </div>
           <div class="flex items-center gap-1">
+            <Tooltip :title="$t('common.globalAiChat.clearMemory')">
+              <button
+                class="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
+                :disabled="
+                  !activeConversationId ||
+                  sending ||
+                  streaming ||
+                  clearingMemory
+                "
+                @click="onClearConversationMemory"
+              >
+                <Spin v-if="clearingMemory" size="small" />
+                <IconifyIcon v-else icon="lucide:eraser" class="size-4" />
+              </button>
+            </Tooltip>
             <Tooltip :title="$t('common.globalAiChat.newChat')">
               <button
                 class="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -463,7 +529,9 @@ onUnmounted(() => {
                   :alt="selectedAgent.name"
                   class="size-full rounded-3xl object-cover"
                 />
-                <span v-else-if="selectedAgent">{{ agentInitial(selectedAgent) }}</span>
+                <span v-else-if="selectedAgent">{{
+                  agentInitial(selectedAgent)
+                }}</span>
                 <IconifyIcon
                   v-else
                   icon="lucide:sparkles"
@@ -471,16 +539,26 @@ onUnmounted(() => {
                 />
               </div>
               <div class="text-xl font-semibold text-foreground">
-                {{ effectiveWelcomeMessage || $t('common.globalAiChat.welcomeTitle') }}
+                {{
+                  effectiveWelcomeMessage ||
+                  $t('common.globalAiChat.welcomeTitle')
+                }}
               </div>
-              <div v-if="!effectiveWelcomeMessage" class="mt-2 text-sm text-muted-foreground">
+              <div
+                v-if="!effectiveWelcomeMessage"
+                class="mt-2 text-sm text-muted-foreground"
+              >
                 {{ $t('common.globalAiChat.welcomeDesc') }}
               </div>
               <!-- Suggested questions -->
               <div
                 v-if="effectiveSuggestedQuestions.length > 0"
                 class="mt-8 grid gap-2"
-                :class="effectiveSuggestedQuestions.length <= 2 ? 'grid-cols-1 mx-auto max-w-sm' : 'grid-cols-2'"
+                :class="
+                  effectiveSuggestedQuestions.length <= 2
+                    ? 'mx-auto max-w-sm grid-cols-1'
+                    : 'grid-cols-2'
+                "
               >
                 <button
                   v-for="(q, qi) in effectiveSuggestedQuestions"
@@ -488,7 +566,10 @@ onUnmounted(() => {
                   class="flex items-center gap-2.5 rounded-xl border border-border/50 bg-card px-4 py-3 text-left text-sm text-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
                   @click="askSuggested(q)"
                 >
-                  <IconifyIcon icon="lucide:message-circle" class="size-4 shrink-0 text-primary/60" />
+                  <IconifyIcon
+                    icon="lucide:message-circle"
+                    class="size-4 shrink-0 text-primary/60"
+                  />
                   <span class="line-clamp-2">{{ q }}</span>
                 </button>
               </div>
@@ -522,7 +603,12 @@ onUnmounted(() => {
           class="flex items-center justify-center gap-1.5 border-t border-border/50 px-4 py-1 text-[11px] text-muted-foreground"
         >
           <IconifyIcon icon="lucide:activity" class="size-3" />
-          <span>{{ chatMessages.length }} {{ $t('common.globalAiChat.messages') }} · {{ totalTokensUsed.toLocaleString() }} {{ $t('common.globalAiChat.tokens') }}</span>
+          <span
+            >{{ chatMessages.length }}
+            {{ $t('common.globalAiChat.messages') }} ·
+            {{ totalTokensUsed.toLocaleString() }}
+            {{ $t('common.globalAiChat.tokens') }}</span
+          >
           <span class="text-border">|</span>
           <button class="hover:text-foreground" @click="exportAsMarkdown">
             <IconifyIcon icon="lucide:download" class="size-3" />
@@ -582,9 +668,7 @@ onUnmounted(() => {
                   :icon="getFileIcon(att.name || '', att.mime_type)"
                   class="size-4 text-muted-foreground"
                 />
-                <span
-                  class="max-w-[120px] truncate text-xs text-foreground"
-                >
+                <span class="max-w-[120px] truncate text-xs text-foreground">
                   {{ att.name }}
                 </span>
                 <button
@@ -612,7 +696,9 @@ onUnmounted(() => {
           />
 
           <!-- Input row -->
-          <div class="flex items-end gap-2 rounded-2xl border border-border/40 bg-muted/20 px-3 py-2 transition-colors focus-within:border-primary/40 focus-within:bg-background">
+          <div
+            class="flex items-end gap-2 rounded-2xl border border-border/40 bg-muted/20 px-3 py-2 transition-colors focus-within:border-primary/40 focus-within:bg-background"
+          >
             <Tooltip
               v-if="props.showAttachments"
               :title="$t('common.globalAiChat.addAttachment')"
@@ -681,11 +767,7 @@ onUnmounted(() => {
             <div class="flex items-center gap-2">
               <div
                 class="flex size-5 shrink-0 items-center justify-center rounded-md text-[10px] font-medium"
-                :class="
-                  agentAvatar(agent)
-                    ? ''
-                    : 'bg-primary/10 text-primary'
-                "
+                :class="agentAvatar(agent) ? '' : 'bg-primary/10 text-primary'"
               >
                 <img
                   v-if="agentAvatar(agent)"
@@ -700,7 +782,10 @@ onUnmounted(() => {
           </Select.Option>
         </Select>
         <div
-          v-if="selectedAgent && (selectedAgent.description || selectedAgent.model_name)"
+          v-if="
+            selectedAgent &&
+            (selectedAgent.description || selectedAgent.model_name)
+          "
           class="mt-1.5 space-y-0.5 px-0.5"
         >
           <div
@@ -737,7 +822,7 @@ onUnmounted(() => {
               :class="
                 activeConversationId === conv.id
                   ? 'bg-accent font-medium'
-                  : 'hover:bg-accent/50 text-muted-foreground'
+                  : 'text-muted-foreground hover:bg-accent/50'
               "
               @click="onSelectConversation(conv.id)"
             >
@@ -784,10 +869,16 @@ onUnmounted(() => {
                 v-else
                 class="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl bg-muted"
               >
-                <IconifyIcon icon="lucide:sparkles" class="size-6 text-muted-foreground/40" />
+                <IconifyIcon
+                  icon="lucide:sparkles"
+                  class="size-6 text-muted-foreground/40"
+                />
               </div>
               <div class="text-sm font-semibold text-foreground">
-                {{ effectiveWelcomeMessage || $t('common.globalAiChat.welcomeDesc') }}
+                {{
+                  effectiveWelcomeMessage ||
+                  $t('common.globalAiChat.welcomeDesc')
+                }}
               </div>
               <div
                 v-if="selectedAgent?.description && !effectiveWelcomeMessage"
@@ -882,9 +973,7 @@ onUnmounted(() => {
                   :icon="getFileIcon(att.name || '', att.mime_type)"
                   class="size-3.5 shrink-0 text-muted-foreground"
                 />
-                <span
-                  class="max-w-[80px] truncate text-[11px] text-foreground"
-                >
+                <span class="max-w-[80px] truncate text-[11px] text-foreground">
                   {{ att.name }}
                 </span>
                 <button
@@ -904,7 +993,9 @@ onUnmounted(() => {
             class="mb-1.5"
           />
 
-          <div class="flex items-end gap-1.5 rounded-xl border border-border/40 bg-muted/20 px-2 py-1.5 transition-colors focus-within:border-primary/40 focus-within:bg-background">
+          <div
+            class="flex items-end gap-1.5 rounded-xl border border-border/40 bg-muted/20 px-2 py-1.5 transition-colors focus-within:border-primary/40 focus-within:bg-background"
+          >
             <Tooltip
               v-if="props.showAttachments"
               :title="$t('common.globalAiChat.addAttachment')"
@@ -956,7 +1047,7 @@ onUnmounted(() => {
   <Modal
     v-model:open="previewImageVisible"
     :footer="null"
-    :width="'auto'"
+    width="auto"
     :style="{ maxWidth: '90vw' }"
     centered
     destroy-on-close
@@ -973,14 +1064,17 @@ onUnmounted(() => {
 .att-pop-enter-active {
   animation: att-in 0.25s ease-out;
 }
+
 .att-pop-leave-active {
   animation: att-in 0.15s ease-in reverse;
 }
+
 @keyframes att-in {
   0% {
     opacity: 0;
     transform: scale(0.5);
   }
+
   100% {
     opacity: 1;
     transform: scale(1);
@@ -988,9 +1082,11 @@ onUnmounted(() => {
 }
 
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
+
   50% {
     transform: translateY(-6px);
   }

@@ -12,14 +12,14 @@ const API_PREFIX = '/admin/email-logs';
 interface EmailLogInfoRaw {
   id: number;
   to_address: string;
-  cc: string | null;
-  bcc: string | null;
+  cc: null | string;
+  bcc: null | string;
   subject: string;
   status: string;
   triggered_by: string;
-  error_message: string | null;
-  sent_at: string | null;
-  tenant_id: number | null;
+  error_message: null | string;
+  sent_at: null | string;
+  tenant_id: null | number;
   created_at: string;
 }
 
@@ -27,14 +27,14 @@ interface EmailLogInfoRaw {
 export interface EmailLogInfo {
   id: number;
   toAddress: string;
-  cc: string | null;
-  bcc: string | null;
+  cc: null | string;
+  bcc: null | string;
   subject: string;
   status: string;
   triggeredBy: string;
-  errorMessage: string | null;
-  sentAt: string | null;
-  tenantId: number | null;
+  errorMessage: null | string;
+  sentAt: null | string;
+  tenantId: null | number;
   createdAt: string;
 }
 
@@ -42,10 +42,10 @@ export interface EmailLogInfo {
 export interface EmailSendRequest {
   to: string[];
   subject: string;
-  html_body?: string | null;
-  text_body?: string | null;
-  cc?: string[] | null;
-  bcc?: string[] | null;
+  html_body?: null | string;
+  text_body?: null | string;
+  cc?: null | string[];
+  bcc?: null | string[];
 }
 
 /** 测试邮件请求 */
@@ -57,24 +57,24 @@ export interface EmailTestRequest {
 export interface EmailSendResult {
   success: boolean;
   message: string;
-  error: string | null;
+  error: null | string;
 }
 
 /** 邮件日志详情（含 body） */
 export interface EmailLogDetail {
   id: number;
   toAddress: string;
-  cc: string | null;
-  bcc: string | null;
+  cc: null | string;
+  bcc: null | string;
   subject: string;
   status: string;
   triggeredBy: string;
-  htmlBody: string | null;
-  textBody: string | null;
-  errorMessage: string | null;
-  sentAt: string | null;
-  tenantId: number | null;
-  createdAt: string | null;
+  htmlBody: null | string;
+  textBody: null | string;
+  errorMessage: null | string;
+  sentAt: null | string;
+  tenantId: null | number;
+  createdAt: null | string;
 }
 
 /** 分页响应 */
@@ -116,7 +116,7 @@ export async function getEmailLogListApi(
   }>(API_PREFIX, { params, ...options });
 
   return {
-    items: response.items.map(transformEmailLogInfo),
+    items: response.items.map((item) => transformEmailLogInfo(item)),
     total: response.total,
     page: response.page,
     page_size: response.page_size,
@@ -137,17 +137,17 @@ export async function getEmailLogDetailApi(
   return {
     id: raw.id as number,
     toAddress: raw.to_address as string,
-    cc: raw.cc as string | null,
-    bcc: raw.bcc as string | null,
+    cc: raw.cc as null | string,
+    bcc: raw.bcc as null | string,
     subject: raw.subject as string,
     status: raw.status as string,
     triggeredBy: raw.triggered_by as string,
-    htmlBody: raw.html_body as string | null,
-    textBody: raw.text_body as string | null,
-    errorMessage: raw.error_message as string | null,
-    sentAt: raw.sent_at as string | null,
-    tenantId: raw.tenant_id as number | null,
-    createdAt: raw.created_at as string | null,
+    htmlBody: raw.html_body as null | string,
+    textBody: raw.text_body as null | string,
+    errorMessage: raw.error_message as null | string,
+    sentAt: raw.sent_at as null | string,
+    tenantId: raw.tenant_id as null | number,
+    createdAt: raw.created_at as null | string,
   };
 }
 

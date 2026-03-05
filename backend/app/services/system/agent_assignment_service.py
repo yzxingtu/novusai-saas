@@ -18,7 +18,9 @@ from app.exceptions import (
     ValidationException,
 )
 from app.models.system.agent_assignment import SystemAgentAssignment
-from app.repositories.system.agent_assignment_repository import AgentAssignmentRepository
+from app.repositories.system.agent_assignment_repository import (
+    AgentAssignmentRepository,
+)
 
 logger = LogManager.get_logger("app")
 

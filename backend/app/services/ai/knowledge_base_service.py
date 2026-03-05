@@ -6,26 +6,24 @@
 
 from typing import Any
 
-
 from sqlalchemy import and_, select, update
 
-from app.enums.common import DeleteLevelEnum
-
-from app.repositories.ai.knowledge_base_repository import (
-    KnowledgeBaseRepository,
-    AdminKnowledgeBaseRepository,
-    KnowledgeDocumentRepository,
-    DocumentChunkRepository,
-)
+from app.core.base_model import utc_now
+from app.core.base_service import GlobalService, TenantService
+from app.core.i18n import _
+from app.core.logging import LogManager
+from app.enums.common import DeleteLevelEnum, ResourceScopeEnum
+from app.exceptions import BusinessException, NotFoundException
+from app.models.ai.document_chunk import DocumentChunk
 from app.models.ai.knowledge_base import KnowledgeBase
 from app.models.ai.knowledge_base_tenant_access import KnowledgeBaseTenantAccess
 from app.models.ai.knowledge_document import KnowledgeDocument
-from app.models.ai.document_chunk import DocumentChunk
-from app.core.base_service import TenantService, GlobalService
-from app.core.i18n import _
-from app.core.logging import LogManager
-from app.exceptions import BusinessException, NotFoundException
-from app.core.base_model import utc_now
+from app.repositories.ai.knowledge_base_repository import (
+    AdminKnowledgeBaseRepository,
+    DocumentChunkRepository,
+    KnowledgeBaseRepository,
+    KnowledgeDocumentRepository,
+)
 
 logger = LogManager.get_logger("ai.knowledge_base_service")
 
@@ -351,8 +349,6 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
         """创建前校验：scope + tenant_id 一致性、名称唯一性"""
         await super()._before_create(data)
 
-        from app.enums.common import ResourceScopeEnum
-
         scope = data.get("scope", ResourceScopeEnum.ADMIN_AND_ALL.value)
 
         # all_tenants 现在表示平台全局资源（tenant_id=null），其他 scope 同样不需要 tenant_id
@@ -425,7 +421,9 @@ class AdminKnowledgeBaseService(GlobalService[KnowledgeBase, AdminKnowledgeBaseR
             ResourceScopeEnum.ASSIGNED_TENANTS.value,
             ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
         ):
-            from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
+            from app.repositories.system.resource_tenant_assignment_repository import (
+                ResourceTenantAssignmentRepository,
+            )
             rta_repo = ResourceTenantAssignmentRepository(self.db)
             await rta_repo.delete_all_for_resource("knowledge_base", id)
 

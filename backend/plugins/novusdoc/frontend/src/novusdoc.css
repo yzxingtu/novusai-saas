@@ -1,0 +1,103 @@
+/* ── NovusDoc plugin styles (minimal — layout in Tailwind) ── */
+
+/* ── Tiptap ProseMirror overrides (3rd-party DOM, cannot use Tailwind) ── */
+.nd-editor-wrapper .ProseMirror { outline: none; min-height: 300px; }
+.nd-editor-wrapper .ProseMirror p.is-editor-empty:first-child::before {
+  color: hsl(var(--muted-foreground));
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.nd-editor-wrapper .ProseMirror h1 { font-size: 1.875rem; font-weight: 700; line-height: 1.3; margin: 1rem 0 0.5rem; }
+.nd-editor-wrapper .ProseMirror h2 { font-size: 1.5rem; font-weight: 700; line-height: 1.35; margin: 0.875rem 0 0.5rem; }
+.nd-editor-wrapper .ProseMirror h3 { font-size: 1.25rem; font-weight: 600; line-height: 1.4; margin: 0.75rem 0 0.375rem; }
+.nd-editor-wrapper .ProseMirror h4 { font-size: 1.1rem; font-weight: 600; line-height: 1.45; margin: 0.625rem 0 0.25rem; }
+.nd-editor-wrapper .ProseMirror ul { list-style-type: disc; padding-left: 1.5em; margin: 0.5rem 0; }
+.nd-editor-wrapper .ProseMirror ol { list-style-type: decimal; padding-left: 1.5em; margin: 0.5rem 0; }
+.nd-editor-wrapper .ProseMirror li { margin: 0.25rem 0; }
+.nd-editor-wrapper .ProseMirror li p { margin: 0; }
+.nd-editor-wrapper .ProseMirror hr { border: none; border-top: 2px solid hsl(var(--border)); margin: 1.5rem 0; }
+.nd-editor-wrapper .ProseMirror p { margin: 0.25rem 0; }
+.nd-editor-wrapper .ProseMirror img.nd-image { max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; }
+.nd-editor-wrapper .ProseMirror a.nd-link { color: hsl(var(--primary)); text-decoration: underline; }
+.nd-editor-wrapper .ProseMirror pre { background: hsl(var(--accent)); border-radius: 8px; padding: 12px 16px; overflow-x: auto; }
+.nd-editor-wrapper .ProseMirror blockquote { border-left: 3px solid hsl(var(--primary)); padding-left: 16px; margin-left: 0; color: hsl(var(--muted-foreground)); }
+.nd-editor-wrapper .ProseMirror table { border-collapse: collapse; width: 100%; }
+.nd-editor-wrapper .ProseMirror td, .nd-editor-wrapper .ProseMirror th { border: 1px solid hsl(var(--border)); padding: 8px 12px; text-align: left; }
+.nd-editor-wrapper .ProseMirror th { background: hsl(var(--accent)); font-weight: 600; }
+.nd-editor-wrapper .ProseMirror ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 8px; }
+.nd-editor-wrapper .ProseMirror ul[data-type="taskList"] li > label { margin-top: 3px; }
+
+/* ── Tippy.js overrides (portal on body, scoped CSS cannot reach) ── */
+.tippy-box[data-theme="none"] {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+.tippy-box[data-theme="none"] .tippy-content { padding: 0 !important; }
+.tippy-box[data-theme="none"] .tippy-arrow { display: none !important; }
+
+/* ── Toolbar button (shared by EditorToolbar, needs hover/disabled/focus states) ── */
+.nd-tbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.nd-tbtn:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+.nd-tbtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Keyframe animations ── */
+.nd-ai-rdot { animation: nd-rdot-anim 1.4s infinite ease-in-out; }
+.nd-ai-rdot:nth-child(2) { animation-delay: 0.2s; }
+.nd-ai-rdot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes nd-rdot-anim {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+.nd-ai-dot { animation: nd-dot-anim 1.4s infinite ease-in-out; }
+.nd-ai-dot:nth-child(2) { animation-delay: 0.2s; }
+.nd-ai-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes nd-dot-anim {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+.nd-ai-msg { animation: nd-fade-in 200ms ease; }
+@keyframes nd-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.nd-pro-drawer { animation: nd-slide-in-right 200ms ease forwards; }
+@keyframes nd-slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* ── A11y focus-visible ── */
+.nd-tbtn:focus-visible,
+.nd-fitem:focus-visible,
+.nd-dcard:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ── Touch-friendly: larger tap targets ── */
+@media (pointer: coarse) {
+  .nd-tbtn { width: 36px; height: 36px; min-width: 36px; }
+  .nd-bm-icon { width: 34px; height: 34px; }
+  .nd-fitem { padding: 10px 14px; }
+  .nd-dcard { padding: 16px 18px; }
+}

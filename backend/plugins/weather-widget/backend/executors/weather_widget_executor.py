@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
+from app.core.i18n import _
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
@@ -22,7 +23,7 @@ def _get_open_meteo():
     import sys
     from pathlib import Path
 
-    module_name = "plugins.weather_widget.backend.open_meteo"
+    module_name = "plugins.weather-widget.backend.open_meteo"
     if module_name in sys.modules:
         return sys.modules[module_name]
 
@@ -44,6 +45,7 @@ class WeatherWidgetExecutor(BaseToolExecutor):
         definition: ToolDefinition,
         arguments: dict[str, Any],
     ) -> bool:
+        _definition = definition
         return bool(arguments.get("city"))
 
     async def execute(
@@ -53,15 +55,18 @@ class WeatherWidgetExecutor(BaseToolExecutor):
         arguments: dict[str, Any],
         context: ExecutionContext | None = None,
     ) -> ToolResult:
+        _context = context
         start = time.perf_counter()
 
         city = arguments.get("city", "").strip()
         if not city:
+            err_msg = _("plugin.weather-widget.error.city_required")
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=False,
-                output="Error: city parameter is required",
+                error=err_msg,
+                output=err_msg,
                 duration_ms=0,
             )
 
@@ -79,12 +84,15 @@ class WeatherWidgetExecutor(BaseToolExecutor):
                         days = 3
                 output = await self._get_forecast(city, days)
             else:
-                output = f"Error: unknown tool '{tool_name}'"
+                err_msg = _("plugin.weather-widget.error.unknown_tool").format(
+                    tool_name=tool_name,
+                )
                 return ToolResult(
                     tool_call_id=tool_call_id,
                     name=tool_name,
                     success=False,
-                    output=output,
+                    error=err_msg,
+                    output=err_msg,
                     duration_ms=int((time.perf_counter() - start) * 1000),
                 )
 
@@ -99,11 +107,16 @@ class WeatherWidgetExecutor(BaseToolExecutor):
 
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start) * 1000)
+            err_msg = _("plugin.weather-widget.error.fetch_failed").format(
+                city=city,
+                error=str(exc),
+            )
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=tool_name,
                 success=False,
-                output=f"Error fetching weather for '{city}': {exc}",
+                error=err_msg,
+                output=err_msg,
                 duration_ms=duration_ms,
             )
 
@@ -120,7 +133,11 @@ class WeatherWidgetExecutor(BaseToolExecutor):
         open_meteo = _get_open_meteo()
         results = await open_meteo.search_city(city, count=1)
         if not results:
-            raise ValueError(f"City not found: '{city}'")
+            raise ValueError(
+                _("plugin.weather-widget.error.city_not_found_with_name").format(
+                    city=city,
+                )
+            )
 
         hit = results[0]
         resolved_name = hit.get("name", city)

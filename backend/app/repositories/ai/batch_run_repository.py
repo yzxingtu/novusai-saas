@@ -2,9 +2,8 @@
 批量运行 Repository
 """
 
-from typing import List
 
-from sqlalchemy import select, and_, update
+from sqlalchemy import and_, select, update
 
 from app.core.base_repository import TenantRepository
 from app.enums.agent import BatchRunStatusEnum
@@ -25,7 +24,7 @@ class BatchRunRepository(TenantRepository[BatchRun]):
         agent_id: int,
         skip: int = 0,
         limit: int = 20,
-    ) -> List[BatchRun]:
+    ) -> list[BatchRun]:
         """
         获取智能体的批量运行记录
 
@@ -89,7 +88,7 @@ class BatchRunRepository(TenantRepository[BatchRun]):
         await self.db.execute(stmt)
         await self.db.flush()
 
-    async def get_active_runs(self, agent_id: int) -> List[BatchRun]:
+    async def get_active_runs(self, agent_id: int) -> list[BatchRun]:
         """获取进行中的批量运行"""
         stmt = (
             select(BatchRun)

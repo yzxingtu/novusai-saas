@@ -12,10 +12,10 @@ import type {
   AttachmentStatsByTenant,
   AttachmentUrlResult,
 } from '#/types/attachment';
-import { inferCategory } from '#/types/attachment';
 import type { PaginatedResponse, SelectOption } from '#/types/query';
 import type { ApiRequestOptions } from '#/utils/request';
 
+import { inferCategory } from '#/types/attachment';
 import { requestClient } from '#/utils/request';
 
 // ============================================================
@@ -212,21 +212,30 @@ export interface AdminUploadAttachmentResponse {
  */
 export async function uploadAttachmentApi(
   params: {
+    business_id?: number;
+    business_type?: string;
     file: Blob | File;
     tenant_id?: number;
     visibility?: 'private' | 'public';
-    business_type?: string;
-    business_id?: number;
   },
   onProgress?: (progress: { percent: number }) => void,
   options?: ApiRequestOptions,
 ): Promise<AdminUploadAttachmentResponse> {
-  const { file, tenant_id = 0, visibility = 'private', business_type, business_id } = params;
-  const uploadData: { file: Blob | File; [key: string]: Blob | File | string } = { file };
-  uploadData.tenant_id = String(tenant_id);
-  if (visibility) uploadData.visibility = visibility;
-  if (business_type) uploadData.business_type = business_type;
-  if (business_id) uploadData.business_id = String(business_id);
+  const {
+    file,
+    tenant_id = 0,
+    visibility = 'private',
+    business_type,
+    business_id,
+  } = params;
+  const uploadData: { [key: string]: Blob | File | string; file: Blob | File } =
+    {
+      file,
+      tenant_id: String(tenant_id),
+      ...(visibility ? { visibility } : {}),
+      ...(business_type ? { business_type } : {}),
+      ...(business_id ? { business_id: String(business_id) } : {}),
+    };
 
   return requestClient.upload<AdminUploadAttachmentResponse>(
     `${API_PREFIX}/upload`,

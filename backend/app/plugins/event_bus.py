@@ -22,7 +22,8 @@ import json
 import sys
 import time
 from collections import defaultdict
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from app.core.logging import get_logger
 
@@ -142,7 +143,7 @@ class PluginEventBus:
     def unsubscribe_all(self, plugin_name: str) -> int:
         """移除某插件的所有事件订阅"""
         total_removed = 0
-        for event_name, subs in self._subscribers.items():
+        for _event_name, subs in self._subscribers.items():
             before = len(subs)
             subs[:] = [s for s in subs if s.plugin_name != plugin_name]
             total_removed += before - len(subs)

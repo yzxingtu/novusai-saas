@@ -10,19 +10,19 @@ const BASE_URL = '/admin/ai/skill-packages';
 /** 技能包信息 */
 export interface AdminSkillPackageInfo {
   id: number;
-  tenant_id: number | null;
+  tenant_id: null | number;
   name: string;
-  description: string | null;
-  avatar: string | null;
+  description: null | string;
+  avatar: null | string;
   scope: string;
   bind_mode: string;
   is_system: boolean;
   is_active: boolean;
   sort_order: number;
   skill_count: number;
-  source_plugin: string | null;
-  valves_schema: Record<string, unknown> | null;
-  valves_config: Record<string, unknown> | null;
+  source_plugin: null | string;
+  valves_schema: null | Record<string, unknown>;
+  valves_config: null | Record<string, unknown>;
   assigned_tenant_ids: number[];
   created_at: string;
   updated_at: string;
@@ -31,8 +31,8 @@ export interface AdminSkillPackageInfo {
 /** 创建技能包请求 */
 export interface SkillPackageCreateParams {
   name: string;
-  description?: string | null;
-  avatar?: string | null;
+  description?: null | string;
+  avatar?: null | string;
   scope: string;
   bind_mode?: string;
   is_active?: boolean;
@@ -43,8 +43,8 @@ export interface SkillPackageCreateParams {
 /** 更新技能包请求 */
 export interface SkillPackageUpdateParams {
   name?: string;
-  description?: string | null;
-  avatar?: string | null;
+  description?: null | string;
+  avatar?: null | string;
   is_active?: boolean;
   sort_order?: number;
   tenant_ids?: number[];
@@ -139,12 +139,12 @@ interface ValvesProperty {
 
 /** Valves 配置响应 */
 export interface SkillPackageValvesInfo {
-  valves_schema: {
-    type: string;
+  valves_schema: null | {
     properties: Record<string, ValvesProperty>;
     required?: string[];
-  } | null;
-  valves_config: Record<string, unknown> | null;
+    type: string;
+  };
+  valves_config: null | Record<string, unknown>;
 }
 
 /** 获取技能包 Valves 配置 */
@@ -179,13 +179,17 @@ export function getSkillPackageSkillsApi(
 /** 克隆技能包 */
 export function cloneSkillPackageApi(
   packageId: number,
-  data?: { new_name?: string; target_scope?: string; target_tenant_id?: number | null },
+  data?: {
+    new_name?: string;
+    target_scope?: string;
+    target_tenant_id?: null | number;
+  },
 ) {
   return requestClient.post<{
-    status: string;
     package_id: number;
     package_name: string;
     skills_created: number;
+    status: string;
   }>(`${BASE_URL}/${packageId}/clone`, data ?? {});
 }
 
@@ -198,15 +202,15 @@ export function exportSkillPackageApi(packageId: number) {
 
 /** 导入技能包 JSON */
 export function importSkillPackageApi(data: {
+  conflict_mode?: 'rename' | 'skip';
   export_data: Record<string, unknown>;
-  conflict_mode?: 'skip' | 'rename';
   target_scope?: string;
-  target_tenant_id?: number | null;
+  target_tenant_id?: null | number;
 }) {
   return requestClient.post<{
-    status: string;
     package_id: number;
     package_name: string;
     skills_created: number;
+    status: string;
   }>(`${BASE_URL}/import`, data);
 }

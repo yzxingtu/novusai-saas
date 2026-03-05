@@ -7,7 +7,7 @@
  *
  * 通过 props 注入 API 函数和 i18n 前缀，适配 admin/tenant 两端。
  */
-import { ref, computed } from 'vue';
+import { computed, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -41,17 +41,17 @@ interface ValvesSchema {
 }
 
 interface ValvesInfo {
-  valves_schema: ValvesSchema | null;
-  valves_config: Record<string, unknown> | null;
+  valves_schema: null | ValvesSchema;
+  valves_config: null | Record<string, unknown>;
 }
 
 const props = defineProps<{
-  packageId: number | null;
-  packageName?: string;
-  /** i18n 前缀，如 'admin.ai.skillPackage' 或 'tenant.ai.skillPackage' */
-  i18nPrefix: string;
   /** 获取 Valves 配置的 API 函数 */
   getValvesApi: (packageId: number) => Promise<ValvesInfo>;
+  /** i18n 前缀，如 'admin.ai.skillPackage' 或 'tenant.ai.skillPackage' */
+  i18nPrefix: string;
+  packageId: null | number;
+  packageName?: string;
   /** 更新 Valves 配置的 API 函数 */
   updateValvesApi: (
     packageId: number,
@@ -66,7 +66,7 @@ const emit = defineEmits<{
 const visible = ref(false);
 const loading = ref(false);
 const saving = ref(false);
-const schema = ref<ValvesSchema | null>(null);
+const schema = ref<null | ValvesSchema>(null);
 const formValues = ref<Record<string, unknown>>({});
 
 const sortedFields = computed(() => {
@@ -78,7 +78,7 @@ const sortedFields = computed(() => {
       ...prop,
       isRequired: required.has(key),
     }))
-    .sort((a, b) => {
+    .toSorted((a, b) => {
       // required first, then alphabetical
       if (a.isRequired !== b.isRequired) return a.isRequired ? -1 : 1;
       return a.key.localeCompare(b.key);
@@ -100,10 +100,10 @@ async function open() {
       for (const [key, prop] of Object.entries(schema.value.properties)) {
         if (key in saved) {
           initial[key] = saved[key];
-        } else if (prop.default !== undefined) {
-          initial[key] = prop.default;
-        } else {
+        } else if (prop.default === undefined) {
           initial[key] = '';
+        } else {
+          initial[key] = prop.default;
         }
       }
     }
@@ -119,7 +119,7 @@ function onResetDefaults() {
   if (!schema.value?.properties) return;
   const defaults: Record<string, unknown> = {};
   for (const [key, prop] of Object.entries(schema.value.properties)) {
-    defaults[key] = prop.default !== undefined ? prop.default : '';
+    defaults[key] = prop.default === undefined ? '' : prop.default;
   }
   formValues.value = defaults;
 }
@@ -143,16 +143,16 @@ async function onSave() {
 
 function getInputType(type: string) {
   switch (type) {
-    case 'integer':
-    case 'number': {
-      return 'number';
+    case 'array':
+    case 'object': {
+      return 'json';
     }
     case 'boolean': {
       return 'switch';
     }
-    case 'array':
-    case 'object': {
-      return 'json';
+    case 'integer':
+    case 'number': {
+      return 'number';
     }
     default: {
       return 'string';
@@ -161,7 +161,9 @@ function getInputType(type: string) {
 }
 
 function isSecret(key: string): boolean {
-  return /\b(api_?key|secret|password|access_?token|auth_?token|apikey|private_?key)\b/i.test(key);
+  return /\b(?:api_?key|secret|password|access_?token|auth_?token|private_?key)\b/i.test(
+    key,
+  );
 }
 
 defineExpose({ open });
@@ -198,13 +200,18 @@ defineExpose({ open });
           >
             <template #label>
               <div class="flex items-center gap-1.5">
-                <code class="rounded bg-accent px-1.5 py-0.5 text-xs font-mono">
+                <code class="rounded bg-accent px-1.5 py-0.5 font-mono text-xs">
                   {{ field.key }}
                 </code>
                 <Tag
                   v-if="field.isRequired"
                   color="red"
-                  style="font-size: 10px; line-height: 14px; padding: 0 3px; margin: 0;"
+                  style="
+                    padding: 0 3px;
+                    margin: 0;
+                    font-size: 10px;
+                    line-height: 14px;
+                  "
                 >
                   {{ $t(`${i18nPrefix}.valves.required`) }}
                 </Tag>
@@ -212,7 +219,10 @@ defineExpose({ open });
                   <template #title>
                     {{ $t(`${i18nPrefix}.valves.sensitiveHint`) }}
                   </template>
-                  <IconifyIcon icon="lucide:shield" class="size-3 text-warning" />
+                  <IconifyIcon
+                    icon="lucide:shield"
+                    class="size-3 text-warning"
+                  />
                 </Tooltip>
               </div>
             </template>
@@ -227,38 +237,69 @@ defineExpose({ open });
             <Switch
               v-if="getInputType(field.type) === 'switch'"
               :checked="!!formValues[field.key]"
-              @update:checked="(val: unknown) => (formValues[field.key] = !!val)"
+              @update:checked="
+                (val: unknown) => (formValues[field.key] = !!val)
+              "
             />
 
             <!-- Number → InputNumber -->
             <InputNumber
               v-else-if="getInputType(field.type) === 'number'"
-              v-model:value="(formValues[field.key] as number)"
+              v-model:value="formValues[field.key] as number"
               class="w-full"
-              :placeholder="field.default !== undefined ? String(field.default) : ''"
+              :placeholder="
+                field.default !== undefined ? String(field.default) : ''
+              "
             />
 
             <!-- Array/Object → JSON Textarea -->
             <Input.TextArea
               v-else-if="getInputType(field.type) === 'json'"
-              :value="typeof formValues[field.key] === 'string' ? (formValues[field.key] as string) : JSON.stringify(formValues[field.key], null, 2)"
+              :value="
+                typeof formValues[field.key] === 'string'
+                  ? (formValues[field.key] as string)
+                  : JSON.stringify(formValues[field.key], null, 2)
+              "
               :rows="4"
-              :placeholder="field.default !== undefined ? JSON.stringify(field.default) : '[]'"
+              :placeholder="
+                field.default !== undefined
+                  ? JSON.stringify(field.default)
+                  : '[]'
+              "
               class="font-mono text-xs"
-              @update:value="(val: string) => { try { formValues[field.key] = JSON.parse(val); } catch { formValues[field.key] = val; } }"
+              @update:value="
+                (val: string) => {
+                  try {
+                    formValues[field.key] = JSON.parse(val);
+                  } catch {
+                    formValues[field.key] = val;
+                  }
+                }
+              "
             />
 
             <!-- String → Input / Password (secret) -->
-            <div v-else-if="isSecret(field.key)" class="flex items-center gap-2">
+            <div
+              v-else-if="isSecret(field.key)"
+              class="flex items-center gap-2"
+            >
               <Input.Password
-                v-model:value="(formValues[field.key] as string)"
-                :placeholder="field.default !== undefined ? String(field.default) : ''"
+                v-model:value="formValues[field.key] as string"
+                :placeholder="
+                  field.default !== undefined ? String(field.default) : ''
+                "
                 class="flex-1"
               />
               <Tag
                 v-if="formValues[field.key] === '******'"
                 color="green"
-                style="font-size: 10px; line-height: 14px; padding: 0 4px; margin: 0; cursor: pointer;"
+                style="
+                  padding: 0 4px;
+                  margin: 0;
+                  font-size: 10px;
+                  line-height: 14px;
+                  cursor: pointer;
+                "
                 @click="formValues[field.key] = ''"
               >
                 {{ $t(`${i18nPrefix}.valves.secretConfigured`) }}
@@ -266,14 +307,19 @@ defineExpose({ open });
             </div>
             <Input
               v-else
-              v-model:value="(formValues[field.key] as string)"
-              :placeholder="field.default !== undefined ? String(field.default) : ''"
+              v-model:value="formValues[field.key] as string"
+              :placeholder="
+                field.default !== undefined ? String(field.default) : ''
+              "
             />
           </FormItem>
         </Form>
       </template>
 
-      <div v-else-if="!loading" class="flex flex-col items-center justify-center py-12 text-muted-foreground">
+      <div
+        v-else-if="!loading"
+        class="flex flex-col items-center justify-center py-12 text-muted-foreground"
+      >
         <IconifyIcon icon="lucide:settings-2" class="mb-2 size-10 opacity-40" />
         <span>{{ $t(`${i18nPrefix}.valves.noSchema`) }}</span>
       </div>
@@ -281,15 +327,11 @@ defineExpose({ open });
 
     <template #footer>
       <div class="flex items-center justify-between">
-        <Button
-          v-if="schema"
-          size="small"
-          @click="onResetDefaults"
-        >
+        <Button v-if="schema" size="small" @click="onResetDefaults">
           <IconifyIcon icon="lucide:rotate-ccw" class="mr-1 size-3.5" />
           {{ $t(`${i18nPrefix}.valves.resetDefaults`) }}
         </Button>
-        <span v-else />
+        <span v-else></span>
         <div>
           <Button class="mr-2" @click="visible = false">
             {{ $t('common.cancel') }}

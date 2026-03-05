@@ -17,14 +17,14 @@ export interface PaginatedResponse<T = Record<string, unknown>> {
 
 export interface RawMessageItem {
   role: string;
-  content: string | null;
+  content: null | string;
   tool_calls?: Array<{
+    function?: { arguments?: string; name?: string };
     id?: string;
-    function?: { name?: string; arguments?: string };
   }> | null;
-  tool_call_id?: string | null;
-  tool_name?: string | null;
-  metadata?: { attachments?: ChatAttachment[] } | null;
+  tool_call_id?: null | string;
+  tool_name?: null | string;
+  metadata?: null | { attachments?: ChatAttachment[] };
 }
 
 export interface ConversationDetailResponse {
@@ -34,12 +34,12 @@ export interface ConversationDetailResponse {
 export interface FileUploadResponse {
   url: string;
   attachment: {
+    extension?: null | string;
     id: number;
+    mime_type?: null | string;
     name: string;
-    original_name?: string | null;
-    mime_type?: string | null;
+    original_name?: null | string;
     size: number;
-    extension?: string | null;
   };
   used_bytes: number;
 }
@@ -67,17 +67,16 @@ function chatBaseUrl(apiPrefix: string): string {
 export async function getChatAgentsApi<T = Record<string, unknown>>(
   apiPrefix: string,
 ): Promise<PaginatedResponse<T>> {
-  const params: Record<string, string | number> = {
+  const params: Record<string, number | string> = {
     'filter[status][eq]': 'published',
     'page[size]': 100,
   };
   if (apiPrefix.includes('/admin')) {
     params['filter[scope][in]'] = 'admin_only,admin_and_all,admin_and_assigned';
   }
-  return requestClient.get<PaginatedResponse<T>>(
-    `${apiPrefix}/ai/agents`,
-    { params },
-  );
+  return requestClient.get<PaginatedResponse<T>>(`${apiPrefix}/ai/agents`, {
+    params,
+  });
 }
 
 /**
@@ -104,6 +103,19 @@ export async function deleteChatConversationApi(
 ): Promise<unknown> {
   return requestClient.delete(
     `${chatBaseUrl(apiPrefix)}/${agentId}/conversations/${conversationId}`,
+  );
+}
+
+/**
+ * 清空会话记忆状态（不删除对话消息）
+ */
+export async function clearChatConversationMemoryApi(
+  apiPrefix: string,
+  agentId: number,
+  conversationId: number,
+): Promise<{ deleted_count: number }> {
+  return requestClient.delete<{ deleted_count: number }>(
+    `${chatBaseUrl(apiPrefix)}/${agentId}/conversations/${conversationId}/memory-state`,
   );
 }
 
@@ -138,7 +150,7 @@ export async function uploadChatFileApi(
   }
   return requestClient.upload<FileUploadResponse>(
     uploadUrl,
-    uploadData as { file: File; [key: string]: Blob | File | string },
+    uploadData as { [key: string]: Blob | File | string; file: File },
   );
 }
 

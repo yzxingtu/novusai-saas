@@ -11,12 +11,12 @@ import hashlib
 import io
 import mimetypes
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, BinaryIO, Optional
+from typing import TYPE_CHECKING, BinaryIO
 
 import anyio
 import httpx
-import qiniu
 
+from app.core.i18n import _
 from app.exceptions import StorageConfigError, StorageError, StorageNotFoundError
 from app.storage.base import (
     FileInfo,
@@ -28,6 +28,25 @@ from app.storage.base import (
 
 if TYPE_CHECKING:
     from app.utils.image import ImageProcessParams
+
+try:
+    import qiniu
+except ModuleNotFoundError:
+    qiniu = None
+
+
+def _require_qiniu_sdk():
+    """Ensure optional qiniu SDK is available before runtime use."""
+    if qiniu is None:
+        raise StorageConfigError(
+            message=(
+                _(
+                    "Qiniu Kodo SDK is not installed. "
+                    "Install dependency: pip install qiniu"
+                )
+            ),
+        )
+    return qiniu
 
 
 class KodoStorageDriver(StorageDriver):
@@ -74,6 +93,7 @@ class KodoStorageDriver(StorageDriver):
 
     def __init__(self, config: StorageConfig):
         super().__init__(config)
+        sdk = _require_qiniu_sdk()
         options = config.options or {}
         self.bucket_name = options.get("bucket") or config.root_path
         ak = options.get("access_key")
@@ -89,11 +109,12 @@ class KodoStorageDriver(StorageDriver):
             raise StorageConfigError(
                 message=f"Qiniu Kodo missing required config: {', '.join(missing)}",
             )
-        self.auth = qiniu.Auth(ak, sk)
+        self._sdk = sdk
+        self.auth = self._sdk.Auth(ak, sk)
         self.base_url = config.base_url.rstrip("/") if config.base_url else None
         self.prefix = options.get("prefix", "").strip("/")
         self.is_private = bool(options.get("is_private", False))
-        self.bucket_manager = qiniu.BucketManager(self.auth)
+        self.bucket_manager = self._sdk.BucketManager(self.auth)
 
     def _key(self, path: str) -> str:
         clean = path.lstrip("/")
@@ -107,6 +128,7 @@ class KodoStorageDriver(StorageDriver):
         visibility: StorageVisibility = StorageVisibility.PRIVATE,
         metadata: dict | None = None,
     ) -> UploadResult:
+        _ = metadata
         key = self._key(path)
         final_mime_type = mime_type or mimetypes.guess_type(path)[0] or "application/octet-stream"
 
@@ -123,7 +145,12 @@ class KodoStorageDriver(StorageDriver):
             size = len(data)
             file_hash = hasher.hexdigest()
             token = self.auth.upload_token(self.bucket_name, key, 3600)
-            ret, info = qiniu.put_data(token, key, data, mime_type=final_mime_type)
+            ret, info = self._sdk.put_data(
+                token,
+                key,
+                data,
+                mime_type=final_mime_type,
+            )
             if info.status_code != 200:
                 raise StorageError(
                     message=f"Qiniu upload failed: {info.error} (status={info.status_code})",
@@ -200,10 +227,10 @@ class KodoStorageDriver(StorageDriver):
             return self.auth.private_download_url(base, expires=expires)
         return base
 
-    async def get_info(self, path: str) -> Optional[FileInfo]:
+    async def get_info(self, path: str) -> FileInfo | None:
         key = self._key(path)
 
-        def _stat() -> Optional[FileInfo]:
+        def _stat() -> FileInfo | None:
             ret, info = self.bucket_manager.stat(self.bucket_name, key)
             if info.status_code != 200:
                 return None
@@ -252,7 +279,7 @@ class KodoStorageDriver(StorageDriver):
 
     # ========== Image Processing ==========
 
-    def _build_kodo_process_params(self, params: "ImageProcessParams") -> str:
+    def _build_kodo_process_params(self, params: ImageProcessParams) -> str:
         """Build Kodo imageView2 URL suffix"""
         mode_map = {
             "fit": 2,
@@ -275,7 +302,7 @@ class KodoStorageDriver(StorageDriver):
     async def get_image_url(
         self,
         path: str,
-        params: "ImageProcessParams",
+        params: ImageProcessParams,
         expires: int = 3600,
         visibility: StorageVisibility | None = None,
     ) -> str:
@@ -300,7 +327,7 @@ class KodoStorageDriver(StorageDriver):
     async def get_processed_image(
         self,
         path: str,
-        params: "ImageProcessParams",
+        params: ImageProcessParams,
     ) -> tuple[bytes, str] | None:
         if params.is_empty():
             return None

@@ -11,7 +11,15 @@
 通过本表记录哪些租户可以访问该资源。
 """
 
-from sqlalchemy import Boolean, ForeignKey, Index, Integer, JSON, String, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import BaseModel

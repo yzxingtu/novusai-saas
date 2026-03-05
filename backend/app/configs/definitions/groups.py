@@ -13,7 +13,6 @@
 from app.configs.meta import ConfigGroupMeta
 from app.enums.config import ConfigScope
 
-
 # ==========================================
 # 平台配置分组
 # ==========================================
@@ -137,6 +136,16 @@ PLATFORM_AI_TOOLKIT_GROUP = ConfigGroupMeta(
     sort_order=60,
 )
 
+# AI 记忆设置分组
+PLATFORM_AI_MEMORY_GROUP = ConfigGroupMeta(
+    code="platform_ai_memory",
+    name_key="config.group.platform_ai_memory.name",
+    description_key="config.group.platform_ai_memory.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    icon="lucide:brain-circuit",
+    sort_order=65,
+)
+
 # 所有平台配置分组
 PLATFORM_CONFIG_GROUPS = [
     PLATFORM_GENERAL_GROUP,
@@ -145,6 +154,7 @@ PLATFORM_CONFIG_GROUPS = [
     PLATFORM_STORAGE_GROUP,
     PLATFORM_SSL_GROUP,
     PLATFORM_AI_TOOLKIT_GROUP,
+    PLATFORM_AI_MEMORY_GROUP,
     PLATFORM_WEBSOCKET_GROUP,
 ]
 
@@ -168,6 +178,7 @@ __all__ = [
     "PLATFORM_STORAGE_GROUP",
     "PLATFORM_SSL_GROUP",
     "PLATFORM_AI_TOOLKIT_GROUP",
+    "PLATFORM_AI_MEMORY_GROUP",
     "PLATFORM_WEBSOCKET_GROUP",
     "PLATFORM_CONFIG_GROUPS",
     # 租户分组

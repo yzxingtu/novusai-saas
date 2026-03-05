@@ -7,13 +7,11 @@
 
 from __future__ import annotations
 
-import csv
 import io
 import mimetypes
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, BinaryIO
 
 if TYPE_CHECKING:

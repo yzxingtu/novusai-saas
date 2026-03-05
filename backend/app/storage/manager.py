@@ -2,7 +2,6 @@
 存储驱动管理器
 """
 
-from typing import Dict, Type
 
 from app.core.logging import LogManager
 from app.exceptions import StorageConfigError
@@ -34,11 +33,11 @@ class StorageManager:
         """
         if self._initialized:
             return
-        self._drivers: Dict[str, Type[StorageDriver]] = {}
+        self._drivers: dict[str, type[StorageDriver]] = {}
         self.register_driver(LocalStorageDriver)
         self._initialized = True
 
-    def register_driver(self, driver_cls: Type[StorageDriver]) -> None:
+    def register_driver(self, driver_cls: type[StorageDriver]) -> None:
         """
         注册驱动
         """
@@ -79,7 +78,7 @@ class StorageManager:
         """
         return driver_name in self._drivers
 
-    def get_driver_class(self, driver_name: str) -> Type[StorageDriver] | None:
+    def get_driver_class(self, driver_name: str) -> type[StorageDriver] | None:
         """
         获取驱动类（供连接测试等场景使用）
         """

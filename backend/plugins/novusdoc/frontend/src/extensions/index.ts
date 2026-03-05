@@ -6,25 +6,25 @@
 
 import type { AnyExtension } from '@tiptap/core'
 
-import StarterKit from '@tiptap/starter-kit'
-import Table from '@tiptap/extension-table'
-import TableRow from '@tiptap/extension-table-row'
-import TableCell from '@tiptap/extension-table-cell'
-import TableHeader from '@tiptap/extension-table-header'
-import Image from '@tiptap/extension-image'
-import Link from '@tiptap/extension-link'
-import TaskList from '@tiptap/extension-task-list'
-import TaskItem from '@tiptap/extension-task-item'
-import Placeholder from '@tiptap/extension-placeholder'
-import CharacterCount from '@tiptap/extension-character-count'
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
-import Underline from '@tiptap/extension-underline'
-import Highlight from '@tiptap/extension-highlight'
-import TextAlign from '@tiptap/extension-text-align'
-import Color from '@tiptap/extension-color'
-import TextStyle from '@tiptap/extension-text-style'
-import Subscript from '@tiptap/extension-subscript'
-import Superscript from '@tiptap/extension-superscript'
+import { StarterKit } from '@tiptap/starter-kit'
+import { Table } from '@tiptap/extension-table'
+import { TableRow } from '@tiptap/extension-table-row'
+import { TableCell } from '@tiptap/extension-table-cell'
+import { TableHeader } from '@tiptap/extension-table-header'
+import { Image } from '@tiptap/extension-image'
+import { Link } from '@tiptap/extension-link'
+import { TaskList } from '@tiptap/extension-task-list'
+import { TaskItem } from '@tiptap/extension-task-item'
+import { Placeholder } from '@tiptap/extension-placeholder'
+import { CharacterCount } from '@tiptap/extension-character-count'
+import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
+import { Underline } from '@tiptap/extension-underline'
+import { Highlight } from '@tiptap/extension-highlight'
+import { TextAlign } from '@tiptap/extension-text-align'
+import { Color } from '@tiptap/extension-color'
+import { TextStyle } from '@tiptap/extension-text-style'
+import { Subscript } from '@tiptap/extension-subscript'
+import { Superscript } from '@tiptap/extension-superscript'
 import { common, createLowlight } from 'lowlight'
 
 const lowlight = createLowlight(common)
@@ -38,6 +38,8 @@ function buildBuiltinExtensions(opts: ExtensionOptions = {}): AnyExtension[] {
   return [
   StarterKit.configure({
     codeBlock: false,
+    link: false,
+    underline: false,
     ...(opts.disableHistory ? { history: false } : {}),
   }),
   Table.configure({ resizable: true }),

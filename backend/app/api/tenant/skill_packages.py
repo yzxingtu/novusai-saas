@@ -9,22 +9,22 @@ from typing import Any
 from fastapi import Query, Request, UploadFile
 
 from app.core.base_controller import TenantController
-from app.core.deps import DbSession, ActiveTenantAdmin, QueryParams
+from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.core.response import success, created, deleted, paginated
+from app.core.recycle_bin import register_tenant_recycle_bin_routes
+from app.core.response import created, deleted, paginated, success
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
-from app.rbac.decorators import (
-    permission_resource,
-    MenuConfig,
-    action_read,
-    action_create,
-    action_update,
-    action_delete,
-)
-from app.core.recycle_bin import register_tenant_recycle_bin_routes
 from app.models.ai.skill_package import SkillPackage
+from app.rbac.decorators import (
+    MenuConfig,
+    action_create,
+    action_delete,
+    action_read,
+    action_update,
+    permission_resource,
+)
 from app.schemas.ai.skill_package import (
     SkillPackageCreate,
     SkillPackageUpdate,
@@ -249,7 +249,9 @@ class TenantSkillPackageController(TenantController):
             - scope=tenant, tenant_id=当前租户
             - 租户端不允许创建 is_system 包
             """
-            from app.api.shared._skill_package_upload import process_skill_package_upload
+            from app.api.shared._skill_package_upload import (
+                process_skill_package_upload,
+            )
             from app.enums.common import ResourceScopeEnum
             from app.services.ai.skill_service import SkillService
 
@@ -339,8 +341,8 @@ class TenantSkillPackageController(TenantController):
             if not pkg:
                 raise NotFoundException(message=_("skill_package.error.not_found"))
 
-            from app.services.ai.skill_service import SkillService
             from app.schemas.common.query import FilterRule
+            from app.services.ai.skill_service import SkillService
             skill_service = SkillService(db, tenant_admin.tenant_id)
             items, total = await skill_service.query_list(
                 spec=query,

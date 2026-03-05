@@ -6,12 +6,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.core.base_service import TenantService
 from app.core.i18n import _
 from app.exceptions import NotFoundException
 from app.models.ai.table_policy import AITablePolicy, AITablePolicyOverride
-from app.repositories.ai.table_policy_override_repository import AITablePolicyOverrideRepository
+from app.repositories.ai.table_policy_override_repository import (
+    AITablePolicyOverrideRepository,
+)
 from app.repositories.ai.table_policy_repository import AITablePolicyRepository
-from app.core.base_service import TenantService
 
 
 class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITablePolicyOverrideRepository]):
@@ -97,9 +99,12 @@ class AITablePolicyOverrideService(TenantService[AITablePolicyOverride, AITableP
                     data[field] = None  # 不允许放开，清除覆盖
 
         # max_rows: 只能更小
-        if "max_rows" in data and data["max_rows"] is not None:
-            if data["max_rows"] > gp.max_rows:
-                data["max_rows"] = None  # 不允许超过全局值
+        if (
+            "max_rows" in data
+            and data["max_rows"] is not None
+            and data["max_rows"] > gp.max_rows
+        ):
+            data["max_rows"] = None  # 不允许超过全局值
 
 
 __all__ = ["AITablePolicyOverrideService"]

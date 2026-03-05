@@ -11,16 +11,18 @@ from typing import Any
 
 from fastapi import APIRouter, Query, Request
 from sqlalchemy import func, select
-from sqlalchemy.orm import InstrumentedAttribute
 
-from app.core.deps import DbSession, ActiveAdmin, QueryParams
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.core.response import success, deleted, paginated
+from app.core.response import deleted, paginated, success
 from app.exceptions import NotFoundException, ValidationException
 from app.rbac.decorators import (
-    permission_resource, action_read, action_delete,
-    PermissionScope, MenuConfig,
+    MenuConfig,
+    PermissionScope,
+    action_delete,
+    action_read,
+    permission_resource,
 )
 
 logger = LogManager.get_logger("db")
@@ -145,7 +147,8 @@ def _get_service(module_code: str, db: Any):
     __sortable__ 搜索能力，同时额外开放 tenant_id 过滤。
     """
     from app.core.base_repository import BaseRepository
-    from app.core.base_service import TenantService as _TenantSvc, GlobalService
+    from app.core.base_service import GlobalService
+    from app.core.base_service import TenantService as _TenantSvc
 
     config = RECYCLABLE_MODULES.get(module_code)
     if not config:

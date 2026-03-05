@@ -19,8 +19,8 @@ export interface RecycleBinModuleMeta {
 
 export interface RecycleBinItem {
   id: number;
-  deleted_at: string | null;
-  delete_level: string | null;
+  deleted_at: null | string;
+  delete_level: null | string;
   tenant_id?: number;
   tenant_name?: string;
   [key: string]: unknown;

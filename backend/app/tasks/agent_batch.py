@@ -10,10 +10,10 @@
 
 import asyncio
 
-from app.core.logging import LogManager
-from app.tasks.base import register_task, BaseTask
 from app.core.base_model import utc_now
+from app.core.logging import LogManager
 from app.tasks.async_db import task_async_session as _task_async_session
+from app.tasks.base import BaseTask, register_task
 
 logger = LogManager.get_logger("task")
 
@@ -41,8 +41,8 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
     """
 
     async def _execute() -> dict:
-        from app.ai.engine.types import ExecutionRequest
         from app.ai.engine.task import TaskEngine
+        from app.ai.engine.types import ExecutionRequest
         from app.ai.gateway import AIGateway
         from app.ai.tools.sandbox import SandboxConfig, ToolSandbox
         from app.enums.agent import AgentExecutionModeEnum, BatchRunStatusEnum
@@ -83,14 +83,11 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                 gateway = AIGateway(db)
 
                 # 解析 Agent 绑定的技能
-                tool_definitions = None
                 try:
                     from app.ai.skills.resolver import resolve_for_agent
-                    skill_result = await resolve_for_agent(
+                    await resolve_for_agent(
                         db, agent, tenant_id=tenant_id,
                     )
-                    if skill_result:
-                        tool_definitions = skill_result.tools
                 except Exception as skill_exc:
                     logger.warning(
                         "Batch %d: skill resolution failed: %s",

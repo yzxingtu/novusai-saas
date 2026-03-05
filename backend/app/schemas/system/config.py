@@ -10,21 +10,20 @@ from pydantic import Field
 
 from app.core.base_schema import BaseSchema
 
-
 # ==========================================
 # 配置选项
 # ==========================================
 
 class ConfigOptionSchema(BaseSchema):
     """配置选项"""
-    
+
     value: Any = Field(..., description="选项值")
     label: str = Field(..., description="选项标签")
 
 
 class ValidationRuleSchema(BaseSchema):
     """验证规则"""
-    
+
     type: str = Field(..., description="规则类型")
     value: Any = Field(..., description="规则值")
     message: str = Field("", description="错误消息")
@@ -32,7 +31,7 @@ class ValidationRuleSchema(BaseSchema):
 
 class DisplayRuleSchema(BaseSchema):
     """显示规则"""
-    
+
     field: str = Field(..., description="依赖字段的 key")
     operator: str = Field("equals", description="规则类型: equals / in")
     value: Any = Field(None, description="目标值或数组")
@@ -41,7 +40,7 @@ class DisplayRuleSchema(BaseSchema):
 
 class ConfigItemResponse(BaseSchema):
     """配置项响应"""
-    
+
     key: str = Field(..., description="配置键名")
     name: str = Field(..., description="配置名称")
     description: str | None = Field(None, description="配置描述")
@@ -66,7 +65,7 @@ class ConfigItemResponse(BaseSchema):
 
 class ConfigGroupResponse(BaseSchema):
     """配置分组响应"""
-    
+
     code: str = Field(..., description="分组代码")
     name: str = Field(..., description="分组名称")
     description: str | None = Field(None, description="分组描述")
@@ -77,7 +76,7 @@ class ConfigGroupResponse(BaseSchema):
 
 class ConfigGroupListResponse(BaseSchema):
     """配置分组列表响应（不含配置项）"""
-    
+
     code: str = Field(..., description="分组代码")
     name: str = Field(..., description="分组名称")
     description: str | None = Field(None, description="分组描述")
@@ -92,13 +91,13 @@ class ConfigGroupListResponse(BaseSchema):
 
 class ConfigUpdateRequest(BaseSchema):
     """配置更新请求"""
-    
+
     configs: dict[str, Any] = Field(..., description="配置键值对")
 
 
 class ConfigUpdateItem(BaseSchema):
     """单个配置更新项"""
-    
+
     key: str = Field(..., description="配置键名")
     value: Any = Field(..., description="配置值")
 
@@ -109,7 +108,7 @@ class ConfigUpdateItem(BaseSchema):
 
 class BatchConfigUpdateRequest(BaseSchema):
     """批量配置更新请求"""
-    
+
     items: list[ConfigUpdateItem] = Field(..., description="配置更新列表")
 
 

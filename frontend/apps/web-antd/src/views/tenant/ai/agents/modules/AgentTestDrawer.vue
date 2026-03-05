@@ -4,8 +4,6 @@
  *
  * 功能：SSE 流式对话、消息列表、工具调用展示、停止生成
  */
-defineOptions({ name: 'AgentTestDrawer' });
-
 import { computed, nextTick, ref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
@@ -16,15 +14,17 @@ import {
   Collapse,
   CollapsePanel,
   Input,
+  message,
   Spin,
   Tag,
   Tooltip,
-  message,
 } from 'ant-design-vue';
 
 import { MarkdownRender } from '#/components/business/markdown-render';
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
+
+defineOptions({ name: 'AgentTestDrawer' });
 
 /** 聊天消息 */
 interface ChatMessage {
@@ -44,7 +44,7 @@ const agentStatus = ref('');
 const messages = ref<ChatMessage[]>([]);
 const inputText = ref('');
 const streaming = ref(false);
-const conversationId = ref<number | null>(null);
+const conversationId = ref<null | number>(null);
 const abortController = ref<AbortController | null>(null);
 
 const messageListRef = ref<HTMLElement>();
@@ -162,6 +162,14 @@ async function onSend() {
               continue;
             }
             switch (evt.event) {
+              case 'done': {
+                msg.tokenUsage = (evt.total_tokens as number) || 0;
+                msg.durationMs = (evt.duration_ms as number) || 0;
+                if (evt.conversation_id) {
+                  conversationId.value = evt.conversation_id as number;
+                }
+                break;
+              }
               case 'message': {
                 msg.content += (evt.delta as string) || '';
                 break;
@@ -172,14 +180,6 @@ async function onSend() {
                   name: evt.name as string,
                   success: evt.success as boolean,
                 });
-                break;
-              }
-              case 'done': {
-                msg.tokenUsage = (evt.total_tokens as number) || 0;
-                msg.durationMs = (evt.duration_ms as number) || 0;
-                if (evt.conversation_id) {
-                  conversationId.value = evt.conversation_id as number;
-                }
                 break;
               }
             }
@@ -205,8 +205,8 @@ async function onSend() {
         },
       },
     );
-  } catch (err: unknown) {
-    if (err instanceof Error && err.name === 'AbortError') return;
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') return;
     const msg = messages.value[assistantIdx];
     if (msg) {
       msg.content += `\n\n**${$t('tenant.ai.agent.test.streamError')}**`;
@@ -394,9 +394,7 @@ function onKeyDown(e: KeyboardEvent) {
           />
           <Tooltip
             :title="
-              isPublished
-                ? undefined
-                : $t('tenant.ai.agent.test.notPublished')
+              isPublished ? undefined : $t('tenant.ai.agent.test.notPublished')
             "
           >
             <Button

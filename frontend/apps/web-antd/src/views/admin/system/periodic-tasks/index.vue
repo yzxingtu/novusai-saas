@@ -4,8 +4,6 @@
  */
 import type { adminApi } from '#/api';
 
-defineOptions({ name: 'SystemPeriodicTaskList' });
-
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -30,6 +28,8 @@ import {
 } from './data';
 import Form from './modules/PeriodicTaskForm.vue';
 import TaskLogListDrawer from './modules/TaskLogListDrawer.vue';
+
+defineOptions({ name: 'SystemPeriodicTaskList' });
 
 type PeriodicTaskInfo = adminApi.PeriodicTaskInfo;
 
@@ -63,27 +63,26 @@ async function onToggleActive(row: PeriodicTaskInfo, checked: boolean) {
   }
 }
 
-const { Grid, FormDrawer, onRefresh } =
-  useCrudPage<PeriodicTaskInfo>({
-    api: {
-      list: admin.getPeriodicTaskListApi,
-      resource: '/admin/periodic-tasks',
-    },
-    columns: useColumns,
-    searchSchema: useGridFormSchema(),
-    formComponent: Form,
-    formDefaults: getFormDefaults,
-    i18nPrefix: 'admin.system.periodicTask',
-    nameField: 'name',
-    defaultSort: 'name',
-    rowHeight: 72,
-    recycleBin: true,
-    createPermission: 'periodic_task:create',
-    customActions: {
-      trigger: onTriggerTask,
-      logs: onViewLogs,
-    },
-  });
+const { Grid, FormDrawer, onRefresh } = useCrudPage<PeriodicTaskInfo>({
+  api: {
+    list: admin.getPeriodicTaskListApi,
+    resource: '/admin/periodic-tasks',
+  },
+  columns: useColumns,
+  searchSchema: useGridFormSchema(),
+  formComponent: Form,
+  formDefaults: getFormDefaults,
+  i18nPrefix: 'admin.system.periodicTask',
+  nameField: 'name',
+  defaultSort: 'name',
+  rowHeight: 72,
+  recycleBin: true,
+  createPermission: 'periodic_task:create',
+  customActions: {
+    trigger: onTriggerTask,
+    logs: onViewLogs,
+  },
+});
 </script>
 
 <template>
@@ -99,14 +98,16 @@ const { Grid, FormDrawer, onRefresh } =
             <!-- 彩色任务图标 -->
             <div
               class="flex size-9 shrink-0 items-center justify-center rounded-xl transition-colors"
-              :class="[
-                row.isActive ? getTaskIconBg(row.taskPath) : 'bg-muted',
-              ]"
+              :class="[row.isActive ? getTaskIconBg(row.taskPath) : 'bg-muted']"
             >
               <IconifyIcon
                 :icon="getTaskIcon(row.taskPath)"
                 class="size-[18px]"
-                :class="row.isActive ? getTaskIconColor(row.taskPath) : 'text-muted-foreground/50'"
+                :class="
+                  row.isActive
+                    ? getTaskIconColor(row.taskPath)
+                    : 'text-muted-foreground/50'
+                "
               />
             </div>
             <!-- 文本信息 -->
@@ -114,7 +115,9 @@ const { Grid, FormDrawer, onRefresh } =
               <div class="flex items-center gap-1.5">
                 <span
                   class="truncate text-[13px] font-medium"
-                  :class="row.isActive ? 'text-foreground' : 'text-muted-foreground'"
+                  :class="
+                    row.isActive ? 'text-foreground' : 'text-muted-foreground'
+                  "
                 >
                   {{ row.name }}
                 </span>
@@ -131,11 +134,20 @@ const { Grid, FormDrawer, onRefresh } =
                   {{ getScopeText(row.scope) }}
                 </Tag>
               </div>
-              <Tooltip v-if="row.description" :title="row.description.trim()" placement="bottomLeft">
-                <span class="block w-full truncate text-left text-xs text-muted-foreground">{{ row.description.trim() }}</span>
+              <Tooltip
+                v-if="row.description"
+                :title="row.description.trim()"
+                placement="topLeft"
+              >
+                <span
+                  class="block w-full truncate text-left text-xs text-muted-foreground"
+                  >{{ row.description.trim() }}</span
+                >
               </Tooltip>
-              <Tooltip :title="row.taskPath" placement="bottomLeft">
-                <code class="w-fit max-w-[280px] truncate text-[11px] leading-4 text-muted-foreground/50">
+              <Tooltip :title="row.taskPath" placement="topLeft">
+                <code
+                  class="w-fit max-w-[280px] truncate text-[11px] leading-4 text-muted-foreground/50"
+                >
                   {{ row.taskPath }}
                 </code>
               </Tooltip>
@@ -152,7 +164,11 @@ const { Grid, FormDrawer, onRefresh } =
             >
               <div class="flex items-center gap-1">
                 <IconifyIcon
-                  :icon="row.scheduleType === 'cron' ? 'lucide:calendar-clock' : 'lucide:repeat'"
+                  :icon="
+                    row.scheduleType === 'cron'
+                      ? 'lucide:calendar-clock'
+                      : 'lucide:repeat'
+                  "
                   class="size-3"
                 />
                 {{ getScheduleTypeText(row.scheduleType) }}
@@ -170,7 +186,8 @@ const { Grid, FormDrawer, onRefresh } =
               v-else-if="row.scheduleType === 'interval'"
               class="text-xs text-muted-foreground"
             >
-              {{ $t('admin.system.periodicTask.every') }} {{ formatInterval(row.intervalSeconds) }}
+              {{ $t('admin.system.periodicTask.every') }}
+              {{ formatInterval(row.intervalSeconds) }}
             </span>
           </div>
         </template>
@@ -189,11 +206,11 @@ const { Grid, FormDrawer, onRefresh } =
         <template #runInfo_cell="{ row }">
           <div class="flex flex-col gap-1 text-xs">
             <div class="flex items-center gap-1.5">
-              <IconifyIcon icon="lucide:history" class="size-3 shrink-0 text-muted-foreground/40" />
-              <Tooltip
-                v-if="row.lastRunAt"
-                :title="formatDate(row.lastRunAt)"
-              >
+              <IconifyIcon
+                icon="lucide:history"
+                class="size-3 shrink-0 text-muted-foreground/40"
+              />
+              <Tooltip v-if="row.lastRunAt" :title="formatDate(row.lastRunAt)">
                 <span class="tabular-nums text-muted-foreground">
                   {{ formatRelativeTime(row.lastRunAt) }}
                 </span>
@@ -201,7 +218,10 @@ const { Grid, FormDrawer, onRefresh } =
               <span v-else class="text-muted-foreground/30">—</span>
             </div>
             <div class="flex items-center gap-1.5">
-              <IconifyIcon icon="lucide:timer" class="size-3 shrink-0 text-muted-foreground/40" />
+              <IconifyIcon
+                icon="lucide:timer"
+                class="size-3 shrink-0 text-muted-foreground/40"
+              />
               <template v-if="row.nextRunAt">
                 <Tooltip :title="formatDate(row.nextRunAt)">
                   <span
@@ -220,7 +240,6 @@ const { Grid, FormDrawer, onRefresh } =
             </div>
           </div>
         </template>
-
       </Grid>
     </Card>
   </Page>

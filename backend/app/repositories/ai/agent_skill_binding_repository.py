@@ -2,10 +2,10 @@
 智能体技能绑定 Repository
 """
 
-from sqlalchemy import select, and_, delete
+from sqlalchemy import and_, delete, select
 
-from app.models.ai.agent_skill_binding import AgentSkillBinding
 from app.core.base_repository import TenantRepository
+from app.models.ai.agent_skill_binding import AgentSkillBinding
 
 
 class AgentSkillBindingRepository(TenantRepository[AgentSkillBinding]):

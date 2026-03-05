@@ -4,7 +4,7 @@
 提供附件数据访问能力（租户隔离）
 """
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 
 from app.core.base_repository import TenantRepository
 from app.models.tenant.attachment import Attachment

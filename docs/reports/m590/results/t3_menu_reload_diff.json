@@ -1,0 +1,75 @@
+{
+  "generated_from": "t3_slots_reload_verify_20260303.json",
+  "check_endpoint": "/admin/plugins/slots (standalone_pages)",
+  "results": [
+    {
+      "plugin": "storage-migration",
+      "slot_path": "/admin/plugins/storage-migration",
+      "before_has": true,
+      "disable_ok": true,
+      "after_disable_has": false,
+      "enable_ok": true,
+      "after_enable_has": true
+    },
+    {
+      "plugin": "novus-crud-code",
+      "slot_path": "/admin/plugins/novus-crud-code/projects",
+      "before_has": true,
+      "disable_ok": true,
+      "after_disable_has": false,
+      "enable_ok": true,
+      "after_enable_has": true
+    },
+    {
+      "plugin": "novusdoc",
+      "slot_path": "/admin/plugins/novusdoc/docs",
+      "before_has": true,
+      "disable_ok": true,
+      "after_disable_has": false,
+      "enable_ok": true,
+      "after_enable_has": true
+    }
+  ],
+  "final_statuses": [
+    {
+      "name": "aliyun-oss",
+      "status": "enabled"
+    },
+    {
+      "name": "amazon-s3",
+      "status": "enabled"
+    },
+    {
+      "name": "netdisk",
+      "status": "enabled"
+    },
+    {
+      "name": "novus-crud-code",
+      "status": "enabled"
+    },
+    {
+      "name": "novusdoc",
+      "status": "enabled"
+    },
+    {
+      "name": "novusdoc-pro",
+      "status": "enabled"
+    },
+    {
+      "name": "qiniu-kodo",
+      "status": "enabled"
+    },
+    {
+      "name": "storage-migration",
+      "status": "enabled"
+    },
+    {
+      "name": "tencent-cos",
+      "status": "enabled"
+    },
+    {
+      "name": "weather-widget",
+      "status": "enabled"
+    }
+  ]
+}

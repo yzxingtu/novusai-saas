@@ -6,11 +6,11 @@ TenantService 单元测试
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
-from tests.services.conftest import make_mock_model, make_scalar_result
+from tests.services.conftest import make_mock_model
 
 
 def _make_tenant(**overrides):
@@ -73,7 +73,7 @@ class TestTenantStatus:
         service.repo = AsyncMock()
         service.repo.get_by_id = AsyncMock(return_value=tenant)
 
-        result = await service.toggle_status(1, is_active=False)
+        await service.toggle_status(1, is_active=False)
         # Service sets is_active on the model and flushes
 
     @pytest.mark.asyncio
@@ -86,7 +86,7 @@ class TestTenantStatus:
         service.repo = AsyncMock()
         service.repo.get_by_id = AsyncMock(return_value=tenant)
 
-        result = await service.toggle_status(1, is_active=True)
+        await service.toggle_status(1, is_active=True)
         # Service sets is_active on the model and flushes
 
 

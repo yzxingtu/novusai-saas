@@ -6,10 +6,12 @@
 
 from app.celery_app import celery_app
 from app.core.base_service import TenantService
-from app.exceptions import BusinessException, NotFoundException
 from app.core.logging import LogManager
+from app.exceptions import BusinessException, NotFoundException
 from app.models.system.periodic_task import PeriodicTask
-from app.repositories.tenant.periodic_task_repository import TenantPeriodicTaskRepository
+from app.repositories.tenant.periodic_task_repository import (
+    TenantPeriodicTaskRepository,
+)
 
 logger = LogManager.get_logger("queue")
 

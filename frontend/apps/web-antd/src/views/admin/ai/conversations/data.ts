@@ -7,15 +7,21 @@ import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import { searchInput, select } from '#/adapter/form';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
-import { formatCost, formatTokens } from '#/utils/format';
-
-export { formatCost, formatTokens };
 
 function getStatusOptions() {
   return [
-    { label: $t('admin.ai.conversation.status_options.active'), value: 'active' },
-    { label: $t('admin.ai.conversation.status_options.archived'), value: 'archived' },
-    { label: $t('admin.ai.conversation.status_options.closed'), value: 'closed' },
+    {
+      label: $t('admin.ai.conversation.status_options.active'),
+      value: 'active',
+    },
+    {
+      label: $t('admin.ai.conversation.status_options.archived'),
+      value: 'archived',
+    },
+    {
+      label: $t('admin.ai.conversation.status_options.closed'),
+      value: 'closed',
+    },
   ];
 }
 
@@ -151,3 +157,4 @@ export function useGridFormSchema(): VbenFormSchema[] {
   ];
 }
 
+export { formatCost, formatTokens } from '#/utils/format';

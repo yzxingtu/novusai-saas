@@ -6,8 +6,6 @@ import type { adminApi } from '#/api';
 
 import { ref } from 'vue';
 
-defineOptions({ name: 'TenantPlanList' });
-
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -28,8 +26,10 @@ import {
   useColumns,
   useGridFormSchema,
 } from './data';
-import Form from './modules/PlanForm.vue';
 import PermissionsModal from './modules/PermissionsModal.vue';
+import Form from './modules/PlanForm.vue';
+
+defineOptions({ name: 'TenantPlanList' });
 
 type TenantPlanInfo = adminApi.TenantPlanInfo;
 
@@ -153,33 +153,48 @@ useAutoTableDragSort(() => gridApi.grid, {
         <!-- 配额列：居中显示 -->
         <template #quota_cell="{ row }">
           <div class="flex justify-center">
-            <Popover v-if="row.quota" :title="$t('admin.tenant.plan.quotaDetail')">
+            <Popover
+              v-if="row.quota"
+              :title="$t('admin.tenant.plan.quotaDetail')"
+            >
               <template #content>
                 <div class="flex flex-col gap-2 text-xs">
                   <div class="flex items-center justify-between gap-4">
-                    <span class="text-muted-foreground">{{ $t('admin.tenant.plan.maxUsers') }}:</span>
+                    <span class="text-muted-foreground"
+                      >{{ $t('admin.tenant.plan.maxUsers') }}:</span
+                    >
                     <span class="font-medium text-foreground">{{
                       row.quota.maxUsers ?? '∞'
                     }}</span>
                   </div>
                   <div class="flex items-center justify-between gap-4">
-                    <span class="text-muted-foreground">{{ $t('admin.tenant.plan.maxAdmins') }}:</span>
+                    <span class="text-muted-foreground"
+                      >{{ $t('admin.tenant.plan.maxAdmins') }}:</span
+                    >
                     <span class="font-medium text-foreground">{{
                       row.quota.maxAdmins ?? '∞'
                     }}</span>
                   </div>
                   <div class="flex items-center justify-between gap-4">
-                    <span class="text-muted-foreground">{{ $t('admin.tenant.plan.storageLimitGb') }}:</span>
-                    <span class="font-medium text-foreground">{{ row.quota.storageLimitGb ?? '∞' }} GB</span>
+                    <span class="text-muted-foreground"
+                      >{{ $t('admin.tenant.plan.storageLimitGb') }}:</span
+                    >
+                    <span class="font-medium text-foreground"
+                      >{{ row.quota.storageLimitGb ?? '∞' }} GB</span
+                    >
                   </div>
                   <div class="flex items-center justify-between gap-4">
-                    <span class="text-muted-foreground">{{ $t('admin.tenant.plan.maxCustomDomains') }}:</span>
+                    <span class="text-muted-foreground"
+                      >{{ $t('admin.tenant.plan.maxCustomDomains') }}:</span
+                    >
                     <span class="font-medium text-foreground">{{
                       row.quota.maxCustomDomains ?? '∞'
                     }}</span>
                   </div>
                   <div class="flex items-center justify-between gap-4">
-                    <span class="text-muted-foreground">{{ $t('admin.tenant.plan.apiCallsPerMonth') }}:</span>
+                    <span class="text-muted-foreground"
+                      >{{ $t('admin.tenant.plan.apiCallsPerMonth') }}:</span
+                    >
                     <span class="font-medium text-foreground">{{
                       row.quota.apiCallsPerMonth ?? '∞'
                     }}</span>
@@ -191,7 +206,8 @@ useAutoTableDragSort(() => gridApi.grid, {
                   v-if="row.quota.maxUsers"
                   class="!mr-0 rounded bg-primary/10 text-xs text-primary"
                 >
-                  {{ row.quota.maxUsers }} {{ $t('admin.tenant.plan.userUnit') }}
+                  {{ row.quota.maxUsers }}
+                  {{ $t('admin.tenant.plan.userUnit') }}
                 </Tag>
                 <Tag
                   v-if="row.quota.storageLimitGb"
@@ -294,7 +310,6 @@ useAutoTableDragSort(() => gridApi.grid, {
             </Tooltip>
           </div>
         </template>
-
       </Grid>
     </Card>
   </Page>

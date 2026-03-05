@@ -40,10 +40,20 @@ INSTALL_STEPS = [
 ]
 
 ENABLE_STEPS = [
-    ("pip", 30),
-    ("npm", 30),
-    ("extensions", 15),
-    ("on_enable", 10),
+    ("alembic", 10),
+    ("pip", 25),
+    ("npm", 25),
+    ("extensions", 20),
+    ("on_enable", 15),
+    ("done", 0),
+]
+
+DISABLE_STEPS = [
+    ("extensions", 30),
+    ("skills", 15),
+    ("on_disable", 20),
+    ("tasks", 10),
+    ("permissions", 15),
     ("done", 0),
 ]
 
@@ -103,6 +113,7 @@ class PluginProgressEmitter:
             INSTALL_STEPS if action == "install" else
             ENABLE_STEPS if action == "enable" else
             UNINSTALL_STEPS if action == "uninstall" else
+            DISABLE_STEPS if action == "disable" else
             []
         )
 
@@ -170,7 +181,7 @@ class PluginProgressEmitter:
     async def _emit(self, data: dict[str, Any]) -> None:
         """发送 Socket.IO 事件到操作者的 room。
 
-        使用 asyncio.wait_for 设置 3 秒超时，防止 Redis 连接慢/不可达时
+        使用 asyncio.wait_for 设置 1 秒超时，防止 Redis 连接慢/不可达时
         sio.emit() 永久阻塞导致整个 enable/install 流程挂死。
         """
         if not self._operator_id:
@@ -178,24 +189,32 @@ class PluginProgressEmitter:
 
         import asyncio
 
+        room = f"user:{self._operator_id}"
+        step = data.get("step")
+        logger.debug(
+            "Emitting plugin_progress for %s step=%s status=%s room=%s",
+            self._plugin_name, step, data.get("status"), room,
+        )
         try:
             from app.core.socketio_server import sio
             await asyncio.wait_for(
                 sio.emit(
                     EVENT_PLUGIN_PROGRESS,
                     data,
-                    room=f"user:{self._operator_id}",
+                    room=room,
                     namespace=NAMESPACE_ADMIN,
                 ),
-                timeout=3.0,
+                timeout=1.0,
             )
+            logger.debug("Emitted plugin_progress for %s step=%s OK", self._plugin_name, step)
         except asyncio.TimeoutError:
             logger.warning(
-                "Timeout emitting plugin progress for %s (step=%s) — Redis/SIO may be slow, continuing anyway",
-                self._plugin_name, data.get("step"),
+                "Timeout emitting plugin progress for %s (step=%s) — "
+                "Redis pub/sub may be unavailable; SIO events lost but enable continues",
+                self._plugin_name, step,
             )
         except Exception as exc:
             logger.error(
                 "Failed to emit plugin progress for %s (step=%s): %s",
-                self._plugin_name, data.get("step"), exc,
+                self._plugin_name, step, exc,
             )

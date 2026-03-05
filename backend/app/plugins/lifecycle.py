@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import functools
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -74,6 +76,7 @@ async def _run_subprocess_async(
     text: bool = True,
     capture_output: bool = True,
     shell: bool | None = None,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess:
     """Run subprocess.run in a thread to avoid blocking the async event loop.
 
@@ -92,6 +95,7 @@ async def _run_subprocess_async(
             timeout=timeout,
             cwd=cwd,
             shell=use_shell,
+            env=env,
             encoding="utf-8" if text else None,
             errors="replace" if text else None,
         )
@@ -100,13 +104,39 @@ async def _run_subprocess_async(
 
 # 插件级分布式锁（防止并发 enable/disable/uninstall）
 _LOCK_PREFIX = "plugin:lifecycle:lock:"
-_LOCK_TTL = 120  # 秒，自动过期防死锁
+_LOCK_TTL = 900  # 秒，覆盖 pip/npm/迁移等长流程，避免锁提前过期导致并发操作
 _UNLOCK_IF_OWNER_LUA = """
 if redis.call('GET', KEYS[1]) == ARGV[1] then
     return redis.call('DEL', KEYS[1])
 end
 return 0
 """
+
+_SAFE_PLUGIN_TABLE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+
+
+def _is_safe_plugin_table_name(
+    table_name: str,
+    expected_prefix: list[str] | str | tuple[str, ...],
+) -> bool:
+    """插件表名安全校验：只允许安全字符，且必须匹配插件前缀。"""
+    if not _SAFE_PLUGIN_TABLE_RE.match(table_name):
+        return False
+    if isinstance(expected_prefix, str):
+        prefixes = (expected_prefix,)
+    else:
+        prefixes = tuple(expected_prefix)
+    return any(table_name.startswith(prefix) for prefix in prefixes)
+
+
+def _escape_like_pattern(value: str) -> str:
+    """转义 SQL LIKE 特殊字符，防止 '_'/'%' 被当作通配符。"""
+    return (
+        value
+        .replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+    )
 
 
 @asynccontextmanager
@@ -115,7 +145,7 @@ async def _plugin_lock(plugin_id: int):
     Redis 分布式锁，粒度为单个插件。
 
     获取失败时抛出 PluginError(409)，调用方无需手动释放。
-    TTL 120s 自动过期防死锁。
+    TTL 自动过期防死锁（默认 900s，覆盖长耗时生命周期流程）。
     """
     from app.core.redis import get_redis_client
     from app.plugins.exceptions import PluginError
@@ -144,6 +174,25 @@ class PluginLifecycle:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
         self._loader = PluginLoader()
+
+    def _resolve_plugin_table_prefixes(self, plugin_name: str) -> list[str]:
+        """解析插件可操作的 DB 表前缀（默认 px_{plugin}_* + manifest 声明扩展前缀）。"""
+        own_prefix = f"px_{plugin_name.replace('-', '_')}_"
+        prefixes: list[str] = [own_prefix]
+        try:
+            manifest = self._loader.load_manifest(plugin_name)
+            extra_prefixes = getattr(manifest, "db_table_prefixes", None) or []
+            for prefix in extra_prefixes:
+                normalized = (prefix or "").strip()
+                if normalized:
+                    prefixes.append(normalized)
+        except Exception as exc:
+            logger.warning(
+                "Plugin %s: failed to resolve custom DB table prefixes, fallback to default: %s",
+                plugin_name,
+                exc,
+            )
+        return list(dict.fromkeys(prefixes))
 
     # ================================================================
     # install
@@ -189,13 +238,40 @@ class PluginLifecycle:
                 message=f"Plugin '{plugin_name}' is already being installed by another operation. Please retry later.",
             )
 
-        # 如果 source_path 就是 target_dir（上传端点已复制好），跳过复制
-        source_resolved = source_path.resolve()
-        target_resolved = target_dir.resolve()
-        already_in_place = source_resolved == target_resolved
+        # completed_steps / emitter 在 try 外初始化，确保 except 始终能访问
+        completed_steps: list[str] = []
+        emitter = None
 
-        if not already_in_place:
-            if target_dir.exists():
+        try:
+            # 如果 source_path 就是 target_dir（上传端点已复制好），跳过复制
+            source_resolved = source_path.resolve()
+            target_resolved = target_dir.resolve()
+            already_in_place = source_resolved == target_resolved
+
+            if not already_in_place:
+                if target_dir.exists():
+                    existing = await self._db.execute(
+                        select(PluginModel).where(
+                            PluginModel.name == plugin_name,
+                            PluginModel.is_deleted.is_(False),
+                        )
+                    )
+                    if existing.scalar_one_or_none():
+                        raise PluginInstallError(
+                            message=f"Plugin '{plugin_name}' is already installed",
+                        )
+                    logger.warning(
+                        "Stale plugin directory found for %s (no DB record), cleaning up",
+                        plugin_name,
+                    )
+                    shutil.rmtree(target_dir, ignore_errors=True)
+                shutil.copytree(source_path, target_dir)
+                logger.info("Copied plugin to %s", target_dir)
+                # Only mark "copy" if we actually copied — rollback deletes the dir
+                # when "copy" is in completed_steps; already_in_place must NOT be deleted
+                completed_steps.append("copy")
+            else:
+                # 文件已就位，仅检查是否已安装
                 existing = await self._db.execute(
                     select(PluginModel).where(
                         PluginModel.name == plugin_name,
@@ -206,33 +282,10 @@ class PluginLifecycle:
                     raise PluginInstallError(
                         message=f"Plugin '{plugin_name}' is already installed",
                     )
-                logger.warning(
-                    "Stale plugin directory found for %s (no DB record), cleaning up",
-                    plugin_name,
-                )
-                shutil.rmtree(target_dir, ignore_errors=True)
-            shutil.copytree(source_path, target_dir)
-            logger.info("Copied plugin to %s", target_dir)
-        else:
-            # 文件已就位，仅检查是否已安装
-            existing = await self._db.execute(
-                select(PluginModel).where(
-                    PluginModel.name == plugin_name,
-                    PluginModel.is_deleted.is_(False),
-                )
-            )
-            if existing.scalar_one_or_none():
-                raise PluginInstallError(
-                    message=f"Plugin '{plugin_name}' is already installed",
-                )
 
-        completed_steps: list[str] = ["copy"]
-
-        from app.plugins.progress import PluginProgressEmitter
-        emitter = PluginProgressEmitter(operator_id, plugin_name, "install")
-        await emitter.emit_step("copy", "success", f"Plugin files copied to {target_dir}")
-
-        try:
+            from app.plugins.progress import PluginProgressEmitter
+            emitter = PluginProgressEmitter(operator_id, plugin_name, "install")
+            await emitter.emit_step("copy", "success", f"Plugin files copied to {target_dir}")
             # 2. 解析 manifest（已在上面完成）
             # 3. 校验兼容性 + 插件依赖检查
             from app.enums.plugin import PluginStatusEnum
@@ -242,6 +295,7 @@ class PluginLifecycle:
                 try:
                     from packaging.specifiers import SpecifierSet
                     from packaging.version import Version
+
                     from app.core.config import settings
 
                     platform_spec = SpecifierSet(manifest.compatibility.platform_version)
@@ -465,7 +519,8 @@ class PluginLifecycle:
                 "Plugin %s install failed at step %s: %s",
                 plugin_name, completed_steps[-1] if completed_steps else "init", exc,
             )
-            await emitter.emit_error(str(exc))
+            if emitter is not None:
+                await emitter.emit_error(str(exc))
             await self._rollback_install(plugin_name, completed_steps)
             if isinstance(exc, (PluginError, PluginInstallError, PluginDependencyError)):
                 raise
@@ -474,10 +529,8 @@ class PluginLifecycle:
             )
         finally:
             # 释放安装锁
-            try:
+            with suppress(Exception):
                 await _redis.eval(_UNLOCK_IF_OWNER_LUA, 1, _install_lock_key, _install_owner)
-            except Exception:
-                pass
 
     # ================================================================
     # enable
@@ -492,7 +545,6 @@ class PluginLifecycle:
         """启用插件实现（调用方须持锁）"""
         from sqlalchemy import select
 
-        from app.enums.plugin import PluginStatusEnum
         from app.models.system.plugin import Plugin as PluginModel
         from app.plugins.context_factory import create_plugin_context
         from app.plugins.progress import PluginProgressEmitter
@@ -530,6 +582,29 @@ class PluginLifecycle:
             plugin.installed_packages = manifest.dependencies.python or []
             plugin.ai_requirements = manifest.ai_requirements.model_dump() if manifest.ai_requirements else plugin.ai_requirements
             await self._db.flush()
+
+        # 检查 compatibility.conflicts（已启用的冲突插件）
+        if manifest.compatibility and manifest.compatibility.conflicts:
+            for conflict in manifest.compatibility.conflicts:
+                dep_result = await self._db.execute(
+                    select(PluginModel.status).where(
+                        PluginModel.name == conflict.plugin,
+                        PluginModel.is_deleted.is_(False),
+                    )
+                )
+                dep_status = dep_result.scalar_one_or_none()
+                if dep_status == PluginStatusEnum.ENABLED.value:
+                    conflict_reason = (
+                        conflict.reason.get("zh-CN")
+                        or conflict.reason.get("en")
+                        or "incompatible"
+                    ) if conflict.reason else "incompatible"
+                    raise PluginDependencyError(
+                        message=(
+                            f"Cannot enable '{plugin_name}': conflicts with enabled plugin "
+                            f"'{conflict.plugin}' ({conflict_reason}). Disable it first."
+                        ),
+                    )
 
         # 检查依赖插件是否都已启用
         if manifest.dependencies.plugins:
@@ -608,13 +683,16 @@ class PluginLifecycle:
 
         # 安装 Python 依赖
         if manifest.dependencies.python:
-            await emitter.emit_step("pip", "running", f"Installing {len(manifest.dependencies.python)} Python package(s)...")
+            await emitter.emit_step("pip", "running", f"Checking {len(manifest.dependencies.python)} Python package(s)...")
             try:
-                await self._install_python_deps(plugin_name, manifest.dependencies.python)
+                pip_installed = await self._install_python_deps(plugin_name, manifest.dependencies.python)
             except Exception as exc:
                 await emitter.emit_error(f"pip install failed: {exc}")
                 raise
-            await emitter.emit_step("pip", "success", f"Installed {len(manifest.dependencies.python)} package(s)")
+            if pip_installed:
+                await emitter.emit_step("pip", "success", f"Installed {len(pip_installed)} package(s)")
+            else:
+                await emitter.emit_step("pip", "success", "Python dependencies already satisfied")
         else:
             await emitter.emit_step("pip", "success", "No Python dependencies")
 
@@ -622,10 +700,13 @@ class PluginLifecycle:
         frontend_ext = manifest.extensions.frontend if manifest.extensions else None
         npm_deps = frontend_ext.npm_dependencies if frontend_ext else []
         if npm_deps:
-            await emitter.emit_step("npm", "running", f"Installing {len(npm_deps)} npm package(s)...")
+            await emitter.emit_step("npm", "running", f"Checking {len(npm_deps)} npm package(s)...")
             try:
-                await self._install_npm_deps(plugin_name, npm_deps)
-                await emitter.emit_step("npm", "success", f"Installed {len(npm_deps)} npm package(s)")
+                npm_installed = await self._install_npm_deps(plugin_name, npm_deps)
+                if npm_installed > 0:
+                    await emitter.emit_step("npm", "success", f"Installed {npm_installed} npm package(s)")
+                else:
+                    await emitter.emit_step("npm", "success", "npm already satisfied (skipped)")
             except Exception as exc:
                 await emitter.emit_step("npm", "warning", f"npm install warning: {exc}")
                 logger.warning("npm deps install warning for %s: %s", plugin_name, exc)
@@ -714,7 +795,17 @@ class PluginLifecycle:
         plugin.error_count = 0
         await self._db.flush()
 
-        # 同步启用 DB 中的插件菜单权限，使菜单 API 重新返回该插件菜单
+        # 将 permission_registry 内存中的菜单权限写入 DB（flush，不 commit，不破坏外层事务）
+        # _set_plugin_permissions_enabled 只做 UPDATE（依赖 DB 记录已存在），
+        # 首次 enable 时 DB 尚无该插件权限记录，必须先 sync 才能写入。
+        try:
+            from app.rbac.sync import PermissionSyncService
+            perm_sync = PermissionSyncService(self._db)
+            await perm_sync.sync_plugin_permissions(plugin_name)
+        except Exception as exc:
+            logger.warning("Plugin %s: failed to sync menu permissions to DB: %s", plugin_name, exc)
+
+        # 启用 DB 中的插件菜单权限，使菜单 API 立即返回该插件菜单
         await self._set_plugin_permissions_enabled(plugin_name, True)
 
         # 清除路由正则缓存（DEBUG 模式下路由可能变化）
@@ -747,9 +838,9 @@ class PluginLifecycle:
         """禁用插件实现（调用方须持锁）"""
         from sqlalchemy import select
 
-        from app.enums.plugin import PluginStatusEnum
         from app.models.system.plugin import Plugin as PluginModel
         from app.plugins.context_factory import create_plugin_context
+        from app.plugins.progress import PluginProgressEmitter
         from app.plugins.registry import ExtensionRegistry
 
         plugin = await self._db.execute(
@@ -767,6 +858,7 @@ class PluginLifecycle:
             return
 
         plugin_name = plugin.name
+        emitter = PluginProgressEmitter(operator_id, plugin_name, "disable")
 
         # 检查是否有其他插件依赖此插件
         dependents = await self._get_dependents(plugin_name)
@@ -779,12 +871,17 @@ class PluginLifecycle:
         await self._check_storage_driver_in_use(plugin_name, plugin.manifest or {}, force=force)
 
         # 反注册所有扩展点
+        await emitter.emit_step("extensions", "running", "Unregistering extensions...")
         ExtensionRegistry.get_instance().unregister_all(plugin_name)
+        await emitter.emit_step("extensions", "success", "Extensions unregistered")
 
         # 停用插件技能记录
+        await emitter.emit_step("skills", "running", "Deactivating skill records...")
         await self._deactivate_plugin_skill_records(plugin_name)
+        await emitter.emit_step("skills", "success", "Skill records deactivated")
 
         # 调用 on_disable
+        await emitter.emit_step("on_disable", "running", "Running disable hook...")
         try:
             manifest = self._loader.load_manifest(plugin_name)
             plugin_cls = self._loader.load_plugin_class(plugin_name)
@@ -795,14 +892,18 @@ class PluginLifecycle:
                 granted_capabilities=plugin.granted_capabilities or [],
             )
             await plugin_cls().on_disable(ctx)
+            await emitter.emit_step("on_disable", "success", "Disable hook completed")
         except Exception as exc:
             logger.warning("Plugin %s on_disable failed: %s", plugin_name, exc)
+            await emitter.emit_step("on_disable", "success", f"Disable hook warning: {exc}")
 
         # 禁用不卸载依赖 — 依赖仅在 uninstall 时清理
         # 这样用户重新启用时无需等待重新安装
 
         # M50-T2: 将插件定时任务标记为非活跃，Celery Beat 下次刺新后自动停止调度
+        await emitter.emit_step("tasks", "running", "Deactivating scheduled tasks...")
         await self._deactivate_plugin_periodic_tasks(plugin_name)
+        await emitter.emit_step("tasks", "success", "Scheduled tasks deactivated")
 
         # 更新状态
         plugin.status = PluginStatusEnum.DISABLED.value
@@ -810,8 +911,11 @@ class PluginLifecycle:
         await self._db.flush()
 
         # 同步禁用 DB 中的插件菜单权限，使菜单 API 立即不再返回该插件菜单
+        await emitter.emit_step("permissions", "running", "Disabling menu permissions...")
         await self._set_plugin_permissions_enabled(plugin_name, False)
+        await emitter.emit_step("permissions", "success", "Menu permissions disabled")
 
+        await emitter.emit_done(f"Plugin {plugin_name} disabled successfully")
         logger.info("Plugin %s disabled", plugin_name)
 
         # T4: 触发系统钩子点
@@ -825,27 +929,173 @@ class PluginLifecycle:
             logger.warning("system_hook PLUGIN_DISABLED failed: %s", exc)
 
     # ================================================================
+    # dependencies
+    # ================================================================
+
+    async def install_dependencies(
+        self,
+        plugin_id: int,
+        *,
+        install_python: bool = True,
+        install_npm: bool = True,
+    ) -> dict:
+        """
+        显式安装插件依赖（不改变插件启用状态）。
+
+        用于运维场景：手动补装依赖，避免只能通过 enable/repair 间接触发。
+        """
+        from sqlalchemy import select
+
+        from app.models.system.plugin import Plugin as PluginModel
+        from app.plugins.exceptions import PluginNotFoundError
+
+        async with _plugin_lock(plugin_id):
+            result = await self._db.execute(
+                select(PluginModel).where(
+                    PluginModel.id == plugin_id,
+                    PluginModel.is_deleted.is_(False),
+                )
+            )
+            plugin = result.scalar_one_or_none()
+            if not plugin:
+                raise PluginNotFoundError(message=f"Plugin ID {plugin_id} not found")
+
+            manifest = self._loader.load_manifest(plugin.name)
+            py_deps = list(manifest.dependencies.python or [])
+            fe = manifest.extensions.frontend if manifest.extensions else None
+            npm_deps = list(fe.npm_dependencies or []) if fe else []
+
+            installed_python: list[str] = []
+            installed_npm = 0
+
+            if install_python and py_deps:
+                installed_python = await self._install_python_deps(plugin.name, py_deps)
+
+            if install_npm and npm_deps:
+                installed_npm = await self._install_npm_deps(plugin.name, npm_deps)
+
+            return {
+                "plugin_id": plugin.id,
+                "plugin_name": plugin.name,
+                "python": {
+                    "declared": py_deps,
+                    "installed": installed_python,
+                    "installed_count": len(installed_python),
+                },
+                "npm": {
+                    "declared": npm_deps,
+                    "installed_count": installed_npm,
+                },
+            }
+
+    async def uninstall_dependencies(
+        self,
+        plugin_id: int,
+        *,
+        uninstall_python: bool = True,
+        uninstall_npm: bool = True,
+        force: bool = False,
+    ) -> dict:
+        """
+        显式卸载插件依赖（不卸载插件本体）。
+
+        安全策略：插件处于 enabled 状态时，禁止卸载依赖。
+        force 参数保留仅为兼容旧调用，实际不再允许绕过。
+        """
+        from sqlalchemy import select
+
+        from app.models.system.plugin import Plugin as PluginModel
+        from app.plugins.exceptions import PluginNotFoundError
+
+        async with _plugin_lock(plugin_id):
+            result = await self._db.execute(
+                select(PluginModel).where(
+                    PluginModel.id == plugin_id,
+                    PluginModel.is_deleted.is_(False),
+                )
+            )
+            plugin = result.scalar_one_or_none()
+            if not plugin:
+                raise PluginNotFoundError(message=f"Plugin ID {plugin_id} not found")
+
+            if plugin.status == PluginStatusEnum.ENABLED.value:
+                raise PluginDependencyError(
+                    message=(
+                        f"Cannot uninstall dependencies while plugin '{plugin.name}' is enabled. "
+                        "Disable plugin first."
+                    ),
+                )
+
+            if force:
+                logger.warning(
+                    "Ignoring deprecated force=true in dependency uninstall for plugin %s",
+                    plugin.name,
+                )
+
+            manifest = self._loader.load_manifest(plugin.name)
+            py_deps = list(plugin.installed_packages or manifest.dependencies.python or [])
+            fe = manifest.extensions.frontend if manifest.extensions else None
+            npm_deps = list(fe.npm_dependencies or []) if fe else []
+
+            if uninstall_python and py_deps:
+                await self._uninstall_python_deps(plugin.name, py_deps)
+
+            if uninstall_npm and npm_deps:
+                await self._uninstall_npm_deps(plugin.name, npm_deps)
+
+            return {
+                "plugin_id": plugin.id,
+                "plugin_name": plugin.name,
+                "python": {
+                    "declared": py_deps,
+                    "attempted": uninstall_python,
+                },
+                "npm": {
+                    "declared": npm_deps,
+                    "attempted": uninstall_npm,
+                },
+                "forced": False,
+            }
+
+    # ================================================================
     # uninstall
     # ================================================================
 
     async def uninstall(
-        self, plugin_id: int, confirm_data_delete: bool = False, *, operator_id: int | None = None,
+        self,
+        plugin_id: int,
+        confirm_data_delete: bool = False,
+        *,
+        cleanup_dependencies: bool = False,
+        operator_id: int | None = None,
     ) -> None:
         """卸载插件（带分布式锁）"""
         async with _plugin_lock(plugin_id):
-            await self._uninstall_impl(plugin_id, confirm_data_delete, operator_id=operator_id)
+            await self._uninstall_impl(
+                plugin_id,
+                confirm_data_delete,
+                cleanup_dependencies=cleanup_dependencies,
+                operator_id=operator_id,
+            )
 
     async def _uninstall_impl(
-        self, plugin_id: int, confirm_data_delete: bool = False, *, operator_id: int | None = None,
+        self,
+        plugin_id: int,
+        confirm_data_delete: bool = False,
+        *,
+        cleanup_dependencies: bool = False,
+        operator_id: int | None = None,
     ) -> None:
         """卸载插件实现（14 步清理）"""
+        _ = confirm_data_delete
         from sqlalchemy import delete, select
 
-        from app.enums.plugin import PluginStatusEnum
         from app.models.system.plugin import Plugin as PluginModel
         from app.models.system.plugin_license import PluginLicense
-        from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
         from app.models.system.plugin_version import PluginVersion
+        from app.models.system.resource_tenant_assignment import (
+            ResourceTenantAssignment,
+        )
         from app.plugins.context_factory import create_plugin_context
         from app.plugins.registry import ExtensionRegistry
 
@@ -923,9 +1173,10 @@ class PluginLifecycle:
         await emitter.emit_step("cleanup_ai_features", "running", "Removing AI features...")
         try:
             from app.models.system.agent_assignment import SystemAgentAssignment
+            _escaped_pname = plugin_name.replace("_", "\\_").replace("%", "\\%")
             await self._db.execute(
                 delete(SystemAgentAssignment).where(
-                    SystemAgentAssignment.feature_code.like(f"plugin.{plugin_name}.%")
+                    SystemAgentAssignment.feature_code.like(f"plugin.{_escaped_pname}.%", escape="\\")
                 )
             )
             await emitter.emit_step("cleanup_ai_features", "success", "AI features removed")
@@ -933,28 +1184,53 @@ class PluginLifecycle:
             await emitter.emit_step("cleanup_ai_features", "success", f"AI features warning: {exc}")
             logger.warning("Failed to cleanup AI features for %s: %s", plugin_name, exc)
 
+        # 8.5 卸载前数据备份（non-fatal，失败不阻止卸载）
+        try:
+            from app.plugins.backup import backup_plugin_data
+            await emitter.emit_step("cleanup_db", "running", "Backing up plugin data before deletion...")
+            backup_path = await backup_plugin_data(plugin_name, plugin.version or "unknown", self._db)
+            logger.info("Plugin %s: pre-uninstall backup saved to %s", plugin_name, backup_path)
+        except Exception as exc:
+            logger.warning("Plugin %s: pre-uninstall backup failed (continuing): %s", plugin_name, exc)
+
         # 9. 数据库清理
         await emitter.emit_step("cleanup_db", "running", "Cleaning up database tables...")
         await self._cleanup_plugin_database(plugin_name)
         await emitter.emit_step("cleanup_db", "success", "Database tables cleaned")
 
-        # 10. 卸载 Python 依赖（共享检查：其他插件/项目/反向依赖）
-        if plugin.installed_packages:
-            await emitter.emit_step("cleanup_pip", "running", "Uninstalling Python dependencies...")
-            await self._uninstall_python_deps(plugin_name, plugin.installed_packages)
-            await emitter.emit_step("cleanup_pip", "success", "Python dependencies cleaned")
+        if cleanup_dependencies:
+            # 10. 卸载 Python 依赖（共享检查：其他插件/项目/反向依赖）
+            if plugin.installed_packages:
+                await emitter.emit_step("cleanup_pip", "running", "Uninstalling Python dependencies...")
+                await self._uninstall_python_deps(plugin_name, plugin.installed_packages)
+                await emitter.emit_step("cleanup_pip", "success", "Python dependencies cleaned")
+            else:
+                await emitter.emit_step("cleanup_pip", "success", "No Python dependencies to clean")
 
-        # 10.5 卸载 npm 依赖（共享检查：其他插件是否也声明了同名包）
-        try:
-            manifest = self._loader.load_manifest(plugin_name)
-            frontend_ext = manifest.extensions.frontend if manifest.extensions else None
-            npm_deps = frontend_ext.npm_dependencies if frontend_ext else []
-            if npm_deps:
-                await emitter.emit_step("cleanup_npm", "running", "Uninstalling npm dependencies...")
-                await self._uninstall_npm_deps(plugin_name, npm_deps)
-                await emitter.emit_step("cleanup_npm", "success", "npm dependencies cleaned")
-        except Exception as exc:
-            logger.warning("Failed to cleanup npm deps for %s: %s", plugin_name, exc)
+            # 10.5 卸载 npm 依赖（共享检查：其他插件是否也声明了同名包）
+            try:
+                manifest = self._loader.load_manifest(plugin_name)
+                frontend_ext = manifest.extensions.frontend if manifest.extensions else None
+                npm_deps = frontend_ext.npm_dependencies if frontend_ext else []
+                if npm_deps:
+                    await emitter.emit_step("cleanup_npm", "running", "Uninstalling npm dependencies...")
+                    await self._uninstall_npm_deps(plugin_name, npm_deps)
+                    await emitter.emit_step("cleanup_npm", "success", "npm dependencies cleaned")
+                else:
+                    await emitter.emit_step("cleanup_npm", "success", "No npm dependencies to clean")
+            except Exception as exc:
+                logger.warning("Failed to cleanup npm deps for %s: %s", plugin_name, exc)
+        else:
+            await emitter.emit_step(
+                "cleanup_pip",
+                "success",
+                "Skipped dependency cleanup (use dependency management API for explicit cleanup)",
+            )
+            await emitter.emit_step(
+                "cleanup_npm",
+                "success",
+                "Skipped dependency cleanup (use dependency management API for explicit cleanup)",
+            )
 
         # 11-13. 删除关联记录
         await emitter.emit_step("cleanup_records", "running", "Removing plugin records...")
@@ -996,10 +1272,10 @@ class PluginLifecycle:
 
     async def _get_dependents(self, plugin_name: str) -> list[str]:
         """
-        查找依赖指定插件的所有已安装插件。
+        查找**已启用**的、依赖指定插件的插件列表。
 
-        扫描所有已安装插件的 manifest.dependencies.plugins，
-        返回声明了对 plugin_name 依赖的插件名列表。
+        只返回 status=enabled 的插件 — 已禁用/error/installed 的插件
+        扩展点均已反注册，不构成运行时依赖，无需先禁用它们。
         """
         from sqlalchemy import select
 
@@ -1009,6 +1285,7 @@ class PluginLifecycle:
             select(PluginModel.name, PluginModel.manifest).where(
                 PluginModel.name != plugin_name,
                 PluginModel.is_deleted.is_(False),
+                PluginModel.status == PluginStatusEnum.ENABLED.value,
             )
         )
         dependents: list[str] = []
@@ -1083,8 +1360,8 @@ class PluginLifecycle:
             update(Permission)
             .where(
                 or_(
-                    Permission.code.startswith(admin_prefix),
-                    Permission.code.startswith(tenant_prefix),
+                    Permission.code.startswith(admin_prefix, autoescape=True),
+                    Permission.code.startswith(tenant_prefix, autoescape=True),
                 ),
                 Permission.is_deleted.is_(False),
             )
@@ -1136,28 +1413,52 @@ class PluginLifecycle:
             )
             await config_service.set_platform_config("platform_storage_driver", "local")
 
-        # Check tenant storage drivers
-        from sqlalchemy import select, and_
+        # Check tenant storage drivers — batch query to avoid N+1
+        from sqlalchemy import and_, select
 
         from app.models.system.config import SystemConfig, SystemConfigValue
 
-        config_result = await self._db.execute(
-            select(SystemConfig.id).where(
-                SystemConfig.key == "tenant_storage_driver",
+        # 批量获取：一次查出 tenant_storage_driver 和 tenant_storage_mode 两张配置表
+        # 用 IN (subquery) 关联 config_id，避免 N+1 per-tenant 查询
+        config_ids_result = await self._db.execute(
+            select(SystemConfig.id, SystemConfig.key).where(
+                SystemConfig.key.in_(["tenant_storage_driver", "tenant_storage_mode"]),
                 SystemConfig.is_deleted.is_(False),
             )
         )
-        config_id = config_result.scalar_one_or_none()
-        if config_id:
-            values_result = await self._db.execute(
+        config_id_map: dict[str, int] = {row[1]: row[0] for row in config_ids_result.all()}
+
+        driver_config_id = config_id_map.get("tenant_storage_driver")
+        mode_config_id = config_id_map.get("tenant_storage_mode")
+
+        if driver_config_id:
+            # 获取所有租户的驱动配置
+            driver_values_result = await self._db.execute(
                 select(SystemConfigValue.tenant_id, SystemConfigValue.value).where(
                     and_(
-                        SystemConfigValue.config_id == config_id,
+                        SystemConfigValue.config_id == driver_config_id,
                         SystemConfigValue.is_deleted.is_(False),
                     )
                 )
             )
-            for row in values_result.all():
+            # 获取所有租户的存储模式配置（一次性批量）
+            mode_by_tenant: dict[int, str] = {}
+            if mode_config_id:
+                mode_values_result = await self._db.execute(
+                    select(SystemConfigValue.tenant_id, SystemConfigValue.value).where(
+                        and_(
+                            SystemConfigValue.config_id == mode_config_id,
+                            SystemConfigValue.is_deleted.is_(False),
+                        )
+                    )
+                )
+                for t_id, mode_raw in mode_values_result.all():
+                    try:
+                        mode_by_tenant[t_id] = str(json.loads(mode_raw) if mode_raw else "platform")
+                    except (json.JSONDecodeError, TypeError):
+                        mode_by_tenant[t_id] = str(mode_raw) if mode_raw else "platform"
+
+            for row in driver_values_result.all():
                 tenant_id, raw_value = row
                 if raw_value:
                     try:
@@ -1165,11 +1466,8 @@ class PluginLifecycle:
                     except (json.JSONDecodeError, TypeError):
                         val = raw_value
                     if str(val) in driver_codes:
-                        # Also check if that tenant is actually using custom mode
-                        mode = await config_service.get_tenant_config(
-                            tenant_id, "tenant_storage_mode", default="platform"
-                        )
-                        if str(mode) in ("custom", "admin_override"):
+                        mode = mode_by_tenant.get(tenant_id, "platform")
+                        if mode in ("custom", "admin_override"):
                             if not force:
                                 raise PluginError(
                                     message=(
@@ -1192,13 +1490,54 @@ class PluginLifecycle:
         先用 importlib.metadata 检查包是否已满足版本约束；
         已满足则跳过 pip，避免每次启动都触发网络请求导致网络抖动时误报异常。
         只有在包缺失或版本不满足时才调用 pip install。
+
+        pip 安装成功后调用 importlib.invalidate_caches() 刷新导入路径缓存，
+        确保新安装的包无需重启服务器即可 import。
         """
+        import importlib
         import importlib.metadata as _imeta
+        import importlib.util as _iutil
+        import site
 
         from packaging.requirements import Requirement
         from packaging.version import Version
 
+        def _module_candidates(req_name: str, dist=None) -> list[str]:
+            """Build likely import module names for a requirement."""
+            names: list[str] = []
+
+            # Heuristic fallback: `foo-bar` -> `foo_bar`
+            fallback = req_name.replace("-", "_").replace(".", "_").strip()
+            if fallback and fallback.isidentifier():
+                names.append(fallback)
+
+            # Preferred source: top_level.txt from wheel metadata
+            if dist is not None:
+                with suppress(Exception):
+                    top_level = dist.read_text("top_level.txt")
+                    if top_level:
+                        for raw in top_level.splitlines():
+                            mod = raw.strip()
+                            if mod and mod.isidentifier() and mod not in names:
+                                names.append(mod)
+
+            return names
+
+        def _has_importable_module(candidates: list[str]) -> bool | None:
+            """Return True/False when candidates exist; None when no candidates."""
+            if not candidates:
+                return None
+            for mod in candidates:
+                with suppress(Exception):
+                    if _iutil.find_spec(mod) is not None:
+                        return True
+            return False
+
         installed: list[str] = []
+        needs_cache_refresh = False
+        pip_python = self._resolve_pip_python_executable()
+        pip_env = self._build_python_install_env(plugin_name)
+
         for req in requirements:
             normalized_req = req.strip()
             try:
@@ -1215,36 +1554,268 @@ class PluginLifecycle:
                         f"{normalized_req}"
                     ),
                 )
+            marker_text = str(req_obj.marker) if req_obj.marker else ""
+            if marker_text and any(ch in marker_text for ch in [";", "&", "|", "`", "$", "\n", "\r"]):
+                # 拒绝包含 shell 元字符的 marker，防止极端情况下拼接污染日志/命令参数
+                raise PluginDependencyError(
+                    message=(
+                        f"Invalid environment marker in requirement '{normalized_req}'"
+                    ),
+                )
+            if req_obj.marker and not req_obj.marker.evaluate():
+                logger.debug(
+                    "Skipping requirement for %s due environment marker mismatch: %s",
+                    plugin_name,
+                    normalized_req,
+                )
+                continue
 
             # ── 检查是否已满足版本约束，满足则跳过 pip ──
+            force_reinstall = False
+            import_candidates = _module_candidates(req_obj.name)
             try:
                 dist = _imeta.distribution(req_obj.name)
-                if not req_obj.specifier or Version(dist.version) in req_obj.specifier:
-                    logger.debug(
-                        "Skipping pip install for %s: already satisfied (%s==%s)",
-                        plugin_name, req_obj.name, dist.version,
+                import_candidates = _module_candidates(req_obj.name, dist)
+                metadata_text = None
+                with suppress(Exception):
+                    metadata_text = dist.read_text("METADATA")
+                if not metadata_text:
+                    # 防御：取消/中断安装可能留下仅含 INSTALLER/REQUESTED 的残缺 dist-info
+                    force_reinstall = True
+                    logger.warning(
+                        "Plugin %s: package %s metadata is corrupted, forcing reinstall",
+                        plugin_name,
+                        req_obj.name,
                     )
-                    continue
+
+                installed_version = getattr(dist, "version", None)
+                if installed_version:
+                    try:
+                        if (
+                            not req_obj.specifier
+                            or Version(installed_version) in req_obj.specifier
+                        ):
+                            importable = _has_importable_module(import_candidates)
+                            if importable is False:
+                                force_reinstall = True
+                                logger.warning(
+                                    "Plugin %s: package %s is installed (%s) but import path is missing, forcing reinstall",
+                                    plugin_name,
+                                    req_obj.name,
+                                    installed_version,
+                                )
+                            elif not force_reinstall:
+                                logger.debug(
+                                    "Skipping pip install for %s: already satisfied (%s==%s)",
+                                    plugin_name,
+                                    req_obj.name,
+                                    installed_version,
+                                )
+                                continue
+                    except Exception as exc:
+                        # 某些异常分发元数据可能返回非法 version；回退到重装，避免 500
+                        force_reinstall = True
+                        logger.warning(
+                            "Plugin %s: invalid installed version for %s (%r), reinstalling: %s",
+                            plugin_name,
+                            req_obj.name,
+                            installed_version,
+                            exc,
+                        )
+                else:
+                    force_reinstall = True
+                    logger.debug(
+                        "Plugin %s: installed package %s has no version metadata, reinstalling",
+                        plugin_name,
+                        req_obj.name,
+                    )
             except _imeta.PackageNotFoundError:
                 pass  # 包不存在，继续走 pip install
 
+            install_args = [pip_python, "-m", "pip", "install", normalized_req, "--quiet"]
+            if force_reinstall:
+                install_args.extend(["--upgrade", "--force-reinstall"])
+
             result = await _run_subprocess_async(
-                sys.executable, "-m", "pip", "install", normalized_req, "--quiet",
-                timeout=120,
+                *install_args,
+                timeout=180,
                 shell=False,
+                env=pip_env,
             )
             if result.returncode != 0:
                 raise PluginDependencyError(
                     message=f"Failed to install {normalized_req}: {result.stderr.strip()}",
                 )
+
+            # 安装后做一次保守校验：仅当 metadata 能提供 top_level 时才强校验 importability，
+            # 避免因发行名/导入名不一致导致误报（如 Pillow -> PIL）。
+            post_top_level = ""
+            try:
+                post_dist = _imeta.distribution(req_obj.name)
+                post_top_level = post_dist.read_text("top_level.txt") or ""
+            except Exception:
+                post_dist = None
+            if post_dist is not None and post_top_level.strip():
+                post_candidates = _module_candidates(req_obj.name, post_dist)
+                post_importable = _has_importable_module(post_candidates)
+                if post_importable is False:
+                    raise PluginDependencyError(
+                        message=(
+                            f"Installed {normalized_req}, but runtime import check failed "
+                            f"(candidates: {', '.join(post_candidates)})"
+                        ),
+                    )
+
             installed.append(normalized_req)
+            needs_cache_refresh = True
             logger.info("Installed %s for plugin %s", normalized_req, plugin_name)
+
+        if needs_cache_refresh:
+            # 确保新安装的包立即可 import（无需重启），刷新：
+            # 1. sys.path 条目（site-packages 可能新增路径）
+            # 2. importlib 内部的 FileFinder 缓存
+            for sp in site.getsitepackages():
+                if sp not in sys.path:
+                    sys.path.insert(0, sp)
+            importlib.invalidate_caches()
+            logger.debug("Import caches refreshed after pip install for plugin %s", plugin_name)
+
         return installed
+
+    def _resolve_pip_python_executable(self) -> str:
+        """
+        Resolve the Python executable used for pip operations.
+
+        Why:
+        - In some Windows starts, uvicorn may run as:
+          `python.exe <project>/.venv/Scripts/uvicorn.exe ...`
+          where `sys.executable` points to global Python, but runtime packages are
+          imported from project `.venv/Lib/site-packages`.
+        - If pip uses the wrong interpreter, dependencies appear "installed"
+          while runtime `import` still fails.
+        """
+        import site
+
+        py_rel = Path("Scripts/python.exe" if _IS_WINDOWS else "bin/python")
+        candidates: list[Path] = []
+
+        # 1) Active virtual env declared by environment.
+        venv = os.environ.get("VIRTUAL_ENV")
+        if venv:
+            candidates.append(Path(venv) / py_rel)
+
+        # 2) Project-local .venv (backend/.venv).
+        candidates.append((PLUGINS_DIR.parent / ".venv") / py_rel)
+
+        # 3) Derive venv root from runtime site-packages paths.
+        path_sources: list[str] = []
+        with suppress(Exception):
+            path_sources.extend(site.getsitepackages())
+        path_sources.extend(str(p) for p in sys.path if "site-packages" in str(p).lower())
+
+        for raw in path_sources:
+            try:
+                sp = Path(raw)
+                if sp.name.lower() == "site-packages" and sp.parent.name.lower() == "lib":
+                    candidates.append(sp.parent.parent / py_rel)
+            except Exception:
+                continue
+
+        # Keep order, drop duplicates/non-existing.
+        seen: set[str] = set()
+        existing: list[Path] = []
+        for cand in candidates:
+            key = os.path.normcase(str(cand))
+            if key in seen:
+                continue
+            seen.add(key)
+            if cand.is_file():
+                existing.append(cand)
+
+        if existing:
+            chosen = str(existing[0])
+            if os.path.normcase(chosen) != os.path.normcase(sys.executable):
+                logger.info(
+                    "Plugin lifecycle pip interpreter switched: runtime=%s pip=%s",
+                    sys.executable,
+                    chosen,
+                )
+            return chosen
+
+        return sys.executable
+
+    def _build_python_install_env(self, plugin_name: str) -> dict[str, str]:
+        """
+        Build pip subprocess env with a resilient Cargo PATH on Windows.
+
+        Some Rust-backed packages (e.g. y-py) run build backends that require `cargo`
+        to be resolvable in the current process PATH. Rust may be installed, but PATH
+        not refreshed in this uvicorn process. We prepend discovered cargo dirs.
+        """
+        env = os.environ.copy()
+        current_path = env.get("PATH", "")
+
+        # Fast path: already available.
+        if shutil.which("cargo", path=current_path):
+            return env
+
+        cargo_bin_name = "cargo.exe" if _IS_WINDOWS else "cargo"
+        candidate_dirs: list[Path] = []
+
+        # 1) Standard rustup/cargo home
+        home_cargo_bin = Path.home() / ".cargo" / "bin"
+        candidate_dirs.append(home_cargo_bin)
+
+        cargo_home = env.get("CARGO_HOME")
+        if cargo_home:
+            candidate_dirs.append(Path(cargo_home) / "bin")
+
+        # 2) Some build tools (maturin/puccinialin) bootstrap rustup into cache dirs.
+        local_app_data = env.get("LOCALAPPDATA")
+        if local_app_data:
+            cache_root = Path(local_app_data) / "puccinialin" / "puccinialin" / "Cache"
+            if cache_root.is_dir():
+                with suppress(Exception):
+                    for cargo_path in cache_root.rglob(cargo_bin_name):
+                        candidate_dirs.append(cargo_path.parent)
+
+        # Keep only existing dirs containing cargo binary, and de-duplicate.
+        resolved_dirs: list[str] = []
+        seen: set[str] = set()
+        for p in candidate_dirs:
+            cargo_path = p / cargo_bin_name
+            if not cargo_path.exists():
+                continue
+            p_str = str(p)
+            if p_str in seen:
+                continue
+            seen.add(p_str)
+            resolved_dirs.append(p_str)
+
+        if not resolved_dirs:
+            logger.warning(
+                "Plugin %s: cargo not found on PATH and no fallback cargo dir discovered",
+                plugin_name,
+            )
+            return env
+
+        env["PATH"] = os.pathsep.join(
+            [*resolved_dirs, current_path] if current_path else resolved_dirs
+        )
+        logger.info(
+            "Plugin %s: prepended %d Cargo PATH candidate(s) for pip install",
+            plugin_name,
+            len(resolved_dirs),
+        )
+        return env
 
     async def _install_npm_deps(
         self, plugin_name: str, packages: list[str]
-    ) -> None:
-        """安装插件声明的 npm 依赖到宿主前端项目（仅 dev 模式）
+    ) -> int:
+        """安装插件声明的 npm 依赖到宿主前端项目（仅 dev 模式）。
+
+        Returns:
+            实际通过 pnpm add 安装的包数量（0 表示全部已存在或跳过安装）
 
         生产环境插件使用预编译的 UMD 包（dist/index.js），不需要 npm 依赖。
         dev 模式下 Vite 直接编译插件 SFC 源码，需要宿主 node_modules 提供依赖。
@@ -1256,10 +1827,10 @@ class PluginLifecycle:
                 "Skipping npm deps install for %s (production mode uses UMD bundles)",
                 plugin_name,
             )
-            return
+            return 0
 
         if not packages:
-            return
+            return 0
 
         # 定位前端项目根目录: backend/ 的兄弟目录 frontend/
         frontend_root = PLUGINS_DIR.parent.parent / "frontend"
@@ -1268,27 +1839,93 @@ class PluginLifecycle:
                 "Frontend directory not found at %s, skipping npm deps for %s",
                 frontend_root, plugin_name,
             )
-            return
+            return 0
+
+        # ── 检查是否所有包都已安装，已安装则跳过 pnpm add ──
+        # pnpm workspace 下依赖软链通常存在于 apps/web-antd/node_modules，
+        # 根目录 frontend/node_modules 仅作为后备路径。
+        web_antd_root = frontend_root / "apps" / "web-antd"
+        node_modules_candidates = [
+            web_antd_root / "node_modules",
+            frontend_root / "node_modules",
+        ]
+        existing_node_modules = [path for path in node_modules_candidates if path.is_dir()]
+        missing_packages: list[str] = []
+        if existing_node_modules:
+            for pkg in packages:
+                raw_name = pkg.strip()
+
+                # 安全校验：拒绝以 "--" 开头的包名（会被 pnpm 当作 CLI flag）
+                if raw_name.startswith("--"):
+                    logger.warning(
+                        "Plugin %s: skipping suspicious npm package '%s' (looks like a CLI flag)",
+                        plugin_name, raw_name,
+                    )
+                    continue
+
+                # 安全校验：拒绝 shell 元字符与空白
+                if any(ch in raw_name for ch in [" ", "\t", "\n", "\r", ";", "&", "|", "`", "$", "\\", "\"", "'"]):
+                    logger.warning(
+                        "Plugin %s: skipping suspicious npm package '%s' (contains forbidden characters)",
+                        plugin_name, raw_name,
+                    )
+                    continue
+
+                # 解析包名：去掉版本号
+                # @scope/name@^1.0 → @scope/name
+                # name@^1.0 → name
+                # @scope/name → @scope/name（无版本）
+                if raw_name.startswith("@"):
+                    # 带 scope：优先取 @scope/name（最后一个 @ 才可能是版本分隔）
+                    if "@" in raw_name[1:]:
+                        pkg_name = raw_name.rsplit("@", 1)[0]
+                    else:
+                        pkg_name = raw_name
+                else:
+                    pkg_name = raw_name.split("@")[0]
+                is_installed = any((node_modules / pkg_name).is_dir() for node_modules in existing_node_modules)
+                if not is_installed:
+                    missing_packages.append(pkg)
+        else:
+            # 仍需过滤 --flag 形式与 shell 元字符的非法包名
+            missing_packages = [
+                p for p in packages
+                if (
+                    not p.strip().startswith("--")
+                    and not any(ch in p for ch in [" ", "\t", "\n", "\r", ";", "&", "|", "`", "$", "\\", "\"", "'"])
+                )
+            ]
+
+        if not missing_packages:
+            logger.debug(
+                "Skipping pnpm add for %s: all npm packages already installed",
+                plugin_name,
+            )
+            return 0
+
+        pnpm_cmd = "pnpm.cmd" if _IS_WINDOWS else "pnpm"
 
         # 检查 pnpm 是否可用
         try:
             await _run_subprocess_async(
-                "pnpm", "--version",
+                pnpm_cmd, "--version",
                 timeout=10,
+                shell=False,
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
             logger.warning("pnpm not found, skipping npm deps install for %s", plugin_name)
-            return
+            return 0
 
-        # pnpm add <packages> --filter=@vben/web-antd
-        cmd = ["pnpm", "add", *packages, "--filter=@vben/web-antd"]
-        logger.info("Installing npm deps for %s: %s", plugin_name, " ".join(packages))
+        # pnpm add <missing_packages> --filter=@vben/web-antd
+        cmd = [pnpm_cmd, "add", *missing_packages, "--filter=@vben/web-antd"]
+        logger.info("Installing npm deps for %s: %s", plugin_name, " ".join(missing_packages))
 
         try:
             result = await _run_subprocess_async(
                 *cmd,
                 timeout=120,
                 cwd=str(frontend_root),
+                shell=False,
             )
             if result.returncode != 0:
                 err = result.stderr.strip() or result.stdout.strip()
@@ -1296,12 +1933,16 @@ class PluginLifecycle:
                     "npm deps install for %s failed (non-fatal): %s",
                     plugin_name, err[:500],
                 )
+                return 0
             else:
                 logger.info("npm deps installed for %s", plugin_name)
+                return len(missing_packages)
         except subprocess.TimeoutExpired:
             logger.warning("npm deps install for %s timed out", plugin_name)
+            return 0
         except Exception as exc:
             logger.warning("npm deps install for %s failed: %s", plugin_name, exc)
+            return 0
 
     @staticmethod
     def _normalize_pkg_name(raw: str) -> str:
@@ -1359,6 +2000,7 @@ class PluginLifecycle:
 
         # Layer 2: 主项目 requirements.txt 保护名单
         project_deps = self._load_project_requirements()
+        pip_python = self._resolve_pip_python_executable()
 
         for req in packages:
             pkg = self._normalize_pkg_name(req)
@@ -1378,7 +2020,7 @@ class PluginLifecycle:
             # Check 3: pip reverse dependency check
             try:
                 pip_result = await _run_subprocess_async(
-                    sys.executable, "-m", "pip", "show", pkg,
+                    pip_python, "-m", "pip", "show", pkg,
                     timeout=30,
                     shell=False,
                 )
@@ -1394,7 +2036,7 @@ class PluginLifecycle:
                     else:
                         # No Required-by found or empty → safe to remove
                         await _run_subprocess_async(
-                            sys.executable, "-m", "pip", "uninstall", pkg, "-y", "--quiet",
+                            pip_python, "-m", "pip", "uninstall", pkg, "-y", "--quiet",
                             timeout=60,
                             shell=False,
                         )
@@ -1427,6 +2069,7 @@ class PluginLifecycle:
 
         # Layer 1: 收集其他插件声明的 npm 依赖
         from sqlalchemy import select
+
         from app.models.system.plugin import Plugin as PluginModel
 
         result = await self._db.execute(
@@ -1477,16 +2120,19 @@ class PluginLifecycle:
         if not to_remove:
             return
 
+        pnpm_cmd = "pnpm.cmd" if _IS_WINDOWS else "pnpm"
+
         try:
             await _run_subprocess_async(
-                "pnpm", "--version",
+                pnpm_cmd, "--version",
                 timeout=10,
+                shell=False,
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
             logger.warning("pnpm not found, skipping npm deps removal for %s", plugin_name)
             return
 
-        cmd = ["pnpm", "remove", *to_remove, "--filter=@vben/web-antd"]
+        cmd = [pnpm_cmd, "remove", *to_remove, "--filter=@vben/web-antd"]
         logger.info("Removing npm deps for %s: %s", plugin_name, " ".join(to_remove))
 
         try:
@@ -1494,6 +2140,7 @@ class PluginLifecycle:
                 *cmd,
                 timeout=120,
                 cwd=str(frontend_root),
+                shell=False,
             )
             if result.returncode != 0:
                 err = result.stderr.strip() or result.stdout.strip()
@@ -1508,6 +2155,70 @@ class PluginLifecycle:
         except Exception as exc:
             logger.warning("npm deps removal for %s failed: %s", plugin_name, exc)
 
+    async def _purge_orphaned_alembic_stamps(self) -> None:
+        """升级前清除 alembic_version 中已无对应迁移文件的孤立版本戳。
+
+        背景：插件卸载时若 downgrade 失败或 revision ID 前缀与插件名不一致
+        （如 novus-crud-code 使用 ncc_001 而非 novus_crud_code_001），
+        其版本戳会残留在 alembic_version，导致后续任何 upgrade 均报：
+          "Can't locate revision identified by 'xxx'"
+        此方法通过扫描所有当前安装的迁移文件获取合法 revision ID，
+        然后删除不属于任何已知迁移的孤立戳。
+        """
+        import re as _re
+
+        from sqlalchemy import text
+
+        # 1. 收集主项目 + 所有已安装插件的合法 revision ID
+        known_revisions: set[str] = set()
+        dirs_to_scan: list[Path] = [PLUGINS_DIR.parent / "migrations" / "versions"]
+        try:
+            for d in PLUGINS_DIR.iterdir():
+                if d.is_dir() and not d.name.startswith("."):
+                    vdir = d / "backend" / "migrations" / "versions"
+                    if vdir.is_dir():
+                        dirs_to_scan.append(vdir)
+        except Exception:
+            pass
+
+        for vdir in dirs_to_scan:
+            if not vdir.is_dir():
+                continue
+            for f in vdir.iterdir():
+                if f.suffix == ".py" and f.name != "__init__.py":
+                    try:
+                        source = f.read_text(encoding="utf-8")
+                        m = _re.search(
+                            r'^revision\s*(?::[^=]*)?=\s*["\']([^"\']+)["\']',
+                            source,
+                            _re.MULTILINE,
+                        )
+                        if m:
+                            known_revisions.add(m.group(1))
+                    except Exception:
+                        pass
+
+        # 2. 查询 alembic_version 中的全部版本戳
+        try:
+            result = await self._db.execute(text("SELECT version_num FROM alembic_version"))
+            all_stamps = [row[0] for row in result.fetchall()]
+        except Exception:
+            return
+
+        # 3. 删除孤立戳（不在任何已知迁移文件中）
+        orphaned = [s for s in all_stamps if s not in known_revisions]
+        for stamp in orphaned:
+            logger.warning(
+                "Purging orphaned alembic stamp '%s' (no migration file found for it)", stamp
+            )
+            await self._db.execute(
+                text("DELETE FROM alembic_version WHERE version_num = :vid"),
+                {"vid": stamp},
+            )
+        if orphaned:
+            await self._db.flush()
+            logger.info("Purged %d orphaned alembic stamp(s): %s", len(orphaned), orphaned)
+
     async def run_alembic_upgrade(self, plugin_name: str) -> None:
         """执行插件 Alembic 迁移（公共接口，供 version_manager 等调用）
 
@@ -1515,21 +2226,75 @@ class PluginLifecycle:
         Alembic CLI 在 ScriptDirectory.from_config() 时读取 alembic.ini 的
         version_locations，此时 env.py 尚未运行，动态路径无法生效。
         通过 Python API 先设置 Config 再调 command.upgrade() 可解决此问题。
+
+        重要：必须把所有已安装插件的迁移路径都加入 version_locations，
+        否则 alembic_version 中其他插件的 revision stamp 无法被解析，
+        导致 "Can't locate revision identified by 'xxx'" 报错。
         """
+        import os
+
+        # 升级前清除孤立版本戳（防止已卸载插件的 stamp 阻断升级）
+        await self._purge_orphaned_alembic_stamps()
+
         branch_label = f"plugin_{plugin_name.replace('-', '_')}"
-        plugin_migrations = str(
-            PLUGINS_DIR / plugin_name / "backend" / "migrations" / "versions"
-        ).replace("\\", "/")
+
+        # 收集所有插件的迁移目录（不只是当前插件），使用 normcase 规范化路径避免重复
+        seen_paths: set[str] = set()
+        all_plugin_migration_paths: list[str] = []
+
+        def _add_path(p: Path) -> None:
+            normalized = os.path.normcase(str(p.resolve()))
+            if normalized not in seen_paths:
+                seen_paths.add(normalized)
+                all_plugin_migration_paths.append(str(p).replace("\\", "/"))
+
+        try:
+            for d in PLUGINS_DIR.iterdir():
+                if not d.is_dir():
+                    continue
+                versions_dir = d / "backend" / "migrations" / "versions"
+                if versions_dir.is_dir():
+                    _add_path(versions_dir)
+        except Exception:
+            pass
+
+        # 当前插件优先（确保一定在列表中）
+        current_versions_dir = PLUGINS_DIR / plugin_name / "backend" / "migrations" / "versions"
+        _add_path(current_versions_dir)
+
+        # 序列化为空格分隔字符串（供子进程使用）
+        extra_paths = " ".join(all_plugin_migration_paths)
+
         # Run via sys.executable -c to use Alembic Python API in a subprocess,
         # keeping sync Alembic isolated from the async event loop.
-        script = (
-            "from alembic.config import Config; from alembic import command; "
-            "cfg = Config('alembic.ini'); "
-            "vl = cfg.get_main_option('version_locations') or 'migrations/versions'; "
-            f"pm = '{plugin_migrations}'; "
-            "cfg.set_main_option('version_locations', vl + ' ' + pm) if pm not in vl else None; "
-            f"command.upgrade(cfg, '{branch_label}@head')"
-        )
+        # alembic.ini only has 'migrations/versions' (main app); plugin paths are injected here.
+        #
+        # 兼容场景：插件表已存在但版本戳缺失（常见于历史数据/手动修复）时，
+        # upgrade 可能因 DuplicateTable 失败。此时对插件分支执行 stamp 到 head，
+        # 以消除重复告警并恢复迁移状态一致性。
+        script = f"""
+from alembic.config import Config
+from alembic import command
+import os
+
+cfg = Config('alembic.ini')
+vl = cfg.get_main_option('version_locations') or 'migrations/versions'
+extra = {extra_paths!r}
+target = {f"{branch_label}@head"!r}
+
+vl_norm = set(os.path.normcase(os.path.abspath(p)) for p in vl.split())
+new_parts = [p for p in extra.split() if os.path.normcase(os.path.abspath(p)) not in vl_norm]
+cfg.set_main_option('version_locations', ' '.join(vl.split() + new_parts))
+
+try:
+    command.upgrade(cfg, target)
+except Exception as exc:
+    err = str(exc)
+    if 'already exists' in err or 'DuplicateTable' in type(exc).__name__:
+        command.stamp(cfg, target)
+    else:
+        raise
+"""
         result = await _run_subprocess_async(
             sys.executable, "-c", script,
             timeout=120,
@@ -1560,27 +2325,63 @@ class PluginLifecycle:
             logger.info("Plugin %s has no migration files, skipping alembic downgrade", plugin_name)
             return
 
-        # 使用插件 revision 前缀直接定位（比 branch_label 更可靠）
-        version_prefix = plugin_name.replace("-", "_")
+        import re as _re
 
-        # 查询 alembic_version 中是否有该插件的版本戳
-        check_result = await _run_subprocess_async(
-            "alembic", "current",
-            timeout=30,
-            cwd=str(PLUGINS_DIR.parent),
-        )
-        current_versions = check_result.stdout if check_result.returncode == 0 else ""
+        from sqlalchemy import text as _text
 
-        # 只有当 alembic_version 中存在插件版本戳时才执行 downgrade
-        if version_prefix not in current_versions:
+        branch_label = f"plugin_{plugin_name.replace('-', '_')}"
+
+        # 扫描迁移文件获取实际 revision ID，然后直接查询 DB
+        # 这比 alembic command.current() 更可靠：后者依赖 version_locations 中含有插件路径，
+        # 且假定 revision ID 含插件名前缀（如 ncc_001 就不含 novus_crud_code 前缀）
+        migrations_dir = PLUGINS_DIR / plugin_name / "backend" / "migrations" / "versions"
+        plugin_revision_ids: list[str] = []
+        for _f in migrations_dir.iterdir():
+            if _f.suffix == ".py" and _f.name != "__init__.py":
+                try:
+                    _src = _f.read_text(encoding="utf-8")
+                    _m = _re.search(
+                        r'^revision\s*(?::[^=]*)?=\s*["\']([^"\']+)["\']',
+                        _src,
+                        _re.MULTILINE,
+                    )
+                    if _m:
+                        plugin_revision_ids.append(_m.group(1))
+                except Exception:
+                    pass
+
+        if not plugin_revision_ids:
+            logger.info("Plugin %s: no revision IDs found in migration files, skipping downgrade", plugin_name)
+            return
+
+        # 直接查询 alembic_version 表，无需 alembic subprocess
+        has_stamp = False
+        for _rev_id in plugin_revision_ids:
+            _row = await self._db.execute(
+                _text("SELECT 1 FROM alembic_version WHERE version_num = :vid"),
+                {"vid": _rev_id},
+            )
+            if _row.scalar():
+                has_stamp = True
+                break
+
+        if not has_stamp:
             logger.info("Plugin %s has no alembic version stamp, skipping downgrade", plugin_name)
             return
 
-        branch_label = f"plugin_{version_prefix}"
+        downgrade_script = (
+            "from alembic.config import Config; from alembic import command; "
+            "cfg = Config('alembic.ini'); "
+            f"vl = cfg.get_main_option('version_locations') or 'migrations/versions'; "
+            f"pm = '{str(PLUGINS_DIR / plugin_name / 'backend' / 'migrations' / 'versions').replace(chr(92), '/')}'; "
+            "cfg.set_main_option('version_locations', vl + ' ' + pm) if pm not in vl else None; "
+            f"command.downgrade(cfg, '{branch_label}@base')"
+        )
         result = await _run_subprocess_async(
-            "alembic", "downgrade", f"{branch_label}@base",
+            sys.executable, "-c", downgrade_script,
             timeout=120,
             cwd=str(PLUGINS_DIR.parent),
+            shell=False,
         )
         if result.returncode != 0:
             logger.warning(
@@ -1592,12 +2393,13 @@ class PluginLifecycle:
 
         策略：
         1. 尝试 alembic downgrade（优雅回退，保留数据完整性）
-        2. 若 alembic 失败，直接 DROP 所有 px_{plugin_name}_* 表（兜底）
+        2. 若 alembic 失败，直接 DROP 所有插件前缀表（兜底）
         3. 无论如何，清理 alembic_version 中的插件版本戳
         """
         from sqlalchemy import text
 
-        table_prefix = f"px_{plugin_name.replace('-', '_')}_"
+        table_prefixes = self._resolve_plugin_table_prefixes(plugin_name)
+        escaped_table_prefixes = [_escape_like_pattern(prefix) for prefix in table_prefixes]
 
         # Step 1: 尝试 alembic downgrade（仅当插件有迁移文件时）
         alembic_ok = False
@@ -1612,49 +2414,93 @@ class PluginLifecycle:
 
         # Step 2: 检查是否还有残留表，若有则直接 DROP
         try:
-            result = await self._db.execute(
-                text(
-                    "SELECT tablename FROM pg_tables "
-                    "WHERE schemaname = 'public' AND tablename LIKE :prefix "
-                    "ORDER BY tablename"
-                ),
-                {"prefix": f"{table_prefix}%"},
-            )
-            remaining_tables = [row[0] for row in result.fetchall()]
-
-            if remaining_tables:
-                if alembic_ok:
-                    logger.warning(
-                        "Plugin %s: alembic downgrade succeeded but %d tables remain, dropping directly",
-                        plugin_name, len(remaining_tables),
+            # 关键清理 SQL 使用 savepoint，避免局部异常污染外层事务
+            async with self._db.begin_nested():
+                remaining_tables: set[str] = set()
+                for escaped_prefix in escaped_table_prefixes:
+                    result = await self._db.execute(
+                        text(
+                            "SELECT tablename FROM pg_tables "
+                            "WHERE schemaname = 'public' AND tablename LIKE :prefix ESCAPE '\\'"
+                        ),
+                        {"prefix": f"{escaped_prefix}%"},
                     )
-                for tbl in remaining_tables:
-                    try:
-                        await self._db.execute(text(f'DROP TABLE IF EXISTS "{tbl}" CASCADE'))
-                        logger.info("Plugin %s: dropped table %s", plugin_name, tbl)
-                    except Exception as exc:
-                        logger.error("Plugin %s: failed to drop table %s: %s", plugin_name, tbl, exc)
-                await self._db.flush()
+                    remaining_tables.update(row[0] for row in result.fetchall())
+
+                if remaining_tables:
+                    if alembic_ok:
+                        logger.warning(
+                            "Plugin %s: alembic downgrade succeeded but %d tables remain, dropping directly",
+                            plugin_name, len(remaining_tables),
+                        )
+                    for tbl in sorted(remaining_tables):
+                        if not _is_safe_plugin_table_name(tbl, table_prefixes):
+                            logger.warning(
+                                "Plugin %s: skip dropping unsafe table name '%s'",
+                                plugin_name, tbl,
+                            )
+                            continue
+                        try:
+                            await self._db.execute(text(f'DROP TABLE IF EXISTS "{tbl}" CASCADE'))
+                            logger.info("Plugin %s: dropped table %s", plugin_name, tbl)
+                        except Exception as exc:
+                            logger.error("Plugin %s: failed to drop table %s: %s", plugin_name, tbl, exc)
+                    await self._db.flush()
         except Exception as exc:
             logger.error("Plugin %s: failed to query/drop residual tables: %s", plugin_name, exc)
 
         # Step 3: 清理 alembic_version 中的插件版本戳
-        # 插件迁移 revision ID 约定以 {plugin_name_underscored}_ 开头
-        version_prefix = plugin_name.replace("-", "_") + "_"
+        # 优先通过扫描迁移文件获取实际 revision ID（避免短前缀如 ncc_ 与插件名不匹配）
+        import re as _re
+
+        revision_ids_from_files: list[str] = []
+        migrations_dir = PLUGINS_DIR / plugin_name / "backend" / "migrations" / "versions"
+        if migrations_dir.is_dir():
+            for f in migrations_dir.iterdir():
+                if f.suffix == ".py" and f.name != "__init__.py":
+                    try:
+                        source = f.read_text(encoding="utf-8")
+                        m = _re.search(
+                            r'^revision\s*(?::[^=]*)?=\s*["\']([^"\']+)["\']',
+                            source,
+                            _re.MULTILINE,
+                        )
+                        if m:
+                            revision_ids_from_files.append(m.group(1))
+                    except Exception:
+                        pass
+
         try:
-            result = await self._db.execute(
-                text(
-                    "DELETE FROM alembic_version WHERE version_num LIKE :prefix"
-                ),
-                {"prefix": f"{version_prefix}%"},
-            )
-            deleted_count = result.rowcount
-            if deleted_count:
-                logger.info(
-                    "Plugin %s: cleaned %d alembic_version stamps",
-                    plugin_name, deleted_count,
-                )
-            await self._db.flush()
+            # 关键清理 SQL 使用 savepoint，避免局部异常污染外层事务
+            async with self._db.begin_nested():
+                if revision_ids_from_files:
+                    # 精确匹配：用文件中读到的 revision ID 删除
+                    deleted_count = 0
+                    for vid in revision_ids_from_files:
+                        result = await self._db.execute(
+                            text("DELETE FROM alembic_version WHERE version_num = :vid"),
+                            {"vid": vid},
+                        )
+                        deleted_count += result.rowcount
+                    if deleted_count:
+                        logger.info(
+                            "Plugin %s: cleaned %d alembic_version stamp(s) by revision ID",
+                            plugin_name, deleted_count,
+                        )
+                else:
+                    # 兜底：按插件名前缀匹配，并转义 LIKE 通配符
+                    version_prefix = plugin_name.replace("-", "_") + "_"
+                    escaped_version_prefix = _escape_like_pattern(version_prefix)
+                    result = await self._db.execute(
+                        text("DELETE FROM alembic_version WHERE version_num LIKE :prefix ESCAPE '\\'"),
+                        {"prefix": f"{escaped_version_prefix}%"},
+                    )
+                    if result.rowcount:
+                        logger.info(
+                            "Plugin %s: cleaned %d alembic_version stamp(s) by prefix fallback",
+                            plugin_name, result.rowcount,
+                        )
+                await self._db.flush()
         except Exception as exc:
             logger.warning("Plugin %s: failed to clean alembic_version: %s", plugin_name, exc)
 
@@ -1713,11 +2559,11 @@ class PluginLifecycle:
         - 否则创建新的 SkillPackage（scope=global, is_system=True）
         - 对每个 skill extension 创建或更新 Skill 记录
         """
-        from sqlalchemy import select, update
+        from sqlalchemy import select
 
+        from app.enums.common import ResourceScopeEnum
         from app.models.ai.skill import Skill
         from app.models.ai.skill_package import SkillPackage
-        from app.enums.common import ResourceScopeEnum
         from app.plugins.preview import resolve_i18n
 
         # 查找或创建 SkillPackage
@@ -1892,8 +2738,8 @@ class PluginLifecycle:
         result = await self._db.execute(
             delete(Permission).where(
                 or_(
-                    Permission.code.startswith(admin_prefix),
-                    Permission.code.startswith(tenant_prefix),
+                    Permission.code.startswith(admin_prefix, autoescape=True),
+                    Permission.code.startswith(tenant_prefix, autoescape=True),
                 )
             )
         )
@@ -2031,9 +2877,10 @@ class PluginLifecycle:
 
         from app.models.common.notification_template import NotificationTemplate
 
+        _escaped_name = plugin_name.replace("_", "\\_").replace("%", "\\%")
         result = await self._db.execute(
             delete(NotificationTemplate).where(
-                NotificationTemplate.code.like(f"plugin.{plugin_name}.%"),
+                NotificationTemplate.code.like(f"plugin.{_escaped_name}.%", escape="\\"),
             )
         )
         if result.rowcount:
@@ -2127,9 +2974,10 @@ class PluginLifecycle:
 
         from app.models.system.periodic_task import PeriodicTask
 
+        _escaped_name = plugin_name.replace("_", "\\_").replace("%", "\\%")
         result = await self._db.execute(
             update(PeriodicTask).where(
-                PeriodicTask.name.like(f"plugin.{plugin_name}.%"),
+                PeriodicTask.name.like(f"plugin.{_escaped_name}.%", escape="\\"),
                 PeriodicTask.is_deleted.is_(False),
             ).values(is_active=False)
         )
@@ -2154,9 +3002,10 @@ class PluginLifecycle:
 
         from app.models.system.periodic_task import PeriodicTask
 
+        _escaped_name = plugin_name.replace("_", "\\_").replace("%", "\\%")
         result = await self._db.execute(
             delete(PeriodicTask).where(
-                PeriodicTask.name.like(f"plugin.{plugin_name}.%"),
+                PeriodicTask.name.like(f"plugin.{_escaped_name}.%", escape="\\"),
             )
         )
         if result.rowcount:

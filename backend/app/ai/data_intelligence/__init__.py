@@ -14,6 +14,14 @@ AI 数据智能模块（Text-to-SQL + 业务操作）
     → TenantIsolationInjector → ReadOnlyExecutor → ResultFormatter
 """
 
+from app.ai.data_intelligence.readonly_executor import (
+    QueryResult,
+    ReadOnlyExecutor,
+)
+from app.ai.data_intelligence.result_formatter import (
+    FormattedResult,
+    ResultFormatter,
+)
 from app.ai.data_intelligence.schema_provider import (
     ColumnSchema,
     SchemaProvider,
@@ -28,18 +36,10 @@ from app.ai.data_intelligence.tenant_isolation import (
     TenantIsolationError,
     TenantIsolationInjector,
 )
-from app.ai.data_intelligence.readonly_executor import (
-    QueryResult,
-    ReadOnlyExecutor,
-)
 from app.ai.data_intelligence.text_to_sql import (
     ConversationRound,
     GeneratedSQL,
     TextToSQLGenerator,
-)
-from app.ai.data_intelligence.result_formatter import (
-    FormattedResult,
-    ResultFormatter,
 )
 
 __all__ = [

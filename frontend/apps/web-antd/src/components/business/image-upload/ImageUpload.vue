@@ -28,6 +28,8 @@ const props = withDefaults(
   }>(),
   {
     accept: 'image/*',
+    endpoint: undefined,
+    modelValue: '',
   },
 );
 
@@ -132,7 +134,9 @@ function handleRemove() {
           <template #icon>
             <IconifyIcon icon="lucide:image-plus" />
           </template>
-          {{ modelValue ? t('shared.common.change') : t('shared.common.upload') }}
+          {{
+            modelValue ? t('shared.common.change') : t('shared.common.upload')
+          }}
         </Button>
       </Upload>
     </Spin>

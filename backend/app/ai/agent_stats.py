@@ -164,7 +164,6 @@ class AgentStatsManager:
             if cursor == 0:
                 break
 
-        from app.core.i18n import _
         logger.info("Daily stats reset: count=%d", count)
         return count
 

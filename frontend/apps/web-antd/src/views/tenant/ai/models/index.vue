@@ -4,8 +4,6 @@
  */
 import type { TenantAIModelInfo } from '#/api/tenant/ai';
 
-defineOptions({ name: 'TenantAIModelList' });
-
 import { computed, onMounted, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
@@ -16,6 +14,8 @@ import { getTenantAIModelsApi } from '#/api/tenant/ai';
 import { $t } from '#/locales';
 
 import { formatPrice, formatTokens, getModelTypeText } from './data';
+
+defineOptions({ name: 'TenantAIModelList' });
 
 const loading = ref(false);
 const models = ref<TenantAIModelInfo[]>([]);
@@ -74,7 +74,10 @@ onMounted(loadModels);
           @change="onSearch"
         >
           <template #prefix>
-            <IconifyIcon icon="lucide:search" class="size-4 text-muted-foreground" />
+            <IconifyIcon
+              icon="lucide:search"
+              class="size-4 text-muted-foreground"
+            />
           </template>
         </Input>
         <span class="text-sm text-muted-foreground">
@@ -85,7 +88,10 @@ onMounted(loadModels);
 
     <!-- 模型卡片网格 -->
     <Spin :spinning="loading">
-      <div v-if="filteredModels.length > 0" class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div
+        v-if="filteredModels.length > 0"
+        class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+      >
         <Card
           v-for="model in paginatedModels"
           :key="model.id"
@@ -95,16 +101,29 @@ onMounted(loadModels);
           <!-- 头部：模型名称 + 类型 -->
           <div class="mb-3 flex items-start justify-between">
             <div class="flex items-center gap-2">
-              <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10">
-                <IconifyIcon icon="lucide:brain" class="size-4.5 text-primary" />
+              <div
+                class="flex size-9 items-center justify-center rounded-lg bg-primary/10"
+              >
+                <IconifyIcon
+                  icon="lucide:brain"
+                  class="size-4.5 text-primary"
+                />
               </div>
               <div>
                 <div class="font-medium text-foreground">{{ model.name }}</div>
-                <div class="text-xs text-muted-foreground">{{ model.provider_name }}</div>
+                <div class="text-xs text-muted-foreground">
+                  {{ model.provider_name }}
+                </div>
               </div>
             </div>
             <Tag
-              :color="model.type === 'chat' ? 'blue' : model.type === 'embedding' ? 'green' : 'orange'"
+              :color="
+                model.type === 'chat'
+                  ? 'blue'
+                  : model.type === 'embedding'
+                    ? 'green'
+                    : 'orange'
+              "
               class="ml-2"
             >
               {{ getModelTypeText(model.type) }}
@@ -114,16 +133,28 @@ onMounted(loadModels);
           <!-- 参数信息 -->
           <div class="mb-3 grid grid-cols-2 gap-2 text-sm">
             <div>
-              <span class="text-muted-foreground">{{ $t('tenant.ai.model.contextWindow') }}:</span>
-              <span class="ml-1 font-medium">{{ formatTokens(model.context_window) }}</span>
+              <span class="text-muted-foreground"
+                >{{ $t('tenant.ai.model.contextWindow') }}:</span
+              >
+              <span class="ml-1 font-medium">{{
+                formatTokens(model.context_window)
+              }}</span>
             </div>
             <div>
-              <span class="text-muted-foreground">{{ $t('tenant.ai.model.inputPrice') }}:</span>
-              <span class="ml-1 font-medium">{{ formatPrice(model.input_price_per_1k) }}</span>
+              <span class="text-muted-foreground"
+                >{{ $t('tenant.ai.model.inputPrice') }}:</span
+              >
+              <span class="ml-1 font-medium">{{
+                formatPrice(model.input_price_per_1k)
+              }}</span>
             </div>
             <div>
-              <span class="text-muted-foreground">{{ $t('tenant.ai.model.outputPrice') }}:</span>
-              <span class="ml-1 font-medium">{{ formatPrice(model.output_price_per_1k) }}</span>
+              <span class="text-muted-foreground"
+                >{{ $t('tenant.ai.model.outputPrice') }}:</span
+              >
+              <span class="ml-1 font-medium">{{
+                formatPrice(model.output_price_per_1k)
+              }}</span>
             </div>
           </div>
 
@@ -156,7 +187,10 @@ onMounted(loadModels);
       <Empty v-else :description="$t('common.noData')" class="py-16" />
 
       <!-- Pagination -->
-      <div v-if="filteredModels.length > pageSize" class="mt-4 flex justify-end">
+      <div
+        v-if="filteredModels.length > pageSize"
+        class="mt-4 flex justify-end"
+      >
         <Pagination
           v-model:current="currentPage"
           v-model:page-size="pageSize"

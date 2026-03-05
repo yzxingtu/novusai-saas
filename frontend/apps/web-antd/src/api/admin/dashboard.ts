@@ -16,7 +16,7 @@ export interface DashboardStats {
 }
 
 export interface SystemHealth {
-  status: 'healthy' | 'degraded' | 'unhealthy';
+  status: 'degraded' | 'healthy' | 'unhealthy';
   redis: { connected: boolean };
   database: { connected: boolean };
   celery: { connected: boolean };
@@ -59,18 +59,18 @@ export interface TenantGrowthItem {
 
 export interface ActivityItem {
   id: number;
-  username: string | null;
-  nickname: string | null;
+  username: null | string;
+  nickname: null | string;
   user_type: string;
-  action: string | null;
-  module: string | null;
-  resource: string | null;
+  action: null | string;
+  module: null | string;
+  resource: null | string;
   path: string;
   method: string;
-  status_code: number | null;
-  ip: string | null;
-  duration_ms: number | null;
-  created_at: string | null;
+  status_code: null | number;
+  ip: null | string;
+  duration_ms: null | number;
+  created_at: null | string;
 }
 
 export interface SystemInfo {
@@ -104,12 +104,20 @@ export async function getPluginOverviewApi(): Promise<PluginOverview> {
   return requestClient.get<PluginOverview>(`${API_PREFIX}/plugin-overview`);
 }
 
-export async function getTenantGrowthApi(days = 30): Promise<TenantGrowthItem[]> {
-  return requestClient.get<TenantGrowthItem[]>(`${API_PREFIX}/tenant-growth`, { params: { days } });
+export async function getTenantGrowthApi(
+  days = 30,
+): Promise<TenantGrowthItem[]> {
+  return requestClient.get<TenantGrowthItem[]>(`${API_PREFIX}/tenant-growth`, {
+    params: { days },
+  });
 }
 
-export async function getRecentActivitiesApi(limit = 20): Promise<ActivityItem[]> {
-  return requestClient.get<ActivityItem[]>(`${API_PREFIX}/recent-activities`, { params: { limit } });
+export async function getRecentActivitiesApi(
+  limit = 20,
+): Promise<ActivityItem[]> {
+  return requestClient.get<ActivityItem[]>(`${API_PREFIX}/recent-activities`, {
+    params: { limit },
+  });
 }
 
 export async function getSystemInfoApi(): Promise<SystemInfo> {

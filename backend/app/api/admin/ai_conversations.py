@@ -9,18 +9,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, ActiveAdmin, QueryParams
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import success, paginated
+from app.core.response import paginated, success
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.models.system.admin import Admin
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
     action_read,
+    permission_resource,
 )
 from app.repositories.ai.agent_conversation_repository import (
     AdminAgentConversationRepository,

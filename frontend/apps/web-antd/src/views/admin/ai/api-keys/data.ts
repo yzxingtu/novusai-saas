@@ -22,7 +22,7 @@ import { $t } from '#/locales';
 async function getProviderSelectOptions() {
   const response = await getAIProviderListApi({
     'page[size]': 100,
-    'sort': 'sort_order',
+    sort: 'sort_order',
   });
   return response.items.map((item) => ({
     label: item.name,
@@ -141,11 +141,15 @@ export function useGridFormSchema(): VbenFormSchema[] {
  * 表单 Schema
  */
 export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
-  const providerField = select('provider_id', $t('admin.ai.apiKey.providerId'), {
-    api: getProviderSelectOptions,
-    required: true,
-    placeholder: $t('admin.ai.apiKey.placeholder.selectProvider'),
-  });
+  const providerField = select(
+    'provider_id',
+    $t('admin.ai.apiKey.providerId'),
+    {
+      api: getProviderSelectOptions,
+      required: true,
+      placeholder: $t('admin.ai.apiKey.placeholder.selectProvider'),
+    },
+  );
 
   if (isEdit) {
     providerField.componentProps = {

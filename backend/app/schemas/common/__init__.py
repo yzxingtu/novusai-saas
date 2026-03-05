@@ -5,9 +5,9 @@
 """
 
 from app.schemas.common.auth import (
-    TokenResponse,
-    RefreshTokenRequest,
     ImpersonateTokenRequest,
+    RefreshTokenRequest,
+    TokenResponse,
 )
 from app.schemas.common.captcha import (
     CaptchaChallengeRequest,
@@ -16,9 +16,9 @@ from app.schemas.common.captcha import (
     CaptchaVerifyResponse,
 )
 from app.schemas.common.permission import (
+    MenuResponse,
     PermissionResponse,
     PermissionTreeResponse,
-    MenuResponse,
 )
 from app.schemas.common.query import (
     FilterOp,

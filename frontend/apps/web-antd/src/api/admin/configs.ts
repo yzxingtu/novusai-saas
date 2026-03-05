@@ -56,14 +56,14 @@ export async function generateFernetKeyApi(
 /** 测试存储连接 */
 export async function testStorageConnectionApi(
   data: {
-    driver: string;
-    root_path?: string;
     base_url?: string;
     config?: Record<string, unknown>;
+    driver: string;
+    root_path?: string;
   },
   options?: ApiRequestOptions,
-): Promise<{ success: boolean; errors?: string[] }> {
-  return await requestClient.post<{ success: boolean; errors?: string[] }>(
+): Promise<{ errors?: string[]; success: boolean }> {
+  return await requestClient.post<{ errors?: string[]; success: boolean }>(
     '/admin/configs/storage/test-connection',
     data,
     options,
@@ -105,14 +105,14 @@ export async function updateTenantStorageConfigApi(
 export async function testTenantStorageConnectionApi(
   tenantId: number,
   data: {
-    driver: string;
-    root_path?: string;
     base_url?: string;
     config?: Record<string, unknown>;
+    driver: string;
+    root_path?: string;
   },
   options?: ApiRequestOptions,
-): Promise<{ success: boolean; errors?: string[] }> {
-  return await requestClient.post<{ success: boolean; errors?: string[] }>(
+): Promise<{ errors?: string[]; success: boolean }> {
+  return await requestClient.post<{ errors?: string[]; success: boolean }>(
     `/admin/tenants/${tenantId}/storage-config/test`,
     data,
     options,

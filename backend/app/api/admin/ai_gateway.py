@@ -11,17 +11,20 @@ from app.ai.gateway import AIGateway
 from app.ai.quota import QuotaExceeded
 from app.ai.rate_limiter import RateLimitExceeded
 from app.ai.system_agent import SystemAgentService
-from app.ai.utils import parse_provider_and_model, parse_messages
+from app.ai.utils import parse_messages, parse_provider_and_model
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, ActiveAdmin
+from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
-from app.exceptions import ExternalServiceException, BusinessException, NotFoundException
+from app.exceptions import (
+    BusinessException,
+    ExternalServiceException,
+    NotFoundException,
+)
 from app.rbac.decorators import (
-    permission_resource,
     action_create,
-    action_read,
+    permission_resource,
 )
 from app.schemas.ai.gateway import (
     ChatRequest,
@@ -34,6 +37,7 @@ from app.schemas.ai.gateway import (
     resource="ai_gateway",
     name="menu.admin.ai_gateway",
     scope=PermissionScope.ADMIN_ONLY,
+    parent_resource="ai_infra",
 )
 class AdminAIGatewayController(GlobalController):
     """
@@ -166,7 +170,7 @@ class AdminAIGatewayController(GlobalController):
             测试模型连通性和响应质量
 
             权限: ai_gateway:test
-            
+
             不记录调用日志和计量，仅用于测试配置是否正确。
             """
             try:

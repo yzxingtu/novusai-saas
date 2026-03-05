@@ -6,8 +6,6 @@ import type { adminApi } from '#/api';
 
 import { onMounted, ref } from 'vue';
 
-defineOptions({ name: 'SystemOperationLogList' });
-
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -34,6 +32,8 @@ import {
   useGridFormSchema,
 } from './data';
 import DetailDrawer from './modules/LogDetail.vue';
+
+defineOptions({ name: 'SystemOperationLogList' });
 
 type OperationLogInfo = adminApi.OperationLogInfo;
 
@@ -86,13 +86,13 @@ const { Grid, gridApi, onRefresh } = useCrudPage<OperationLogInfo>({
 });
 
 // 操作人列表（头像 + 下拉）
-const avatarMap = ref<Record<number, string | null | undefined>>({});
+const avatarMap = ref<Record<number, null | string | undefined>>({});
 
 async function loadOperators() {
   try {
     const list = await admin.getOperatorsApi();
     // 构建 userId → avatar 映射
-    const map: Record<number, string | null | undefined> = {};
+    const map: Record<number, null | string | undefined> = {};
     for (const op of list) {
       if (op.user_id) map[op.user_id] = op.avatar;
     }
@@ -124,7 +124,6 @@ onMounted(() => {
 function onSelectionChange(rows: OperationLogInfo[]) {
   selectedRows.value = rows;
 }
-
 </script>
 
 <template>
@@ -142,14 +141,21 @@ function onSelectionChange(rows: OperationLogInfo[]) {
               :src="toAvatarDisplayUrl(avatarMap[row.userId])"
               :size="28"
             />
-            <Avatar v-else :size="28" class="bg-primary/10 text-primary flex-shrink-0 text-xs">
+            <Avatar
+              v-else
+              :size="28"
+              class="flex-shrink-0 bg-primary/10 text-xs text-primary"
+            >
               {{ (row.nickname || row.username || '?').charAt(0) }}
             </Avatar>
             <div class="min-w-0 flex-1">
               <div class="truncate text-sm font-medium text-foreground">
                 {{ row.nickname || row.username }}
               </div>
-              <div v-if="row.nickname" class="truncate text-xs text-muted-foreground">
+              <div
+                v-if="row.nickname"
+                class="truncate text-xs text-muted-foreground"
+              >
                 {{ row.username }}
               </div>
             </div>
@@ -220,7 +226,6 @@ function onSelectionChange(rows: OperationLogInfo[]) {
           </Tooltip>
         </template>
 
-
         <!-- 左侧工具栏：批量删除 -->
         <template #toolbar-actions>
           <Popconfirm
@@ -235,10 +240,7 @@ function onSelectionChange(rows: OperationLogInfo[]) {
             :ok-button-props="{ danger: true }"
             @confirm="onBatchDelete"
           >
-            <Button
-              v-access:code="['operation_log:delete']"
-              danger
-            >
+            <Button v-access:code="['operation_log:delete']" danger>
               <template #icon>
                 <IconifyIcon icon="lucide:trash-2" class="size-4" />
               </template>

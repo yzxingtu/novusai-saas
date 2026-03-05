@@ -36,10 +36,11 @@ from app.core.logging import LogManager
 from app.enums.common import UserRoleEnum
 
 if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
     from app.ai.gateway import AIGateway
     from app.ai.tools.types import ExecutionContext
     from app.models.ai.agent import Agent
-    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = LogManager.get_logger("ai.tool.text_to_sql")
 
@@ -385,6 +386,7 @@ class TextToSQLExecutor(BaseToolExecutor):
         arguments: dict[str, Any],
     ) -> bool:
         """校验参数"""
+        _ = definition
         question = arguments.get("question", "")
         return bool(question and isinstance(question, str) and question.strip())
 

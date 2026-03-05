@@ -6,11 +6,11 @@ AgentService 单元测试
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from tests.services.conftest import make_mock_model, make_scalar_result, make_scalars_result
+from tests.services.conftest import make_mock_model
 
 
 def _make_agent(**overrides):
@@ -38,8 +38,8 @@ class TestBeforeCreate:
 
     @pytest.mark.asyncio
     async def test_duplicate_name_raises(self, mock_db):
-        from app.services.ai.agent_service import AgentService
         from app.exceptions import BusinessException
+        from app.services.ai.agent_service import AgentService
 
         existing = _make_agent(id=99, name="Duplicate")
         service = AgentService.__new__(AgentService)
@@ -116,8 +116,8 @@ class TestGetAgentDetail:
 
     @pytest.mark.asyncio
     async def test_detail_not_found(self, mock_db):
-        from app.services.ai.agent_service import AgentService
         from app.exceptions import NotFoundException
+        from app.services.ai.agent_service import AgentService
 
         service = AgentService.__new__(AgentService)
         service.db = mock_db
@@ -130,6 +130,9 @@ class TestGetAgentDetail:
 
     @pytest.mark.asyncio
     async def test_detail_returns_dict(self, mock_db):
+        from app.repositories.ai.agent_memory_override_repository import (
+            AgentMemoryOverrideRepository,
+        )
         from app.services.ai.agent_service import AgentService
 
         agent = _make_agent()
@@ -142,6 +145,10 @@ class TestGetAgentDetail:
         service.repo = AsyncMock()
         service.repo.get_by_id = AsyncMock(return_value=agent)
         service.repo.get_agent_with_model = AsyncMock(return_value=agent)
+        service._get_platform_default_memory_enabled = AsyncMock(return_value=True)
+        override_repo = AsyncMock(spec=AgentMemoryOverrideRepository)
+        override_repo.get_by_agent_id = AsyncMock(return_value=None)
+        service._get_memory_override_repo = MagicMock(return_value=override_repo)
 
         result = await service.get_agent_detail(1)
 

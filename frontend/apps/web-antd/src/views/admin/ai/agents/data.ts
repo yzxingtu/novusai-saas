@@ -9,7 +9,10 @@ import { getAIModelListApi } from '#/api/admin/ai';
 import { getSkillPackageSelectApi } from '#/api/admin/skill-packages';
 import { useScopeFields } from '#/components/business/scope-select';
 import { $t } from '#/locales';
-import { getScopeColor, getScopeOptions as _getScopeOptions } from '#/utils/scope-helpers';
+import {
+  getScopeOptions as _getScopeOptions,
+  getScopeColor,
+} from '#/utils/scope-helpers';
 
 export { getScopeColor };
 
@@ -30,7 +33,10 @@ export function getScopeOptions() {
 
 function getExecutionModeOptions() {
   return [
-    { label: $t('admin.ai.agent.mode_options.conversation'), value: 'conversation' },
+    {
+      label: $t('admin.ai.agent.mode_options.conversation'),
+      value: 'conversation',
+    },
     { label: $t('admin.ai.agent.mode_options.task'), value: 'task' },
     { label: $t('admin.ai.agent.mode_options.batch'), value: 'batch' },
     { label: $t('admin.ai.agent.mode_options.api'), value: 'api' },
@@ -82,11 +88,11 @@ export function getFormDefaults() {
 interface PkgSelectItem {
   label: string;
   value: number;
-  extra?: {
-    scope?: string;
+  extra?: null | {
     is_system?: boolean;
+    scope?: string;
     source_plugin?: string;
-  } | null;
+  };
 }
 
 export interface PkgOption {
@@ -100,17 +106,21 @@ export interface PkgOption {
 
 export async function getPackageSelectOptions(): Promise<PkgOption[]> {
   try {
-    const resp = await getSkillPackageSelectApi() as unknown as
-      | { items: PkgSelectItem[] }
-      | PkgSelectItem[];
-    const items: PkgSelectItem[] = Array.isArray(resp) ? resp : (resp?.items ?? []);
+    const resp = (await getSkillPackageSelectApi()) as unknown as
+      | PkgSelectItem[]
+      | { items: PkgSelectItem[] };
+    const items: PkgSelectItem[] = Array.isArray(resp)
+      ? resp
+      : (resp?.items ?? []);
     return items.map((p) => ({
       label: p.label,
       value: p.value,
       scope: p.extra?.scope,
       sourcePlugin: p.extra?.source_plugin,
       isSystem: p.extra?.is_system,
-      bindMode: (p.extra as Record<string, unknown> | undefined)?.bind_mode as string | undefined,
+      bindMode: (p.extra as Record<string, unknown> | undefined)?.bind_mode as
+        | string
+        | undefined,
     }));
   } catch {
     return [];
@@ -123,14 +133,14 @@ export async function getPackageSelectOptions(): Promise<PkgOption[]> {
 export function getStatusText(status: string | undefined): string {
   if (!status) return '-';
   switch (status) {
+    case 'disabled': {
+      return $t('admin.ai.agent.status_options.disabled');
+    }
     case 'draft': {
       return $t('admin.ai.agent.status_options.draft');
     }
     case 'published': {
       return $t('admin.ai.agent.status_options.published');
-    }
-    case 'disabled': {
-      return $t('admin.ai.agent.status_options.disabled');
     }
     default: {
       return status;
@@ -144,17 +154,17 @@ export function getStatusText(status: string | undefined): string {
 export function getExecutionModeText(mode: string | undefined): string {
   if (!mode) return '-';
   switch (mode) {
+    case 'api': {
+      return $t('admin.ai.agent.mode_options.api');
+    }
+    case 'batch': {
+      return $t('admin.ai.agent.mode_options.batch');
+    }
     case 'conversation': {
       return $t('admin.ai.agent.mode_options.conversation');
     }
     case 'task': {
       return $t('admin.ai.agent.mode_options.task');
-    }
-    case 'batch': {
-      return $t('admin.ai.agent.mode_options.batch');
-    }
-    case 'api': {
-      return $t('admin.ai.agent.mode_options.api');
     }
     default: {
       return mode;
@@ -169,7 +179,10 @@ export function getExecutionModeText(mode: string | undefined): string {
  * @param _isEdit 是否编辑模式
  * @param isSystem 是否系统智能体（锁定核心字段）
  */
-export function useFormSchema(_isEdit = false, isSystem = false): VbenFormSchema[] {
+export function useFormSchema(
+  _isEdit = false,
+  isSystem = false,
+): VbenFormSchema[] {
   const locked = isSystem
     ? { disabled: true, help: $t('admin.ai.agent.systemFieldLocked') }
     : {};
@@ -213,7 +226,7 @@ export function useFormSchema(_isEdit = false, isSystem = false): VbenFormSchema
     }),
     numberField('max_tokens', $t('admin.ai.agent.maxTokens'), {
       min: 1,
-      max: 128000,
+      max: 128_000,
     }),
     {
       ...numberField('top_p', $t('admin.ai.agent.topP'), {
@@ -230,10 +243,14 @@ export function useFormSchema(_isEdit = false, isSystem = false): VbenFormSchema
       help: $t('admin.ai.agent.help.welcomeMessage'),
     },
     {
-      ...textareaField('suggested_questions', $t('admin.ai.agent.suggestedQuestions'), {
-        rows: 3,
-        placeholder: $t('admin.ai.agent.placeholder.inputSuggestedQuestions'),
-      }),
+      ...textareaField(
+        'suggested_questions',
+        $t('admin.ai.agent.suggestedQuestions'),
+        {
+          rows: 3,
+          placeholder: $t('admin.ai.agent.placeholder.inputSuggestedQuestions'),
+        },
+      ),
       help: $t('admin.ai.agent.help.suggestedQuestions'),
     },
   ];

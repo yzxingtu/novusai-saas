@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'SendEmailDrawer' });
 /**
  * 手动发送邮件抽屉
  */
@@ -12,6 +11,8 @@ import { Button, Input, message, Spin, Textarea } from 'ant-design-vue';
 
 import { sendEmailApi } from '#/api/admin/email-log';
 import { $t } from '#/locales';
+
+defineOptions({ name: 'SendEmailDrawer' });
 
 const emit = defineEmits<{ success: [] }>();
 
@@ -30,7 +31,10 @@ async function handleSend() {
   }
   loading.value = true;
   try {
-    const recipients = toAddress.value.split(',').map((s: string) => s.trim()).filter(Boolean);
+    const recipients = toAddress.value
+      .split(',')
+      .map((s: string) => s.trim())
+      .filter(Boolean);
     const result = await sendEmailApi({
       to: recipients,
       subject: subject.value,
@@ -57,10 +61,7 @@ async function handleSend() {
 </script>
 
 <template>
-  <Drawer
-    :title="$t('admin.system.emailLog.send.title')"
-    class="w-[560px]"
-  >
+  <Drawer :title="$t('admin.system.emailLog.send.title')" class="w-[560px]">
     <Spin :spinning="loading">
       <div class="flex flex-col gap-4">
         <div>

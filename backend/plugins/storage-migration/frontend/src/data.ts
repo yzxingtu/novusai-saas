@@ -43,17 +43,30 @@ export function getStatusColor(status: string): BadgeStatus {
 }
 
 export function getStatusText(status: string): string {
-  return $t(`admin.storageMigration.task.status.${status}`);
+  return $t(`plugin.storage-migration.task.status.${status}`);
 }
 
 // ============ Drivers ============
+
+function translateDriverDisplayName(
+  displayName: null | string | undefined,
+  fallback: string,
+): string {
+  const raw = typeof displayName === 'string' ? displayName.trim() : '';
+  if (!raw) return fallback;
+  if (!raw.startsWith('storage.driver.')) return raw;
+
+  const i18nKey = `shared.${raw}`;
+  const translated = $t(i18nKey);
+  return translated === i18nKey ? fallback : translated;
+}
 
 export function getDriverLabel(
   name: string,
   drivers: StorageDriverInfo[],
 ): string {
   const driver = drivers.find((d) => d.name === name);
-  return driver?.display_name || name;
+  return translateDriverDisplayName(driver?.display_name, name);
 }
 
 // ============ Progress ============
@@ -79,17 +92,17 @@ export function useColumns() {
       width: 60,
     },
     {
-      title: $t('admin.storageMigration.impactAnalysis.sourceDriver'),
+      title: $t('plugin.storage-migration.impactAnalysis.sourceDriver'),
       dataIndex: 'source_driver',
       width: 120,
     },
     {
-      title: $t('admin.storageMigration.impactAnalysis.targetDriver'),
+      title: $t('plugin.storage-migration.impactAnalysis.targetDriver'),
       dataIndex: 'target_driver',
       width: 120,
     },
     {
-      title: $t('admin.storageMigration.task.progress'),
+      title: $t('plugin.storage-migration.task.progress'),
       key: 'progress',
       width: 200,
     },

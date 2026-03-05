@@ -8,7 +8,8 @@ AI 重试服务
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Awaitable, Callable, TypeVar
+from collections.abc import Awaitable, Callable
+from typing import Any, TypeVar
 
 from app.ai.adapters import AdapterRegistry
 from app.ai.exceptions import (
@@ -84,8 +85,11 @@ class RetryService:
                 )
 
                 logger.info(
-                    "AI call: provider=%s model=%s attempt=%d",
-                    provider.code, model, attempt,
+                    "AI call: provider=%s model=%s attempt=%d log_key=%s",
+                    provider.code,
+                    model,
+                    attempt,
+                    log_key,
                 )
 
                 response = await call_fn(adapter)

@@ -5,14 +5,16 @@
 """
 
 # 导入配置模块（触发配置注册到分组）
-from app.configs.definitions.platform import general
-from app.configs.definitions.platform import security
-from app.configs.definitions.platform import email
-from app.configs.definitions.platform import storage
-from app.configs.definitions.platform import ssl
-from app.configs.definitions.platform import websocket
-from app.configs.definitions.platform import ai_toolkit
-
+from app.configs.definitions.platform import (
+    ai_memory,
+    ai_toolkit,
+    email,
+    general,
+    security,
+    ssl,
+    storage,
+    websocket,
+)
 
 __all__ = [
     "general",
@@ -22,4 +24,5 @@ __all__ = [
     "ssl",
     "websocket",
     "ai_toolkit",
+    "ai_memory",
 ]

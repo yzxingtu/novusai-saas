@@ -1,14 +1,11 @@
-/**
- * 配置项图片选择器
- *
- * 配合 ConfigForm 使用，在系统配置中为 value_type='image' 的配置项提供图片选择功能。
- * 通过 FilePicker 附件管理器弹窗选择图片，存储附件 ID（字符串），
- * 显示时根据 ID 动态拼接图片处理 URL。
- *
- * @example
- * <ConfigImagePicker v-model="formModel[cfg.key]" />
- * <ConfigImagePicker v-model="value" accept="image/png,image/jpeg" />
- */
+/** * 配置项图片选择器 * * 配合 ConfigForm 使用，在系统配置中为
+value_type='image' 的配置项提供图片选择功能。 * 通过 FilePicker
+附件管理器弹窗选择图片，存储附件 ID（字符串）， * 显示时根据 ID 动态拼接图片处理
+URL。 * * @example *
+<ConfigImagePicker v-model="formModel[cfg.key]" />
+*
+<ConfigImagePicker v-model="value" accept="image/png,image/jpeg" />
+*/
 <script setup lang="ts">
 import type { AttachmentInfo } from '#/types/attachment';
 
@@ -34,6 +31,7 @@ withDefaults(
   {
     accept: 'image/*',
     imageOnly: true,
+    modelValue: '',
   },
 );
 
@@ -148,7 +146,10 @@ function handleRemove() {
       <Image
         v-if="modelValue"
         :src="toPreviewUrl(modelValue)"
-        :preview="{ visible: previewVisible, onVisibleChange: (v: boolean) => (previewVisible = v) }"
+        :preview="{
+          visible: previewVisible,
+          onVisibleChange: (v: boolean) => (previewVisible = v),
+        }"
         class="hidden"
       />
     </Form.ItemRest>

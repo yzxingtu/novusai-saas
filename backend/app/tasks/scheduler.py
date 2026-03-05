@@ -6,10 +6,8 @@
 """
 
 from celery.schedules import crontab
-from celery.utils.log import get_logger as celery_get_logger
 
 from app.celery_app import celery_app
-from app.core.config import settings
 from app.core.database import sync_session_factory
 from app.core.logging import LogManager
 from app.models.system.periodic_task import PeriodicTask

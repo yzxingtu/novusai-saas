@@ -9,29 +9,28 @@
 - TenantUser: 租户业务用户 (/api/v1/auth/login)
 """
 
-from typing import Annotated, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from redis.asyncio import Redis as AioRedis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import async_session_factory
 from app.core.config import settings
+from app.core.database import async_session_factory
 from app.core.i18n import _
+from app.core.query_parser import QueryParams, get_query_spec
+from app.core.redis import get_redis
 from app.core.security import (
-    verify_token_with_scope,
-    TOKEN_TYPE_ACCESS,
     TOKEN_SCOPE_ADMIN,
     TOKEN_SCOPE_TENANT_ADMIN,
     TOKEN_SCOPE_TENANT_USER,
+    TOKEN_TYPE_ACCESS,
+    verify_token_with_scope,
 )
-from app.core.query_parser import get_query_spec, QueryParams
 from app.models import Admin, TenantAdmin, TenantUser
-from app.core.redis import get_redis
-
-from redis.asyncio import Redis as AioRedis
-
 
 # ========================================
 # OAuth2 配置
@@ -60,9 +59,9 @@ oauth2_tenant_user_scheme = OAuth2PasswordBearer(
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     获取数据库会话
-    
+
     请求成功时自动提交，异常时自动回滚
-    
+
     Yields:
         AsyncSession: 异步数据库会话
     """
@@ -93,17 +92,17 @@ async def get_current_admin(
         detail=_("auth.token_invalid"),
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     if token is None:
         raise credentials_exception
-    
+
     # 验证 Token 并检查 scope
     user_id, scope = verify_token_with_scope(
         token, TOKEN_SCOPE_ADMIN, TOKEN_TYPE_ACCESS
     )
     if user_id is None:
         raise credentials_exception
-    
+
     result = await db.execute(
         select(Admin).where(
             Admin.id == int(user_id),
@@ -111,10 +110,10 @@ async def get_current_admin(
         )
     )
     admin = result.scalar_one_or_none()
-    
+
     if admin is None:
         raise credentials_exception
-    
+
     return admin
 
 
@@ -162,17 +161,17 @@ async def get_current_tenant_admin(
         detail=_("auth.token_invalid"),
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     if token is None:
         raise credentials_exception
-    
+
     # 验证 Token 并检查 scope
     user_id, scope = verify_token_with_scope(
         token, TOKEN_SCOPE_TENANT_ADMIN, TOKEN_TYPE_ACCESS
     )
     if user_id is None:
         raise credentials_exception
-    
+
     result = await db.execute(
         select(TenantAdmin).where(
             TenantAdmin.id == int(user_id),
@@ -180,10 +179,10 @@ async def get_current_tenant_admin(
         )
     )
     tenant_admin = result.scalar_one_or_none()
-    
+
     if tenant_admin is None:
         raise credentials_exception
-    
+
     return tenant_admin
 
 
@@ -231,17 +230,17 @@ async def get_current_tenant_user(
         detail=_("auth.token_invalid"),
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     if token is None:
         raise credentials_exception
-    
+
     # 验证 Token 并检查 scope
     user_id, scope = verify_token_with_scope(
         token, TOKEN_SCOPE_TENANT_USER, TOKEN_TYPE_ACCESS
     )
     if user_id is None:
         raise credentials_exception
-    
+
     result = await db.execute(
         select(TenantUser).where(
             TenantUser.id == int(user_id),
@@ -249,10 +248,10 @@ async def get_current_tenant_user(
         )
     )
     user = result.scalar_one_or_none()
-    
+
     if user is None:
         raise credentials_exception
-    
+
     return user
 
 

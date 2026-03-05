@@ -16,7 +16,12 @@ import { getAICallLogListApi, getAICallLogStatisticsApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
-import { formatCost, getStatusText, useColumns, useGridFormSchema } from './data';
+import {
+  formatCost,
+  getStatusText,
+  useColumns,
+  useGridFormSchema,
+} from './data';
 import CallLogDetail from './modules/detail.vue';
 
 defineOptions({ name: 'AICallLogList' });
@@ -123,12 +128,13 @@ const { Grid } = useCrudPage<AICallLogInfo>({
 </script>
 
 <template>
-  <Page auto-content-height :description="$t('admin.ai.callLog.pageDesc')" content-class="flex flex-col gap-4">
+  <Page
+    auto-content-height
+    :description="$t('admin.ai.callLog.pageDesc')"
+    content-class="flex flex-col gap-4"
+  >
     <!-- 详情抽屉 -->
-    <CallLogDetail
-      v-model:visible="detailOpen"
-      :log-id="detailLogId"
-    />
+    <CallLogDetail v-model:visible="detailOpen" :log-id="detailLogId" />
 
     <!-- 统计摘要 -->
     <Spin :spinning="summaryLoading">
@@ -186,8 +192,14 @@ const { Grid } = useCrudPage<AICallLogInfo>({
 
         <!-- 供应商列 -->
         <template #providerName_cell="{ row }">
-          <div v-if="row.provider_name" class="flex items-center justify-center gap-1.5">
-            <IconifyIcon icon="lucide:cpu" class="size-3.5 text-muted-foreground" />
+          <div
+            v-if="row.provider_name"
+            class="flex items-center justify-center gap-1.5"
+          >
+            <IconifyIcon
+              icon="lucide:cpu"
+              class="size-3.5 text-muted-foreground"
+            />
             <span class="text-foreground">{{ row.provider_name }}</span>
           </div>
           <span v-else class="text-muted-foreground">-</span>
@@ -214,7 +226,13 @@ const { Grid } = useCrudPage<AICallLogInfo>({
           >
             <template #icon>
               <IconifyIcon
-                :icon="row.status === 'success' ? 'lucide:check-circle' : row.status === 'failed' ? 'lucide:x-circle' : 'lucide:clock'"
+                :icon="
+                  row.status === 'success'
+                    ? 'lucide:check-circle'
+                    : row.status === 'failed'
+                      ? 'lucide:x-circle'
+                      : 'lucide:clock'
+                "
                 class="size-3"
               />
             </template>
@@ -224,7 +242,9 @@ const { Grid } = useCrudPage<AICallLogInfo>({
 
         <!-- Tokens 合并列 -->
         <template #tokens_cell="{ row }">
-          <Tooltip :title="`${$t('admin.ai.callLog.inputTokens')}: ${row.input_tokens} | ${$t('admin.ai.callLog.outputTokens')}: ${row.output_tokens}`">
+          <Tooltip
+            :title="`${$t('admin.ai.callLog.inputTokens')}: ${row.input_tokens} | ${$t('admin.ai.callLog.outputTokens')}: ${row.output_tokens}`"
+          >
             <span class="font-mono text-sm text-muted-foreground">
               {{ row.total_tokens.toLocaleString() }}
             </span>
@@ -233,7 +253,10 @@ const { Grid } = useCrudPage<AICallLogInfo>({
 
         <!-- 费用列 -->
         <template #cost_cell="{ row }">
-          <span class="font-mono text-sm" :class="row.cost > 0 ? 'text-warning' : 'text-muted-foreground'">
+          <span
+            class="font-mono text-sm"
+            :class="row.cost > 0 ? 'text-warning' : 'text-muted-foreground'"
+          >
             {{ formatCost(row.cost) }}
           </span>
         </template>
@@ -243,7 +266,13 @@ const { Grid } = useCrudPage<AICallLogInfo>({
           <span
             v-if="row.latency_ms"
             class="font-mono text-sm"
-            :class="row.latency_ms > 5000 ? 'text-destructive' : row.latency_ms > 2000 ? 'text-warning' : 'text-success'"
+            :class="
+              row.latency_ms > 5000
+                ? 'text-destructive'
+                : row.latency_ms > 2000
+                  ? 'text-warning'
+                  : 'text-success'
+            "
           >
             {{ row.latency_ms }}ms
           </span>

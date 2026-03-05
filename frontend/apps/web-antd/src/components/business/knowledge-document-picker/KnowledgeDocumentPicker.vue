@@ -16,28 +16,23 @@ import { ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import {
-  Button,
-  Input,
-  message,
-  Modal,
-  Upload,
-} from 'ant-design-vue';
+import { Button, Input, message, Modal, Upload } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
 const props = defineProps<{
-  uploadFn: (file: File) => Promise<unknown>;
-  textFn?: (data: { title: string; content: string }) => Promise<unknown>;
-  qaFn?: (data: { question: string; answer: string }) => Promise<unknown>;
-  qaBatchFn?: (file: File) => Promise<unknown>;
-  urlFn?: (urls: string[]) => Promise<unknown>;
   accept?: string;
+  qaBatchFn?: (file: File) => Promise<unknown>;
+  qaFn?: (data: { answer: string; question: string }) => Promise<unknown>;
+  textFn?: (data: { content: string; title: string }) => Promise<unknown>;
+  uploadFn: (file: File) => Promise<unknown>;
+  urlFn?: (urls: string[]) => Promise<unknown>;
 }>();
 
 const emit = defineEmits<{ success: [] }>();
 
-const KB_ACCEPT = '.pdf,.docx,.txt,.md,.csv,.xlsx,.html,.htm,.pptx,.jpg,.jpeg,.png,.webp,.gif';
+const KB_ACCEPT =
+  '.pdf,.docx,.txt,.md,.csv,.xlsx,.html,.htm,.pptx,.jpg,.jpeg,.png,.webp,.gif';
 
 // ========== Modal visibility ==========
 const textModalVisible = ref(false);
@@ -132,9 +127,11 @@ async function handleSubmitUrls() {
   }
   urlSubmitting.value = true;
   try {
-    const result = await props.urlFn(urls) as { created?: number };
+    const result = (await props.urlFn(urls)) as { created?: number };
     message.success(
-      $t('shared.knowledgeDocPicker.url.result', { count: result?.created ?? urls.length }),
+      $t('shared.knowledgeDocPicker.url.result', {
+        count: result?.created ?? urls.length,
+      }),
     );
     urlInput.value = '';
     urlModalVisible.value = false;
@@ -153,7 +150,10 @@ async function handleQABatchUpload(file: File) {
   if (!props.qaBatchFn) return false;
   qaBatchUploading.value = true;
   try {
-    const result = await props.qaBatchFn(file) as { imported?: number; skipped?: number };
+    const result = (await props.qaBatchFn(file)) as {
+      imported?: number;
+      skipped?: number;
+    };
     const imported = result?.imported ?? 0;
     const skipped = result?.skipped ?? 0;
     message.success(
@@ -229,12 +229,23 @@ async function handleQABatchUpload(file: File) {
   >
     <div class="flex flex-col gap-3 py-2">
       <div>
-        <div class="mb-1 text-sm font-medium">{{ $t('shared.knowledgeDocPicker.text.title') }}</div>
-        <Input v-model:value="textTitle" :placeholder="$t('shared.knowledgeDocPicker.text.titlePlaceholder')" />
+        <div class="mb-1 text-sm font-medium">
+          {{ $t('shared.knowledgeDocPicker.text.title') }}
+        </div>
+        <Input
+          v-model:value="textTitle"
+          :placeholder="$t('shared.knowledgeDocPicker.text.titlePlaceholder')"
+        />
       </div>
       <div>
-        <div class="mb-1 text-sm font-medium">{{ $t('shared.knowledgeDocPicker.text.content') }}</div>
-        <Input.TextArea v-model:value="textContent" :rows="8" :placeholder="$t('shared.knowledgeDocPicker.text.contentPlaceholder')" />
+        <div class="mb-1 text-sm font-medium">
+          {{ $t('shared.knowledgeDocPicker.text.content') }}
+        </div>
+        <Input.TextArea
+          v-model:value="textContent"
+          :rows="8"
+          :placeholder="$t('shared.knowledgeDocPicker.text.contentPlaceholder')"
+        />
       </div>
     </div>
   </Modal>
@@ -252,12 +263,24 @@ async function handleQABatchUpload(file: File) {
   >
     <div class="flex flex-col gap-3 py-2">
       <div>
-        <div class="mb-1 text-sm font-medium">{{ $t('shared.knowledgeDocPicker.qa.question') }}</div>
-        <Input.TextArea v-model:value="qaQuestion" :rows="3" :placeholder="$t('shared.knowledgeDocPicker.qa.questionPlaceholder')" />
+        <div class="mb-1 text-sm font-medium">
+          {{ $t('shared.knowledgeDocPicker.qa.question') }}
+        </div>
+        <Input.TextArea
+          v-model:value="qaQuestion"
+          :rows="3"
+          :placeholder="$t('shared.knowledgeDocPicker.qa.questionPlaceholder')"
+        />
       </div>
       <div>
-        <div class="mb-1 text-sm font-medium">{{ $t('shared.knowledgeDocPicker.qa.answer') }}</div>
-        <Input.TextArea v-model:value="qaAnswer" :rows="5" :placeholder="$t('shared.knowledgeDocPicker.qa.answerPlaceholder')" />
+        <div class="mb-1 text-sm font-medium">
+          {{ $t('shared.knowledgeDocPicker.qa.answer') }}
+        </div>
+        <Input.TextArea
+          v-model:value="qaAnswer"
+          :rows="5"
+          :placeholder="$t('shared.knowledgeDocPicker.qa.answerPlaceholder')"
+        />
       </div>
     </div>
   </Modal>
@@ -274,8 +297,14 @@ async function handleQABatchUpload(file: File) {
     width="560px"
   >
     <div class="py-2">
-      <div class="mb-1 text-sm font-medium">{{ $t('shared.knowledgeDocPicker.url.label') }}</div>
-      <Input.TextArea v-model:value="urlInput" :rows="6" :placeholder="$t('shared.knowledgeDocPicker.url.placeholder')" />
+      <div class="mb-1 text-sm font-medium">
+        {{ $t('shared.knowledgeDocPicker.url.label') }}
+      </div>
+      <Input.TextArea
+        v-model:value="urlInput"
+        :rows="6"
+        :placeholder="$t('shared.knowledgeDocPicker.url.placeholder')"
+      />
     </div>
   </Modal>
 </template>

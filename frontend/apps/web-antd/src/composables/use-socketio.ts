@@ -5,16 +5,13 @@
  * Token 刷新重连、事件监听/发送等能力。
  */
 
+import type { Socket } from 'socket.io-client';
+
 import type { Ref, ShallowRef } from 'vue';
 
-import {
-  ref,
-  shallowRef,
-  toValue,
-  watch,
-} from 'vue';
+import { ref, shallowRef, toValue, watch } from 'vue';
 
-import { type Socket, io } from 'socket.io-client';
+import { io } from 'socket.io-client';
 
 /** 连接状态 */
 export type SocketIOStatus =
@@ -40,7 +37,7 @@ export interface UseSocketIOOptions {
 /** Composable 返回值 */
 export interface UseSocketIOReturn {
   /** Socket.IO 客户端实例 */
-  socket: ShallowRef<Socket | null>;
+  socket: ShallowRef<null | Socket>;
   /** 连接状态 */
   status: Ref<SocketIOStatus>;
   /** 手动连接 */
@@ -77,7 +74,7 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
     autoConnect = false,
   } = options;
 
-  const socket: ShallowRef<Socket | null> = shallowRef(null);
+  const socket: ShallowRef<null | Socket> = shallowRef(null);
   const status = ref<SocketIOStatus>('disconnected');
 
   let isManualDisconnect = false;
@@ -103,7 +100,7 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
       autoConnect: false,
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 5_000,
+      reconnectionDelayMax: 5000,
       reconnectionAttempts: Number.POSITIVE_INFINITY,
       transports: ['websocket'],
     });
@@ -146,12 +143,16 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
           // Token 已刷新，用新 token 重连
           sock.auth = { token: `Bearer ${latestToken}` };
           authErrorCount = 0;
-          console.warn('[Socket.IO] Token refreshed, reconnecting with new token');
+          console.warn(
+            '[Socket.IO] Token refreshed, reconnecting with new token',
+          );
         } else if (authErrorCount >= MAX_AUTH_ERRORS) {
           // 多次认证失败且 token 未刷新，停止重连
           sock.disconnect();
           status.value = 'disconnected';
-          console.warn('[Socket.IO] Auth failed after max retries, stopped reconnecting');
+          console.warn(
+            '[Socket.IO] Auth failed after max retries, stopped reconnecting',
+          );
         } else {
           console.warn(
             `[Socket.IO] Auth error: ${err.message} (attempt ${authErrorCount}/${MAX_AUTH_ERRORS})`,
@@ -202,18 +203,12 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
   }
 
   /** 监听事件 */
-  function on<T = unknown>(
-    event: string,
-    handler: (data: T) => void,
-  ) {
+  function on<T = unknown>(event: string, handler: (data: T) => void) {
     socket.value?.on(event, handler as (...args: unknown[]) => void);
   }
 
   /** 取消监听 */
-  function off(
-    event: string,
-    handler?: (...args: unknown[]) => void,
-  ) {
+  function off(event: string, handler?: (...args: unknown[]) => void) {
     if (handler) {
       socket.value?.off(event, handler);
     } else {
@@ -242,11 +237,11 @@ export function useSocketIO(options: UseSocketIOOptions): UseSocketIOReturn {
       if (socket.value) {
         // Token 更新 → 重连（更新 auth）
         socket.value.auth = { token: `Bearer ${newToken}` };
-        if (!socket.value.connected) {
-          socket.value.connect();
-        } else {
+        if (socket.value.connected) {
           // 已连接状态下 token 变化：断开重连以使用新 token
           socket.value.disconnect();
+          socket.value.connect();
+        } else {
           socket.value.connect();
         }
       } else if (oldToken === '') {

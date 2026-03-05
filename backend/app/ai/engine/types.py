@@ -9,6 +9,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from app.ai.constants import (
+    DEFAULT_MEMORY_SCENE,
+    MEMORY_CHANNEL_SYSTEM,
+)
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
 from app.enums.agent import AgentExecutionModeEnum
@@ -59,6 +63,15 @@ class ExecutionRequest:
     skip_quota: bool = False
     skip_persistence: bool = False
     skip_logging: bool = False
+
+    # 会话记忆场景控制（入口边界）
+    # scene：请求来源场景（ai_chat_page/admin_chat/plugin/ai_gateway/unknown）
+    # channel：渠道（tenant_chat/admin_chat/plugin/system）
+    # source：来源标识（如 ai_chat_page / plugin.weather-widget）
+    memory_scene: str = DEFAULT_MEMORY_SCENE
+    memory_channel: str = MEMORY_CHANNEL_SYSTEM
+    memory_source: str = ""
+    memory_enabled: bool = False
 
 
 @dataclass

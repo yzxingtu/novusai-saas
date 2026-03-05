@@ -8,8 +8,6 @@ import { onMounted, ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 
-defineOptions({ name: 'TenantOperationLogList' });
-
 import { Avatar, Card, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
@@ -24,6 +22,8 @@ import {
   useGridFormSchema,
 } from './data';
 import DetailDrawer from './modules/LogDetail.vue';
+
+defineOptions({ name: 'TenantOperationLogList' });
 
 type OperationLogInfo = tenantApi.OperationLogInfo;
 
@@ -56,13 +56,13 @@ const { Grid, gridApi } = useCrudPage<OperationLogInfo>({
 });
 
 // 操作人列表（头像 + 下拉）
-const avatarMap = ref<Record<number, string | null | undefined>>({});
+const avatarMap = ref<Record<number, null | string | undefined>>({});
 
 async function loadOperators() {
   try {
     const list = await tenant.getOperatorsApi();
     // 构建 userId → avatar 映射
-    const map: Record<number, string | null | undefined> = {};
+    const map: Record<number, null | string | undefined> = {};
     for (const op of list) {
       if (op.user_id) map[op.user_id] = op.avatar;
     }
@@ -104,14 +104,21 @@ onMounted(() => {
               :src="toAvatarDisplayUrl(avatarMap[row.userId])"
               :size="28"
             />
-            <Avatar v-else :size="28" class="bg-primary/10 text-primary flex-shrink-0 text-xs">
+            <Avatar
+              v-else
+              :size="28"
+              class="flex-shrink-0 bg-primary/10 text-xs text-primary"
+            >
               {{ (row.nickname || row.username || '?').charAt(0) }}
             </Avatar>
             <div class="min-w-0 flex-1">
               <div class="truncate text-sm font-medium text-foreground">
                 {{ row.nickname || row.username }}
               </div>
-              <div v-if="row.nickname" class="truncate text-xs text-muted-foreground">
+              <div
+                v-if="row.nickname"
+                class="truncate text-xs text-muted-foreground"
+              >
                 {{ row.username }}
               </div>
             </div>

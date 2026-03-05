@@ -9,8 +9,8 @@ import { IconPicker } from '#/components/business/icon-picker';
 defineOptions({ name: 'IconSelector' });
 
 defineProps<{
-  value?: string;
   placeholder?: string;
+  value?: string;
 }>();
 
 defineEmits<{

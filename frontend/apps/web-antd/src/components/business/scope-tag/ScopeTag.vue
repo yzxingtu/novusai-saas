@@ -6,11 +6,16 @@
  * 替代各模块分散的 scope Tag 渲染逻辑。
  */
 import { computed } from 'vue';
-import { Tag } from 'ant-design-vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { getScopeColor, getScopeIcon, getScopeText } from '#/utils/scope-helpers';
+import { Tag } from 'ant-design-vue';
+
+import {
+  getScopeColor,
+  getScopeIcon,
+  getScopeText,
+} from '#/utils/scope-helpers';
 
 const props = withDefaults(
   defineProps<{
@@ -33,10 +38,8 @@ const isSmall = computed(() => props.size === 'small');
 <template>
   <Tag
     :color="color"
-    :class="[
-      '!m-0 !rounded-md',
-      isSmall ? '!text-[10px] !leading-[14px] !px-1' : '',
-    ]"
+    class="!m-0 !rounded-md"
+    :class="[isSmall ? '!px-1 !text-[10px] !leading-[14px]' : '']"
   >
     <span v-if="showIcon" class="mr-0.5 inline-flex items-center">
       <IconifyIcon :icon="icon" class="size-3" />

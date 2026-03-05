@@ -4,8 +4,6 @@
  */
 import type { SkillInfo } from '#/api/tenant/skills';
 
-defineOptions({ name: 'TenantSkillList' });
-
 import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -31,6 +29,8 @@ import {
   useGridFormSchema,
 } from './data';
 import SkillForm from './modules/SkillForm.vue';
+
+defineOptions({ name: 'TenantSkillList' });
 
 loadSkillTypes();
 
@@ -80,7 +80,11 @@ function onFormSuccess() {
 </script>
 
 <template>
-  <Page auto-content-height :description="$t('tenant.ai.skill.pageDesc')" content-class="flex flex-col gap-4">
+  <Page
+    auto-content-height
+    :description="$t('tenant.ai.skill.pageDesc')"
+    content-class="flex flex-col gap-4"
+  >
     <!-- 表单抽屉 -->
     <SkillForm ref="skillFormRef" @success="onFormSuccess" />
 

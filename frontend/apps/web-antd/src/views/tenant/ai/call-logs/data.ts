@@ -7,9 +7,6 @@ import type { TenantAICallLogInfo } from '#/api/tenant/ai';
 
 import { searchInput, select } from '#/adapter/form';
 import { $t } from '#/locales';
-import { formatCost } from '#/utils/format';
-
-export { formatCost };
 
 function getStatusOptions() {
   return [
@@ -25,10 +22,18 @@ function getStatusOptions() {
 export function getStatusText(status: string | undefined): string {
   if (!status) return '-';
   switch (status) {
-    case 'success': return $t('tenant.ai.callLog.status_options.success');
-    case 'failed': return $t('tenant.ai.callLog.status_options.failed');
-    case 'timeout': return $t('tenant.ai.callLog.status_options.timeout');
-    default: return status;
+    case 'failed': {
+      return $t('tenant.ai.callLog.status_options.failed');
+    }
+    case 'success': {
+      return $t('tenant.ai.callLog.status_options.success');
+    }
+    case 'timeout': {
+      return $t('tenant.ai.callLog.status_options.timeout');
+    }
+    default: {
+      return status;
+    }
   }
 }
 
@@ -37,10 +42,18 @@ export function getStatusText(status: string | undefined): string {
  */
 export function getStatusColor(status: string | undefined): string {
   switch (status) {
-    case 'success': return 'success';
-    case 'failed': return 'error';
-    case 'timeout': return 'warning';
-    default: return 'default';
+    case 'failed': {
+      return 'error';
+    }
+    case 'success': {
+      return 'success';
+    }
+    case 'timeout': {
+      return 'warning';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
@@ -141,12 +154,18 @@ export function useColumns<T = TenantAICallLogInfo>(
  */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
-    searchInput('filter[model_name][ilike]', $t('tenant.ai.callLog.modelName'), {
-      placeholder: $t('tenant.ai.callLog.placeholder.allModels'),
-    }),
+    searchInput(
+      'filter[model_name][ilike]',
+      $t('tenant.ai.callLog.modelName'),
+      {
+        placeholder: $t('tenant.ai.callLog.placeholder.allModels'),
+      },
+    ),
     select('filter[status][eq]', $t('tenant.ai.callLog.status'), {
       options: getStatusOptions(),
       placeholder: $t('tenant.ai.callLog.placeholder.allStatuses'),
     }),
   ];
 }
+
+export { formatCost } from '#/utils/format';

@@ -9,7 +9,7 @@ Celery 任务用异步 DB Session 工厂
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -41,10 +41,8 @@ def _get_engine_and_factory():
     # Event loop 已变化或首次调用，重建 engine
     if _cached_engine is not None:
         # 同步关闭旧 engine（best-effort，旧 loop 可能已关闭）
-        try:
+        with suppress(Exception):
             _cached_engine.sync_engine.dispose()
-        except Exception:
-            pass
 
     _cached_engine = create_async_engine(
         settings.DATABASE_URL,

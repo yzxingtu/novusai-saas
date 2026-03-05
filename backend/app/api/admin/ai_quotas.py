@@ -8,7 +8,7 @@ from fastapi import Request
 
 from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
-from app.core.deps import DbSession, QueryParams, ActiveAdmin
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
@@ -121,6 +121,7 @@ class AdminAIQuotaController(GlobalController):
             权限: ai_quota:list_rate_limits
             """
             from sqlalchemy import select
+
             from app.models.ai.tenant_rate_limit import TenantModelRateLimit
 
             stmt = select(TenantModelRateLimit).where(
@@ -180,6 +181,7 @@ class AdminAIQuotaController(GlobalController):
             权限: ai_quota:update_rate_limit
             """
             from sqlalchemy import select
+
             from app.models.ai.tenant_rate_limit import TenantModelRateLimit
 
             result = await db.execute(
@@ -214,6 +216,7 @@ class AdminAIQuotaController(GlobalController):
             权限: ai_quota:delete_rate_limit
             """
             from sqlalchemy import select
+
             from app.models.ai.tenant_rate_limit import TenantModelRateLimit
 
             result = await db.execute(

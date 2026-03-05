@@ -24,6 +24,25 @@ class AgentExecutionModeEnum(LabeledStrEnum):
     API = ("api", "enum.agent.execution_mode.api")
 
 
+class MemorySceneEnum(LabeledStrEnum):
+    """会话记忆场景枚举"""
+
+    AI_CHAT_PAGE = ("ai_chat_page", "enum.agent.memory_scene.ai_chat_page")
+    ADMIN_CHAT = ("admin_chat", "enum.agent.memory_scene.admin_chat")
+    PLUGIN = ("plugin", "enum.agent.memory_scene.plugin")
+    AI_GATEWAY = ("ai_gateway", "enum.agent.memory_scene.ai_gateway")
+    UNKNOWN = ("unknown", "enum.agent.memory_scene.unknown")
+
+
+class MemoryChannelEnum(LabeledStrEnum):
+    """会话记忆渠道枚举"""
+
+    TENANT_CHAT = ("tenant_chat", "enum.agent.memory_channel.tenant_chat")
+    ADMIN_CHAT = ("admin_chat", "enum.agent.memory_channel.admin_chat")
+    PLUGIN = ("plugin", "enum.agent.memory_channel.plugin")
+    SYSTEM = ("system", "enum.agent.memory_channel.system")
+
+
 class ToolTypeEnum(LabeledStrEnum):
     """智能体工具类型枚举"""
 
@@ -183,6 +202,8 @@ def get_skill_type_options() -> list[dict[str, str]]:
 __all__ = [
     "AgentStatusEnum",
     "AgentExecutionModeEnum",
+    "MemorySceneEnum",
+    "MemoryChannelEnum",
     "ToolTypeEnum",
     "SkillTypeEnum",
     "ConversationStatusEnum",

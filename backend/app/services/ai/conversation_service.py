@@ -13,14 +13,19 @@ from app.ai.engine.types import ExecutionResult
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
-from app.repositories.ai.agent_conversation_repository import AgentConversationRepository
-from app.repositories.ai.conversation_message_repository import ConversationMessageRepository
-from app.models.ai.agent_conversation import AgentConversation
 from app.core.base_service import TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import ConversationStatusEnum, MessageRoleEnum
 from app.exceptions import BusinessException, NotFoundException
+from app.models.ai.agent_conversation import AgentConversation
+from app.repositories.ai.agent_conversation_repository import (
+    AgentConversationRepository,
+)
+from app.repositories.ai.conversation_message_repository import (
+    ConversationMessageRepository,
+)
+from app.services.ai.session_memory_service import SessionMemoryService
 
 logger = LogManager.get_logger("ai.conversation_service")
 
@@ -161,6 +166,18 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             "status": ConversationStatusEnum.ARCHIVED.value,
         })
 
+        # 主动清理会话记忆（兜底 TTL 之外的即时清理）
+        memory_svc = SessionMemoryService(self.tenant_id)
+        try:
+            await memory_svc.clear_conversation_memory(conversation_id)
+        except Exception as exc:
+            logger.warning(
+                "Archive conversation memory cleanup failed: conversation=%d tenant=%s err=%s",
+                conversation_id,
+                self.tenant_id,
+                str(exc),
+            )
+
         logger.info(
             _("conversation.log.archived"),
             conversation_id=conversation_id,
@@ -205,6 +222,19 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             )
             total_count += count
 
+            # 批量归档后按 id 清理会话记忆
+            memory_svc = SessionMemoryService(self.tenant_id)
+            for cid in ids:
+                try:
+                    await memory_svc.clear_conversation_memory(cid)
+                except Exception as exc:
+                    logger.warning(
+                        "Batch archive memory cleanup failed: conversation=%d tenant=%s err=%s",
+                        cid,
+                        self.tenant_id,
+                        str(exc),
+                    )
+
             # 如果本批实际归档数 < 查询数，说明已处理完毕
             if len(ids) < batch_size:
                 break
@@ -219,6 +249,22 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             )
 
         return total_count
+
+    async def _after_delete(self, id: int) -> None:
+        """
+        对话删除后清理会话记忆（失败降级，不影响删除主流程）
+        """
+        await super()._after_delete(id)
+        memory_svc = SessionMemoryService(self.tenant_id)
+        try:
+            await memory_svc.clear_conversation_memory(id)
+        except Exception as exc:
+            logger.warning(
+                "Delete conversation memory cleanup failed: conversation=%d tenant=%s err=%s",
+                id,
+                self.tenant_id,
+                str(exc),
+            )
 
     # ========================================
     # 导出

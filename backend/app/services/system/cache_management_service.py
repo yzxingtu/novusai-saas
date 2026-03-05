@@ -9,6 +9,7 @@ import os
 import shutil
 import time
 from dataclasses import dataclass
+from typing import Any
 
 from app.core.logging import LogManager
 from app.core.redis import get_redis_client
@@ -67,12 +68,30 @@ class CacheManagementService:
     """
 
     @staticmethod
+    async def _iter_redis_keys(redis: Any, pattern: str):
+        """Iterate Redis keys for a pattern.
+
+        `redis.scan_iter()` in production returns an async iterator, while tests
+        may mock it as an async function returning an async iterator. Support both.
+        """
+        scan_result = redis.scan_iter(match=pattern, count=200)
+
+        if hasattr(scan_result, "__aiter__"):
+            async for key in scan_result:
+                yield key
+            return
+
+        scan_result = await scan_result
+        async for key in scan_result:
+            yield key
+
+    @staticmethod
     async def _scan_redis_category(pattern: str) -> _CategoryStats:
         """Scan Redis keys matching pattern and calculate stats"""
         stats = _CategoryStats()
         try:
             redis = get_redis_client()
-            async for key in redis.scan_iter(match=pattern, count=200):
+            async for key in CacheManagementService._iter_redis_keys(redis, pattern):
                 stats.key_count += 1
                 try:
                     mem = await redis.memory_usage(key)
@@ -196,7 +215,7 @@ class CacheManagementService:
         try:
             redis = get_redis_client()
             keys_to_delete: list[str] = []
-            async for key in redis.scan_iter(match=pattern, count=200):
+            async for key in CacheManagementService._iter_redis_keys(redis, pattern):
                 stats.key_count += 1
                 try:
                     mem = await redis.memory_usage(key)

@@ -1164,7 +1164,23 @@
         "partial_failed": "部分失败",
         "failed": "已失败",
         "cancelled": "已取消"
-      }
+      },
+      "memory_scene": {
+        "ai_chat_page": "AI对话页",
+        "admin_chat": "管理端对话",
+        "plugin": "插件",
+        "ai_gateway": "AI网关",
+        "unknown": "未知"
+      },
+      "memory_channel": {
+        "tenant_chat": "租户对话",
+        "admin_chat": "管理端对话",
+        "plugin": "插件",
+        "system": "系统"
+      },
+      "memory_enabled": "记忆开关",
+      "effective_memory_enabled": "记忆最终生效状态",
+      "memory_disabled_by_tenant": "租户侧已关闭记忆"
     },
     "action_level": {
       "read": "只读查询",
@@ -1476,6 +1492,10 @@
       "tenant_storage": {
         "name": "存储设置",
         "desc": "租户存储方案与云存储配置"
+      },
+      "platform_ai_memory": {
+        "name": "AI 记忆",
+        "desc": "平台记忆默认开关配置"
       }
     },
     "platform": {
@@ -1797,6 +1817,10 @@
       "notification_max_per_user": {
         "name": "每用户最大通知数",
         "desc": "每个用户收件箱中保留的最大通知条数，超出后自动清理最早的通知"
+      },
+      "platform_default_memory_enabled": {
+        "name": "默认开启记忆",
+        "desc": "所有智能体的默认记忆开关"
       }
     },
     "tenant": {
@@ -2370,7 +2394,9 @@
   "periodic_task": {
     "error": {
       "name_exists": "名为 '{name}' 的定时任务已存在",
-      "scope_requires_tenant_id": "scope 为 all_tenants 时必须指定 tenant_id"
+      "scope_requires_tenant_id": "scope 为 all_tenants 时必须指定 tenant_id",
+      "edit_locked": "该任务不允许编辑，仅允许切换启用状态",
+      "delete_locked": "任务 '{name}' 已被保护，禁止删除"
     }
   },
   "quota": {
@@ -2382,5 +2408,11 @@
     "domains_exceeded": "自定义域名数已达上限 {limit}",
     "api_calls_exceeded": "本月 API 调用次数已达上限 {limit}",
     "file_size_exceeded": "文件大小超出限制 {limit}MB"
+  },
+  "agent_memory_override": {
+    "field": {
+      "agent_id": "智能体ID",
+      "disabled": "记忆已禁用"
+    }
   }
 }

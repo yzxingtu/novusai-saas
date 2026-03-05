@@ -10,7 +10,7 @@ from __future__ import annotations
 import shutil
 import tempfile
 from pathlib import Path as FilePath
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -19,6 +19,7 @@ from app.exceptions import ValidationException
 if TYPE_CHECKING:
     from fastapi import UploadFile
     from sqlalchemy.ext.asyncio import AsyncSession
+
     from app.core.base_service import BaseService
 
 logger = LogManager.get_logger("ai")
@@ -51,6 +52,7 @@ async def process_skill_package_upload(
     Returns:
         (pkg, skill_name, skill_version) 元组
     """
+    from app.ai.skills.env_parser import parse_env_example
     from app.ai.skills.packaging import (
         ALLOWED_SKILL_EXTENSIONS,
         MAX_ZIP_FILE_SIZE,
@@ -59,7 +61,6 @@ async def process_skill_package_upload(
         get_skill_storage_dir,
         read_env_example,
     )
-    from app.ai.skills.env_parser import parse_env_example
 
     if not file.filename:
         raise ValidationException(

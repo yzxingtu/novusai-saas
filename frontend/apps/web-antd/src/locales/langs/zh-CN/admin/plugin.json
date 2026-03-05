@@ -1,5 +1,6 @@
 {
   "title": "插件管理",
+  "heroSubtitle": "集中管理插件安装、启停、菜单挂载与运行状态。",
   "name": "插件名称",
   "displayName": "显示名称",
   "versionLabel": "版本",
@@ -59,6 +60,10 @@
     "admin_and_all": "管理端+全部租户",
     "admin_and_assigned": "管理端+指定租户"
   },
+  "dependency": {
+    "installed": "依赖已安装",
+    "missing": "依赖未安装"
+  },
   "tier_options": {
     "official": "官方",
     "verified": "已认证",
@@ -67,7 +72,9 @@
   "action": {
     "enable": "启用",
     "disable": "禁用",
+    "installDependencies": "安装依赖",
     "uninstall": "卸载",
+    "uninstallDependencies": "卸载依赖",
     "repair": "修复",
     "configure": "配置",
     "settings": "设置",
@@ -85,7 +92,15 @@
     "uninstallWithData": "同时删除插件数据表",
     "force_disable_title": "强制禁用插件「{name}」？",
     "force_disable_content": "该插件的存储驱动正被平台或租户使用。强制禁用将自动将其存储配置切换回本地存储，可能影响文件访问。确认继续？",
-    "force_disable_ok": "强制禁用"
+    "force_disable_ok": "强制禁用",
+    "repair": "确认修复插件「{name}」？将重新安装依赖并注册扩展点。",
+    "installDependencies": "确认为插件「{name}」安装依赖？",
+    "uninstallDependencies": "确认卸载插件「{name}」的依赖？",
+    "uninstallDependenciesContent": "此操作会按共享依赖保护规则卸载独占依赖，建议在插件禁用状态执行。",
+    "forceUninstallDependenciesTitle": "插件「{name}」当前已启用，是否强制卸载依赖？",
+    "forceUninstallDependenciesContent": "强制卸载后插件运行时可能报错，需重新安装依赖或重新启用插件恢复。",
+    "dependency_error_title": "无法禁用「{name}」",
+    "dependency_error_content": "以下插件依赖于此插件，请先禁用它们：{deps}"
   },
   "tab": {
     "overview": "概览",
@@ -227,8 +242,16 @@
     "uninstallSuccess": "插件已卸载",
     "installSuccess": "插件安装成功",
     "repairSuccess": "插件已修复",
+    "repairFailed": "插件修复失败",
+    "installDepsSuccess": "依赖安装完成",
+    "uninstallDepsSuccess": "依赖卸载完成",
+    "uninstallDepsFailed": "依赖卸载失败",
     "upgradeSuccess": "插件已升级",
     "rollbackSuccess": "插件已回退",
+    "rollbackFailed": "版本回退失败",
+    "uninstallFailed": "插件卸载失败",
+    "enableFailed": "插件启用失败",
+    "disableBeforeUninstallDeps": "请先禁用插件后再卸载依赖",
     "fileTooLarge": "文件过大，请上传 50MB 以内的 ZIP 文件",
     "assignSuccess": "租户分配成功",
     "forceCleanupSuccess": "残留记录已清理"
@@ -272,6 +295,17 @@
       "cleanup_files": "删除插件文件",
       "extensions": "注册扩展点",
       "on_enable": "执行启用钩子"
+    }
+  },
+  "backup": {
+    "title": "备份记录",
+    "empty": "暂无备份（卸载或升级插件前会自动创建备份）",
+    "deleteConfirm": "确定要删除此备份吗？删除后无法恢复。",
+    "deleteSuccess": "备份已删除",
+    "tag": {
+      "data": "数据",
+      "files": "文件",
+      "config": "配置"
     }
   }
 }

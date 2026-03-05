@@ -45,18 +45,18 @@ export function getScheduleTypeText(type: string | undefined): string {
 /**
  * 格式化间隔秒数为可读文本
  */
-export function formatInterval(seconds: number | null | undefined): string {
+export function formatInterval(seconds: null | number | undefined): string {
   if (!seconds) return '-';
   if (seconds < 60) return `${seconds}s`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
-  return `${Math.floor(seconds / 86400)}d`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86_400)}d`;
 }
 
 /**
  * 格式化 Cron 表达式为可读文本
  */
-export function formatCronHuman(cron: string | null | undefined): string {
+export function formatCronHuman(cron: null | string | undefined): string {
   if (!cron) return '-';
   const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) return cron;
@@ -90,7 +90,10 @@ export function getScheduleDisplay(row: PeriodicTaskInfo): string {
 function getScheduleTypeOptions() {
   return [
     { label: $t('admin.system.periodicTask.scheduleType.cron'), value: 'cron' },
-    { label: $t('admin.system.periodicTask.scheduleType.interval'), value: 'interval' },
+    {
+      label: $t('admin.system.periodicTask.scheduleType.interval'),
+      value: 'interval',
+    },
   ];
 }
 
@@ -98,14 +101,24 @@ function getScheduleTypeOptions() {
  * 获取任务图标（根据 task_path 推断）
  */
 export function getTaskIcon(taskPath: string): string {
-  if (taskPath.includes('health_check') || taskPath.includes('health')) return 'lucide:heart-pulse';
-  if (taskPath.includes('cleanup') || taskPath.includes('clean') || taskPath.includes('recycle')) return 'lucide:trash-2';
+  if (taskPath.includes('health_check') || taskPath.includes('health'))
+    return 'lucide:heart-pulse';
+  if (
+    taskPath.includes('cleanup') ||
+    taskPath.includes('clean') ||
+    taskPath.includes('recycle')
+  )
+    return 'lucide:trash-2';
   if (taskPath.includes('reset')) return 'lucide:rotate-ccw';
-  if (taskPath.includes('ssl') || taskPath.includes('certificate')) return 'lucide:shield-check';
+  if (taskPath.includes('ssl') || taskPath.includes('certificate'))
+    return 'lucide:shield-check';
   if (taskPath.includes('upload')) return 'lucide:upload-cloud';
-  if (taskPath.includes('notification') || taskPath.includes('notify')) return 'lucide:bell';
-  if (taskPath.includes('ai') || taskPath.includes('agent')) return 'lucide:bot';
-  if (taskPath.includes('email') || taskPath.includes('mail')) return 'lucide:mail';
+  if (taskPath.includes('notification') || taskPath.includes('notify'))
+    return 'lucide:bell';
+  if (taskPath.includes('ai') || taskPath.includes('agent'))
+    return 'lucide:bot';
+  if (taskPath.includes('email') || taskPath.includes('mail'))
+    return 'lucide:mail';
   return 'lucide:clock';
 }
 
@@ -113,14 +126,24 @@ export function getTaskIcon(taskPath: string): string {
  * 获取任务图标颜色
  */
 export function getTaskIconColor(taskPath: string): string {
-  if (taskPath.includes('health_check') || taskPath.includes('health')) return 'text-emerald-500';
-  if (taskPath.includes('cleanup') || taskPath.includes('clean') || taskPath.includes('recycle')) return 'text-orange-500';
+  if (taskPath.includes('health_check') || taskPath.includes('health'))
+    return 'text-emerald-500';
+  if (
+    taskPath.includes('cleanup') ||
+    taskPath.includes('clean') ||
+    taskPath.includes('recycle')
+  )
+    return 'text-orange-500';
   if (taskPath.includes('reset')) return 'text-blue-500';
-  if (taskPath.includes('ssl') || taskPath.includes('certificate')) return 'text-violet-500';
+  if (taskPath.includes('ssl') || taskPath.includes('certificate'))
+    return 'text-violet-500';
   if (taskPath.includes('upload')) return 'text-cyan-500';
-  if (taskPath.includes('notification') || taskPath.includes('notify')) return 'text-amber-500';
-  if (taskPath.includes('ai') || taskPath.includes('agent')) return 'text-pink-500';
-  if (taskPath.includes('email') || taskPath.includes('mail')) return 'text-indigo-500';
+  if (taskPath.includes('notification') || taskPath.includes('notify'))
+    return 'text-amber-500';
+  if (taskPath.includes('ai') || taskPath.includes('agent'))
+    return 'text-pink-500';
+  if (taskPath.includes('email') || taskPath.includes('mail'))
+    return 'text-indigo-500';
   return 'text-slate-500';
 }
 
@@ -128,14 +151,24 @@ export function getTaskIconColor(taskPath: string): string {
  * 获取任务图标背景色
  */
 export function getTaskIconBg(taskPath: string): string {
-  if (taskPath.includes('health_check') || taskPath.includes('health')) return 'bg-emerald-500/10';
-  if (taskPath.includes('cleanup') || taskPath.includes('clean') || taskPath.includes('recycle')) return 'bg-orange-500/10';
+  if (taskPath.includes('health_check') || taskPath.includes('health'))
+    return 'bg-emerald-500/10';
+  if (
+    taskPath.includes('cleanup') ||
+    taskPath.includes('clean') ||
+    taskPath.includes('recycle')
+  )
+    return 'bg-orange-500/10';
   if (taskPath.includes('reset')) return 'bg-blue-500/10';
-  if (taskPath.includes('ssl') || taskPath.includes('certificate')) return 'bg-violet-500/10';
+  if (taskPath.includes('ssl') || taskPath.includes('certificate'))
+    return 'bg-violet-500/10';
   if (taskPath.includes('upload')) return 'bg-cyan-500/10';
-  if (taskPath.includes('notification') || taskPath.includes('notify')) return 'bg-amber-500/10';
-  if (taskPath.includes('ai') || taskPath.includes('agent')) return 'bg-pink-500/10';
-  if (taskPath.includes('email') || taskPath.includes('mail')) return 'bg-indigo-500/10';
+  if (taskPath.includes('notification') || taskPath.includes('notify'))
+    return 'bg-amber-500/10';
+  if (taskPath.includes('ai') || taskPath.includes('agent'))
+    return 'bg-pink-500/10';
+  if (taskPath.includes('email') || taskPath.includes('mail'))
+    return 'bg-indigo-500/10';
   return 'bg-slate-500/10';
 }
 
@@ -214,10 +247,16 @@ export function useGridFormSchema(): VbenFormSchema[] {
     searchInput('name', $t('admin.system.periodicTask.name'), {
       placeholder: $t('admin.system.periodicTask.placeholder.searchName'),
     }),
-    select('filter[schedule_type][eq]', $t('admin.system.periodicTask.scheduleTypeLabel'), {
-      options: getScheduleTypeOptions(),
-      placeholder: $t('admin.system.periodicTask.placeholder.allScheduleTypes'),
-    }),
+    select(
+      'filter[schedule_type][eq]',
+      $t('admin.system.periodicTask.scheduleTypeLabel'),
+      {
+        options: getScheduleTypeOptions(),
+        placeholder: $t(
+          'admin.system.periodicTask.placeholder.allScheduleTypes',
+        ),
+      },
+    ),
     select('filter[scope][eq]', $t('admin.system.periodicTask.scopeLabel'), {
       options: getScopeOptions(),
       placeholder: $t('admin.system.periodicTask.placeholder.allScopes'),
@@ -230,7 +269,10 @@ export function useGridFormSchema(): VbenFormSchema[] {
  */
 export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
   return [
-    dividerField('basic_divider', $t('admin.system.periodicTask.section.basic')),
+    dividerField(
+      'basic_divider',
+      $t('admin.system.periodicTask.section.basic'),
+    ),
     inputField('name', $t('admin.system.periodicTask.name'), {
       required: true,
       placeholder: $t('admin.system.periodicTask.placeholder.inputName'),
@@ -241,11 +283,17 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
       disabled: isEdit,
     }),
     {
-      ...select('schedule_type', $t('admin.system.periodicTask.scheduleTypeLabel'), {
-        options: getScheduleTypeOptions(),
-        required: true,
-        placeholder: $t('admin.system.periodicTask.placeholder.selectScheduleType'),
-      }),
+      ...select(
+        'schedule_type',
+        $t('admin.system.periodicTask.scheduleTypeLabel'),
+        {
+          options: getScheduleTypeOptions(),
+          required: true,
+          placeholder: $t(
+            'admin.system.periodicTask.placeholder.selectScheduleType',
+          ),
+        },
+      ),
       help: $t('admin.system.periodicTask.scheduleTypeHelp'),
     },
     {
@@ -259,10 +307,16 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
       },
     },
     {
-      ...numberField('interval_seconds', $t('admin.system.periodicTask.intervalSeconds'), {
-        min: 10,
-        placeholder: $t('admin.system.periodicTask.placeholder.inputInterval'),
-      }),
+      ...numberField(
+        'interval_seconds',
+        $t('admin.system.periodicTask.intervalSeconds'),
+        {
+          min: 10,
+          placeholder: $t(
+            'admin.system.periodicTask.placeholder.inputInterval',
+          ),
+        },
+      ),
       dependencies: {
         triggerFields: ['schedule_type'],
         show: (values) => values.schedule_type === 'interval',
@@ -275,13 +329,19 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
       placeholder: $t('admin.system.periodicTask.placeholder.inputDescription'),
     }),
 
-    dividerField('scope_divider', $t('admin.system.periodicTask.section.scope')),
+    dividerField(
+      'scope_divider',
+      $t('admin.system.periodicTask.section.scope'),
+    ),
     ...useScopeFields({
       allowedScopes: ['admin_only', 'all_tenants'],
       showTenantId: true,
     }),
 
-    dividerField('protection_divider', $t('admin.system.periodicTask.section.protection')),
+    dividerField(
+      'protection_divider',
+      $t('admin.system.periodicTask.section.protection'),
+    ),
     switchField('is_locked', $t('admin.system.periodicTask.isLocked'), {
       defaultValue: false,
     }),
@@ -289,7 +349,10 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
       defaultValue: true,
     }),
 
-    dividerField('retry_divider', $t('admin.system.periodicTask.section.retry')),
+    dividerField(
+      'retry_divider',
+      $t('admin.system.periodicTask.section.retry'),
+    ),
     numberField('max_retries', $t('admin.system.periodicTask.maxRetries'), {
       min: 0,
       max: 10,
@@ -302,18 +365,31 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
     }),
     numberField('timeout', $t('admin.system.periodicTask.timeout'), {
       min: 10,
-      max: 86400,
+      max: 86_400,
       placeholder: $t('admin.system.periodicTask.placeholder.inputTimeout'),
     }),
 
-    dividerField('notify_divider', $t('admin.system.periodicTask.section.notify')),
-    switchField('notify_on_failure', $t('admin.system.periodicTask.notifyOnFailure'), {
-      defaultValue: false,
-    }),
+    dividerField(
+      'notify_divider',
+      $t('admin.system.periodicTask.section.notify'),
+    ),
+    switchField(
+      'notify_on_failure',
+      $t('admin.system.periodicTask.notifyOnFailure'),
+      {
+        defaultValue: false,
+      },
+    ),
     {
-      ...inputField('notify_emails', $t('admin.system.periodicTask.notifyEmails'), {
-        placeholder: $t('admin.system.periodicTask.placeholder.inputNotifyEmails'),
-      }),
+      ...inputField(
+        'notify_emails',
+        $t('admin.system.periodicTask.notifyEmails'),
+        {
+          placeholder: $t(
+            'admin.system.periodicTask.placeholder.inputNotifyEmails',
+          ),
+        },
+      ),
       dependencies: {
         triggerFields: ['notify_on_failure'],
         show: (values) => values.notify_on_failure === true,

@@ -7,7 +7,11 @@
  * - 按菜单 scope 分组：admin_only → 管理端目录，all_tenants → 租户端目录
  * - admin_and_all scope：同时配置管理端和租户端父级
  */
-import type { MenuOverrideItem, MenuParentOption, MenuParentOptionsResponse } from '#/api/admin/plugin';
+import type {
+  MenuOverrideItem,
+  MenuParentOption,
+  MenuParentOptionsResponse,
+} from '#/api/admin/plugin';
 
 import { computed, h, ref } from 'vue';
 
@@ -54,7 +58,7 @@ const rows = ref<MenuEditRow[]>([]);
 
 function resolveTitle(title: Record<string, string> | string): string {
   if (typeof title === 'string') return title;
-  return title?.['zh-CN'] ?? title?.['en'] ?? Object.values(title)[0] ?? '';
+  return title?.['zh-CN'] ?? title?.en ?? Object.values(title)[0] ?? '';
 }
 
 /** 规范化旧版 scope 值（manifest 未重新扫描时兼容旧数据） */
@@ -69,7 +73,10 @@ function toTreeData(options: MenuParentOption[]): object[] {
   return options.map((opt) => ({
     title: h('span', { class: 'flex items-center gap-1.5' }, [
       opt.icon
-        ? h(IconifyIcon, { icon: opt.icon, class: 'size-3.5 shrink-0 text-muted-foreground' })
+        ? h(IconifyIcon, {
+            icon: opt.icon,
+            class: 'size-3.5 shrink-0 text-muted-foreground',
+          })
         : h('span', { class: 'size-3.5 shrink-0' }),
       h('span', opt.label),
     ]),
@@ -84,7 +91,10 @@ const tenantTreeData = computed(() => toTreeData(optionsData.value.tenant));
 
 async function open(
   menus: MenuDeclItem[],
-  currentOverrides?: Record<string, { parent?: string; tenant_parent?: string }>,
+  currentOverrides?: Record<
+    string,
+    { parent?: string; tenant_parent?: string }
+  >,
 ) {
   rows.value = menus.map((m) => {
     const ov = currentOverrides?.[m.name] ?? {};
@@ -107,8 +117,10 @@ async function open(
     const firstAdmin = optionsData.value.admin[0]?.value ?? '';
     const firstTenant = optionsData.value.tenant[0]?.value ?? '';
     for (const row of rows.value) {
-      const needsAdmin = row.scope === 'admin_only' || row.scope === 'admin_and_all';
-      const needsTenant = row.scope === 'all_tenants' || row.scope === 'admin_and_all';
+      const needsAdmin =
+        row.scope === 'admin_only' || row.scope === 'admin_and_all';
+      const needsTenant =
+        row.scope === 'all_tenants' || row.scope === 'admin_and_all';
       if (needsAdmin && !row.adminParent) row.adminParent = firstAdmin;
       if (needsTenant && !row.tenantParent) row.tenantParent = firstTenant;
     }
@@ -140,11 +152,15 @@ const hasMenus = computed(() => rows.value.length > 0);
 
 /** 需要展示管理端区块的行 */
 const adminRows = computed(() =>
-  rows.value.filter((r) => r.scope === 'admin_only' || r.scope === 'admin_and_all'),
+  rows.value.filter(
+    (r) => r.scope === 'admin_only' || r.scope === 'admin_and_all',
+  ),
 );
 /** 需要展示租户端区块的行 */
 const tenantRows = computed(() =>
-  rows.value.filter((r) => r.scope === 'all_tenants' || r.scope === 'admin_and_all'),
+  rows.value.filter(
+    (r) => r.scope === 'all_tenants' || r.scope === 'admin_and_all',
+  ),
 );
 
 defineExpose({ open });
@@ -160,19 +176,27 @@ defineExpose({ open });
     @ok="handleOk"
     @cancel="handleCancel"
   >
-    <div v-if="props.pluginDisplayName" class="mb-4 text-sm text-muted-foreground">
-      {{ $t('admin.plugin.menu_config.description', { name: props.pluginDisplayName }) }}
+    <div
+      v-if="props.pluginDisplayName"
+      class="mb-4 text-sm text-muted-foreground"
+    >
+      {{
+        $t('admin.plugin.menu_config.description', {
+          name: props.pluginDisplayName,
+        })
+      }}
     </div>
 
     <Spin :spinning="loading">
       <div v-if="hasMenus" class="space-y-4">
-
         <!-- ── 管理端菜单 ── -->
         <div v-if="adminRows.length > 0">
           <div class="mb-2 flex items-center gap-2">
             <IconifyIcon icon="lucide:monitor" class="size-3.5 text-primary" />
-            <span class="text-xs font-semibold text-foreground">{{ $t('admin.plugin.menu_config.admin_section') }}</span>
-            <div class="h-px flex-1 bg-border/60" />
+            <span class="text-xs font-semibold text-foreground">{{
+              $t('admin.plugin.menu_config.admin_section')
+            }}</span>
+            <div class="h-px flex-1 bg-border/60"></div>
           </div>
           <div class="space-y-2">
             <div
@@ -180,8 +204,13 @@ defineExpose({ open });
               :key="`admin-${row.name}`"
               class="flex items-center gap-2 rounded-lg border border-border/40 bg-muted/20 px-3 py-2"
             >
-              <IconifyIcon :icon="row.icon || 'lucide:menu'" class="size-4 shrink-0 text-primary/70" />
-              <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ row.title }}</span>
+              <IconifyIcon
+                :icon="row.icon || 'lucide:menu'"
+                class="size-4 shrink-0 text-primary/70"
+              />
+              <span class="min-w-0 flex-1 truncate text-sm font-medium">{{
+                row.title
+              }}</span>
               <TreeSelect
                 v-model:value="row.adminParent"
                 :tree-data="adminTreeData"
@@ -199,8 +228,10 @@ defineExpose({ open });
         <div v-if="tenantRows.length > 0">
           <div class="mb-2 flex items-center gap-2">
             <IconifyIcon icon="lucide:users" class="size-3.5 text-success" />
-            <span class="text-xs font-semibold text-foreground">{{ $t('admin.plugin.menu_config.tenant_section') }}</span>
-            <div class="h-px flex-1 bg-border/60" />
+            <span class="text-xs font-semibold text-foreground">{{
+              $t('admin.plugin.menu_config.tenant_section')
+            }}</span>
+            <div class="h-px flex-1 bg-border/60"></div>
           </div>
           <div class="space-y-2">
             <div
@@ -208,8 +239,13 @@ defineExpose({ open });
               :key="`tenant-${row.name}`"
               class="flex items-center gap-2 rounded-lg border border-border/40 bg-muted/20 px-3 py-2"
             >
-              <IconifyIcon :icon="row.icon || 'lucide:menu'" class="size-4 shrink-0 text-success/70" />
-              <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ row.title }}</span>
+              <IconifyIcon
+                :icon="row.icon || 'lucide:menu'"
+                class="size-4 shrink-0 text-success/70"
+              />
+              <span class="min-w-0 flex-1 truncate text-sm font-medium">{{
+                row.title
+              }}</span>
               <TreeSelect
                 v-model:value="row.tenantParent"
                 :tree-data="tenantTreeData"
@@ -222,7 +258,6 @@ defineExpose({ open });
             </div>
           </div>
         </div>
-
       </div>
       <div v-else class="py-6 text-center text-sm text-muted-foreground">
         {{ $t('admin.plugin.menu_config.no_menus') }}

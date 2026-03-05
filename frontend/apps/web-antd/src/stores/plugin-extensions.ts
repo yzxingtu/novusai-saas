@@ -1,3 +1,7 @@
+import type { Component } from 'vue';
+
+import { markRaw, ref } from 'vue';
+
 /**
  * 插件扩展注册中心 (Pinia)
  *
@@ -13,9 +17,6 @@
  * - 热更新：unregisterPlugin 清除该插件所有扩展，支持不刷页面的启用/禁用
  */
 import { defineStore } from 'pinia';
-import { markRaw, ref } from 'vue';
-
-import type { Component } from 'vue';
 
 // ── 类型定义 ──
 
@@ -44,7 +45,7 @@ export interface EditorPanelItem {
   /** Vue 组件 */
   component: Component;
   /** 面板位置: sidebar / bottom / floating */
-  position: 'sidebar' | 'bottom' | 'floating';
+  position: 'bottom' | 'floating' | 'sidebar';
   /** 面板标题 */
   title?: string;
   /** 面板图标（Iconify 格式） */
@@ -75,7 +76,7 @@ export interface EditorCommandItem {
 
 /** 冲突警告记录 */
 export interface ExtensionConflict {
-  type: 'extension' | 'panel' | 'command';
+  type: 'command' | 'extension' | 'panel';
   id: string;
   winner: string;
   loser: string;
@@ -99,7 +100,9 @@ export const usePluginExtensionsStore = defineStore('plugin-extensions', () => {
       const newPriority = item.priority ?? 100;
       if (newPriority < existingPriority) {
         // 新的优先级更高，替换
-        editorExtensions.value = editorExtensions.value.filter((e) => e.id !== item.id);
+        editorExtensions.value = editorExtensions.value.filter(
+          (e) => e.id !== item.id,
+        );
         conflicts.value.push({
           type: 'extension',
           id: item.id,
@@ -119,7 +122,9 @@ export const usePluginExtensionsStore = defineStore('plugin-extensions', () => {
       }
     }
     editorExtensions.value.push(item);
-    editorExtensions.value.sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100));
+    editorExtensions.value.sort(
+      (a, b) => (a.priority ?? 100) - (b.priority ?? 100),
+    );
     return true;
   }
 
@@ -155,7 +160,9 @@ export const usePluginExtensionsStore = defineStore('plugin-extensions', () => {
       ...item,
       component: markRaw(item.component),
     });
-    editorPanels.value.sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100));
+    editorPanels.value.sort(
+      (a, b) => (a.priority ?? 100) - (b.priority ?? 100),
+    );
     return true;
   }
 
@@ -168,7 +175,9 @@ export const usePluginExtensionsStore = defineStore('plugin-extensions', () => {
       const existingPriority = existing.priority ?? 100;
       const newPriority = item.priority ?? 100;
       if (newPriority < existingPriority) {
-        editorCommands.value = editorCommands.value.filter((e) => e.id !== item.id);
+        editorCommands.value = editorCommands.value.filter(
+          (e) => e.id !== item.id,
+        );
         conflicts.value.push({
           type: 'command',
           id: item.id,
@@ -188,7 +197,9 @@ export const usePluginExtensionsStore = defineStore('plugin-extensions', () => {
       }
     }
     editorCommands.value.push(item);
-    editorCommands.value.sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100));
+    editorCommands.value.sort(
+      (a, b) => (a.priority ?? 100) - (b.priority ?? 100),
+    );
     return true;
   }
 
@@ -218,9 +229,15 @@ export const usePluginExtensionsStore = defineStore('plugin-extensions', () => {
   // ── 生命周期 ──
 
   function unregisterPlugin(pluginName: string) {
-    editorExtensions.value = editorExtensions.value.filter((e) => e.pluginName !== pluginName);
-    editorPanels.value = editorPanels.value.filter((p) => p.pluginName !== pluginName);
-    editorCommands.value = editorCommands.value.filter((c) => c.pluginName !== pluginName);
+    editorExtensions.value = editorExtensions.value.filter(
+      (e) => e.pluginName !== pluginName,
+    );
+    editorPanels.value = editorPanels.value.filter(
+      (p) => p.pluginName !== pluginName,
+    );
+    editorCommands.value = editorCommands.value.filter(
+      (c) => c.pluginName !== pluginName,
+    );
     conflicts.value = conflicts.value.filter(
       (c) => c.winner !== pluginName && c.loser !== pluginName,
     );

@@ -358,6 +358,16 @@
       "saveSuccess": "Saved successfully",
       "noQuotaLimit": "0 means no limit"
     },
+    "memory": {
+      "title": "Session Memory",
+      "desc": "Controls session memory for this agent on AI chat pages. If platform default is off, memory is forced off.",
+      "platformDefault": "Platform Default",
+      "agentSwitch": "Agent Switch",
+      "effective": "Effective",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "saveSuccess": "Memory switch updated"
+    },
     "routing": {
       "description": "Smart routing automatically selects the most suitable AI model based on conversation complexity, attachment type, and token count, balancing performance and cost.",
       "enableRouting": "Enable Smart Routing",
@@ -369,6 +379,10 @@
       "longContextThresholdHelp": "Automatically switches to the long-context model when input tokens exceed this threshold",
       "autoSelect": "Auto Select",
       "noLimit": "No Limit",
+      "statusEnabled": "Smart Routing On",
+      "statusDisabled": "Routing Off",
+      "visionModelHelp": "Routes to this model when image attachments are present",
+      "longContextModelHelp": "Switches to this model when tokens exceed the threshold",
       "tier": {
         "fast": "Fast",
         "standard": "Standard",
@@ -402,6 +416,14 @@
       "ask": "Require Confirmation",
       "reject": "Deny Execution"
     },
+    "quotaConfig": {
+      "conversationsPerDay": "Conversations per Day",
+      "tokensPerDay": "Tokens per Day",
+      "tokensPerMonth": "Tokens per Month",
+      "maxTurnsPerConversation": "Max Turns per Conversation",
+      "maxConcurrent": "Max Concurrent",
+      "userConversationsPerDay": "User Conversations per Day"
+    },
     "create": "Create Agent",
     "noDescription": "No description",
     "viewDetail": "View Detail",
@@ -425,7 +447,9 @@
       "allTypes": "All Types",
       "selectSkillPackages": "Select skill packages to bind",
       "inputWelcomeMessage": "Welcome message shown when user opens conversation",
-      "inputSuggestedQuestions": "One suggested question per line"
+      "inputSuggestedQuestions": "One suggested question per line",
+      "selectOrgNodes": "Select organization nodes",
+      "inputUserIds": "Enter user IDs, separated by commas"
     },
     "help": {
       "topP": "0-1, used together with temperature",
@@ -1010,7 +1034,15 @@
   },
   "agentAssignment": {
     "title": "AI Feature Assignment",
+    "pageDesc": "Assign a driving agent to each AI feature module. Changes take effect immediately across the platform.",
     "selectAgent": "Select agent",
+    "typePlugin": "Plugin",
+    "globalDefault": "Global default: {name}",
+    "stats": {
+      "total": "{count} features",
+      "active": "{count} enabled",
+      "assigned": "{count} assigned"
+    },
     "saveSuccess": "Binding updated",
     "noAgent": "Not assigned",
     "toggleActiveConfirm": "Are you sure to {action} this feature binding? This will affect all tenants.",

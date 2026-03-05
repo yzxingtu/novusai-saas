@@ -12,10 +12,11 @@ from datetime import date
 from typing import Any
 
 from app.ai.events.bus import get_event_bus
-from app.ai.events.types import QuotaExceeded as QuotaExceededEvent, QuotaWarning
+from app.ai.events.types import QuotaExceeded as QuotaExceededEvent
+from app.ai.events.types import QuotaWarning
+from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.redis import get_redis
-from app.core.i18n import _
 from app.exceptions.base import BusinessException
 
 logger = LogManager.get_logger("ai.agent_quota")

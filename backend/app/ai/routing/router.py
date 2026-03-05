@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from app.ai.types import ChatMessage
     from app.models.ai.agent import Agent
     from app.models.ai.model import AIModel
+    from app.repositories.ai.model_repository import AIModelRepository
 
 logger = LogManager.get_logger("ai.routing")
 
@@ -213,8 +214,10 @@ class ModelRouter:
         model_repo: AIModelRepository,
     ) -> RouteResult | None:
         """图片路由：优先显式配置的 vision_model_id"""
+        _ = agent
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
+
         from app.models.ai.model import AIModel as AIModelModel
 
         vision_model_id: int | None = routing_config.get("vision_model_id")
@@ -273,8 +276,10 @@ class ModelRouter:
         model_repo: AIModelRepository,
     ) -> RouteResult | None:
         """长上下文路由：优先显式配置的 long_context_model_id"""
+        _ = agent
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
+
         from app.models.ai.model import AIModel as AIModelModel
 
         lc_model_id: int | None = routing_config.get("long_context_model_id")

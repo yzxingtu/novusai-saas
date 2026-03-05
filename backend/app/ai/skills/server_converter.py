@@ -246,10 +246,9 @@ def _find_pydantic_models(tree: ast.Module) -> dict[str, list[dict[str, Any]]]:
                             required = False
                     if item.value.args:
                         first_arg = item.value.args[0]
-                        if isinstance(first_arg, ast.Constant):
-                            if first_arg.value is not ...:
-                                default = first_arg.value
-                                required = False
+                        if isinstance(first_arg, ast.Constant) and first_arg.value is not ...:
+                            default = first_arg.value
+                            required = False
 
             fields.append({
                 "name": fname,
@@ -474,31 +473,31 @@ def _gen_token_method(
             token_url = f"{base_url}/auth/token"
             token_key = "access_token"
 
-        L.append(f'        async with httpx.AsyncClient(timeout=10.0) as _client:')
-        L.append(f'            resp = await _client.post(')
+        L.append('        async with httpx.AsyncClient(timeout=10.0) as _client:')
+        L.append('            resp = await _client.post(')
         L.append(f'                "{token_url}",')
-        L.append(f"                json={{")
+        L.append("                json={")
         L.append(f'                    "app_id": self.valves.{id_var.lower()},')
         L.append(
             f'                    "app_secret": self.valves.{secret_var.lower()},'
         )
-        L.append(f"                }},")
-        L.append(f"            )")
-        L.append(f"        data = resp.json()")
-        L.append(f'        if data.get("code") != 0:')
+        L.append("                },")
+        L.append("            )")
+        L.append("        data = resp.json()")
+        L.append('        if data.get("code") != 0:')
         L.append(
-            f"            raise Exception("
-            f"f\"Auth error: {{data.get('msg', 'unknown')}}\")"
+            "            raise Exception("
+            "f\"Auth error: {data.get('msg', 'unknown')}\")"
         )
         L.append(
             f'        self._token = data.get("{token_key}",'
             f' data.get("access_token", ""))'
         )
         L.append(
-            f"        self._token_expires = "
-            f"now + data.get(\"expire\", 7200) - 300"
+            "        self._token_expires = "
+            "now + data.get(\"expire\", 7200) - 300"
         )
-        L.append(f"        return self._token")
+        L.append("        return self._token")
     else:
         L.append(
             "        raise NotImplementedError("
@@ -571,7 +570,7 @@ def _gen_tool_method(L: list[str], handler: dict[str, Any]) -> None:
         L.append(f"    async def {name}({sig}) -> str:")
     else:
         L.append(f"    async def {name}(")
-        for i, sp in enumerate(sig_parts):
+        for _i, sp in enumerate(sig_parts):
             L.append(f"        {sp},")
         L.append("    ) -> str:")
 
@@ -592,10 +591,7 @@ def _gen_tool_method(L: list[str], handler: dict[str, Any]) -> None:
 
     # Body: build params/body and call self._request()
     # Handle path formatting with path params
-    if path_params:
-        path_expr = f'f"{path}"'
-    else:
-        path_expr = f'"{path}"'
+    path_expr = f'f"{path}"' if path_params else f'"{path}"'
 
     non_path_params = [p for p in params if p["name"] not in path_params]
 

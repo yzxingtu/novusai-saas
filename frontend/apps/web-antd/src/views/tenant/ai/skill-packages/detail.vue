@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'TenantSkillPackageDetail' });
 /**
  * 租户端技能包详情页
  *
@@ -27,8 +26,8 @@ import {
   message,
   Spin,
   Switch,
-  Tabs,
   TabPane,
+  Tabs,
   Tag,
   Tooltip,
 } from 'ant-design-vue';
@@ -41,10 +40,13 @@ import {
 } from '#/api/tenant/skill-packages';
 import { updateSkillApi } from '#/api/tenant/skills';
 import { $t } from '#/locales';
-import { formatRelativeTime } from '#/utils/common';
 import { getSkillTypeColor, getSkillTypeIcon } from '#/utils/ai-helpers';
+import { formatRelativeTime } from '#/utils/common';
 import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
+
 import { getSkillTypeText } from '../skills/data';
+
+defineOptions({ name: 'TenantSkillPackageDetail' });
 
 const route = useRoute();
 const router = useRouter();
@@ -52,13 +54,13 @@ const packageId = computed(() => Number(route.params.id));
 
 // ==================== State ====================
 const loading = ref(false);
-const pkg = ref<TenantSkillPackageInfo | null>(null);
+const pkg = ref<null | TenantSkillPackageInfo>(null);
 const skills = ref<SkillInfo[]>([]);
 const skillsLoading = ref(false);
 const activeTab = ref('skills');
 
 // Valves
-const valvesSchema = ref<Record<string, unknown> | null>(null);
+const valvesSchema = ref<null | Record<string, unknown>>(null);
 const valvesConfig = ref<Record<string, unknown>>({});
 const valvesSaving = ref(false);
 
@@ -76,15 +78,17 @@ const hasValves = computed(() => {
 
 const valvesProperties = computed(() => {
   if (!valvesSchema.value) return {};
-  return ((valvesSchema.value as Record<string, unknown>)?.properties || {}) as Record<
+  return ((valvesSchema.value as Record<string, unknown>)?.properties ||
+    {}) as Record<
     string,
-    { type?: string; description?: string; default?: unknown }
+    { default?: unknown; description?: string; type?: string }
   >;
 });
 
 const valvesRequired = computed(() => {
   if (!valvesSchema.value) return [];
-  return ((valvesSchema.value as Record<string, unknown>)?.required || []) as string[];
+  return ((valvesSchema.value as Record<string, unknown>)?.required ||
+    []) as string[];
 });
 
 // ==================== Load ====================
@@ -176,13 +180,19 @@ function goBack() {
             class="size-5 text-primary"
           />
           <h2 class="m-0 text-lg font-semibold">{{ pkg.name }}</h2>
-          <Tag :color="getScopeColor(pkg.scope)">{{ getScopeText(pkg.scope) }}</Tag>
+          <Tag :color="getScopeColor(pkg.scope)">
+            {{ getScopeText(pkg.scope) }}
+          </Tag>
           <Tag v-if="pkg.is_system" color="purple">
             {{ $t('tenant.ai.skillPackage.system') }}
           </Tag>
           <Badge
             :status="pkg.is_active ? 'success' : 'default'"
-            :text="pkg.is_active ? $t('tenant.common.enabled') : $t('tenant.common.disabled')"
+            :text="
+              pkg.is_active
+                ? $t('tenant.common.enabled')
+                : $t('tenant.common.disabled')
+            "
           />
           <Tag v-if="isReadonly" color="warning">
             {{ $t('shared.common.viewDetail') }}
@@ -191,31 +201,63 @@ function goBack() {
       </div>
 
       <!-- Basic Info Card -->
-      <Card v-if="pkg" class="mb-4" size="small" :title="$t('tenant.ai.skillPackage.detail.basicInfo')">
+      <Card
+        v-if="pkg"
+        class="mb-4"
+        size="small"
+        :title="$t('tenant.ai.skillPackage.detail.basicInfo')"
+      >
         <Descriptions :column="{ xs: 1, sm: 2, md: 3 }" size="small" bordered>
-          <DescriptionsItem :label="$t('tenant.ai.skillPackage.name')" :span="3">
+          <DescriptionsItem
+            :label="$t('tenant.ai.skillPackage.name')"
+            :span="3"
+          >
             {{ pkg.name }}
           </DescriptionsItem>
-          <DescriptionsItem :label="$t('tenant.ai.skillPackage.description')" :span="3">
+          <DescriptionsItem
+            :label="$t('tenant.ai.skillPackage.description')"
+            :span="3"
+          >
             <span v-if="pkg.description">{{ pkg.description }}</span>
-            <span v-else class="text-muted-foreground">{{ $t('tenant.ai.skillPackage.detail.noDescription') }}</span>
+            <span v-else class="text-muted-foreground">{{
+              $t('tenant.ai.skillPackage.detail.noDescription')
+            }}</span>
           </DescriptionsItem>
           <DescriptionsItem :label="$t('tenant.ai.skillPackage.scope')">
-            <Tag :color="getScopeColor(pkg.scope)">{{ getScopeText(pkg.scope) }}</Tag>
+            <Tag :color="getScopeColor(pkg.scope)">
+              {{ getScopeText(pkg.scope) }}
+            </Tag>
           </DescriptionsItem>
           <DescriptionsItem :label="$t('tenant.ai.skillPackage.isActive')">
             <Badge
               :status="pkg.is_active ? 'success' : 'default'"
-              :text="pkg.is_active ? $t('tenant.common.enabled') : $t('tenant.common.disabled')"
+              :text="
+                pkg.is_active
+                  ? $t('tenant.common.enabled')
+                  : $t('tenant.common.disabled')
+              "
             />
           </DescriptionsItem>
-          <DescriptionsItem :label="$t('tenant.ai.skillPackage.detail.isSystem')">
-            {{ pkg.is_system ? $t('tenant.ai.skillPackage.detail.yes') : $t('tenant.ai.skillPackage.detail.no') }}
+          <DescriptionsItem
+            :label="$t('tenant.ai.skillPackage.detail.isSystem')"
+          >
+            {{
+              pkg.is_system
+                ? $t('tenant.ai.skillPackage.detail.yes')
+                : $t('tenant.ai.skillPackage.detail.no')
+            }}
           </DescriptionsItem>
           <DescriptionsItem :label="$t('tenant.ai.skillPackage.skillCount')">
-            <Badge :count="pkg.skill_count" :number-style="{ backgroundColor: '#1890ff' }" show-zero />
+            <Badge
+              :count="pkg.skill_count"
+              :number-style="{ backgroundColor: '#1890ff' }"
+              show-zero
+            />
           </DescriptionsItem>
-          <DescriptionsItem v-if="pkg.source_plugin" :label="$t('tenant.ai.skillPackage.detail.sourcePlugin')">
+          <DescriptionsItem
+            v-if="pkg.source_plugin"
+            :label="$t('tenant.ai.skillPackage.detail.sourcePlugin')"
+          >
             <Tag color="cyan">
               <IconifyIcon icon="lucide:plug" class="mr-0.5 inline size-3" />
               {{ pkg.source_plugin }}
@@ -224,16 +266,21 @@ function goBack() {
           <DescriptionsItem :label="$t('shared.common.createdAt')">
             {{ formatRelativeTime(pkg.created_at) }}
           </DescriptionsItem>
-          <DescriptionsItem :label="$t('tenant.ai.skillPackage.detail.updatedAt')">
+          <DescriptionsItem
+            :label="$t('tenant.ai.skillPackage.detail.updatedAt')"
+          >
             {{ formatRelativeTime(pkg.updated_at) }}
           </DescriptionsItem>
         </Descriptions>
       </Card>
 
       <!-- Tabs -->
-      <Tabs v-model:activeKey="activeTab">
+      <Tabs v-model:active-key="activeTab">
         <!-- Skills Tab -->
-        <TabPane key="skills" :tab="`${$t('tenant.ai.skillPackage.detail.skills')} (${skills.length})`">
+        <TabPane
+          key="skills"
+          :tab="`${$t('tenant.ai.skillPackage.detail.skills')} (${skills.length})`"
+        >
           <Spin :spinning="skillsLoading">
             <div v-if="skills.length === 0" class="py-8">
               <Empty :description="$t('tenant.ai.skillPackage.detail.empty')" />
@@ -259,29 +306,49 @@ function goBack() {
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-2">
                         <span class="font-medium">{{ skill.name }}</span>
-                        <Tag :color="getSkillTypeColor(skill.type)" size="small">
+                        <Tag
+                          :color="getSkillTypeColor(skill.type)"
+                          size="small"
+                        >
                           {{ getSkillTypeText(skill.type) }}
                         </Tag>
                         <Tag v-if="skill.is_system" color="purple" size="small">
                           {{ $t('tenant.ai.skillPackage.system') }}
                         </Tag>
                       </div>
-                      <div v-if="skill.description" class="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                      <div
+                        v-if="skill.description"
+                        class="mt-1 line-clamp-2 text-xs text-muted-foreground"
+                      >
                         {{ skill.description }}
                       </div>
-                      <div class="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                      <div
+                        class="mt-1 flex items-center gap-3 text-xs text-muted-foreground"
+                      >
                         <span v-if="skill.timeout">
-                          <IconifyIcon icon="lucide:clock" class="mr-0.5 inline size-3" />
+                          <IconifyIcon
+                            icon="lucide:clock"
+                            class="mr-0.5 inline size-3"
+                          />
                           {{ skill.timeout }}s
                         </span>
                         <span>
-                          <IconifyIcon icon="lucide:calendar" class="mr-0.5 inline size-3" />
+                          <IconifyIcon
+                            icon="lucide:calendar"
+                            class="mr-0.5 inline size-3"
+                          />
                           {{ formatRelativeTime(skill.created_at) }}
                         </span>
                       </div>
                     </div>
                   </div>
-                  <Tooltip :title="skill.is_active ? $t('tenant.common.disable') : $t('tenant.common.enable')">
+                  <Tooltip
+                    :title="
+                      skill.is_active
+                        ? $t('tenant.common.disable')
+                        : $t('tenant.common.enable')
+                    "
+                  >
                     <Switch
                       :checked="skill.is_active"
                       size="small"
@@ -314,20 +381,41 @@ function goBack() {
                 >
                   <label class="flex items-center gap-1 text-sm font-medium">
                     {{ key }}
-                    <Tag v-if="valvesRequired.includes(String(key))" color="error" size="small">
+                    <Tag
+                      v-if="valvesRequired.includes(String(key))"
+                      color="error"
+                      size="small"
+                    >
                       {{ $t('tenant.ai.skillPackage.valves.required') }}
                     </Tag>
                   </label>
-                  <div v-if="prop.description" class="text-xs text-muted-foreground">
+                  <div
+                    v-if="prop.description"
+                    class="text-xs text-muted-foreground"
+                  >
                     {{ prop.description }}
                   </div>
                   <input
                     :value="(valvesConfig[String(key)] as string) || ''"
                     class="rounded border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-primary"
-                    :type="String(key).toLowerCase().includes('password') || String(key).toLowerCase().includes('secret') || String(key).toLowerCase().includes('key') ? 'password' : 'text'"
-                    :placeholder="prop.default !== undefined ? String(prop.default) : ''"
+                    :type="
+                      String(key).toLowerCase().includes('password') ||
+                      String(key).toLowerCase().includes('secret') ||
+                      String(key).toLowerCase().includes('key')
+                        ? 'password'
+                        : 'text'
+                    "
+                    :placeholder="
+                      prop.default !== undefined ? String(prop.default) : ''
+                    "
                     :disabled="isReadonly"
-                    @input="(e: Event) => { valvesConfig[String(key)] = (e.target as HTMLInputElement).value; }"
+                    @input="
+                      (e: Event) => {
+                        valvesConfig[String(key)] = (
+                          e.target as HTMLInputElement
+                        ).value;
+                      }
+                    "
                   />
                 </div>
               </div>
@@ -342,7 +430,9 @@ function goBack() {
               </div>
             </template>
             <template v-else>
-              <Empty :description="$t('tenant.ai.skillPackage.valves.noSchema')" />
+              <Empty
+                :description="$t('tenant.ai.skillPackage.valves.noSchema')"
+              />
             </template>
           </Card>
         </TabPane>

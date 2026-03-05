@@ -6,7 +6,7 @@
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, Integer, Numeric, String, JSON
+from sqlalchemy import JSON, ForeignKey, Index, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
@@ -158,8 +158,7 @@ class AgentConversation(TenantModel):
 
 
 if TYPE_CHECKING:
-    from app.models.ai.agent import Agent
-    from app.models.ai.conversation_message import ConversationMessage
+    pass
 
 
 __all__ = ["AgentConversation"]

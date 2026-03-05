@@ -7,12 +7,12 @@ AI API Key Service
 from app.core.base_service import BaseService
 from app.core.i18n import _
 from app.exceptions import NotFoundException
+from app.models.ai import ProviderApiKey
 from app.repositories.ai import ProviderApiKeyRepository
 from app.schemas.ai.api_key import (
     ProviderApiKeyCreate,
     ProviderApiKeyUpdate,
 )
-from app.models.ai import ProviderApiKey
 
 
 class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository]):

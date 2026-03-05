@@ -8,9 +8,6 @@ import type { AICallLogInfo } from '#/api/admin/ai';
 import { searchDateRange, searchInput, select } from '#/adapter/form';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
-import { formatCost } from '#/utils/format';
-
-export { formatCost };
 
 function getStatusOptions() {
   return [
@@ -26,11 +23,11 @@ function getStatusOptions() {
 export function getStatusText(status: string | undefined): string {
   if (!status) return '-';
   switch (status) {
-    case 'success': {
-      return $t('admin.ai.callLog.status_options.success');
-    }
     case 'failed': {
       return $t('admin.ai.callLog.status_options.failed');
+    }
+    case 'success': {
+      return $t('admin.ai.callLog.status_options.success');
     }
     case 'timeout': {
       return $t('admin.ai.callLog.status_options.timeout');
@@ -153,3 +150,5 @@ export function useGridFormSchema(): VbenFormSchema[] {
     }),
   ];
 }
+
+export { formatCost } from '#/utils/format';

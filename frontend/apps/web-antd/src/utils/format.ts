@@ -15,7 +15,7 @@ export function formatTokens(
 ): string {
   if (tokens === null || tokens === undefined || tokens === 0) return fallback;
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
-  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(0)}K`;
+  if (tokens >= 1000) return `${(tokens / 1000).toFixed(0)}K`;
   return `${tokens}`;
 }
 

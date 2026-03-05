@@ -1,4 +1,13 @@
 <script lang="ts" setup>
+import type { Dayjs } from 'dayjs';
+
+import type {
+  AgentRankingItem,
+  CallTrendItem,
+  CostTrendItem,
+  ModelDistributionItem,
+} from '#/api/tenant/analytics';
+
 /**
  * Tenant Analytics 数据分析页面（T13）
  *
@@ -10,23 +19,18 @@ import { onMounted, ref } from 'vue';
 import { Page } from '@vben/common-ui';
 
 import { Card, DatePicker, Spin } from 'ant-design-vue';
-import type { Dayjs } from 'dayjs';
 
 import {
-  type AgentRankingItem,
-  type CallTrendItem,
-  type CostTrendItem,
-  type ModelDistributionItem,
   getTenantAgentRankingApi,
   getTenantCallTrendApi,
   getTenantCostTrendApi,
   getTenantModelDistributionApi,
 } from '#/api/tenant/analytics';
 import { $t } from '#/locales';
-
 import AiCallTrendChart from '#/views/_shared/charts/AiCallTrendChart.vue';
-import TokenTrendChart from '#/views/_shared/charts/TokenTrendChart.vue';
 import ModelDistributionChart from '#/views/_shared/charts/ModelDistributionChart.vue';
+import TokenTrendChart from '#/views/_shared/charts/TokenTrendChart.vue';
+
 import AgentRankingChart from './charts/AgentRankingChart.vue';
 import CostTrendChart from './charts/CostTrendChart.vue';
 
@@ -81,7 +85,10 @@ onMounted(() => {
     <template #extra>
       <DatePicker.RangePicker
         v-model:value="dateRange"
-        :placeholder="[$t('tenant.analytics.startDate'), $t('tenant.analytics.endDate')]"
+        :placeholder="[
+          $t('tenant.analytics.startDate'),
+          $t('tenant.analytics.endDate'),
+        ]"
         @change="handleDateChange"
         allow-clear
       />

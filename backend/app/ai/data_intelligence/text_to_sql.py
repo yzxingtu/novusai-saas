@@ -17,20 +17,21 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from app.ai.data_intelligence.schema_provider import SchemaProvider, TableSchema
-from app.enums.common import UserRoleEnum
 from app.ai.data_intelligence.sql_safety import SQLSafetyValidator
 from app.ai.types import ChatMessage
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.enums.common import UserRoleEnum
 
 if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
     from app.ai.gateway import AIGateway
     from app.models.ai.agent import Agent
-    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = LogManager.get_logger("ai.data_intelligence")
 

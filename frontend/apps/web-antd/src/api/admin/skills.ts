@@ -13,56 +13,56 @@ import { requestClient } from '#/utils/request';
 /** 技能信息（管理端含 tenant_id） */
 export interface AdminSkillInfo {
   id: number;
-  tenant_id: number | null;
+  tenant_id: null | number;
   package_id: number;
   name: string;
-  description: string | null;
-  avatar: string | null;
+  description: null | string;
+  avatar: null | string;
   type: string;
-  config: Record<string, unknown> | null;
-  input_schema: Record<string, unknown> | null;
-  output_schema: Record<string, unknown> | null;
+  config: null | Record<string, unknown>;
+  input_schema: null | Record<string, unknown>;
+  output_schema: null | Record<string, unknown>;
   is_system: boolean;
   is_active: boolean;
   sort_order: number;
   timeout: number;
-  toolkit_content: string | null;
-  toolkit_meta: Record<string, unknown> | null;
+  toolkit_content: null | string;
+  toolkit_meta: null | Record<string, unknown>;
   created_at: string;
   updated_at: string;
-  source_plugin: string | null;
-  plugin_tools: PluginToolDefinition[] | null;
+  source_plugin: null | string;
+  plugin_tools: null | PluginToolDefinition[];
 }
 
 /** 创建技能请求 */
 export interface AdminSkillCreateRequest {
   package_id: number;
   name: string;
-  description?: string | null;
-  avatar?: string | null;
+  description?: null | string;
+  avatar?: null | string;
   type?: string;
-  config?: Record<string, unknown> | null;
-  input_schema?: Record<string, unknown> | null;
-  output_schema?: Record<string, unknown> | null;
+  config?: null | Record<string, unknown>;
+  input_schema?: null | Record<string, unknown>;
+  output_schema?: null | Record<string, unknown>;
   is_active?: boolean;
   sort_order?: number;
   timeout?: number;
-  toolkit_content?: string | null;
+  toolkit_content?: null | string;
 }
 
 /** 更新技能请求 */
 export interface AdminSkillUpdateRequest {
-  name?: string | null;
-  description?: string | null;
-  avatar?: string | null;
-  type?: string | null;
-  config?: Record<string, unknown> | null;
-  input_schema?: Record<string, unknown> | null;
-  output_schema?: Record<string, unknown> | null;
+  name?: null | string;
+  description?: null | string;
+  avatar?: null | string;
+  type?: null | string;
+  config?: null | Record<string, unknown>;
+  input_schema?: null | Record<string, unknown>;
+  output_schema?: null | Record<string, unknown>;
   is_active?: boolean | null;
-  sort_order?: number | null;
-  timeout?: number | null;
-  toolkit_content?: string | null;
+  sort_order?: null | number;
+  timeout?: null | number;
+  toolkit_content?: null | string;
 }
 
 /** 技能类型选项 */
@@ -89,10 +89,7 @@ const PREFIX = '/admin/ai/skills';
 export async function getSkillTypesApi(
   options?: ApiRequestOptions,
 ): Promise<SkillTypeOption[]> {
-  return requestClient.get<SkillTypeOption[]>(
-    `${PREFIX}/skill-types`,
-    options,
-  );
+  return requestClient.get<SkillTypeOption[]>(`${PREFIX}/skill-types`, options);
 }
 
 /** 获取技能列表（全租户） */
@@ -100,10 +97,10 @@ export async function getSkillListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<AdminSkillPageResponse> {
-  return requestClient.get<AdminSkillPageResponse>(
-    PREFIX,
-    { params, ...options },
-  );
+  return requestClient.get<AdminSkillPageResponse>(PREFIX, {
+    params,
+    ...options,
+  });
 }
 
 /** 获取技能详情 */
@@ -111,10 +108,7 @@ export async function getSkillDetailApi(
   id: number,
   options?: ApiRequestOptions,
 ): Promise<AdminSkillInfo> {
-  return requestClient.get<AdminSkillInfo>(
-    `${PREFIX}/${id}`,
-    options,
-  );
+  return requestClient.get<AdminSkillInfo>(`${PREFIX}/${id}`, options);
 }
 
 /** 创建技能 */
@@ -122,11 +116,7 @@ export async function createSkillApi(
   data: AdminSkillCreateRequest,
   options?: ApiRequestOptions,
 ): Promise<AdminSkillInfo> {
-  return requestClient.post<AdminSkillInfo>(
-    PREFIX,
-    data,
-    options,
-  );
+  return requestClient.post<AdminSkillInfo>(PREFIX, data, options);
 }
 
 /** 更新技能 */
@@ -135,11 +125,7 @@ export async function updateSkillApi(
   data: AdminSkillUpdateRequest,
   options?: ApiRequestOptions,
 ): Promise<AdminSkillInfo> {
-  return requestClient.put<AdminSkillInfo>(
-    `${PREFIX}/${id}`,
-    data,
-    options,
-  );
+  return requestClient.put<AdminSkillInfo>(`${PREFIX}/${id}`, data, options);
 }
 
 /** 删除技能 */
@@ -154,7 +140,7 @@ export async function deleteSkillApi(
 export interface AdminSkillTestResult {
   success: boolean;
   message: string;
-  details: Record<string, unknown> | null;
+  details: null | Record<string, unknown>;
 }
 
 /** 插件技能工具定义 */
@@ -162,11 +148,11 @@ export interface PluginToolDefinition {
   name: string;
   description: string;
   parameters: Array<{
-    name: string;
-    type: string;
-    description: string;
-    required: boolean;
     default?: unknown;
+    description: string;
+    name: string;
+    required: boolean;
+    type: string;
   }>;
   timeout?: number;
 }
@@ -214,7 +200,7 @@ export interface AdminSkillStats {
   failure_count: number;
   success_rate: number;
   avg_duration_ms: number;
-  last_called_at: string | null;
+  last_called_at: null | string;
 }
 
 /** 技能调用统计概览项 */
@@ -227,7 +213,7 @@ export interface AdminSkillStatsOverviewItem {
   failure_count: number;
   success_rate: number;
   avg_duration_ms: number;
-  last_called_at: string | null;
+  last_called_at: null | string;
 }
 
 /** 获取技能调用统计 */
@@ -235,21 +221,18 @@ export async function getSkillStatsApi(
   id: number,
   options?: ApiRequestOptions,
 ): Promise<AdminSkillStats> {
-  return requestClient.get<AdminSkillStats>(
-    `${PREFIX}/${id}/stats`,
-    options,
-  );
+  return requestClient.get<AdminSkillStats>(`${PREFIX}/${id}/stats`, options);
 }
 
 /** 导出技能结果项 */
 export interface SkillExportItem {
   name: string;
-  description: string | null;
-  avatar: string | null;
+  description: null | string;
+  avatar: null | string;
   type: string;
-  config: Record<string, unknown> | null;
-  input_schema: Record<string, unknown> | null;
-  output_schema: Record<string, unknown> | null;
+  config: null | Record<string, unknown>;
+  input_schema: null | Record<string, unknown>;
+  output_schema: null | Record<string, unknown>;
   timeout: number;
   is_active: boolean;
 }
@@ -277,9 +260,9 @@ export async function exportSkillsApi(
 /** 批量导入技能 */
 export async function importSkillsApi(
   items: SkillExportItem[],
-  tenantId?: number | null,
+  tenantId?: null | number,
   conflictMode: string = 'skip',
-  packageId?: number | null,
+  packageId?: null | number,
   options?: ApiRequestOptions,
 ): Promise<SkillImportResult> {
   return requestClient.post<SkillImportResult>(
@@ -313,11 +296,11 @@ export interface ToolkitToolInfo {
   name: string;
   description: string;
   parameters: Array<{
-    name: string;
-    type: string;
-    description: string;
-    required: boolean;
     default?: unknown;
+    description: string;
+    name: string;
+    required: boolean;
+    type: string;
   }>;
   is_async: boolean;
 }

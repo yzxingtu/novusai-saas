@@ -4,15 +4,15 @@
 
 from typing import Any
 
-from app.core.base_service import TenantService, GlobalService
+from app.core.base_service import GlobalService, TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.common import ResourceScopeEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.skill_package import SkillPackage
 from app.repositories.ai.skill_package_repository import (
-    SkillPackageRepository,
     AdminSkillPackageRepository,
+    SkillPackageRepository,
 )
 from app.schemas.common.select import SelectResponse
 
@@ -237,7 +237,9 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
             ResourceScopeEnum.ASSIGNED_TENANTS.value,
             ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
         ):
-            from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
+            from app.repositories.system.resource_tenant_assignment_repository import (
+                ResourceTenantAssignmentRepository,
+            )
             rta_repo = ResourceTenantAssignmentRepository(self.db)
             await rta_repo.delete_all_for_resource("skill_package", id)
 

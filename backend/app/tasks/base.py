@@ -7,13 +7,13 @@ Celery 任务基类与装饰器
 from __future__ import annotations
 
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from celery import Task
 from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
-from app.core.config import settings
 from app.core.base_model import utc_now
 from app.core.database import sync_session_factory
 from app.core.logging import LogManager
@@ -115,6 +115,7 @@ class BaseTask(Task):
         return self.default_retry_delay
 
     def on_success(self, retval: Any, task_id: str, args: tuple, kwargs: dict) -> None:
+        _ = (args, kwargs)
         elapsed = self._get_elapsed()
         logger.info(
             f"Task succeeded: {self.name} [{task_id}] "
@@ -124,6 +125,7 @@ class BaseTask(Task):
         self._update_periodic_task_timestamps()
 
     def on_failure(self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any) -> None:
+        _ = (args, kwargs)
         elapsed = self._get_elapsed()
         logger.error(
             f"Task failed: {self.name} [{task_id}] "
@@ -134,6 +136,7 @@ class BaseTask(Task):
         self._notify_failure(task_id, exc)
 
     def on_retry(self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any) -> None:
+        _ = (args, kwargs, einfo)
         logger.warning(
             f"Task retrying: {self.name} [{task_id}] "
             f"retry={self.request.retries}/{self.max_retries} error={exc!r}"
@@ -177,7 +180,9 @@ class BaseTask(Task):
         # 3. 邮件通知（通过统一通知系统）
         if notify_emails:
             try:
-                from app.services.common.email_templates import render_task_failure_email
+                from app.services.common.email_templates import (
+                    render_task_failure_email,
+                )
                 from app.services.common.notification_service import notify_sync
 
                 subject, html_body, text_body = render_task_failure_email(
@@ -359,6 +364,7 @@ class BaseTask(Task):
         session = None
         try:
             from datetime import timedelta
+
             from app.models.system.periodic_task import PeriodicTask
 
             session = sync_session_factory()

@@ -11,7 +11,10 @@ import { $t } from '#/locales';
 
 type TaskLogInfo = tenantApi.TaskLogInfo;
 
-export { getQueueColor, getStatusColor } from '#/views/admin/system/task-logs/data';
+export {
+  getQueueColor,
+  getStatusColor,
+} from '#/views/admin/system/task-logs/data';
 
 function getStatusOptions() {
   return [

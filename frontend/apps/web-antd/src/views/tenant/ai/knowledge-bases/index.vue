@@ -4,8 +4,6 @@
  */
 import type { KnowledgeBaseItem } from '#/api/tenant/knowledge-bases';
 
-defineOptions({ name: 'TenantKnowledgeBaseList' });
-
 import { computed, ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
@@ -24,25 +22,34 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
+import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
 import {
   deleteKnowledgeBaseApi,
   getKnowledgeBaseListApi,
 } from '#/api/tenant/knowledge-bases';
-import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { formatFileSize } from '#/utils/file';
-
 import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
+
 import { getKBStatusColor, getKBStatusText } from './data';
 import KnowledgeBaseDetail from './modules/KnowledgeBaseDetail.vue';
 import KnowledgeBaseForm from './modules/KnowledgeBaseForm.vue';
 
+defineOptions({ name: 'TenantKnowledgeBaseList' });
+
 // ========== 声明式 CRUD ==========
 const {
-  list, total, loading, currentPage, pageSize, searchKeyword,
-  loadList, onSearch, onPageChange,
+  list,
+  total,
+  loading,
+  currentPage,
+  pageSize,
+  searchKeyword,
+  loadList,
+  onSearch,
+  onPageChange,
   handleMenuAction,
 } = useCrudList<KnowledgeBaseItem>({
   api: {
@@ -61,9 +68,13 @@ const {
 });
 
 // ========== 回收站 ==========
-const recycleBinRef = ref<{ open: () => void; deletedCount: number } | null>(null);
+const recycleBinRef = ref<null | { deletedCount: number; open: () => void }>(
+  null,
+);
 const recycleBinCount = computed(() => recycleBinRef.value?.deletedCount ?? 0);
-function openRecycleBin() { recycleBinRef.value?.open(); }
+function openRecycleBin() {
+  recycleBinRef.value?.open();
+}
 
 // ========== KnowledgeBaseForm (ref 模式) ==========
 const kbFormRef = ref<InstanceType<typeof KnowledgeBaseForm>>();
@@ -74,7 +85,9 @@ const [DetailDrawer, detailDrawerApi] = useVbenDrawer({
 });
 
 function onDetail(row: KnowledgeBaseItem) {
-  detailDrawerApi.setData({ id: row.id, name: row.name, scope: row.scope }).open();
+  detailDrawerApi
+    .setData({ id: row.id, name: row.name, scope: row.scope })
+    .open();
 }
 
 // ========== 搜索 ==========
@@ -87,7 +100,7 @@ function doSearch() {
 }
 
 // ========== 菜单操作 ==========
-function onMenuClick(key: string | number, row: KnowledgeBaseItem) {
+function onMenuClick(key: number | string, row: KnowledgeBaseItem) {
   if (String(key) === 'detail') {
     onDetail(row);
   } else {
@@ -97,10 +110,18 @@ function onMenuClick(key: string | number, row: KnowledgeBaseItem) {
 </script>
 
 <template>
-  <Page auto-content-height :description="$t('tenant.knowledgeBase.pageDesc')" content-class="flex flex-col gap-4">
+  <Page
+    auto-content-height
+    :description="$t('tenant.knowledgeBase.pageDesc')"
+    content-class="flex flex-col gap-4"
+  >
     <KnowledgeBaseForm ref="kbFormRef" @success="loadList" />
     <DetailDrawer @success="loadList" />
-    <RecycleBinDrawer ref="recycleBinRef" resource="/tenant/ai/knowledge-bases" @restored="loadList" />
+    <RecycleBinDrawer
+      ref="recycleBinRef"
+      resource="/tenant/ai/knowledge-bases"
+      @restored="loadList"
+    />
 
     <!-- 搜索栏 + 创建按钮 -->
     <div class="flex items-center gap-3">
@@ -113,7 +134,10 @@ function onMenuClick(key: string | number, row: KnowledgeBaseItem) {
         @clear="doSearch"
       >
         <template #prefix>
-          <IconifyIcon icon="lucide:search" class="size-4 text-muted-foreground" />
+          <IconifyIcon
+            icon="lucide:search"
+            class="size-4 text-muted-foreground"
+          />
         </template>
       </Input>
       <Tooltip :title="$t('common.recycleBin.title')">
@@ -125,7 +149,7 @@ function onMenuClick(key: string | number, row: KnowledgeBaseItem) {
           </Button>
         </Badge>
       </Tooltip>
-      <div class="flex-1" />
+      <div class="flex-1"></div>
       <Button
         v-access:code="['knowledge_base:create']"
         type="primary"
@@ -140,11 +164,21 @@ function onMenuClick(key: string | number, row: KnowledgeBaseItem) {
 
     <!-- 卡片网格 -->
     <Spin :spinning="loading">
-      <div v-if="list.length === 0 && !loading" class="flex flex-col items-center justify-center py-20">
-        <div class="mb-3 flex size-16 items-center justify-center rounded-2xl bg-muted">
-          <IconifyIcon icon="lucide:book-open" class="size-8 text-muted-foreground" />
+      <div
+        v-if="list.length === 0 && !loading"
+        class="flex flex-col items-center justify-center py-20"
+      >
+        <div
+          class="mb-3 flex size-16 items-center justify-center rounded-2xl bg-muted"
+        >
+          <IconifyIcon
+            icon="lucide:book-open"
+            class="size-8 text-muted-foreground"
+          />
         </div>
-        <p class="mb-4 text-sm text-muted-foreground">{{ $t('tenant.knowledgeBase.empty') }}</p>
+        <p class="mb-4 text-sm text-muted-foreground">
+          {{ $t('tenant.knowledgeBase.empty') }}
+        </p>
         <Button
           v-access:code="['knowledge_base:create']"
           type="primary"
@@ -165,22 +199,39 @@ function onMenuClick(key: string | number, row: KnowledgeBaseItem) {
         >
           <!-- 卡片头部 -->
           <div class="flex items-start gap-3 p-4 pb-2">
-            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-              <IconifyIcon icon="lucide:book-open" class="size-5 text-primary" />
+            <div
+              class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10"
+            >
+              <IconifyIcon
+                icon="lucide:book-open"
+                class="size-5 text-primary"
+              />
             </div>
             <div class="min-w-0 flex-1">
-              <h4 class="truncate text-sm font-semibold text-foreground">{{ item.name }}</h4>
+              <h4 class="truncate text-sm font-semibold text-foreground">
+                {{ item.name }}
+              </h4>
               <div class="mt-1 flex items-center gap-1.5">
                 <Tag
                   :color="getKBStatusColor(item.status)"
-                  style="font-size: 10px; line-height: 16px; padding: 0 5px; margin: 0;"
+                  style="
+                    padding: 0 5px;
+                    margin: 0;
+                    font-size: 10px;
+                    line-height: 16px;
+                  "
                 >
                   {{ getKBStatusText(item.status) }}
                 </Tag>
                 <Tag
                   v-if="item.scope && item.scope !== 'all_tenants'"
                   :color="getScopeColor(item.scope)"
-                  style="font-size: 10px; line-height: 16px; padding: 0 5px; margin: 0;"
+                  style="
+                    padding: 0 5px;
+                    margin: 0;
+                    font-size: 10px;
+                    line-height: 16px;
+                  "
                 >
                   {{ getScopeText(item.scope) }}
                 </Tag>
@@ -194,10 +245,18 @@ function onMenuClick(key: string | number, row: KnowledgeBaseItem) {
                 class="!size-7 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100"
                 @click.stop
               >
-                <IconifyIcon icon="lucide:ellipsis-vertical" class="size-4 text-muted-foreground" />
+                <IconifyIcon
+                  icon="lucide:ellipsis-vertical"
+                  class="size-4 text-muted-foreground"
+                />
               </Button>
               <template #overlay>
-                <Menu @click="(info: { key: string | number }) => onMenuClick(info.key, item)">
+                <Menu
+                  @click="
+                    (info: { key: string | number }) =>
+                      onMenuClick(info.key, item)
+                  "
+                >
                   <MenuItem key="detail">
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:eye" class="size-3.5" />
@@ -210,7 +269,11 @@ function onMenuClick(key: string | number, row: KnowledgeBaseItem) {
                       <span>{{ $t('tenant.knowledgeBase.edit') }}</span>
                     </div>
                   </MenuItem>
-                  <MenuItem v-if="item.scope === 'all_tenants'" key="delete" class="!text-destructive">
+                  <MenuItem
+                    v-if="item.scope === 'all_tenants'"
+                    key="delete"
+                    class="!text-destructive"
+                  >
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:trash-2" class="size-3.5" />
                       <span>{{ $t('tenant.common.delete') }}</span>
@@ -223,29 +286,46 @@ function onMenuClick(key: string | number, row: KnowledgeBaseItem) {
 
           <!-- 描述 -->
           <div class="px-4 pb-2">
-            <p v-if="item.description" class="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+            <p
+              v-if="item.description"
+              class="line-clamp-2 text-xs leading-relaxed text-muted-foreground"
+            >
               {{ item.description }}
             </p>
             <p v-else class="text-xs text-muted-foreground/50">—</p>
           </div>
 
           <!-- Embedding 模型 -->
-          <div v-if="item.embedding_model_name" class="mx-4 mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <div
+            v-if="item.embedding_model_name"
+            class="mx-4 mb-2 flex items-center gap-1.5 text-xs text-muted-foreground"
+          >
             <IconifyIcon icon="lucide:cpu" class="size-3 shrink-0" />
             <span class="truncate">{{ item.embedding_model_name }}</span>
           </div>
 
           <!-- 统计数据 -->
-          <div class="flex items-center gap-4 border-t border-border/40 px-4 py-3 text-xs text-muted-foreground">
-            <div class="flex items-center gap-1" :title="$t('tenant.knowledgeBase.field.documentCount')">
+          <div
+            class="flex items-center gap-4 border-t border-border/40 px-4 py-3 text-xs text-muted-foreground"
+          >
+            <div
+              class="flex items-center gap-1"
+              :title="$t('tenant.knowledgeBase.field.documentCount')"
+            >
               <IconifyIcon icon="lucide:file-text" class="size-3.5" />
               <span class="tabular-nums">{{ item.document_count }}</span>
             </div>
-            <div class="flex items-center gap-1" :title="$t('tenant.knowledgeBase.field.totalChunks')">
+            <div
+              class="flex items-center gap-1"
+              :title="$t('tenant.knowledgeBase.field.totalChunks')"
+            >
               <IconifyIcon icon="lucide:puzzle" class="size-3.5" />
               <span class="tabular-nums">{{ item.total_chunks }}</span>
             </div>
-            <div class="flex items-center gap-1" :title="$t('tenant.knowledgeBase.field.totalSizeBytes')">
+            <div
+              class="flex items-center gap-1"
+              :title="$t('tenant.knowledgeBase.field.totalSizeBytes')"
+            >
               <IconifyIcon icon="lucide:hard-drive" class="size-3.5" />
               <span>{{ formatFileSize(item.total_size_bytes) }}</span>
             </div>

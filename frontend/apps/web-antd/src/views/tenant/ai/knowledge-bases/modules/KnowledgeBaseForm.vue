@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'TenantKnowledgeBaseForm' });
 /**
  * 租户端知识库新建/编辑表单抽屉
  */
@@ -12,6 +11,8 @@ import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
 import { useFormSchema } from '../data';
+
+defineOptions({ name: 'TenantKnowledgeBaseForm' });
 
 const emits = defineEmits<{ success: [] }>();
 

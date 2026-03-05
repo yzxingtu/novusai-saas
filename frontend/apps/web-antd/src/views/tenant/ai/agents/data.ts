@@ -24,7 +24,10 @@ import { $t } from '#/locales';
 export function getStatusOptions() {
   return [
     { label: $t('tenant.ai.agent.status_options.draft'), value: 'draft' },
-    { label: $t('tenant.ai.agent.status_options.published'), value: 'published' },
+    {
+      label: $t('tenant.ai.agent.status_options.published'),
+      value: 'published',
+    },
     { label: $t('tenant.ai.agent.status_options.disabled'), value: 'disabled' },
   ];
 }
@@ -35,10 +38,18 @@ export function getStatusOptions() {
 export function getStatusText(status: string | undefined): string {
   if (!status) return '-';
   switch (status) {
-    case 'draft': return $t('tenant.ai.agent.status_options.draft');
-    case 'published': return $t('tenant.ai.agent.status_options.published');
-    case 'disabled': return $t('tenant.ai.agent.status_options.disabled');
-    default: return status;
+    case 'disabled': {
+      return $t('tenant.ai.agent.status_options.disabled');
+    }
+    case 'draft': {
+      return $t('tenant.ai.agent.status_options.draft');
+    }
+    case 'published': {
+      return $t('tenant.ai.agent.status_options.published');
+    }
+    default: {
+      return status;
+    }
   }
 }
 
@@ -47,10 +58,18 @@ export function getStatusText(status: string | undefined): string {
  */
 export function getStatusColor(status: string | undefined): string {
   switch (status) {
-    case 'draft': return 'default';
-    case 'published': return 'success';
-    case 'disabled': return 'error';
-    default: return 'default';
+    case 'disabled': {
+      return 'error';
+    }
+    case 'draft': {
+      return 'default';
+    }
+    case 'published': {
+      return 'success';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
@@ -61,8 +80,14 @@ export function getStatusColor(status: string | undefined): string {
  */
 export function getVisibilityOptions() {
   return [
-    { label: $t('tenant.ai.agent.access.visibility_options.public'), value: 'public' },
-    { label: $t('tenant.ai.agent.access.visibility_options.private'), value: 'private' },
+    {
+      label: $t('tenant.ai.agent.access.visibility_options.public'),
+      value: 'public',
+    },
+    {
+      label: $t('tenant.ai.agent.access.visibility_options.private'),
+      value: 'private',
+    },
   ];
 }
 
@@ -72,9 +97,15 @@ export function getVisibilityOptions() {
 export function getVisibilityText(visibility: string | undefined): string {
   if (!visibility) return '-';
   switch (visibility) {
-    case 'public': return $t('tenant.ai.agent.access.visibility_options.public');
-    case 'private': return $t('tenant.ai.agent.access.visibility_options.private');
-    default: return visibility;
+    case 'private': {
+      return $t('tenant.ai.agent.access.visibility_options.private');
+    }
+    case 'public': {
+      return $t('tenant.ai.agent.access.visibility_options.public');
+    }
+    default: {
+      return visibility;
+    }
   }
 }
 
@@ -83,9 +114,15 @@ export function getVisibilityText(visibility: string | undefined): string {
  */
 export function getVisibilityColor(visibility: string | undefined): string {
   switch (visibility) {
-    case 'public': return 'green';
-    case 'private': return 'orange';
-    default: return 'default';
+    case 'private': {
+      return 'orange';
+    }
+    case 'public': {
+      return 'green';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
@@ -96,7 +133,10 @@ export function getVisibilityColor(visibility: string | undefined): string {
  */
 export function getExecutionModeOptions() {
   return [
-    { label: $t('tenant.ai.agent.mode_options.conversation'), value: 'conversation' },
+    {
+      label: $t('tenant.ai.agent.mode_options.conversation'),
+      value: 'conversation',
+    },
     { label: $t('tenant.ai.agent.mode_options.task'), value: 'task' },
     { label: $t('tenant.ai.agent.mode_options.batch'), value: 'batch' },
     { label: $t('tenant.ai.agent.mode_options.api'), value: 'api' },
@@ -109,11 +149,21 @@ export function getExecutionModeOptions() {
 export function getExecutionModeText(mode: string | undefined): string {
   if (!mode) return '-';
   switch (mode) {
-    case 'conversation': return $t('tenant.ai.agent.mode_options.conversation');
-    case 'task': return $t('tenant.ai.agent.mode_options.task');
-    case 'batch': return $t('tenant.ai.agent.mode_options.batch');
-    case 'api': return $t('tenant.ai.agent.mode_options.api');
-    default: return mode;
+    case 'api': {
+      return $t('tenant.ai.agent.mode_options.api');
+    }
+    case 'batch': {
+      return $t('tenant.ai.agent.mode_options.batch');
+    }
+    case 'conversation': {
+      return $t('tenant.ai.agent.mode_options.conversation');
+    }
+    case 'task': {
+      return $t('tenant.ai.agent.mode_options.task');
+    }
+    default: {
+      return mode;
+    }
   }
 }
 
@@ -122,11 +172,21 @@ export function getExecutionModeText(mode: string | undefined): string {
  */
 export function getExecutionModeColor(mode: string | undefined): string {
   switch (mode) {
-    case 'conversation': return 'blue';
-    case 'task': return 'orange';
-    case 'batch': return 'purple';
-    case 'api': return 'cyan';
-    default: return 'default';
+    case 'api': {
+      return 'cyan';
+    }
+    case 'batch': {
+      return 'purple';
+    }
+    case 'conversation': {
+      return 'blue';
+    }
+    case 'task': {
+      return 'orange';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
@@ -155,12 +215,19 @@ export async function getModelSelectOptions() {
 export async function getPackageSelectOptions() {
   try {
     const data = await getAvailablePackagesApi();
-    return data.map((p: { label: string; value: number; scope?: string; source_plugin?: string }) => ({
-      label: p.label,
-      value: p.value,
-      scope: p.scope,
-      source_plugin: p.source_plugin,
-    }));
+    return data.map(
+      (p: {
+        label: string;
+        scope?: string;
+        source_plugin?: string;
+        value: number;
+      }) => ({
+        label: p.label,
+        value: p.value,
+        scope: p.scope,
+        source_plugin: p.source_plugin,
+      }),
+    );
   } catch {
     return [];
   }
@@ -243,7 +310,8 @@ export function useColumns<T = AgentListItem>(
             text: $t('tenant.ai.agent.access.title'),
             icon: 'lucide:shield',
             accessCodes: ['agent:update'],
-            show: (row: AgentListItem) => row.scope === 'all_tenants' && row.tenant_id !== null,
+            show: (row: AgentListItem) =>
+              row.scope === 'all_tenants' && row.tenant_id !== null,
           },
           {
             code: 'test',
@@ -256,7 +324,8 @@ export function useColumns<T = AgentListItem>(
             text: $t('tenant.ai.agent.publish'),
             icon: 'lucide:rocket',
             accessCodes: ['agent:update'],
-            show: (row: AgentListItem) => row.scope === 'all_tenants' && row.tenant_id !== null,
+            show: (row: AgentListItem) =>
+              row.scope === 'all_tenants' && row.tenant_id !== null,
           },
           {
             code: 'versions',
@@ -264,8 +333,18 @@ export function useColumns<T = AgentListItem>(
             icon: 'lucide:history',
             accessCodes: ['agent:list'],
           },
-          { code: 'edit', show: (row: AgentListItem) => row.scope === 'all_tenants' && row.tenant_id !== null },
-          { code: 'delete', show: (row: AgentListItem) => !row.is_system && row.scope === 'all_tenants' && row.tenant_id !== null },
+          {
+            code: 'edit',
+            show: (row: AgentListItem) =>
+              row.scope === 'all_tenants' && row.tenant_id !== null,
+          },
+          {
+            code: 'delete',
+            show: (row: AgentListItem) =>
+              !row.is_system &&
+              row.scope === 'all_tenants' &&
+              row.tenant_id !== null,
+          },
         ],
       },
       field: 'operation',
@@ -355,16 +434,26 @@ export function useFormSchema(): VbenFormSchema[] {
       help: $t('tenant.ai.agent.help.topP'),
     },
     {
-      ...textareaField('welcome_message', $t('tenant.ai.agent.welcomeMessage'), {
-        placeholder: $t('tenant.ai.agent.placeholder.inputWelcomeMessage'),
-      }),
+      ...textareaField(
+        'welcome_message',
+        $t('tenant.ai.agent.welcomeMessage'),
+        {
+          placeholder: $t('tenant.ai.agent.placeholder.inputWelcomeMessage'),
+        },
+      ),
       help: $t('tenant.ai.agent.help.welcomeMessage'),
     },
     {
-      ...textareaField('suggested_questions_str', $t('tenant.ai.agent.suggestedQuestions'), {
-        placeholder: $t('tenant.ai.agent.placeholder.inputSuggestedQuestions'),
-        rows: 4,
-      }),
+      ...textareaField(
+        'suggested_questions_str',
+        $t('tenant.ai.agent.suggestedQuestions'),
+        {
+          placeholder: $t(
+            'tenant.ai.agent.placeholder.inputSuggestedQuestions',
+          ),
+          rows: 4,
+        },
+      ),
       help: $t('tenant.ai.agent.help.suggestedQuestions'),
     },
   ];
@@ -377,8 +466,14 @@ export function useFormSchema(): VbenFormSchema[] {
  */
 export function getWizardSteps() {
   return [
-    { title: $t('tenant.ai.agent.wizard.step1'), description: $t('tenant.ai.agent.wizard.step1Desc') },
-    { title: $t('tenant.ai.agent.wizard.step2'), description: $t('tenant.ai.agent.wizard.step2Desc') },
+    {
+      title: $t('tenant.ai.agent.wizard.step1'),
+      description: $t('tenant.ai.agent.wizard.step1Desc'),
+    },
+    {
+      title: $t('tenant.ai.agent.wizard.step2'),
+      description: $t('tenant.ai.agent.wizard.step2Desc'),
+    },
   ];
 }
 
@@ -386,8 +481,16 @@ export function getWizardSteps() {
  * 字段 → 步骤映射
  */
 const FIELD_STEP_MAP: Record<string, number> = {
-  name: 0, avatar: 0, model_id: 0, execution_mode: 0, system_prompt: 0, description: 0,
-  temperature: 1, max_tokens: 1, top_p: 1, welcome_message: 1,
+  name: 0,
+  avatar: 0,
+  model_id: 0,
+  execution_mode: 0,
+  system_prompt: 0,
+  description: 0,
+  temperature: 1,
+  max_tokens: 1,
+  top_p: 1,
+  welcome_message: 1,
   suggested_questions_str: 1,
 };
 

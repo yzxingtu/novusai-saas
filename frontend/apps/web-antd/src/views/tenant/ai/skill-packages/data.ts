@@ -7,9 +7,6 @@ import type { TenantSkillPackageInfo } from '#/api/tenant/skill-packages';
 
 import { searchInput } from '#/adapter/form';
 import { $t } from '#/locales';
-import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
-
-export { getScopeColor, getScopeText };
 
 /** 表格列定义 */
 export function useColumns<T = TenantSkillPackageInfo>(
@@ -61,8 +58,18 @@ export function useColumns<T = TenantSkillPackageInfo>(
         },
         name: 'CellOperation',
         options: [
-          { code: 'edit', show: (row: TenantSkillPackageInfo) => row.scope === 'all_tenants' && row.tenant_id !== null },
-          { code: 'delete', show: (row: TenantSkillPackageInfo) => !row.is_system && row.scope === 'all_tenants' && row.tenant_id !== null },
+          {
+            code: 'edit',
+            show: (row: TenantSkillPackageInfo) =>
+              row.scope === 'all_tenants' && row.tenant_id !== null,
+          },
+          {
+            code: 'delete',
+            show: (row: TenantSkillPackageInfo) =>
+              !row.is_system &&
+              row.scope === 'all_tenants' &&
+              row.tenant_id !== null,
+          },
         ],
       },
       field: 'operation',
@@ -81,3 +88,5 @@ export function useGridFormSchema(): VbenFormSchema[] {
     }),
   ];
 }
+
+export { getScopeColor, getScopeText } from '#/utils/scope-helpers';

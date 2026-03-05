@@ -6,31 +6,32 @@
 
 from fastapi import Body, Request
 
-from app.configs.service import ConfigService
+from app.api.shared._storage_helpers import (
+    get_known_plugin_storage_drivers as _get_known_plugin_storage_drivers,
+)
 from app.configs.registry import config_registry
+from app.configs.service import ConfigService
 from app.core.base_controller import TenantController
-from app.core.deps import DbSession, ActiveTenantAdmin
+from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.config import ConfigScope
 from app.enums.error_code import ErrorCode
 from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException, BusinessException
+from app.exceptions import BusinessException, NotFoundException
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
     action_read,
     action_update,
+    permission_resource,
 )
-from app.api.shared._storage_helpers import get_known_plugin_storage_drivers as _get_known_plugin_storage_drivers
 from app.schemas.system.config import (
-    ConfigGroupResponse,
     ConfigGroupListResponse,
+    ConfigGroupResponse,
     ConfigItemResponse,
     ConfigUpdateRequest,
     DisplayRuleSchema,
 )
-
 
 # 密钥类字段名关键词，匹配到的值做脱敏处理
 _SENSITIVE_KEYWORDS = {"secret", "key", "password", "token"}
@@ -70,7 +71,7 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
             "value": opt["value"],
             "label": _(opt["label_key"]) if opt.get("label_key") else str(opt.get("value", "")),
         })
-    
+
     # 翻译验证规则消息
     translated_rules = []
     for rule in config.get("validation_rules", []):
@@ -79,7 +80,7 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
             "value": rule["value"],
             "message": _(rule["message_key"]) if rule.get("message_key") else "",
         })
-    
+
     # 转换显示规则
     display_rules = [
         DisplayRuleSchema(
@@ -90,13 +91,13 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
         )
         for rule in config.get("display_rules", [])
     ]
-    
+
     # 递归转换子字段
     children = [
         _translate_config_item(child)
         for child in config.get("children", [])
     ]
-    
+
     return ConfigItemResponse(
         key=config["key"],
         name=_(config["name_key"]),
@@ -132,17 +133,17 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
 class TenantConfigController(TenantController):
     """
     租户配置管理控制器
-    
+
     提供租户级配置的查看和修改接口
     """
-    
+
     prefix = "/configs"
     tags = ["Tenant Configuration"]
-    
+
     def _register_routes(self) -> None:
         """注册路由"""
         router = self.router
-        
+
         @router.get("/groups", summary="获取配置分组列表")
         @action_read("action.tenant_config.groups")
         async def list_config_groups(
@@ -152,23 +153,23 @@ class TenantConfigController(TenantController):
         ):
             """
             获取租户配置分组列表
-            
+
             返回所有租户级配置分组（不含具体配置项）
-            
+
             权限: tenant_config:groups
             """
             groups = config_registry.get_groups_by_scope(ConfigScope.ALL_TENANTS)
-            
+
             result = []
             for group in groups:
                 if not group.is_active:
                     continue
-                
+
                 # 计算可见配置项数量
                 visible_count = sum(
                     1 for c in group.configs if c.is_visible
                 )
-                
+
                 result.append(ConfigGroupListResponse(
                     code=group.code,
                     name=_(group.name_key),
@@ -177,12 +178,12 @@ class TenantConfigController(TenantController):
                     sort_order=group.sort_order,
                     config_count=visible_count,
                 ))
-            
+
             return success(
                 data=sorted(result, key=lambda x: x.sort_order),
                 message=_("common.success"),
             )
-        
+
         @router.get("/groups/{group_code}", summary="获取分组配置项")
         @action_read("action.tenant_config.detail")
         async def get_group_configs(
@@ -193,7 +194,7 @@ class TenantConfigController(TenantController):
         ):
             """
             获取指定分组的配置项列表（含当前值）
-            
+
             权限: tenant_config:detail
             """
             # 验证分组存在
@@ -203,33 +204,33 @@ class TenantConfigController(TenantController):
                     message=_("config.group_not_found"),
                     code=ErrorCode.CONFIG_GROUP_NOT_FOUND,
                 )
-            
+
             # 获取配置值
             config_service = ConfigService(db)
             groups_with_configs = await config_service.get_groups_with_configs(
                 scope=ConfigScope.ALL_TENANTS,
                 tenant_id=current_admin.tenant_id,
             )
-            
+
             # 找到目标分组
             target_group = None
             for g in groups_with_configs:
                 if g["code"] == group_code:
                     target_group = g
                     break
-            
+
             if not target_group:
                 raise NotFoundException(
                     message=_("config.group_not_found"),
                     code=ErrorCode.CONFIG_GROUP_NOT_FOUND,
                 )
-            
+
             # 转换响应
             configs = [
                 _translate_config_item(c)
                 for c in target_group["configs"]
             ]
-            
+
             return success(
                 data=ConfigGroupResponse(
                     code=target_group["code"],
@@ -241,7 +242,7 @@ class TenantConfigController(TenantController):
                 ),
                 message=_("common.success"),
             )
-        
+
         @router.put("/groups/{group_code}", summary="更新分组配置")
         @action_update("action.tenant_config.update")
         async def update_group_configs(
@@ -253,7 +254,7 @@ class TenantConfigController(TenantController):
         ):
             """
             批量更新分组下的配置项
-            
+
             权限: tenant_config:update
             """
             # 验证分组存在
@@ -263,10 +264,10 @@ class TenantConfigController(TenantController):
                     message=_("config.group_not_found"),
                     code=ErrorCode.CONFIG_GROUP_NOT_FOUND,
                 )
-            
+
             # 获取分组下的配置键列表
             valid_keys = {c.key for c in group.configs}
-            
+
             # 验证传入的配置键
             invalid_keys = set(data.configs.keys()) - valid_keys
             if invalid_keys:
@@ -274,7 +275,7 @@ class TenantConfigController(TenantController):
                     message=_("config.invalid_keys", keys=", ".join(invalid_keys)),
                     code=ErrorCode.CONFIG_INVALID_KEYS,
                 )
-            
+
             # 更新配置
             config_service = ConfigService(db)
             for key, value in data.configs.items():
@@ -283,26 +284,26 @@ class TenantConfigController(TenantController):
                     key=key,
                     value=value,
                 )
-            
+
             await db.commit()
-            
+
             # 返回更新后的配置
             groups_with_configs = await config_service.get_groups_with_configs(
                 scope=ConfigScope.ALL_TENANTS,
                 tenant_id=current_admin.tenant_id,
             )
-            
+
             target_group = None
             for g in groups_with_configs:
                 if g["code"] == group_code:
                     target_group = g
                     break
-            
+
             configs = [
                 _translate_config_item(c)
                 for c in target_group["configs"]
             ] if target_group else []
-            
+
             return success(
                 data=ConfigGroupResponse(
                     code=group_code,
@@ -329,7 +330,9 @@ class TenantConfigController(TenantController):
             权限: tenant_config:groups
             """
             from app.configs.service import ConfigService
-            from app.services.common.storage_config_resolver import StorageConfigResolver
+            from app.services.common.storage_config_resolver import (
+                StorageConfigResolver,
+            )
 
             tenant_id = current_admin.tenant_id
             config_service = ConfigService(db)

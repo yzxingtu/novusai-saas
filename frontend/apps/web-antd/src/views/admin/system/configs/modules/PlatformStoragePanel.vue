@@ -18,13 +18,7 @@ import { useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
 
-import {
-  Alert,
-  Button,
-  Divider,
-  message,
-  Spin,
-} from 'ant-design-vue';
+import { Alert, Button, Divider, message, Spin } from 'ant-design-vue';
 
 import {
   getAdminConfigGroupDetailApi,
@@ -37,8 +31,8 @@ import {
   StorageCredentialForm,
   StorageDriverSelector,
 } from '#/components/business/storage-config';
-import { $t } from '#/locales';
 import StorageSwitchImpactModal from '#/components/business/storage-migration/StorageSwitchImpactModal.vue';
+import { $t } from '#/locales';
 
 defineOptions({ name: 'PlatformStoragePanel' });
 
@@ -75,8 +69,8 @@ async function loadData() {
     let driversData: StorageDriverInfo[] = [];
     try {
       driversData = await getStorageDriversApi();
-    } catch (e) {
-      console.error('[StoragePanel] getStorageDriversApi failed:', e);
+    } catch (error) {
+      console.error('[StoragePanel] getStorageDriversApi failed:', error);
     }
     drivers.value = driversData;
 
@@ -107,16 +101,16 @@ async function loadData() {
 
     // 通用参数（排除驱动/凭证相关的 key + 已废弃的全局开关，剩余给 ConfigForm 渲染）
     const excludeKeys = new Set([
-      'platform_storage_driver',
-      'platform_storage_root_path',
       'platform_storage_base_url',
+      'platform_storage_driver',
       'platform_storage_options',
+      'platform_storage_root_path',
       // 自主配置权限改为逐租户控制，全局开关不再使用
       'platform_tenant_storage_self_config_enabled',
     ]);
     generalConfigs.value = configs
       .filter((c) => !excludeKeys.has(c.key))
-      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+      .toSorted((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   } finally {
     loading.value = false;
   }
@@ -125,11 +119,15 @@ async function loadData() {
 /** 保存全部配置（驱动变更时先展示影响分析） */
 async function onSave() {
   // 非 local 驱动必须填 Bucket
-  if (selectedDriver.value && selectedDriver.value !== 'local') {
-    if (!credentials.value.root_path?.trim()) {
-      message.warning($t('shared.storage.field.bucket') + ' ' + $t('shared.storage.required'));
-      return;
-    }
+  if (
+    selectedDriver.value &&
+    selectedDriver.value !== 'local' &&
+    !credentials.value.root_path?.trim()
+  ) {
+    message.warning(
+      `${$t('shared.storage.field.bucket')} ${$t('shared.storage.required')}`,
+    );
+    return;
   }
 
   // 驱动发生变更 → 先展示影响分析
@@ -186,7 +184,6 @@ async function doSave() {
   }
 }
 
-
 /** 测试连接 */
 async function onTestConnection() {
   if (!selectedDriver.value || selectedDriver.value === 'local') return;
@@ -212,9 +209,13 @@ async function onTestConnection() {
 
 /** 驱动为 local 时不显示凭证表单 */
 const showCredentials = ref(false);
-watch(selectedDriver, (d) => {
-  showCredentials.value = !!d && d !== 'local';
-}, { immediate: true });
+watch(
+  selectedDriver,
+  (d) => {
+    showCredentials.value = !!d && d !== 'local';
+  },
+  { immediate: true },
+);
 
 let isInitialMount = true;
 onMounted(() => {
@@ -282,7 +283,6 @@ defineExpose({ onSave, saving });
         <Divider />
         <ConfigForm ref="generalFormRef" :configs="generalConfigs" />
       </template>
-
     </div>
 
     <!-- 存储切换影响分析弹窗 -->

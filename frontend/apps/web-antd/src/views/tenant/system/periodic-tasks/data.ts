@@ -37,8 +37,14 @@ export function getScheduleTypeText(type: string | undefined): string {
 
 function getScheduleTypeOptions() {
   return [
-    { label: $t('tenant.system.periodicTask.scheduleType.cron'), value: 'cron' },
-    { label: $t('tenant.system.periodicTask.scheduleType.interval'), value: 'interval' },
+    {
+      label: $t('tenant.system.periodicTask.scheduleType.cron'),
+      value: 'cron',
+    },
+    {
+      label: $t('tenant.system.periodicTask.scheduleType.interval'),
+      value: 'interval',
+    },
   ];
 }
 
@@ -125,10 +131,16 @@ export function useGridFormSchema(): VbenFormSchema[] {
     searchInput('name', $t('tenant.system.periodicTask.name'), {
       placeholder: $t('tenant.system.periodicTask.placeholder.searchName'),
     }),
-    select('filter[schedule_type][eq]', $t('tenant.system.periodicTask.scheduleTypeLabel'), {
-      options: getScheduleTypeOptions(),
-      placeholder: $t('tenant.system.periodicTask.placeholder.allScheduleTypes'),
-    }),
+    select(
+      'filter[schedule_type][eq]',
+      $t('tenant.system.periodicTask.scheduleTypeLabel'),
+      {
+        options: getScheduleTypeOptions(),
+        placeholder: $t(
+          'tenant.system.periodicTask.placeholder.allScheduleTypes',
+        ),
+      },
+    ),
   ];
 }
 
@@ -144,11 +156,17 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
       disabled: isEdit,
     }),
     {
-      ...select('schedule_type', $t('tenant.system.periodicTask.scheduleTypeLabel'), {
-        options: getScheduleTypeOptions(),
-        required: true,
-        placeholder: $t('tenant.system.periodicTask.placeholder.selectScheduleType'),
-      }),
+      ...select(
+        'schedule_type',
+        $t('tenant.system.periodicTask.scheduleTypeLabel'),
+        {
+          options: getScheduleTypeOptions(),
+          required: true,
+          placeholder: $t(
+            'tenant.system.periodicTask.placeholder.selectScheduleType',
+          ),
+        },
+      ),
       help: $t('tenant.system.periodicTask.scheduleTypeHelp'),
     },
     {
@@ -162,10 +180,16 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
       },
     },
     {
-      ...numberField('interval_seconds', $t('tenant.system.periodicTask.intervalSeconds'), {
-        min: 10,
-        placeholder: $t('tenant.system.periodicTask.placeholder.inputInterval'),
-      }),
+      ...numberField(
+        'interval_seconds',
+        $t('tenant.system.periodicTask.intervalSeconds'),
+        {
+          min: 10,
+          placeholder: $t(
+            'tenant.system.periodicTask.placeholder.inputInterval',
+          ),
+        },
+      ),
       dependencies: {
         triggerFields: ['schedule_type'],
         show: (values) => values.schedule_type === 'interval',
@@ -175,7 +199,9 @@ export function useFormSchema(isEdit: boolean): VbenFormSchema[] {
       defaultValue: true,
     }),
     textareaField('description', $t('tenant.system.periodicTask.description'), {
-      placeholder: $t('tenant.system.periodicTask.placeholder.inputDescription'),
+      placeholder: $t(
+        'tenant.system.periodicTask.placeholder.inputDescription',
+      ),
     }),
   ];
 }

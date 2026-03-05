@@ -7,7 +7,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from app.core.logging import get_logger
 from app.enums.plugin import FrontendSlotTypeEnum
@@ -123,6 +124,8 @@ def register_all_extensions(
                 plugin_name, webhook.path, handler,
                 webhook.method, webhook.auth.model_dump(),
             )
+        else:
+            _record_failure(plugin_name, "webhook", webhook.handler)
 
     # Tasks
     for task_ext in ext.tasks:
@@ -135,6 +138,8 @@ def register_all_extensions(
                 task_ext.interval_seconds,
                 task_ext.queue,
             )
+        else:
+            _record_failure(plugin_name, "task", task_ext.handler)
 
     # Notifications
     for notif_ext in ext.notifications:
@@ -158,6 +163,8 @@ def register_all_extensions(
                 plugin_name, sio_ext.path, handler_class,
                 sio_ext.auth_required, sio_ext.auth_scopes,
             )
+        else:
+            _record_failure(plugin_name, "socketio", sio_ext.handler)
 
     # Frontend Menus
     overrides = menu_overrides or {}
@@ -220,6 +227,7 @@ def register_all_extensions(
             name=widget.name,
             component=widget.component,
             sort_order=widget.sort_order,
+            scope=widget.scope,
         )
 
     # floating_panels — 页面浮动面板（右下角等）
@@ -247,6 +255,7 @@ def register_all_extensions(
         registry.register_frontend_slot(
             plugin_name, FrontendSlotTypeEnum.NOTIFICATION_UI.value,
             name=notif_ui.event,
+            event=notif_ui.event,
             component=notif_ui.component,
         )
 

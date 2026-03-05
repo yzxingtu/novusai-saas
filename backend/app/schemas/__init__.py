@@ -11,31 +11,31 @@ Schema 模块
 
 # Common
 from app.schemas.common import (
-    TokenResponse,
     RefreshTokenRequest,
+    TokenResponse,
 )
 
 # System
 from app.schemas.system import (
+    AdminChangePasswordRequest,
+    AdminCreateRequest,
     AdminLoginRequest,
     AdminResponse,
-    AdminCreateRequest,
     AdminUpdateRequest,
-    AdminChangePasswordRequest,
 )
 
 # Tenant
 from app.schemas.tenant import (
+    TenantAdminChangePasswordRequest,
+    TenantAdminCreateRequest,
     TenantAdminLoginRequest,
     TenantAdminResponse,
-    TenantAdminCreateRequest,
     TenantAdminUpdateRequest,
-    TenantAdminChangePasswordRequest,
+    TenantUserChangePasswordRequest,
+    TenantUserCreateRequest,
     TenantUserLoginRequest,
     TenantUserResponse,
-    TenantUserCreateRequest,
     TenantUserUpdateRequest,
-    TenantUserChangePasswordRequest,
 )
 
 __all__ = [

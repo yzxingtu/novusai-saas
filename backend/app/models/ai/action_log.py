@@ -5,7 +5,7 @@ AI 操作审计日志模型
 用于安全追溯、合规审计和操作分析
 """
 
-from sqlalchemy import Index, Integer, String, Text, JSON
+from sqlalchemy import JSON, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import TenantModel

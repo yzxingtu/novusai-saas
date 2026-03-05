@@ -7,8 +7,8 @@ import json
 import sys
 import time
 from dataclasses import dataclass, field
-from typing import Any
 from enum import Enum
+from typing import Any
 
 import httpx
 
@@ -40,47 +40,47 @@ class TestReport:
     results: list[TestResult] = field(default_factory=list)
     start_time: float = 0.0
     end_time: float = 0.0
-    
+
     @property
     def total(self) -> int:
         return len(self.results)
-    
+
     @property
     def passed(self) -> int:
         return sum(1 for r in self.results if r.status == TestStatus.PASSED)
-    
+
     @property
     def failed(self) -> int:
         return sum(1 for r in self.results if r.status == TestStatus.FAILED)
-    
+
     @property
     def skipped(self) -> int:
         return sum(1 for r in self.results if r.status == TestStatus.SKIPPED)
-    
+
     @property
     def duration(self) -> float:
         return self.end_time - self.start_time
-    
+
     def add(self, result: TestResult) -> None:
         self.results.append(result)
-    
+
     def print_summary(self) -> None:
         """打印测试报告摘要"""
         print("\n" + "=" * 70)
         print(f"📋 测试模块: {self.module}")
         print("=" * 70)
-        
+
         for result in self.results:
             status_icon = result.status.value
             print(f"{status_icon} {result.name} ({result.duration:.2f}s)")
             if result.message:
                 print(f"   └─ {result.message}")
-        
+
         print("-" * 70)
         print(f"📊 总计: {self.total} | ✅ 通过: {self.passed} | ❌ 失败: {self.failed} | ⏭️ 跳过: {self.skipped}")
         print(f"⏱️  耗时: {self.duration:.2f}s")
         print("=" * 70)
-        
+
         # 返回退出码
         if self.failed > 0:
             sys.exit(1)
@@ -88,13 +88,13 @@ class TestReport:
 
 class APIClient:
     """API 测试客户端"""
-    
+
     def __init__(self, base_url: str = None, timeout: int = None):
         self.base_url = base_url or config.BASE_URL
         self.timeout = timeout or config.TIMEOUT
         self.token: str | None = None
         self.client = httpx.Client(timeout=self.timeout)
-    
+
     def _get_headers(self, extra_headers: dict = None) -> dict:
         """获取请求头"""
         headers = {
@@ -106,7 +106,7 @@ class APIClient:
         if extra_headers:
             headers.update(extra_headers)
         return headers
-    
+
     def request(
         self,
         method: str,
@@ -119,42 +119,42 @@ class APIClient:
         """发送 HTTP 请求"""
         url = f"{self.base_url}{path}"
         req_headers = self._get_headers(headers)
-        
+
         kwargs = {
             "method": method,
             "url": url,
             "headers": req_headers,
             "params": params,
         }
-        
+
         if form_data:
             kwargs["headers"]["Content-Type"] = "application/x-www-form-urlencoded"
             kwargs["data"] = form_data
         elif data:
             kwargs["json"] = data
-        
+
         return self.client.request(**kwargs)
-    
+
     def get(self, path: str, params: dict = None, **kwargs) -> httpx.Response:
         return self.request("GET", path, params=params, **kwargs)
-    
+
     def post(self, path: str, data: dict = None, **kwargs) -> httpx.Response:
         return self.request("POST", path, data=data, **kwargs)
-    
+
     def put(self, path: str, data: dict = None, **kwargs) -> httpx.Response:
         return self.request("PUT", path, data=data, **kwargs)
-    
+
     def delete(self, path: str, **kwargs) -> httpx.Response:
         return self.request("DELETE", path, **kwargs)
-    
+
     def set_token(self, token: str) -> None:
         """设置认证 Token"""
         self.token = token
-    
+
     def clear_token(self) -> None:
         """清除认证 Token"""
         self.token = None
-    
+
     def close(self) -> None:
         """关闭客户端"""
         self.client.close()
@@ -162,22 +162,22 @@ class APIClient:
 
 class BaseAPITest:
     """API 测试基类"""
-    
+
     module_name: str = "未命名模块"
-    
+
     def __init__(self):
         self.client = APIClient()
         self.report = TestReport(module=self.module_name)
         self._test_data: dict[str, Any] = {}  # 存储测试过程中的数据
-    
+
     def setup(self) -> None:
         """测试前置准备（子类可重写）"""
         pass
-    
+
     def teardown(self) -> None:
         """测试后置清理（子类可重写）"""
         pass
-    
+
     def run_test(
         self,
         name: str,
@@ -193,7 +193,7 @@ class BaseAPITest:
             )
             self.report.add(result)
             return result
-        
+
         start = time.time()
         try:
             test_func()
@@ -219,24 +219,24 @@ class BaseAPITest:
                 message=f"异常: {type(e).__name__}: {e}",
                 duration=duration,
             )
-        
+
         self.report.add(result)
         return result
-    
+
     def run_all(self) -> TestReport:
         """运行所有测试"""
         self.report.start_time = time.time()
-        
+
         try:
             self.setup()
             self._run_tests()
         finally:
             self.teardown()
             self.client.close()
-        
+
         self.report.end_time = time.time()
         return self.report
-    
+
     def _run_tests(self) -> None:
         """运行测试（子类必须实现）"""
         raise NotImplementedError("子类必须实现 _run_tests 方法")

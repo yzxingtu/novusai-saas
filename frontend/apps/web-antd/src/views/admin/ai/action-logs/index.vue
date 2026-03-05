@@ -4,25 +4,23 @@
  *
  * 全局审计日志查询，支持跨租户筛选
  */
-import type { AdminActionLogDetail, AdminActionLogItem } from '#/api/admin/action-logs';
-
-defineOptions({ name: 'AdminAIActionLogList' });
+import type {
+  AdminActionLogDetail,
+  AdminActionLogItem,
+} from '#/api/admin/action-logs';
 
 import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import {
-  Card,
-  Descriptions,
-  Drawer,
-  Tag,
-  Tooltip,
-} from 'ant-design-vue';
+import { Card, Descriptions, Drawer, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
-import { getAdminActionLogDetailApi, getAdminActionLogListApi } from '#/api/admin/action-logs';
+import {
+  getAdminActionLogDetailApi,
+  getAdminActionLogListApi,
+} from '#/api/admin/action-logs';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
@@ -36,6 +34,8 @@ import {
   useColumns,
   useGridFormSchema,
 } from './data';
+
+defineOptions({ name: 'AdminAIActionLogList' });
 
 // ============ 详情抽屉 ============
 
@@ -73,7 +73,11 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
 </script>
 
 <template>
-  <Page auto-content-height :description="$t('admin.ai.actionLog.pageDesc')" content-class="flex flex-col gap-4">
+  <Page
+    auto-content-height
+    :description="$t('admin.ai.actionLog.pageDesc')"
+    content-class="flex flex-col gap-4"
+  >
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
         <!-- 时间列 -->
@@ -88,10 +92,7 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
         <!-- 操作名称列 -->
         <template #actionName_cell="{ row }">
           <div class="flex items-center gap-1.5">
-            <IconifyIcon
-              icon="lucide:zap"
-              class="size-3.5 text-primary"
-            />
+            <IconifyIcon icon="lucide:zap" class="size-3.5 text-primary" />
             <code class="rounded bg-accent px-1 py-0.5 text-xs font-medium">
               {{ row.action_name }}
             </code>
@@ -136,12 +137,7 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
       width="600"
       :loading="detailLoading"
     >
-      <Descriptions
-        v-if="detailData"
-        :column="1"
-        bordered
-        size="small"
-      >
+      <Descriptions v-if="detailData" :column="1" bordered size="small">
         <Descriptions.Item label="ID">
           {{ detailData.id }}
         </Descriptions.Item>
@@ -181,23 +177,28 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
           v-if="detailData.error_message"
           :label="$t('admin.ai.actionLog.error')"
         >
-          <pre class="max-h-40 overflow-auto rounded bg-destructive/10 p-2 text-xs text-destructive">{{ detailData.error_message }}</pre>
+          <pre
+            class="max-h-40 overflow-auto rounded bg-destructive/10 p-2 text-xs text-destructive"
+            >{{ detailData.error_message }}</pre
+          >
         </Descriptions.Item>
         <Descriptions.Item
           v-if="detailData.request_data"
           :label="$t('admin.ai.actionLog.requestData')"
         >
-          <pre class="max-h-60 overflow-auto rounded bg-accent/50 p-2 text-xs">{{
-            JSON.stringify(detailData.request_data, null, 2)
-          }}</pre>
+          <pre
+            class="max-h-60 overflow-auto rounded bg-accent/50 p-2 text-xs"
+            >{{ JSON.stringify(detailData.request_data, null, 2) }}</pre
+          >
         </Descriptions.Item>
         <Descriptions.Item
           v-if="detailData.response_data"
           :label="$t('admin.ai.actionLog.responseData')"
         >
-          <pre class="max-h-60 overflow-auto rounded bg-accent/50 p-2 text-xs">{{
-            JSON.stringify(detailData.response_data, null, 2)
-          }}</pre>
+          <pre
+            class="max-h-60 overflow-auto rounded bg-accent/50 p-2 text-xs"
+            >{{ JSON.stringify(detailData.response_data, null, 2) }}</pre
+          >
         </Descriptions.Item>
       </Descriptions>
     </Drawer>

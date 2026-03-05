@@ -14,8 +14,8 @@ import { requestClient } from '#/utils/request';
 export interface ConversationUserInfo {
   id: number;
   username: string;
-  nickname: string | null;
-  avatar: string | null;
+  nickname: null | string;
+  avatar: null | string;
 }
 
 /** 对话列表项 */
@@ -23,13 +23,13 @@ export interface ConversationInfo {
   id: number;
   tenant_id: number;
   agent_id: number;
-  user_id: number | null;
-  title: string | null;
+  user_id: null | number;
+  title: null | string;
   status: string;
   token_count: number;
   cost: number;
-  agent_name: string | null;
-  agent_avatar: string | null;
+  agent_name: null | string;
+  agent_avatar: null | string;
   user_info: ConversationUserInfo | null;
   created_at: string;
   updated_at: string;
@@ -40,12 +40,12 @@ export interface ConversationMessageInfo {
   id: number;
   conversation_id: number;
   role: string;
-  content: string | null;
+  content: null | string;
   sequence: number;
   token_count: number;
-  tool_calls: unknown[] | null;
-  tool_call_id: string | null;
-  model_id: number | null;
+  tool_calls: null | unknown[];
+  tool_call_id: null | string;
+  model_id: null | number;
   created_at: string;
 }
 
@@ -53,7 +53,7 @@ export interface ConversationMessageInfo {
 export interface ConversationDetailInfo extends ConversationInfo {
   message_list: ConversationMessageInfo[];
   message_count: number;
-  metadata: Record<string, unknown> | null;
+  metadata: null | Record<string, unknown>;
 }
 
 /** 消息搜索结果 */
@@ -74,7 +74,7 @@ interface ConversationPageResponse {
 
 /** 批量归档请求 */
 export interface BatchArchiveRequest {
-  agent_id?: number | null;
+  agent_id?: null | number;
   before_days?: number;
 }
 
@@ -96,10 +96,10 @@ export async function getConversationListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<ConversationPageResponse> {
-  return requestClient.get<ConversationPageResponse>(
-    PREFIX,
-    { params, ...options },
-  );
+  return requestClient.get<ConversationPageResponse>(PREFIX, {
+    params,
+    ...options,
+  });
 }
 
 /** 获取对话详情 */
@@ -108,10 +108,10 @@ export async function getConversationDetailApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<ConversationDetailInfo> {
-  return requestClient.get<ConversationDetailInfo>(
-    `${PREFIX}/${id}`,
-    { params, ...options },
-  );
+  return requestClient.get<ConversationDetailInfo>(`${PREFIX}/${id}`, {
+    params,
+    ...options,
+  });
 }
 
 /** 搜索消息 */
@@ -119,10 +119,10 @@ export async function searchConversationMessagesApi(
   params: { keyword: string; page?: number; page_size?: number },
   options?: ApiRequestOptions,
 ): Promise<MessageSearchResult> {
-  return requestClient.get<MessageSearchResult>(
-    `${PREFIX}/search`,
-    { params, ...options },
-  );
+  return requestClient.get<MessageSearchResult>(`${PREFIX}/search`, {
+    params,
+    ...options,
+  });
 }
 
 /** 归档对话 */
@@ -163,8 +163,8 @@ export async function exportConversationApi(
   format: 'json' | 'markdown' = 'json',
   options?: ApiRequestOptions,
 ): Promise<ConversationExportResult> {
-  return requestClient.get<ConversationExportResult>(
-    `${PREFIX}/${id}/export`,
-    { params: { format }, ...options },
-  );
+  return requestClient.get<ConversationExportResult>(`${PREFIX}/${id}/export`, {
+    params: { format },
+    ...options,
+  });
 }

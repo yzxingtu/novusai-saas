@@ -7,42 +7,47 @@ AI 网关统一调用接口（门面类）
 
 import asyncio
 import time
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
+
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.adapters import AdapterRegistry
+from app.ai.cache import AIResponseCache
 from app.ai.exceptions import (
     AIGatewayError,
     is_retryable,
 )
+from app.ai.failover import FailoverService
 from app.ai.retry_service import (
-    RetryService,
     MAX_RETRIES,
     RETRY_BASE_DELAY,
     RETRY_MULTIPLIER,
+    RetryService,
 )
 from app.ai.sse import SSEStreamingResponse
 from app.ai.types import (
+    ChatChunk,
     ChatMessage,
     ChatResponse,
-    ChatChunk,
     EmbeddingResponse,
     ImageGenerationResponse,
     TestModelResult,
     messages_to_dicts,
 )
 from app.ai.usage_recorder import UsageRecorder
-from app.ai.cache import AIResponseCache
-from app.ai.failover import FailoverService
 from app.core.config import settings
-from app.core.logging import LogManager
 from app.core.i18n import _
-from app.exceptions import NotFoundException, BusinessException
-from app.models.ai import AIProvider, ProviderApiKey, AIModel
-from app.repositories.ai import AIProviderRepository, AIModelRepository, ProviderApiKeyRepository
+from app.core.logging import LogManager
+from app.enums.ai import CallStatusEnum, RequestTypeEnum, UserTypeEnum
+from app.exceptions import BusinessException, NotFoundException
+from app.models.ai import AIModel, AIProvider, ProviderApiKey
+from app.repositories.ai import (
+    AIModelRepository,
+    AIProviderRepository,
+    ProviderApiKeyRepository,
+)
 from app.services.ai.metering_service import CostCalculator, TokenCounter
-from app.enums.ai import RequestTypeEnum, CallStatusEnum, UserTypeEnum
 
 logger = LogManager.get_logger("ai")
 

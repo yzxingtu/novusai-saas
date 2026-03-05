@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'TenantQuotaForm' });
 /**
  * 租户配额新建/编辑表单抽屉
  */
@@ -13,6 +12,8 @@ import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
 import { getQuotaFormDefaults, useQuotaFormSchema } from '../data';
+
+defineOptions({ name: 'TenantQuotaForm' });
 
 const emits = defineEmits<{ success: [] }>();
 
@@ -60,9 +61,7 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<TenantQuotaInfo>({
 defineExpose({ openNew, openEdit });
 
 const title = computed(() =>
-  isEdit.value
-    ? $t('common.edit')
-    : $t('tenant.ai.quota.create'),
+  isEdit.value ? $t('common.edit') : $t('tenant.ai.quota.create'),
 );
 </script>
 

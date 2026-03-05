@@ -4,21 +4,20 @@ AI 供应商相关 Schema
 定义 AI 供应商的请求和响应数据结构
 """
 
-from typing import Any
 
 from pydantic import Field
 
 from app.core.base_schema import (
     BaseCreateSchema,
-    BaseUpdateSchema,
     BaseResponseSchema,
+    BaseUpdateSchema,
 )
 from app.core.i18n import _
 
 
 class AIProviderCreate(BaseCreateSchema):
     """创建 AI 供应商请求"""
-    
+
     name: str = Field(..., max_length=100, description=_("enum.ai_provider.name"))
     code: str | None = Field(None, max_length=50, description=_("enum.ai_provider.code"))
     type: str = Field(..., max_length=50, description=_("enum.ai_provider.type"))
@@ -32,7 +31,7 @@ class AIProviderCreate(BaseCreateSchema):
 
 class AIProviderUpdate(BaseUpdateSchema):
     """更新 AI 供应商请求"""
-    
+
     name: str | None = Field(None, max_length=100, description=_("enum.ai_provider.name"))
     code: str | None = Field(None, max_length=50, description=_("enum.ai_provider.code"))
     type: str | None = Field(None, max_length=50, description=_("enum.ai_provider.type"))
@@ -46,7 +45,7 @@ class AIProviderUpdate(BaseUpdateSchema):
 
 class AIProviderResponse(BaseResponseSchema):
     """AI 供应商响应"""
-    
+
     name: str = Field(..., description=_("enum.ai_provider.name"))
     code: str = Field(..., description=_("enum.ai_provider.code"))
     type: str = Field(..., description=_("enum.ai_provider.type"))

@@ -166,7 +166,10 @@ function transformMenuItem(
   // 构建 meta 对象
   // 后端的 name 字段是菜单显示名称，应作为 meta.title
   // 这是最重要的字段，必须设置，否则框架的 $t() 函数会报错
-  const meta: Record<string, boolean | number | string | string[] | undefined> & { title: string } = {
+  const meta: Record<
+    string,
+    boolean | number | string | string[] | undefined
+  > & { title: string } = {
     title: item.name,
   };
 
@@ -354,9 +357,7 @@ function printMissingComponentsWarning(
   }
 
   const componentList = missingComponents
-    .map(
-      ({ menuName, expectedFile }) => `  - "${menuName}" -> ${expectedFile}`,
-    )
+    .map(({ menuName, expectedFile }) => `  - "${menuName}" -> ${expectedFile}`)
     .join('\n');
 
   console.warn(

@@ -69,7 +69,8 @@ async function loadDetail() {
     const result = await getTenantDomainApi(detailData.value.domainId);
     domainDetail.value = result as TenantDomainInfo;
     editRemark.value = result.remark || '';
-  } catch {} finally {
+  } catch {
+  } finally {
     loading.value = false;
   }
 }
@@ -99,7 +100,8 @@ async function onSaveRemark() {
     editMode.value = false;
     await loadDetail();
     emits('success');
-  } catch {} finally {
+  } catch {
+  } finally {
     submitting.value = false;
   }
 }
@@ -140,16 +142,16 @@ function getSslTagConfig(status: string) {
     case 'failed': {
       return { color: 'error', text: $t('tenant.system.domain.ssl.failed') };
     }
-    case 'provisioning': {
-      return {
-        color: 'processing',
-        text: $t('tenant.system.domain.ssl.provisioning'),
-      };
-    }
     case 'pending': {
       return {
         color: 'processing',
         text: $t('tenant.system.domain.ssl.pending'),
+      };
+    }
+    case 'provisioning': {
+      return {
+        color: 'processing',
+        text: $t('tenant.system.domain.ssl.provisioning'),
       };
     }
     default: {

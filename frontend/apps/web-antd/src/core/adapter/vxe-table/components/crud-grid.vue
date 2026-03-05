@@ -19,7 +19,15 @@ defineOptions({
 });
 
 const props = withDefaults(defineProps<Props>(), {
+  createLabel: '',
+  createPermission: '',
+  onCreate: undefined,
+  onExport: undefined,
+  onRecycleBin: undefined,
+  onRefresh: undefined,
+  recycleBinCount: 0,
   showExport: true,
+  showRecycleBin: false,
 });
 
 interface Props {
@@ -95,7 +103,10 @@ function handleRefresh() {
             <IconifyIcon
               icon="lucide:refresh-cw"
               class="size-3.5"
-              :style="{ transform: `rotate(${refreshAngle}deg)`, transition: 'transform 0.5s ease' }"
+              :style="{
+                transform: `rotate(${refreshAngle}deg)`,
+                transition: 'transform 0.5s ease',
+              }"
             />
           </button>
         </Tooltip>
@@ -122,10 +133,7 @@ function handleRefresh() {
           </template>
           {{ props.createLabel }}
         </Button>
-        <slot
-          v-if="hasToolbarActionsSlot"
-          name="toolbar-actions"
-        ></slot>
+        <slot v-if="hasToolbarActionsSlot" name="toolbar-actions"></slot>
       </div>
     </template>
 

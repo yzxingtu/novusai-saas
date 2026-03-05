@@ -4,7 +4,7 @@
 提供标准化的 API 响应格式和封装方法
 """
 
-from typing import Any, TypeVar, Generic
+from typing import Any, Generic, TypeVar
 
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -15,7 +15,7 @@ from app.core.i18n import _
 def _serialize(data: Any) -> Any:
     """
     将 Pydantic 模型实例转为 dict，触发 model_serializer。
-    
+
     解决 FastAPI 的 jsonable_encoder 绕过自定义 model_serializer 的问题：
     当 Pydantic 模型直接传入 dict 响应时，jsonable_encoder 使用内部序列化，
     不会调用我们的 model_serializer，导致 datetime +00:00 丢失。
@@ -38,7 +38,7 @@ T = TypeVar("T")
 class ApiResponse(BaseModel, Generic[T]):
     """
     统一 API 响应模型
-    
+
     所有 API 响应都遵循此格式：
     {
         "code": 0,
@@ -46,7 +46,7 @@ class ApiResponse(BaseModel, Generic[T]):
         "data": ...
     }
     """
-    
+
     code: int = Field(default=0, description="响应状态码，0 表示成功")
     message: str = Field(default="success", description="响应消息")
     data: T | None = Field(default=None, description="响应数据")
@@ -54,7 +54,7 @@ class ApiResponse(BaseModel, Generic[T]):
 
 class PagedData(BaseModel, Generic[T]):
     """分页数据模型"""
-    
+
     items: list[T] = Field(default_factory=list, description="数据列表")
     total: int = Field(default=0, description="总记录数")
     page: int = Field(default=1, description="当前页码")
@@ -73,15 +73,15 @@ def success(
 ) -> dict[str, Any]:
     """
     成功响应
-    
+
     Args:
         data: 响应数据
         message: 响应消息，默认使用 i18n 的 common.success
         code: 状态码，默认 0
-    
+
     Returns:
         响应字典
-    
+
     Examples:
         >>> return success(data={"id": 1})
         {"code": 0, "message": "操作成功", "data": {"id": 1}}
@@ -101,16 +101,16 @@ def error(
 ) -> JSONResponse:
     """
     错误响应
-    
+
     Args:
         message: 错误消息
         code: 业务错误码
         data: 附加数据（如字段验证错误详情）
         status_code: HTTP 状态码
-    
+
     Returns:
         JSONResponse
-    
+
     Examples:
         >>> return error(message="参数错误", code=4001)
     """
@@ -130,11 +130,11 @@ def created(
 ) -> dict[str, Any]:
     """
     创建成功响应
-    
+
     Args:
         data: 创建的资源数据
         message: 响应消息
-    
+
     Returns:
         响应字典
     """
@@ -151,11 +151,11 @@ def updated(
 ) -> dict[str, Any]:
     """
     更新成功响应
-    
+
     Args:
         data: 更新后的资源数据
         message: 响应消息
-    
+
     Returns:
         响应字典
     """
@@ -171,10 +171,10 @@ def deleted(
 ) -> dict[str, Any]:
     """
     删除成功响应
-    
+
     Args:
         message: 响应消息
-    
+
     Returns:
         响应字典
     """
@@ -194,22 +194,22 @@ def paginated(
 ) -> dict[str, Any]:
     """
     分页响应
-    
+
     Args:
         items: 当前页数据列表
         total: 总记录数
         page: 当前页码
         page_size: 每页数量
         message: 响应消息
-    
+
     Returns:
         响应字典
-    
+
     Examples:
         >>> return paginated(items=[...], total=100, page=1, page_size=20)
     """
     pages = (total + page_size - 1) // page_size if page_size > 0 else 0
-    
+
     return {
         "code": 0,
         "message": message or _("common.success"),
@@ -226,7 +226,7 @@ def paginated(
 def no_content() -> JSONResponse:
     """
     无内容响应（HTTP 204）
-    
+
     Returns:
         JSONResponse
     """

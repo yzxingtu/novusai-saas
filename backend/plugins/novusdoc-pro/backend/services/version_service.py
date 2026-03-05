@@ -8,7 +8,6 @@ NovusDoc Pro 版本服务
 from __future__ import annotations
 
 import time
-from typing import Any
 
 from app.core.logging import get_logger
 
@@ -63,6 +62,7 @@ async def on_document_saved(event_name: str, payload: dict) -> None:
 async def _create_auto_snapshot(tenant_id: int, doc_id: int, payload: dict) -> None:
     """Create a version snapshot for the document."""
     from app.core.database import async_session_factory
+
     from ..models.version import NovusdocProVersion
 
     # Fetch current document content via novusdoc service

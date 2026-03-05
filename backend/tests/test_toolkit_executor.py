@@ -1,10 +1,11 @@
 """Test toolkit_executor.py"""
 
 import asyncio
-import pytest
-from app.ai.tools.types import ToolDefinition, ToolParameter
-from app.ai.tools.executors.toolkit_executor import ToolkitExecutor, clear_toolkit_cache
 
+import pytest
+
+from app.ai.tools.executors.toolkit_executor import ToolkitExecutor, clear_toolkit_cache
+from app.ai.tools.types import ToolDefinition, ToolParameter
 
 SIMPLE_TOOLKIT = '''
 """
@@ -246,10 +247,6 @@ async def test_module_cache():
     print("PASS: module cache reuse")
 
 
-if __name__ == "__main__":
-    asyncio.run(_run_all())
-
-
 async def _run_all():
     clear_toolkit_cache()
     await test_async_method()
@@ -281,3 +278,7 @@ async def _run_all():
     await test_module_cache()
     clear_toolkit_cache()
     print("\nAll tests passed!")
+
+
+if __name__ == "__main__":
+    asyncio.run(_run_all())

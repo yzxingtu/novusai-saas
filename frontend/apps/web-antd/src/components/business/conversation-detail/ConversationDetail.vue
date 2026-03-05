@@ -10,7 +10,15 @@ import { computed, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Avatar, Descriptions, Drawer, Empty, Spin, Tag, Timeline } from 'ant-design-vue';
+import {
+  Avatar,
+  Descriptions,
+  Drawer,
+  Empty,
+  Spin,
+  Tag,
+  Timeline,
+} from 'ant-design-vue';
 
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
@@ -19,29 +27,29 @@ import { toAvatarDisplayUrl } from '#/utils/image';
 export interface ConversationMessageItem {
   id: number;
   role: string;
-  content: string | null;
+  content: null | string;
   sequence: number;
-  token_count: number | null;
-  tool_calls: unknown[] | null;
+  token_count: null | number;
+  tool_calls: null | unknown[];
   created_at: string;
 }
 
 export interface ConversationUserInfo {
   id: number;
   username: string;
-  nickname: string | null;
-  avatar: string | null;
+  nickname: null | string;
+  avatar: null | string;
 }
 
 export interface ConversationDetailData {
   id: number;
-  title: string | null;
+  title: null | string;
   status: string;
   token_count: number;
   cost: number;
-  agent_name: string | null;
-  agent_avatar?: string | null;
-  tenant_name?: string | null;
+  agent_name: null | string;
+  agent_avatar?: null | string;
+  tenant_name?: null | string;
   user_info?: ConversationUserInfo | null;
   message_count: number;
   message_list: ConversationMessageItem[];
@@ -52,18 +60,17 @@ export interface ConversationDetailData {
 
 const props = defineProps<{
   conversationId: null | number;
-  open: boolean;
-  /** i18n 前缀，如 'admin.ai.conversation' 或 'tenant.ai.conversation' */
-  i18nPrefix: string;
-  /** 获取对话详情的 API 函数 */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  getDetailApi: (...args: any[]) => Promise<any>;
-  /** 格式化 token 数量的函数 */
-  formatTokens: (count: number | null | undefined) => string;
   /** 格式化费用的函数 */
-  formatCost: (cost: number | null | undefined) => string;
+  formatCost: (cost: null | number | undefined) => string;
+  /** 格式化 token 数量的函数 */
+  formatTokens: (count: null | number | undefined) => string;
+  /** 获取对话详情的 API 函数 */
+  getDetailApi: (id: number, ...args: any[]) => Promise<unknown>;
   /** 获取状态文本的函数 */
   getStatusText: (status: string) => string;
+  /** i18n 前缀，如 'admin.ai.conversation' 或 'tenant.ai.conversation' */
+  i18nPrefix: string;
+  open: boolean;
 }>();
 
 const emits = defineEmits<{ 'update:open': [value: boolean] }>();
@@ -77,7 +84,7 @@ watch(
     if (id) {
       loading.value = true;
       try {
-        detail.value = await props.getDetailApi(id) as ConversationDetailData;
+        detail.value = (await props.getDetailApi(id)) as ConversationDetailData;
       } catch {
         detail.value = null;
       } finally {
@@ -93,26 +100,46 @@ function onClose() {
 
 const messages = computed<ConversationMessageItem[]>(() => {
   if (!detail.value?.message_list) return [];
-  return [...detail.value.message_list].sort((a, b) => a.sequence - b.sequence);
+  return detail.value.message_list.toSorted((a, b) => a.sequence - b.sequence);
 });
 
 function getRoleColor(role: string): string {
   switch (role) {
-    case 'user': return 'blue';
-    case 'assistant': return 'green';
-    case 'system': return 'orange';
-    case 'tool': return 'purple';
-    default: return 'default';
+    case 'assistant': {
+      return 'green';
+    }
+    case 'system': {
+      return 'orange';
+    }
+    case 'tool': {
+      return 'purple';
+    }
+    case 'user': {
+      return 'blue';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
 function getRoleIcon(role: string): string {
   switch (role) {
-    case 'user': return 'lucide:user';
-    case 'assistant': return 'lucide:bot';
-    case 'system': return 'lucide:settings';
-    case 'tool': return 'lucide:wrench';
-    default: return 'lucide:message-circle';
+    case 'assistant': {
+      return 'lucide:bot';
+    }
+    case 'system': {
+      return 'lucide:settings';
+    }
+    case 'tool': {
+      return 'lucide:wrench';
+    }
+    case 'user': {
+      return 'lucide:user';
+    }
+    default: {
+      return 'lucide:message-circle';
+    }
   }
 }
 
@@ -130,7 +157,10 @@ defineExpose({ detail });
       <template v-if="detail">
         <!-- 基本信息 -->
         <Descriptions bordered :column="2" size="small">
-          <Descriptions.Item :label="$t(`${i18nPrefix}.conversationTitle`)" :span="2">
+          <Descriptions.Item
+            :label="$t(`${i18nPrefix}.conversationTitle`)"
+            :span="2"
+          >
             {{ detail.title || '-' }}
           </Descriptions.Item>
           <Descriptions.Item :label="$t(`${i18nPrefix}.agentName`)" :span="1">
@@ -151,7 +181,7 @@ defineExpose({ detail });
           </Descriptions.Item>
 
           <!-- 允许各端插入自定义描述字段 -->
-          <slot name="extra-descriptions" :detail="detail" />
+          <slot name="extra-descriptions" :detail="detail"></slot>
 
           <Descriptions.Item :label="$t(`${i18nPrefix}.tokenCount`)" :span="1">
             {{ formatTokens(detail.token_count) }}
@@ -167,7 +197,10 @@ defineExpose({ detail });
         <!-- 消息时间线 -->
         <div class="mt-6">
           <h4 class="mb-3 font-medium text-foreground">
-            <IconifyIcon icon="lucide:messages-square" class="mr-1 inline size-4" />
+            <IconifyIcon
+              icon="lucide:messages-square"
+              class="mr-1 inline size-4"
+            />
             {{ $t(`${i18nPrefix}.messageList`) }}
           </h4>
 
@@ -187,21 +220,37 @@ defineExpose({ detail });
                     :src="toAvatarDisplayUrl(detail.user_info.avatar)"
                     :size="22"
                   />
-                  <Avatar v-else :size="22" class="bg-primary/10 text-primary text-xs">
-                    {{ (detail.user_info.nickname || detail.user_info.username || '?').charAt(0) }}
+                  <Avatar
+                    v-else
+                    :size="22"
+                    class="bg-primary/10 text-xs text-primary"
+                  >
+                    {{
+                      (
+                        detail.user_info.nickname ||
+                        detail.user_info.username ||
+                        '?'
+                      ).charAt(0)
+                    }}
                   </Avatar>
                   <span class="text-sm font-medium text-foreground">
                     {{ detail.user_info.nickname || detail.user_info.username }}
                   </span>
                 </template>
                 <!-- assistant message: show agent avatar + name -->
-                <template v-else-if="msg.role === 'assistant' && detail?.agent_name">
+                <template
+                  v-else-if="msg.role === 'assistant' && detail?.agent_name"
+                >
                   <Avatar
                     v-if="detail.agent_avatar"
                     :src="toAvatarDisplayUrl(detail.agent_avatar)"
                     :size="22"
                   />
-                  <Avatar v-else :size="22" class="bg-success/10 text-success text-xs">
+                  <Avatar
+                    v-else
+                    :size="22"
+                    class="bg-success/10 text-xs text-success"
+                  >
                     {{ (detail.agent_name || '?').charAt(0) }}
                   </Avatar>
                   <span class="text-sm font-medium text-foreground">
@@ -211,23 +260,35 @@ defineExpose({ detail });
                 <!-- other roles: fallback to tag -->
                 <template v-else>
                   <Tag :color="getRoleColor(msg.role)" size="small">
-                    <IconifyIcon :icon="getRoleIcon(msg.role)" class="mr-0.5 inline size-3" />
+                    <IconifyIcon
+                      :icon="getRoleIcon(msg.role)"
+                      class="mr-0.5 inline size-3"
+                    />
                     {{ msg.role }}
                   </Tag>
                 </template>
                 <span class="text-xs text-muted-foreground">
                   #{{ msg.sequence }} · {{ formatDate(msg.created_at) }}
                 </span>
-                <span v-if="msg.token_count" class="text-xs text-muted-foreground">
+                <span
+                  v-if="msg.token_count"
+                  class="text-xs text-muted-foreground"
+                >
                   · {{ formatTokens(msg.token_count) }} tokens
                 </span>
               </div>
-              <div class="rounded-lg bg-accent p-3 text-sm whitespace-pre-wrap">
+              <div class="whitespace-pre-wrap rounded-lg bg-accent p-3 text-sm">
                 {{ msg.content || '-' }}
               </div>
               <!-- tool_calls 展示 -->
-              <div v-if="msg.tool_calls && msg.tool_calls.length > 0" class="mt-1">
-                <pre class="max-h-[150px] overflow-auto rounded bg-accent/50 p-2 text-xs">{{ JSON.stringify(msg.tool_calls, null, 2) }}</pre>
+              <div
+                v-if="msg.tool_calls && msg.tool_calls.length > 0"
+                class="mt-1"
+              >
+                <pre
+                  class="max-h-[150px] overflow-auto rounded bg-accent/50 p-2 text-xs"
+                  >{{ JSON.stringify(msg.tool_calls, null, 2) }}</pre
+                >
               </div>
             </Timeline.Item>
           </Timeline>

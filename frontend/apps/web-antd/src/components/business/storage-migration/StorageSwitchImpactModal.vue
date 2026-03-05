@@ -27,8 +27,8 @@ import { getImpactAnalysisApi } from '#/api/admin/storage-migration';
 import { $t } from '#/locales';
 
 const emit = defineEmits<{
-  (e: 'confirm-switch'): void;
-  (e: 'go-migrate', source: string, target: string): void;
+  (e: 'confirmSwitch'): void;
+  (e: 'goMigrate', source: string, target: string): void;
 }>();
 
 const visible = ref(false);
@@ -44,7 +44,9 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 ** i).toFixed(1)} ${units[i]}`;
 }
 
-const hasPrivateFiles = computed(() => (analysis.value?.private_files ?? 0) > 0);
+const hasPrivateFiles = computed(
+  () => (analysis.value?.private_files ?? 0) > 0,
+);
 const hasPublicFiles = computed(() => (analysis.value?.public_files ?? 0) > 0);
 const hasFiles = computed(() => (analysis.value?.total_files ?? 0) > 0);
 
@@ -66,12 +68,12 @@ async function open(source: string, target: string) {
 
 function onConfirmSwitch() {
   visible.value = false;
-  emit('confirm-switch');
+  emit('confirmSwitch');
 }
 
 function onGoMigrate() {
   visible.value = false;
-  emit('go-migrate', sourceDriver.value, targetDriver.value);
+  emit('goMigrate', sourceDriver.value, targetDriver.value);
 }
 
 defineExpose({ open });
@@ -106,7 +108,9 @@ defineExpose({ open });
             <Statistic
               :title="$t('admin.storageMigration.impactAnalysis.privateFiles')"
               :value="analysis.private_files"
-              :value-style="{ color: analysis.private_files > 0 ? '#cf1322' : undefined }"
+              :value-style="{
+                color: analysis.private_files > 0 ? '#cf1322' : undefined,
+              }"
             />
           </div>
           <div class="rounded-lg border p-3 text-center">

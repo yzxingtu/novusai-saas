@@ -6,12 +6,13 @@
 
 from fastapi import APIRouter
 
-from app.core.deps import DbSession, ActiveAdmin
+from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.rbac.decorators import auth_only
-from app.services.common.notification_preference_service import NotificationPreferenceService
-
+from app.services.common.notification_preference_service import (
+    NotificationPreferenceService,
+)
 
 router = APIRouter(prefix="/notification-preferences", tags=["通知偏好"])
 

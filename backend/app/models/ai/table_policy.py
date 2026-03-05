@@ -9,7 +9,7 @@ AI 表策略模型
 - 列描述（含枚举合法值，帮助 LLM 生成正确 SQL）
 """
 
-from sqlalchemy import Boolean, Index, Integer, String, Text, JSON, ForeignKey
+from sqlalchemy import JSON, Boolean, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import BaseModel, TenantModel

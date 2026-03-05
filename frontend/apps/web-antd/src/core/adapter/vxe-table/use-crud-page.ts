@@ -38,10 +38,9 @@ import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
 
 import { message, Modal } from 'ant-design-vue';
 
+import DependencyBlockModal from '#/components/business/dependency-block-modal/index.vue';
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
-
-import DependencyBlockModal from '#/components/business/dependency-block-modal/index.vue';
 
 import { CrudGrid, RecycleBinDrawer, useExportModal } from './components';
 import { useGridSearchFormOptions, useVbenVxeGrid } from './use-vxe-grid';
@@ -88,7 +87,9 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   const recycleBinRef = ref<InstanceType<typeof RecycleBinDrawer> | null>(null);
 
   // ==================== 依赖阻止弹窗 ====================
-  const depBlockRef = ref<InstanceType<typeof DependencyBlockModal> | null>(null);
+  const depBlockRef = ref<InstanceType<typeof DependencyBlockModal> | null>(
+    null,
+  );
 
   // ==================== 表单弹窗 ====================
   let FormPopup:
@@ -430,8 +431,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
             h(RecycleBinDrawer, {
               ref: recycleBinRef,
               resource: api.resource,
-              nameField:
-                recycleBinConfig.nameField ?? (nameField as string),
+              nameField: recycleBinConfig.nameField ?? (nameField as string),
               columns: recycleBinConfig.columns,
               onRestored: onRefresh,
             }),
@@ -439,9 +439,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         }
 
         // 渲染依赖阻止弹窗
-        children.push(
-          h(DependencyBlockModal, { ref: depBlockRef }),
-        );
+        children.push(h(DependencyBlockModal, { ref: depBlockRef }));
 
         return h('div', { class: 'crud-page-grid h-full' }, children);
       };

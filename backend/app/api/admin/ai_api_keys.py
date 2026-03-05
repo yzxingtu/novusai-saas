@@ -7,23 +7,23 @@
 from fastapi import Query, Request
 
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, QueryParams, ActiveAdmin
 from app.core.base_schema import PageResponse
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
-    action_read,
     action_create,
-    action_update,
     action_delete,
+    action_read,
+    action_update,
+    permission_resource,
 )
 from app.schemas.ai.api_key import (
     ProviderApiKeyCreate,
-    ProviderApiKeyUpdate,
     ProviderApiKeyResponse,
+    ProviderApiKeyUpdate,
 )
 from app.services.ai import ProviderApiKeyService
 
@@ -46,13 +46,13 @@ def _make_key_preview(key) -> str | None:
 def _build_api_key_response(key) -> dict:
     """
     构建 API Key 响应数据
-    
+
     手动处理 is_available 方法和其他字段
     """
     # 安全地访问关系，避免 AttributeError
     provider_name = None
     tenant_name = None
-    
+
     # 只有在 tenant_id 不为 None 时才尝试访问 tenant 关系
     if key.tenant_id is not None:
         try:
@@ -61,7 +61,7 @@ def _build_api_key_response(key) -> dict:
                 tenant_name = tenant.name
         except AttributeError:
             pass
-    
+
     # 尝试访问 provider 关系
     try:
         provider = getattr(key, 'provider', None)
@@ -69,7 +69,7 @@ def _build_api_key_response(key) -> dict:
             provider_name = provider.name
     except AttributeError:
         pass
-    
+
     return {
         "id": key.id,
         "provider_id": key.provider_id,

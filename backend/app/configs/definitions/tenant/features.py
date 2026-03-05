@@ -4,10 +4,9 @@
 包含租户级的功能模块启用/禁用配置
 """
 
-from app.configs.meta import ConfigMeta
 from app.configs.definitions.groups import TENANT_FEATURES_GROUP
+from app.configs.meta import ConfigMeta
 from app.enums.config import ConfigScope, ConfigValueType
-
 
 # ==========================================
 # 用户管理功能

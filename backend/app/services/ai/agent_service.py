@@ -9,17 +9,19 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from app.schemas.common.query import QuerySpec
 
-from app.repositories.ai.agent_repository import AgentRepository, AdminAgentRepository
-from app.repositories.ai.agent_version_repository import AgentVersionRepository
-from app.repositories.ai.agent_access_repository import AgentAccessRepository
-from app.models.ai.agent import Agent
-from app.models.ai.agent_version import AgentVersion
-from app.core.base_service import TenantService, GlobalService
+from app.configs.service import ConfigService
+from app.core.base_service import GlobalService, TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.enums.agent import AgentStatusEnum, AgentVisibilityEnum, AccessTypeEnum
-from app.exceptions import AuthorizationException, BusinessException, NotFoundException
-
+from app.enums.agent import AccessTypeEnum, AgentStatusEnum, AgentVisibilityEnum
+from app.exceptions import BusinessException, NotFoundException
+from app.models.ai.agent import Agent
+from app.repositories.ai.agent_access_repository import AgentAccessRepository
+from app.repositories.ai.agent_memory_override_repository import (
+    AgentMemoryOverrideRepository,
+)
+from app.repositories.ai.agent_repository import AdminAgentRepository, AgentRepository
+from app.repositories.ai.agent_version_repository import AgentVersionRepository
 
 logger = LogManager.get_logger("ai.agent_service")
 
@@ -59,6 +61,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
     async def _snapshot_skill_bindings(self, agent_id: int) -> list[dict[str, Any]]:
         """快照当前 Agent 的技能绑定列表（用于版本发布）"""
         from sqlalchemy import select
+
         from app.models.ai.agent_skill_binding import AgentSkillBinding
 
         result = await self.db.execute(
@@ -125,6 +128,93 @@ class AgentService(TenantService[Agent, AgentRepository]):
     def _get_access_repo(self) -> AgentAccessRepository:
         """获取访问权限 Repository"""
         return AgentAccessRepository(self.db, self.tenant_id)
+
+    def _get_memory_override_repo(self) -> AgentMemoryOverrideRepository:
+        """获取租户记忆开关覆盖 Repository"""
+        return AgentMemoryOverrideRepository(self.db, self.tenant_id)
+
+    async def _get_platform_default_memory_enabled(self) -> bool:
+        """获取平台默认记忆开关（默认 True）"""
+        config_service = ConfigService(self.db)
+        value = await config_service.get_platform_config(
+            "platform_default_memory_enabled",
+            default=True,
+        )
+        return bool(value)
+
+    async def resolve_memory_effective_config(self, agent_id: int) -> dict[str, bool]:
+        """
+        计算智能体记忆最终生效状态（租户侧）
+
+        规则：
+            effective = platform_default_memory_enabled
+                        AND admin_agent_memory_enabled
+                        AND (NOT tenant_agent_memory_disabled)
+        """
+        agent = await self.repo.get_by_id(agent_id)
+        if not agent:
+            raise NotFoundException(message=_("agent.error.not_found"))
+
+        platform_enabled = await self._get_platform_default_memory_enabled()
+        admin_agent_enabled = bool(getattr(agent, "memory_enabled", True))
+
+        override_repo = self._get_memory_override_repo()
+        override = await override_repo.get_by_agent_id(agent_id)
+        tenant_disabled = bool(override and override.disabled)
+
+        effective = platform_enabled and admin_agent_enabled and (not tenant_disabled)
+
+        return {
+            "platform_default_memory_enabled": platform_enabled,
+            "admin_agent_memory_enabled": admin_agent_enabled,
+            "tenant_agent_memory_disabled": tenant_disabled,
+            "effective_memory_enabled": effective,
+        }
+
+    async def get_memory_config(self, agent_id: int) -> dict[str, Any]:
+        """
+        获取租户侧智能体记忆配置状态
+        """
+        await self.get_agent_detail(agent_id)
+        resolved = await self.resolve_memory_effective_config(agent_id)
+        return {
+            "agent_id": agent_id,
+            **resolved,
+        }
+
+    async def set_memory_disabled(
+        self,
+        agent_id: int,
+        disabled: bool,
+    ) -> dict[str, Any]:
+        """
+        设置租户侧“关闭记忆”覆盖（仅支持关闭/恢复默认）
+        """
+        agent = await self.repo.get_by_id(agent_id)
+        if not agent:
+            raise NotFoundException(message=_("agent.error.not_found"))
+
+        # 租户端仅允许操作自有 agent；全局/系统 agent 不允许覆盖
+        if agent.tenant_id != self.tenant_id:
+            raise BusinessException(message=_("agent.error.system_protected"))
+
+        override_repo = self._get_memory_override_repo()
+        existing = await override_repo.get_by_agent_id(agent_id)
+
+        if disabled:
+            if existing:
+                await override_repo.update(existing.id, {"disabled": True})
+            else:
+                await override_repo.create({
+                    "tenant_id": self.tenant_id,
+                    "agent_id": agent_id,
+                    "disabled": True,
+                })
+        else:
+            if existing:
+                await override_repo.delete(existing.id, soft=False)
+
+        return await self.get_memory_config(agent_id)
 
     async def _before_create(self, data: dict[str, Any]) -> None:
         """创建前校验：名称唯一性 + 插件钩子"""
@@ -290,6 +380,12 @@ class AgentService(TenantService[Agent, AgentRepository]):
                 result["model_code"] = model_obj.code
         except AttributeError:
             pass
+
+        # 附加记忆开关计算结果（租户服务）
+        resolved = await self.resolve_memory_effective_config(agent_id)
+        result["memory_enabled"] = bool(getattr(agent, "memory_enabled", True))
+        result["effective_memory_enabled"] = resolved["effective_memory_enabled"]
+        result["memory_disabled_by_tenant"] = resolved["tenant_agent_memory_disabled"]
 
         return result
 
@@ -648,6 +744,50 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
     model = Agent
     repository_class = AdminAgentRepository
 
+    async def _get_platform_default_memory_enabled(self) -> bool:
+        """获取平台默认记忆开关（默认 True）"""
+        config_service = ConfigService(self.db)
+        value = await config_service.get_platform_config(
+            "platform_default_memory_enabled",
+            default=True,
+        )
+        return bool(value)
+
+    async def get_memory_config(self, agent_id: int) -> dict[str, Any]:
+        """
+        获取管理端智能体记忆配置状态
+        """
+        agent = await self.repo.get_by_id(agent_id)
+        if not agent:
+            raise NotFoundException(message=_("agent.error.not_found"))
+
+        platform_enabled = await self._get_platform_default_memory_enabled()
+        admin_agent_enabled = bool(getattr(agent, "memory_enabled", True))
+        effective = platform_enabled and admin_agent_enabled
+
+        return {
+            "agent_id": agent_id,
+            "platform_default_memory_enabled": platform_enabled,
+            "admin_agent_memory_enabled": admin_agent_enabled,
+            "tenant_agent_memory_disabled": False,
+            "effective_memory_enabled": effective,
+        }
+
+    async def set_memory_enabled(
+        self,
+        agent_id: int,
+        enabled: bool,
+    ) -> dict[str, Any]:
+        """
+        设置管理端 Agent 级记忆开关
+        """
+        agent = await self.repo.get_by_id(agent_id)
+        if not agent:
+            raise NotFoundException(message=_("agent.error.not_found"))
+
+        await self.repo.update(agent_id, {"memory_enabled": bool(enabled)})
+        return await self.get_memory_config(agent_id)
+
     async def _before_create(self, data: dict[str, Any]) -> None:
         """创建前校验：scope + tenant_id 一致性、名称唯一性"""
         await super()._before_create(data)
@@ -726,7 +866,9 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
             ResourceScopeEnum.ASSIGNED_TENANTS.value,
             ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
         ):
-            from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
+            from app.repositories.system.resource_tenant_assignment_repository import (
+                ResourceTenantAssignmentRepository,
+            )
             rta_repo = ResourceTenantAssignmentRepository(self.db)
             await rta_repo.delete_all_for_resource("agent", id)
 

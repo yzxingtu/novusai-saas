@@ -21,9 +21,9 @@ export interface ImpactAnalysis {
   public_files: number;
   public_size_bytes: number;
   tenant_breakdown: Array<{
-    tenant_id: number | null;
     file_count: number;
     size_bytes: number;
+    tenant_id: null | number;
   }>;
   scope: string;
 }
@@ -36,6 +36,12 @@ export function getImpactAnalysisApi(
 ) {
   return requestClient.get<ImpactAnalysis>(
     `${PLUGIN_API_BASE}/impact-analysis`,
-    { params: { source_driver: sourceDriver, target_driver: targetDriver, scope } },
+    {
+      params: {
+        source_driver: sourceDriver,
+        target_driver: targetDriver,
+        scope,
+      },
+    },
   );
 }

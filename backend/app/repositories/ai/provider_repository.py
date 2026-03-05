@@ -4,27 +4,24 @@ AI 供应商 Repository
 处理 AI 供应商数据访问
 """
 
-from typing import Any
 
-from sqlalchemy import select, func
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.core.base_repository import BaseRepository
-from app.core.i18n import _
 from app.models.ai import AIProvider
-from app.schemas.common.query import QuerySpec, FilterRule
+from app.schemas.common.query import FilterRule, QuerySpec
 
 
 class AIProviderRepository(BaseRepository[AIProvider]):
     """
     AI 供应商 Repository
-    
+
     提供 AI 供应商的数据访问操作
     """
-    
+
     model = AIProvider
-    
+
     async def query_list(
         self,
         spec: QuerySpec,
@@ -68,34 +65,34 @@ class AIProviderRepository(BaseRepository[AIProvider]):
     ) -> AIProvider | None:
         """
         根据代码获取供应商
-        
+
         Args:
             code: 供应商代码
             include_deleted: 是否包含已删除的记录
-            
+
         Returns:
             AIProvider 对象或 None
         """
         stmt = select(AIProvider).where(
             AIProvider.code == code
         )
-        
+
         if not include_deleted:
             stmt = stmt.where(AIProvider.is_deleted.is_(False))
-        
+
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
-    
+
     async def get_active_providers(
         self,
         limit: int | None = None
     ) -> list[AIProvider]:
         """
         获取启用的供应商列表
-        
+
         Args:
             limit: 限制返回数量
-            
+
         Returns:
             AIProvider 列表
         """
@@ -106,13 +103,13 @@ class AIProviderRepository(BaseRepository[AIProvider]):
             AIProvider.sort_order.asc(),
             AIProvider.created_at.desc()
         )
-        
+
         if limit:
             stmt = stmt.limit(limit)
-        
+
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
-    
+
     async def code_exists(
         self,
         code: str,
@@ -120,11 +117,11 @@ class AIProviderRepository(BaseRepository[AIProvider]):
     ) -> bool:
         """
         检查代码是否已存在
-        
+
         Args:
             code: 供应商代码
             exclude_id: 排除的 ID（用于更新时检查）
-            
+
         Returns:
             是否存在
         """
@@ -132,10 +129,10 @@ class AIProviderRepository(BaseRepository[AIProvider]):
             AIProvider.code == code,
             AIProvider.is_deleted.is_(False)
         )
-        
+
         if exclude_id:
             stmt = stmt.where(AIProvider.id != exclude_id)
-        
+
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none() is not None
 

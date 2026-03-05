@@ -9,6 +9,7 @@ import { useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
 
+import PluginNotificationUI from '#/components/business/plugin-slots/PluginNotificationUI.vue';
 import { useNotificationToast } from '#/composables/use-notification-toast';
 
 const router = useRouter();
@@ -16,24 +17,42 @@ const { toasts, removeToast } = useNotificationToast();
 
 function getCategoryIcon(category: string): string {
   switch (category) {
-    case 'system': return 'lucide:monitor';
-    case 'ai': return 'lucide:sparkles';
-    case 'task': return 'lucide:list-checks';
-    case 'biz': return 'lucide:briefcase';
-    case 'audit': return 'lucide:shield';
-    default: return 'lucide:bell';
+    case 'ai': {
+      return 'lucide:sparkles';
+    }
+    case 'audit': {
+      return 'lucide:shield';
+    }
+    case 'biz': {
+      return 'lucide:briefcase';
+    }
+    case 'system': {
+      return 'lucide:monitor';
+    }
+    case 'task': {
+      return 'lucide:list-checks';
+    }
+    default: {
+      return 'lucide:bell';
+    }
   }
 }
 
 function getPriorityClass(priority: string): string {
   switch (priority) {
-    case 'urgent': return 'border-destructive/60 bg-destructive/5';
-    case 'high': return 'border-warning/60 bg-warning/5';
-    default: return 'border-border bg-background';
+    case 'high': {
+      return 'border-warning/60 bg-warning/5';
+    }
+    case 'urgent': {
+      return 'border-destructive/60 bg-destructive/5';
+    }
+    default: {
+      return 'border-border bg-background';
+    }
   }
 }
 
-function handleClick(toast: { id: number; link?: string | null }) {
+function handleClick(toast: { id: number; link?: null | string }) {
   if (toast.link) {
     if (toast.link.startsWith('http://') || toast.link.startsWith('https://')) {
       window.open(toast.link, '_blank');
@@ -47,7 +66,11 @@ function handleClick(toast: { id: number; link?: string | null }) {
 
 <template>
   <Teleport to="body">
-    <div role="status" aria-live="polite" class="fixed right-4 bottom-4 z-[9999] flex flex-col-reverse gap-3">
+    <div
+      role="status"
+      aria-live="polite"
+      class="fixed bottom-4 right-4 z-[9999] flex flex-col-reverse gap-3"
+    >
       <TransitionGroup
         name="toast"
         tag="div"
@@ -68,31 +91,42 @@ function handleClick(toast: { id: number; link?: string | null }) {
             <div
               class="flex size-9 flex-shrink-0 items-center justify-center rounded-lg"
               :class="{
-                'bg-primary/10 text-primary': toast.priority === 'normal' || toast.priority === 'low',
+                'bg-primary/10 text-primary':
+                  toast.priority === 'normal' || toast.priority === 'low',
                 'bg-warning/10 text-warning': toast.priority === 'high',
-                'bg-destructive/10 text-destructive': toast.priority === 'urgent',
+                'bg-destructive/10 text-destructive':
+                  toast.priority === 'urgent',
               }"
             >
-              <IconifyIcon :icon="getCategoryIcon(toast.category)" class="size-5" />
+              <IconifyIcon
+                :icon="getCategoryIcon(toast.category)"
+                class="size-5"
+              />
             </div>
 
             <!-- 内容 -->
             <div class="min-w-0 flex-1">
-              <div class="text-foreground text-sm font-medium leading-tight">
+              <div class="text-sm font-medium leading-tight text-foreground">
                 {{ toast.title }}
               </div>
               <div
                 v-if="toast.body"
-                class="text-muted-foreground mt-1 line-clamp-2 text-xs leading-relaxed"
+                class="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground"
               >
                 {{ toast.body }}
+              </div>
+              <div v-if="toast.template_code" class="mt-2">
+                <PluginNotificationUI
+                  :event="toast.template_code"
+                  :data="toast.data ?? {}"
+                />
               </div>
             </div>
 
             <!-- 关闭按钮 -->
             <button
               :aria-label="$t('common.close')"
-              class="text-muted-foreground hover:text-foreground flex-shrink-0 transition-colors"
+              class="flex-shrink-0 text-muted-foreground transition-colors hover:text-foreground"
               @click.stop="removeToast(toast.id)"
             >
               <IconifyIcon icon="lucide:x" class="size-4" />
@@ -128,9 +162,25 @@ function handleClick(toast: { id: number; link?: string | null }) {
 }
 
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
-  20%, 40%, 60%, 80% { transform: translateX(2px); }
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-2px);
+  }
+
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(2px);
+  }
 }
 
 .animate-shake {

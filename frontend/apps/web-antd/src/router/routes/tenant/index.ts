@@ -74,8 +74,7 @@ const mainRoutes: RouteRecordRaw = {
     {
       name: 'TenantAISkillPackageDetail',
       path: 'ai/skill-packages/:id',
-      component: () =>
-        import('#/views/tenant/ai/skill-packages/detail.vue'),
+      component: () => import('#/views/tenant/ai/skill-packages/detail.vue'),
       meta: {
         hideInMenu: true,
         title: $t('tenant.ai.skillPackage.detail.title'),
@@ -86,8 +85,7 @@ const mainRoutes: RouteRecordRaw = {
     {
       name: 'TenantAIAgentDetail',
       path: 'ai/agents/:id',
-      component: () =>
-        import('#/views/tenant/ai/agents/detail.vue'),
+      component: () => import('#/views/tenant/ai/agents/detail.vue'),
       meta: {
         hideInMenu: true,
         title: $t('tenant.ai.agent.detail.title'),

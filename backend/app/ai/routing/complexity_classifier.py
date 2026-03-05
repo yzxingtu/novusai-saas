@@ -35,6 +35,7 @@ _TURNS_THRESHOLD_MEDIUM = 10
 _TURNS_THRESHOLD_COMPLEX = 20
 _LONG_MESSAGE_CHARS = 500
 _TOOLS_THRESHOLD = 5
+_TOOLS_SCORE = 2
 
 
 class ComplexityLevel(str, Enum):
@@ -56,7 +57,7 @@ class ComplexityClassifier:
     - 最新用户消息 > 500 字符：+1 分
     - 消息含 +2 关键词（分析/推理/代码/analyze/reasoning/...）：+2 分
     - 消息含 +1 关键词（综合/评估/数学/synthesize/evaluate/...）：+1 分
-    - 工具数量 > 5：+1 分
+    - 工具数量 > 5：+2 分
     - 消息轮数 > 20：额外 +1 分
     - 有附件（图片等）：自动升为 MEDIUM 及以上
 
@@ -105,7 +106,7 @@ class ComplexityClassifier:
         tools: list | None,
     ) -> int:
         score = 0
-        turn_count = len(messages)
+        turn_count = self._get_turn_count(messages)
 
         if turn_count > _TURNS_THRESHOLD_MEDIUM:
             score += 2
@@ -127,7 +128,7 @@ class ComplexityClassifier:
             score += 1
 
         if tools and len(tools) > _TOOLS_THRESHOLD:
-            score += 1
+            score += _TOOLS_SCORE
 
         return score
 
@@ -152,6 +153,13 @@ class ComplexityClassifier:
             if msg.role == "user":
                 return msg.content or ""
         return ""
+
+    @staticmethod
+    def _get_turn_count(messages: list[ChatMessage]) -> int:
+        """Count conversation turns only when user intent exists."""
+        if not any(msg.role == "user" for msg in messages):
+            return 0
+        return len(messages)
 
     @staticmethod
     def _get_all_user_content(messages: list[ChatMessage]) -> str:

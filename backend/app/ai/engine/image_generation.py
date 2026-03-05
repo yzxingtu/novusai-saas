@@ -8,13 +8,13 @@
 from __future__ import annotations
 
 import time
-from dataclasses import asdict
-from typing import TYPE_CHECKING, AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import TYPE_CHECKING
 
 from fastapi.responses import StreamingResponse
 
-from app.ai.sse import SSEChunkEncoder
 from app.ai.engine.types import ExecutionRequest, ExecutionResult
+from app.ai.sse import SSEChunkEncoder
 from app.core.logging import LogManager
 
 if TYPE_CHECKING:

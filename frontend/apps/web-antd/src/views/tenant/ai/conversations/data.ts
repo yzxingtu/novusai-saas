@@ -7,14 +7,17 @@ import type { ConversationInfo } from '#/api/tenant/conversations';
 
 import { searchInput, select } from '#/adapter/form';
 import { $t } from '#/locales';
-import { formatCost } from '#/utils/format';
-
-export { formatCost };
 
 function getStatusOptions() {
   return [
-    { label: $t('tenant.ai.conversation.status_options.active'), value: 'active' },
-    { label: $t('tenant.ai.conversation.status_options.archived'), value: 'archived' },
+    {
+      label: $t('tenant.ai.conversation.status_options.active'),
+      value: 'active',
+    },
+    {
+      label: $t('tenant.ai.conversation.status_options.archived'),
+      value: 'archived',
+    },
   ];
 }
 
@@ -24,9 +27,15 @@ function getStatusOptions() {
 export function getStatusText(status: string | undefined): string {
   if (!status) return '-';
   switch (status) {
-    case 'active': return $t('tenant.ai.conversation.status_options.active');
-    case 'archived': return $t('tenant.ai.conversation.status_options.archived');
-    default: return status;
+    case 'active': {
+      return $t('tenant.ai.conversation.status_options.active');
+    }
+    case 'archived': {
+      return $t('tenant.ai.conversation.status_options.archived');
+    }
+    default: {
+      return status;
+    }
   }
 }
 
@@ -133,3 +142,5 @@ export function useGridFormSchema(): VbenFormSchema[] {
     }),
   ];
 }
+
+export { formatCost } from '#/utils/format';

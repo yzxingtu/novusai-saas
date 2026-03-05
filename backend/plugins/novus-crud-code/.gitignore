@@ -1,0 +1,10 @@
+# Python 编译缓存
+__pycache__/
+*.py[cod]
+*.pyo
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+frontend/package-lock.json
+frontend/*.local

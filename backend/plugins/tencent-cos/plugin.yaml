@@ -31,6 +31,7 @@ extensions:
 dependencies:
   python:
     - "cos-python-sdk-v5>=1.9"
+    - "anyio>=4.0.0"
   plugins: []
 
 pricing:

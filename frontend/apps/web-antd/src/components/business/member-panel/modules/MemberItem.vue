@@ -86,7 +86,11 @@ function handleResetPassword() {
   >
     <!-- 头像 + 在线指示器 -->
     <div class="relative flex-shrink-0">
-      <Avatar v-if="member.avatar" :src="toAvatarDisplayUrl(member.avatar)" :size="40" />
+      <Avatar
+        v-if="member.avatar"
+        :src="toAvatarDisplayUrl(member.avatar)"
+        :size="40"
+      />
       <Avatar v-else :size="40" class="bg-primary text-white">
         {{ avatarText }}
       </Avatar>
@@ -95,7 +99,7 @@ function handleResetPassword() {
         v-if="showOnlineStatus"
         class="absolute -bottom-0.5 -right-0.5 block size-3 rounded-full border-2 border-background"
         :class="online ? 'bg-green-500' : 'bg-muted-foreground/30'"
-      />
+      ></span>
       <!-- 负责人皇冠图标 -->
       <div
         v-if="isLeader"
@@ -138,7 +142,11 @@ function handleResetPassword() {
         <!-- 创建时间 -->
         <Tooltip
           v-if="member.createdAt"
-          :title="$t('shared.memberPanel.item.createdAt', { date: formatDate(member.createdAt) })"
+          :title="
+            $t('shared.memberPanel.item.createdAt', {
+              date: formatDate(member.createdAt),
+            })
+          "
         >
           <span class="flex items-center gap-0.5 text-xs text-gray-400">
             <IconifyIcon icon="lucide:calendar" class="h-3 w-3" />
@@ -179,7 +187,10 @@ function handleResetPassword() {
       </Tooltip>
 
       <!-- 设置/取消负责人 -->
-      <Tooltip v-if="isLeader" :title="$t('shared.memberPanel.item.cancelLeader')">
+      <Tooltip
+        v-if="isLeader"
+        :title="$t('shared.memberPanel.item.cancelLeader')"
+      >
         <Popconfirm
           :title="$t('shared.memberPanel.item.cancelLeaderConfirm')"
           :ok-text="$t('shared.common.confirm')"

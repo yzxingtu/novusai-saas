@@ -8,7 +8,6 @@ import pytest
 
 from app.plugins.loader import PluginLoader
 
-
 _MANIFEST_CONTENT = """name: demo-plugin
 version: \"1.0.0\"
 display_name:

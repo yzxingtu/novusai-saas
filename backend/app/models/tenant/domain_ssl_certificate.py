@@ -6,7 +6,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Index
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import BaseModel
@@ -184,8 +184,9 @@ class DomainSslCertificate(BaseModel):
         """30 天内即将过期"""
         if not self.expires_at:
             return False
-        from app.core.base_model import utc_now
         from datetime import timedelta
+
+        from app.core.base_model import utc_now
         return self.expires_at < utc_now() + timedelta(days=30)
 
     def __repr__(self) -> str:

@@ -6,8 +6,6 @@
  */
 import type { AITablePolicyInfo } from '#/api/admin/ai';
 
-defineOptions({ name: 'AITablePolicyList' });
-
 import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -25,6 +23,8 @@ import { $t } from '#/locales';
 
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
+
+defineOptions({ name: 'AITablePolicyList' });
 
 /**
  * 切换策略启用状态
@@ -92,23 +92,26 @@ async function onSync() {
   });
 }
 
-const { Grid, FormDrawer, onRefresh } =
-  useCrudPage<AITablePolicyInfo>({
-    api: {
-      list: getAITablePolicyListApi,
-      resource: '/admin/ai/table-policies',
-    },
-    columns: useColumns,
-    searchSchema: useGridFormSchema(),
-    formComponent: Form,
-    i18nPrefix: 'admin.ai.tablePolicy',
-    nameField: 'table_name',
-    defaultSort: 'sort_order',
-  });
+const { Grid, FormDrawer, onRefresh } = useCrudPage<AITablePolicyInfo>({
+  api: {
+    list: getAITablePolicyListApi,
+    resource: '/admin/ai/table-policies',
+  },
+  columns: useColumns,
+  searchSchema: useGridFormSchema(),
+  formComponent: Form,
+  i18nPrefix: 'admin.ai.tablePolicy',
+  nameField: 'table_name',
+  defaultSort: 'sort_order',
+});
 </script>
 
 <template>
-  <Page auto-content-height :description="$t('admin.ai.tablePolicy.pageDesc')" content-class="flex flex-col gap-4">
+  <Page
+    auto-content-height
+    :description="$t('admin.ai.tablePolicy.pageDesc')"
+    content-class="flex flex-col gap-4"
+  >
     <FormDrawer @success="onRefresh" />
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
@@ -123,16 +126,22 @@ const { Grid, FormDrawer, onRefresh } =
               <IconifyIcon
                 icon="lucide:table-2"
                 class="size-4"
-                :class="row.is_active ? 'text-primary' : 'text-muted-foreground'"
+                :class="
+                  row.is_active ? 'text-primary' : 'text-muted-foreground'
+                "
               />
             </div>
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-1.5">
                 <Tooltip :title="row.description || undefined">
-                  <code class="text-sm font-semibold text-foreground">{{ row.table_name }}</code>
+                  <code class="text-sm font-semibold text-foreground">{{
+                    row.table_name
+                  }}</code>
                 </Tooltip>
               </div>
-              <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div
+                class="flex items-center gap-1.5 text-xs text-muted-foreground"
+              >
                 <span>{{ row.label }}</span>
                 <span v-if="row.permission_code" class="text-[10px] opacity-60">
                   · {{ row.permission_code }}
@@ -159,7 +168,9 @@ const { Grid, FormDrawer, onRefresh } =
               <button
                 v-access:code="['ai_table_policy:update']"
                 class="crud-btn"
-                :class="row.allow_create ? 'crud-btn--create-on' : 'crud-btn--off'"
+                :class="
+                  row.allow_create ? 'crud-btn--create-on' : 'crud-btn--off'
+                "
                 @click="onToggleCrud(row, 'allow_create')"
               >
                 C
@@ -169,7 +180,9 @@ const { Grid, FormDrawer, onRefresh } =
               <button
                 v-access:code="['ai_table_policy:update']"
                 class="crud-btn"
-                :class="row.allow_update ? 'crud-btn--update-on' : 'crud-btn--off'"
+                :class="
+                  row.allow_update ? 'crud-btn--update-on' : 'crud-btn--off'
+                "
                 @click="onToggleCrud(row, 'allow_update')"
               >
                 U
@@ -179,7 +192,9 @@ const { Grid, FormDrawer, onRefresh } =
               <button
                 v-access:code="['ai_table_policy:update']"
                 class="crud-btn"
-                :class="row.allow_delete ? 'crud-btn--delete-on' : 'crud-btn--off'"
+                :class="
+                  row.allow_delete ? 'crud-btn--delete-on' : 'crud-btn--off'
+                "
                 @click="onToggleCrud(row, 'allow_delete')"
               >
                 D
@@ -224,13 +239,13 @@ const { Grid, FormDrawer, onRefresh } =
   justify-content: center;
   width: 32px;
   height: 26px;
-  border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  border: 1px solid transparent;
-  transition: all 0.15s ease;
   user-select: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  transition: all 0.15s ease;
 }
 
 .crud-btn:hover {
@@ -238,8 +253,8 @@ const { Grid, FormDrawer, onRefresh } =
 }
 
 .crud-btn--off {
-  background: hsl(var(--muted));
   color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted));
   border-color: hsl(var(--border));
 }
 
@@ -248,26 +263,26 @@ const { Grid, FormDrawer, onRefresh } =
 }
 
 .crud-btn--read-on {
-  background: rgb(34 197 94 / 0.15);
   color: rgb(22 163 74);
-  border-color: rgb(34 197 94 / 0.3);
+  background: rgb(34 197 94 / 15%);
+  border-color: rgb(34 197 94 / 30%);
 }
 
 .crud-btn--create-on {
-  background: rgb(59 130 246 / 0.15);
   color: rgb(37 99 235);
-  border-color: rgb(59 130 246 / 0.3);
+  background: rgb(59 130 246 / 15%);
+  border-color: rgb(59 130 246 / 30%);
 }
 
 .crud-btn--update-on {
-  background: rgb(249 115 22 / 0.15);
   color: rgb(234 88 12);
-  border-color: rgb(249 115 22 / 0.3);
+  background: rgb(249 115 22 / 15%);
+  border-color: rgb(249 115 22 / 30%);
 }
 
 .crud-btn--delete-on {
-  background: rgb(239 68 68 / 0.15);
   color: rgb(220 38 38);
-  border-color: rgb(239 68 68 / 0.3);
+  background: rgb(239 68 68 / 15%);
+  border-color: rgb(239 68 68 / 30%);
 }
 </style>

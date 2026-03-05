@@ -4,8 +4,6 @@
  */
 import type { TenantAICallLogInfo } from '#/api/tenant/ai';
 
-defineOptions({ name: 'TenantAICallLogList' });
-
 import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -18,8 +16,16 @@ import { getTenantAICallLogListApi } from '#/api/tenant/ai';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
-import { formatCost, getStatusColor, getStatusText, useColumns, useGridFormSchema } from './data';
+import {
+  formatCost,
+  getStatusColor,
+  getStatusText,
+  useColumns,
+  useGridFormSchema,
+} from './data';
 import CallLogDetail from './modules/CallLogDetail.vue';
+
+defineOptions({ name: 'TenantAICallLogList' });
 
 const detailOpen = ref(false);
 const detailLogId = ref<null | number>(null);
@@ -58,12 +64,13 @@ const { Grid, gridApi } = useCrudPage<TenantAICallLogInfo>({
 </script>
 
 <template>
-  <Page auto-content-height :description="$t('tenant.ai.callLog.pageDesc')" content-class="flex flex-col gap-4">
+  <Page
+    auto-content-height
+    :description="$t('tenant.ai.callLog.pageDesc')"
+    content-class="flex flex-col gap-4"
+  >
     <!-- 详情抽屉 -->
-    <CallLogDetail
-      v-model:open="detailOpen"
-      :log-id="detailLogId"
-    />
+    <CallLogDetail v-model:open="detailOpen" :log-id="detailLogId" />
 
     <!-- 快速筛选 -->
     <div class="flex items-center gap-2">
@@ -79,7 +86,10 @@ const { Grid, gridApi } = useCrudPage<TenantAICallLogInfo>({
         size="small"
         @click="applyQuickFilter('success')"
       >
-        <IconifyIcon icon="lucide:check-circle" class="mr-1 inline size-3.5 text-success" />
+        <IconifyIcon
+          icon="lucide:check-circle"
+          class="mr-1 inline size-3.5 text-success"
+        />
         {{ $t('tenant.ai.callLog.filter.onlySuccess') }}
       </Button>
       <Button
@@ -87,7 +97,10 @@ const { Grid, gridApi } = useCrudPage<TenantAICallLogInfo>({
         size="small"
         @click="applyQuickFilter('failed')"
       >
-        <IconifyIcon icon="lucide:x-circle" class="mr-1 inline size-3.5 text-destructive" />
+        <IconifyIcon
+          icon="lucide:x-circle"
+          class="mr-1 inline size-3.5 text-destructive"
+        />
         {{ $t('tenant.ai.callLog.filter.onlyFailed') }}
       </Button>
     </div>

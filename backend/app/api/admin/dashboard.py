@@ -12,11 +12,10 @@
 
 from fastapi import APIRouter, Query
 
-from app.core.deps import DbSession, ActiveAdmin
+from app.core.deps import ActiveAdmin, DbSession
 from app.core.response import success
 from app.rbac.decorators import auth_only
 from app.services.system.dashboard_service import AdminDashboardService
-
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard (Platform)"])
 

@@ -7,6 +7,7 @@
 - 语言上下文管理
 """
 
+import contextlib
 import json
 import logging
 from contextvars import ContextVar
@@ -59,13 +60,13 @@ def _find_plugin_locale_file(plugin_locale_dir: Path, locale: str) -> Path | Non
 def _load_translations(locale: str) -> dict[str, Any]:
     """
     加载指定语言的翻译文件
-    
+
     加载目录下所有 *.json 文件，深度合并到统一的翻译字典。
     同时扫描 app/plugins/*/locales/ 目录，自动合并插件的翻译文件。
-    
+
     Args:
         locale: 语言代码，如 'zh_CN', 'en'
-    
+
     Returns:
         翻译字典
     """
@@ -76,10 +77,10 @@ def _load_translations(locale: str) -> dict[str, Any]:
     if locale_dir.exists():
         for json_file in sorted(locale_dir.glob("*.json")):
             try:
-                with open(json_file, "r", encoding="utf-8") as f:
+                with open(json_file, encoding="utf-8") as f:
                     data = json.load(f)
                     translations = _deep_merge(translations, data)
-            except (json.JSONDecodeError, IOError) as e:
+            except (OSError, json.JSONDecodeError) as e:
                 logger.warning("Failed to load translation file %s: %s", json_file, e)
 
     # 2. 扫描插件翻译文件
@@ -100,10 +101,10 @@ def _load_translations(locale: str) -> dict[str, Any]:
             locale_file = _find_plugin_locale_file(plugin_locale_dir, locale)
             if locale_file:
                 try:
-                    with open(locale_file, "r", encoding="utf-8") as f:
+                    with open(locale_file, encoding="utf-8") as f:
                         data = json.load(f)
                         translations = _deep_merge(translations, data)
-                except (json.JSONDecodeError, IOError) as e:
+                except (OSError, json.JSONDecodeError) as e:
                     logger.warning(
                         "Failed to load plugin translation %s: %s",
                         locale_file, e,
@@ -115,7 +116,7 @@ def _load_translations(locale: str) -> dict[str, Any]:
 def reload_translations() -> None:
     """
     清除翻译缓存，强制重新加载所有翻译文件。
-    
+
     在插件安装/卸载后调用，确保插件的翻译文件被加载。
     """
     _load_translations.cache_clear()
@@ -129,7 +130,7 @@ def get_locale() -> str:
 def set_locale(locale: str) -> None:
     """
     设置当前请求的语言
-    
+
     Args:
         locale: 语言代码
     """
@@ -142,10 +143,10 @@ def set_locale(locale: str) -> None:
 def get_translations(locale: str | None = None) -> dict[str, Any]:
     """
     获取指定语言的翻译字典
-    
+
     Args:
         locale: 语言代码，默认使用当前上下文语言
-    
+
     Returns:
         翻译字典
     """
@@ -157,15 +158,15 @@ def get_translations(locale: str | None = None) -> dict[str, Any]:
 def translate(key: str, locale: str | None = None, **kwargs: Any) -> str:
     """
     翻译指定的 key
-    
+
     Args:
         key: 翻译键，支持点号分隔的嵌套键，如 'auth.login_success'
         locale: 语言代码，默认使用当前上下文语言
         **kwargs: 用于格式化的参数
-    
+
     Returns:
         翻译后的字符串，如果找不到则返回 key
-    
+
     Examples:
         >>> translate('common.success')
         '操作成功'
@@ -174,33 +175,37 @@ def translate(key: str, locale: str | None = None, **kwargs: Any) -> str:
     """
     if locale is None:
         locale = get_locale()
-    
+
     translations = get_translations(locale)
-    
-    # 按点号分割 key，逐层查找
-    keys = key.split(".")
-    value: Any = translations
-    
-    for k in keys:
-        if isinstance(value, dict) and k in value:
-            value = value[k]
-        else:
-            # 找不到翻译，尝试回退到默认语言
+
+    # 兼容 flat-json：支持 {"plugin.netdisk.name": "..."} 这类点号键
+    direct_hit = translations.get(key) if isinstance(translations, dict) else None
+    if isinstance(direct_hit, str):
+        value: Any = direct_hit
+    else:
+        # 按点号分割 key，逐层查找嵌套字典
+        keys = key.split(".")
+        value = translations
+        for k in keys:
+            if isinstance(value, dict) and k in value:
+                value = value[k]
+            else:
+                # 找不到翻译，尝试回退到默认语言
+                if locale != DEFAULT_LOCALE:
+                    return translate(key, locale=DEFAULT_LOCALE, **kwargs)
+                # 默认语言也找不到，返回 key
+                return key
+
+        if not isinstance(value, str):
             if locale != DEFAULT_LOCALE:
                 return translate(key, locale=DEFAULT_LOCALE, **kwargs)
-            # 默认语言也找不到，返回 key
             return key
-    
-    if not isinstance(value, str):
-        return key
-    
+
     # 格式化参数替换
     if kwargs:
-        try:
+        with contextlib.suppress(KeyError):
             value = value.format(**kwargs)
-        except KeyError:
-            pass
-    
+
     return value
 
 
@@ -211,13 +216,13 @@ _ = translate
 def parse_accept_language(accept_language: str | None) -> str:
     """
     解析 Accept-Language 头，返回最佳匹配的语言
-    
+
     Args:
         accept_language: HTTP Accept-Language 头的值
-    
+
     Returns:
         最佳匹配的语言代码
-    
+
     Examples:
         >>> parse_accept_language('zh-CN,zh;q=0.9,en;q=0.8')
         'zh_CN'
@@ -226,14 +231,14 @@ def parse_accept_language(accept_language: str | None) -> str:
     """
     if not accept_language:
         return DEFAULT_LOCALE
-    
+
     # 解析语言偏好列表
     languages = []
     for part in accept_language.split(","):
         part = part.strip()
         if not part:
             continue
-        
+
         # 解析语言和权重
         if ";q=" in part:
             lang, q = part.split(";q=")
@@ -244,36 +249,27 @@ def parse_accept_language(accept_language: str | None) -> str:
         else:
             lang = part
             weight = 1.0
-        
+
         # 标准化语言代码
         lang = lang.strip().replace("-", "_")
         languages.append((lang, weight))
-    
+
     # 按权重排序
     languages.sort(key=lambda x: x[1], reverse=True)
-    
+
     # 查找最佳匹配
     for lang, _ in languages:
         # 精确匹配
         if lang in SUPPORTED_LOCALES:
             return lang
-        
+
         # 前缀匹配（如 zh 匹配 zh_CN）
         lang_prefix = lang.split("_")[0]
         for supported in SUPPORTED_LOCALES:
             if supported.startswith(lang_prefix):
                 return supported
-    
+
     return DEFAULT_LOCALE
-
-
-def reload_translations() -> None:
-    """
-    重新加载翻译文件（清除缓存）
-    
-    用于开发环境中动态更新翻译
-    """
-    _load_translations.cache_clear()
 
 
 # 导出

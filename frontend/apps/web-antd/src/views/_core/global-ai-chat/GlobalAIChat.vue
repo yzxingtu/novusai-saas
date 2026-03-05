@@ -5,9 +5,7 @@
  * Uses the shared AIChatPanel component in 'drawer' mode.
  * Automatically detects admin vs tenant context from the current route path.
  */
-defineOptions({ name: 'GlobalAIChat' });
-
-import { ref, computed, watch, onMounted } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
@@ -19,6 +17,8 @@ import { getTenantSelectableKBApi } from '#/api/tenant/knowledge-bases';
 import { AIChatPanel } from '#/components/business/ai-chat-panel';
 import { $t } from '#/locales';
 import { useGlobalAIChatStore, useNotificationStore } from '#/store';
+
+defineOptions({ name: 'GlobalAIChat' });
 
 const route = useRoute();
 const router = useRouter();
@@ -51,13 +51,16 @@ const apiPrefix = computed(() => {
 const uploadUrl = computed(() => `${apiPrefix.value}/attachments/upload`);
 
 const fetchKBApi = computed(() =>
-  apiPrefix.value === '/admin' ? getAdminSelectableKBApi : getTenantSelectableKBApi,
+  apiPrefix.value === '/admin'
+    ? getAdminSelectableKBApi
+    : getTenantSelectableKBApi,
 );
 
 // ============ Fullscreen switch ============
 
 function openFullPage() {
-  const chatPath = apiPrefix.value === '/admin' ? '/admin/ai/chat' : '/tenant/ai/chat';
+  const chatPath =
+    apiPrefix.value === '/admin' ? '/admin/ai/chat' : '/tenant/ai/chat';
   chatStore.hide();
   router.push(chatPath);
 }
@@ -79,13 +82,17 @@ function loadSavedWidth() {
       const w = Number.parseInt(saved, 10);
       if (w >= MIN_WIDTH && w <= MAX_WIDTH) drawerWidth.value = w;
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 function saveWidth() {
   try {
     localStorage.setItem(STORAGE_KEY, String(drawerWidth.value));
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 function onDragStart(e: MouseEvent) {
@@ -96,7 +103,10 @@ function onDragStart(e: MouseEvent) {
 
   function onMouseMove(ev: MouseEvent) {
     const diff = startX - ev.clientX;
-    drawerWidth.value = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + diff));
+    drawerWidth.value = Math.min(
+      MAX_WIDTH,
+      Math.max(MIN_WIDTH, startWidth + diff),
+    );
   }
 
   function onMouseUp() {
@@ -165,22 +175,14 @@ watch(
           </Button>
         </Tooltip>
         <Tooltip :title="$t('common.globalAiChat.openFullPage')">
-          <Button
-            size="small"
-            type="text"
-            @click="openFullPage"
-          >
+          <Button size="small" type="text" @click="openFullPage">
             <template #icon>
               <IconifyIcon icon="lucide:maximize-2" class="size-3.5" />
             </template>
           </Button>
         </Tooltip>
         <Tooltip :title="$t('common.globalAiChat.minimize')">
-          <Button
-            size="small"
-            type="text"
-            @click="chatStore.minimize()"
-          >
+          <Button size="small" type="text" @click="chatStore.minimize()">
             <template #icon>
               <IconifyIcon icon="lucide:minus" class="size-3.5" />
             </template>
@@ -194,7 +196,7 @@ watch(
       class="absolute left-0 top-0 z-10 h-full w-1 cursor-col-resize transition-colors hover:bg-primary/30"
       :class="dragging ? 'bg-primary/40' : ''"
       @mousedown="onDragStart"
-    />
+    ></div>
 
     <AIChatPanel
       ref="chatPanelRef"
@@ -204,7 +206,10 @@ watch(
       :show-attachments="true"
       :show-kb-selector="true"
       :fetch-kb-api="fetchKBApi"
-      :on-tool-call="(name: string, output: string) => chatStore.dispatchToolCall(name, output)"
+      :on-tool-call="
+        (name: string, output: string) =>
+          chatStore.dispatchToolCall(name, output)
+      "
       :on-stream-complete="handleStreamComplete"
     />
   </Drawer>
@@ -217,11 +222,13 @@ watch(
       @click="chatStore.restore()"
     >
       <IconifyIcon icon="lucide:bot" class="size-5" />
-      <span class="text-sm font-medium">{{ $t('common.globalAiChat.title') }}</span>
+      <span class="text-sm font-medium">{{
+        $t('common.globalAiChat.title')
+      }}</span>
       <span
         v-if="chatStore.hasUnread"
         class="size-2 rounded-full bg-destructive"
-      />
+      ></span>
       <IconifyIcon
         icon="lucide:x"
         class="ml-1 size-3.5 opacity-60 hover:opacity-100"
@@ -235,14 +242,17 @@ watch(
 .bubble-enter-active {
   animation: bubble-in 0.3s ease-out;
 }
+
 .bubble-leave-active {
   animation: bubble-in 0.2s ease-in reverse;
 }
+
 @keyframes bubble-in {
   0% {
     opacity: 0;
     transform: scale(0.6) translateY(20px);
   }
+
   100% {
     opacity: 1;
     transform: scale(1) translateY(0);

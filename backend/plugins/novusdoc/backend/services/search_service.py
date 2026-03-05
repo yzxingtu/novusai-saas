@@ -24,10 +24,12 @@ async def search_documents(
     """全文搜索文档（标题 ILIKE + PostgreSQL tsvector）"""
     like_pattern = f"%{query}%"
     title_match = NovusdocDocument.title.ilike(like_pattern)
+    # NOTE: Never pass raw user input as tsquery, otherwise special characters
+    # can cause PostgreSQL parsing errors and return 500.
     content_match = func.to_tsvector(
         "simple",
         func.coalesce(NovusdocDocument.content_text, ""),
-    ).match(query, postgresql_regconfig="simple")
+    ).op("@@")(func.plainto_tsquery("simple", query))
 
     base = select(NovusdocDocument).where(
         NovusdocDocument.tenant_id == tenant_id,

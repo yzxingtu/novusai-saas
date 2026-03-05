@@ -5,36 +5,35 @@ import { useRouter } from 'vue-router';
 import { AuthenticationLoginExpiredModal } from '@vben/common-ui';
 import { useWatermark } from '@vben/hooks';
 import { IconifyIcon } from '@vben/icons';
-import {
-  BasicLayout,
-  LockScreen,
-  UserDropdown,
-} from '@vben/layouts';
+import { BasicLayout, LockScreen, UserDropdown } from '@vben/layouts';
 import { preferences } from '@vben/preferences';
 import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
 
-import { Popover, Tooltip } from 'ant-design-vue';
-import { message } from 'ant-design-vue';
+import { message, Popover, Tooltip } from 'ant-design-vue';
 
 import { getApiEndpoint } from '#/api';
-import { $t } from '#/locales';
-import { generateAccess } from '#/router/access';
-import { accessRoutes } from '#/router/routes';
+import CacheClearModal from '#/components/business/cache-clear-modal/CacheClearModal.vue';
 import NotificationPanel from '#/components/business/notification-panel/NotificationPanel.vue';
 import NotificationToast from '#/components/business/notification-toast/NotificationToast.vue';
-import { useGlobalAIChatStore, useMultiAuthStore, useNotificationStore, usePresenceStore, useSocketIOStore } from '#/store';
-import { usePluginSlotsStore } from '#/stores/plugin-slots';
+import PluginFloatingPanels from '#/components/business/plugin-slots/PluginFloatingPanels.vue';
 import {
-  appendPluginMenusToAccessStore,
   refreshPluginSlots,
   resetPluginRoutesReady,
   usePluginFrontendInit,
 } from '#/composables/use-plugin-frontend-init';
-
-import CacheClearModal from '#/components/business/cache-clear-modal/CacheClearModal.vue';
+import { $t } from '#/locales';
+import { generateAccess } from '#/router/access';
+import { accessRoutes } from '#/router/routes';
+import {
+  useGlobalAIChatStore,
+  useMultiAuthStore,
+  useNotificationStore,
+  usePresenceStore,
+  useSocketIOStore,
+} from '#/store';
+import { usePluginSlotsStore } from '#/stores/plugin-slots';
 import LoginForm from '#/views/_core/authentication/login.vue';
 import GlobalAIChat from '#/views/_core/global-ai-chat/GlobalAIChat.vue';
-
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -80,21 +79,24 @@ function clearDisconnectToast() {
     disconnectMsgKey = undefined;
   }
 }
-watch(() => socketIOStore.status, (newStatus, oldStatus) => {
-  if (newStatus === 'disconnected' && oldStatus === 'connected') {
-    // 仅在非主动断开（仍有 endpoint，说明用户未登出）时显示警告
-    if (socketIOStore.currentEndpoint) {
-      disconnectMsgKey = `sio-disconnect-${Date.now()}`;
-      message.warning({
-        content: $t('shared.common.connectionLost'),
-        key: disconnectMsgKey,
-        duration: 0,
-      });
+watch(
+  () => socketIOStore.status,
+  (newStatus, oldStatus) => {
+    if (newStatus === 'disconnected' && oldStatus === 'connected') {
+      // 仅在非主动断开（仍有 endpoint，说明用户未登出）时显示警告
+      if (socketIOStore.currentEndpoint) {
+        disconnectMsgKey = `sio-disconnect-${Date.now()}`;
+        message.warning({
+          content: $t('shared.common.connectionLost'),
+          key: disconnectMsgKey,
+          duration: 0,
+        });
+      }
+    } else if (newStatus === 'connected') {
+      clearDisconnectToast();
     }
-  } else if (newStatus === 'connected') {
-    clearDisconnectToast();
-  }
-});
+  },
+);
 
 onMounted(() => {
   document.addEventListener('keydown', handleGlobalKeydown);
@@ -158,9 +160,6 @@ async function handleLocaleChange() {
     // 更新菜单和路由
     accessStore.setAccessMenus(accessibleMenus);
     accessStore.setAccessRoutes(accessibleRoutes);
-
-    // 重新追加插件菜单（generateAccess 会覆盖 accessMenus）
-    appendPluginMenusToAccessStore();
 
     // 更新所有已打开的 tabs 的 title
     updateAllTabsTitles();
@@ -240,7 +239,9 @@ watch(
             :avatar
             :menus
             :text="userStore.userInfo?.realName"
-            :description="userStore.userInfo?.email || userStore.userInfo?.username"
+            :description="
+              userStore.userInfo?.email || userStore.userInfo?.username
+            "
             :tag-text="userStore.userInfo?.roles?.[0] || ''"
             @logout="handleLogout"
           />
@@ -250,10 +251,10 @@ watch(
               socketIOStore.isConnected
                 ? 'bg-green-500'
                 : socketIOStore.status === 'reconnecting'
-                  ? 'bg-yellow-500 animate-pulse'
+                  ? 'animate-pulse bg-yellow-500'
                   : 'bg-gray-400',
             ]"
-          />
+          ></span>
         </div>
       </Tooltip>
     </template>
@@ -267,34 +268,46 @@ watch(
         <template #content>
           <NotificationPanel />
         </template>
-        <div class="hover:bg-accent relative flex cursor-pointer items-center justify-center rounded-md p-1.5 transition-colors">
+        <div
+          class="relative flex cursor-pointer items-center justify-center rounded-md p-1.5 transition-colors hover:bg-accent"
+        >
           <IconifyIcon icon="lucide:bell" class="size-4" />
           <span
             v-if="notificationStore.unreadCount > 0"
             class="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] text-white"
           >
-            {{ notificationStore.unreadCount > 99 ? '99+' : notificationStore.unreadCount }}
+            {{
+              notificationStore.unreadCount > 99
+                ? '99+'
+                : notificationStore.unreadCount
+            }}
           </span>
         </div>
       </Popover>
     </template>
     <!-- 插件 headerWidgets 动态注入（sort_order 映射到 header-right-{n} 槽位） -->
     <template #header-right-89>
-      <template v-for="widget in pluginSlotsStore.headerWidgets" :key="widget.pluginName + '-' + widget.name">
+      <template
+        v-for="widget in pluginSlotsStore.headerWidgets"
+        :key="`${widget.pluginName}-${widget.name}`"
+      >
         <component :is="widget.component" />
       </template>
     </template>
     <template #header-right-51>
-      <Tooltip :title="`${$t('common.globalAiChat.title')} (Ctrl+\\)`" placement="bottom">
+      <Tooltip
+        :title="`${$t('common.globalAiChat.title')} (Ctrl+\\)`"
+        placement="bottom"
+      >
         <div
-          class="hover:bg-accent relative flex cursor-pointer items-center justify-center rounded-md p-1.5 transition-colors"
+          class="relative flex cursor-pointer items-center justify-center rounded-md p-1.5 transition-colors hover:bg-accent"
           @click="globalAIChatStore.toggle()"
         >
           <IconifyIcon icon="lucide:bot" class="size-4" />
           <span
             v-if="globalAIChatStore.hasUnread"
             class="absolute right-0.5 top-0.5 size-2 rounded-full bg-destructive"
-          />
+          ></span>
         </div>
       </Tooltip>
     </template>
@@ -308,10 +321,8 @@ watch(
       <GlobalAIChat />
       <CacheClearModal ref="cacheClearModalRef" />
       <NotificationToast />
-      <!-- 插件 floatingPanels 动态注入（全局浮动面板） -->
-      <template v-for="panel in pluginSlotsStore.floatingPanels" :key="panel.pluginName + '-' + panel.name">
-        <component :is="panel.component" />
-      </template>
+      <!-- 插件 floatingPanels 动态注入（支持 icon/position/弹出控制） -->
+      <PluginFloatingPanels />
     </template>
     <template #lock-screen>
       <LockScreen :avatar @to-login="handleLogout" />

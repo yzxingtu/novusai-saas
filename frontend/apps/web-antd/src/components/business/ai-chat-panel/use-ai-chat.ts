@@ -15,11 +15,12 @@ import type {
   ToolCallEvent,
 } from './types';
 
-import { nextTick, ref, computed, unref } from 'vue';
+import { computed, nextTick, ref, unref } from 'vue';
 
 import { message } from 'ant-design-vue';
 
 import {
+  clearChatConversationMemoryApi,
   deleteChatConversationApi,
   getChatAgentsApi,
   getChatConversationMessagesApi,
@@ -38,9 +39,9 @@ export interface UseAIChatOptions {
   /** Upload endpoint */
   uploadUrl: Ref<string> | string;
   /** Initial agent ID to auto-select after loading agents */
-  initialAgentId?: Ref<number | undefined> | number;
+  initialAgentId?: number | Ref<number | undefined>;
   /** Initial conversation ID to auto-load after agent is selected */
-  initialConversationId?: Ref<number | undefined> | number;
+  initialConversationId?: number | Ref<number | undefined>;
   /** Callback when a tool call completes successfully */
   onToolCall?: (toolName: string, output: string) => void;
   /** Callback when streaming completes (used for unread badge) */
@@ -48,19 +49,16 @@ export interface UseAIChatOptions {
 }
 
 export function useAIChat(options: UseAIChatOptions) {
-  const {
-    validateChatFile,
-    revokePreviewUrls,
-  } = useFileUpload();
+  const { validateChatFile, revokePreviewUrls } = useFileUpload();
 
   // ============ Agents ============
 
   const agents = ref<AgentItem[]>([]);
   const agentsLoading = ref(false);
-  const selectedAgentId = ref<number | null>(null);
+  const selectedAgentId = ref<null | number>(null);
 
-  const selectedAgent = computed(() =>
-    agents.value.find((a) => a.id === selectedAgentId.value) ?? null,
+  const selectedAgent = computed(
+    () => agents.value.find((a) => a.id === selectedAgentId.value) ?? null,
   );
 
   /**
@@ -75,11 +73,10 @@ export function useAIChat(options: UseAIChatOptions) {
       agents.value = res.items;
       if (res.items.length > 0 && !selectedAgentId.value) {
         const initId = overrideAgentId ?? unref(options.initialAgentId);
-        if (initId && res.items.some((a) => a.id === initId)) {
-          selectedAgentId.value = initId;
-        } else {
-          selectedAgentId.value = res.items[0]!.id;
-        }
+        selectedAgentId.value =
+          initId && res.items.some((a) => a.id === initId)
+            ? initId
+            : res.items[0]!.id;
       }
     } catch {
       // handled by interceptor
@@ -91,6 +88,8 @@ export function useAIChat(options: UseAIChatOptions) {
   function selectAgent(agentId: number) {
     if (selectedAgentId.value === agentId) return;
     selectedAgentId.value = agentId;
+    conversationsRequestSeq += 1;
+    messagesRequestSeq += 1;
     activeConversationId.value = null;
     chatMessages.value = [];
     clearPendingAttachments();
@@ -100,30 +99,53 @@ export function useAIChat(options: UseAIChatOptions) {
 
   const conversations = ref<ConversationItem[]>([]);
   const conversationsLoading = ref(false);
-  const activeConversationId = ref<number | null>(null);
+  const activeConversationId = ref<null | number>(null);
+  const clearingMemory = ref(false);
+
+  /** 请求序号防护：避免旧异步响应覆盖最新状态 */
+  let conversationsRequestSeq = 0;
+  let messagesRequestSeq = 0;
 
   async function loadConversations() {
     if (!selectedAgentId.value) return;
+    const currentAgentId = selectedAgentId.value;
+    const reqSeq = ++conversationsRequestSeq;
     conversationsLoading.value = true;
     try {
       const prefix = unref(options.apiPrefix) as string;
-      const res = await getChatConversationsApi<ConversationItem>(prefix, selectedAgentId.value);
+      const res = await getChatConversationsApi<ConversationItem>(
+        prefix,
+        currentAgentId,
+      );
+      if (
+        reqSeq !== conversationsRequestSeq ||
+        selectedAgentId.value !== currentAgentId
+      ) {
+        return;
+      }
       conversations.value = res.items;
 
       // Auto-load initial conversation (only once)
       const initConvId = unref(options.initialConversationId);
-      if (initConvId && !_initialConvRestored && res.items.some((c) => c.id === initConvId)) {
+      if (
+        initConvId &&
+        !_initialConvRestored &&
+        res.items.some((c) => c.id === initConvId)
+      ) {
         _initialConvRestored = true;
         await loadConversationMessages(initConvId);
       }
     } catch {
       // handled by interceptor
     } finally {
-      conversationsLoading.value = false;
+      if (reqSeq === conversationsRequestSeq) {
+        conversationsLoading.value = false;
+      }
     }
   }
 
   function startNewConversation() {
+    messagesRequestSeq += 1;
     activeConversationId.value = null;
     chatMessages.value = [];
   }
@@ -133,6 +155,7 @@ export function useAIChat(options: UseAIChatOptions) {
       const prefix = unref(options.apiPrefix) as string;
       await deleteChatConversationApi(prefix, selectedAgentId.value!, convId);
       if (activeConversationId.value === convId) {
+        messagesRequestSeq += 1;
         activeConversationId.value = null;
         chatMessages.value = [];
       }
@@ -143,15 +166,53 @@ export function useAIChat(options: UseAIChatOptions) {
   }
 
   async function loadConversationMessages(convId: number) {
+    const currentAgentId = selectedAgentId.value;
+    if (!currentAgentId) return;
+    const reqSeq = ++messagesRequestSeq;
     activeConversationId.value = convId;
     try {
       const prefix = unref(options.apiPrefix) as string;
-      const res = await getChatConversationMessagesApi(prefix, selectedAgentId.value!, convId);
+      const res = await getChatConversationMessagesApi(
+        prefix,
+        currentAgentId,
+        convId,
+      );
+      if (
+        reqSeq !== messagesRequestSeq ||
+        selectedAgentId.value !== currentAgentId ||
+        activeConversationId.value !== convId
+      ) {
+        return;
+      }
 
       chatMessages.value = mergeMessagesForDisplay(res.message_list ?? []);
       scrollToBottom(true);
     } catch {
       // handled by interceptor
+    }
+  }
+
+  async function clearConversationMemory(): Promise<boolean> {
+    if (
+      !selectedAgentId.value ||
+      !activeConversationId.value ||
+      clearingMemory.value
+    ) {
+      return false;
+    }
+    clearingMemory.value = true;
+    try {
+      const prefix = unref(options.apiPrefix) as string;
+      await clearChatConversationMemoryApi(
+        prefix,
+        selectedAgentId.value,
+        activeConversationId.value,
+      );
+      return true;
+    } catch {
+      return false;
+    } finally {
+      clearingMemory.value = false;
     }
   }
 
@@ -167,15 +228,15 @@ export function useAIChat(options: UseAIChatOptions) {
    */
   function mergeMessagesForDisplay(
     rawMessages: Array<{
+      content: null | string;
+      metadata?: null | { attachments?: ChatAttachment[] };
       role: string;
-      content: string | null;
+      tool_call_id?: null | string;
       tool_calls?: Array<{
+        function?: { arguments?: string; name?: string };
         id?: string;
-        function?: { name?: string; arguments?: string };
       }> | null;
-      tool_call_id?: string | null;
-      tool_name?: string | null;
-      metadata?: { attachments?: ChatAttachment[] } | null;
+      tool_name?: null | string;
     }>,
   ): ChatMessage[] {
     // Filter out system messages
@@ -187,7 +248,7 @@ export function useAIChat(options: UseAIChatOptions) {
     // Collect tool responses keyed by tool_call_id for quick lookup
     const toolResponseMap = new Map<
       string,
-      { content: string; success: boolean; error?: string; name?: string }
+      { content: string; error?: string; name?: string; success: boolean }
     >();
     for (const m of filtered) {
       if (m.role === 'tool' && m.tool_call_id) {
@@ -247,12 +308,17 @@ export function useAIChat(options: UseAIChatOptions) {
 
               toolCalls.push({
                 name: funcName,
-                status: response ? (response.success ? 'success' : 'error') : 'error',
+                status: response
+                  ? response.success
+                    ? 'success'
+                    : 'error'
+                  : 'error',
                 arguments: parsedArgs,
                 output: response?.success ? response.content : undefined,
-                error: response && !response.success
-                  ? (response.error || response.content)
-                  : undefined,
+                error:
+                  response && !response.success
+                    ? response.error || response.content
+                    : undefined,
               });
             }
           }
@@ -342,27 +408,32 @@ export function useAIChat(options: UseAIChatOptions) {
 
   // ============ Model Capabilities ============
 
-  const supportsVision = computed(() =>
-    selectedAgent.value?.model_capabilities?.supports_vision ?? false,
+  const supportsVision = computed(
+    () => selectedAgent.value?.model_capabilities?.supports_vision ?? false,
   );
 
   const totalTokensUsed = computed(() =>
     chatMessages.value.reduce((sum, m) => sum + (m.tokenUsage || 0), 0),
   );
 
-  const imageParams = ref<{ size: string; quality: string; style: string; n: number }>({
+  const imageParams = ref<{
+    n: number;
+    quality: string;
+    size: string;
+    style: string;
+  }>({
     size: '1024x1024',
     quality: 'standard',
     style: 'vivid',
     n: 1,
   });
 
-  const maxImageCount = computed(() =>
-    selectedAgent.value?.model_capabilities?.max_image_count ?? 5,
+  const maxImageCount = computed(
+    () => selectedAgent.value?.model_capabilities?.max_image_count ?? 5,
   );
 
-  const maxImageSizeMb = computed(() =>
-    selectedAgent.value?.model_capabilities?.max_image_size_mb ?? 10,
+  const maxImageSizeMb = computed(
+    () => selectedAgent.value?.model_capabilities?.max_image_size_mb ?? 10,
   );
 
   /**
@@ -394,13 +465,21 @@ export function useAIChat(options: UseAIChatOptions) {
    * Compress an image file using Canvas API.
    * Returns the original file if compression is not possible or not needed.
    */
-  async function compressImage(file: File, maxDimension = 2048, quality = 0.85): Promise<File> {
+  async function compressImage(
+    file: File,
+    maxDimension = 2048,
+    quality = 0.85,
+  ): Promise<File> {
     return new Promise((resolve) => {
       const img = new Image();
-      img.onload = () => {
+      img.addEventListener('load', () => {
         URL.revokeObjectURL(img.src);
         let { width, height } = img;
-        if (width <= maxDimension && height <= maxDimension && file.size < 1024 * 1024) {
+        if (
+          width <= maxDimension &&
+          height <= maxDimension &&
+          file.size < 1024 * 1024
+        ) {
           resolve(file);
           return;
         }
@@ -413,18 +492,32 @@ export function useAIChat(options: UseAIChatOptions) {
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
-        if (!ctx) { resolve(file); return; }
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
         ctx.drawImage(img, 0, 0, width, height);
         canvas.toBlob(
           (blob) => {
-            if (!blob || blob.size >= file.size) { resolve(file); return; }
-            resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }));
+            if (!blob || blob.size >= file.size) {
+              resolve(file);
+              return;
+            }
+            resolve(
+              new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              }),
+            );
           },
           'image/jpeg',
           quality,
         );
+      });
+      img.onerror = () => {
+        URL.revokeObjectURL(img.src);
+        resolve(file);
       };
-      img.onerror = () => { URL.revokeObjectURL(img.src); resolve(file); };
       img.src = URL.createObjectURL(file);
     });
   }
@@ -473,7 +566,7 @@ export function useAIChat(options: UseAIChatOptions) {
   async function handleFileSelect(e: Event) {
     const input = e.target as HTMLInputElement;
     if (!input.files?.length) return;
-    for (const file of Array.from(input.files)) {
+    for (const file of input.files) {
       if (!validateUpload(file)) continue;
       const att = await uploadFile(file);
       if (att) pendingAttachments.value.push(att);
@@ -486,7 +579,7 @@ export function useAIChat(options: UseAIChatOptions) {
     if (!items) return;
 
     const imageFiles: File[] = [];
-    for (const item of Array.from(items)) {
+    for (const item of items) {
       if (item.type.startsWith('image/')) {
         const file = item.getAsFile();
         if (file) imageFiles.push(file);
@@ -511,7 +604,7 @@ export function useAIChat(options: UseAIChatOptions) {
     e.preventDefault();
     const files = e.dataTransfer?.files;
     if (!files?.length) return;
-    for (const file of Array.from(files)) {
+    for (const file of files) {
       if (!validateUpload(file)) continue;
       const att = await uploadFile(file);
       if (att) pendingAttachments.value.push(att);
@@ -552,7 +645,11 @@ export function useAIChat(options: UseAIChatOptions) {
     const silent = opts?.silent ?? false;
     const hasText = inputMessage.value.trim().length > 0;
     const hasAttachments = pendingAttachments.value.length > 0;
-    if ((!hasText && !hasAttachments) || !selectedAgentId.value || sending.value)
+    if (
+      (!hasText && !hasAttachments) ||
+      !selectedAgentId.value ||
+      sending.value
+    )
       return;
 
     const userMsg = inputMessage.value.trim();
@@ -565,7 +662,11 @@ export function useAIChat(options: UseAIChatOptions) {
         attachments: msgAttachments.length > 0 ? msgAttachments : undefined,
       });
     }
-    chatMessages.value.push({ role: 'assistant', content: '', streaming: true });
+    chatMessages.value.push({
+      role: 'assistant',
+      content: '',
+      streaming: true,
+    });
     userScrolledUp = false;
     scrollToBottom(true);
 
@@ -579,14 +680,15 @@ export function useAIChat(options: UseAIChatOptions) {
     streamAbortController = new AbortController();
     const assistantIdx = chatMessages.value.length - 1;
 
-    const apiAttachments = msgAttachments.length > 0
-      ? msgAttachments.map(({ type, url, name, mime_type }) => ({
-          type,
-          url,
-          name,
-          mime_type,
-        }))
-      : undefined;
+    const apiAttachments =
+      msgAttachments.length > 0
+        ? msgAttachments.map(({ type, url, name, mime_type }) => ({
+            type,
+            url,
+            name,
+            mime_type,
+          }))
+        : undefined;
 
     function finalizeMessage() {
       const msg = chatMessages.value[assistantIdx];
@@ -616,9 +718,9 @@ export function useAIChat(options: UseAIChatOptions) {
           consented_actions: getConsentedActions(),
           ...(apiAttachments ? { attachments: apiAttachments } : {}),
           ...(imageParams.value.size !== '1024x1024' ||
-              imageParams.value.quality !== 'standard' ||
-              imageParams.value.style !== 'vivid' ||
-              imageParams.value.n !== 1
+          imageParams.value.quality !== 'standard' ||
+          imageParams.value.style !== 'vivid' ||
+          imageParams.value.n !== 1
             ? { image_params: imageParams.value }
             : {}),
         },
@@ -632,107 +734,130 @@ export function useAIChat(options: UseAIChatOptions) {
                 const msg = chatMessages.value[assistantIdx];
                 if (!msg) return;
 
-                if (event.event === 'optimizing_tools') {
-                  msg.optimizingTools = {
-                    total: event.total || 0,
-                    selected: event.selected || 0,
-                  };
-                  scrollToBottom();
-                } else if (event.event === 'thinking') {
-                  // frontend already shows loading via streaming + !content
-                } else if (event.event === 'tool_start') {
-                  if (!msg.toolCalls) msg.toolCalls = [];
-                  msg.toolCalls.push({
-                    name: event.name,
-                    status: 'running',
-                    arguments: event.arguments,
-                    skillName: event.skill_name || undefined,
-                    skillType: event.skill_type || undefined,
-                  });
-                  scrollToBottom();
-                } else if (event.event === 'tool_call') {
-                  if (!msg.toolCalls) msg.toolCalls = [];
-                  // Find matching running tool and update it
-                  const existing = msg.toolCalls.findLast(
-                    (tc) => tc.name === event.name && tc.status === 'running',
-                  );
-                  if (existing) {
-                    existing.status = event.success ? 'success' : 'error';
-                    existing.durationMs = event.duration_ms;
-                    existing.output = event.output;
-                    existing.error = event.error;
-                    if (event.skill_name) existing.skillName = event.skill_name;
-                    if (event.skill_type) existing.skillType = event.skill_type;
-                    if (event.display_name) existing.displayName = event.display_name;
-                    if (event.summary) existing.summary = event.summary;
-                    if (event.result_link) existing.resultLink = event.result_link;
-                  } else {
+                switch (event.event) {
+                  case 'optimizing_tools': {
+                    msg.optimizingTools = {
+                      total: event.total || 0,
+                      selected: event.selected || 0,
+                    };
+                    scrollToBottom();
+
+                    break;
+                  }
+                  case 'thinking': {
+                    // frontend already shows loading via streaming + !content
+
+                    break;
+                  }
+                  case 'tool_call': {
+                    if (!msg.toolCalls) msg.toolCalls = [];
+                    // Find matching running tool and update it
+                    const existing = msg.toolCalls.findLast(
+                      (tc) => tc.name === event.name && tc.status === 'running',
+                    );
+                    if (existing) {
+                      existing.status = event.success ? 'success' : 'error';
+                      existing.durationMs = event.duration_ms;
+                      existing.output = event.output;
+                      existing.error = event.error;
+                      if (event.skill_name)
+                        existing.skillName = event.skill_name;
+                      if (event.skill_type)
+                        existing.skillType = event.skill_type;
+                      if (event.display_name)
+                        existing.displayName = event.display_name;
+                      if (event.summary) existing.summary = event.summary;
+                      if (event.result_link)
+                        existing.resultLink = event.result_link;
+                    } else {
+                      msg.toolCalls.push({
+                        name: event.name,
+                        status: event.success ? 'success' : 'error',
+                        durationMs: event.duration_ms,
+                        output: event.output,
+                        error: event.error,
+                        skillName: event.skill_name || undefined,
+                        skillType: event.skill_type || undefined,
+                        displayName: event.display_name || undefined,
+                        summary: event.summary || undefined,
+                        resultLink: event.result_link || undefined,
+                      });
+                    }
+                    // Dispatch successful tool calls to external handler
+                    if (event.success && options.onToolCall) {
+                      options.onToolCall(event.name, event.output ?? '');
+                    }
+                    scrollToBottom();
+
+                    break;
+                  }
+                  case 'tool_start': {
+                    if (!msg.toolCalls) msg.toolCalls = [];
                     msg.toolCalls.push({
                       name: event.name,
-                      status: event.success ? 'success' : 'error',
-                      durationMs: event.duration_ms,
-                      output: event.output,
-                      error: event.error,
+                      status: 'running',
+                      arguments: event.arguments,
                       skillName: event.skill_name || undefined,
                       skillType: event.skill_type || undefined,
-                      displayName: event.display_name || undefined,
-                      summary: event.summary || undefined,
-                      resultLink: event.result_link || undefined,
                     });
+                    scrollToBottom();
+
+                    break;
                   }
-                  // Dispatch successful tool calls to external handler
-                  if (event.success && options.onToolCall) {
-                    options.onToolCall(event.name, event.output ?? '');
+                  default: {
+                    if (
+                      event.event === 'authorization_required' &&
+                      event.consent_key
+                    ) {
+                      addConsent(event.consent_key);
+                    } else if (event.event === 'confirmation_request') {
+                      msg.pendingConfirmation = {
+                        action: event.action || '',
+                        table: event.table || '',
+                        preview: event.preview,
+                      };
+                    } else if (event.event === 'tool_consent_request') {
+                      msg.pendingConsent = {
+                        toolName: event.name || '',
+                        arguments: event.arguments,
+                        skillName: event.skill_name || undefined,
+                        skillType: event.skill_type || undefined,
+                      };
+                      scrollToBottom();
+                    } else if (
+                      event.event === 'action_buttons' &&
+                      event.buttons
+                    ) {
+                      msg.actionButtons = event.buttons;
+                      scrollToBottom();
+                    } else if (event.event === 'image_result' && event.url) {
+                      if (!msg.imageResults) msg.imageResults = [];
+                      msg.imageResults.push({
+                        url: event.url,
+                        isBase64: event.is_base64 || false,
+                        revisedPrompt: event.revised_prompt || undefined,
+                      });
+                      scrollToBottom();
+                    } else if (event.event === 'rag_sources' && event.sources) {
+                      msg.ragSources = event.sources;
+                    } else if (event.event === 'message' && event.delta) {
+                      msg.content += event.delta;
+                      scrollToBottom();
+                    } else if (event.event === 'done') {
+                      msg.tokenUsage = event.total_tokens || 0;
+                      msg.durationMs = event.duration_ms || 0;
+                      if (event.conversation_id) {
+                        activeConversationId.value = event.conversation_id;
+                      }
+                      if (options.onStreamComplete) {
+                        options.onStreamComplete();
+                      }
+                    } else if (event.error) {
+                      msg.content = `\u26A0\uFE0F ${
+                        event.message || $t('common.requestFailed')
+                      }`;
+                    }
                   }
-                  scrollToBottom();
-                } else if (
-                  event.event === 'authorization_required' &&
-                  event.consent_key
-                ) {
-                  addConsent(event.consent_key);
-                } else if (event.event === 'confirmation_request') {
-                  msg.pendingConfirmation = {
-                    action: event.action || '',
-                    table: event.table || '',
-                    preview: event.preview,
-                  };
-                } else if (event.event === 'tool_consent_request') {
-                  msg.pendingConsent = {
-                    toolName: event.name || '',
-                    arguments: event.arguments,
-                    skillName: event.skill_name || undefined,
-                    skillType: event.skill_type || undefined,
-                  };
-                  scrollToBottom();
-                } else if (event.event === 'action_buttons' && event.buttons) {
-                  msg.actionButtons = event.buttons;
-                  scrollToBottom();
-                } else if (event.event === 'image_result' && event.url) {
-                  if (!msg.imageResults) msg.imageResults = [];
-                  msg.imageResults.push({
-                    url: event.url,
-                    isBase64: event.is_base64 || false,
-                    revisedPrompt: event.revised_prompt || undefined,
-                  });
-                  scrollToBottom();
-                } else if (event.event === 'rag_sources' && event.sources) {
-                  msg.ragSources = event.sources;
-                } else if (event.event === 'message' && event.delta) {
-                  msg.content += event.delta;
-                  scrollToBottom();
-                } else if (event.event === 'done') {
-                  msg.tokenUsage = event.total_tokens || 0;
-                  msg.durationMs = event.duration_ms || 0;
-                  if (event.conversation_id) {
-                    activeConversationId.value = event.conversation_id;
-                  }
-                  if (options.onStreamComplete) {
-                    options.onStreamComplete();
-                  }
-                } else if (event.error) {
-                  msg.content =
-                    '\u26A0\uFE0F ' +
-                    (event.message || $t('common.requestFailed'));
                 }
               } catch {
                 // ignore unparseable lines
@@ -746,7 +871,7 @@ export function useAIChat(options: UseAIChatOptions) {
             if (error.name === 'AbortError') return;
             const msg = chatMessages.value[assistantIdx];
             if (msg && !msg.content) {
-              msg.content = '\u26A0\uFE0F ' + $t('common.requestFailed');
+              msg.content = `\u26A0\uFE0F ${$t('common.requestFailed')}`;
             }
             finalizeMessage();
           },
@@ -818,23 +943,31 @@ export function useAIChat(options: UseAIChatOptions) {
   function exportAsMarkdown() {
     if (chatMessages.value.length === 0) return;
     const agentName = selectedAgent.value?.name || 'AI';
-    const lines: string[] = [`# ${agentName} - ${$t('common.globalAiChat.history')}`, ''];
+    const lines: string[] = [
+      `# ${agentName} - ${$t('common.globalAiChat.history')}`,
+      '',
+    ];
     for (const msg of chatMessages.value) {
       const role = msg.role === 'user' ? '**User**' : `**${agentName}**`;
-      lines.push(`### ${role}`);
-      lines.push('');
+      lines.push(`### ${role}`, '');
       if (msg.content) lines.push(msg.content);
       if (msg.toolCalls?.length) {
         lines.push('');
         for (const tc of msg.toolCalls) {
-          const duration = tc.durationMs ? ` (${(tc.durationMs / 1000).toFixed(1)}s)` : '';
+          const duration = tc.durationMs
+            ? ` (${(tc.durationMs / 1000).toFixed(1)}s)`
+            : '';
           const skill = tc.skillName ? `${tc.skillName} › ` : '';
-          lines.push(`> 🔧 ${skill}${tc.displayName || tc.name} — ${tc.status}${duration}`);
+          lines.push(
+            `> 🔧 ${skill}${tc.displayName || tc.name} — ${tc.status}${duration}`,
+          );
           if (tc.arguments && Object.keys(tc.arguments).length > 0) {
             lines.push(`> **Args:** \`${JSON.stringify(tc.arguments)}\``);
           }
           if (tc.output) {
-            lines.push(`> **Output:** ${tc.output.slice(0, 500)}${tc.output.length > 500 ? '...' : ''}`);
+            lines.push(
+              `> **Output:** ${tc.output.slice(0, 500)}${tc.output.length > 500 ? '...' : ''}`,
+            );
           }
           if (tc.error) {
             lines.push(`> **Error:** ${tc.error}`);
@@ -843,7 +976,9 @@ export function useAIChat(options: UseAIChatOptions) {
       }
       lines.push('');
     }
-    const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+    const blob = new Blob([lines.join('\n')], {
+      type: 'text/markdown;charset=utf-8',
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -917,6 +1052,8 @@ export function useAIChat(options: UseAIChatOptions) {
     loadConversations,
     startNewConversation,
     deleteConversation,
+    clearConversationMemory,
+    clearingMemory,
     loadConversationMessages,
 
     // Chat

@@ -4,20 +4,20 @@
  *
  * 包含统计卡片 + 操作列表
  */
-import type { ActionLogItem } from '#/api/tenant/action-logs';
+import type { ActionLogItem, ActionLogStats } from '#/api/tenant/action-logs';
 
-defineOptions({ name: 'TenantAIActionLogList' });
-
-import { ref, onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Card, Statistic, Tag, Tooltip, Row, Col } from 'ant-design-vue';
+import { Card, Col, Row, Statistic, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
-import { getActionLogListApi, getActionLogStatsApi } from '#/api/tenant/action-logs';
-import type { ActionLogStats } from '#/api/tenant/action-logs';
+import {
+  getActionLogListApi,
+  getActionLogStatsApi,
+} from '#/api/tenant/action-logs';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
@@ -29,6 +29,8 @@ import {
   useColumns,
   useGridFormSchema,
 } from './data';
+
+defineOptions({ name: 'TenantAIActionLogList' });
 
 // ============ 统计 ============
 
@@ -82,7 +84,11 @@ const { Grid } = useCrudPage<ActionLogItem>({
 </script>
 
 <template>
-  <Page auto-content-height :description="$t('tenant.ai.actionLog.pageDesc')" content-class="flex flex-col gap-4">
+  <Page
+    auto-content-height
+    :description="$t('tenant.ai.actionLog.pageDesc')"
+    content-class="flex flex-col gap-4"
+  >
     <!-- 统计卡片 -->
     <Row :gutter="16">
       <Col :span="6">
@@ -92,10 +98,7 @@ const { Grid } = useCrudPage<ActionLogItem>({
             :value="stats.total"
           >
             <template #prefix>
-              <IconifyIcon
-                icon="lucide:activity"
-                class="mr-1 text-primary"
-              />
+              <IconifyIcon icon="lucide:activity" class="mr-1 text-primary" />
             </template>
           </Statistic>
         </Card>
@@ -122,10 +125,7 @@ const { Grid } = useCrudPage<ActionLogItem>({
             :value="stats.rejected_count"
           >
             <template #prefix>
-              <IconifyIcon
-                icon="lucide:shield-x"
-                class="mr-1 text-warning"
-              />
+              <IconifyIcon icon="lucide:shield-x" class="mr-1 text-warning" />
             </template>
           </Statistic>
         </Card>
@@ -135,7 +135,9 @@ const { Grid } = useCrudPage<ActionLogItem>({
           <Statistic
             :title="$t('tenant.ai.actionLog.status_options.failed')"
             :value="stats.failed_count"
-            :value-style="{ color: stats.failed_count > 0 ? '#ff4d4f' : undefined }"
+            :value-style="{
+              color: stats.failed_count > 0 ? '#ff4d4f' : undefined,
+            }"
           >
             <template #prefix>
               <IconifyIcon
@@ -163,10 +165,7 @@ const { Grid } = useCrudPage<ActionLogItem>({
         <!-- 操作名称列 -->
         <template #actionName_cell="{ row }">
           <div class="flex items-center gap-1.5">
-            <IconifyIcon
-              icon="lucide:zap"
-              class="size-3.5 text-primary"
-            />
+            <IconifyIcon icon="lucide:zap" class="size-3.5 text-primary" />
             <code class="rounded bg-accent px-1 py-0.5 text-xs font-medium">
               {{ row.action_name }}
             </code>

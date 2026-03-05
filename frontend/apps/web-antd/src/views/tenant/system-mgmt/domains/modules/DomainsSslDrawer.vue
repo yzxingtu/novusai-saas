@@ -47,7 +47,7 @@ interface SslDrawerData {
 const drawerData = ref<null | SslDrawerData>(null);
 const loading = ref(false);
 const actionLoading = ref(false);
-const sslDetail = ref<SslCertificateInfo | null>(null);
+const sslDetail = ref<null | SslCertificateInfo>(null);
 const showUploadForm = ref(false);
 const uploadForm = ref({ certificate: '', chain: '', privateKey: '' });
 
@@ -97,7 +97,8 @@ async function onProvision() {
     await provisionTenantSslApi(drawerData.value.domainId);
     message.success($t('tenant.system.domain.ssl.provisionStarted'));
     await loadSslDetail();
-  } catch {} finally {
+  } catch {
+  } finally {
     actionLoading.value = false;
   }
 }
@@ -110,7 +111,8 @@ async function onRenew() {
     await renewTenantSslApi(drawerData.value.domainId);
     message.success($t('tenant.system.domain.ssl.renewStarted'));
     await loadSslDetail();
-  } catch {} finally {
+  } catch {
+  } finally {
     actionLoading.value = false;
   }
 }
@@ -126,7 +128,8 @@ async function onToggleAutoRenew(checked: boolean) {
     );
     sslDetail.value = result;
     message.success($t('tenant.system.domain.ssl.autoRenewUpdated'));
-  } catch {} finally {
+  } catch {
+  } finally {
     actionLoading.value = false;
   }
 }
@@ -149,7 +152,8 @@ async function onUpload() {
     showUploadForm.value = false;
     uploadForm.value = { certificate: '', chain: '', privateKey: '' };
     await loadSslDetail();
-  } catch {} finally {
+  } catch {
+  } finally {
     actionLoading.value = false;
   }
 }
@@ -168,7 +172,8 @@ async function onDelete() {
         message.success($t('tenant.system.domain.ssl.deleteSuccess'));
         sslDetail.value = null;
         await loadSslDetail();
-      } catch {} finally {
+      } catch {
+      } finally {
         actionLoading.value = false;
       }
     },
@@ -178,12 +183,30 @@ async function onDelete() {
 /** 获取 SSL 状态标签配置 */
 function getSslStatusConfig(status?: string) {
   switch (status) {
-    case 'active': return { color: 'success', text: $t('tenant.system.domain.ssl.active') };
-    case 'expired': return { color: 'error', text: $t('tenant.system.domain.ssl.expired') };
-    case 'pending': return { color: 'processing', text: $t('tenant.system.domain.ssl.pending') };
-    case 'failed': return { color: 'error', text: $t('tenant.system.domain.ssl.failed') };
-    case 'provisioning': return { color: 'processing', text: $t('tenant.system.domain.ssl.provisioning') };
-    default: return { color: 'default', text: $t('tenant.system.domain.ssl.none') };
+    case 'active': {
+      return { color: 'success', text: $t('tenant.system.domain.ssl.active') };
+    }
+    case 'expired': {
+      return { color: 'error', text: $t('tenant.system.domain.ssl.expired') };
+    }
+    case 'failed': {
+      return { color: 'error', text: $t('tenant.system.domain.ssl.failed') };
+    }
+    case 'pending': {
+      return {
+        color: 'processing',
+        text: $t('tenant.system.domain.ssl.pending'),
+      };
+    }
+    case 'provisioning': {
+      return {
+        color: 'processing',
+        text: $t('tenant.system.domain.ssl.provisioning'),
+      };
+    }
+    default: {
+      return { color: 'default', text: $t('tenant.system.domain.ssl.none') };
+    }
   }
 }
 
@@ -210,7 +233,9 @@ defineExpose({ open });
                 {{ getSslStatusConfig(sslDetail.status).text }}
               </Tag>
             </Descriptions.Item>
-            <Descriptions.Item :label="$t('tenant.system.domain.ssl.typeLabel')">
+            <Descriptions.Item
+              :label="$t('tenant.system.domain.ssl.typeLabel')"
+            >
               {{
                 sslDetail.certType === 'platform'
                   ? $t('tenant.system.domain.ssl.typePlatform')
@@ -243,7 +268,9 @@ defineExpose({ open });
                 :checked="sslDetail.autoRenew"
                 :loading="actionLoading"
                 size="small"
-                @change="(val: boolean | string | number) => onToggleAutoRenew(!!val)"
+                @change="
+                  (val: boolean | string | number) => onToggleAutoRenew(!!val)
+                "
               />
               <span class="ml-2 text-xs text-muted-foreground">
                 {{
@@ -257,7 +284,9 @@ defineExpose({ open });
               v-if="sslDetail.renewalError"
               :label="$t('tenant.system.domain.ssl.renewalError')"
             >
-              <span class="text-xs text-destructive">{{ sslDetail.renewalError }}</span>
+              <span class="text-xs text-destructive">{{
+                sslDetail.renewalError
+              }}</span>
             </Descriptions.Item>
           </Descriptions>
         </div>
@@ -265,7 +294,9 @@ defineExpose({ open });
         <!-- 操作按钮 -->
         <div class="mb-4 flex flex-wrap gap-2">
           <Button
-            v-if="sslDetail.certType === 'platform' && sslDetail.status === 'active'"
+            v-if="
+              sslDetail.certType === 'platform' && sslDetail.status === 'active'
+            "
             type="primary"
             size="small"
             :loading="actionLoading"
@@ -288,7 +319,12 @@ defineExpose({ open });
             <IconifyIcon icon="lucide:upload" class="mr-1 size-3" />
             {{ $t('tenant.system.domain.ssl.upload') }}
           </Button>
-          <Button danger size="small" :loading="actionLoading" @click="onDelete">
+          <Button
+            danger
+            size="small"
+            :loading="actionLoading"
+            @click="onDelete"
+          >
             <IconifyIcon icon="lucide:trash-2" class="mr-1 size-3" />
             {{ $t('tenant.system.domain.ssl.deleteCert') }}
           </Button>
@@ -297,11 +333,18 @@ defineExpose({ open });
 
       <!-- 无证书状态 -->
       <template v-else>
-        <div class="flex flex-col items-center justify-center py-12 text-muted-foreground">
+        <div
+          class="flex flex-col items-center justify-center py-12 text-muted-foreground"
+        >
           <IconifyIcon icon="lucide:shield-off" class="mb-3 size-12" />
           <p class="mb-4 text-sm">{{ $t('tenant.system.domain.ssl.none') }}</p>
           <div class="flex gap-2">
-            <Button type="primary" size="small" :loading="actionLoading" @click="onProvision">
+            <Button
+              type="primary"
+              size="small"
+              :loading="actionLoading"
+              @click="onProvision"
+            >
               <IconifyIcon icon="lucide:shield-check" class="mr-1 size-3" />
               {{ $t('tenant.system.domain.ssl.provision') }}
             </Button>
@@ -328,7 +371,7 @@ defineExpose({ open });
               <Textarea
                 v-model:value="uploadForm.certificate"
                 :rows="4"
-                :placeholder="'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'"
+                placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
               />
             </div>
             <div>
@@ -338,22 +381,29 @@ defineExpose({ open });
               <Textarea
                 v-model:value="uploadForm.privateKey"
                 :rows="4"
-                :placeholder="'-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'"
+                placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
               />
             </div>
             <div>
               <label class="mb-1 block text-xs font-medium">
                 {{ $t('tenant.system.domain.ssl.chainLabel') }}
-                <span class="text-muted-foreground">({{ $t('common.optional') }})</span>
+                <span class="text-muted-foreground"
+                  >({{ $t('common.optional') }})</span
+                >
               </label>
               <Textarea
                 v-model:value="uploadForm.chain"
                 :rows="3"
-                :placeholder="'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'"
+                placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
               />
             </div>
             <div class="flex gap-2">
-              <Button type="primary" size="small" :loading="actionLoading" @click="onUpload">
+              <Button
+                type="primary"
+                size="small"
+                :loading="actionLoading"
+                @click="onUpload"
+              >
                 {{ $t('common.confirm') }}
               </Button>
               <Button size="small" @click="showUploadForm = false">

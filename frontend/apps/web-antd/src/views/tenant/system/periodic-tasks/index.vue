@@ -1,8 +1,6 @@
 <script lang="ts" setup>
 import type { tenantApi } from '#/api';
 
-defineOptions({ name: 'TenantSystemPeriodicTaskList' });
-
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -21,6 +19,8 @@ import {
   useGridFormSchema,
 } from './data';
 import Form from './modules/PeriodicTaskForm.vue';
+
+defineOptions({ name: 'TenantSystemPeriodicTaskList' });
 
 type PeriodicTaskInfo = tenantApi.PeriodicTaskInfo;
 
@@ -44,24 +44,23 @@ async function onToggleActive(row: PeriodicTaskInfo, checked: boolean) {
   }
 }
 
-const { Grid, FormDrawer, onRefresh } =
-  useCrudPage<PeriodicTaskInfo>({
-    api: {
-      list: tenant.getPeriodicTaskListApi,
-      resource: '/tenant/periodic-tasks',
-    },
-    columns: useColumns,
-    searchSchema: useGridFormSchema(),
-    formComponent: Form,
-    formDefaults: getFormDefaults,
-    i18nPrefix: 'tenant.system.periodicTask',
-    nameField: 'name',
-    defaultSort: '-created_at',
-    createPermission: 'periodic_task:create',
-    customActions: {
-      trigger: onTriggerTask,
-    },
-  });
+const { Grid, FormDrawer, onRefresh } = useCrudPage<PeriodicTaskInfo>({
+  api: {
+    list: tenant.getPeriodicTaskListApi,
+    resource: '/tenant/periodic-tasks',
+  },
+  columns: useColumns,
+  searchSchema: useGridFormSchema(),
+  formComponent: Form,
+  formDefaults: getFormDefaults,
+  i18nPrefix: 'tenant.system.periodicTask',
+  nameField: 'name',
+  defaultSort: '-created_at',
+  createPermission: 'periodic_task:create',
+  customActions: {
+    trigger: onTriggerTask,
+  },
+});
 </script>
 
 <template>
@@ -128,7 +127,10 @@ const { Grid, FormDrawer, onRefresh } =
             v-access:code="['periodic_task:toggle']"
             :checked="row.isActive"
             size="small"
-            @change="(checked: boolean | string | number) => onToggleActive(row, !!checked)"
+            @change="
+              (checked: boolean | string | number) =>
+                onToggleActive(row, !!checked)
+            "
           />
         </template>
 
@@ -149,7 +151,6 @@ const { Grid, FormDrawer, onRefresh } =
           </Tooltip>
           <span v-else class="text-muted-foreground">-</span>
         </template>
-
       </Grid>
     </Card>
   </Page>

@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import dataclasses
-import json
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
@@ -19,7 +18,6 @@ from app.ai.events.types import (
     ExecutionCompleted,
     ExecutionFailed,
     ExecutionStarted,
-    MessageAdded,
 )
 
 if TYPE_CHECKING:
@@ -28,10 +26,10 @@ from app.ai.skills.resolver import SkillResolveResult
 from app.ai.tools.sandbox import ToolSandbox
 from app.ai.tools.types import ToolDefinition, ToolResult, to_openai_tools
 from app.ai.types import ChatMessage, ChatResponse
+from app.core.base_model import utc_now
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.models.ai.agent import Agent
-from app.core.base_model import utc_now
 
 from .types import ExecutionRequest, ExecutionResult, PreparedExecution
 

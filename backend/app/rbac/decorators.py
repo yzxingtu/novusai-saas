@@ -6,15 +6,15 @@
 新版本支持单一声明原则：装饰器同时负责「权限注册」和「权限检查」，消除重复声明
 """
 
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Callable, TypeVar
-import inspect
+from typing import Any, TypeVar
 
 from fastapi import HTTPException, Request, status
 
-from app.enums.rbac import PermissionType, PermissionScope
 from app.core.i18n import _
+from app.enums.rbac import PermissionScope, PermissionType
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -33,15 +33,15 @@ ACCESS_PERMISSION = "__access_permission__"
 def public(func: F) -> F:
     """
     公开访问装饰器
-    
+
     标记端点为公开访问，无需认证和权限检查。
-    
+
     适用场景：
     - 登录接口
     - Token 刷新接口
     - 健康检查
     - 公开资源
-    
+
     Example:
         @router.post("/login")
         @public
@@ -55,15 +55,15 @@ def public(func: F) -> F:
 def auth_only(func: F) -> F:
     """
     仅需认证装饰器
-    
+
     标记端点只需要登录认证，无需额外的权限检查。
-    
+
     适用场景：
     - 获取当前用户信息
     - 获取当前用户菜单
     - 修改当前用户密码
     - 用户登出
-    
+
     Example:
         @router.get("/me")
         @auth_only
@@ -78,7 +78,7 @@ def auth_only(func: F) -> F:
 class MenuConfig:
     """
     菜单配置
-    
+
     Attributes:
         icon: 菜单图标，使用 Lucide 图标库 (https://lucide.dev/icons)
               格式: "lucide:{icon-name}"，如 "lucide:settings", "lucide:users"
@@ -89,7 +89,7 @@ class MenuConfig:
         sort_order: 排序权重，数值越小越靠前
         hidden: 是否隐藏菜单（仅做权限控制，不在菜单中显示）
     """
-    
+
     icon: str | None = None
     path: str | None = None
     component: str | None = None
@@ -101,7 +101,7 @@ class MenuConfig:
 @dataclass
 class PermissionMeta:
     """权限元信息"""
-    
+
     code: str
     name: str
     type: PermissionType
@@ -128,11 +128,11 @@ def permission_resource(
 ) -> Callable[[type], type]:
     """
     资源权限装饰器（用于控制器类）
-    
+
     自动注册：
     1. 菜单权限（如果提供了 menu 配置）
     2. 操作权限（通过 @action_* 装饰器自动扫描）
-    
+
     Args:
         resource: 资源标识，如 "user", "order"
         name: 资源名称，如 "用户管理"
@@ -140,7 +140,7 @@ def permission_resource(
         menu: 菜单配置（可选）
         description: 描述
         parent_resource: 父资源标识，用于将操作权限挂载到指定资源的菜单下（适用于无菜单的资源）
-    
+
     Example:
         @permission_resource(
             resource="user",
@@ -153,7 +153,7 @@ def permission_resource(
             @action_read("查看用户")
             async def list_users(self, ...):
                 ...
-        
+
         # 无菜单的资源，操作权限挂载到父资源下
         @permission_resource(
             resource="tenant_domain",
@@ -166,14 +166,14 @@ def permission_resource(
     """
     # 延迟导入避免循环引用
     from app.rbac.registry import permission_registry
-    
+
     def decorator(cls: type) -> type:
         # 保存资源元信息到类属性
         cls._permission_resource = resource  # type: ignore
         cls._permission_name = name  # type: ignore
         cls._permission_scope = scope  # type: ignore
         cls._permission_parent_resource = parent_resource  # type: ignore
-        
+
         # 注册菜单权限
         if menu:
             scope_prefix = "admin" if scope == PermissionScope.ADMIN_ONLY else "tenant"
@@ -181,7 +181,7 @@ def permission_resource(
             parent_code = None
             if menu.parent:
                 parent_code = f"menu:{scope_prefix}.{menu.parent}"
-            
+
             menu_perm = PermissionMeta(
                 code=menu_code,
                 name=name,
@@ -198,9 +198,9 @@ def permission_resource(
                 hidden=menu.hidden,
             )
             permission_registry.register(menu_perm)
-        
+
         return cls
-    
+
     return decorator
 
 
@@ -212,21 +212,21 @@ def permission_action(
 ) -> Callable[[F], F]:
     """
     操作权限装饰器（用于控制器方法）
-    
+
     功能：
     1. 注册操作权限到 registry（应用启动时同步到数据库）
     2. 运行时自动检查权限（通过 request.state 获取用户权限）
-    
+
     权限码自动推导规则：
     - 从所属类的 _permission_resource 获取 resource
     - 最终权限码 = f"{resource}:{action}"
-    
+
     Args:
         action: 操作标识，如 "create", "list", "detail", "update", "delete"
         name: 操作名称（i18n key），如 "action.user.list"
         description: 描述
         auto_check: 是否自动检查权限（默认 True）
-    
+
     Example:
         @permission_action("list", "action.user.list")
         async def list_users(...):
@@ -240,63 +240,63 @@ def permission_action(
             "description": description,
             "auto_check": auto_check,
         }
-        
+
         # 标记需要的权限（用于依赖注入检查）
         func._required_permission_action = action  # type: ignore
-        
+
         # 标记访问级别为需要权限检查
         func._access_level = ACCESS_PERMISSION  # type: ignore
-        
+
         if not auto_check:
             return func
-        
+
         # 包装函数，添加自动权限检查
         @wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             # 从 kwargs 中获取 request 对象
             request: Request | None = kwargs.get("request")
-            
+
             # 如果 kwargs 中没有，尝试从 args 中查找
             if request is None:
                 for arg in args:
                     if isinstance(arg, Request):
                         request = arg
                         break
-            
+
             # 获取权限码（resource 由 base_controller 注入）
             resource = getattr(wrapper, "_permission_resource", None)
-            
+
             if resource and request:
                 permission_code = f"{resource}:{action}"
-                
+
                 # 从 request.state 获取用户权限信息
                 user_permissions: set[str] = getattr(request.state, "user_permissions", set())
-                
+
                 # 检查权限
                 has_permission = _check_permission(user_permissions, permission_code)
-                
+
                 if not has_permission:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail=_("rbac.permission_denied"),
                     )
-            
+
             return await func(*args, **kwargs)
-        
+
         # 复制原始函数的属性到 wrapper
         wrapper._permission_action = func._permission_action  # type: ignore
         wrapper._required_permission_action = func._required_permission_action  # type: ignore
         wrapper._access_level = ACCESS_PERMISSION  # type: ignore
-        
+
         return wrapper  # type: ignore
-    
+
     return decorator
 
 
 def _check_permission(user_perms: set[str], required: str) -> bool:
     """
     检查用户是否拥有指定权限
-    
+
     支持：
     - 精确匹配: admin_user:list
     - 通配符: * (所有权限)
@@ -318,7 +318,7 @@ def _check_permission(user_perms: set[str], required: str) -> bool:
 def _extract_action_from_name(name: str, default_action: str) -> str:
     """
     从 i18n name 中提取细粒度 action
-    
+
     例如: "action.admin.list" -> "list"
           "action.role.detail" -> "detail"
           "查看列表" -> default_action
@@ -332,7 +332,7 @@ def _extract_action_from_name(name: str, default_action: str) -> str:
 def action_read(name: str = "查看", **kwargs: Any) -> Callable[[F], F]:
     """
     查看权限快捷装饰器
-    
+
     支持细粒度权限：
     - @action_read("action.user.list") -> 权限 code: user:list
     - @action_read("action.user.detail") -> 权限 code: user:detail
@@ -377,59 +377,59 @@ def action_import(name: str = "导入", **kwargs: Any) -> Callable[[F], F]:
 def register_action_permissions(controller_cls: type, router: Any) -> None:
     """
     扫描路由器上的路由，自动注册操作权限
-    
+
     在控制器的 _register_routes 执行后调用，扫描路由器上所有带有
     _permission_action 属性的路由处理函数，并注册到 permission_registry。
-    
+
     Args:
         controller_cls: 控制器类（带有 _permission_resource 等属性）
         router: FastAPI APIRouter 实例
     """
     from app.rbac.registry import permission_registry
-    
+
     # 获取控制器的资源信息
     resource = getattr(controller_cls, "_permission_resource", None)
     scope = getattr(controller_cls, "_permission_scope", None)
     parent_resource = getattr(controller_cls, "_permission_parent_resource", None)
-    
+
     if not resource or not scope:
         return
-    
+
     # 构造父菜单权限 code（操作权限挂载到对应菜单下）
     from app.enums.rbac import PermissionScope
     scope_prefix = "admin" if scope == PermissionScope.ADMIN_ONLY else "tenant"
-    
+
     # 优先使用 parent_resource 指定的父菜单，否则使用自己的资源菜单
     if parent_resource:
         parent_menu_code = f"menu:{scope_prefix}.{parent_resource}"
     else:
         parent_menu_code = f"menu:{scope_prefix}.{resource}"
-    
+
     # 检查父菜单是否存在（不存在则不设置 parent_code）
     parent_code = parent_menu_code if parent_menu_code in permission_registry else None
-    
+
     # 已注册的操作（避免重复）
     registered_actions: set[str] = set()
-    
+
     # 扫描路由器上的所有路由
     for route in router.routes:
         # 获取路由的 endpoint 函数
         endpoint = getattr(route, "endpoint", None)
         if not endpoint:
             continue
-        
+
         # 检查是否有 _permission_action 属性
         action_info = getattr(endpoint, "_permission_action", None)
         if not action_info:
             continue
-        
+
         action = action_info["action"]
-        
+
         # 避免重复注册
         if action in registered_actions:
             continue
         registered_actions.add(action)
-        
+
         # 注册操作权限（挂载到对应菜单下）
         action_perm = PermissionMeta(
             code=f"{resource}:{action}",

@@ -20,7 +20,7 @@ import json
 import re
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import text, update
+from sqlalchemy import text
 
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
@@ -52,7 +52,7 @@ def _validate_column_names(data: dict[str, Any]) -> str | None:
     防止 LLM 传入恶意列名导致 SQL 注入。
     列名仅允许小写字母、数字和下划线，且必须以字母或下划线开头。
     """
-    invalid = [k for k in data.keys() if not _SAFE_COLUMN_NAME_RE.match(k)]
+    invalid = [k for k in data if not _SAFE_COLUMN_NAME_RE.match(k)]
     if invalid:
         return _("data_intelligence.crud.invalid_column_names").format(
             columns=", ".join(sorted(invalid)),
@@ -88,7 +88,9 @@ async def _load_policy(
 
     # 加载租户覆盖并合并（收紧规则）
     if context.tenant_id:
-        from app.repositories.ai.table_policy_override_repository import AITablePolicyOverrideRepository
+        from app.repositories.ai.table_policy_override_repository import (
+            AITablePolicyOverrideRepository,
+        )
         override_repo = AITablePolicyOverrideRepository(context.db)
         ov = await override_repo.get_by_policy_and_tenant(policy.id, context.tenant_id)
         if ov:
@@ -320,6 +322,7 @@ class CreateRecordExecutor(BaseToolExecutor):
         definition: ToolDefinition,
         arguments: dict[str, Any],
     ) -> bool:
+        _ = definition
         return bool(arguments.get("table_name") and arguments.get("data"))
 
     async def execute(
@@ -412,7 +415,7 @@ class CreateRecordExecutor(BaseToolExecutor):
         try:
             async with context.db.begin_nested():
                 all_columns = list(data.keys()) + ["created_at", "updated_at"]
-                all_placeholders = [f":{k}" for k in data.keys()] + ["NOW()", "NOW()"]
+                all_placeholders = [f":{k}" for k in data] + ["NOW()", "NOW()"]
                 raw_sql = text(
                     f"INSERT INTO {table_name} ({', '.join(all_columns)})"
                     f" VALUES ({', '.join(all_placeholders)}) RETURNING id"
@@ -461,6 +464,7 @@ class UpdateRecordExecutor(BaseToolExecutor):
         definition: ToolDefinition,
         arguments: dict[str, Any],
     ) -> bool:
+        _ = definition
         return bool(
             arguments.get("table_name")
             and arguments.get("id")
@@ -589,7 +593,7 @@ class UpdateRecordExecutor(BaseToolExecutor):
         # 执行更新（使用 savepoint 隔离，不影响外层事务）
         try:
             async with context.db.begin_nested():
-                set_clauses = ", ".join(f"{k} = :{k}" for k in data.keys())
+                set_clauses = ", ".join(f"{k} = :{k}" for k in data)
                 set_clauses += ", updated_at = NOW()"
                 params = {**data, "record_id": record_id}
                 where = "id = :record_id AND is_deleted = false"
@@ -643,6 +647,7 @@ class DeleteRecordExecutor(BaseToolExecutor):
         definition: ToolDefinition,
         arguments: dict[str, Any],
     ) -> bool:
+        _ = definition
         return bool(arguments.get("table_name") and arguments.get("id"))
 
     async def execute(

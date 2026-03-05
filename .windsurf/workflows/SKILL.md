@@ -1,12 +1,7 @@
 ---
 name: novusai-saas
 description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue 3 + Vben Admin）或后端接口（FastAPI + SQLAlchemy + PostgreSQL）时，提供分层架构、CRUD 流程、多租户、权限、国际化等项目专属规范。
-license: Proprietary
-compatibility: NovusAI SaaS monorepo (Vue 3 + FastAPI + PostgreSQL). Requires access to frontend/ and backend/ directories.
-metadata:
-  project: novusai-saas
-  stack: vue3-fastapi-postgresql
-auto_execution_mode: 3
+auto_execution_mode: 2
 ---
 
 # NovusAI SaaS 全栈开发技能
@@ -334,6 +329,9 @@ show: (row) => row.scope === 'all_tenants' && row.tenant_id !== null
 - [ ] Repository 继承 `BaseRepository` / `TenantRepository`
 - [ ] Service 继承 `BaseService` / `TenantService` / `GlobalService`
 - [ ] Controller 声明 `@permission_resource`，方法声明 `@action_*`
+- [ ] `@permission_resource` 声明了 `parent_resource`（缺失→权限 parent_id=null，出现孤立节点）
+- [ ] `messages.json` 的 `"action"` 段内追加了新 Controller 的翻译（不是新建第二个顶层 `"action"` key）
+- [ ] 插件场景权限同步用 `sync_plugin_permissions(plugin_name)`，不用全量 `sync_permissions()`
 - [ ] 统一响应方法（`success` / `created` / `paginated` / `deleted`）
 - [ ] 面向用户文本使用 `_()`
 - [ ] 枚举使用 `LabeledEnum`
@@ -364,7 +362,54 @@ show: (row) => row.scope === 'all_tenants' && row.tenant_id !== null
 
 ---
 
-## 十六、插件开发
+## 十六、RBAC 权限注册
+
+**新增任何 Controller 时，以下两项必须同步完成，否则权限树出现孤立节点或显示英文原始 action 名。**
+
+### 1. `parent_resource` 必填
+
+```python
+@permission_resource(
+    "my_resource",
+    parent_resource="system_maintenance",  # ← 必须声明，否则 parent_id=null（孤立）
+)
+class MyController(GlobalController): ...
+```
+
+常用父资源对照：`ai_infra` / `ai_provider` / `ai_quota_mgmt` / `system_maintenance` / `platform_mgmt`
+
+### 2. `messages.json` 必须同步添加翻译
+
+在 `backend/app/locales/zh_CN/messages.json` 现有 `"action"` 对象内追加（**禁止新建第二个 `"action"` 顶层 key**，会静默覆盖导致翻译丢失）：
+
+```json
+"action": {
+  "my_resource": {
+    "list": "查看列表",
+    "create": "创建",
+    "update": "更新",
+    "delete": "删除"
+  }
+}
+```
+
+缺失翻译时 `_translate_name()` 回退返回原始英文 action 名（如 `list`、`delete`）。
+
+### 3. 插件权限同步用 `sync_plugin_permissions()`
+
+```python
+# ✅ 插件安装/修复场景：仅同步该插件的权限
+await perm_sync.sync_plugin_permissions(plugin.name)
+
+# ❌ 错误：全量 sync 在插件事务中会产生副作用
+await perm_sync.sync_permissions()
+```
+
+→ 完整规范：[references/rbac-permission-spec.md](references/rbac-permission-spec.md)
+
+---
+
+## 十七、插件开发
 
 插件系统采用**零侵入架构**：plugin.yaml 声明式清单 + PluginBase 生命周期钩子 + PluginContext 沙箱 API + UMD 前端动态加载。
 
@@ -422,7 +467,6 @@ python scripts/plugin_cli.py pack plugins/my-plugin                   # 打包 z
 ```
 
 → 完整规范 + 代码示例：[references/plugin-spec.md](references/plugin-spec.md)
-→ 插件开发者指南：[docs/guides/plugin-developer-guide.md](../../../docs/guides/plugin-developer-guide.md)
 
 ---
 
@@ -434,6 +478,7 @@ python scripts/plugin_cli.py pack plugins/my-plugin                   # 打包 z
 | [backend-crud.md](references/backend-crud.md) | 后端 CRUD 7 步完整代码 + 响应/异常/权限/枚举/日志 |
 | [frontend-crud.md](references/frontend-crud.md) | 前端 CRUD 完整代码（useCrudPage 表格 + useCrudList 自定义布局 + useCrudDrawer 表单） |
 | [frontend-spec.md](references/frontend-spec.md) | 前端开发手册完整版（含拖拽排序、列表 UI 设计、CSS 动画等） |
+| [detail-page-patterns.md](references/detail-page-patterns.md) | 资源详情页 UI 模式（Hero Header / 带图标 Tabs / 信息卡片 / 表单区块 / 功能开关卡片 / 绑定行 / 只读横幅） |
 | [backend-spec.md](references/backend-spec.md) | 后端开发指南完整版（含存储、日志、枚举、Service 钩子等） |
 | [async-tasks.md](references/async-tasks.md) | 异步任务与定时任务开发规范（Celery/Redis/队列/定时任务） |
 | [devgenius-workflow.md](references/devgenius-workflow.md) | DevGenius MCP 工作流详解（工具速查、流程图、文档管理） |
@@ -442,5 +487,6 @@ python scripts/plugin_cli.py pack plugins/my-plugin                   # 打包 z
 | [deletion-deps.md](references/deletion-deps.md) | 删除依赖保护规范（5 种策略/声明语法/前端弹窗/回收站） |
 | [notification-spec.md](references/notification-spec.md) | 通知系统规范（渠道驱动/模板编码/队列/扩展） |
 | [plugin-spec.md](references/plugin-spec.md) | 插件系统开发规范（manifest/生命周期/Context/扩展点/迁移/安全） |
+| [rbac-permission-spec.md](references/rbac-permission-spec.md) | RBAC 权限注册规范（parent_resource/i18n 翻译/插件权限同步/权限树结构） |
 | [ai-routing.md](references/ai-routing.md) | 多模型路由规范（M264：Tier枚举/路由优先级/ComplexityClassifier/routing_config） |
 | [multimodal-rag.md](references/multimodal-rag.md) | 多模态RAG规范（M263：VisionDescriber/ImageParser/PptxParser/KB配置） |

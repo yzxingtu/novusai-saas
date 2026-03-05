@@ -4,18 +4,16 @@ AI 调用日志服务
 使用 Celery 异步记录 AI 调用日志，不阻塞主请求
 """
 
-import json
 import hashlib
-from typing import Optional, Any
+import json
+from typing import Any
 
+from app.core.base_model import utc_now
 from app.core.base_service import BaseService
 from app.core.logging import LogManager
-from app.core.i18n import _
+from app.enums.ai import CallStatusEnum
 from app.models.ai import AICallLog
-from app.enums.ai import RequestTypeEnum, CallStatusEnum
 from app.repositories.ai import AICallLogRepository
-from app.core.base_model import utc_now
-
 
 logger = LogManager.get_logger("ai.call_log")
 
@@ -100,7 +98,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         model_id: int,
         messages: list,
         temperature: float,
-        tools: Optional[list],
+        tools: list | None,
     ) -> str:
         """
         生成请求哈希（用于缓存命中检测）
@@ -131,16 +129,16 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         provider_id: int,
         request_type: str,
         request_data: dict,
-        response_data: Optional[dict],
+        response_data: dict | None,
         input_tokens: int,
         output_tokens: int,
         total_tokens: int,
         cost: float,
         latency_ms: int,
         status: str = CallStatusEnum.SUCCESS.value,
-        error_message: Optional[str] = None,
-        user_id: Optional[int] = None,
-        user_type: Optional[str] = None,
+        error_message: str | None = None,
+        user_id: int | None = None,
+        user_type: str | None = None,
     ) -> AICallLog:
         """
         记录调用日志
@@ -260,16 +258,16 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         provider_id: int,
         request_type: str,
         request_data: dict,
-        response_data: Optional[dict],
+        response_data: dict | None,
         input_tokens: int,
         output_tokens: int,
         total_tokens: int,
         cost: float,
         latency_ms: int,
         status: str = CallStatusEnum.SUCCESS.value,
-        error_message: Optional[str] = None,
-        user_id: Optional[int] = None,
-        user_type: Optional[str] = None,
+        error_message: str | None = None,
+        user_id: int | None = None,
+        user_type: str | None = None,
     ):
         """
         异步记录调用日志 (通过 Celery)

@@ -36,7 +36,15 @@
 
 import type { Component, ComputedRef, Ref } from 'vue';
 
-import { computed, h, onBeforeUnmount, onMounted, ref } from 'vue';
+import {
+  computed,
+  h,
+  onActivated,
+  onBeforeUnmount,
+  onDeactivated,
+  onMounted,
+  ref,
+} from 'vue';
 
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
 
@@ -74,28 +82,62 @@ function showDependencyBlock(deps: DependencyGroup[], name: string) {
     centered: true,
     content: () =>
       h('div', {}, [
-        h('div', { class: 'mb-3 rounded-lg bg-warning/10 px-4 py-3 text-sm text-foreground' },
+        h(
+          'div',
+          {
+            class:
+              'mb-3 rounded-lg bg-warning/10 px-4 py-3 text-sm text-foreground',
+          },
           $t('common.dependency.blocked'),
         ),
         ...deps.map((dep) =>
-          h('div', { key: dep.type, class: 'mb-2 rounded-lg border border-border/50 bg-accent/5 px-4 py-3' }, [
-            h('div', { class: 'mb-1 flex items-center justify-between text-sm font-medium' }, [
-              h('span', {}, $t(`common.dependency.model.${dep.type}`)),
-              h('span', { class: 'text-xs text-warning' }, `${dep.count}`),
-            ]),
-            ...(dep.items || []).slice(0, DEP_MAX_PREVIEW).map((item) =>
-              h('div', { key: item.id, class: 'pl-2 text-xs text-muted-foreground' },
-                `• ${item.label || `#${item.id}`}`,
+          h(
+            'div',
+            {
+              key: dep.type,
+              class:
+                'mb-2 rounded-lg border border-border/50 bg-accent/5 px-4 py-3',
+            },
+            [
+              h(
+                'div',
+                {
+                  class:
+                    'mb-1 flex items-center justify-between text-sm font-medium',
+                },
+                [
+                  h('span', {}, $t(`common.dependency.model.${dep.type}`)),
+                  h('span', { class: 'text-xs text-warning' }, `${dep.count}`),
+                ],
               ),
-            ),
-            dep.count > DEP_MAX_PREVIEW
-              ? h('div', { class: 'pl-2 text-xs italic text-muted-foreground/60' },
-                  $t('common.dependency.moreItems', { count: dep.count - DEP_MAX_PREVIEW }),
-                )
-              : null,
-          ]),
+              ...(dep.items || []).slice(0, DEP_MAX_PREVIEW).map((item) =>
+                h(
+                  'div',
+                  {
+                    key: item.id,
+                    class: 'pl-2 text-xs text-muted-foreground',
+                  },
+                  `• ${item.label || `#${item.id}`}`,
+                ),
+              ),
+              dep.count > DEP_MAX_PREVIEW
+                ? h(
+                    'div',
+                    { class: 'pl-2 text-xs italic text-muted-foreground/60' },
+                    $t('common.dependency.moreItems', {
+                      count: dep.count - DEP_MAX_PREVIEW,
+                    }),
+                  )
+                : null,
+            ],
+          ),
         ),
-        h('div', { class: 'mt-3 rounded-lg bg-primary/5 px-4 py-2.5 text-xs text-muted-foreground' },
+        h(
+          'div',
+          {
+            class:
+              'mt-3 rounded-lg bg-primary/5 px-4 py-2.5 text-xs text-muted-foreground',
+          },
           $t('common.dependency.description'),
         ),
       ]),
@@ -107,7 +149,10 @@ function showDependencyBlock(deps: DependencyGroup[], name: string) {
 // ============================================================
 
 /** 切换状态 API 类型 */
-export type ToggleStatusApi = (id: number | string, data: Record<string, unknown>) => Promise<unknown>;
+export type ToggleStatusApi = (
+  id: number | string,
+  data: Record<string, unknown>,
+) => Promise<unknown>;
 
 /** 切换状态配置 */
 export type ToggleStatusConfig = Record<string, ToggleStatusApi>;
@@ -115,7 +160,9 @@ export type ToggleStatusConfig = Record<string, ToggleStatusApi>;
 /** API 配置 */
 export interface CrudListApiConfig<T = unknown> {
   /** 列表查询 API（必填） */
-  list: (params: Record<string, unknown>) => Promise<{ items: T[]; total: number } | T[]>;
+  list: (
+    params: Record<string, unknown>,
+  ) => Promise<T[] | { items: T[]; total: number }>;
 
   /**
    * 资源基础路径（必填）
@@ -139,11 +186,13 @@ export interface CrudListApiConfig<T = unknown> {
 /** 回收站配置 */
 export interface RecycleBinConfig {
   nameField?: string;
-  columns?: Array<{ title: string; dataIndex: string; width?: number }>;
+  columns?: Array<{ dataIndex: string; title: string; width?: number }>;
 }
 
 /** useCrudList 配置选项 */
-export interface UseCrudListOptions<T extends object = Record<string, unknown>> {
+export interface UseCrudListOptions<
+  T extends object = Record<string, unknown>,
+> {
   /**
    * 主键字段名
    * @default 'id'
@@ -243,12 +292,15 @@ export interface UseCrudListReturn<T extends object = Record<string, unknown>> {
   searchParams: Ref<Record<string, unknown>>;
 
   // === 选中状态 ===
-  selectedId: Ref<number | string | null>;
-  selectedItem: ComputedRef<T | null>;
+  selectedId: Ref<null | number | string>;
+  selectedItem: ComputedRef<null | T>;
 
   // === 组件 ===
   FormDrawer: Component | null;
-  formApi: ReturnType<typeof useVbenDrawer>[1] | ReturnType<typeof useVbenModal>[1] | null;
+  formApi:
+    | null
+    | ReturnType<typeof useVbenDrawer>[1]
+    | ReturnType<typeof useVbenModal>[1];
   // === CRUD 操作 ===
   loadList: () => Promise<void>;
   reload: () => Promise<void>;
@@ -256,7 +308,11 @@ export interface UseCrudListReturn<T extends object = Record<string, unknown>> {
   onEdit: (row: T) => void;
   onDelete: (row: T) => Promise<void>;
   onToggleStatus: (newStatus: boolean, row: T) => Promise<boolean>;
-  onToggleField: (fieldName: string, newStatus: boolean, row: T) => Promise<boolean>;
+  onToggleField: (
+    fieldName: string,
+    newStatus: boolean,
+    row: T,
+  ) => Promise<boolean>;
   onSelect: (row: T) => void;
 
   // === 搜索/分页 ===
@@ -285,13 +341,19 @@ const DEPENDENCY_BLOCKED_CODE = 4221;
 // ============================================================
 // 默认响应适配器：自动检测数组/分页格式
 // ============================================================
-function defaultResponseAdapter<T>(data: unknown): { items: T[]; total: number } {
+function defaultResponseAdapter<T>(data: unknown): {
+  items: T[];
+  total: number;
+} {
   if (Array.isArray(data)) {
     return { items: data as T[], total: data.length };
   }
   const obj = data as Record<string, unknown>;
   if (obj && Array.isArray(obj.items)) {
-    return { items: obj.items as T[], total: (obj.total as number) ?? obj.items.length };
+    return {
+      items: obj.items as T[],
+      total: (obj.total as number) ?? obj.items.length,
+    };
   }
   return { items: [], total: 0 };
 }
@@ -299,7 +361,9 @@ function defaultResponseAdapter<T>(data: unknown): { items: T[]; total: number }
 // ============================================================
 // 日期范围处理（复用自 useCrudPage）
 // ============================================================
-function processFormValues(formValues: Record<string, unknown>): Record<string, unknown> {
+function processFormValues(
+  formValues: Record<string, unknown>,
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(formValues)) {
@@ -363,10 +427,12 @@ export function useCrudList<T extends object = Record<string, unknown>>(
   const searchParams = ref<Record<string, unknown>>({});
 
   // ==================== 选中状态 ====================
-  const selectedId = ref<number | string | null>(null);
-  const selectedItem = computed<T | null>(() => {
+  const selectedId = ref<null | number | string>(null);
+  const selectedItem = computed<null | T>(() => {
     if (!selectable || selectedId.value === null) return null;
-    return list.value.find((item) => getRowKey(item) === selectedId.value) ?? null;
+    return (
+      list.value.find((item) => getRowKey(item) === selectedId.value) ?? null
+    );
   });
 
   function onSelect(row: T) {
@@ -418,11 +484,16 @@ export function useCrudList<T extends object = Record<string, unknown>>(
       total.value = result.total;
 
       // 选中状态处理
-      if (selectable && list.value.length > 0) {
-        if (selectedId.value === null || !list.value.some((item) => getRowKey(item) === selectedId.value)) {
-          if (defaultSelect === 'first') {
-            selectedId.value = getRowKey(list.value[0]!);
-          }
+      if (
+        selectable &&
+        list.value.length > 0 &&
+        (selectedId.value === null ||
+          !list.value.some((item) => getRowKey(item) === selectedId.value)) &&
+        defaultSelect === 'first'
+      ) {
+        const firstItem = list.value[0];
+        if (firstItem) {
+          selectedId.value = getRowKey(firstItem);
         }
       }
     } catch {
@@ -459,8 +530,14 @@ export function useCrudList<T extends object = Record<string, unknown>>(
   }
 
   // ==================== 表单弹窗 ====================
-  let FormPopup: ReturnType<typeof useVbenDrawer>[0] | ReturnType<typeof useVbenModal>[0] | null = null;
-  let formPopupApi: ReturnType<typeof useVbenDrawer>[1] | ReturnType<typeof useVbenModal>[1] | null = null;
+  let FormPopup:
+    | null
+    | ReturnType<typeof useVbenDrawer>[0]
+    | ReturnType<typeof useVbenModal>[0] = null;
+  let formPopupApi:
+    | null
+    | ReturnType<typeof useVbenDrawer>[1]
+    | ReturnType<typeof useVbenModal>[1] = null;
 
   if (formComponent) {
     if (formType === 'modal') {
@@ -520,23 +597,26 @@ export function useCrudList<T extends object = Record<string, unknown>>(
 
     setProcessing(rowId, true);
     try {
-      if (api.delete) {
-        await api.delete(rowId as number);
-      } else {
-        await requestClient.delete(`${api.resource}/${rowId}`, {
-          loading: true,
-          showCodeMessage: false,
-          showSuccessMessage: true,
-          successMessage: $t(`${i18nPrefix}.messages.deleteSuccess`),
-        });
-      }
+      await (api.delete
+        ? api.delete(rowId as number)
+        : requestClient.delete(`${api.resource}/${rowId}`, {
+            loading: true,
+            showCodeMessage: false,
+            showSuccessMessage: true,
+            successMessage: $t(`${i18nPrefix}.messages.deleteSuccess`),
+          }));
       await loadList();
     } catch (error: unknown) {
-      const resp = (error as Record<string, unknown>)?.response as Record<string, unknown> | undefined;
+      const resp = (error as Record<string, unknown>)?.response as
+        | Record<string, unknown>
+        | undefined;
       const data = resp?.data as Record<string, unknown> | undefined;
       if (data?.code === DEPENDENCY_BLOCKED_CODE && data?.dependencies) {
         const displayName = String(row[nameField] || rowId);
-        showDependencyBlock(data.dependencies as DependencyGroup[], displayName);
+        showDependencyBlock(
+          data.dependencies as DependencyGroup[],
+          displayName,
+        );
       } else if (data?.message) {
         message.error(String(data.message));
       }
@@ -621,12 +701,16 @@ export function useCrudList<T extends object = Record<string, unknown>>(
   }
 
   // ==================== 自动刷新 ====================
-  let refreshTimer: ReturnType<typeof setInterval> | null = null;
+  let refreshTimer: null | ReturnType<typeof setInterval> = null;
 
   function startAutoRefresh() {
     stopAutoRefresh();
     if (autoRefreshInterval > 0) {
-      refreshTimer = setInterval(loadList, autoRefreshInterval);
+      refreshTimer = setInterval(() => {
+        // 避免隐藏页面或慢请求场景下叠加请求，导致主线程与网络风暴
+        if (document.hidden || loading.value) return;
+        loadList();
+      }, autoRefreshInterval);
     }
   }
 
@@ -637,10 +721,21 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     }
   }
 
-
   // ==================== 生命周期 ====================
   onMounted(() => {
     loadList();
+    if (autoRefreshInterval > 0) {
+      startAutoRefresh();
+    }
+  });
+
+  // KeepAlive 页面切走时停止自动刷新，避免后台持续轮询
+  onDeactivated(() => {
+    stopAutoRefresh();
+  });
+
+  // KeepAlive 页面恢复时再启动自动刷新
+  onActivated(() => {
     if (autoRefreshInterval > 0) {
       startAutoRefresh();
     }

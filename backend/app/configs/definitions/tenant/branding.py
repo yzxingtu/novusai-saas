@@ -4,10 +4,9 @@
 包含租户 Logo、主题色、外观定制等配置
 """
 
-from app.configs.meta import ConfigMeta, max_length, pattern
 from app.configs.definitions.groups import TENANT_APPEARANCE_GROUP
+from app.configs.meta import ConfigMeta, max_length, pattern
 from app.enums.config import ConfigScope, ConfigValueType
-
 
 # ==========================================
 # Logo 和图标

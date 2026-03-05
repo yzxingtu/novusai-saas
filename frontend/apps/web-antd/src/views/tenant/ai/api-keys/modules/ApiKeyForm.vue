@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'TenantAIApiKeyForm' });
 /**
  * 租户端创建 API Key 弹窗表单
  */
@@ -10,9 +9,10 @@ import { $t } from '#/locales';
 
 import { useCreateFormSchema } from '../data';
 
-const open = defineModel<boolean>('open', { default: false });
-const emits = defineEmits<{ submit: [values: Record<string, unknown>] }>();
+defineOptions({ name: 'TenantAIApiKeyForm' });
 
+const emits = defineEmits<{ submit: [values: Record<string, unknown>] }>();
+const open = defineModel<boolean>('open', { default: false });
 const [Form, formApi] = useVbenForm({
   schema: useCreateFormSchema(),
   showDefaultActions: false,

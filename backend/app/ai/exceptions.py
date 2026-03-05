@@ -5,6 +5,8 @@ AI 网关统一异常层次
 使上层业务代码无需感知具体供应商差异。
 """
 
+import contextlib
+
 from app.core.i18n import _
 
 
@@ -168,12 +170,12 @@ def convert_openai_error(
     """
     from openai import (
         APIConnectionError,
+        APIStatusError,
         APITimeoutError,
         AuthenticationError,
-        RateLimitError,
-        NotFoundError,
         BadRequestError,
-        APIStatusError,
+        NotFoundError,
+        RateLimitError,
     )
 
     kwargs = {
@@ -207,10 +209,8 @@ def convert_openai_error(
         if hasattr(error, "response") and error.response is not None:
             retry_header = error.response.headers.get("retry-after")
             if retry_header:
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     retry_after = int(retry_header)
-                except (ValueError, TypeError):
-                    pass
         return ProviderRateLimitError(
             message=_("ai.error.provider_rate_limit"),
             retry_after=retry_after,

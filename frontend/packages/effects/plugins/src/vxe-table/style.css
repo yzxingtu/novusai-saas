@@ -120,8 +120,8 @@
 
 /* 分页器上方分隔线 */
 .vxe-grid--pager-wrapper {
-  border-top: 1px solid hsl(var(--border) / 50%);
   padding-top: 4px;
+  border-top: 1px solid hsl(var(--border) / 50%);
 }
 
 /* 空状态样式 */
@@ -131,8 +131,8 @@
 
 .vxe-table--empty-content {
   padding: 20px;
-  color: hsl(var(--foreground) / 45%);
   font-size: 0.875rem;
+  color: hsl(var(--foreground) / 45%);
 }
 
 /* 操作列图标按钮样式 */

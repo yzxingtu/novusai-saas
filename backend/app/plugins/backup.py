@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 from app.core.base_model import utc_now
 from app.core.logging import get_logger
-from app.plugins.loader import PLUGINS_DIR
+from app.plugins.loader import PLUGINS_DIR, PluginLoader
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,13 +27,38 @@ BACKUPS_DIR = PLUGINS_DIR / ".backups"
 _SAFE_TABLE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
-def _is_safe_plugin_table(table_name: str, expected_prefix: str) -> bool:
+def _is_safe_plugin_table(
+    table_name: str,
+    expected_prefix: str | tuple[str, ...] | list[str],
+) -> bool:
     """校验表名安全性：必须匹配安全字符 + 必须以插件前缀开头"""
     if not _SAFE_TABLE_RE.match(table_name):
         return False
-    if not table_name.startswith(expected_prefix):
-        return False
-    return True
+    if isinstance(expected_prefix, str):
+        prefixes = (expected_prefix,)
+    else:
+        prefixes = tuple(expected_prefix)
+    return any(table_name.startswith(prefix) for prefix in prefixes)
+
+
+def _get_plugin_table_prefixes(plugin_name: str) -> tuple[str, ...]:
+    """获取插件表前缀（默认 px_{plugin}_* + manifest 的 db_table_prefixes）。"""
+    own_prefix = f"px_{plugin_name.replace('-', '_')}_"
+    prefixes: list[str] = [own_prefix]
+    try:
+        manifest = PluginLoader().load_manifest(plugin_name)
+        extra_prefixes = getattr(manifest, "db_table_prefixes", None) or []
+        for prefix in extra_prefixes:
+            normalized = (prefix or "").strip()
+            if normalized:
+                prefixes.append(normalized)
+    except Exception as exc:
+        logger.warning(
+            "Failed to resolve custom table prefixes for %s, fallback to default: %s",
+            plugin_name,
+            exc,
+        )
+    return tuple(dict.fromkeys(prefixes))
 
 
 async def backup_plugin_data(
@@ -64,61 +89,71 @@ async def backup_plugin_data(
 
         from app.models.system.plugin import Plugin
 
-        result = await db.execute(
-            select(Plugin.config, Plugin.manifest, Plugin.granted_capabilities).where(
-                Plugin.name == plugin_name,
-                Plugin.is_deleted.is_(False),
+        # 读操作放在 savepoint 内，避免 SQL 异常污染外层事务状态
+        async with db.begin_nested():
+            result = await db.execute(
+                select(Plugin.config, Plugin.manifest, Plugin.granted_capabilities).where(
+                    Plugin.name == plugin_name,
+                    Plugin.is_deleted.is_(False),
+                )
             )
-        )
-        row = result.one_or_none()
-        if row:
-            config_snapshot = {
-                "config": row[0] or {},
-                "manifest": row[1] or {},
-                "granted_capabilities": row[2] or [],
-                "backed_up_at": utc_now().isoformat(),
-            }
-            config_path = backup_dir / "config_snapshot.json"
-            config_path.write_text(json.dumps(config_snapshot, ensure_ascii=False, indent=2))
-            logger.info("Backed up config snapshot: %s", config_path)
+            row = result.one_or_none()
+            if row:
+                config_snapshot = {
+                    "config": row[0] or {},
+                    "manifest": row[1] or {},
+                    "granted_capabilities": row[2] or [],
+                    "backed_up_at": utc_now().isoformat(),
+                }
+                config_path = backup_dir / "config_snapshot.json"
+                config_path.write_text(json.dumps(config_snapshot, ensure_ascii=False, indent=2))
+                logger.info("Backed up config snapshot: %s", config_path)
     except Exception as exc:
         logger.warning("Failed to backup config for %s: %s", plugin_name, exc)
 
-    # 3. 备份插件数据表 (px_{name}_*)
-    table_prefix = f"px_{plugin_name.replace('-', '_')}_"
+    # 3. 备份插件数据表（默认 px_{name}_*，支持 manifest 扩展前缀）
+    table_prefixes = _get_plugin_table_prefixes(plugin_name)
     try:
         from sqlalchemy import text
 
-        # 查询插件拥有的表
-        tables_result = await db.execute(
-            text(
-                "SELECT table_name FROM information_schema.tables "
-                "WHERE table_schema = 'public' AND table_name LIKE :prefix"
-            ),
-            {"prefix": f"{table_prefix}%"},
-        )
-        table_names = [row[0] for row in tables_result]
-
-        if table_names:
-            data_dir = backup_dir / "data"
-            data_dir.mkdir(exist_ok=True)
-
-            for table_name in table_names:
-                if not _is_safe_plugin_table(table_name, table_prefix):
-                    logger.warning("Skipping unsafe table name: %s", table_name)
-                    continue
-                rows_result = await db.execute(text(f'SELECT * FROM "{table_name}"'))
-                columns = list(rows_result.keys())
-                rows = [dict(zip(columns, row)) for row in rows_result.fetchall()]
-
-                # 序列化（处理 datetime 等特殊类型）
-                table_path = data_dir / f"{table_name}.json"
-                table_path.write_text(
-                    json.dumps(rows, ensure_ascii=False, indent=2, default=str)
+        # 读操作放在 savepoint 内，异常仅回滚到 savepoint，不影响外层事务
+        async with db.begin_nested():
+            # 不使用 ESCAPE 子句（asyncpg 不接受多字节 ESCAPE 参数）；
+            # 轻微 false-positive 由 _is_safe_plugin_table 二次过滤兜底。
+            table_names: set[str] = set()
+            for prefix in table_prefixes:
+                tables_result = await db.execute(
+                    text(
+                        "SELECT table_name FROM information_schema.tables "
+                        "WHERE table_schema = 'public' AND table_name LIKE :prefix"
+                    ),
+                    {"prefix": f"{prefix}%"},
                 )
-                logger.info(
-                    "Backed up table %s: %d rows", table_name, len(rows)
-                )
+                table_names.update(row[0] for row in tables_result)
+
+            if table_names:
+                data_dir = backup_dir / "data"
+                data_dir.mkdir(exist_ok=True)
+
+                for table_name in sorted(table_names):
+                    if not _is_safe_plugin_table(table_name, table_prefixes):
+                        logger.warning("Skipping unsafe table name: %s", table_name)
+                        continue
+                    rows_result = await db.execute(text(f'SELECT * FROM "{table_name}"'))
+                    columns = list(rows_result.keys())
+                    rows = [
+                        dict(zip(columns, row, strict=False))
+                        for row in rows_result.fetchall()
+                    ]
+
+                    # 序列化（处理 datetime 等特殊类型）
+                    table_path = data_dir / f"{table_name}.json"
+                    table_path.write_text(
+                        json.dumps(rows, ensure_ascii=False, indent=2, default=str)
+                    )
+                    logger.info(
+                        "Backed up table %s: %d rows", table_name, len(rows)
+                    )
     except Exception as exc:
         logger.warning("Failed to backup data tables for %s: %s", plugin_name, exc)
 
@@ -178,28 +213,33 @@ async def export_plugin_data(
     Returns:
         {table_name: file_content_string, ...}
     """
-    table_prefix = f"px_{plugin_name.replace('-', '_')}_"
+    table_prefixes = _get_plugin_table_prefixes(plugin_name)
     exports: dict[str, str] = {}
 
     try:
         from sqlalchemy import text
 
-        tables_result = await db.execute(
-            text(
-                "SELECT table_name FROM information_schema.tables "
-                "WHERE table_schema = 'public' AND table_name LIKE :prefix"
-            ),
-            {"prefix": f"{table_prefix}%"},
-        )
-        table_names = [row[0] for row in tables_result]
+        table_names: set[str] = set()
+        for prefix in table_prefixes:
+            tables_result = await db.execute(
+                text(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = 'public' AND table_name LIKE :prefix"
+                ),
+                {"prefix": f"{prefix}%"},
+            )
+            table_names.update(row[0] for row in tables_result)
 
-        for table_name in table_names:
-            if not _is_safe_plugin_table(table_name, table_prefix):
+        for table_name in sorted(table_names):
+            if not _is_safe_plugin_table(table_name, table_prefixes):
                 logger.warning("Skipping unsafe table name in export: %s", table_name)
                 continue
             rows_result = await db.execute(text(f'SELECT * FROM "{table_name}"'))
             columns = list(rows_result.keys())
-            rows = [dict(zip(columns, row)) for row in rows_result.fetchall()]
+            rows = [
+                dict(zip(columns, row, strict=False))
+                for row in rows_result.fetchall()
+            ]
 
             if fmt == "csv":
                 import csv

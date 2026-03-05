@@ -18,13 +18,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy import select, text
-
-from app.enums.common import UserRoleEnum
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.constants import SCHEMA_CACHE_TTL, schema_cache_key
-from app.core.i18n import _
 from app.core.logging import LogManager
+from app.enums.common import UserRoleEnum
 from app.models.ai.table_policy import AITablePolicy, AITablePolicyOverride
 
 logger = LogManager.get_logger("ai.data_intelligence")
@@ -426,9 +424,7 @@ class SchemaProvider:
             if perm_code == "platform_only":
                 continue
 
-            if perm_code == "*":
-                allowed.add(table_name)
-            elif permissions and perm_code in permissions:
+            if perm_code == "*" or permissions and perm_code in permissions:
                 allowed.add(table_name)
 
         return allowed

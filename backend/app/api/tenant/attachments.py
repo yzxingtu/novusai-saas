@@ -1,35 +1,35 @@
-from fastapi import Query, Request, UploadFile, File, Form
+from fastapi import File, Form, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse
 
 from app.configs.service import ConfigService
 from app.core.base_controller import TenantController
 from app.core.base_schema import PageResponse
-from app.core.deps import DbSession, QueryParams, ActiveTenantAdmin
+from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.attachment import AttachmentSource, AttachmentVisibility
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
-    action_read,
     action_create,
     action_delete,
+    action_read,
+    permission_resource,
 )
 from app.schemas.tenant.attachment import (
     AttachmentAccessUrlResponse,
-    AttachmentResponse,
     AttachmentListItem,
-    TenantStorageQuotaResponse,
+    AttachmentResponse,
     AttachmentUploadResponse,
     ChunkUploadInitRequest,
     ChunkUploadInitResponse,
     ChunkUploadProgressResponse,
+    TenantStorageQuotaResponse,
 )
-from app.services.tenant.attachment_service import AttachmentService
-from app.services.tenant.attachment_download_service import AttachmentDownloadService
 from app.services.common import StorageQuotaService
+from app.services.tenant.attachment_download_service import AttachmentDownloadService
+from app.services.tenant.attachment_service import AttachmentService
 
 
 @permission_resource(
@@ -112,9 +112,9 @@ class TenantAttachmentController(TenantController):
         ):
             """
             上传附件（普通上传）
-            
+
             适用于小文件上传，大文件建议使用分片上传接口
-            
+
             权限: attachment:upload
             """
             # 未指定 visibility 时使用平台配置的默认值
@@ -156,9 +156,9 @@ class TenantAttachmentController(TenantController):
         ):
             """
             初始化分片上传会话
-            
+
             返回 upload_id 和分片信息，用于后续分片上传
-            
+
             权限: attachment:chunk_init
             """
             service = AttachmentService(db, current_admin.tenant_id)
@@ -190,7 +190,7 @@ class TenantAttachmentController(TenantController):
         ):
             """
             上传分片数据
-            
+
             权限: attachment:chunk_upload
             """
             service = AttachmentService(db, current_admin.tenant_id)
@@ -214,9 +214,9 @@ class TenantAttachmentController(TenantController):
         ):
             """
             完成分片上传并合并文件
-            
+
             所有分片上传完成后调用此接口
-            
+
             权限: attachment:chunk_complete
             """
             service = AttachmentService(db, current_admin.tenant_id)
@@ -242,9 +242,9 @@ class TenantAttachmentController(TenantController):
         ):
             """
             获取分片上传进度
-            
+
             用于断点续传场景
-            
+
             权限: attachment:chunk_status
             """
             service = AttachmentService(db, current_admin.tenant_id)
@@ -264,7 +264,7 @@ class TenantAttachmentController(TenantController):
         ):
             """
             取消分片上传并清理临时文件
-            
+
             权限: attachment:chunk_abort
             """
             service = AttachmentService(db, current_admin.tenant_id)
@@ -282,12 +282,12 @@ class TenantAttachmentController(TenantController):
         ):
             """
             获取当前租户存储配额使用情况
-            
+
             权限: attachment:storage_quota
             """
             quota_service = StorageQuotaService(db)
             stats = await quota_service.get_tenant_storage_stats(current_admin.tenant_id)
-            
+
             return success(
                 data=TenantStorageQuotaResponse(
                     used_bytes=stats["used_bytes"],
@@ -314,9 +314,9 @@ class TenantAttachmentController(TenantController):
         ):
             """
             获取附件下拉选项
-            
+
             用于从现有附件中选择文件
-            
+
             权限: attachment:select
             """
             service = AttachmentService(db, current_admin.tenant_id)
@@ -338,11 +338,11 @@ class TenantAttachmentController(TenantController):
         ):
             """
             获取附件列表
-            
+
             - 支持通用筛选: filter[field][op]=value
             - 支持排序: sort=-created_at,name
             - 支持分页: page[number]=1&page[size]=20
-            
+
             权限: attachment:list
             """
             service = AttachmentService(db, current_admin.tenant_id)
@@ -367,7 +367,7 @@ class TenantAttachmentController(TenantController):
         ):
             """
             获取附件详情
-            
+
             权限: attachment:detail
             """
             service = AttachmentService(db, current_admin.tenant_id)
@@ -389,7 +389,7 @@ class TenantAttachmentController(TenantController):
         ):
             """
             删除附件（软删除）
-            
+
             权限: attachment:delete
             """
             service = AttachmentService(db, current_admin.tenant_id)
@@ -408,7 +408,7 @@ class TenantAttachmentController(TenantController):
         ):
             """
             获取附件下载 URL
-            
+
             权限: attachment:download_url
             """
             service = AttachmentDownloadService(db, current_admin.tenant_id)
@@ -428,7 +428,7 @@ class TenantAttachmentController(TenantController):
         ):
             """
             获取附件预览 URL
-            
+
             权限: attachment:preview_url
             """
             service = AttachmentDownloadService(db, current_admin.tenant_id)
@@ -448,7 +448,7 @@ class TenantAttachmentController(TenantController):
         ):
             """
             下载附件
-            
+
             权限: attachment:download
             """
             service = AttachmentDownloadService(db, current_admin.tenant_id)
@@ -471,7 +471,7 @@ class TenantAttachmentController(TenantController):
         ):
             """
             预览附件
-            
+
             权限: attachment:preview
             """
             service = AttachmentDownloadService(db, current_admin.tenant_id)

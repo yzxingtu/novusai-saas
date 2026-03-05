@@ -1,7 +1,6 @@
-from app.configs.meta import ConfigMeta, ConfigOption, DisplayRule
 from app.configs.definitions.groups import PLATFORM_STORAGE_GROUP
+from app.configs.meta import ConfigMeta, ConfigOption, DisplayRule
 from app.enums.config import ConfigScope, ConfigValueType
-
 
 PLATFORM_STORAGE_DRIVER = ConfigMeta(
     key="platform_storage_driver",

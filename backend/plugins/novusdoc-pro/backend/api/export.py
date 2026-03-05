@@ -19,10 +19,10 @@ from starlette.responses import Response
 
 from app.core.logging import get_logger
 
+from .utils import resolve_tenant_id
+from .utils import safe_int as _safe_int
+
 logger = get_logger("plugin.novusdoc-pro.api")
-
-
-from .utils import resolve_tenant_id, safe_int as _safe_int
 
 
 def _content_disposition(title: str, ext: str) -> str:
@@ -103,7 +103,6 @@ async def export_word(request, db, ctx):
 
     try:
         from docx import Document as DocxDocument
-        from docx.shared import Pt
     except ImportError:
         return {
             "error": "python-docx is not installed. Run: pip install python-docx",

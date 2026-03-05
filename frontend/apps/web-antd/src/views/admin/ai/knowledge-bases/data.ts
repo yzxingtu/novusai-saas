@@ -3,17 +3,23 @@
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
+import type { AIModelInfo } from '#/api/admin/ai';
 import type { AdminKnowledgeBaseItem } from '#/api/admin/knowledge-bases';
 
-import type { AIModelInfo } from '#/api/admin/ai';
-
-import { inputField, numberField, searchInput, select, switchField, textareaField } from '#/adapter/form';
+import {
+  inputField,
+  numberField,
+  searchInput,
+  select,
+  switchField,
+  textareaField,
+} from '#/adapter/form';
 import { getAIModelListApi } from '#/api/admin/ai';
 import { useScopeFields } from '#/components/business/scope-select';
 import { $t } from '#/locales';
 import {
-  getScopeColor,
   getScopeOptions as _getScopeOptions,
+  getScopeColor,
   getScopeText,
 } from '#/utils/scope-helpers';
 
@@ -28,7 +34,10 @@ export function getScopeOptions() {
 export function getVisibilityOptions() {
   return [
     { label: $t('admin.knowledgeBase.visibility.private'), value: 'private' },
-    { label: $t('admin.knowledgeBase.visibility.all_tenants'), value: 'all_tenants' },
+    {
+      label: $t('admin.knowledgeBase.visibility.all_tenants'),
+      value: 'all_tenants',
+    },
     { label: $t('admin.knowledgeBase.visibility.assigned'), value: 'assigned' },
   ];
 }
@@ -67,7 +76,9 @@ export async function getVisionModelOptions() {
       })),
     ];
   } catch {
-    return [{ label: $t('admin.knowledgeBase.field.visionModelAuto'), value: null }];
+    return [
+      { label: $t('admin.knowledgeBase.field.visionModelAuto'), value: null },
+    ];
   }
 }
 
@@ -203,21 +214,32 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
       scopeHelp: $t('admin.knowledgeBase.help.scope'),
     }),
     {
-      ...select('embedding_model_id', $t('admin.knowledgeBase.field.embeddingModel'), {
-        api: getEmbeddingModelOptions,
-        required: !isEdit,
-      }),
+      ...select(
+        'embedding_model_id',
+        $t('admin.knowledgeBase.field.embeddingModel'),
+        {
+          api: getEmbeddingModelOptions,
+          required: !isEdit,
+        },
+      ),
       help: $t('admin.knowledgeBase.help.embeddingModel'),
     },
     {
-      ...select('vision_model_id', $t('admin.knowledgeBase.field.visionModel'), {
-        api: getVisionModelOptions,
-        required: false,
-      }),
+      ...select(
+        'vision_model_id',
+        $t('admin.knowledgeBase.field.visionModel'),
+        {
+          api: getVisionModelOptions,
+          required: false,
+        },
+      ),
       help: $t('admin.knowledgeBase.help.visionModel'),
     },
     {
-      ...switchField('extract_images', $t('admin.knowledgeBase.field.extractImages')),
+      ...switchField(
+        'extract_images',
+        $t('admin.knowledgeBase.field.extractImages'),
+      ),
       help: $t('admin.knowledgeBase.help.extractImages'),
     },
   ];
@@ -225,17 +247,25 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
   if (!isEdit) {
     schemas.push(
       {
-        ...numberField('chunk_size', $t('admin.knowledgeBase.field.chunkSize'), {
-          min: 128,
-          max: 4096,
-        }),
+        ...numberField(
+          'chunk_size',
+          $t('admin.knowledgeBase.field.chunkSize'),
+          {
+            min: 128,
+            max: 4096,
+          },
+        ),
         help: $t('admin.knowledgeBase.help.chunkSize'),
       },
       {
-        ...numberField('chunk_overlap', $t('admin.knowledgeBase.field.chunkOverlap'), {
-          min: 0,
-          max: 200,
-        }),
+        ...numberField(
+          'chunk_overlap',
+          $t('admin.knowledgeBase.field.chunkOverlap'),
+          {
+            min: 0,
+            max: 200,
+          },
+        ),
         help: $t('admin.knowledgeBase.help.chunkOverlap'),
       },
       {
@@ -246,10 +276,14 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
         help: $t('admin.knowledgeBase.help.topK'),
       },
       {
-        ...numberField('score_threshold', $t('admin.knowledgeBase.field.scoreThreshold'), {
-          min: 0,
-          max: 1,
-        }),
+        ...numberField(
+          'score_threshold',
+          $t('admin.knowledgeBase.field.scoreThreshold'),
+          {
+            min: 0,
+            max: 1,
+          },
+        ),
         help: $t('admin.knowledgeBase.help.scoreThreshold'),
       },
     );

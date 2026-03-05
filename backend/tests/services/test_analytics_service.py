@@ -7,12 +7,9 @@ AnalyticsService + TenantAnalyticsService 单元测试
 from __future__ import annotations
 
 from datetime import date
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
-from tests.services.conftest import make_row_result, make_scalars_result
-
 
 # ── Helpers ──
 
@@ -117,7 +114,7 @@ class TestLatencyDistribution:
         from app.services.ai.analytics_service import AnalyticsService
 
         row = MagicMock()
-        row.__getitem__ = lambda self, idx: [100, 50, 30, 10, 5, 2][idx]
+        row.__getitem__ = lambda _self, idx: [100, 50, 30, 10, 5, 2][idx]
         result_mock = MagicMock()
         result_mock.one.return_value = row
         mock_db.execute.return_value = result_mock
@@ -162,7 +159,7 @@ class TestProviderPerformance:
         from app.services.ai.analytics_service import AnalyticsService
 
         rows = []
-        for i, name in enumerate(["OpenAI", "Anthropic"]):
+        for i, _name in enumerate(["OpenAI", "Anthropic"]):
             row = MagicMock()
             row.provider_id = i + 1
             row.calls = 100

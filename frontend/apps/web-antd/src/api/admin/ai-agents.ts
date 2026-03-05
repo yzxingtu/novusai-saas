@@ -13,7 +13,7 @@ import { requestClient } from '#/utils/request';
 /** 智能体信息 */
 export interface AIAgentInfo {
   id: number;
-  tenant_id: number | null;
+  tenant_id: null | number;
   name: string;
   description: null | string;
   avatar: null | string;
@@ -26,13 +26,15 @@ export interface AIAgentInfo {
   skill_packages: { id: number; name: string }[];
   published_version: null | number;
   welcome_message: null | string;
-  suggested_questions: string[] | null;
+  suggested_questions: null | string[];
   system_prompt: null | string;
   temperature: number;
   max_tokens: number;
-  top_p: number | null;
-  knowledge_base_ids: number[] | null;
-  routing_config: Record<string, unknown> | null;
+  top_p: null | number;
+  knowledge_base_ids: null | number[];
+  routing_config: null | Record<string, unknown>;
+  quota_config: null | Record<string, unknown>;
+  context_config: null | Record<string, unknown>;
   assigned_tenant_ids?: number[];
   created_at: string;
   updated_at: string;
@@ -43,7 +45,7 @@ export interface AIAgentCreateRequest {
   name: string;
   description?: null | string;
   scope: string;
-  tenant_id?: number | null;
+  tenant_id?: null | number;
   tenant_ids?: number[];
   model_id: number;
   execution_mode?: string;
@@ -57,14 +59,36 @@ export interface AIAgentCreateRequest {
 export interface AIAgentUpdateRequest {
   name?: string;
   description?: null | string;
+  avatar?: null | string;
   scope?: string;
-  tenant_id?: number | null;
+  tenant_id?: null | number;
   tenant_ids?: number[];
   model_id?: number;
+  execution_mode?: string;
   system_prompt?: null | string;
   temperature?: number;
   max_tokens?: number;
+  top_p?: null | number;
+  welcome_message?: null | string;
+  suggested_questions?: string[];
+  routing_config?: null | Record<string, unknown>;
+  quota_config?: null | Record<string, unknown>;
+  context_config?: null | Record<string, unknown>;
   knowledge_base_ids?: number[];
+}
+
+/** 智能体记忆配置（管理端） */
+export interface AIAgentMemoryConfig {
+  agent_id: number;
+  platform_default_memory_enabled: boolean;
+  admin_agent_memory_enabled: boolean;
+  tenant_agent_memory_disabled: boolean;
+  effective_memory_enabled: boolean;
+}
+
+/** 更新智能体记忆开关请求（管理端） */
+export interface AIAgentMemoryUpdateRequest {
+  enabled: boolean;
 }
 
 // ============================================================
@@ -73,17 +97,17 @@ export interface AIAgentUpdateRequest {
 
 /** 技能绑定信息 */
 export interface AIAgentSkillBindingInfo {
-  id: number | null;
+  id: null | number;
   agent_id: number;
   package_id: number;
   enabled: boolean;
-  config_override: Record<string, unknown> | null;
+  config_override: null | Record<string, unknown>;
   sort_order: number;
   consent_mode: string;
   is_auto_bound: boolean;
-  package_name: string | null;
-  package_description: string | null;
-  package_scope: string | null;
+  package_name: null | string;
+  package_description: null | string;
+  package_scope: null | string;
   package_bind_mode: string;
   package_is_system: boolean;
 }
@@ -91,7 +115,7 @@ export interface AIAgentSkillBindingInfo {
 /** 绑定技能包请求 */
 export interface AIAgentSkillBindRequest {
   package_id: number;
-  config_override?: Record<string, unknown> | null;
+  config_override?: null | Record<string, unknown>;
   sort_order?: number;
   consent_mode?: string;
 }
@@ -105,10 +129,10 @@ export interface AIAgentSkillBatchBindRequest {
 /** 更新绑定请求 */
 export interface AIAgentSkillBindingUpdateRequest {
   enabled?: boolean | null;
-  config_override?: Record<string, unknown> | null;
-  sort_order?: number | null;
-  consent_mode?: string | null;
-  skill_consent_overrides?: Record<string, string> | null;
+  config_override?: null | Record<string, unknown>;
+  sort_order?: null | number;
+  consent_mode?: null | string;
+  skill_consent_overrides?: null | Record<string, string>;
 }
 
 // ============================================================
@@ -133,10 +157,10 @@ export async function getAIAgentListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<PageResponse<AIAgentInfo>> {
-  return requestClient.get<PageResponse<AIAgentInfo>>(
-    AGENT_PREFIX,
-    { params, ...options },
-  );
+  return requestClient.get<PageResponse<AIAgentInfo>>(AGENT_PREFIX, {
+    params,
+    ...options,
+  });
 }
 
 /** 获取智能体详情 */
@@ -144,10 +168,7 @@ export async function getAIAgentDetailApi(
   id: number,
   options?: ApiRequestOptions,
 ): Promise<AIAgentInfo> {
-  return requestClient.get<AIAgentInfo>(
-    `${AGENT_PREFIX}/${id}`,
-    options,
-  );
+  return requestClient.get<AIAgentInfo>(`${AGENT_PREFIX}/${id}`, options);
 }
 
 /** 更新智能体状态 */
@@ -177,11 +198,7 @@ export async function updateAIAgentApi(
   data: AIAgentUpdateRequest,
   options?: ApiRequestOptions,
 ): Promise<AIAgentInfo> {
-  return requestClient.put<AIAgentInfo>(
-    `${AGENT_PREFIX}/${id}`,
-    data,
-    options,
-  );
+  return requestClient.put<AIAgentInfo>(`${AGENT_PREFIX}/${id}`, data, options);
 }
 
 /** 删除智能体 */
@@ -190,6 +207,30 @@ export async function deleteAIAgentApi(
   options?: ApiRequestOptions,
 ): Promise<void> {
   await requestClient.delete(`${AGENT_PREFIX}/${id}`, options);
+}
+
+/** 获取智能体记忆配置 */
+export async function getAIAgentMemoryConfigApi(
+  id: number,
+  options?: ApiRequestOptions,
+): Promise<AIAgentMemoryConfig> {
+  return requestClient.get<AIAgentMemoryConfig>(
+    `${AGENT_PREFIX}/${id}/memory`,
+    options,
+  );
+}
+
+/** 更新智能体记忆开关 */
+export async function updateAIAgentMemoryConfigApi(
+  id: number,
+  data: AIAgentMemoryUpdateRequest,
+  options?: ApiRequestOptions,
+): Promise<AIAgentMemoryConfig> {
+  return requestClient.put<AIAgentMemoryConfig>(
+    `${AGENT_PREFIX}/${id}/memory`,
+    data,
+    options,
+  );
 }
 
 // ============================================================
@@ -244,9 +285,7 @@ export async function unbindAIAgentSkillApi(
   agentId: number,
   packageId: number,
 ): Promise<void> {
-  await requestClient.delete(
-    `${AGENT_PREFIX}/${agentId}/skills/${packageId}`,
-  );
+  await requestClient.delete(`${AGENT_PREFIX}/${agentId}/skills/${packageId}`);
 }
 
 // ============================================================
@@ -258,8 +297,8 @@ export interface AIAgentVersionItem {
   id: number;
   agent_id: number;
   version: number;
-  change_log: string | null;
-  created_by: number | null;
+  change_log: null | string;
+  created_by: null | number;
   execution_mode: string;
   created_at: string;
 }
@@ -313,8 +352,8 @@ export async function getAIAgentVersionDetailApi(
 export interface AIAgentAccessConfig {
   visibility: string;
   access_type: string;
-  org_node_ids: number[] | null;
-  user_ids: number[] | null;
+  org_node_ids: null | number[];
+  user_ids: null | number[];
   access_rules: Array<Record<string, unknown>>;
 }
 
@@ -331,10 +370,10 @@ export async function getAIAgentAccessApi(
 export async function updateAIAgentAccessApi(
   agentId: number,
   data: {
-    visibility?: string;
     access_type?: string;
-    org_node_ids?: number[] | null;
-    user_ids?: number[] | null;
+    org_node_ids?: null | number[];
+    user_ids?: null | number[];
+    visibility?: string;
   },
 ): Promise<AIAgentAccessConfig> {
   return requestClient.put<AIAgentAccessConfig>(
@@ -348,7 +387,9 @@ export async function updateAIAgentAccessApi(
 // ============================================================
 
 /** 获取回收站计数 */
-export async function getAIAgentRecycleBinCountApi(): Promise<{ count: number }> {
+export async function getAIAgentRecycleBinCountApi(): Promise<{
+  count: number;
+}> {
   return requestClient.get<{ count: number }>(
     `${AGENT_PREFIX}/recycle-bin/count`,
   );

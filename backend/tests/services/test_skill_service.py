@@ -6,7 +6,7 @@ SkillPackageService + SkillService 单元测试
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -46,8 +46,8 @@ class TestSkillPackageCreate:
 
     @pytest.mark.asyncio
     async def test_duplicate_name_raises(self, mock_db):
-        from app.services.ai.skill_package_service import SkillPackageService
         from app.exceptions import BusinessException
+        from app.services.ai.skill_package_service import SkillPackageService
 
         existing = _make_package(id=99, name="Duplicate")
         service = SkillPackageService.__new__(SkillPackageService)
@@ -64,8 +64,8 @@ class TestSkillPackageDelete:
 
     @pytest.mark.asyncio
     async def test_system_package_cannot_delete(self, mock_db):
-        from app.services.ai.skill_package_service import SkillPackageService
         from app.exceptions import BusinessException
+        from app.services.ai.skill_package_service import SkillPackageService
 
         pkg = _make_package(is_system=True)
         service = SkillPackageService.__new__(SkillPackageService)
@@ -82,8 +82,8 @@ class TestSkillPackageUpdate:
 
     @pytest.mark.asyncio
     async def test_system_package_limited_update(self, mock_db):
-        from app.services.ai.skill_package_service import SkillPackageService
         from app.exceptions import BusinessException
+        from app.services.ai.skill_package_service import SkillPackageService
 
         pkg = _make_package(is_system=True)
         service = SkillPackageService.__new__(SkillPackageService)

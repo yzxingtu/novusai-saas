@@ -2,14 +2,16 @@
 技能 Repository
 """
 
-from sqlalchemy import or_, select, and_
+from sqlalchemy import and_, or_, select
 
+from app.core.base_repository import BaseRepository, TenantRepository
+from app.enums.common import ResourceScopeEnum
 from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage
-from app.core.base_repository import TenantRepository, BaseRepository
-from app.enums.common import ResourceScopeEnum
-from app.repositories.system.resource_tenant_assignment_repository import assigned_resource_ids_subquery
-from app.schemas.common.query import QuerySpec, FilterRule
+from app.repositories.system.resource_tenant_assignment_repository import (
+    assigned_resource_ids_subquery,
+)
+from app.schemas.common.query import FilterRule, QuerySpec
 
 _ASSIGNED_SCOPES = (
     ResourceScopeEnum.ASSIGNED_TENANTS.value,
@@ -47,7 +49,9 @@ class SkillRepository(TenantRepository[Skill]):
                 if pkg.scope == ResourceScopeEnum.ALL_TENANTS.value and pkg.tenant_id is None:
                     return instance
                 if pkg.scope in _ASSIGNED_SCOPES:
-                    from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
+                    from app.repositories.system.resource_tenant_assignment_repository import (
+                        ResourceTenantAssignmentRepository,
+                    )
                     repo = ResourceTenantAssignmentRepository(self.db)
                     if await repo.check_assignment("skill_package", pkg.id, self.tenant_id):
                         return instance

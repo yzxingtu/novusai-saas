@@ -10,19 +10,19 @@
  * Vue Router key change (getTabKey uses fullPath) which would destroy
  * and recreate the component on every query param update.
  */
-defineOptions({ name: 'AdminAIChat' });
-
 import { Page } from '@vben/common-ui';
 
-import { AIChatPanel } from '#/components/business/ai-chat-panel';
 import { getAdminSelectableKBApi } from '#/api/admin/knowledge-bases';
+import { AIChatPanel } from '#/components/business/ai-chat-panel';
 import { $t } from '#/locales';
+
+defineOptions({ name: 'AdminAIChat' });
 
 function _readQuery(): URLSearchParams {
   return new URLSearchParams(window.location.search);
 }
 
-function _updateQuery(key: string, value: string | null) {
+function _updateQuery(key: string, value: null | string) {
   const params = _readQuery();
   if (value) {
     params.set(key, value);
@@ -35,15 +35,19 @@ function _updateQuery(key: string, value: string | null) {
 }
 
 const initParams = _readQuery();
-const initialAgentId = initParams.has('agent') ? Number(initParams.get('agent')) : undefined;
-const initialConversationId = initParams.has('conv') ? Number(initParams.get('conv')) : undefined;
+const initialAgentId = initParams.has('agent')
+  ? Number(initParams.get('agent'))
+  : undefined;
+const initialConversationId = initParams.has('conv')
+  ? Number(initParams.get('conv'))
+  : undefined;
 
 function onAgentChange(agentId: number) {
   _updateQuery('agent', String(agentId));
   _updateQuery('conv', null);
 }
 
-function onConversationChange(conversationId: number | null) {
+function onConversationChange(conversationId: null | number) {
   _updateQuery('conv', conversationId ? String(conversationId) : null);
 }
 </script>

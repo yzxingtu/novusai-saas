@@ -4,7 +4,7 @@ AI 操作审计日志 Repository
 提供 AI 操作审计日志的查询和统计功能
 """
 
-from sqlalchemy import select, func, case
+from sqlalchemy import case, func, select
 
 from app.core.base_repository import TenantRepository
 from app.enums.agent import ActionLevelEnum, ActionStatusEnum

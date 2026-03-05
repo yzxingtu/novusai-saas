@@ -47,8 +47,8 @@ class TestGetConversationDetail:
 
     @pytest.mark.asyncio
     async def test_not_found_raises(self, mock_db):
-        from app.services.ai.conversation_service import ConversationService
         from app.exceptions import NotFoundException
+        from app.services.ai.conversation_service import ConversationService
 
         service = ConversationService.__new__(ConversationService)
         service.db = mock_db
@@ -64,8 +64,8 @@ class TestArchiveConversation:
 
     @pytest.mark.asyncio
     async def test_archive_not_found_raises(self, mock_db):
-        from app.services.ai.conversation_service import ConversationService
         from app.exceptions import NotFoundException
+        from app.services.ai.conversation_service import ConversationService
 
         service = ConversationService.__new__(ConversationService)
         service.db = mock_db
@@ -81,8 +81,8 @@ class TestExportConversation:
 
     @pytest.mark.asyncio
     async def test_export_not_found_raises(self, mock_db):
-        from app.services.ai.conversation_service import ConversationService
         from app.exceptions import NotFoundException
+        from app.services.ai.conversation_service import ConversationService
 
         service = ConversationService.__new__(ConversationService)
         service.db = mock_db
@@ -112,3 +112,46 @@ class TestGetOrCreateForChat:
         )
 
         assert result.id == 10
+
+
+class TestDeleteConversationMemoryCleanup:
+
+    @pytest.mark.asyncio
+    async def test_after_delete_clears_session_memory(self, mock_db):
+        from app.services.ai.conversation_service import ConversationService
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+
+        memory_svc = MagicMock()
+        memory_svc.clear_conversation_memory = AsyncMock(return_value=2)
+
+        with patch(
+            "app.services.ai.conversation_service.SessionMemoryService",
+            return_value=memory_svc,
+        ):
+            await service._after_delete(123)
+
+        memory_svc.clear_conversation_memory.assert_awaited_once_with(123)
+
+    @pytest.mark.asyncio
+    async def test_after_delete_memory_cleanup_failure_not_raise(self, mock_db):
+        from app.services.ai.conversation_service import ConversationService
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+
+        memory_svc = MagicMock()
+        memory_svc.clear_conversation_memory = AsyncMock(side_effect=RuntimeError("redis down"))
+
+        with patch(
+            "app.services.ai.conversation_service.SessionMemoryService",
+            return_value=memory_svc,
+        ):
+            await service._after_delete(456)
+
+        memory_svc.clear_conversation_memory.assert_awaited_once_with(456)

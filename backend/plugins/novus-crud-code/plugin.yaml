@@ -1,0 +1,250 @@
+name: novus-crud-code
+version: "1.0.0"
+display_name:
+  zh-CN: "DataForge Studio"
+  en: "DataForge Studio"
+description:
+  zh-CN: "现代化可视化 CRUD 开发工具，支持拖拽式 Schema 设计器、数据网格、表单构建器和 AI 智能数据操作。仅限开发环境使用。"
+  en: "Modern visual CRUD development toolkit with drag-and-drop Schema Designer, Data Grid, Form Builder and AI-powered data operations. Development environment only."
+author: "NovusAI"
+icon: "lucide:database-zap"
+icon_color: "#6366F1"
+scope: admin_only
+tags: ["crud", "dev-tools", "ai", "database"]
+
+capabilities:
+  - db:own_tables
+  - ai:call
+  - config:write
+
+# 历史插件表前缀（非 px_{plugin}_*），需显式声明供沙箱放行
+db_table_prefixes:
+  - "ncc_"
+
+ai_requirements:
+  features:
+    - feature_code: "data_query"
+      display_name:
+        zh-CN: "AI 数据查询"
+        en: "AI Data Query"
+      description:
+        zh-CN: "通过自然语言查询项目数据，自动生成过滤条件并返回结果"
+        en: "Query project data via natural language, auto-generate filters and return results"
+    - feature_code: "data_write"
+      display_name:
+        zh-CN: "AI 数据写入"
+        en: "AI Data Write"
+      description:
+        zh-CN: "通过 AI 指令创建、更新或删除记录，写操作需二次确认"
+        en: "Create, update or delete records via AI instructions, write ops require confirmation"
+    - feature_code: "data_analytics"
+      display_name:
+        zh-CN: "AI 数据分析"
+        en: "AI Data Analytics"
+      description:
+        zh-CN: "对表数据进行统计分析、趋势识别和洞察报告生成"
+        en: "Statistical analysis, trend identification and insight report generation on table data"
+
+extensions:
+  api:
+    admin_routes:
+      # ── Projects ──
+      - method: GET
+        path: "projects"
+        handler: "api.projects.list_projects"
+        summary: "项目列表"
+        auth: required
+      - method: POST
+        path: "projects"
+        handler: "api.projects.create_project"
+        summary: "创建项目"
+        auth: required
+      - method: GET
+        path: "projects/{project_id}"
+        handler: "api.projects.get_project"
+        summary: "项目详情"
+        auth: required
+      - method: PUT
+        path: "projects/{project_id}"
+        handler: "api.projects.update_project"
+        summary: "更新项目"
+        auth: required
+      - method: DELETE
+        path: "projects/{project_id}"
+        handler: "api.projects.delete_project"
+        summary: "删除项目"
+        auth: required
+
+      # ── Table Schemas ──
+      - method: GET
+        path: "projects/{project_id}/schemas"
+        handler: "api.schemas.list_schemas"
+        summary: "表结构列表"
+        auth: required
+      - method: POST
+        path: "projects/{project_id}/schemas"
+        handler: "api.schemas.create_schema"
+        summary: "创建表结构"
+        auth: required
+      - method: GET
+        path: "projects/{project_id}/schemas/{schema_id}"
+        handler: "api.schemas.get_schema"
+        summary: "表结构详情"
+        auth: required
+      - method: PUT
+        path: "projects/{project_id}/schemas/{schema_id}"
+        handler: "api.schemas.update_schema"
+        summary: "更新表结构"
+        auth: required
+      - method: DELETE
+        path: "projects/{project_id}/schemas/{schema_id}"
+        handler: "api.schemas.delete_schema"
+        summary: "删除表结构"
+        auth: required
+
+      # ── Table Relations ──
+      - method: GET
+        path: "projects/{project_id}/relations"
+        handler: "api.relations.list_relations"
+        summary: "表关联列表"
+        auth: required
+      - method: POST
+        path: "projects/{project_id}/relations"
+        handler: "api.relations.create_relation"
+        summary: "创建表关联"
+        auth: required
+      - method: PUT
+        path: "projects/{project_id}/relations/{relation_id}"
+        handler: "api.relations.update_relation"
+        summary: "更新表关联"
+        auth: required
+      - method: DELETE
+        path: "projects/{project_id}/relations/{relation_id}"
+        handler: "api.relations.delete_relation"
+        summary: "删除表关联"
+        auth: required
+
+      # ── Records (Dynamic Data) ──
+      - method: GET
+        path: "projects/{project_id}/schemas/{schema_id}/records"
+        handler: "api.records.list_records"
+        summary: "数据记录列表"
+        auth: required
+      - method: POST
+        path: "projects/{project_id}/schemas/{schema_id}/records"
+        handler: "api.records.create_record"
+        summary: "创建数据记录"
+        auth: required
+      - method: GET
+        path: "projects/{project_id}/schemas/{schema_id}/records/{record_id}"
+        handler: "api.records.get_record"
+        summary: "数据记录详情"
+        auth: required
+      - method: PUT
+        path: "projects/{project_id}/schemas/{schema_id}/records/{record_id}"
+        handler: "api.records.update_record"
+        summary: "更新数据记录"
+        auth: required
+      - method: DELETE
+        path: "projects/{project_id}/schemas/{schema_id}/records/{record_id}"
+        handler: "api.records.delete_record"
+        summary: "删除数据记录"
+        auth: required
+      - method: POST
+        path: "projects/{project_id}/schemas/{schema_id}/records/bulk"
+        handler: "api.records.bulk_delete_records"
+        summary: "批量删除记录"
+        auth: required
+
+      # ── AI Chat ──
+      - method: POST
+        path: "projects/{project_id}/ai/chat"
+        handler: "api.ai_chat.chat"
+        summary: "AI 数据对话"
+        auth: required
+
+  frontend:
+    menus:
+      - name: "ncc_studio_admin"
+        path: "/admin/plugins/novus-crud-code/projects"
+        icon: "lucide:database-zap"
+        sort_order: 95
+        scope: "admin_only"
+        parent: "system_mgmt"
+        title:
+          zh-CN: "数据工坊"
+          en: "DataForge Studio"
+
+    standalone_pages:
+      - name: "ncc_projects"
+        path: "/admin/plugins/novus-crud-code/projects"
+        component: "ProjectList"
+        title:
+          zh-CN: "项目列表"
+          en: "Projects"
+      - name: "ncc_project_detail"
+        path: "/admin/plugins/novus-crud-code/projects/:projectId"
+        component: "ProjectDetail"
+        title:
+          zh-CN: "项目详情"
+          en: "Project Detail"
+      - name: "ncc_schema_designer"
+        path: "/admin/plugins/novus-crud-code/projects/:projectId/schema"
+        component: "SchemaDesigner"
+        title:
+          zh-CN: "Schema 设计器"
+          en: "Schema Designer"
+      - name: "ncc_data_grid"
+        path: "/admin/plugins/novus-crud-code/projects/:projectId/schemas/:schemaId/data"
+        component: "DataGrid"
+        title:
+          zh-CN: "数据网格"
+          en: "Data Grid"
+      - name: "ncc_form_builder"
+        path: "/admin/plugins/novus-crud-code/projects/:projectId/schemas/:schemaId/form"
+        component: "FormBuilder"
+        title:
+          zh-CN: "表单构建器"
+          en: "Form Builder"
+
+    npm_dependencies:
+      - "@vue-flow/core"
+      - "@vue-flow/background"
+      - "@vue-flow/controls"
+      - "@vue-flow/minimap"
+      - "sortablejs"
+      - "@types/sortablejs"
+
+    admin:
+      entry: "src/index.ts"
+      styles:
+        - "novus-crud-code.css"
+
+config_schema:
+  type: object
+  properties:
+    max_projects:
+      type: integer
+      title: "最大项目数 / Max Projects"
+      description: "每个实例允许创建的最大项目数 / Max projects per instance"
+      minimum: 1
+      maximum: 100
+      default: 20
+    max_tables_per_project:
+      type: integer
+      title: "每项目最大表数 / Max Tables per Project"
+      minimum: 1
+      maximum: 50
+      default: 20
+    max_records_per_table:
+      type: integer
+      title: "每表最大记录数 / Max Records per Table"
+      minimum: 100
+      maximum: 1000000
+      default: 10000
+
+dependencies:
+  python: []
+
+pricing:
+  type: free

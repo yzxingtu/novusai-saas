@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -157,7 +158,8 @@ class VersionManager:
             plugin.manifest = new_manifest.model_dump()
             from app.plugins.preview import resolve_i18n
             plugin.display_name = resolve_i18n(new_manifest.display_name)
-            plugin.installed_packages = new_manifest.dependencies.python or []
+            new_py_deps = getattr(getattr(new_manifest, "dependencies", None), "python", None) or []
+            plugin.installed_packages = new_py_deps
 
             # 旧版本归档
             from sqlalchemy import update
@@ -214,10 +216,8 @@ class VersionManager:
                 unload_plugin_modules(plugin_name)
                 plugin.version = old_version
                 if was_enabled:
-                    try:
+                    with contextlib.suppress(Exception):
                         await lifecycle._enable_impl(plugin_id)
-                    except Exception:
-                        pass
             raise PluginError(
                 message=f"Upgrade failed for '{plugin_name}': {exc}",
             )
@@ -264,6 +264,17 @@ class VersionManager:
         # 备份当前版本
         self.archive_version(plugin_name, plugin.version)
 
+        # 回滚 alembic 迁移（必须在文件替换前，使用当前版本的迁移脚本）
+        # 若不先 downgrade，当前版本的额外迁移 stamp 会被 _purge_orphaned_alembic_stamps
+        # 清除，导致 upgrade 重建已存在的表而报错。
+        try:
+            await lifecycle.run_alembic_downgrade(plugin_name)
+        except Exception as exc:
+            logger.warning(
+                "Rollback %s: alembic downgrade failed (continuing with file restore): %s",
+                plugin_name, exc,
+            )
+
         # 恢复目标版本
         target_dir = PLUGINS_DIR / plugin_name
         shutil.rmtree(target_dir)
@@ -278,7 +289,8 @@ class VersionManager:
 
         plugin.version = target_version
         plugin.manifest = restored_manifest.model_dump()
-        plugin.installed_packages = restored_manifest.dependencies.python or []
+        restored_py_deps = getattr(getattr(restored_manifest, "dependencies", None), "python", None) or []
+        plugin.installed_packages = restored_py_deps
         await self._db.flush()
 
         # 重新启用（调用 _enable_impl 避免嵌套锁）

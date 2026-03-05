@@ -6,26 +6,26 @@
 
 from fastapi import Request
 
-from app.core.base_controller import TenantController
-from app.core.deps import DbSession, ActiveTenantAdmin, QueryParams
-from app.core.i18n import _
-from app.core.response import success, created, deleted, paginated
-from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException
-from app.rbac.decorators import (
-    permission_resource,
-    MenuConfig,
-    action_read,
-    action_create,
-    action_update,
-    action_delete,
-)
 from app.ai.agent_quota import AgentQuotaConfig, AgentQuotaManager
 from app.ai.agent_stats import AgentStatsManager
+from app.core.base_controller import TenantController
+from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
+from app.core.i18n import _
 from app.core.recycle_bin import register_tenant_recycle_bin_routes
+from app.core.response import created, deleted, paginated, success
+from app.enums.rbac import PermissionScope
+from app.exceptions import BusinessException, NotFoundException
+from app.rbac.decorators import (
+    MenuConfig,
+    action_create,
+    action_delete,
+    action_read,
+    action_update,
+    permission_resource,
+)
 from app.schemas.ai.agent import AgentCreate, AgentUpdate
 from app.schemas.ai.agent_access import AgentAccessUpdate
-from app.exceptions import BusinessException
+from app.schemas.ai.agent_memory import AgentMemoryDisableRequest
 from app.services.ai.agent_service import AgentService
 
 
@@ -306,10 +306,49 @@ class TenantAgentController(TenantController):
 
             return success(data=config, message=_("agent.access.updated"))
 
+        @router.get("/{agent_id}/memory", summary="获取智能体记忆开关状态")
+        @action_read("action.agent.detail")
+        async def get_memory_config(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            获取租户侧智能体记忆配置状态
+
+            权限: agent:detail
+            """
+            service = AgentService(db, tenant_admin.tenant_id)
+            config = await service.get_memory_config(agent_id)
+            return success(data=config)
+
+        @router.put("/{agent_id}/memory", summary="设置租户侧记忆关闭覆盖")
+        @action_update("action.agent.update")
+        async def update_memory_config(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            data: AgentMemoryDisableRequest,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            设置租户侧“关闭记忆/恢复默认”
+
+            权限: agent:update
+            """
+            service = AgentService(db, tenant_admin.tenant_id)
+            config = await service.set_memory_disabled(
+                agent_id=agent_id,
+                disabled=data.disabled,
+            )
+            await db.commit()
+            return success(data=config, message=_("agent.updated"))
+
         # 包含子路由模块
-        from app.api.tenant._agent_version import router as version_router
-        from app.api.tenant._agent_skills import router as skills_router
         from app.api.tenant._agent_batch import router as batch_router
+        from app.api.tenant._agent_skills import router as skills_router
+        from app.api.tenant._agent_version import router as version_router
 
         router.include_router(version_router)
         router.include_router(skills_router)

@@ -7,30 +7,27 @@
 import hashlib
 import os
 
-from fastapi import Request, UploadFile, File, Form
+from fastapi import File, Form, Request, UploadFile
 
 from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
-from app.core.deps import DbSession, QueryParams, ActiveAdmin
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import success, created, deleted, paginated
+from app.core.response import created, deleted, paginated, success
 from app.enums.common import ResourceScopeEnum
 from app.enums.knowledge_base import DocumentStatusEnum, DocumentTypeEnum
 from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException, BusinessException
-from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
-
-SCOPES_NEEDING_ASSIGNMENT = (
-    ResourceScopeEnum.ASSIGNED_TENANTS.value,
-    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
-)
+from app.exceptions import BusinessException, NotFoundException
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
-    action_read,
     action_create,
-    action_update,
     action_delete,
+    action_read,
+    action_update,
+    permission_resource,
+)
+from app.repositories.system.resource_tenant_assignment_repository import (
+    ResourceTenantAssignmentRepository,
 )
 from app.schemas.ai.knowledge_base import (
     AdminKnowledgeBaseCreate,
@@ -39,11 +36,16 @@ from app.schemas.ai.knowledge_base import (
     QAPairCreate,
     TextDocumentCreate,
 )
-from app.schemas.common.query import FilterRule, FilterOp
+from app.schemas.common.query import FilterOp, FilterRule
 from app.services.ai.knowledge_base_service import (
     AdminKnowledgeBaseService,
-    KnowledgeDocumentService,
     DocumentChunkService,
+    KnowledgeDocumentService,
+)
+
+SCOPES_NEEDING_ASSIGNMENT = (
+    ResourceScopeEnum.ASSIGNED_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
 )
 
 # 支持的文件类型映射
@@ -262,9 +264,10 @@ class AdminKnowledgeBaseController(GlobalController):
 
             权限: ai_knowledge_base:selectable
             """
-            from sqlalchemy import select, or_
-            from app.models.ai.knowledge_base import KnowledgeBase
+            from sqlalchemy import select
+
             from app.enums.common import ResourceScopeEnum
+            from app.models.ai.knowledge_base import KnowledgeBase
 
             # 查询管理端可见的知识库（admin_only / admin_and_all）
             stmt = (
@@ -307,7 +310,8 @@ class AdminKnowledgeBaseController(GlobalController):
 
             权限: ai_knowledge_base:stats
             """
-            from sqlalchemy import select, func
+            from sqlalchemy import func, select
+
             from app.models.ai.knowledge_base import KnowledgeBase
 
             stmt = select(
@@ -506,10 +510,6 @@ class AdminKnowledgeBaseController(GlobalController):
                 storage_path = f"knowledge-bases/admin/{kb_id}/{uuid.uuid4().hex}_{filename}"
                 driver = storage_manager.get_driver(storage_config)
                 await driver.put(storage_path, io.BytesIO(file_bytes))
-
-                url = ""
-                if storage_config.base_url:
-                    url = f"{storage_config.base_url.rstrip('/')}/{storage_path}"
 
                 attachment = AttachmentModel(
                     tenant_id=None,
@@ -1003,6 +1003,7 @@ class AdminKnowledgeBaseController(GlobalController):
 
             file_bytes = await file.read()
             import io
+
             import pandas as pd
 
             if ext == ".csv":

@@ -2,8 +2,6 @@
 SQLSafetyValidator 单元测试 — 重点验证 SELECT INTO 拦截
 """
 
-import pytest
-
 from app.ai.data_intelligence.sql_safety import SQLSafetyValidator, extract_table_names
 
 
@@ -99,10 +97,16 @@ class TestExtractTableNames:
         tables = extract_table_names("SELECT * FROM users")
         assert "users" in tables
 
-    @pytest.mark.xfail(reason="Pre-existing: alias regex consumes JOIN keyword")
     def test_join(self) -> None:
         tables = extract_table_names(
             "SELECT * FROM users JOIN orders ON users.id = orders.user_id"
+        )
+        assert "users" in tables
+        assert "orders" in tables
+
+    def test_join_with_alias(self) -> None:
+        tables = extract_table_names(
+            "SELECT u.id, o.id FROM users u JOIN orders o ON u.id = o.user_id"
         )
         assert "users" in tables
         assert "orders" in tables

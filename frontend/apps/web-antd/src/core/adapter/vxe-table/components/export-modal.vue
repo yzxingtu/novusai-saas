@@ -158,9 +158,10 @@ async function handleExport() {
   const exportData = tableData.map((row: any) => {
     const rowData: Record<string, any> = {};
     exportColumns.forEach((col) => {
+      const field = col.field;
+      if (!field) return;
       const headerTitle = String(col.title || col.field);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      rowData[headerTitle] = row[col.field!] ?? '';
+      rowData[headerTitle] = row[field] ?? '';
     });
     return rowData;
   });

@@ -4,11 +4,12 @@
  *
  * 展示有效策略列表（全局 + 租户覆盖合并），支持编辑覆盖和恢复默认。
  */
-import type { EffectiveTablePolicy, TablePolicyOverrideRequest } from '#/api/tenant/ai';
+import type {
+  EffectiveTablePolicy,
+  TablePolicyOverrideRequest,
+} from '#/api/tenant/ai';
 
-defineOptions({ name: 'TenantAITablePolicies' });
-
-import { ref, computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -19,12 +20,12 @@ import {
   Drawer,
   Form,
   InputNumber,
+  message,
   Modal,
   Spin,
   Switch,
   Table,
   Tag,
-  message,
 } from 'ant-design-vue';
 
 import {
@@ -33,6 +34,8 @@ import {
   upsertTablePolicyOverrideApi,
 } from '#/api/tenant/ai';
 import { $t } from '#/locales';
+
+defineOptions({ name: 'TenantAITablePolicies' });
 
 // ============ State ============
 
@@ -88,7 +91,10 @@ async function saveOverride() {
   if (!editingPolicy.value) return;
   saving.value = true;
   try {
-    await upsertTablePolicyOverrideApi(editingPolicy.value.id, overrideForm.value);
+    await upsertTablePolicyOverrideApi(
+      editingPolicy.value.id,
+      overrideForm.value,
+    );
     message.success($t('tenant.ai.tablePolicy.messages.overrideSuccess'));
     drawerVisible.value = false;
     await loadPolicies();
@@ -118,15 +124,60 @@ async function resetOverride(policy: EffectiveTablePolicy) {
 // ============ Table Columns ============
 
 const columns = [
-  { title: $t('tenant.ai.tablePolicy.tableName'), dataIndex: 'table_name', key: 'table_name', width: 180 },
-  { title: $t('tenant.ai.tablePolicy.label'), dataIndex: 'label', key: 'label', width: 150 },
-  { title: $t('tenant.ai.tablePolicy.allowRead'), dataIndex: 'allow_read', key: 'allow_read', width: 80 },
-  { title: $t('tenant.ai.tablePolicy.allowCreate'), dataIndex: 'allow_create', key: 'allow_create', width: 80 },
-  { title: $t('tenant.ai.tablePolicy.allowUpdate'), dataIndex: 'allow_update', key: 'allow_update', width: 80 },
-  { title: $t('tenant.ai.tablePolicy.allowDelete'), dataIndex: 'allow_delete', key: 'allow_delete', width: 80 },
-  { title: $t('tenant.ai.tablePolicy.maxRows'), dataIndex: 'max_rows', key: 'max_rows', width: 100 },
-  { title: $t('tenant.ai.tablePolicy.hasOverride'), dataIndex: 'has_override', key: 'has_override', width: 100 },
-  { title: $t('common.action'), key: 'action', width: 180, fixed: 'right' as const },
+  {
+    title: $t('tenant.ai.tablePolicy.tableName'),
+    dataIndex: 'table_name',
+    key: 'table_name',
+    width: 180,
+  },
+  {
+    title: $t('tenant.ai.tablePolicy.label'),
+    dataIndex: 'label',
+    key: 'label',
+    width: 150,
+  },
+  {
+    title: $t('tenant.ai.tablePolicy.allowRead'),
+    dataIndex: 'allow_read',
+    key: 'allow_read',
+    width: 80,
+  },
+  {
+    title: $t('tenant.ai.tablePolicy.allowCreate'),
+    dataIndex: 'allow_create',
+    key: 'allow_create',
+    width: 80,
+  },
+  {
+    title: $t('tenant.ai.tablePolicy.allowUpdate'),
+    dataIndex: 'allow_update',
+    key: 'allow_update',
+    width: 80,
+  },
+  {
+    title: $t('tenant.ai.tablePolicy.allowDelete'),
+    dataIndex: 'allow_delete',
+    key: 'allow_delete',
+    width: 80,
+  },
+  {
+    title: $t('tenant.ai.tablePolicy.maxRows'),
+    dataIndex: 'max_rows',
+    key: 'max_rows',
+    width: 100,
+  },
+  {
+    title: $t('tenant.ai.tablePolicy.hasOverride'),
+    dataIndex: 'has_override',
+    key: 'has_override',
+    width: 100,
+  },
+  {
+    title: $t('common.action'),
+    key: 'action',
+    width: 180,
+    fixed: 'right' as const,
+  },
 ];
 </script>
 
@@ -147,7 +198,14 @@ const columns = [
           size="small"
         >
           <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'allow_read' || column.key === 'allow_create' || column.key === 'allow_update' || column.key === 'allow_delete'">
+            <template
+              v-if="
+                column.key === 'allow_read' ||
+                column.key === 'allow_create' ||
+                column.key === 'allow_update' ||
+                column.key === 'allow_delete'
+              "
+            >
               <Badge :status="record[column.key] ? 'success' : 'default'" />
             </template>
             <template v-else-if="column.key === 'has_override'">

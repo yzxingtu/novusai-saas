@@ -4,8 +4,6 @@
  *
  * 功能：配置可见性（public/private）和访问类型（all_users/org_node/specific_users/api_only）
  */
-defineOptions({ name: 'AccessConfigDrawer' });
-
 import { computed, ref, watch } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
@@ -23,11 +21,10 @@ import {
   Spin,
 } from 'ant-design-vue';
 
-import {
-  getAgentAccessApi,
-  updateAgentAccessApi,
-} from '#/api/tenant/agents';
+import { getAgentAccessApi, updateAgentAccessApi } from '#/api/tenant/agents';
 import { $t } from '#/locales';
+
+defineOptions({ name: 'AccessConfigDrawer' });
 
 const agentId = ref(0);
 const agentName = ref('');
@@ -184,7 +181,9 @@ watch(visibility, (val) => {
             >
               <div class="flex items-center gap-1">
                 <IconifyIcon
-                  :icon="opt.value === 'public' ? 'lucide:globe' : 'lucide:lock'"
+                  :icon="
+                    opt.value === 'public' ? 'lucide:globe' : 'lucide:lock'
+                  "
                   class="size-3.5"
                 />
                 {{ opt.label }}
@@ -223,7 +222,9 @@ watch(visibility, (val) => {
             <Select
               v-model:value="orgNodeIds"
               mode="tags"
-              :placeholder="$t('tenant.ai.agent.access.placeholder.selectOrgNodes')"
+              :placeholder="
+                $t('tenant.ai.agent.access.placeholder.selectOrgNodes')
+              "
               :token-separators="[',']"
               style="width: 100%"
             />
@@ -237,7 +238,9 @@ watch(visibility, (val) => {
             <Select
               v-model:value="userIds"
               mode="tags"
-              :placeholder="$t('tenant.ai.agent.access.placeholder.inputUserIds')"
+              :placeholder="
+                $t('tenant.ai.agent.access.placeholder.inputUserIds')
+              "
               :token-separators="[',']"
               style="width: 100%"
             />

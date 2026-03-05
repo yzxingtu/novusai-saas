@@ -358,6 +358,16 @@
       "saveSuccess": "保存成功",
       "noQuotaLimit": "0 表示不限制"
     },
+    "memory": {
+      "title": "会话记忆",
+      "desc": "控制该智能体在 AI 对话页中的会话记忆能力。平台默认开关关闭时，将强制失效。",
+      "platformDefault": "平台默认",
+      "agentSwitch": "Agent 开关",
+      "effective": "最终生效",
+      "enabled": "开启",
+      "disabled": "关闭",
+      "saveSuccess": "记忆开关更新成功"
+    },
     "routing": {
       "description": "智能路由根据对话复杂度、附件类型和 Token 数量自动选择最合适的 AI 模型，平衡性能与成本。",
       "enableRouting": "启用智能路由",
@@ -369,6 +379,10 @@
       "longContextThresholdHelp": "输入 Token 超过此阈值时自动切换到长上下文模型",
       "autoSelect": "自动选择",
       "noLimit": "不限制",
+      "statusEnabled": "智能路由已开启",
+      "statusDisabled": "未开启",
+      "visionModelHelp": "有图片附件时优先路由到此模型",
+      "longContextModelHelp": "Token 超过阈値时自动切换到此模型",
       "tier": {
         "fast": "快速型",
         "standard": "标准型",
@@ -402,6 +416,14 @@
       "ask": "需要确认",
       "reject": "禁止执行"
     },
+    "quotaConfig": {
+      "conversationsPerDay": "每日对话次数",
+      "tokensPerDay": "每日 Token 限额",
+      "tokensPerMonth": "每月 Token 限额",
+      "maxTurnsPerConversation": "单次对话最大轮数",
+      "maxConcurrent": "最大并发数",
+      "userConversationsPerDay": "用户每日对话次数"
+    },
     "create": "创建智能体",
     "noDescription": "暂无描述",
     "viewDetail": "查看详情",
@@ -425,7 +447,9 @@
       "allTypes": "全部类型",
       "selectSkillPackages": "选择要绑定的技能包",
       "inputWelcomeMessage": "用户首次打开对话时的欢迎语",
-      "inputSuggestedQuestions": "每行一个推荐问题"
+      "inputSuggestedQuestions": "每行一个推荐问题",
+      "selectOrgNodes": "选择组织节点",
+      "inputUserIds": "输入用户 ID，多个用逗号分隔"
     },
     "help": {
       "topP": "0-1，与 temperature 配合使用",
@@ -1010,7 +1034,15 @@
   },
   "agentAssignment": {
     "title": "AI 功能分配",
+    "pageDesc": "为各 AI 功能模块指定驱动智能体，修改后即时生效、影响全平台。",
     "selectAgent": "选择智能体",
+    "typePlugin": "插件",
+    "globalDefault": "全局默认：{name}",
+    "stats": {
+      "total": "{count} 个功能",
+      "active": "{count} 个已启用",
+      "assigned": "{count} 个已绑定"
+    },
     "saveSuccess": "绑定已更新",
     "noAgent": "未分配",
     "toggleActiveConfirm": "确认{action}此功能绑定？此操作将影响所有租户。",

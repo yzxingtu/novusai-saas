@@ -68,8 +68,8 @@ export function getEndpointByUrl(url: string): ApiEndpoint {
   if (url.startsWith('/tenant')) return 'tenant';
   // 双端插件路由：/plugins/{name}/admin/* 或 /plugins/{name}/tenant/*
   if (url.startsWith('/plugins/')) {
-    if (/^\/plugins\/[^/]+\/admin(\/|$)/.test(url)) return 'admin';
-    if (/^\/plugins\/[^/]+\/tenant(\/|$)/.test(url)) return 'tenant';
+    if (/^\/plugins\/[^/]+\/admin(?:\/|$)/.test(url)) return 'admin';
+    if (/^\/plugins\/[^/]+\/tenant(?:\/|$)/.test(url)) return 'tenant';
   }
   return 'user';
 }
@@ -129,7 +129,7 @@ export function createRequestInterceptor(
         loadingState.count++;
         if (loadingState.count === 1) {
           loadingState.hideLoading = messageHandler.showLoading(
-            messageHandler.t('ui.fallback.http.loading'),
+            messageHandler.t('common.http.loading'),
           );
         }
       }
@@ -371,7 +371,7 @@ export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
         if (options.showErrorMessage !== false) {
           messageHandler.showMessage(
             'error',
-            messageHandler.t('ui.fallback.http.networkError'),
+            messageHandler.t('common.http.networkError'),
           );
         }
         return Promise.reject(error);
@@ -382,7 +382,7 @@ export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
         if (options.showErrorMessage !== false) {
           messageHandler.showMessage(
             'error',
-            messageHandler.t('ui.fallback.http.requestTimeout'),
+            messageHandler.t('common.http.requestTimeout'),
           );
         }
         return Promise.reject(error);
@@ -400,18 +400,18 @@ export function createErrorMessageInterceptor(messageHandler: MessageHandler) {
       const status = error?.response?.status;
       if (status && options.showErrorMessage !== false) {
         const statusMessages: Record<number, string> = {
-          400: 'ui.fallback.http.badRequest',
-          401: 'ui.fallback.http.unauthorized',
-          403: 'ui.fallback.http.forbidden',
-          404: 'ui.fallback.http.notFound',
-          408: 'ui.fallback.http.requestTimeout',
-          500: 'ui.fallback.http.internalServerError',
-          502: 'ui.fallback.http.badGateway',
-          503: 'ui.fallback.http.serviceUnavailable',
-          504: 'ui.fallback.http.gatewayTimeout',
+          400: 'common.http.badRequest',
+          401: 'common.http.unauthorized',
+          403: 'common.http.forbidden',
+          404: 'common.http.notFound',
+          408: 'common.http.requestTimeout',
+          500: 'common.http.internalServerError',
+          502: 'common.http.badGateway',
+          503: 'common.http.serviceUnavailable',
+          504: 'common.http.gatewayTimeout',
         };
         const messageKey =
-          statusMessages[status] || 'ui.fallback.http.internalServerError';
+          statusMessages[status] || 'common.http.internalServerError';
         messageHandler.showMessage('error', messageHandler.t(messageKey));
       }
 
@@ -484,7 +484,7 @@ export function createSuccessMessageInterceptor(
         const message =
           options.successMessage ||
           defaultSuccessMessage ||
-          messageHandler.t('ui.fallback.http.operationSuccess');
+          messageHandler.t('common.http.operationSuccess');
         messageHandler.showMessage('success', message);
       }
 

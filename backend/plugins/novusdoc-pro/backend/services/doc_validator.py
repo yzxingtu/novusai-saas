@@ -47,7 +47,7 @@ async def verify_document_exists(
 
     # 方式 2：降级直接查询文档表（novusdoc 插件加载失败时）
     try:
-        from sqlalchemy import select, text
+        from sqlalchemy import text
         result = await db.execute(
             text(
                 "SELECT 1 FROM px_novusdoc_documents "

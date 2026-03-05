@@ -10,23 +10,23 @@ RBAC 权限管理模块
 """
 
 from app.rbac.decorators import (
-    permission_resource,
-    permission_action,
-    action_read,
-    action_create,
-    action_update,
-    action_delete,
     MenuConfig,
     PermissionMeta,
+    action_create,
+    action_delete,
+    action_read,
+    action_update,
+    permission_action,
+    permission_resource,
 )
-from app.rbac.registry import permission_registry
 from app.rbac.deps import (
     require_admin_permissions,
     require_any_admin_permission,
-    require_tenant_admin_permissions,
     require_any_tenant_admin_permission,
     require_permissions,
+    require_tenant_admin_permissions,
 )
+from app.rbac.registry import permission_registry
 from app.rbac.services import PermissionService
 
 __all__ = [

@@ -7,10 +7,12 @@ SSE 流式执行处理器
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 import time
-from typing import TYPE_CHECKING, Any, AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
 from app.ai.sse import SSEChunkEncoder
 from app.ai.types import ChatMessage
@@ -20,7 +22,7 @@ from .base import MAX_TOOL_CALL_ROUNDS
 from .types import ExecutionRequest, ExecutionResult, PreparedExecution
 
 if TYPE_CHECKING:
-    from app.ai.tools.types import ToolResult
+    from app.ai.tools.types import ToolDefinition, ToolResult
     from app.models.ai.agent import Agent
 
     from .base import BaseEngine
@@ -34,7 +36,7 @@ class StreamExecutionHandler:
     SSE 流式执行处理器
 
     将 ConversationEngine._sse_generator 的完整逻辑封装为独立类。
-    通过 engine 引用访问 _call_llm / _stream_llm_chunks / _messages_to_dicts。
+    通过 engine 引用访问 _stream_llm_chunks / _messages_to_dicts。
 
     事件类型：
     - message: 内容增量
@@ -211,28 +213,30 @@ class StreamExecutionHandler:
             )
             if self.on_complete:
                 duration_ms = int((time.perf_counter() - self.start_time) * 1000)
-                try:
+                with contextlib.suppress(Exception):
                     await self.on_complete(ExecutionResult(
                         success=False,
                         error=f"{type(exc).__name__}: {exc}",
                         duration_ms=duration_ms,
                         conversation_id=self.request.conversation_id,
                     ))
-                except Exception:
-                    pass
             raise  # 必须重新抛出 BaseException
 
     async def _generate_with_tools(
         self,
         messages: list[ChatMessage],
-        tools: list[dict[str, Any]],
+        tools: list[ToolDefinition],
         processor: ToolCallProcessor,
         all_tool_results: list[ToolResult],
         strip_fc_tokens: Callable[[str], str],
     ) -> AsyncIterator[str]:
-        """有工具时的 SSE 事件生成（确认拦截 + 工具调用循环 + 最终回复）
+        """
+        有工具场景的真实流式执行：
 
-        通过 self._output / self._total_tokens 共享最终状态给调用者。
+        1. 每轮先走模型原生 stream_chat（携带 tools）
+        2. 流式增量实时转发 message 事件
+        3. 若检测到 tool_calls，则执行工具并进入下一轮
+        4. 若无 tool_calls，则该轮即最终回复
         """
         self._total_tokens = 0
         self._output = ""
@@ -291,172 +295,280 @@ class StreamExecutionHandler:
                 processor.build_tool_message(_result, _tc_id)
             )
 
-        # ---- 有工具：实时推送工具调用事件 ----
-        response = await self.engine._call_llm(
-            agent=self.agent,
-            messages=messages,
-            tools=tools,
-            tenant_id=self.request.tenant_id,
-            user_id=self.request.user_id,
-            route_result=self.prep.route_result,
-        )
-        self._total_tokens += response.total_tokens or 0
+        for _round in range(MAX_TOOL_CALL_ROUNDS):
+            round_output = ""
+            round_tokens = 0
+            streamed_tool_calls: list[dict[str, Any]] = []
 
-        if response.tool_calls:
-            # 通知前端 AI 正在执行工具
-            yield SSEChunkEncoder.encode({
-                "event": "thinking",
-            })
+            # 真实流式调用（携带 tools），增量立即透传给前端
+            async for chunk in self.engine._stream_llm_chunks(
+                agent=self.agent,
+                messages=messages,
+                tenant_id=self.request.tenant_id,
+                route_result=self.prep.route_result,
+                tools=tools,
+            ):
+                if chunk.delta:
+                    cleaned = strip_fc_tokens(chunk.delta)
+                    if cleaned:
+                        round_output += cleaned
+                        yield SSEChunkEncoder.encode({
+                            "event": "message",
+                            "delta": cleaned,
+                        })
 
-            # 内联工具调用循环
-            current_response = response
-            has_confirmation = False
-            for _round in range(MAX_TOOL_CALL_ROUNDS):
-                tc_list = current_response.tool_calls
-                if not tc_list:
+                if chunk.tool_calls:
+                    streamed_tool_calls = self._merge_stream_tool_calls(
+                        streamed_tool_calls,
+                        chunk.tool_calls,
+                    )
+
+                if chunk.total_tokens is not None:
+                    round_tokens = chunk.total_tokens
+
+                if chunk.finish_reason is not None:
                     break
 
-                # 追加 assistant 消息（含 tool_calls）
-                messages.append(processor.build_assistant_tool_call_message(
-                    content=current_response.message.content or "",
+            self._total_tokens += round_tokens
+
+            # 本轮无工具调用 => 已拿到最终文本回复
+            tc_list = self._finalize_stream_tool_calls(streamed_tool_calls)
+            if not tc_list:
+                self._output = round_output.strip()
+                break
+
+            # 本轮出现工具调用 => 执行工具后进入下一轮
+            yield SSEChunkEncoder.encode({"event": "thinking"})
+
+            messages.append(
+                processor.build_assistant_tool_call_message(
+                    content=round_output,
                     tool_calls=tc_list,
-                ))
+                )
+            )
 
-                # 逐个执行工具并立即推送 SSE 事件
-                for tc in tc_list:
-                    tc_id = tc.get("id", "")
-                    func = tc.get("function", {})
-                    func_name = func.get("name", "")
-                    raw_args = func.get("arguments", "{}")
-                    arguments = processor.parse_arguments(raw_args)
+            round_has_confirmation = False
 
-                    _skill_info = processor.get_skill_info(func_name)
+            # 逐个执行工具并立即推送 SSE 事件
+            for tc in tc_list:
+                tc_id = tc.get("id", "")
+                func = tc.get("function", {})
+                func_name = func.get("name", "")
+                raw_args = func.get("arguments", "{}")
+                arguments = processor.parse_arguments(raw_args)
 
-                    # ---- consent_mode 前置检查 ----
-                    _consent = processor.check_consent(func_name)
+                _skill_info = processor.get_skill_info(func_name)
 
-                    if _consent == "reject":
-                        messages.append(
-                            processor.build_consent_reject_message(tc_id)
-                        )
-                        yield SSEChunkEncoder.encode(
-                            processor.build_consent_reject_event(
-                                func_name, _skill_info,
-                            )
-                        )
-                        continue
+                # ---- consent_mode 前置检查 ----
+                _consent = processor.check_consent(func_name)
 
-                    if _consent == "ask":
-                        messages.append(
-                            processor.build_consent_ask_message(
-                                tc_id, func_name, arguments,
-                            )
-                        )
-                        yield SSEChunkEncoder.encode(
-                            processor.build_consent_ask_event(
-                                func_name, arguments, _skill_info,
-                            )
-                        )
-                        has_confirmation = True
-                        continue
-
-                    # ---- auto: 正常执行 ----
+                if _consent == "reject":
+                    messages.append(processor.build_consent_reject_message(tc_id))
                     yield SSEChunkEncoder.encode(
-                        processor.build_tool_start_event(
+                        processor.build_consent_reject_event(
+                            func_name, _skill_info,
+                        )
+                    )
+                    continue
+
+                if _consent == "ask":
+                    messages.append(
+                        processor.build_consent_ask_message(
+                            tc_id, func_name, arguments,
+                        )
+                    )
+                    yield SSEChunkEncoder.encode(
+                        processor.build_consent_ask_event(
                             func_name, arguments, _skill_info,
                         )
                     )
+                    round_has_confirmation = True
+                    continue
 
-                    result, tc_duration = await processor.execute_tool(
-                        tc_id, func_name, arguments,
-                        conversation_id=self.request.conversation_id or 0,
+                # ---- auto: 正常执行 ----
+                yield SSEChunkEncoder.encode(
+                    processor.build_tool_start_event(
+                        func_name, arguments, _skill_info,
                     )
-                    all_tool_results.append(result)
+                )
 
-                    # 推送 tool_result 事件
+                result, tc_duration = await processor.execute_tool(
+                    tc_id, func_name, arguments,
+                    conversation_id=self.request.conversation_id or 0,
+                )
+                all_tool_results.append(result)
+
+                # 推送 tool_result 事件
+                yield SSEChunkEncoder.encode(
+                    processor.build_tool_call_event(
+                        result, tc_duration, _skill_info,
+                    )
+                )
+
+                # 检测 confirmation_request（CRUD 预览确认）
+                _conf_data = processor.check_confirmation_output(result)
+                if _conf_data:
+                    round_has_confirmation = True
                     yield SSEChunkEncoder.encode(
-                        processor.build_tool_call_event(
-                            result, tc_duration, _skill_info,
-                        )
+                        processor.build_confirmation_event(_conf_data)
                     )
 
-                    # 检测 confirmation_request（CRUD 预览确认）
-                    _conf_data = processor.check_confirmation_output(result)
-                    if _conf_data:
-                        has_confirmation = True
-                        yield SSEChunkEncoder.encode(
-                            processor.build_confirmation_event(_conf_data)
-                        )
+                # 追加 tool 消息
+                messages.append(processor.build_tool_message(result, tc_id))
 
-                    # 追加 tool 消息
-                    messages.append(
-                        processor.build_tool_message(result, tc_id)
-                    )
-
-                # 有确认请求时中断多轮循环
-                if has_confirmation:
-                    break
-
-                # 检查 LLM 是否还有更多 tool_calls（多轮）
-                if _round < MAX_TOOL_CALL_ROUNDS - 1:
-                    peek_response = await self.engine._call_llm(
-                        agent=self.agent,
-                        messages=messages,
-                        tools=tools,
-                        tenant_id=self.request.tenant_id,
-                        user_id=self.request.user_id,
-                        route_result=self.prep.route_result,
-                    )
-                    self._total_tokens += peek_response.total_tokens or 0
-                    if peek_response.tool_calls:
-                        current_response = peek_response
-                        continue
-                    # peek_response 已包含最终回复
-                    peek_content = peek_response.message.content or ""
-                    if peek_content:
-                        peek_content = strip_fc_tokens(peek_content).strip()
-                    if peek_content:
-                        self._output = peek_content
-                        yield SSEChunkEncoder.encode({
-                            "event": "message",
-                            "delta": self._output,
-                        })
-                        break
-                # 无更多 tool_calls，跳出循环
+            if round_has_confirmation:
+                self._output = round_output.strip()
                 break
-
-            # 最终回复兜底：仅在 peek_response 无内容且无待确认时流式推送
-            if not self._output and not has_confirmation:
-                async for chunk in self.engine._stream_llm_chunks(
-                    agent=self.agent,
-                    messages=messages,
-                    tenant_id=self.request.tenant_id,
-                    route_result=self.prep.route_result,
-                ):
-                    if chunk.delta:
-                        cleaned = strip_fc_tokens(chunk.delta)
-                        if cleaned:
-                            self._output += cleaned
-                            yield SSEChunkEncoder.encode({
-                                "event": "message",
-                                "delta": cleaned,
-                            })
-                    if chunk.total_tokens is not None:
-                        self._total_tokens += chunk.total_tokens
-                    if chunk.finish_reason is not None:
-                        break
         else:
-            # LLM 未调用工具，直接输出
-            self._output = strip_fc_tokens(
-                response.message.content or "",
-            ).strip()
-            if self._output:
-                yield SSEChunkEncoder.encode({
-                    "event": "message",
-                    "delta": self._output,
-                })
+            logger.warning(
+                "Tool call rounds exceeded max: conversation=%s max_rounds=%s",
+                self.request.conversation_id,
+                MAX_TOOL_CALL_ROUNDS,
+            )
 
         messages.append(ChatMessage(role="assistant", content=self._output))
+
+    # ========================================
+    # 工具调用增量聚合
+    # ========================================
+
+    @staticmethod
+    def _normalize_stream_tool_call(tool_call: Any) -> dict[str, Any] | None:
+        """
+        归一化流式 tool_call 增量，兼容 dict 与 SDK 对象两种格式。
+        """
+        if not tool_call:
+            return None
+
+        if isinstance(tool_call, dict):
+            index = tool_call.get("index")
+            tc_id = tool_call.get("id") or ""
+            tc_type = tool_call.get("type") or "function"
+            func = tool_call.get("function") or {}
+            if not isinstance(func, dict):
+                func = {}
+            func_name = func.get("name") or ""
+            func_arguments = func.get("arguments") or ""
+        else:
+            index = getattr(tool_call, "index", None)
+            tc_id = getattr(tool_call, "id", None) or ""
+            tc_type = getattr(tool_call, "type", None) or "function"
+            func_obj = getattr(tool_call, "function", None)
+            if isinstance(func_obj, dict):
+                func_name = func_obj.get("name") or ""
+                func_arguments = func_obj.get("arguments") or ""
+            else:
+                func_name = getattr(func_obj, "name", None) or ""
+                func_arguments = getattr(func_obj, "arguments", None) or ""
+
+        if isinstance(index, str) and index.isdigit():
+            index = int(index)
+        if not isinstance(index, int):
+            index = None
+
+        return {
+            "_index": index,
+            "id": tc_id,
+            "type": tc_type,
+            "function": {
+                "name": func_name,
+                "arguments": func_arguments,
+            },
+        }
+
+    @classmethod
+    def _merge_stream_tool_calls(
+        cls,
+        existing: list[dict[str, Any]],
+        incoming: list[Any],
+    ) -> list[dict[str, Any]]:
+        """
+        合并流式 tool_call 增量，支持 OpenAI 风格 index 增量拼接。
+        """
+        merged = existing[:]
+
+        for raw_tc in incoming:
+            tc = cls._normalize_stream_tool_call(raw_tc)
+            if not tc:
+                continue
+
+            target: dict[str, Any] | None = None
+            tc_index = tc.get("_index")
+            tc_id = tc.get("id")
+
+            if tc_index is not None:
+                for item in merged:
+                    if item.get("_index") == tc_index:
+                        target = item
+                        break
+
+            if target is None and tc_id:
+                for item in merged:
+                    if item.get("id") == tc_id:
+                        target = item
+                        break
+
+            if target is None:
+                merged.append(tc)
+                target = merged[-1]
+            else:
+                if tc_id and not target.get("id"):
+                    target["id"] = tc_id
+
+            target_func = target.setdefault("function", {})
+            tc_func = tc.get("function", {})
+
+            tc_name = tc_func.get("name") or ""
+            if tc_name:
+                cur_name = target_func.get("name", "")
+                if not cur_name or tc_name.startswith(cur_name):
+                    target_func["name"] = tc_name
+                elif not cur_name.startswith(tc_name):
+                    target_func["name"] = cur_name + tc_name
+
+            tc_args = tc_func.get("arguments") or ""
+            if tc_args:
+                cur_args = target_func.get("arguments", "")
+                if not cur_args or tc_args.startswith(cur_args):
+                    target_func["arguments"] = tc_args
+                elif not cur_args.startswith(tc_args):
+                    target_func["arguments"] = cur_args + tc_args
+
+        return merged
+
+    @staticmethod
+    def _finalize_stream_tool_calls(
+        calls: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """
+        清理内部字段并补齐默认值，输出可执行的 tool_call 列表。
+        """
+        finalized: list[dict[str, Any]] = []
+
+        for idx, tc in enumerate(calls):
+            func = tc.get("function") or {}
+            name = (func.get("name") or "").strip()
+            if not name:
+                logger.warning("Skip invalid streamed tool_call without name: %s", tc)
+                continue
+
+            arguments = func.get("arguments")
+            if arguments in (None, ""):
+                arguments = "{}"
+
+            tc_id = tc.get("id") or f"stream_tool_{idx}"
+            finalized.append(
+                {
+                    "id": tc_id,
+                    "type": tc.get("type") or "function",
+                    "function": {
+                        "name": name,
+                        "arguments": arguments,
+                    },
+                }
+            )
+
+        return finalized
 
     # ========================================
     # Action Buttons 解析

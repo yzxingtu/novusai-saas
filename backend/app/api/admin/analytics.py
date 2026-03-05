@@ -14,11 +14,10 @@ from datetime import date
 
 from fastapi import APIRouter, Query
 
-from app.core.deps import DbSession, ActiveAdmin
+from app.core.deps import ActiveAdmin, DbSession
 from app.core.response import success
 from app.rbac.decorators import auth_only
 from app.services.ai.analytics_service import AnalyticsService
-
 
 router = APIRouter(prefix="/analytics", tags=["Analytics (Platform)"])
 

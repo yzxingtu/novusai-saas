@@ -14,7 +14,6 @@ import argparse
 import json
 import os
 import re
-import shutil
 import sys
 import zipfile
 from pathlib import Path
@@ -369,6 +368,43 @@ class {class_name}Driver(StorageDriver):
 '''
 
 
+def _is_truthy_or_falsy_bool_str(value: str) -> bool:
+    normalized = value.strip().lower()
+    return normalized in {"1", "0", "true", "false", "yes", "no", "on", "off"}
+
+
+def _normalize_debug_env_for_cli(warnings: list[str]) -> None:
+    """
+    CLI 健壮性保护：
+    当 DEBUG 被设置为非布尔字符串（例如 release）时，
+    app.core.config 会在 import 阶段抛 ValidationError，导致 validate 中断。
+    """
+    raw = os.getenv("DEBUG")
+    if raw is None:
+        return
+    if _is_truthy_or_falsy_bool_str(raw):
+        return
+    os.environ["DEBUG"] = "false"
+    warnings.append(
+        f"Environment DEBUG='{raw}' is not a valid boolean; fallback to DEBUG=false for CLI validation"
+    )
+
+
+def _manifest_has_frontend_extensions(manifest_data: dict) -> bool:
+    frontend = (manifest_data.get("extensions") or {}).get("frontend") or {}
+    return bool(
+        frontend.get("menus")
+        or frontend.get("header_widgets")
+        or frontend.get("floating_panels")
+        or frontend.get("dashboard_widgets")
+        or frontend.get("settings_tabs")
+        or frontend.get("standalone_pages")
+        or frontend.get("notification_ui")
+        or (frontend.get("admin") or {}).get("entry")
+        or (frontend.get("tenant") or {}).get("entry")
+    )
+
+
 def cmd_create(args: argparse.Namespace) -> None:
     """创建插件骨架"""
     name = args.name
@@ -463,11 +499,11 @@ def cmd_create(args: argparse.Namespace) -> None:
         # Derive CSS prefix (first 2 letters of each word, e.g. my-plugin -> mp)
         prefix = "".join(w[0] for w in name.split("-"))
         prefix_upper = prefix.upper()
-        fe_vars = dict(
-            name=name, name_underscore=name_underscore, class_name=class_name,
-            display_name=display_name, display_name_en=display_name,
-            prefix=prefix, prefix_upper=prefix_upper,
-        )
+        fe_vars = {
+            "name": name, "name_underscore": name_underscore, "class_name": class_name,
+            "display_name": display_name, "display_name_en": display_name,
+            "prefix": prefix, "prefix_upper": prefix_upper,
+        }
 
         # Append frontend extension to yaml
         yaml_content += _FULLMOD_YAML_FRONTEND_EXT.format(**fe_vars)
@@ -528,13 +564,14 @@ def cmd_validate(args: argparse.Namespace) -> None:
         errors.append("Missing plugin.yaml")
     else:
         try:
-            from app.plugins.manifest import PluginManifest
             import yaml
+
+            from app.plugins.manifest import PluginManifest
 
             with open(yaml_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
             manifest = PluginManifest.model_validate(data)
-            print(f"  ✅ plugin.yaml valid: {manifest.name} v{manifest.version}")
+            print(f"  [OK] plugin.yaml valid: {manifest.name} v{manifest.version}")
 
             # Check i18n key prefix
             locales_dir = plugin_dir / "locales"
@@ -557,24 +594,14 @@ def cmd_validate(args: argparse.Namespace) -> None:
     if not main_path.is_file():
         errors.append("Missing backend/main.py")
     else:
-        print("  ✅ backend/main.py exists")
+        print("  [OK] backend/main.py exists")
 
     # 3. Frontend checks (if frontend extensions declared)
     try:
         import yaml as _yaml
         with open(yaml_path, encoding="utf-8") as _yf:
             _ydata = _yaml.safe_load(_yf)
-        _ext = (_ydata.get("extensions") or {}).get("frontend") or {}
-        _has_fe = bool(
-            _ext.get("header_widgets")
-            or _ext.get("menus")
-            or _ext.get("floating_panels")
-            or _ext.get("dashboard_widgets")
-            or _ext.get("settings_tabs")
-            or _ext.get("standalone_pages")
-            or (_ext.get("admin") or {}).get("entry")
-            or (_ext.get("tenant") or {}).get("entry")
-        )
+        _has_fe = _manifest_has_frontend_extensions(_ydata or {})
     except Exception:
         _has_fe = False
 
@@ -584,25 +611,25 @@ def cmd_validate(args: argparse.Namespace) -> None:
             dist_size = sum(f.stat().st_size for f in (plugin_dir / "frontend" / "dist").rglob("*") if f.is_file())
             if dist_size > 5 * 1024 * 1024:
                 warnings.append(f"frontend/dist/ is {dist_size / 1024 / 1024:.1f} MB (> 5MB recommended limit)")
-            print(f"  ✅ frontend/dist/index.js exists ({dist_size / 1024:.1f} KB)")
+            print(f"  [OK] frontend/dist/index.js exists ({dist_size / 1024:.1f} KB)")
         else:
-            errors.append("frontend/dist/index.js missing — run: cd frontend && npm install && npx vite build")
+            errors.append("frontend/dist/index.js missing - run: cd frontend && npm install && npx vite build")
 
         # Scan .vue files for forbidden <style scoped>
         vue_files = list((plugin_dir / "frontend").rglob("*.vue"))
         for vue_file in vue_files:
             content = vue_file.read_text(encoding="utf-8", errors="ignore")
             if "<style scoped" in content or "<style scoped>" in content:
-                errors.append(f"{vue_file.relative_to(plugin_dir)}: <style scoped> forbidden — use styles.ts JS injection")
+                errors.append(f"{vue_file.relative_to(plugin_dir)}: <style scoped> forbidden - use styles.ts JS injection")
             elif "<style>" in content or "<style " in content:
-                warnings.append(f"{vue_file.relative_to(plugin_dir)}: <style> block found — recommend styles.ts JS injection instead")
+                warnings.append(f"{vue_file.relative_to(plugin_dir)}: <style> block found - recommend styles.ts JS injection instead")
 
         if not vue_files:
             pass  # No Vue files = no frontend component check needed
         elif not errors:
-            print(f"  ✅ {len(vue_files)} .vue file(s) — no <style scoped>")
+            print(f"  [OK] {len(vue_files)} .vue file(s) - no <style scoped>")
     else:
-        print("  ℹ️  No frontend extensions declared")
+        print("  [INFO] No frontend extensions declared")
 
     # 4. Capabilities consistency check
     try:
@@ -615,20 +642,23 @@ def cmd_validate(args: argparse.Namespace) -> None:
         _ext2 = _manifest2.extensions
         if _manifest2.ai_requirements and _manifest2.ai_requirements.features and "ai:call" not in _caps:
             warnings.append("ai_requirements.features declared but 'ai:call' not in capabilities")
-        if any(r.handler for r in [*_ext2.api.admin_routes, *_ext2.api.tenant_routes, *_ext2.api.public_routes]):
-            if not _caps:
-                pass  # API routes don't require specific capability
+        if (
+            any(r.handler for r in [*_ext2.api.admin_routes, *_ext2.api.tenant_routes, *_ext2.api.public_routes])
+            and not _caps
+        ):
+            pass  # API routes don't require specific capability
         _encrypted_fields = []
         if _manifest2.config_schema:
             for _k, _v in (_manifest2.config_schema.get("properties") or {}).items():
                 if isinstance(_v, dict) and _v.get("x-encrypted"):
                     _encrypted_fields.append(_k)
         if _encrypted_fields:
-            print(f"  ℹ️  x-encrypted fields: {', '.join(_encrypted_fields)} (will be Fernet-encrypted)")
+            print(f"  [INFO] x-encrypted fields: {', '.join(_encrypted_fields)} (will be Fernet-encrypted)")
     except Exception:
         pass
 
     # 5. Security scan
+    _normalize_debug_env_for_cli(warnings)
     from app.plugins.security_scan import scan_plugin_directory
 
     scan_result = scan_plugin_directory(plugin_dir)
@@ -636,20 +666,20 @@ def cmd_validate(args: argparse.Namespace) -> None:
         for w in scan_result.warnings:
             warnings.append(f"Security: {w}")
     else:
-        print(f"  ✅ Security scan clean ({scan_result.files_scanned} files)")
+        print(f"  [OK] Security scan clean ({scan_result.files_scanned} files)")
 
     # Report
     print(f"\n{'='*40}")
     if errors:
-        print(f"  ❌ {len(errors)} error(s):")
+        print(f"  [ERROR] {len(errors)} error(s):")
         for e in errors:
             print(f"     - {e}")
     if warnings:
-        print(f"  ⚠️ {len(warnings)} warning(s):")
+        print(f"  [WARN] {len(warnings)} warning(s):")
         for w in warnings:
             print(f"     - {w}")
     if not errors and not warnings:
-        print("  ✅ All checks passed!")
+        print("  [OK] All checks passed!")
 
     sys.exit(1 if errors else 0)
 
@@ -677,13 +707,11 @@ def cmd_pack(args: argparse.Namespace) -> None:
     version = data.get("version", "1.0.0")
 
     # Check if frontend extensions declared but dist/ not built
-    extensions = data.get("extensions", {}) or {}
-    frontend_ext = extensions.get("frontend", {})
-    has_frontend = bool(frontend_ext and (frontend_ext.get("header_widgets") or frontend_ext.get("menus")))
+    has_frontend = _manifest_has_frontend_extensions(data or {})
     if has_frontend:
         dist_js = plugin_dir / "frontend" / "dist" / "index.js"
         if not dist_js.is_file():
-            print(f"  \u26a0\ufe0f  Warning: frontend/dist/index.js not found.")
+            print("  \u26a0\ufe0f  Warning: frontend/dist/index.js not found.")
             print(f"     Please run: cd {plugin_dir}/frontend && npm install && npx vite build")
 
     output_path = Path(args.output) if args.output else Path.cwd() / f"{name}-{version}.zip"

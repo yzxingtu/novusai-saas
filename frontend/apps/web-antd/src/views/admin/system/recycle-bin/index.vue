@@ -1,4 +1,10 @@
 <script lang="ts" setup>
+import type {
+  RecycleBinItem,
+  RecycleBinModuleMeta,
+  RecycleBinModuleSummary,
+} from '#/api/admin/recycle-bin';
+
 /**
  * 管理端总回收站页面
  *
@@ -23,16 +29,6 @@ import {
 } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-
-import type {
-  RecycleBinItem,
-  RecycleBinModuleMeta,
-  RecycleBinModuleSummary,
-} from '#/api/admin/recycle-bin';
-
-import { $t } from '#/locales';
-import { formatDate, formatRelativeTime } from '#/utils/common';
-
 import {
   getRecycleBinListApi,
   getRecycleBinModulesApi,
@@ -41,6 +37,8 @@ import {
   restoreRecycleBinItemApi,
   triggerRecycleBinCleanupApi,
 } from '#/api/admin/recycle-bin';
+import { $t } from '#/locales';
+import { formatDate, formatRelativeTime } from '#/utils/common';
 
 import { getColumnLabel, getModuleSearchSchema } from './data';
 
@@ -191,7 +189,7 @@ async function handleCleanup() {
   }
 }
 
-async function onTabChange(key: string | number) {
+async function onTabChange(key: number | string) {
   activeModule.value = String(key);
   currentPage.value = 1;
   // 切换搜索 Schema 并重置表单
@@ -239,28 +237,28 @@ const columns = computed(() => {
     });
   }
 
-  cols.push({
-    title: $t('admin.system.recycleBin.deleteLevel'),
-    dataIndex: 'delete_level',
-    key: 'delete_level',
-    width: 100,
-    align: 'center' as const,
-  });
-
-  cols.push({
-    title: $t('common.recycleBin.deletedAt'),
-    dataIndex: 'deleted_at',
-    key: 'deleted_at',
-    width: 180,
-  });
-
-  cols.push({
-    title: $t('admin.common.operation'),
-    key: 'action',
-    width: 120,
-    align: 'center' as const,
-    fixed: 'right' as const,
-  });
+  cols.push(
+    {
+      title: $t('admin.system.recycleBin.deleteLevel'),
+      dataIndex: 'delete_level',
+      key: 'delete_level',
+      width: 100,
+      align: 'center' as const,
+    },
+    {
+      title: $t('common.recycleBin.deletedAt'),
+      dataIndex: 'deleted_at',
+      key: 'deleted_at',
+      width: 180,
+    },
+    {
+      title: $t('admin.common.operation'),
+      key: 'action',
+      width: 120,
+      align: 'center' as const,
+      fixed: 'right' as const,
+    },
+  );
 
   return cols;
 });
@@ -280,22 +278,40 @@ onMounted(async () => {
 <template>
   <Page auto-content-height content-class="flex flex-col gap-5">
     <!-- ===== Hero 头部 ===== -->
-    <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-destructive/5 via-background to-warning/3 p-6">
-      <div class="relative z-10 flex flex-wrap items-center justify-between gap-4">
+    <div
+      class="to-warning/3 relative overflow-hidden rounded-2xl bg-gradient-to-br from-destructive/5 via-background p-6"
+    >
+      <div
+        class="relative z-10 flex flex-wrap items-center justify-between gap-4"
+      >
         <div class="flex items-center gap-4">
-          <div class="flex size-12 items-center justify-center rounded-xl bg-destructive/10">
-            <IconifyIcon icon="lucide:trash-2" class="size-6 text-destructive" />
+          <div
+            class="flex size-12 items-center justify-center rounded-xl bg-destructive/10"
+          >
+            <IconifyIcon
+              icon="lucide:trash-2"
+              class="size-6 text-destructive"
+            />
           </div>
           <div>
-            <h1 class="text-xl font-bold text-foreground">{{ $t('admin.system.recycleBin.title') }}</h1>
-            <p class="mt-0.5 text-sm text-muted-foreground">{{ $t('admin.system.recycleBin.description') }}</p>
+            <h1 class="text-xl font-bold text-foreground">
+              {{ $t('admin.system.recycleBin.title') }}
+            </h1>
+            <p class="mt-0.5 text-sm text-muted-foreground">
+              {{ $t('admin.system.recycleBin.description') }}
+            </p>
           </div>
         </div>
         <div class="flex items-center gap-3">
-          <div v-if="totalDeletedCount > 0" class="flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-1.5">
+          <div
+            v-if="totalDeletedCount > 0"
+            class="flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-1.5"
+          >
             <IconifyIcon icon="lucide:archive" class="size-4 text-warning" />
             <span class="text-sm font-medium text-warning">
-              {{ $t('common.recycleBin.itemCount', { count: totalDeletedCount }) }}
+              {{
+                $t('common.recycleBin.itemCount', { count: totalDeletedCount })
+              }}
             </span>
           </div>
           <Popconfirm
@@ -309,40 +325,62 @@ onMounted(async () => {
           </Popconfirm>
         </div>
       </div>
-      <div class="absolute -right-12 -top-12 size-40 rounded-full bg-destructive/5 blur-3xl" />
+      <div
+        class="absolute -right-12 -top-12 size-40 rounded-full bg-destructive/5 blur-3xl"
+      ></div>
     </div>
 
     <Spin :spinning="summaryLoading">
       <!-- 空状态 -->
-      <div v-if="!summaryLoading && summary.length === 0" class="flex flex-col items-center justify-center gap-4 py-24">
-        <div class="flex size-20 items-center justify-center rounded-2xl bg-muted">
-          <IconifyIcon icon="lucide:check-circle" class="size-10 text-success/50" />
+      <div
+        v-if="!summaryLoading && summary.length === 0"
+        class="flex flex-col items-center justify-center gap-4 py-24"
+      >
+        <div
+          class="flex size-20 items-center justify-center rounded-2xl bg-muted"
+        >
+          <IconifyIcon
+            icon="lucide:check-circle"
+            class="size-10 text-success/50"
+          />
         </div>
         <div class="text-center">
-          <p class="text-sm font-medium text-foreground">{{ $t('common.recycleBin.empty') }}</p>
-          <p class="mt-1 text-xs text-muted-foreground">{{ $t('common.recycleBin.emptyDesc') }}</p>
+          <p class="text-sm font-medium text-foreground">
+            {{ $t('common.recycleBin.empty') }}
+          </p>
+          <p class="mt-1 text-xs text-muted-foreground">
+            {{ $t('common.recycleBin.emptyDesc') }}
+          </p>
         </div>
       </div>
 
       <!-- ===== 主内容：左侧模块导航 + 右侧列表 ===== -->
-      <div v-else class="flex gap-5" style="min-height: 500px;">
+      <div v-else class="flex gap-5" style="min-height: 500px">
         <!-- 左侧模块导航 -->
-        <div class="flex w-56 shrink-0 flex-col gap-1 rounded-2xl border border-border/50 bg-card p-3">
-          <div class="mb-2 px-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        <div
+          class="flex w-56 shrink-0 flex-col gap-1 rounded-2xl border border-border/50 bg-card p-3"
+        >
+          <div
+            class="mb-2 px-2 text-xs font-medium uppercase tracking-wider text-muted-foreground"
+          >
             {{ $t('admin.system.recycleBin.modules') || 'Modules' }}
           </div>
           <button
             v-for="mod in summary"
             :key="mod.module"
             class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-200"
-            :class="activeModule === mod.module
-              ? 'bg-primary/10 text-primary shadow-sm'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'"
+            :class="
+              activeModule === mod.module
+                ? 'bg-primary/10 text-primary shadow-sm'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            "
             @click="onTabChange(mod.module)"
           >
             <div
               class="flex size-8 shrink-0 items-center justify-center rounded-lg"
-              :class="activeModule === mod.module ? 'bg-primary/15' : 'bg-muted'"
+              :class="
+                activeModule === mod.module ? 'bg-primary/15' : 'bg-muted'
+              "
             >
               <IconifyIcon
                 :icon="moduleIcons[mod.module] || 'lucide:box'"
@@ -350,13 +388,17 @@ onMounted(async () => {
               />
             </div>
             <div class="min-w-0 flex-1">
-              <span class="block truncate text-[13px] font-medium">{{ mod.label }}</span>
+              <span class="block truncate text-[13px] font-medium">{{
+                mod.label
+              }}</span>
             </div>
             <span
               class="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
-              :class="activeModule === mod.module
-                ? 'bg-primary/20 text-primary'
-                : 'bg-muted text-muted-foreground'"
+              :class="
+                activeModule === mod.module
+                  ? 'bg-primary/20 text-primary'
+                  : 'bg-muted text-muted-foreground'
+              "
             >
               {{ mod.count }}
             </span>
@@ -370,14 +412,20 @@ onMounted(async () => {
             <div class="flex-1">
               <SearchForm />
             </div>
-            <div class="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+            <div
+              class="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground"
+            >
               <IconifyIcon icon="lucide:clock" class="size-3" />
-              <span>{{ $t('common.recycleBin.retentionDays', { days: 30 }) }}</span>
+              <span>{{
+                $t('common.recycleBin.retentionDays', { days: 30 })
+              }}</span>
             </div>
           </div>
 
           <!-- 表格 -->
-          <div class="overflow-hidden rounded-xl border border-border/40 bg-card">
+          <div
+            class="overflow-hidden rounded-xl border border-border/40 bg-card"
+          >
             <Table
               :columns="columns"
               :data-source="items"
@@ -397,7 +445,11 @@ onMounted(async () => {
             >
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'tenant_name'">
-                  <Tag v-if="record.tenant_name" color="blue" class="!rounded-md !border-0">
+                  <Tag
+                    v-if="record.tenant_name"
+                    color="blue"
+                    class="!rounded-md !border-0"
+                  >
                     {{ record.tenant_name }}
                   </Tag>
                   <span v-else class="text-muted-foreground">—</span>
@@ -453,8 +505,13 @@ onMounted(async () => {
 
               <template #emptyText>
                 <div class="flex flex-col items-center gap-3 py-12">
-                  <IconifyIcon icon="lucide:inbox" class="size-10 text-muted-foreground/30" />
-                  <span class="text-sm text-muted-foreground">{{ $t('common.recycleBin.empty') }}</span>
+                  <IconifyIcon
+                    icon="lucide:inbox"
+                    class="size-10 text-muted-foreground/30"
+                  />
+                  <span class="text-sm text-muted-foreground">{{
+                    $t('common.recycleBin.empty')
+                  }}</span>
                 </div>
               </template>
             </Table>
@@ -479,7 +536,7 @@ onMounted(async () => {
 }
 
 .recycle-table-wrap :deep(.ant-table-tbody > tr:hover > td) {
-  background: hsl(var(--primary) / 0.03);
+  background: hsl(var(--primary) / 3%);
 }
 
 .recycle-table-wrap :deep(.ant-pagination) {

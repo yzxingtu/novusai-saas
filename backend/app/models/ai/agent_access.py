@@ -5,7 +5,7 @@
 与 Agent 为一对一关系
 """
 
-from sqlalchemy import ForeignKey, Index, Integer, String, JSON
+from sqlalchemy import JSON, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel

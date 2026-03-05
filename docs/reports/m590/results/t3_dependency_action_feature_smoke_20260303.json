@@ -1,0 +1,49 @@
+{
+  "generated_at": "2026-03-03T19:14:49.2134707+08:00",
+  "base": "http://127.0.0.1:8000/admin",
+  "plugin_id": 1081,
+  "plugin_name": "netdisk",
+  "install_response": {
+    "code": 0,
+    "message": "操作成功",
+    "data": {
+      "plugin_id": 1081,
+      "plugin_name": "netdisk",
+      "python": {
+        "declared": [
+          "aiofiles>=23.0",
+          "bcrypt>=4.0",
+          "Pillow>=10.0"
+        ],
+        "installed": [],
+        "installed_count": 0
+      },
+      "npm": {
+        "declared": [],
+        "installed_count": 0
+      }
+    }
+  },
+  "uninstall_force_noop_response": {
+    "code": 0,
+    "message": "操作成功",
+    "data": {
+      "plugin_id": 1081,
+      "plugin_name": "netdisk",
+      "python": {
+        "declared": [
+          "aiofiles>=23.0",
+          "bcrypt>=4.0",
+          "Pillow>=10.0"
+        ],
+        "attempted": false
+      },
+      "npm": {
+        "declared": [],
+        "attempted": false
+      },
+      "forced": true
+    }
+  },
+  "uninstall_blocked_when_enabled_error": "\r\n{\r\n  \"code\": 4232,\r\n  \"message\": \"Cannot uninstall dependencies for enabled plugin \\u0027netdisk\\u0027. Disable plugin first or pass force=true.\",\r\n  \"data\": null\r\n}"
+}

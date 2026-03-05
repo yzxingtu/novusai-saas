@@ -4,8 +4,6 @@
  */
 import type { AIQuotaInfo, AIRateLimitInfo } from '#/api/admin/ai';
 
-defineOptions({ name: 'AIQuotaList' });
-
 import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -18,18 +16,18 @@ import {
   Pagination,
   Select,
   Spin,
-  Tabs,
   TabPane,
+  Tabs,
   Tag,
 } from 'ant-design-vue';
 
-import { useCrudList } from '#/composables';
 import {
   deleteAIQuotaApi,
   deleteAIRateLimitApi,
   getAIQuotaListApi,
   getAIRateLimitListApi,
 } from '#/api/admin/ai';
+import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatTokens } from '#/utils/format';
 
@@ -44,6 +42,8 @@ import {
 import Form from './modules/form.vue';
 import RateLimitForm from './modules/RateLimitForm.vue';
 
+defineOptions({ name: 'AIQuotaList' });
+
 interface RateLimitFormExposed {
   openNew: () => void;
   openEdit: (row: AIRateLimitInfo) => void;
@@ -51,11 +51,17 @@ interface RateLimitFormExposed {
 
 // ========== 配额 Tab — useCrudList ==========
 const {
-  list: quotas, total: quotaTotal, loading: quotaLoading,
-  currentPage: quotaPage, pageSize: quotaPageSize,
-  FormDrawer: QuotaFormDrawer, loadList: loadQuotas,
-  onCreate: onCreateQuota, handleMenuAction: handleQuotaAction,
-  onPageChange: onQuotaPageChange, onSearch: onQuotaSearch,
+  list: quotas,
+  total: quotaTotal,
+  loading: quotaLoading,
+  currentPage: quotaPage,
+  pageSize: quotaPageSize,
+  FormDrawer: QuotaFormDrawer,
+  loadList: loadQuotas,
+  onCreate: onCreateQuota,
+  handleMenuAction: handleQuotaAction,
+  onPageChange: onQuotaPageChange,
+  onSearch: onQuotaSearch,
 } = useCrudList<AIQuotaInfo>({
   api: {
     list: getAIQuotaListApi,
@@ -75,7 +81,9 @@ const {
 const rateLimitFormRef = ref<RateLimitFormExposed>();
 
 const {
-  list: rateLimits, loading: rateLimitLoading, loadList: loadRateLimits,
+  list: rateLimits,
+  loading: rateLimitLoading,
+  loadList: loadRateLimits,
   handleMenuAction: handleRateLimitAction,
 } = useCrudList<AIRateLimitInfo>({
   api: {
@@ -98,7 +106,11 @@ const {
 </script>
 
 <template>
-  <Page auto-content-height :description="$t('admin.ai.quota.pageDesc')" content-class="flex flex-col gap-4">
+  <Page
+    auto-content-height
+    :description="$t('admin.ai.quota.pageDesc')"
+    content-class="flex flex-col gap-4"
+  >
     <!-- 配额表单抽屉 -->
     <QuotaFormDrawer @success="loadQuotas" />
     <!-- 速率限制表单（ref 模式） -->
@@ -106,7 +118,6 @@ const {
 
     <Card :body-style="{ padding: '0' }">
       <Tabs default-active-key="quotas" class="px-4">
-
         <!-- ========== 配额 Tab ========== -->
         <TabPane key="quotas" :tab="$t('admin.ai.quota.title')">
           <!-- 操作栏：过滤 + 新建 -->
@@ -117,14 +128,19 @@ const {
                 class="w-36"
                 :placeholder="$t('admin.ai.quota.placeholder.allPeriods')"
                 :options="getPeriodOptions()"
-                @change="(v) => onQuotaSearch({ 'filter[period][eq]': v ?? undefined })"
+                @change="
+                  (v) => onQuotaSearch({ 'filter[period][eq]': v ?? undefined })
+                "
               />
               <Select
                 allow-clear
                 class="w-32"
                 :placeholder="$t('admin.ai.quota.placeholder.allTypes')"
                 :options="getQuotaTypeOptions()"
-                @change="(v) => onQuotaSearch({ 'filter[quota_type][eq]': v ?? undefined })"
+                @change="
+                  (v) =>
+                    onQuotaSearch({ 'filter[quota_type][eq]': v ?? undefined })
+                "
               />
             </div>
             <Button
@@ -151,54 +167,91 @@ const {
                 <div class="flex items-start justify-between gap-2">
                   <!-- 左侧信息 -->
                   <div class="flex min-w-0 flex-1 items-start gap-2.5">
-                    <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                      <IconifyIcon icon="lucide:gauge" class="size-4.5 text-primary" />
+                    <div
+                      class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10"
+                    >
+                      <IconifyIcon
+                        icon="lucide:gauge"
+                        class="size-4.5 text-primary"
+                      />
                     </div>
                     <div class="min-w-0">
                       <div class="flex flex-wrap items-center gap-1.5">
                         <span class="font-medium text-foreground">
-                          {{ item.tenant_name || $t('admin.ai.quota.globalQuota') }}
+                          {{
+                            item.tenant_name || $t('admin.ai.quota.globalQuota')
+                          }}
                         </span>
                         <Tag color="blue">
-                          {{ item.model_name || $t('admin.ai.quota.globalQuota') }}
+                          {{
+                            item.model_name || $t('admin.ai.quota.globalQuota')
+                          }}
                         </Tag>
                       </div>
-                      <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm">
-                        <Tag :color="item.period === 'daily' ? 'orange' : 'blue'" class="!mr-0">
+                      <div
+                        class="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm"
+                      >
+                        <Tag
+                          :color="item.period === 'daily' ? 'orange' : 'blue'"
+                          class="!mr-0"
+                        >
                           {{ getPeriodText(item.period) }}
                         </Tag>
-                        <Tag :color="item.quota_type === 'hard' ? 'red' : 'green'" class="!mr-0">
+                        <Tag
+                          :color="item.quota_type === 'hard' ? 'red' : 'green'"
+                          class="!mr-0"
+                        >
                           {{ getQuotaTypeText(item.quota_type) }}
                         </Tag>
                         <span class="text-muted-foreground">
                           {{ $t('admin.ai.quota.limit') }}:
-                          <span class="font-mono font-medium text-foreground">{{ formatTokens(item.limit) }}</span>
+                          <span class="font-mono font-medium text-foreground">{{
+                            formatTokens(item.limit)
+                          }}</span>
                           <span class="ml-0.5 text-xs">tokens</span>
                         </span>
-                        <span v-if="item.warning_threshold != null" class="text-xs text-muted-foreground">
-                          {{ $t('admin.ai.quota.warningThreshold') }}: {{ item.warning_threshold }}%
+                        <span
+                          v-if="item.warning_threshold != null"
+                          class="text-xs text-muted-foreground"
+                        >
+                          {{ $t('admin.ai.quota.warningThreshold') }}:
+                          {{ item.warning_threshold }}%
                         </span>
                       </div>
                     </div>
                   </div>
                   <!-- 右侧：状态 + 操作 -->
                   <div class="flex shrink-0 items-center gap-1">
-                    <Tag :color="item.is_active ? 'success' : 'default'" class="!mr-0">
-                      {{ item.is_active ? $t('admin.common.enabled') : $t('admin.common.disabled') }}
+                    <Tag
+                      :color="item.is_active ? 'success' : 'default'"
+                      class="!mr-0"
+                    >
+                      {{
+                        item.is_active
+                          ? $t('admin.common.enabled')
+                          : $t('admin.common.disabled')
+                      }}
                     </Tag>
                     <Button
                       v-access:code="['ai_quota:update']"
-                      type="text" size="small"
+                      type="text"
+                      size="small"
                       @click="handleQuotaAction('edit', item)"
                     >
-                      <template #icon><IconifyIcon icon="lucide:pencil" class="size-3.5" /></template>
+                      <template #icon>
+                        <IconifyIcon icon="lucide:pencil" class="size-3.5" />
+                      </template>
                     </Button>
                     <Button
                       v-access:code="['ai_quota:delete']"
-                      type="text" size="small" danger
+                      type="text"
+                      size="small"
+                      danger
                       @click="handleQuotaAction('delete', item)"
                     >
-                      <template #icon><IconifyIcon icon="lucide:trash-2" class="size-3.5" /></template>
+                      <template #icon>
+                        <IconifyIcon icon="lucide:trash-2" class="size-3.5" />
+                      </template>
                     </Button>
                   </div>
                 </div>
@@ -256,8 +309,13 @@ const {
                       :class="item.is_active ? 'bg-primary/10' : 'bg-muted'"
                     >
                       <IconifyIcon
-                        icon="lucide:timer" class="size-4.5"
-                        :class="item.is_active ? 'text-primary' : 'text-muted-foreground'"
+                        icon="lucide:timer"
+                        class="size-4.5"
+                        :class="
+                          item.is_active
+                            ? 'text-primary'
+                            : 'text-muted-foreground'
+                        "
                       />
                     </div>
                     <div>
@@ -266,20 +324,29 @@ const {
                           {{ item.model_name || `Model #${item.model_id}` }}
                         </span>
                         <Tag color="blue" class="!mr-0">
-                          {{ $t('admin.ai.rateLimit.tenantLabel') }} {{ item.tenant_id }}
+                          {{ $t('admin.ai.rateLimit.tenantLabel') }}
+                          {{ item.tenant_id }}
                         </Tag>
                       </div>
-                      <div class="mt-1 flex items-center gap-4 text-sm text-muted-foreground">
+                      <div
+                        class="mt-1 flex items-center gap-4 text-sm text-muted-foreground"
+                      >
                         <span>
                           RPM:
                           <span class="font-mono font-medium text-foreground">
-                            {{ item.rpm_limit ?? $t('admin.ai.rateLimit.noLimit') }}
+                            {{
+                              item.rpm_limit ?? $t('admin.ai.rateLimit.noLimit')
+                            }}
                           </span>
                         </span>
                         <span>
                           TPM:
                           <span class="font-mono font-medium text-foreground">
-                            {{ item.tpm_limit ? formatTokens(item.tpm_limit) : $t('admin.ai.rateLimit.noLimit') }}
+                            {{
+                              item.tpm_limit
+                                ? formatTokens(item.tpm_limit)
+                                : $t('admin.ai.rateLimit.noLimit')
+                            }}
                           </span>
                         </span>
                       </div>
@@ -287,22 +354,36 @@ const {
                   </div>
                   <!-- 右侧：状态 + 操作 -->
                   <div class="flex shrink-0 items-center gap-1">
-                    <Tag :color="item.is_active ? 'success' : 'default'" class="!mr-0">
-                      {{ item.is_active ? $t('admin.common.enabled') : $t('admin.common.disabled') }}
+                    <Tag
+                      :color="item.is_active ? 'success' : 'default'"
+                      class="!mr-0"
+                    >
+                      {{
+                        item.is_active
+                          ? $t('admin.common.enabled')
+                          : $t('admin.common.disabled')
+                      }}
                     </Tag>
                     <Button
                       v-access:code="['ai_quota:update_rate_limit']"
-                      type="text" size="small"
+                      type="text"
+                      size="small"
                       @click="handleRateLimitAction('edit', item)"
                     >
-                      <template #icon><IconifyIcon icon="lucide:pencil" class="size-3.5" /></template>
+                      <template #icon>
+                        <IconifyIcon icon="lucide:pencil" class="size-3.5" />
+                      </template>
                     </Button>
                     <Button
                       v-access:code="['ai_quota:delete_rate_limit']"
-                      type="text" size="small" danger
+                      type="text"
+                      size="small"
+                      danger
                       @click="handleRateLimitAction('delete', item)"
                     >
-                      <template #icon><IconifyIcon icon="lucide:trash-2" class="size-3.5" /></template>
+                      <template #icon>
+                        <IconifyIcon icon="lucide:trash-2" class="size-3.5" />
+                      </template>
                     </Button>
                   </div>
                 </div>
@@ -311,7 +392,6 @@ const {
             <Empty v-else :description="$t('common.noData')" class="py-16" />
           </Spin>
         </TabPane>
-
       </Tabs>
     </Card>
   </Page>

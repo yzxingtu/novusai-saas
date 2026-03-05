@@ -8,30 +8,53 @@
  *   'vue'                -> window.Vue
  *   'vue-router'         -> window.VueRouter
  *   'ant-design-vue'     -> window.AntDesignVue
+ *   '@vben/common-ui'    -> window.VbenCommonUi
+ *   '@vben/icons'        -> window.VbenIcons
  *   '@novus/plugin-shared' -> window.NovusPluginShared
  */
 
 import * as Vue from 'vue';
 import * as VueRouter from 'vue-router';
-import * as AntDesignVue from 'ant-design-vue';
+
+// ── novusdoc plugin: lowlight global ──────────────────────────────────────
+// The novusdoc dist/index.js externalises lowlight with Rollup global name
+// "lowlight$1". Expose it here so the module-level createLowlight() call
+// doesn't crash on UMD load. @tiptap/* is bundled directly into the UMD.
+import * as lowlightLib from 'lowlight';
+// ───────────────────────────────────────────────────────────────────────────
+
+import * as VbenCommonUi from '@vben/common-ui';
+import * as VbenIcons from '@vben/icons';
 import { IconifyIcon } from '@vben/icons';
 import { i18n } from '@vben/locales';
 import { useUserStore } from '@vben/stores';
-import { requestClient } from '#/utils/request';
+
+import * as AntDesignVue from 'ant-design-vue';
+
 import { $t } from '#/locales';
-import { usePluginSlotsStore } from '#/stores/plugin-slots';
-import { usePluginExtensionsStore } from '#/stores/plugin-extensions';
-import { TokenStorage } from '#/store/shared/token-storage';
 import { getCurrentEndpoint } from '#/router/access';
+import { router } from '#/router';
+import { TokenStorage } from '#/store/shared/token-storage';
+import { usePluginExtensionsStore } from '#/stores/plugin-extensions';
+import { usePluginSlotsStore } from '#/stores/plugin-slots';
+import { requestClient } from '#/utils/request';
 
 // Re-export for dev mode: plugins import { $t, IconifyIcon, ... } from '@novus/plugin-shared'
-export { requestClient, $t, IconifyIcon, usePluginSlotsStore, usePluginExtensionsStore, getAuthToken, getCurrentUser };
+export {
+  $t,
+  getAuthToken,
+  getCurrentUser,
+  IconifyIcon,
+  requestClient,
+  usePluginExtensionsStore,
+  usePluginSlotsStore,
+};
 
 /**
  * 获取当前端（admin/tenant/user）的 JWT Access Token
  * 供插件 Socket.IO 等非 HTTP 通道鉴权使用
  */
-function getAuthToken(): string | null {
+function getAuthToken(): null | string {
   const endpoint = getCurrentEndpoint();
   return TokenStorage.getToken(endpoint);
 }
@@ -39,7 +62,11 @@ function getAuthToken(): string | null {
 /**
  * 获取当前登录用户信息（供插件协作、评论等场景使用）
  */
-function getCurrentUser(): { id: number | null; username: string; name: string } {
+function getCurrentUser(): {
+  id: null | number;
+  name: string;
+  username: string;
+} {
   try {
     const userStore = useUserStore();
     const info = userStore.userInfo;
@@ -50,7 +77,9 @@ function getCurrentUser(): { id: number | null; username: string; name: string }
         name: info.realName || info.username || '',
       };
     }
-  } catch { /* store not ready */ }
+  } catch {
+    /* store not ready */
+  }
   return { id: null, username: '', name: '' };
 }
 
@@ -66,11 +95,17 @@ export interface NovusPluginSharedAPI {
   /** 插件扩展 Store（编辑器扩展 / 面板 / 命令） */
   usePluginExtensionsStore: typeof usePluginExtensionsStore;
   /** 注册插件国际化消息 */
-  registerLocale: (locale: string, prefix: string, messages: Record<string, unknown>) => void;
+  registerLocale: (
+    locale: string,
+    prefix: string,
+    messages: Record<string, unknown>,
+  ) => void;
   /** 获取当前端 JWT Access Token（供 Socket.IO 等非 HTTP 通道鉴权） */
-  getAuthToken: () => string | null;
+  getAuthToken: () => null | string;
   /** 获取当前登录用户信息（供协作、评论等场景） */
-  getCurrentUser: () => { id: number | null; username: string; name: string };
+  getCurrentUser: () => { id: null | number; name: string; username: string };
+  /** Vue Router 实例（供插件页面内导航使用） */
+  router: typeof router;
 }
 
 /**
@@ -88,6 +123,13 @@ export function exposePluginShared(): void {
   // Ant Design Vue
   w.AntDesignVue = AntDesignVue;
 
+  // Vben Common UI / Icons（供插件 UMD external 全局映射）
+  w.VbenCommonUi = VbenCommonUi;
+  w.VbenIcons = VbenIcons;
+
+  // novusdoc: lowlight (module-level createLowlight call at UMD load time)
+  w['lowlight$1'] = lowlightLib;
+
   // NovusAI 插件共享 API
   w.NovusPluginShared = {
     requestClient,
@@ -98,6 +140,7 @@ export function exposePluginShared(): void {
     registerLocale: _registerPluginLocale,
     getAuthToken,
     getCurrentUser,
+    router,
   } satisfies NovusPluginSharedAPI;
 }
 
@@ -116,21 +159,28 @@ function _registerPluginLocale(
       const nestedMessages: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(messages)) {
         const keyParts = key.split('.');
+        if (keyParts.length === 0) continue;
         let current: Record<string, unknown> = nestedMessages;
         for (let i = 0; i < keyParts.length - 1; i++) {
-          if (!(keyParts[i]! in current) || typeof current[keyParts[i]!] !== 'object') {
-            current[keyParts[i]!] = {};
+          const part = keyParts[i];
+          if (!part) continue;
+          if (!(part in current) || typeof current[part] !== 'object') {
+            current[part] = {};
           }
-          current = current[keyParts[i]!] as Record<string, unknown>;
+          current = current[part] as Record<string, unknown>;
         }
-        current[keyParts[keyParts.length - 1]!] = value;
+        const lastPart = keyParts[keyParts.length - 1];
+        if (!lastPart) continue;
+        current[lastPart] = value;
       }
 
       // 包裹 prefix 路径
       const prefixParts = prefix.split('.');
       let wrapped: Record<string, unknown> = nestedMessages;
       for (let i = prefixParts.length - 1; i >= 0; i--) {
-        wrapped = { [prefixParts[i]!]: wrapped };
+        const part = prefixParts[i];
+        if (!part) continue;
+        wrapped = { [part]: wrapped };
       }
       i18n.global.mergeLocaleMessage(locale, wrapped);
     }

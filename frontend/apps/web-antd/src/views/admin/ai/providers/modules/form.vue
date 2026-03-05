@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'AIProviderForm' });
 /**
  * AI 供应商新建/编辑表单抽屉
  */
@@ -13,6 +12,8 @@ import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
 import { getFormDefaults, useFormSchema } from '../data';
+
+defineOptions({ name: 'AIProviderForm' });
 
 const emits = defineEmits<{ success: [] }>();
 
@@ -59,9 +60,7 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
 });
 
 const title = computed(() =>
-  isEdit.value
-    ? $t('admin.common.edit')
-    : $t('admin.ai.provider.create'),
+  isEdit.value ? $t('admin.common.edit') : $t('admin.ai.provider.create'),
 );
 </script>
 

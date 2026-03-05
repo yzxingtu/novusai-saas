@@ -132,9 +132,7 @@ export const useTenantAuthStore = defineStore('tenant-auth', () => {
 
     await router.replace({
       path: TENANT_LOGIN_PATH,
-      query: redirect
-        ? { redirect: router.currentRoute.value.fullPath }
-        : {},
+      query: redirect ? { redirect: router.currentRoute.value.fullPath } : {},
     });
   }
 

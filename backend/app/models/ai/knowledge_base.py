@@ -244,8 +244,7 @@ class KnowledgeBase(TenantModel):
 
 
 if TYPE_CHECKING:
-    from app.models.ai.model import AIModel
-    from app.models.ai.knowledge_document import KnowledgeDocument
+    pass
 
 
 __all__ = ["KnowledgeBase"]

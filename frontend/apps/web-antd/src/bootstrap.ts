@@ -5,9 +5,9 @@ import { preferences } from '@vben/preferences';
 import { initStores } from '@vben/stores';
 import '@vben/styles';
 import '@vben/styles/antd';
-import './styles/vxe-table-modern.css';
 
 import { useTitle } from '@vueuse/core';
+import AntDesignVue from 'ant-design-vue';
 
 import { initComponentAdapter } from '#/adapter/component';
 import { initSetupVbenForm } from '#/adapter/form';
@@ -19,6 +19,8 @@ import { registerCustomAccessDirective } from './directives/access';
 import { router } from './router';
 import { TokenStorage } from './store/shared/token-storage';
 import { setupAriaHiddenFix, setupConsoleFilter } from './utils/console-filter';
+
+import './styles/vxe-table-modern.css';
 
 async function bootstrap(namespace: string) {
   // 初始化 TokenStorage（多端 Token 分离存储）
@@ -68,6 +70,9 @@ async function bootstrap(namespace: string) {
   // 初始化 tippy
   const { initTippy } = await import('@vben/common-ui/es/tippy');
   initTippy(app);
+
+  // 全局注册 Ant Design Vue 组件（插件 Vue SFC 中使用 <a-button> 等模板标签需要）
+  app.use(AntDesignVue);
 
   // 配置路由及路由守卫
   app.use(router);

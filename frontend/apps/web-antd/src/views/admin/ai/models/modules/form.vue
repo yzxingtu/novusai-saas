@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'AIModelForm' });
 /**
  * AI 模型新建/编辑表单抽屉
  *
@@ -21,6 +20,8 @@ import { $t } from '#/locales';
 
 import { getFormDefaults, useFormSchema } from '../data';
 
+defineOptions({ name: 'AIModelForm' });
+
 const emits = defineEmits<{ success: [] }>();
 
 const [Form, formApi] = useVbenForm({
@@ -35,11 +36,12 @@ function onProviderChange(providerId: number) {
 
 const { Drawer, isEdit, recordId } = useCrudDrawer<AIModelInfo>({
   formApi,
-  schema: (isEditMode: boolean): VbenFormSchema[] => useFormSchema(
-    isEditMode,
-    isEditMode ? (recordId.value as number) : undefined,
-    isEditMode ? undefined : onProviderChange,
-  ),
+  schema: (isEditMode: boolean): VbenFormSchema[] =>
+    useFormSchema(
+      isEditMode,
+      isEditMode ? (recordId.value as number) : undefined,
+      isEditMode ? undefined : onProviderChange,
+    ),
   defaults: getFormDefaults,
   transform: (values) => {
     return {
@@ -54,8 +56,12 @@ const { Drawer, isEdit, recordId } = useCrudDrawer<AIModelInfo>({
       supports_function_calling: values.supports_function_calling ?? false,
       supports_vision: values.supports_vision ?? false,
       supports_streaming: values.supports_streaming ?? true,
-      max_image_count: values.supports_vision ? (values.max_image_count || 5) : null,
-      max_image_size_mb: values.supports_vision ? (values.max_image_size_mb || 10) : null,
+      max_image_count: values.supports_vision
+        ? values.max_image_count || 5
+        : null,
+      max_image_size_mb: values.supports_vision
+        ? values.max_image_size_mb || 10
+        : null,
       is_active: values.is_active ?? true,
     };
   },
@@ -84,9 +90,7 @@ const { Drawer, isEdit, recordId } = useCrudDrawer<AIModelInfo>({
 });
 
 const title = computed(() =>
-  isEdit.value
-    ? $t('admin.common.edit')
-    : $t('admin.ai.model.create'),
+  isEdit.value ? $t('admin.common.edit') : $t('admin.ai.model.create'),
 );
 
 // ==================== 远程模型自动拉取 ====================
@@ -107,7 +111,9 @@ function filterRemoteOption(
   input: string,
   option?: { label?: string; value?: null | number | string },
 ): boolean {
-  return String(option?.label ?? '').toLowerCase().includes(input.toLowerCase());
+  return String(option?.label ?? '')
+    .toLowerCase()
+    .includes(input.toLowerCase());
 }
 
 /** 供应商变更时自动拉取远程模型 */
@@ -157,7 +163,9 @@ function onRemoteModelSelect(modelId: unknown) {
       v-if="!isEdit && remoteModelOptions.length > 0"
       class="mb-4 rounded-lg border border-border bg-accent/30 p-3"
     >
-      <div class="mb-2 flex items-center gap-1.5 text-sm font-medium text-foreground">
+      <div
+        class="mb-2 flex items-center gap-1.5 text-sm font-medium text-foreground"
+      >
         <IconifyIcon icon="lucide:cloud-download" class="size-4 text-primary" />
         {{ $t('admin.ai.model.selectRemoteModel') }}
       </div>
@@ -172,7 +180,11 @@ function onRemoteModelSelect(modelId: unknown) {
         @change="onRemoteModelSelect"
       />
       <div class="mt-1 text-xs text-muted-foreground">
-        {{ $t('admin.ai.model.fetchRemoteSuccess', { count: remoteModelOptions.length }) }}
+        {{
+          $t('admin.ai.model.fetchRemoteSuccess', {
+            count: remoteModelOptions.length,
+          })
+        }}
       </div>
     </div>
     <div

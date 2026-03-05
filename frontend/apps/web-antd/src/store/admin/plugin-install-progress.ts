@@ -17,7 +17,7 @@ const EVENT_PLUGIN_PROGRESS = 'plugin:install:progress';
 /** 单个步骤状态 */
 export interface ProgressStep {
   step: string;
-  status: 'running' | 'success' | 'error' | 'pending';
+  status: 'error' | 'pending' | 'running' | 'success';
   message: string;
   timestamp: string;
 }
@@ -39,7 +39,9 @@ export const usePluginInstallProgressStore = defineStore(
     // ── 状态 ──
 
     /** 当前操作类型 */
-    const currentAction = ref<'enable' | 'install' | 'uninstall' | null>(null);
+    const currentAction = ref<
+      'disable' | 'enable' | 'install' | 'uninstall' | null
+    >(null);
 
     /** 当前插件名 */
     const pluginName = ref('');
@@ -76,7 +78,9 @@ export const usePluginInstallProgressStore = defineStore(
 
     // ── 计算属性 ──
 
-    const isActive = computed(() => isRunning.value || isComplete.value || isFailed.value);
+    const isActive = computed(
+      () => isRunning.value || isComplete.value || isFailed.value,
+    );
 
     // ── 内部状态 ──
 
@@ -92,7 +96,11 @@ export const usePluginInstallProgressStore = defineStore(
       if (!isRunning.value && !isComplete.value) {
         isRunning.value = true;
         pluginName.value = payload.plugin_name;
-        currentAction.value = payload.action as 'enable' | 'install' | 'uninstall';
+        currentAction.value = payload.action as
+          | 'disable'
+          | 'enable'
+          | 'install'
+          | 'uninstall';
         visible.value = true;
       }
 
@@ -121,10 +129,10 @@ export const usePluginInstallProgressStore = defineStore(
         timestamp: payload.timestamp,
       };
 
-      if (existingIdx >= 0) {
-        steps.value[existingIdx] = stepData;
-      } else {
+      if (existingIdx === -1) {
         steps.value.push(stepData);
+      } else {
+        steps.value[existingIdx] = stepData;
       }
 
       // 完成/失败
@@ -133,10 +141,18 @@ export const usePluginInstallProgressStore = defineStore(
         isComplete.value = true;
         progress.value = 100;
 
-        // 如果安装了 npm 依赖，标记需要刷新
+        // 如果实际安装了 npm 依赖（pnpm 实际执行），标记需要刷新
+        // "Installed N package(s)" → pnpm 实际运行，需要刷新
+        // "No npm dependencies" / "already satisfied (skipped)" → 无需刷新
         if (
-          (currentAction.value === 'install' || currentAction.value === 'enable') &&
-          steps.value.some((s) => s.step === 'npm' && s.status === 'success')
+          (currentAction.value === 'install' ||
+            currentAction.value === 'enable') &&
+          steps.value.some(
+            (s) =>
+              s.step === 'npm' &&
+              s.status === 'success' &&
+              s.message.startsWith('Installed'),
+          )
         ) {
           needsReload.value = true;
         }
@@ -215,7 +231,10 @@ export const usePluginInstallProgressStore = defineStore(
      * 立即标记操作开始（在 Socket.IO 首条事件到来前给用户反馈）
      * Modal 关闭后、HTTP 请求发出前调用。
      */
-    function startOperation(name: string, action: 'enable' | 'install' | 'uninstall') {
+    function startOperation(
+      name: string,
+      action: 'disable' | 'enable' | 'install' | 'uninstall',
+    ) {
       pluginName.value = name;
       currentAction.value = action;
       isRunning.value = true;

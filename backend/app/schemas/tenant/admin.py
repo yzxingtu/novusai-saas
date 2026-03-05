@@ -13,7 +13,7 @@ from app.core.base_schema import BaseSchema
 
 class TenantAdminLoginRequest(BaseSchema):
     """租户管理员登录请求"""
-    
+
     username: str = Field(..., min_length=1, max_length=50, description="用户名或邮箱")
     password: str = Field(..., min_length=1, description="密码")
     captcha_challenge_id: str | None = Field(None, description="验证码挑战 ID")
@@ -23,7 +23,7 @@ class TenantAdminLoginRequest(BaseSchema):
 
 class TenantAdminResponse(BaseSchema):
     """租户管理员信息响应"""
-    
+
     id: int = Field(..., description="管理员 ID")
     tenant_id: int = Field(..., description="租户 ID")
     username: str = Field(..., description="用户名")
@@ -39,7 +39,7 @@ class TenantAdminResponse(BaseSchema):
     plan_name: str | None = Field(None, description="套餐名称")
     last_login_at: datetime | None = Field(None, description="最后登录时间")
     created_at: datetime = Field(..., description="创建时间")
-    
+
     @classmethod
     def from_model(
         cls,
@@ -69,7 +69,7 @@ class TenantAdminResponse(BaseSchema):
 
 class TenantAdminCreateRequest(BaseSchema):
     """创建租户管理员请求"""
-    
+
     username: str = Field(..., min_length=2, max_length=50, description="用户名")
     email: str = Field(..., description="邮箱")
     password: str = Field(..., min_length=6, max_length=50, description="密码")
@@ -82,7 +82,7 @@ class TenantAdminCreateRequest(BaseSchema):
 
 class TenantAdminUpdateRequest(BaseSchema):
     """更新租户管理员请求"""
-    
+
     email: str | None = Field(None, description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
@@ -94,7 +94,7 @@ class TenantAdminUpdateRequest(BaseSchema):
 
 class TenantAdminChangePasswordRequest(BaseSchema):
     """租户管理员修改密码请求"""
-    
+
     old_password: str = Field(..., min_length=1, description="旧密码")
     new_password: str = Field(..., min_length=6, max_length=50, description="新密码")
 

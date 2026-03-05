@@ -8,19 +8,17 @@ import json
 import time
 from typing import Any
 
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.configs.meta import ConfigGroupMeta, ConfigMeta
+from app.configs.meta import ConfigMeta
 from app.configs.registry import ConfigRegistry, config_registry
+from app.core.logging import LogManager
 from app.enums.config import ConfigScope
 from app.models.system.config import (
     SystemConfig,
-    SystemConfigGroup,
     SystemConfigValue,
 )
-
-from app.core.logging import LogManager
 
 logger = LogManager.get_logger("app")
 
@@ -37,22 +35,22 @@ _CONFIG_VALUE_TTL = 60  # 配置值缓存 60 秒
 class ConfigService:
     """
     配置读写服务
-    
+
     提供配置值的读取和写入功能
-    
+
     Usage:
         service = ConfigService(db)
-        
+
         # 获取平台配置
         value = await service.get_platform_config("site_name")
-        
+
         # 设置平台配置
         await service.set_platform_config("site_name", "My SaaS")
-        
+
         # 获取租户配置（会回退到平台默认值）
         value = await service.get_tenant_config(tenant_id, "theme_color")
     """
-    
+
     def __init__(
         self,
         db: AsyncSession,
@@ -60,18 +58,18 @@ class ConfigService:
     ):
         """
         初始化服务
-        
+
         Args:
             db: 数据库会话
             registry: 配置注册中心，默认使用全局实例
         """
         self.db = db
         self.registry = registry or config_registry
-    
+
     # ==========================================
     # 平台配置操作
     # ==========================================
-    
+
     async def get_platform_config(
         self,
         key: str,
@@ -79,11 +77,11 @@ class ConfigService:
     ) -> Any:
         """
         获取平台配置值
-        
+
         Args:
             key: 配置键名
             default: 默认值（如果配置不存在）
-            
+
         Returns:
             配置值（已反序列化）
         """
@@ -93,7 +91,7 @@ class ConfigService:
             scope=ConfigScope.ADMIN_ONLY,
             default=default,
         )
-    
+
     async def set_platform_config(
         self,
         key: str,
@@ -101,7 +99,7 @@ class ConfigService:
     ) -> None:
         """
         设置平台配置值
-        
+
         Args:
             key: 配置键名
             value: 配置值
@@ -111,17 +109,17 @@ class ConfigService:
             tenant_id=PLATFORM_TENANT_ID,
             value=value,
         )
-    
+
     async def get_platform_configs_by_group(
         self,
         group_code: str,
     ) -> dict[str, Any]:
         """
         获取平台配置分组下的所有配置值
-        
+
         Args:
             group_code: 分组代码
-            
+
         Returns:
             {config_key: value, ...}
         """
@@ -129,11 +127,11 @@ class ConfigService:
             group_code=group_code,
             tenant_id=PLATFORM_TENANT_ID,
         )
-    
+
     # ==========================================
     # 租户配置操作
     # ==========================================
-    
+
     async def get_tenant_config(
         self,
         tenant_id: int,
@@ -142,18 +140,18 @@ class ConfigService:
     ) -> Any:
         """
         获取租户配置值
-        
+
         如果租户未设置该配置，会依次回退：
         1. 租户设置的值
         2. 平台设置的默认值（对于 tenant 作用域的配置）
         3. 代码定义的默认值
         4. 传入的 default 参数
-        
+
         Args:
             tenant_id: 租户 ID
             key: 配置键名
             default: 默认值
-            
+
         Returns:
             配置值（已反序列化）
         """
@@ -165,17 +163,17 @@ class ConfigService:
             default=None,
             skip_default=True,
         )
-        
+
         if value is not None:
             return value
-        
+
         # 回退到配置元数据的默认值
         config_meta = self.registry.get_config_by_key(key)
         if config_meta and config_meta.default_value is not None:
             return config_meta.default_value
-        
+
         return default
-    
+
     async def set_tenant_config(
         self,
         tenant_id: int,
@@ -184,7 +182,7 @@ class ConfigService:
     ) -> None:
         """
         设置租户配置值
-        
+
         Args:
             tenant_id: 租户 ID
             key: 配置键名
@@ -195,7 +193,7 @@ class ConfigService:
             tenant_id=tenant_id,
             value=value,
         )
-    
+
     async def get_tenant_configs_by_group(
         self,
         tenant_id: int,
@@ -203,11 +201,11 @@ class ConfigService:
     ) -> dict[str, Any]:
         """
         获取租户配置分组下的所有配置值
-        
+
         Args:
             tenant_id: 租户 ID
             group_code: 分组代码
-            
+
         Returns:
             {config_key: value, ...}
         """
@@ -215,30 +213,30 @@ class ConfigService:
             group_code=group_code,
             tenant_id=tenant_id,
         )
-    
+
     async def ensure_tenant_configs(self, tenant_id: int) -> int:
         """
         确保租户配置已初始化
-        
+
         为租户创建所有 tenant 作用域配置的默认值记录
-        
+
         Args:
             tenant_id: 租户 ID
-            
+
         Returns:
             创建的配置值数量
         """
         created_count = 0
-        
+
         # 获取所有租户作用域的配置
         tenant_configs = self.registry.get_configs_by_scope(ConfigScope.ALL_TENANTS)
-        
+
         for config_meta in tenant_configs:
             # 检查是否已有值
             config_id = await self._get_config_id(config_meta.key)
             if not config_id:
                 continue
-            
+
             existing = await self.db.execute(
                 select(SystemConfigValue).where(
                     and_(
@@ -248,10 +246,10 @@ class ConfigService:
                     )
                 )
             )
-            
+
             if existing.scalar_one_or_none():
                 continue
-            
+
             # 创建默认值记录
             default_value = self._serialize_value(config_meta.default_value)
             value_record = SystemConfigValue(
@@ -261,17 +259,17 @@ class ConfigService:
             )
             self.db.add(value_record)
             created_count += 1
-        
+
         if created_count > 0:
             await self.db.flush()
             logger.info(f"Created {created_count} config values for tenant {tenant_id}")
-        
+
         return created_count
-    
+
     # ==========================================
     # 批量获取（含元数据）
     # ==========================================
-    
+
     async def get_configs_with_meta(
         self,
         scope: ConfigScope,
@@ -280,12 +278,12 @@ class ConfigService:
     ) -> list[dict]:
         """
         获取配置列表（含元数据）
-        
+
         Args:
             scope: 作用域
             tenant_id: 租户 ID（租户作用域时必填）
             group_code: 分组代码（可选，为空则返回所有）
-            
+
         Returns:
             配置列表，每项包含：
             - key: 配置键
@@ -300,16 +298,16 @@ class ConfigService:
             - group_code: 分组代码
         """
         actual_tenant_id = PLATFORM_TENANT_ID if scope == ConfigScope.ADMIN_ONLY else tenant_id
-        
+
         # 获取分组
         if group_code:
             groups = [self.registry.get_group(group_code)]
             groups = [g for g in groups if g]
         else:
             groups = self.registry.get_groups_by_scope(scope)
-        
+
         result = []
-        
+
         for group in groups:
             configs = group.configs
             for config_meta in configs:
@@ -321,9 +319,9 @@ class ConfigService:
                     scope=scope,
                 )
                 result.append(payload)
-        
+
         return sorted(result, key=lambda x: (x["group_code"], x["sort_order"]))
-    
+
     async def get_groups_with_configs(
         self,
         scope: ConfigScope,
@@ -331,23 +329,23 @@ class ConfigService:
     ) -> list[dict]:
         """
         获取分组列表（含配置项）
-        
+
         Args:
             scope: 作用域
             tenant_id: 租户 ID（租户作用域时必填）
-            
+
         Returns:
             分组列表，每项包含分组信息和配置项列表
         """
         actual_tenant_id = PLATFORM_TENANT_ID if scope == ConfigScope.ADMIN_ONLY else tenant_id
         groups = self.registry.get_groups_by_scope(scope)
-        
+
         result = []
-        
+
         for group in groups:
             if not group.is_active:
                 continue
-            
+
             configs = []
             for config_meta in group.configs:
                 if not config_meta.is_visible:
@@ -358,7 +356,7 @@ class ConfigService:
                     scope=scope,
                 )
                 configs.append(payload)
-            
+
             result.append({
                 "code": group.code,
                 "name_key": group.name_key,
@@ -367,13 +365,13 @@ class ConfigService:
                 "sort_order": group.sort_order,
                 "configs": sorted(configs, key=lambda x: x["sort_order"]),
             })
-        
+
         return sorted(result, key=lambda x: x["sort_order"])
-    
+
     # ==========================================
     # 内部方法
     # ==========================================
-    
+
     async def _get_config_value(
         self,
         key: str,
@@ -383,6 +381,7 @@ class ConfigService:
         skip_default: bool = False,
     ) -> Any:
         """获取配置值（带内存缓存）"""
+        _ = scope
         cache_key = f"{tenant_id}:{key}"
         now = time.monotonic()
         cached = _config_value_cache.get(cache_key)
@@ -397,7 +396,7 @@ class ConfigService:
         if not config_id:
             _config_value_cache[cache_key] = (None, now)
             return default if not skip_default else None
-        
+
         # 查询配置值
         result = await self.db.execute(
             select(SystemConfigValue).where(
@@ -409,16 +408,16 @@ class ConfigService:
             )
         )
         value_record = result.scalar_one_or_none()
-        
+
         if value_record and value_record.value is not None:
             deserialized = self._deserialize_value(value_record.value)
             _config_value_cache[cache_key] = (deserialized, now)
             return deserialized
-        
+
         _config_value_cache[cache_key] = (None, now)
         if skip_default:
             return None
-        
+
         # 返回默认值
         return default
 
@@ -489,7 +488,7 @@ class ConfigService:
             else:
                 return None
         return current
-    
+
     async def _set_config_value(
         self,
         key: str,
@@ -501,7 +500,7 @@ class ConfigService:
         config_id = await self._get_config_id(key)
         if not config_id:
             raise ValueError(f"Config '{key}' not found")
-        
+
         # 查询现有记录
         result = await self.db.execute(
             select(SystemConfigValue).where(
@@ -513,9 +512,9 @@ class ConfigService:
             )
         )
         value_record = result.scalar_one_or_none()
-        
+
         serialized_value = self._serialize_value(value)
-        
+
         if value_record:
             # 更新现有记录
             value_record.value = serialized_value
@@ -527,13 +526,13 @@ class ConfigService:
                 value=serialized_value,
             )
             self.db.add(value_record)
-        
+
         await self.db.flush()
 
         # 写入后立即失效缓存
         cache_key = f"{tenant_id}:{key}"
         _config_value_cache.pop(cache_key, None)
-    
+
     async def _get_configs_by_group(
         self,
         group_code: str,
@@ -543,7 +542,7 @@ class ConfigService:
         group = self.registry.get_group(group_code)
         if not group:
             return {}
-        
+
         result = {}
         for config_meta in group.configs:
             value = await self._get_config_value(
@@ -553,9 +552,9 @@ class ConfigService:
                 default=config_meta.default_value,
             )
             result[config_meta.key] = value
-        
+
         return result
-    
+
     async def _get_config_id(self, key: str) -> int | None:
         """根据 key 获取配置项 ID（带内存缓存）"""
         now = time.monotonic()
@@ -574,13 +573,13 @@ class ConfigService:
         config_id = result.scalar_one_or_none()
         _config_id_cache[key] = (config_id, now)
         return config_id
-    
+
     def _serialize_value(self, value: Any) -> str | None:
         """序列化值为 JSON 字符串"""
         if value is None:
             return None
         return json.dumps(value, ensure_ascii=False)
-    
+
     def _deserialize_value(self, value: str) -> Any:
         """反序列化 JSON 字符串为值"""
         if value is None:

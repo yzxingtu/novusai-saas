@@ -15,7 +15,12 @@ import type { ApiRequestOptions } from '#/utils/request';
 import { transformSslCertInfo } from '#/types/domain';
 import { requestClient } from '#/utils/request';
 
-export type { DomainType, SslCertificateInfo, SslStatus, VerificationStatus } from '#/types/domain';
+export type {
+  DomainType,
+  SslCertificateInfo,
+  SslStatus,
+  VerificationStatus,
+} from '#/types/domain';
 
 // ============================================================
 // 类型定义
@@ -266,8 +271,8 @@ export async function getSslDetailApi(
   tenantId: number,
   domainId: number,
   options?: ApiRequestOptions,
-): Promise<SslCertificateInfo | null> {
-  const raw = await requestClient.get<SslCertificateInfoRaw | null>(
+): Promise<null | SslCertificateInfo> {
+  const raw = await requestClient.get<null | SslCertificateInfoRaw>(
     `${getDomainApiPrefix(tenantId)}/${domainId}/ssl`,
     options,
   );
@@ -313,7 +318,11 @@ export async function renewSslApi(
 export async function uploadSslCertApi(
   tenantId: number,
   domainId: number,
-  data: { certificate: string; certificate_chain?: string; private_key: string },
+  data: {
+    certificate: string;
+    certificate_chain?: string;
+    private_key: string;
+  },
   options?: ApiRequestOptions,
 ): Promise<SslCertificateInfo> {
   const raw = await requestClient.post<SslCertificateInfoRaw>(

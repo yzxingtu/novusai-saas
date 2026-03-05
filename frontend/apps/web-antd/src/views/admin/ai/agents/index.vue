@@ -7,8 +7,6 @@
  */
 import type { AIAgentInfo } from '#/api/admin/ai';
 
-defineOptions({ name: 'AIAgentList' });
-
 import { computed, ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
@@ -32,35 +30,44 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
-
+import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
 import {
   deleteAIAgentApi,
   getAIAgentListApi,
   publishAIAgentApi,
   updateAIAgentStatusApi,
 } from '#/api/admin/ai';
-import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
+import { getScopeIcon, getScopeText } from '#/utils/scope-helpers';
+
 import {
   getExecutionModeText,
   getScopeColor,
   getScopeOptions,
   getStatusText,
 } from './data';
-import { getScopeIcon, getScopeText } from '#/utils/scope-helpers';
 import AgentForm from './modules/form.vue';
 import VersionHistoryDrawer from './modules/VersionHistory.vue';
+
+defineOptions({ name: 'AIAgentList' });
 
 // ============================================================
 // 声明式 CRUD（列表/分页/搜索/删除/回收站）
 // ============================================================
 
 const {
-  list, total, loading, currentPage, pageSize, searchKeyword,
-  loadList, onSearch, onPageChange,
+  list,
+  total,
+  loading,
+  currentPage,
+  pageSize,
+  searchKeyword,
+  loadList,
+  onSearch,
+  onPageChange,
   handleMenuAction,
 } = useCrudList<AIAgentInfo>({
   api: {
@@ -79,9 +86,13 @@ const {
 });
 
 // ========== 回收站 ==========
-const recycleBinRef = ref<{ open: () => void; deletedCount: number } | null>(null);
+const recycleBinRef = ref<null | { deletedCount: number; open: () => void }>(
+  null,
+);
 const recycleBinCount = computed(() => recycleBinRef.value?.deletedCount ?? 0);
-function openRecycleBin() { recycleBinRef.value?.open(); }
+function openRecycleBin() {
+  recycleBinRef.value?.open();
+}
 
 // ============================================================
 // AgentForm（ref 模式，非标准 FormDrawer）
@@ -190,19 +201,35 @@ const hasActiveFilters = computed(
 
 function getStatusDotClass(status: string): string {
   switch (status) {
-    case 'published': return 'bg-green-500';
-    case 'disabled': return 'bg-red-400';
-    default: return 'bg-gray-400';
+    case 'disabled': {
+      return 'bg-red-400';
+    }
+    case 'published': {
+      return 'bg-green-500';
+    }
+    default: {
+      return 'bg-gray-400';
+    }
   }
 }
 
 function getExecutionModeIcon(mode: string): string {
   switch (mode) {
-    case 'conversation': return 'lucide:message-circle';
-    case 'task': return 'lucide:list-checks';
-    case 'batch': return 'lucide:layers';
-    case 'api': return 'lucide:code';
-    default: return 'lucide:bot';
+    case 'api': {
+      return 'lucide:code';
+    }
+    case 'batch': {
+      return 'lucide:layers';
+    }
+    case 'conversation': {
+      return 'lucide:message-circle';
+    }
+    case 'task': {
+      return 'lucide:list-checks';
+    }
+    default: {
+      return 'lucide:bot';
+    }
   }
 }
 
@@ -217,14 +244,15 @@ const stats = computed(() => {
 </script>
 
 <template>
-  <Page
-    auto-content-height
-    content-class="flex flex-col gap-4"
-  >
+  <Page auto-content-height content-class="flex flex-col gap-4">
     <!-- Form Drawer -->
     <AgentForm ref="agentFormRef" @success="loadList" />
     <VersionDrawer @success="loadList" />
-    <RecycleBinDrawer ref="recycleBinRef" resource="/admin/ai/agents" @restored="loadList" />
+    <RecycleBinDrawer
+      ref="recycleBinRef"
+      resource="/admin/ai/agents"
+      @restored="loadList"
+    />
     <!-- Publish Modal -->
     <Modal
       v-model:open="publishModalOpen"
@@ -252,10 +280,18 @@ const stats = computed(() => {
         :placeholder="$t('admin.ai.agent.placeholder.searchName')"
         allow-clear
         class="!w-64"
-        @update:value="(v: string) => { searchKeyword = v; doSearch(); }"
+        @update:value="
+          (v: string) => {
+            searchKeyword = v;
+            doSearch();
+          }
+        "
       >
         <template #prefix>
-          <IconifyIcon icon="lucide:search" class="size-4 text-muted-foreground" />
+          <IconifyIcon
+            icon="lucide:search"
+            class="size-4 text-muted-foreground"
+          />
         </template>
       </Input>
 
@@ -305,13 +341,15 @@ const stats = computed(() => {
         {{ $t('admin.common.reset') }}
       </Button>
 
-      <div class="flex-1" />
+      <div class="flex-1"></div>
 
       <!-- Stats -->
-      <div class="hidden items-center gap-4 text-xs text-muted-foreground md:flex">
+      <div
+        class="hidden items-center gap-4 text-xs text-muted-foreground md:flex"
+      >
         <span>{{ $t('admin.common.total') }} {{ stats.total }}</span>
         <span class="flex items-center gap-1">
-          <span class="inline-block size-2 rounded-full bg-green-500" />
+          <span class="inline-block size-2 rounded-full bg-green-500"></span>
           {{ stats.published }}
         </span>
         <span class="flex items-center gap-1">
@@ -382,7 +420,9 @@ const stats = computed(() => {
                 icon="lucide:shield-check"
                 class="size-5"
               />
-              <span v-else>{{ agent.name?.charAt(0)?.toUpperCase() || '?' }}</span>
+              <span v-else>{{
+                agent.name?.charAt(0)?.toUpperCase() || '?'
+              }}</span>
             </div>
 
             <!-- Name + badges -->
@@ -408,7 +448,7 @@ const stats = computed(() => {
                 <span
                   class="inline-block size-2 rounded-full"
                   :class="getStatusDotClass(agent.status)"
-                />
+                ></span>
                 <span class="text-xs text-muted-foreground">
                   {{ getStatusText(agent.status) }}
                 </span>
@@ -428,10 +468,7 @@ const stats = computed(() => {
               </button>
               <template #overlay>
                 <Menu>
-                  <MenuItem
-                    key="edit"
-                    @click="agentFormRef?.openEdit(agent)"
-                  >
+                  <MenuItem key="edit" @click="agentFormRef?.openEdit(agent)">
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:pencil" class="size-4" />
                       <span>{{ $t('admin.common.edit') }}</span>
@@ -444,7 +481,11 @@ const stats = computed(() => {
                   >
                     <div class="flex items-center gap-2">
                       <IconifyIcon
-                        :icon="agent.status === 'published' ? 'lucide:pause-circle' : 'lucide:play-circle'"
+                        :icon="
+                          agent.status === 'published'
+                            ? 'lucide:pause-circle'
+                            : 'lucide:play-circle'
+                        "
                         class="size-4"
                       />
                       <span>
@@ -462,14 +503,37 @@ const stats = computed(() => {
                     @click="onPublish(agent)"
                   >
                     <div class="flex items-center gap-2">
-                      <IconifyIcon icon="lucide:rocket" class="size-4 text-success" />
+                      <IconifyIcon
+                        icon="lucide:rocket"
+                        class="size-4 text-success"
+                      />
                       <span>{{ $t('admin.ai.agent.actions.publish') }}</span>
                     </div>
                   </MenuItem>
                   <MenuItem
-                    key="versions"
-                    @click="onVersions(agent)"
+                    key="routing"
+                    @click="
+                      $router.push(`/admin/ai/agents/${agent.id}?tab=routing`)
+                    "
                   >
+                    <div class="flex items-center gap-2">
+                      <IconifyIcon
+                        icon="lucide:git-branch"
+                        :class="
+                          (
+                            agent.routing_config as Record<
+                              string,
+                              unknown
+                            > | null
+                          )?.enable_routing
+                            ? 'size-4 text-green-500'
+                            : 'size-4'
+                        "
+                      />
+                      <span>{{ $t('admin.ai.agent.detail.routing') }}</span>
+                    </div>
+                  </MenuItem>
+                  <MenuItem key="versions" @click="onVersions(agent)">
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:history" class="size-4" />
                       <span>{{ $t('admin.ai.agent.actions.versions') }}</span>
@@ -505,7 +569,10 @@ const stats = computed(() => {
           <!-- Metadata chips -->
           <div class="mt-4 flex flex-wrap items-center gap-2">
             <!-- Model -->
-            <Tooltip v-if="agent.model_name" :title="$t('admin.ai.agent.modelName')">
+            <Tooltip
+              v-if="agent.model_name"
+              :title="$t('admin.ai.agent.modelName')"
+            >
               <div
                 class="flex items-center gap-1.5 rounded-md bg-accent px-2 py-1 text-[11px] text-muted-foreground"
               >
@@ -519,7 +586,10 @@ const stats = computed(() => {
               <div
                 class="flex items-center gap-1.5 rounded-md bg-accent px-2 py-1 text-[11px] text-muted-foreground"
               >
-                <IconifyIcon :icon="getExecutionModeIcon(agent.execution_mode)" class="size-3" />
+                <IconifyIcon
+                  :icon="getExecutionModeIcon(agent.execution_mode)"
+                  class="size-3"
+                />
                 <span>{{ getExecutionModeText(agent.execution_mode) }}</span>
               </div>
             </Tooltip>
@@ -536,6 +606,22 @@ const stats = computed(() => {
               </div>
             </Tag>
 
+            <!-- Smart Routing indicator -->
+            <Tooltip
+              v-if="
+                (agent.routing_config as Record<string, unknown> | null)
+                  ?.enable_routing
+              "
+              :title="$t('admin.ai.agent.routing.statusEnabled')"
+            >
+              <div
+                class="flex items-center gap-1 rounded-md bg-green-500/10 px-2 py-1 text-[11px] font-medium text-green-600 dark:text-green-400"
+              >
+                <IconifyIcon icon="lucide:git-branch" class="size-3" />
+                <span>{{ $t('admin.ai.agent.routing.statusEnabled') }}</span>
+              </div>
+            </Tooltip>
+
             <!-- Skill Packages -->
             <Tag
               v-for="pkg in (agent.skill_packages || []).slice(0, 3)"
@@ -548,7 +634,12 @@ const stats = computed(() => {
             </Tag>
             <Tooltip
               v-if="agent.skill_packages && agent.skill_packages.length > 3"
-              :title="agent.skill_packages.slice(3).map((p: { name: string }) => p.name).join(', ')"
+              :title="
+                agent.skill_packages
+                  .slice(3)
+                  .map((p: { name: string }) => p.name)
+                  .join(', ')
+              "
             >
               <Tag
                 color="cyan"
@@ -609,10 +700,7 @@ const stats = computed(() => {
     </Spin>
 
     <!-- ==================== Pagination ==================== -->
-    <div
-      v-if="total > pageSize"
-      class="flex justify-end"
-    >
+    <div v-if="total > pageSize" class="flex justify-end">
       <Pagination
         :current="currentPage"
         :page-size="pageSize"
@@ -623,6 +711,5 @@ const stats = computed(() => {
         @change="onPageChange"
       />
     </div>
-
   </Page>
 </template>

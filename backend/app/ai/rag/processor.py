@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import asyncio
 
-from app.core.logging import LogManager
-from app.tasks.base import register_task, TenantTask
 from app.core.base_model import utc_now
+from app.core.logging import LogManager
+from app.tasks.base import TenantTask, register_task
 
 logger = LogManager.get_logger("ai.rag.processor")
 
@@ -49,7 +49,7 @@ async def _report_progress(
 
     # WS 实时推送（Celery 同步环境通过 Redis Pub/Sub 转发）
     try:
-        from app.core.sio_bridge import notify_tenant_sync, notify_admins_sync
+        from app.core.sio_bridge import notify_admins_sync, notify_tenant_sync
         ws_payload = {
             "type": "ai.kb_doc_progress",
             "data": {
@@ -88,11 +88,11 @@ async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
     """
     from sqlalchemy import select
 
-    from app.ai.rag.parser import get_parser, QaPairParser
+    from app.ai.rag.parser import QaPairParser, get_parser
+    from app.configs.service import ConfigService
     from app.enums.knowledge_base import DocumentTypeEnum
     from app.models.tenant.attachment import Attachment
     from app.storage import storage_manager
-    from app.configs.service import ConfigService
 
     if doc.file_type == DocumentTypeEnum.QA.value:
         import json
@@ -210,7 +210,8 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
     """
 
     async def _execute() -> dict:
-        from sqlalchemy import select, func
+        from sqlalchemy import func, select
+
         # 清理上一次 event loop 残留的 DB 连接（Windows --pool=solo 必需）
         from app.core.database import async_engine
         await async_engine.dispose()
@@ -224,18 +225,14 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
 
         from app.ai.gateway import AIGateway
         from app.ai.rag.chunker import get_chunker
-        from app.ai.rag.parser import get_parser, QaPairParser
         from app.core.database import async_session_factory
-        from app.enums.knowledge_base import DocumentStatusEnum, DocumentTypeEnum
+        from app.enums.knowledge_base import DocumentStatusEnum
         from app.models.ai.document_chunk import DocumentChunk
-        from app.models.tenant.attachment import Attachment
         from app.repositories.ai.knowledge_base_repository import (
             DocumentChunkRepository,
             KnowledgeBaseRepository,
             KnowledgeDocumentRepository,
         )
-        from app.storage import storage_manager
-        from app.configs.service import ConfigService
 
         async with async_session_factory() as db:
             try:
@@ -365,7 +362,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                 processed_so_far = existing_chunk_count
 
                 await _report_progress(
-                    document_id, "embedding", 
+                    document_id, "embedding",
                     int(processed_so_far / max(total_chunks, 1) * 100),
                     total_chunks, processed_so_far,
                     tenant_id=tenant_id, kb_id=kb.id,

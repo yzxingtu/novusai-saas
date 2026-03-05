@@ -5,27 +5,27 @@
  * 在对话输入区域显示已选知识库标签，点击 @ 按钮弹出可选知识库列表。
  * 通过 props.fetchApi 传入不同的 API 函数，管理端和租户端共用。
  */
-defineOptions({ name: 'KbMentionSelector' });
-
 import { ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Popover, Tag, Spin } from 'ant-design-vue';
+import { Popover, Spin, Tag } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
+
+defineOptions({ name: 'KbMentionSelector' });
+
+const props = defineProps<{
+  fetchApi: () => Promise<unknown[]>;
+}>();
 
 export interface KBItem {
   id: number;
   name: string;
   scope: string;
-  description: string | null;
+  description: null | string;
 }
-
-const props = defineProps<{
-  fetchApi: () => Promise<unknown[]>;
-}>();
 
 const selectedKBs = defineModel<number[]>('selectedIds', { default: () => [] });
 
@@ -46,11 +46,10 @@ async function loadKBList() {
 
 function toggleKB(id: number) {
   const idx = selectedKBs.value.indexOf(id);
-  if (idx >= 0) {
-    selectedKBs.value = selectedKBs.value.filter((v) => v !== id);
-  } else {
-    selectedKBs.value = [...selectedKBs.value, id];
-  }
+  selectedKBs.value =
+    idx === -1
+      ? [...selectedKBs.value, id]
+      : selectedKBs.value.filter((v) => v !== id);
 }
 
 function removeKB(id: number) {
@@ -60,7 +59,6 @@ function removeKB(id: number) {
 function getKBName(id: number): string {
   return kbList.value.find((kb) => kb.id === id)?.name ?? `KB#${id}`;
 }
-
 
 function onPopoverOpen(visible: boolean) {
   if (visible) loadKBList();
@@ -96,7 +94,10 @@ function onPopoverOpen(visible: boolean) {
             {{ $t('shared.kbMention.title') }}
           </div>
           <Spin v-if="loading" size="small" class="flex justify-center py-4" />
-          <div v-else-if="kbList.length === 0" class="py-3 text-center text-xs text-muted-foreground">
+          <div
+            v-else-if="kbList.length === 0"
+            class="py-3 text-center text-xs text-muted-foreground"
+          >
             {{ $t('shared.kbMention.empty') }}
           </div>
           <div v-else class="max-h-48 space-y-1 overflow-y-auto">
@@ -108,13 +109,24 @@ function onPopoverOpen(visible: boolean) {
               @click="toggleKB(kb.id)"
             >
               <IconifyIcon
-                :icon="selectedKBs.includes(kb.id) ? 'lucide:check-square' : 'lucide:square'"
+                :icon="
+                  selectedKBs.includes(kb.id)
+                    ? 'lucide:check-square'
+                    : 'lucide:square'
+                "
                 class="size-4 shrink-0"
-                :class="selectedKBs.includes(kb.id) ? 'text-primary' : 'text-muted-foreground'"
+                :class="
+                  selectedKBs.includes(kb.id)
+                    ? 'text-primary'
+                    : 'text-muted-foreground'
+                "
               />
               <div class="min-w-0 flex-1">
                 <div class="truncate text-foreground">{{ kb.name }}</div>
-                <div v-if="kb.description" class="truncate text-xs text-muted-foreground">
+                <div
+                  v-if="kb.description"
+                  class="truncate text-xs text-muted-foreground"
+                >
                   {{ kb.description }}
                 </div>
               </div>

@@ -1,0 +1,3 @@
+# Netdisk
+
+A NovusAI plugin.

@@ -4,13 +4,21 @@
  */
 import type { NotificationTemplateInfo } from '#/api/admin/notification-templates';
 
-defineOptions({ name: 'AdminNotificationTemplates' });
-
 import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
-import { Button, Card, Checkbox, Drawer, Form, Input, message, Select, Tag } from 'ant-design-vue';
+import {
+  Button,
+  Card,
+  Checkbox,
+  Drawer,
+  Form,
+  Input,
+  message,
+  Select,
+  Tag,
+} from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import {
@@ -29,15 +37,17 @@ import {
   useGridFormSchema,
 } from './data';
 
+defineOptions({ name: 'AdminNotificationTemplates' });
+
 const editOpen = ref(false);
 const editLoading = ref(false);
 const editForm = ref<{
-  id: number;
-  code: string;
+  body_template: string;
   channels: string[];
+  code: string;
+  id: number;
   priority: string;
   title_template: string;
-  body_template: string;
 }>({
   id: 0,
   code: '',
@@ -49,22 +59,45 @@ const editForm = ref<{
 
 const CHANNEL_OPTIONS = [
   { label: $t('admin.system.notificationTemplate.channelWs'), value: 'ws' },
-  { label: $t('admin.system.notificationTemplate.channelInbox'), value: 'inbox' },
-  { label: $t('admin.system.notificationTemplate.channelEmail'), value: 'email' },
-  { label: $t('admin.system.notificationTemplate.channelWebhook'), value: 'webhook' },
+  {
+    label: $t('admin.system.notificationTemplate.channelInbox'),
+    value: 'inbox',
+  },
+  {
+    label: $t('admin.system.notificationTemplate.channelEmail'),
+    value: 'email',
+  },
+  {
+    label: $t('admin.system.notificationTemplate.channelWebhook'),
+    value: 'webhook',
+  },
 ];
 
 const PRIORITY_OPTIONS = [
-  { label: $t('admin.system.notificationTemplate.priority_options.low'), value: 'low' },
-  { label: $t('admin.system.notificationTemplate.priority_options.normal'), value: 'normal' },
-  { label: $t('admin.system.notificationTemplate.priority_options.high'), value: 'high' },
-  { label: $t('admin.system.notificationTemplate.priority_options.urgent'), value: 'urgent' },
+  {
+    label: $t('admin.system.notificationTemplate.priority_options.low'),
+    value: 'low',
+  },
+  {
+    label: $t('admin.system.notificationTemplate.priority_options.normal'),
+    value: 'normal',
+  },
+  {
+    label: $t('admin.system.notificationTemplate.priority_options.high'),
+    value: 'high',
+  },
+  {
+    label: $t('admin.system.notificationTemplate.priority_options.urgent'),
+    value: 'urgent',
+  },
 ];
 
 async function onTest(row: NotificationTemplateInfo) {
   try {
     await testNotificationTemplateApi(row.id);
-    message.success($t('admin.system.notificationTemplate.messages.testSuccess'));
+    message.success(
+      $t('admin.system.notificationTemplate.messages.testSuccess'),
+    );
   } catch {
     message.error($t('admin.system.notificationTemplate.messages.testFailed'));
   }
@@ -91,11 +124,15 @@ async function handleSave() {
       title_template: editForm.value.title_template,
       body_template: editForm.value.body_template || undefined,
     });
-    message.success($t('admin.system.notificationTemplate.messages.updateSuccess'));
+    message.success(
+      $t('admin.system.notificationTemplate.messages.updateSuccess'),
+    );
     editOpen.value = false;
     gridReload();
   } catch {
-    message.error($t('admin.system.notificationTemplate.messages.updateFailed'));
+    message.error(
+      $t('admin.system.notificationTemplate.messages.updateFailed'),
+    );
   } finally {
     editLoading.value = false;
   }
@@ -134,15 +171,25 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
           <Input :value="editForm.code" disabled />
         </Form.Item>
         <Form.Item :label="$t('admin.system.notificationTemplate.channels')">
-          <Checkbox.Group v-model:value="editForm.channels" :options="CHANNEL_OPTIONS" />
+          <Checkbox.Group
+            v-model:value="editForm.channels"
+            :options="CHANNEL_OPTIONS"
+          />
         </Form.Item>
         <Form.Item :label="$t('admin.system.notificationTemplate.priority')">
-          <Select v-model:value="editForm.priority" :options="PRIORITY_OPTIONS" />
+          <Select
+            v-model:value="editForm.priority"
+            :options="PRIORITY_OPTIONS"
+          />
         </Form.Item>
-        <Form.Item :label="$t('admin.system.notificationTemplate.titleTemplate')">
+        <Form.Item
+          :label="$t('admin.system.notificationTemplate.titleTemplate')"
+        >
           <Input v-model:value="editForm.title_template" />
         </Form.Item>
-        <Form.Item :label="$t('admin.system.notificationTemplate.bodyTemplate')">
+        <Form.Item
+          :label="$t('admin.system.notificationTemplate.bodyTemplate')"
+        >
           <Input.TextArea v-model:value="editForm.body_template" :rows="4" />
         </Form.Item>
         <Form.Item>
@@ -157,7 +204,9 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
       <Grid>
         <!-- 编码列 -->
         <template #code_cell="{ row }">
-          <span class="font-mono text-xs text-muted-foreground">{{ row.code }}</span>
+          <span class="font-mono text-xs text-muted-foreground">{{
+            row.code
+          }}</span>
         </template>
 
         <!-- 标题模板列 -->
@@ -167,7 +216,10 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
 
         <!-- 正文模板列 -->
         <template #body_cell="{ row }">
-          <span v-if="row.body_template" class="line-clamp-2 text-xs text-muted-foreground">
+          <span
+            v-if="row.body_template"
+            class="line-clamp-2 text-xs text-muted-foreground"
+          >
             {{ row.body_template }}
           </span>
           <span v-else class="text-xs text-muted-foreground">-</span>
@@ -176,7 +228,11 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
         <!-- 分类列 -->
         <template #category_cell="{ row }">
           <Tag :color="getCategoryColor(row.category)">
-            {{ $t(`admin.system.notificationTemplate.category_options.${row.category}`) }}
+            {{
+              $t(
+                `admin.system.notificationTemplate.category_options.${row.category}`,
+              )
+            }}
           </Tag>
         </template>
 
@@ -184,7 +240,7 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
         <template #channels_cell="{ row }">
           <div class="flex flex-wrap gap-1">
             <Tag
-              v-for="ch in (row.channels || [])"
+              v-for="ch in row.channels || []"
               :key="ch"
               :color="getChannelColor(ch)"
               size="small"
@@ -197,14 +253,22 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
         <!-- 优先级列 -->
         <template #priority_cell="{ row }">
           <Tag :color="getPriorityColor(row.priority)">
-            {{ $t(`admin.system.notificationTemplate.priority_options.${row.priority}`) }}
+            {{
+              $t(
+                `admin.system.notificationTemplate.priority_options.${row.priority}`,
+              )
+            }}
           </Tag>
         </template>
 
         <!-- 系统内置列 -->
         <template #isSystem_cell="{ row }">
           <Tag :color="row.is_system ? 'blue' : 'default'">
-            {{ row.is_system ? $t('admin.system.notificationTemplate.systemBuiltin') : $t('admin.system.notificationTemplate.custom') }}
+            {{
+              row.is_system
+                ? $t('admin.system.notificationTemplate.systemBuiltin')
+                : $t('admin.system.notificationTemplate.custom')
+            }}
           </Tag>
         </template>
       </Grid>

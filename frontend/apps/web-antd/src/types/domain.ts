@@ -22,7 +22,12 @@ export type SslStatus =
 export type SslType = 'custom' | 'platform';
 
 /** SSL 证书状态（证书记录级别） */
-export type SslCertStatus = 'active' | 'expired' | 'failed' | 'pending' | 'revoked';
+export type SslCertStatus =
+  | 'active'
+  | 'expired'
+  | 'failed'
+  | 'pending'
+  | 'revoked';
 
 /** DNS 验证信息（后端返回 dns_name/dns_type/dns_value，前端统一为 host/type/value） */
 export interface VerificationInfo {
@@ -77,7 +82,9 @@ export interface SslCertificateInfoRaw {
 }
 
 /** SSL 证书 snake→camelCase 转换 */
-export function transformSslCertInfo(raw: SslCertificateInfoRaw): SslCertificateInfo {
+export function transformSslCertInfo(
+  raw: SslCertificateInfoRaw,
+): SslCertificateInfo {
   return {
     id: raw.id,
     domainId: raw.domain_id,

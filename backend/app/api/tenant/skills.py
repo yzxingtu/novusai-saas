@@ -9,20 +9,19 @@ from typing import Any
 from fastapi import Body, Request
 
 from app.core.base_controller import TenantController
-from app.core.deps import DbSession, ActiveTenantAdmin, QueryParams
+from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import success, created, deleted, paginated
-from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException, BusinessException
-from app.rbac.decorators import (
-    permission_resource,
-    MenuConfig,
-    action_read,
-    action_create,
-    action_update,
-    action_delete,
-)
 from app.core.recycle_bin import register_tenant_recycle_bin_routes
+from app.core.response import created, deleted, paginated, success
+from app.enums.rbac import PermissionScope
+from app.exceptions import NotFoundException
+from app.rbac.decorators import (
+    action_create,
+    action_delete,
+    action_read,
+    action_update,
+    permission_resource,
+)
 from app.schemas.ai.skill import (
     SkillCreate,
     SkillUpdate,
@@ -257,9 +256,9 @@ class TenantSkillController(TenantController):
                 return success(data={"tools": [], "valves_schema": {}, "errors": []})
 
             from app.ai.skills.toolkit_parser import (
-                validate_toolkit_source,
-                parse_toolkit,
                 ToolkitParseError,
+                parse_toolkit,
+                validate_toolkit_source,
             )
 
             errors = validate_toolkit_source(source)

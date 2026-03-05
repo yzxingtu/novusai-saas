@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'TenantPeriodicTaskForm' });
-
 import type { tenantApi } from '#/api';
 
 import { computed } from 'vue';
@@ -12,9 +10,11 @@ import { $t } from '#/locales';
 
 import { getFormDefaults, useFormSchema } from '../data';
 
-type PeriodicTaskInfo = tenantApi.PeriodicTaskInfo;
+defineOptions({ name: 'TenantPeriodicTaskForm' });
 
 const emits = defineEmits<{ success: [] }>();
+
+type PeriodicTaskInfo = tenantApi.PeriodicTaskInfo;
 
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(false),

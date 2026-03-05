@@ -4,8 +4,6 @@
  */
 import type { ConversationInfo } from '#/api/tenant/conversations';
 
-defineOptions({ name: 'TenantConversationList' });
-
 import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -23,7 +21,15 @@ import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
-import { formatCost, formatTokenCount, getStatusText, useColumns, useGridFormSchema } from './data';
+import {
+  formatCost,
+  formatTokenCount,
+  getStatusText,
+  useColumns,
+  useGridFormSchema,
+} from './data';
+
+defineOptions({ name: 'TenantConversationList' });
 
 const detailOpen = ref(false);
 const detailId = ref<null | number>(null);
@@ -49,7 +55,11 @@ const { Grid } = useCrudPage<ConversationInfo>({
 </script>
 
 <template>
-  <Page auto-content-height :description="$t('tenant.ai.conversation.pageDesc')" content-class="flex flex-col gap-4">
+  <Page
+    auto-content-height
+    :description="$t('tenant.ai.conversation.pageDesc')"
+    content-class="flex flex-col gap-4"
+  >
     <!-- 详情抽屉 -->
     <ConversationDetail
       v-model:open="detailOpen"
@@ -70,7 +80,9 @@ const { Grid } = useCrudPage<ConversationInfo>({
               icon="lucide:message-square"
               class="size-3.5 text-muted-foreground"
             />
-            <span class="truncate">{{ row.title || $t('tenant.ai.conversation.untitled') }}</span>
+            <span class="truncate">{{
+              row.title || $t('tenant.ai.conversation.untitled')
+            }}</span>
           </div>
         </template>
 
@@ -94,14 +106,27 @@ const { Grid } = useCrudPage<ConversationInfo>({
               :src="toAvatarDisplayUrl(row.user_info.avatar)"
               :size="28"
             />
-            <Avatar v-else :size="28" class="bg-primary/10 text-primary flex-shrink-0 text-xs">
-              {{ (row.user_info.nickname || row.user_info.username || '?').charAt(0) }}
+            <Avatar
+              v-else
+              :size="28"
+              class="flex-shrink-0 bg-primary/10 text-xs text-primary"
+            >
+              {{
+                (
+                  row.user_info.nickname ||
+                  row.user_info.username ||
+                  '?'
+                ).charAt(0)
+              }}
             </Avatar>
             <div class="min-w-0 flex-1">
               <div class="truncate text-sm text-foreground">
                 {{ row.user_info.nickname || row.user_info.username }}
               </div>
-              <div v-if="row.user_info.nickname" class="truncate text-xs text-muted-foreground">
+              <div
+                v-if="row.user_info.nickname"
+                class="truncate text-xs text-muted-foreground"
+              >
                 {{ row.user_info.username }}
               </div>
             </div>
@@ -111,9 +136,7 @@ const { Grid } = useCrudPage<ConversationInfo>({
 
         <!-- 状态列 -->
         <template #status_cell="{ row }">
-          <Tag
-            :color="row.status === 'active' ? 'success' : 'default'"
-          >
+          <Tag :color="row.status === 'active' ? 'success' : 'default'">
             {{ getStatusText(row.status) }}
           </Tag>
         </template>

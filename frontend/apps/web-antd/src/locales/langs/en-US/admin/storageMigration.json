@@ -34,7 +34,15 @@
     "scopeAll": "All files",
     "scopeTenant": "Tenant {id} files",
     "startedAt": "Started At",
-    "completedAt": "Completed At"
+    "completedAt": "Completed At",
+    "activeListTitle": "Active Tasks",
+    "fileUnit": "files",
+    "failedCount": "{count} failed"
+  },
+  "common": {
+    "builtinDriver": "Built-in Driver",
+    "direction": "Migration Direction",
+    "selectSourceFirst": "Select source driver first"
   },
   "action": {
     "start": "Start Migration",
@@ -73,7 +81,8 @@
   },
   "history": {
     "title": "Migration History",
-    "empty": "No migration records"
+    "empty": "No migration records",
+    "totalCount": "Total {total} items"
   },
   "log": {
     "title": "Migration Logs",

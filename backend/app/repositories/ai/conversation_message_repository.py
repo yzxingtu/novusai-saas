@@ -2,12 +2,11 @@
 对话消息 Repository
 """
 
-from typing import List
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import and_, func, select
 
-from app.models.ai.conversation_message import ConversationMessage
 from app.core.base_repository import TenantRepository
+from app.models.ai.conversation_message import ConversationMessage
 
 
 class ConversationMessageRepository(TenantRepository[ConversationMessage]):
@@ -24,7 +23,7 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
         conversation_id: int,
         skip: int = 0,
         limit: int = 200,
-    ) -> List[ConversationMessage]:
+    ) -> list[ConversationMessage]:
         """
         获取对话的消息列表（按 sequence 升序）
 
@@ -118,7 +117,7 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
         keyword: str,
         skip: int = 0,
         limit: int = 50,
-    ) -> tuple[List[ConversationMessage], int]:
+    ) -> tuple[list[ConversationMessage], int]:
         """
         跨对话消息内容全文搜索（ilike）
 
@@ -160,7 +159,7 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
         self,
         conversation_id: int,
         n: int = 10,
-    ) -> List[ConversationMessage]:
+    ) -> list[ConversationMessage]:
         """
         获取对话最近 N 条消息（用于构建上下文窗口）
 

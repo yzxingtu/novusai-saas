@@ -54,8 +54,8 @@ async def get_ws_config(key: str) -> Any:
 
     # 2. 从 DB 读取
     try:
-        from app.core.database import async_session_factory
         from app.configs.service import ConfigService
+        from app.core.database import async_session_factory
 
         async with async_session_factory() as db:
             service = ConfigService(db)
@@ -106,13 +106,13 @@ async def get_ws_configs(*keys: str) -> dict[str, Any]:
     # 未命中的从 DB 读取
     if uncached_keys:
         try:
-            from app.core.database import async_session_factory
             from app.configs.service import ConfigService
+            from app.core.database import async_session_factory
 
             async with async_session_factory() as db:
                 service = ConfigService(db)
                 for key in uncached_keys:
-                    value = await service.get_platform_value(key)
+                    value = await service.get_platform_config(key)
                     if value is not None:
                         result[key] = value
                         # 写入缓存

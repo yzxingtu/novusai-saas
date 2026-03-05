@@ -174,6 +174,19 @@
       "saveSuccess": "保存成功",
       "noQuotaLimit": "0 表示不限制"
     },
+    "memory": {
+      "title": "会话记忆",
+      "desc": "租户可对自有智能体关闭会话记忆，关闭后仅影响当前租户。",
+      "readonlyHint": "当前智能体不可修改记忆开关",
+      "platformDefault": "平台默认",
+      "adminSwitch": "管理端开关",
+      "tenantSwitch": "租户开关",
+      "effective": "最终生效",
+      "restoreDefault": "恢复默认",
+      "enabled": "开启",
+      "disabled": "关闭",
+      "saveSuccess": "记忆开关更新成功"
+    },
     "routing": {
       "description": "智能路由根据对话复杂度、附件类型和 Token 数量自动选择最合适的 AI 模型，平衡性能与成本。",
       "enableRouting": "启用智能路由",
@@ -185,6 +198,10 @@
       "longContextThresholdHelp": "输入 Token 超过此阈值时自动切换到长上下文模型",
       "autoSelect": "自动选择",
       "noLimit": "不限制",
+      "statusEnabled": "智能路由已开启",
+      "statusDisabled": "未开启",
+      "visionModelHelp": "有图片附件时优先路由到此模型",
+      "longContextModelHelp": "Token 超过阈値时自动切换到此模型",
       "tier": {
         "fast": "快速型",
         "standard": "标准型",
@@ -231,6 +248,8 @@
       "step4Desc": "用量限制"
     },
     "publish": "发布",
+    "versionHistory": "版本历史",
+    "accessConfig": "访问权限配置",
     "noDescription": "暂无描述",
     "actions": {
       "test": "测试对话",

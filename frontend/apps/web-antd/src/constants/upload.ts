@@ -40,22 +40,10 @@ export const DOCUMENT_EXTENSIONS = new Set([
 ]);
 
 /** Video file extensions */
-export const VIDEO_EXTENSIONS = new Set([
-  'avi',
-  'mkv',
-  'mov',
-  'mp4',
-  'webm',
-]);
+export const VIDEO_EXTENSIONS = new Set(['avi', 'mkv', 'mov', 'mp4', 'webm']);
 
 /** Audio file extensions */
-export const AUDIO_EXTENSIONS = new Set([
-  'aac',
-  'flac',
-  'm4a',
-  'mp3',
-  'wav',
-]);
+export const AUDIO_EXTENSIONS = new Set(['aac', 'flac', 'm4a', 'mp3', 'wav']);
 
 /** Archive file extensions */
 export const ARCHIVE_EXTENSIONS = new Set(['7z', 'gz', 'rar', 'tar', 'zip']);
@@ -66,11 +54,11 @@ export const ARCHIVE_EXTENSIONS = new Set(['7z', 'gz', 'rar', 'tar', 'zip']);
  * Default allowed extensions (synced with backend platform_storage_allowed_extensions)
  */
 export const PLATFORM_ALLOWED_EXTENSIONS = new Set([
-  ...IMAGE_EXTENSIONS,
-  ...DOCUMENT_EXTENSIONS,
-  ...VIDEO_EXTENSIONS,
-  ...AUDIO_EXTENSIONS,
   ...ARCHIVE_EXTENSIONS,
+  ...AUDIO_EXTENSIONS,
+  ...DOCUMENT_EXTENSIONS,
+  ...IMAGE_EXTENSIONS,
+  ...VIDEO_EXTENSIONS,
 ]);
 
 /**
@@ -104,11 +92,11 @@ export const PLATFORM_MAX_FILE_SIZE_MB = 100;
  * A subset of PLATFORM_ALLOWED_EXTENSIONS commonly used in chat.
  */
 export const CHAT_ACCEPTED_EXTENSIONS = [
-  ...Array.from(IMAGE_EXTENSIONS).map((ext) => `.${ext}`),
-  ...Array.from(DOCUMENT_EXTENSIONS).map((ext) => `.${ext}`),
-  ...Array.from(VIDEO_EXTENSIONS).map((ext) => `.${ext}`),
-  ...Array.from(AUDIO_EXTENSIONS).map((ext) => `.${ext}`),
-  ...Array.from(ARCHIVE_EXTENSIONS).map((ext) => `.${ext}`),
+  ...[...IMAGE_EXTENSIONS].map((ext) => `.${ext}`),
+  ...[...DOCUMENT_EXTENSIONS].map((ext) => `.${ext}`),
+  ...[...VIDEO_EXTENSIONS].map((ext) => `.${ext}`),
+  ...[...AUDIO_EXTENSIONS].map((ext) => `.${ext}`),
+  ...[...ARCHIVE_EXTENSIONS].map((ext) => `.${ext}`),
 ];
 
 /** AI Chat max file size in MB (more conservative than platform default) */

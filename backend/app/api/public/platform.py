@@ -1,13 +1,12 @@
 from fastapi import APIRouter
 
+from app.configs.service import ConfigService
 from app.core.deps import DbSession
 from app.core.i18n import _
 from app.core.response import success
-from app.configs.service import ConfigService
+from app.rbac.decorators import public
 from app.schemas.public import PlatformPublicConfig
 from app.schemas.public.platform import StoragePublicConfig
-from app.rbac.decorators import public
-
 
 router = APIRouter(prefix="/platform", tags=["平台公开接口"])
 

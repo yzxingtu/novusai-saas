@@ -45,14 +45,14 @@ export async function updateTenantConfigGroupApi(
 /** 测试租户存储连接（Mode 3） */
 export async function testTenantStorageConnectionApi(
   data: {
-    driver: string;
-    root_path?: string;
     base_url?: string;
     config?: Record<string, unknown>;
+    driver: string;
+    root_path?: string;
   },
   options?: ApiRequestOptions,
-): Promise<{ success: boolean; errors?: string[] }> {
-  return await requestClient.post<{ success: boolean; errors?: string[] }>(
+): Promise<{ errors?: string[]; success: boolean }> {
+  return await requestClient.post<{ errors?: string[]; success: boolean }>(
     '/tenant/configs/storage/test-connection',
     data,
     options,
@@ -80,4 +80,3 @@ export async function saveTenantStorageConfigApi(
 ): Promise<void> {
   await requestClient.put('/tenant/configs/storage', data, options);
 }
-

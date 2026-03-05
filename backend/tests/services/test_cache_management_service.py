@@ -9,10 +9,10 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from app.enums.cache import CacheCategoryEnum
 from app.schemas.system.cache import (
-    CacheCategorySummary,
     CacheClearRequest,
     CacheClearResponse,
     CacheSummaryResponse,
@@ -21,7 +21,6 @@ from app.services.system.cache_management_service import (
     CacheManagementService,
     _format_size,
 )
-
 
 # ── _format_size tests ──
 
@@ -63,6 +62,10 @@ class TestCacheCategoryEnum:
             "ai_provider_health",
             "image_cache",
             "config_memory",
+            "ai_rate_limit",
+            "celery_results",
+            "captcha",
+            "plugin_update",
         }
         assert set(CacheCategoryEnum.values()) == expected
 
@@ -76,7 +79,7 @@ class TestCacheCategoryEnum:
 
     def test_label_key_format(self):
         for member in CacheCategoryEnum:
-            assert member.label.startswith("enum.cache.category.")
+            assert member.label_key.startswith("enum.cache.category.")
 
 
 # ── Schema validation tests ──
@@ -89,11 +92,11 @@ class TestCacheClearRequestValidation:
         assert len(req.categories) == 2
 
     def test_invalid_category_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             CacheClearRequest(categories=["invalid_category"])
 
     def test_empty_categories_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             CacheClearRequest(categories=[])
 
     def test_all_categories_valid(self):

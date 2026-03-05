@@ -12,16 +12,15 @@
 
 from __future__ import annotations
 
-from app.core.base_model import utc_now
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums.common import ResourceScopeEnum
-
+from app.core.base_model import utc_now
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.enums.common import ResourceScopeEnum
 from app.exceptions import BusinessException
 from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage

@@ -12,7 +12,7 @@ import hashlib
 import mimetypes
 import tempfile
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, BinaryIO, Optional
+from typing import TYPE_CHECKING, BinaryIO
 
 import anyio
 import boto3
@@ -234,10 +234,10 @@ class S3StorageDriver(StorageDriver):
 
         return await anyio.to_thread.run_sync(_presign)
 
-    async def get_info(self, path: str) -> Optional[FileInfo]:
+    async def get_info(self, path: str) -> FileInfo | None:
         key = self._key(path)
 
-        def _head() -> Optional[FileInfo]:
+        def _head() -> FileInfo | None:
             try:
                 response = self.client.head_object(Bucket=self.bucket, Key=key)
             except ClientError as exc:
@@ -290,7 +290,7 @@ class S3StorageDriver(StorageDriver):
     def _get_image_process_url(self) -> str | None:
         return self.config.options.get("image_process_url")
 
-    def _build_cloudflare_params(self, params: "ImageProcessParams") -> str:
+    def _build_cloudflare_params(self, params: ImageProcessParams) -> str:
         parts: list[str] = []
         if params.width:
             parts.append(f"width={params.width}")
@@ -310,7 +310,7 @@ class S3StorageDriver(StorageDriver):
             parts.append(f"fit={fit_map.get(params.mode, 'contain')}")
         return ",".join(parts)
 
-    def _build_imgproxy_params(self, params: "ImageProcessParams", source_url: str) -> str:
+    def _build_imgproxy_params(self, params: ImageProcessParams, source_url: str) -> str:
         parts: list[str] = []
         if params.width or params.height:
             mode_map = {
@@ -332,7 +332,7 @@ class S3StorageDriver(StorageDriver):
     async def get_image_url(
         self,
         path: str,
-        params: "ImageProcessParams",
+        params: ImageProcessParams,
         expires: int = 3600,
         visibility: StorageVisibility | None = None,
     ) -> str:
@@ -353,7 +353,7 @@ class S3StorageDriver(StorageDriver):
     async def get_processed_image(
         self,
         path: str,
-        params: "ImageProcessParams",
+        params: ImageProcessParams,
     ) -> tuple[bytes, str] | None:
         if params.is_empty():
             return None

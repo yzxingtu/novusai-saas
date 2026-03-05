@@ -4,14 +4,14 @@
  *
  * 5 类 × 3 渠道的 Switch 矩阵，保存到后端。
  */
-defineOptions({ name: 'NotificationSettings' });
-
 import { ref } from 'vue';
 
-import { Button, Drawer, Spin, Switch, message } from 'ant-design-vue';
+import { Button, Drawer, message, Spin, Switch } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
+
+defineOptions({ name: 'NotificationSettings' });
 
 const props = defineProps<{
   /** API 前缀: '/admin' 或 '/tenant' */
@@ -51,17 +51,14 @@ async function loadPreferences() {
     const data = await requestClient.get<PrefRow[]>(
       `${getApiBase()}/notification-preferences`,
     );
-    if (Array.isArray(data)) {
-      preferences.value = data;
-    } else {
-      // 如果 API 未实现，初始化默认值
-      preferences.value = CATEGORIES.map((cat) => ({
-        category: cat,
-        channel_ws: true,
-        channel_email: false,
-        channel_inbox: true,
-      }));
-    }
+    preferences.value = Array.isArray(data)
+      ? data
+      : CATEGORIES.map((cat) => ({
+          category: cat,
+          channel_ws: true,
+          channel_email: false,
+          channel_inbox: true,
+        }));
   } catch {
     // API 不存在时使用默认值
     preferences.value = CATEGORIES.map((cat) => ({
@@ -96,7 +93,12 @@ async function handleSave() {
 function getPref(category: string): PrefRow {
   let row = preferences.value.find((p) => p.category === category);
   if (!row) {
-    row = { category, channel_ws: true, channel_email: false, channel_inbox: true };
+    row = {
+      category,
+      channel_ws: true,
+      channel_email: false,
+      channel_inbox: true,
+    };
     preferences.value.push(row);
   }
   return row;
@@ -115,11 +117,21 @@ defineExpose({ open });
     <Spin :spinning="loading">
       <table class="w-full">
         <thead>
-          <tr class="border-b border-border text-left text-xs text-muted-foreground">
-            <th class="pb-2 pr-4">{{ $t('common.notification.categoryLabel') }}</th>
-            <th class="pb-2 text-center">{{ $t('common.notification.channelWs') }}</th>
-            <th class="pb-2 text-center">{{ $t('common.notification.channelInbox') }}</th>
-            <th class="pb-2 text-center">{{ $t('common.notification.channelEmail') }}</th>
+          <tr
+            class="border-b border-border text-left text-xs text-muted-foreground"
+          >
+            <th class="pb-2 pr-4">
+              {{ $t('common.notification.categoryLabel') }}
+            </th>
+            <th class="pb-2 text-center">
+              {{ $t('common.notification.channelWs') }}
+            </th>
+            <th class="pb-2 text-center">
+              {{ $t('common.notification.channelInbox') }}
+            </th>
+            <th class="pb-2 text-center">
+              {{ $t('common.notification.channelEmail') }}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -132,10 +144,7 @@ defineExpose({ open });
               {{ $t(`common.notification.category.${cat}`) }}
             </td>
             <td class="py-3 text-center">
-              <Switch
-                v-model:checked="getPref(cat).channel_ws"
-                size="small"
-              />
+              <Switch v-model:checked="getPref(cat).channel_ws" size="small" />
             </td>
             <td class="py-3 text-center">
               <Switch
@@ -155,7 +164,9 @@ defineExpose({ open });
     </Spin>
     <template #footer>
       <div class="flex justify-end gap-2">
-        <Button @click="visible = false">{{ $t('shared.common.cancel') }}</Button>
+        <Button @click="visible = false">
+          {{ $t('shared.common.cancel') }}
+        </Button>
         <Button type="primary" :loading="saving" @click="handleSave">
           {{ $t('shared.common.save') }}
         </Button>

@@ -4,9 +4,13 @@ Celery 应用配置模块
 配置 Celery Worker、Broker(Redis)、Result Backend，支持多队列路由和优先级
 """
 
+from contextlib import suppress
+
 from celery import Celery
 from kombu import Exchange, Queue
 
+from app.ai.adapters import AdapterRegistry
+from app.ai.adapters.openai_adapter import OpenAIAdapter
 from app.core.config import settings
 
 celery_app = Celery("novusai")
@@ -84,18 +88,14 @@ celery_app.conf.include = [
 # 强制导入任务模块（确保 Windows --pool=solo 模式下也能注册）
 def _import_task_modules():
     for module in celery_app.conf.include:
-        try:
+        with suppress(ImportError):
             __import__(module)
-        except ImportError as e:
-            pass  # 某些模块可能依赖未安装的包（如 acme）
 
 _import_task_modules()
 
 # ========================================
 # AI 适配器注册（Worker 进程不走 main.py lifespan）
 # ========================================
-from app.ai.adapters import AdapterRegistry
-from app.ai.adapters.openai_adapter import OpenAIAdapter
 AdapterRegistry.register("openai_compatible", OpenAIAdapter)
 
 # ========================================

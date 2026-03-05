@@ -66,6 +66,11 @@ celerybeat-schedule
 celerybeat-schedule.*
 celerybeat.pid
 
+# Plugin backups (auto-created before uninstall/upgrade, should not be committed)
+backend/plugins/.backups/
+backend/plugins/.versions/
+backend/plugins/*.zip
+
 # SageMath parsed files
 *.sage.py
 

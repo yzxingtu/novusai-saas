@@ -11,8 +11,6 @@ from __future__ import annotations
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from app.core.response import success
-
 
 def _get_raw_db(ctx: object):
     """
@@ -61,7 +59,7 @@ async def get_impact_analysis(request: Request, ctx: object) -> JSONResponse:
     db = _get_raw_db(ctx)
     analyzer = MigrationImpactAnalyzer(db)
     result = await analyzer.analyze(source_driver, target_driver, scope)
-    return success(data=result)
+    return result
 
 
 # ── Task CRUD ──────────────────────────────────────────────────
@@ -121,7 +119,7 @@ async def create_migration_task(request: Request, ctx: object) -> JSONResponse:
     start_result = await service.start_task(result["task_id"])
     result["status"] = start_result.get("status", "pending")
 
-    return success(data=result)
+    return result
 
 
 async def list_migration_tasks(request: Request, ctx: object) -> JSONResponse:
@@ -131,13 +129,19 @@ async def list_migration_tasks(request: Request, ctx: object) -> JSONResponse:
     """
     from ..services.migration_service import StorageMigrationService
 
-    page = _safe_int(request.query_params.get("page"), 1)
-    page_size = _safe_int(request.query_params.get("page_size"), 20)
+    page = _safe_int(
+        request.query_params.get("page[number]") or request.query_params.get("page"),
+        1,
+    )
+    page_size = _safe_int(
+        request.query_params.get("page[size]") or request.query_params.get("page_size"),
+        20,
+    )
 
     db = _get_raw_db(ctx)
     service = StorageMigrationService(db)
     result = await service.list_tasks(page=page, page_size=page_size)
-    return success(data=result)
+    return result
 
 
 async def get_migration_task(request: Request, ctx: object) -> JSONResponse:
@@ -166,8 +170,14 @@ async def get_migration_task(request: Request, ctx: object) -> JSONResponse:
 
     # Optionally include logs
     log_status = request.query_params.get("log_status")
-    log_page = _safe_int(request.query_params.get("log_page"), 1)
-    log_page_size = _safe_int(request.query_params.get("log_page_size"), 50)
+    log_page = _safe_int(
+        request.query_params.get("log_page[number]") or request.query_params.get("log_page"),
+        1,
+    )
+    log_page_size = _safe_int(
+        request.query_params.get("log_page[size]") or request.query_params.get("log_page_size"),
+        50,
+    )
 
     logs = await service.get_task_logs(
         task_id, status_filter=log_status,
@@ -175,7 +185,7 @@ async def get_migration_task(request: Request, ctx: object) -> JSONResponse:
     )
 
     task["logs"] = logs
-    return success(data=task)
+    return task
 
 
 # ── Task Control ───────────────────────────────────────────────
@@ -200,7 +210,7 @@ async def pause_migration_task(request: Request, ctx: object) -> JSONResponse:
             status_code=422,
             content={"code": 4220, "message": result["error"]},
         )
-    return success(data=result)
+    return result
 
 
 async def resume_migration_task(request: Request, ctx: object) -> JSONResponse:
@@ -223,12 +233,7 @@ async def resume_migration_task(request: Request, ctx: object) -> JSONResponse:
             content={"code": 4220, "message": result["error"]},
         )
 
-    # Re-start migration if needed (coroutine may have finished)
-    from ..services.migration_service import _running_migrations
-    if task_id not in _running_migrations:
-        await service.start_task(task_id)
-
-    return success(data=result)
+    return result
 
 
 async def cancel_migration_task(request: Request, ctx: object) -> JSONResponse:
@@ -250,7 +255,7 @@ async def cancel_migration_task(request: Request, ctx: object) -> JSONResponse:
             status_code=422,
             content={"code": 4220, "message": result["error"]},
         )
-    return success(data=result)
+    return result
 
 
 # ── Retry & Rollback ──────────────────────────────────────────
@@ -275,7 +280,7 @@ async def retry_failed_files(request: Request, ctx: object) -> JSONResponse:
             status_code=422,
             content={"code": 4220, "message": result["error"]},
         )
-    return success(data=result)
+    return result
 
 
 async def rollback_migration_task(request: Request, ctx: object) -> JSONResponse:
@@ -297,7 +302,7 @@ async def rollback_migration_task(request: Request, ctx: object) -> JSONResponse
             status_code=422,
             content={"code": 4220, "message": result["error"]},
         )
-    return success(data=result)
+    return result
 
 
 async def cleanup_source_files(request: Request, ctx: object) -> JSONResponse:
@@ -319,4 +324,4 @@ async def cleanup_source_files(request: Request, ctx: object) -> JSONResponse:
             status_code=422,
             content={"code": 4220, "message": result["error"]},
         )
-    return success(data=result)
+    return result

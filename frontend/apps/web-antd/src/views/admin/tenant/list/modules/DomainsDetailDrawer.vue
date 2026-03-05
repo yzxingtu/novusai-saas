@@ -74,7 +74,8 @@ async function loadDetail() {
     );
     domainDetail.value = result as TenantDomainInfo;
     editRemark.value = result.remark || '';
-  } catch {} finally {
+  } catch {
+  } finally {
     loading.value = false;
   }
 }
@@ -106,7 +107,8 @@ async function onSaveRemark() {
     editMode.value = false;
     await loadDetail();
     emits('success');
-  } catch {} finally {
+  } catch {
+  } finally {
     submitting.value = false;
   }
 }

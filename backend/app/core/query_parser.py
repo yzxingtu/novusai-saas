@@ -14,10 +14,9 @@ JSON:API 查询参数解析器
 import re
 from typing import Annotated
 
-from fastapi import Query, Request
+from fastapi import Depends, Request
 
 from app.schemas.common.query import FilterOp, FilterRule, QuerySpec
-
 
 # 正则表达式匹配 filter[field] 或 filter[field][op]
 FILTER_PATTERN = re.compile(r"^filter\[([^\]]+)\](?:\[([^\]]+)\])?$")
@@ -28,16 +27,16 @@ PAGE_SIZE_KEY = "page[size]"
 def parse_query_spec(request: Request) -> QuerySpec:
     """
     从请求中解析 JSON:API 风格的查询参数
-    
+
     Args:
         request: FastAPI 请求对象
-    
+
     Returns:
         QuerySpec 对象
-    
+
     示例:
         GET /users?filter[status]=active&filter[created_at][gte]=2025-01-01&sort=-created_at&page[number]=1&page[size]=20
-        
+
         解析结果:
         QuerySpec(
             filters=[
@@ -54,18 +53,18 @@ def parse_query_spec(request: Request) -> QuerySpec:
     sort: list[str] = []
     page = 1
     size = 20
-    
+
     for key, value in params.items():
         # 跳过空值
         if not value:
             continue
-        
+
         # 解析 filter 参数
         match = FILTER_PATTERN.match(key)
         if match:
             field = match.group(1)
             op_str = match.group(2)
-            
+
             # 确定操作符
             if op_str:
                 try:
@@ -75,16 +74,15 @@ def parse_query_spec(request: Request) -> QuerySpec:
                     continue
             else:
                 op = FilterOp.eq
-            
+
             # 处理 between 操作符的第二个值
             value2 = None
-            if op == FilterOp.between:
+            if op == FilterOp.between and "," in value:
                 # between 值格式: "start,end"
-                if "," in value:
-                    parts = value.split(",", 1)
-                    value = parts[0].strip()
-                    value2 = parts[1].strip() if len(parts) > 1 else None
-            
+                parts = value.split(",", 1)
+                value = parts[0].strip()
+                value2 = parts[1].strip() if len(parts) > 1 else None
+
             filters.append(FilterRule(
                 field=field,
                 op=op,
@@ -92,12 +90,12 @@ def parse_query_spec(request: Request) -> QuerySpec:
                 value2=value2,
             ))
             continue
-        
+
         # 解析 sort 参数
         if key == "sort":
             sort = [s.strip() for s in value.split(",") if s.strip()]
             continue
-        
+
         # 解析分页参数
         if key == PAGE_NUMBER_KEY:
             try:
@@ -105,14 +103,14 @@ def parse_query_spec(request: Request) -> QuerySpec:
             except ValueError:
                 page = 1
             continue
-        
+
         if key == PAGE_SIZE_KEY:
             try:
                 size = max(1, min(100, int(value)))
             except ValueError:
                 size = 20
             continue
-    
+
     return QuerySpec(
         filters=filters,
         sort=sort,
@@ -124,9 +122,9 @@ def parse_query_spec(request: Request) -> QuerySpec:
 async def get_query_spec(request: Request) -> QuerySpec:
     """
     FastAPI 依赖注入函数
-    
+
     用于在路由中注入 QuerySpec 对象
-    
+
     使用示例:
         @router.get("/users")
         async def list_users(
@@ -138,8 +136,6 @@ async def get_query_spec(request: Request) -> QuerySpec:
     return parse_query_spec(request)
 
 
-# 类型别名，用于简化依赖注入声明
-from fastapi import Depends
 QueryParams = Annotated[QuerySpec, Depends(get_query_spec)]
 
 

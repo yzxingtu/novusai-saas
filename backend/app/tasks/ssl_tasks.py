@@ -15,10 +15,10 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.logging import LogManager
 from app.core.base_model import utc_now
-from app.tasks.base import register_task, BaseTask
+from app.core.logging import LogManager
 from app.tasks.async_db import task_async_session as _task_async_session
+from app.tasks.base import BaseTask, register_task
 
 logger = LogManager.get_logger("ssl")
 
@@ -38,10 +38,11 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
     """
 
     async def _provision() -> dict:
-        from app.services.system.ssl_certificate_service import SslCertificateService
-        from app.services.system.acme_client import AcmeClient
-        from app.models.tenant.tenant_domain import TenantDomain
         from sqlalchemy import select
+
+        from app.models.tenant.tenant_domain import TenantDomain
+        from app.services.system.acme_client import AcmeClient
+        from app.services.system.ssl_certificate_service import SslCertificateService
 
         async with _task_async_session() as db:
             try:
@@ -173,8 +174,10 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
     """
 
     async def _check() -> dict:
+        from app.repositories.system.ssl_certificate_repository import (
+            SslCertificateRepository,
+        )
         from app.services.system.ssl_certificate_service import SslCertificateService
-        from app.repositories.system.ssl_certificate_repository import SslCertificateRepository
 
         stats = {
             "platform_renewals_triggered": 0,
@@ -285,9 +288,9 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
     """
 
     async def _renew() -> dict:
-        from app.services.system.ssl_certificate_service import SslCertificateService
-        from app.services.system.acme_client import AcmeClient
         from app.enums.domain import SslCertType
+        from app.services.system.acme_client import AcmeClient
+        from app.services.system.ssl_certificate_service import SslCertificateService
 
         async with _task_async_session() as db:
             try:
@@ -395,8 +398,9 @@ async def _get_cert_notify_email(db: AsyncSession, domain_id: int) -> dict | Non
         {"domain": str, "email": str, "tenant_id": int} 或 None
     """
     from sqlalchemy import select
-    from app.models.tenant.tenant_domain import TenantDomain
+
     from app.models import Tenant
+    from app.models.tenant.tenant_domain import TenantDomain
 
     try:
         result = await db.execute(

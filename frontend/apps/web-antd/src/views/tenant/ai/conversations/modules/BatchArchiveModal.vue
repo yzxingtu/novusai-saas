@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'TenantBatchArchiveModal' });
 /**
  * 批量归档对话弹窗
  * 支持按天数归档过期对话
@@ -10,6 +9,8 @@ import { message, Modal, Select } from 'ant-design-vue';
 
 import { batchArchiveConversationsApi } from '#/api/tenant/conversations';
 import { $t } from '#/locales';
+
+defineOptions({ name: 'TenantBatchArchiveModal' });
 
 const props = defineProps<{
   open: boolean;

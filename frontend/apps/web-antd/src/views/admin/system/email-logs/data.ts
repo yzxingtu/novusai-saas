@@ -13,10 +13,18 @@ import { $t } from '#/locales';
  */
 export function getStatusColor(status: string | undefined): string {
   switch (status) {
-    case 'sent': return 'success';
-    case 'failed': return 'error';
-    case 'pending': return 'processing';
-    default: return 'default';
+    case 'failed': {
+      return 'error';
+    }
+    case 'pending': {
+      return 'processing';
+    }
+    case 'sent': {
+      return 'success';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
@@ -29,12 +37,24 @@ export function getTriggerColor(trigger: string | undefined): string {
   if (trigger === 'test') return 'cyan';
   const category = trigger.split('.')[0];
   switch (category) {
-    case 'system': return 'orange';
-    case 'ai': return 'purple';
-    case 'task': return 'red';
-    case 'biz': return 'green';
-    case 'audit': return 'volcano';
-    default: return 'default';
+    case 'ai': {
+      return 'purple';
+    }
+    case 'audit': {
+      return 'volcano';
+    }
+    case 'biz': {
+      return 'green';
+    }
+    case 'system': {
+      return 'orange';
+    }
+    case 'task': {
+      return 'red';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
@@ -56,15 +76,42 @@ function getTriggerOptions() {
   return [
     { label: $t('admin.system.emailLog.trigger.manual'), value: 'manual' },
     { label: $t('admin.system.emailLog.trigger.test'), value: 'test' },
-    { label: $t('admin.system.emailLog.trigger.system.security_alert'), value: 'system.security_alert' },
-    { label: $t('admin.system.emailLog.trigger.system.password_reset'), value: 'system.password_reset' },
-    { label: $t('admin.system.emailLog.trigger.system.tenant_welcome'), value: 'system.tenant_welcome' },
-    { label: $t('admin.system.emailLog.trigger.system.task_failure'), value: 'system.task_failure' },
-    { label: $t('admin.system.emailLog.trigger.system.ssl_expiry'), value: 'system.ssl_expiry' },
-    { label: $t('admin.system.emailLog.trigger.ai.quota_exhausted'), value: 'ai.quota_exhausted' },
-    { label: $t('admin.system.emailLog.trigger.ai.quota_warning'), value: 'ai.quota_warning' },
-    { label: $t('admin.system.emailLog.trigger.biz.tenant_expired'), value: 'biz.tenant_expired' },
-    { label: $t('admin.system.emailLog.trigger.audit.suspicious_login'), value: 'audit.suspicious_login' },
+    {
+      label: $t('admin.system.emailLog.trigger.system.security_alert'),
+      value: 'system.security_alert',
+    },
+    {
+      label: $t('admin.system.emailLog.trigger.system.password_reset'),
+      value: 'system.password_reset',
+    },
+    {
+      label: $t('admin.system.emailLog.trigger.system.tenant_welcome'),
+      value: 'system.tenant_welcome',
+    },
+    {
+      label: $t('admin.system.emailLog.trigger.system.task_failure'),
+      value: 'system.task_failure',
+    },
+    {
+      label: $t('admin.system.emailLog.trigger.system.ssl_expiry'),
+      value: 'system.ssl_expiry',
+    },
+    {
+      label: $t('admin.system.emailLog.trigger.ai.quota_exhausted'),
+      value: 'ai.quota_exhausted',
+    },
+    {
+      label: $t('admin.system.emailLog.trigger.ai.quota_warning'),
+      value: 'ai.quota_warning',
+    },
+    {
+      label: $t('admin.system.emailLog.trigger.biz.tenant_expired'),
+      value: 'biz.tenant_expired',
+    },
+    {
+      label: $t('admin.system.emailLog.trigger.audit.suspicious_login'),
+      value: 'audit.suspicious_login',
+    },
   ];
 }
 
@@ -148,9 +195,13 @@ export function useGridFormSchema(): VbenFormSchema[] {
       options: getStatusOptions(),
       placeholder: $t('admin.system.emailLog.placeholder.allStatus'),
     }),
-    select('filter[triggered_by][eq]', $t('admin.system.emailLog.triggeredBy'), {
-      options: getTriggerOptions(),
-      placeholder: $t('admin.system.emailLog.placeholder.allTrigger'),
-    }),
+    select(
+      'filter[triggered_by][eq]',
+      $t('admin.system.emailLog.triggeredBy'),
+      {
+        options: getTriggerOptions(),
+        placeholder: $t('admin.system.emailLog.placeholder.allTrigger'),
+      },
+    ),
   ];
 }

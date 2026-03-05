@@ -4,10 +4,9 @@
 包含 SMTP 服务器配置、发件人信息等配置
 """
 
-from app.configs.meta import ConfigMeta, min_value, max_value, max_length, option
 from app.configs.definitions.groups import PLATFORM_EMAIL_GROUP
+from app.configs.meta import ConfigMeta, max_length, max_value, min_value, option
 from app.enums.config import ConfigScope, ConfigValueType
-
 
 # ==========================================
 # SMTP 服务器配置

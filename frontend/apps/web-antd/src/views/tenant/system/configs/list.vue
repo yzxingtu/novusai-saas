@@ -3,8 +3,6 @@ import type { ConfigGroupListItemMeta, ConfigItemMeta } from '#/types/config';
 
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
-defineOptions({ name: 'TenantConfigList' });
-
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -16,10 +14,13 @@ import {
   updateTenantConfigGroupApi,
 } from '#/api/tenant/configs';
 import { ConfigForm } from '#/components';
+import PluginSettingsTabs from '#/components/business/plugin-slots/PluginSettingsTabs.vue';
 import { $t as t } from '#/locales';
 
 // 存储配置专用页面（懒加载）
 import TenantStoragePanel from '../storage/index.vue';
+
+defineOptions({ name: 'TenantConfigList' });
 
 const groups = ref<ConfigGroupListItemMeta[]>([]);
 const activeGroup = ref<string>('');
@@ -62,7 +63,7 @@ function getGroupDesc(g: ConfigGroupListItemMeta): string {
 
 // 按 sort_order 排序的分组列表
 const sortedGroups = computed(() =>
-  [...groups.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+  groups.value.toSorted((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
 );
 
 async function loadGroups() {
@@ -71,8 +72,12 @@ async function loadGroups() {
     groups.value = await getTenantConfigGroupsApi();
     if (groups.value.length > 0) {
       // 按 sort_order 取第一个组
-      const sorted = [...groups.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-      activeGroup.value = sorted[0]!.code;
+      const sorted = groups.value.toSorted(
+        (a, b) => (a.sort_order || 0) - (b.sort_order || 0),
+      );
+      const firstGroup = sorted[0];
+      if (!firstGroup) return;
+      activeGroup.value = firstGroup.code;
       // tenant_storage 组用专用面板，不需要加载配置详情
       if (activeGroup.value !== 'tenant_storage') {
         await loadGroupDetail(activeGroup.value);
@@ -87,7 +92,7 @@ async function loadGroupDetail(code: string) {
   loading.value = true;
   try {
     const detail = await getTenantConfigGroupDetailApi(code);
-    configs.value = (detail.configs || []).sort(
+    configs.value = (detail.configs || []).toSorted(
       (a, b) => (a.sort_order || 0) - (b.sort_order || 0),
     );
   } finally {
@@ -247,11 +252,10 @@ onBeforeUnmount(() => {
 
         <Spin :spinning="loading">
           <!-- tenant_storage 分组使用专用存储配置组件 -->
-          <TenantStoragePanel
-            v-if="activeGroup === 'tenant_storage'"
-          />
+          <TenantStoragePanel v-if="activeGroup === 'tenant_storage'" />
           <div v-else-if="activeGroup" class="max-w-[800px]">
             <ConfigForm ref="formRef" :configs="configs" />
+            <PluginSettingsTabs />
           </div>
           <Empty
             v-else

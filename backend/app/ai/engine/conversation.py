@@ -9,15 +9,17 @@ from __future__ import annotations
 
 import re
 import time
-from typing import TYPE_CHECKING, Any, AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
 from fastapi.responses import StreamingResponse
 
 from app.ai.adapters import AdapterRegistry
+from app.ai.tools.types import ToolDefinition, to_openai_tools
 from app.ai.types import ChatChunk, ChatMessage, messages_to_dicts
 from app.core.logging import LogManager
-from app.models.ai.agent import Agent
 from app.enums.ai import RequestTypeEnum
+from app.models.ai.agent import Agent
 from app.services.ai.metering_service import CostCalculator, TokenCounter
 
 from .base import BaseEngine
@@ -162,7 +164,7 @@ class ConversationEngine(BaseEngine):
 
         执行策略：
         - 无工具时：通过 adapter 真实流式推送 token
-        - 有工具时：非流式处理工具调用，发送工具事件后推送最终内容
+        - 有工具时：每轮都走真实 stream_chat，检测到 tool_calls 后执行工具并进入下一轮
 
         Args:
             agent: 智能体模型实例
@@ -206,6 +208,7 @@ class ConversationEngine(BaseEngine):
         messages: list[ChatMessage],
         tenant_id: int | None = None,
         route_result: Any | None = None,
+        tools: list[ToolDefinition] | None = None,
     ) -> AsyncIterator[ChatChunk]:
         """
         通过 adapter 获取流式 ChatChunk（含限流/配额/计量保护）
@@ -218,6 +221,7 @@ class ConversationEngine(BaseEngine):
             messages: 消息列表
             tenant_id: 租户 ID（用于获取 API Key）
             route_result: ModelRouter 路由结果（影响 provider/model 选择）
+            tools: 工具定义列表（用于 Function Calling）
 
         Yields:
             ChatChunk
@@ -269,6 +273,7 @@ class ConversationEngine(BaseEngine):
             api_key=api_key.decrypt_key(),
             base_url=provider.base_url,
         )
+        openai_tools = to_openai_tools(tools) if tools else None
 
         total_tokens = 0
         input_tokens = 0
@@ -279,6 +284,7 @@ class ConversationEngine(BaseEngine):
             temperature=agent.temperature,
             max_tokens=agent.max_tokens,
             top_p=agent.top_p or 1.0,
+            tools=openai_tools,
         ):
             if chunk.total_tokens is not None:
                 total_tokens = chunk.total_tokens

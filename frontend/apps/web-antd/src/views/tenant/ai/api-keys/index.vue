@@ -4,9 +4,7 @@
  */
 import type { TenantAIApiKeyInfo } from '#/api/tenant/ai';
 
-defineOptions({ name: 'TenantAIApiKeyList' });
-
-import { ref, onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 
 import { IconifyIcon, Plus } from '@vben/icons';
 
@@ -30,6 +28,8 @@ import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
 import ApiKeyForm from './modules/ApiKeyForm.vue';
+
+defineOptions({ name: 'TenantAIApiKeyList' });
 
 const loading = ref(false);
 const keys = ref<TenantAIApiKeyInfo[]>([]);
@@ -82,10 +82,7 @@ onMounted(loadKeys);
 <template>
   <div class="flex flex-col gap-4">
     <!-- 创建表单弹窗 -->
-    <ApiKeyForm
-      v-model:open="showCreateForm"
-      @submit="handleCreate"
-    />
+    <ApiKeyForm v-model:open="showCreateForm" @submit="handleCreate" />
 
     <!-- 顶部操作栏 -->
     <Card :body-style="{ padding: '12px 16px' }">
@@ -123,21 +120,39 @@ onMounted(loadKeys);
                 <IconifyIcon
                   icon="lucide:key"
                   class="size-5"
-                  :class="key.is_available ? 'text-success' : 'text-muted-foreground'"
+                  :class="
+                    key.is_available ? 'text-success' : 'text-muted-foreground'
+                  "
                 />
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <span class="font-medium text-foreground">{{ key.name }}</span>
+                  <span class="font-medium text-foreground">{{
+                    key.name
+                  }}</span>
                   <Tag color="blue">{{ key.provider_name }}</Tag>
                 </div>
-                <div class="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
-                  <code v-if="key.key_preview" class="rounded bg-accent px-1 py-0.5">
+                <div
+                  class="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground"
+                >
+                  <code
+                    v-if="key.key_preview"
+                    class="rounded bg-accent px-1 py-0.5"
+                  >
                     {{ key.key_preview }}
                   </code>
-                  <span>{{ $t('tenant.ai.apiKey.usageCount') }}: {{ key.usage_count }}</span>
-                  <Tooltip v-if="key.last_used_at" :title="formatDate(key.last_used_at)">
-                    <span>{{ $t('tenant.ai.apiKey.lastUsedAt') }}: {{ formatRelativeTime(key.last_used_at) }}</span>
+                  <span
+                    >{{ $t('tenant.ai.apiKey.usageCount') }}:
+                    {{ key.usage_count }}</span
+                  >
+                  <Tooltip
+                    v-if="key.last_used_at"
+                    :title="formatDate(key.last_used_at)"
+                  >
+                    <span
+                      >{{ $t('tenant.ai.apiKey.lastUsedAt') }}:
+                      {{ formatRelativeTime(key.last_used_at) }}</span
+                    >
                   </Tooltip>
                 </div>
               </div>
@@ -146,7 +161,11 @@ onMounted(loadKeys);
             <!-- 右侧：状态 + 操作 -->
             <div class="flex items-center gap-3">
               <Tag :color="key.is_available ? 'success' : 'error'">
-                {{ key.is_available ? $t('tenant.ai.apiKey.isAvailable') : $t('tenant.ai.apiKey.unavailable') }}
+                {{
+                  key.is_available
+                    ? $t('tenant.ai.apiKey.isAvailable')
+                    : $t('tenant.ai.apiKey.unavailable')
+                }}
               </Tag>
               <Button
                 v-access:code="['ai_config:delete_key']"

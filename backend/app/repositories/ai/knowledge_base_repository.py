@@ -4,17 +4,19 @@
 提供知识库、文档、分块的数据访问层
 """
 
-from sqlalchemy import select, and_, or_, func, update
+from sqlalchemy import and_, func, or_, select, update
 
+from app.core.base_repository import BaseRepository, TenantRepository
+from app.enums.common import ResourceScopeEnum
+from app.enums.knowledge_base import KBVisibilityEnum
+from app.models.ai.document_chunk import DocumentChunk
 from app.models.ai.knowledge_base import KnowledgeBase
 from app.models.ai.knowledge_base_tenant_access import KnowledgeBaseTenantAccess
 from app.models.ai.knowledge_document import KnowledgeDocument
-from app.models.ai.document_chunk import DocumentChunk
-from app.core.base_repository import TenantRepository, BaseRepository
-from app.enums.common import ResourceScopeEnum
-from app.enums.knowledge_base import KBVisibilityEnum
-from app.repositories.system.resource_tenant_assignment_repository import assigned_resource_ids_subquery
-from app.schemas.common.query import QuerySpec, FilterRule
+from app.repositories.system.resource_tenant_assignment_repository import (
+    assigned_resource_ids_subquery,
+)
+from app.schemas.common.query import FilterRule, QuerySpec
 
 _ASSIGNED_SCOPES = (
     ResourceScopeEnum.ASSIGNED_TENANTS.value,
@@ -61,7 +63,9 @@ class KnowledgeBaseRepository(TenantRepository[KnowledgeBase]):
             return instance
         # assigned_tenants / admin_and_assigned scope：检查 resource_tenant_assignments
         if getattr(instance, "scope", None) in _ASSIGNED_SCOPES:
-            from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
+            from app.repositories.system.resource_tenant_assignment_repository import (
+                ResourceTenantAssignmentRepository,
+            )
             repo = ResourceTenantAssignmentRepository(self.db)
             if await repo.check_assignment("knowledge_base", instance.id, self.tenant_id):
                 return instance

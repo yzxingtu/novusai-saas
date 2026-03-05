@@ -8,25 +8,30 @@ from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_controller import TenantController
-from app.core.deps import DbSession, ActiveTenantAdmin, QueryParams
+from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import success, deleted, paginated
+from app.core.response import deleted, paginated, success
+from app.enums.agent import (
+    ConfirmActionEnum,
+    MemoryChannelEnum,
+    MemorySceneEnum,
+)
 from app.enums.common import UserRoleEnum
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
-    action_read,
     action_create,
     action_delete,
+    action_read,
+    permission_resource,
 )
 from app.rbac.services.permission_service import PermissionService
-from app.enums.agent import ConfirmActionEnum
 from app.schemas.ai.agent_chat import AgentChatRequest, AgentConfirmRequest
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.agent_service import AgentService
 from app.services.ai.conversation_service import ConversationService
+from app.services.ai.session_memory_service import SessionMemoryService
 
 
 @permission_resource(
@@ -110,6 +115,9 @@ class TenantAgentChatController(TenantController):
                 permissions=user_perms,
                 consented_actions=data.consented_actions,
                 attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
+                memory_scene=MemorySceneEnum.AI_CHAT_PAGE.value,
+                memory_channel=MemoryChannelEnum.TENANT_CHAT.value,
+                memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
             )
 
             return success(data=result.model_dump())
@@ -152,6 +160,9 @@ class TenantAgentChatController(TenantController):
                 consented_actions=data.consented_actions,
                 attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
                 image_params=data.image_params.model_dump() if data.image_params else None,
+                memory_scene=MemorySceneEnum.AI_CHAT_PAGE.value,
+                memory_channel=MemoryChannelEnum.TENANT_CHAT.value,
+                memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
             )
 
         # ========================================
@@ -185,7 +196,7 @@ class TenantAgentChatController(TenantController):
                 )
                 return success(data=result, message=msg_key)
 
-            # confirm
+            # 确认执行
             result = await service.confirm_action(
                 confirm_id=data.confirm_id,
                 tenant_id=tenant_admin.tenant_id,
@@ -295,6 +306,36 @@ class TenantAgentChatController(TenantController):
             await db.commit()
 
             return deleted(message=_("agent_chat.conversation_deleted"))
+
+        @router.delete(
+            "/{agent_id}/conversations/{conversation_id}/memory-state",
+            summary="清空本会话记忆",
+        )
+        @action_delete("action.agent_chat.delete_conversation")
+        async def clear_conversation_memory(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            conversation_id: int,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            清空当前会话的记忆状态（仅当前租户当前用户）
+            """
+            service = ConversationService(db, tenant_admin.tenant_id)
+            conversation = await service.get_by_id(conversation_id)
+            if (
+                not conversation
+                or conversation.agent_id != agent_id
+                or conversation.user_id != tenant_admin.id
+            ):
+                raise NotFoundException(
+                    message=_("agent_chat.error.conversation_not_found"),
+                )
+
+            memory_svc = SessionMemoryService(tenant_admin.tenant_id)
+            deleted_count = await memory_svc.clear_conversation_memory(conversation_id)
+            return success(data={"deleted_count": deleted_count}, message=_("agent_chat.conversation_deleted"))
 
 
 # 导出路由器

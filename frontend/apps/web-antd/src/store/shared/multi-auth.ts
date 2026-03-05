@@ -21,6 +21,7 @@ import { defineStore } from 'pinia';
 import { adminApi, getApiEndpoint, tenantApi, userApi } from '#/api';
 import { $t } from '#/locales';
 import { toAvatarDisplayUrl } from '#/utils/image';
+import { clearPersistedTabbarStorage } from '#/utils/tabbar-storage';
 
 import { TokenStorage } from './token-storage';
 
@@ -177,7 +178,9 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
       }
     } catch (error: unknown) {
       // 检查错误响应中是否包含 captcha_required 字段
-      const err = error as { response?: { data?: { data?: { captcha_required?: boolean } } } };
+      const err = error as {
+        response?: { data?: { data?: { captcha_required?: boolean } } };
+      };
       const responseData = err?.response?.data;
       if (responseData?.data?.captcha_required) {
         captchaRequired = true;
@@ -213,7 +216,7 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
       const { useNotificationStore } = await import('./notification');
       const { usePresenceStore } = await import('./presence');
       const socketIOStore = useSocketIOStore();
-      socketIOStore.disconnect();
+      socketIOStore.$reset();
       useNotificationStore().$reset();
       usePresenceStore().$reset();
     } catch {
@@ -222,8 +225,8 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
 
     // 清除所有标签页（重置为空数组）
     tabbarStore.$patch({ tabs: [], cachedTabs: new Set() });
-    // 清除 sessionStorage 中的标签页持久化数据
-    sessionStorage.removeItem('core-tabbar');
+    // 清除 sessionStorage 中所有 namespace 的 tabbar 持久化数据
+    clearPersistedTabbarStorage();
 
     // 仅清除当前端的 Token（不影响其他端的登录状态）
     TokenStorage.clearToken(ep);
@@ -260,7 +263,12 @@ export const useMultiAuthStore = defineStore('multi-auth', () => {
 
     // 租户端：检查套餐状态，无套餐时提示
     const ep = endpoint || currentEndpoint.value;
-    if (ep === 'tenant' && userInfo && 'hasPlan' in userInfo && !userInfo.hasPlan) {
+    if (
+      ep === 'tenant' &&
+      userInfo &&
+      'hasPlan' in userInfo &&
+      !userInfo.hasPlan
+    ) {
       notification.warning({
         description: $t('tenant.common.noPlanDesc'),
         duration: 0,

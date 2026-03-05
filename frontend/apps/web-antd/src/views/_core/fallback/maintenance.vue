@@ -80,9 +80,7 @@ function handleRefresh() {
       </div>
 
       <!-- 站点名 -->
-      <p class="text-sm text-muted-foreground/60">
-        — {{ siteName }}
-      </p>
+      <p class="text-sm text-muted-foreground/60">— {{ siteName }}</p>
 
       <!-- 刷新按钮 -->
       <Button type="primary" @click="handleRefresh">

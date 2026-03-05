@@ -5,17 +5,15 @@ AI 响应缓存服务
 仅缓存非流式请求。
 """
 
-import json
 import hashlib
+import json
 from typing import Any
 
 from redis.exceptions import RedisError
 
 from app.core.config import settings
-from app.core.redis import get_redis
 from app.core.logging import LogManager
-from app.core.i18n import _
-
+from app.core.redis import get_redis
 
 logger = LogManager.get_logger("ai.cache")
 

@@ -7,7 +7,8 @@
 import asyncio
 import threading
 from collections import defaultdict
-from typing import Any, Callable, Coroutine
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 from app.ai.events.types import BaseEvent
 from app.core.logging import LogManager

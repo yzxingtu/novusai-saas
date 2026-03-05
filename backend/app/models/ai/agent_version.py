@@ -6,7 +6,16 @@
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text, JSON, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
@@ -175,7 +184,7 @@ class AgentVersion(TenantModel):
 
 
 if TYPE_CHECKING:
-    from app.models.ai.agent import Agent
+    pass
 
 
 __all__ = ["AgentVersion"]

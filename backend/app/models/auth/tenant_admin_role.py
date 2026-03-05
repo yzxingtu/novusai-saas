@@ -6,13 +6,12 @@
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, String, Integer, Text, Table, Column, ForeignKey
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.base_model import TenantModel, Base
+from app.core.base_model import Base, TenantModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.enums.role import RoleType
-
 
 # 角色-权限关联表（多对多）
 tenant_admin_role_permissions = Table(
@@ -26,7 +25,7 @@ tenant_admin_role_permissions = Table(
 class TenantAdminRole(TenantModel):
     """
     租户管理员角色模型
-    
+
     - 属于特定租户
     - 用于租户管理员的权限控制
     - 与 Permission 多对多关联
@@ -34,7 +33,7 @@ class TenantAdminRole(TenantModel):
     - 子角色自动继承父角色的权限
     - 不同租户可以有同名角色
     """
-    
+
     __tablename__ = "tenant_admin_roles"
 
     __delete_deps__ = [
@@ -43,7 +42,7 @@ class TenantAdminRole(TenantModel):
         DeletionDep("TenantAdminRole", "parent_id", DeletionStrategy.BLOCK,
                     label_field="name", i18n_key="tenant_admin_role"),
     ]
-    
+
     # 可过滤字段声明
     __filterable__ = {
         "id": "id",
@@ -60,7 +59,7 @@ class TenantAdminRole(TenantModel):
         "created_at": "created_at",
         "updated_at": "updated_at",
     }
-    
+
     # 下拉选项配置
     __selectable__ = {
         "label": "name",
@@ -74,69 +73,69 @@ class TenantAdminRole(TenantModel):
             "order_by": "sort_order",
         },
     }
-    
+
     # 排序配置
     __sortable__ = {
         "field": "sort_order",      # 排序字段名
         "step": 1000,               # 排序步长
         "scope_fields": ["tenant_id", "parent_id"],  # 租户内同级排序
     }
-    
+
     # 角色名称
     name: Mapped[str] = mapped_column(
         String(50), comment="角色名称"
     )
-    
+
     # 角色代码（租户内唯一）
     code: Mapped[str] = mapped_column(
         String(50), index=True, comment="角色代码"
     )
-    
+
     # 角色描述
     description: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="角色描述"
     )
-    
+
     # 是否系统内置（内置角色不可删除）
     is_system: Mapped[bool] = mapped_column(
         Boolean, default=False, comment="是否系统内置"
     )
-    
+
     # 是否启用
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, comment="是否启用"
     )
-    
+
     # 排序
     sort_order: Mapped[int] = mapped_column(
         Integer, default=0, comment="排序"
     )
-    
+
     # ========== 层级结构字段 ==========
     # 父角色 ID
     parent_id: Mapped[int | None] = mapped_column(
-        Integer, 
+        Integer,
         ForeignKey("tenant_admin_roles.id", ondelete="SET NULL"),
-        nullable=True, 
+        nullable=True,
         index=True,
         comment="父角色 ID"
     )
-    
+
     # 层级路径（物化路径，如 /1/3/7/）
     path: Mapped[str | None] = mapped_column(
-        String(500), 
-        nullable=True, 
+        String(500),
+        nullable=True,
         index=True,
         comment="层级路径"
     )
-    
+
     # 层级深度（根节点为 1）
     level: Mapped[int] = mapped_column(
-        Integer, 
-        default=1, 
+        Integer,
+        default=1,
         comment="层级深度"
     )
-    
+
     # ========== 组织架构字段 ==========
     # 节点类型（部门/岗位/角色）
     type: Mapped[str] = mapped_column(
@@ -145,14 +144,14 @@ class TenantAdminRole(TenantModel):
         index=True,
         comment="节点类型: department/position/role"
     )
-    
+
     # 是否允许添加成员
     allow_members: Mapped[bool] = mapped_column(
         Boolean,
         default=True,
         comment="是否允许添加成员"
     )
-    
+
     # 负责人 ID（仅部门类型可设置）
     leader_id: Mapped[int | None] = mapped_column(
         Integer,
@@ -161,7 +160,7 @@ class TenantAdminRole(TenantModel):
         index=True,
         comment="负责人 ID"
     )
-    
+
     # ========== 关联关系 ==========
     # 父角色关系（自引用）
     parent: Mapped["TenantAdminRole | None"] = relationship(
@@ -170,21 +169,21 @@ class TenantAdminRole(TenantModel):
         back_populates="children",
         lazy="selectin",
     )
-    
+
     # 子角色关系（自引用）
     children: Mapped[list["TenantAdminRole"]] = relationship(
         "TenantAdminRole",
         back_populates="parent",
         lazy="selectin",
     )
-    
+
     # 关联权限（多对多）
     permissions: Mapped[list["Permission"]] = relationship(
         "Permission",
         secondary=tenant_admin_role_permissions,
         lazy="selectin",
     )
-    
+
     # 关联租户管理员（一对多）- 节点成员
     admins: Mapped[list["TenantAdmin"]] = relationship(
         "TenantAdmin",
@@ -192,70 +191,70 @@ class TenantAdminRole(TenantModel):
         lazy="selectin",
         foreign_keys="TenantAdmin.role_id",
     )
-    
+
     # 负责人关系
     leader: Mapped["TenantAdmin | None"] = relationship(
         "TenantAdmin",
         foreign_keys=[leader_id],
         lazy="selectin",
     )
-    
+
     def __repr__(self) -> str:
         return f"<TenantAdminRole(id={self.id}, tenant_id={self.tenant_id}, code={self.code}, level={self.level})>"
-    
+
     @property
     def children_count(self) -> int:
         """获取子角色数量"""
         return len([c for c in self.children if not c.is_deleted])
-    
+
     @property
     def permissions_count(self) -> int:
         """获取权限数量"""
         return len(self.permissions)
-    
+
     @property
     def has_children(self) -> bool:
         """是否有子角色"""
         return self.children_count > 0
-    
+
     @property
     def has_admins(self) -> bool:
         """是否有关联的管理员"""
         return len([a for a in self.admins if not a.is_deleted]) > 0
-    
+
     @property
     def member_count(self) -> int:
         """获取节点成员数量"""
         return len([a for a in self.admins if not a.is_deleted])
-    
+
     @property
     def leader_name(self) -> str | None:
         """获取负责人名称"""
         if self.leader and not self.leader.is_deleted:
             return self.leader.nickname or self.leader.username
         return None
-    
+
     @property
     def type_enum(self) -> RoleType | None:
         """获取节点类型枚举"""
         return RoleType.from_value(self.type)
-    
+
     def has_permission(self, permission_code: str) -> bool:
         """
         检查角色是否拥有指定权限（仅检查自身权限，不含继承）
-        
+
         Args:
             permission_code: 权限代码
-        
+
         Returns:
             是否拥有该权限
         """
         return any(p.code == permission_code for p in self.permissions)
-    
+
     def get_ancestor_ids(self) -> list[int]:
         """
         从 path 中解析所有祖先角色 ID
-        
+
         Returns:
             祖先角色 ID 列表（不含自身）
         """
@@ -266,10 +265,8 @@ class TenantAdminRole(TenantModel):
         # 排除自身 ID
         return [int(p) for p in parts if int(p) != self.id]
 
-
-# 需要导入用于类型注解
-from app.models.auth.permission import Permission
 if TYPE_CHECKING:
+    from app.models.auth.permission import Permission
     from app.models.tenant.tenant_admin import TenantAdmin
 
 

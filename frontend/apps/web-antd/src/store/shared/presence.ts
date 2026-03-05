@@ -43,6 +43,86 @@ export const usePresenceStore = defineStore('presence', () => {
   /** 是否已初始化 */
   const initialized = ref(false);
 
+  /** 固定 handler 引用，确保可对称 unregister */
+  const handlePresenceOnline = (data: unknown) => {
+    const { user_id, user_type, tenant_id } = data as {
+      tenant_id?: number;
+      user_id: number;
+      user_type: string;
+    };
+    if (user_type === 'admin') {
+      adminOnlineIds.add(user_id);
+    } else if (user_type === 'tenant_admin') {
+      tenantAdminOnlineIds.add(user_id);
+      if (tenant_id !== undefined) {
+        const ids = tenantPresenceMap.get(tenant_id);
+        if (ids) ids.add(user_id);
+      }
+    }
+  };
+
+  const handlePresenceOffline = (data: unknown) => {
+    const { user_id, user_type, tenant_id } = data as {
+      tenant_id?: number;
+      user_id: number;
+      user_type: string;
+    };
+    if (user_type === 'admin') {
+      adminOnlineIds.delete(user_id);
+    } else if (user_type === 'tenant_admin') {
+      tenantAdminOnlineIds.delete(user_id);
+      if (tenant_id !== undefined) {
+        const ids = tenantPresenceMap.get(tenant_id);
+        if (ids) ids.delete(user_id);
+      }
+    }
+  };
+
+  const handleTenantPresenceOnline = (data: unknown) => {
+    const { user_id, tenant_id } = data as {
+      tenant_id: number;
+      user_id: number;
+    };
+    if (tenant_id !== undefined) {
+      let ids = tenantPresenceMap.get(tenant_id);
+      if (!ids) {
+        ids = new Set<number>();
+        tenantPresenceMap.set(tenant_id, ids);
+      }
+      ids.add(user_id);
+    }
+  };
+
+  const handleTenantPresenceOffline = (data: unknown) => {
+    const { user_id, tenant_id } = data as {
+      tenant_id: number;
+      user_id: number;
+    };
+    if (tenant_id !== undefined) {
+      const ids = tenantPresenceMap.get(tenant_id);
+      if (ids) ids.delete(user_id);
+    }
+  };
+
+  const handlePresenceList = (data: unknown) => {
+    const { online_ids } = data as { online_ids: number[] };
+    if (!online_ids) return;
+
+    // 根据当前 namespace 判断更新哪个集合
+    const endpoint = useSocketIOStore().currentEndpoint;
+    if (endpoint === 'admin') {
+      adminOnlineIds.clear();
+      for (const id of online_ids) {
+        adminOnlineIds.add(id);
+      }
+    } else if (endpoint === 'tenant') {
+      tenantAdminOnlineIds.clear();
+      for (const id of online_ids) {
+        tenantAdminOnlineIds.add(id);
+      }
+    }
+  };
+
   // ============================================================
   // 查询方法
   // ============================================================
@@ -50,7 +130,11 @@ export const usePresenceStore = defineStore('presence', () => {
   /**
    * 判断用户是否在线
    */
-  function isOnline(userType: string, userId: number, tenantId?: number): boolean {
+  function isOnline(
+    userType: string,
+    userId: number,
+    tenantId?: number,
+  ): boolean {
     if (userType === 'admin') {
       return adminOnlineIds.has(userId);
     }
@@ -71,7 +155,8 @@ export const usePresenceStore = defineStore('presence', () => {
    * @param ids - 可选，只统计这些 ID 中在线的数量
    */
   function getOnlineCount(userType: string, ids?: number[]): number {
-    const onlineSet = userType === 'admin' ? adminOnlineIds : tenantAdminOnlineIds;
+    const onlineSet =
+      userType === 'admin' ? adminOnlineIds : tenantAdminOnlineIds;
     if (!ids) return onlineSet.size;
     return ids.filter((id) => onlineSet.has(id)).length;
   }
@@ -93,7 +178,8 @@ export const usePresenceStore = defineStore('presence', () => {
    */
   async function loadAdminPresence(): Promise<void> {
     try {
-      const data = await requestClient.get<PresenceResponse>('/admin/ws/presence');
+      const data =
+        await requestClient.get<PresenceResponse>('/admin/ws/presence');
       if (data?.online_ids) {
         adminOnlineIds.clear();
         for (const id of data.online_ids) {
@@ -130,7 +216,9 @@ export const usePresenceStore = defineStore('presence', () => {
    */
   async function loadCurrentTenantPresence(): Promise<void> {
     try {
-      const data = await requestClient.get<PresenceResponse>('/tenant/ws/presence');
+      const data = await requestClient.get<PresenceResponse>(
+        '/tenant/ws/presence',
+      );
       if (data?.online_ids) {
         tenantAdminOnlineIds.clear();
         for (const id of data.online_ids) {
@@ -156,90 +244,29 @@ export const usePresenceStore = defineStore('presence', () => {
     initialized.value = true;
 
     const sioStore = useSocketIOStore();
+    sioStore.unregisterHandler('presence:online', handlePresenceOnline);
+    sioStore.unregisterHandler('presence:offline', handlePresenceOffline);
+    sioStore.unregisterHandler(
+      'tenant_presence:online',
+      handleTenantPresenceOnline,
+    );
+    sioStore.unregisterHandler(
+      'tenant_presence:offline',
+      handleTenantPresenceOffline,
+    );
+    sioStore.unregisterHandler('presence:list', handlePresenceList);
 
-    // 用户上线
-    sioStore.registerHandler('presence:online', (data: unknown) => {
-      const { user_id, user_type, tenant_id } = data as {
-        user_id: number;
-        user_type: string;
-        tenant_id?: number;
-      };
-      if (user_type === 'admin') {
-        adminOnlineIds.add(user_id);
-      } else if (user_type === 'tenant_admin') {
-        tenantAdminOnlineIds.add(user_id);
-        if (tenant_id !== undefined) {
-          const ids = tenantPresenceMap.get(tenant_id);
-          if (ids) ids.add(user_id);
-        }
-      }
-    });
-
-    // 用户下线
-    sioStore.registerHandler('presence:offline', (data: unknown) => {
-      const { user_id, user_type, tenant_id } = data as {
-        user_id: number;
-        user_type: string;
-        tenant_id?: number;
-      };
-      if (user_type === 'admin') {
-        adminOnlineIds.delete(user_id);
-      } else if (user_type === 'tenant_admin') {
-        tenantAdminOnlineIds.delete(user_id);
-        if (tenant_id !== undefined) {
-          const ids = tenantPresenceMap.get(tenant_id);
-          if (ids) ids.delete(user_id);
-        }
-      }
-    });
-
-    // 跨 namespace 租户管理员上线（平台管理员收到）
-    sioStore.registerHandler('tenant_presence:online', (data: unknown) => {
-      const { user_id, tenant_id } = data as {
-        user_id: number;
-        tenant_id: number;
-      };
-      if (tenant_id !== undefined) {
-        let ids = tenantPresenceMap.get(tenant_id);
-        if (!ids) {
-          ids = new Set<number>();
-          tenantPresenceMap.set(tenant_id, ids);
-        }
-        ids.add(user_id);
-      }
-    });
-
-    // 跨 namespace 租户管理员下线（平台管理员收到）
-    sioStore.registerHandler('tenant_presence:offline', (data: unknown) => {
-      const { user_id, tenant_id } = data as {
-        user_id: number;
-        tenant_id: number;
-      };
-      if (tenant_id !== undefined) {
-        const ids = tenantPresenceMap.get(tenant_id);
-        if (ids) ids.delete(user_id);
-      }
-    });
-
-    // 初始在线列表（连接时服务端推送）
-    sioStore.registerHandler('presence:list', (data: unknown) => {
-      const { online_ids } = data as { online_ids: number[] };
-      if (!online_ids) return;
-
-      // 根据当前 namespace 判断更新哪个集合
-      const endpoint = sioStore.currentEndpoint;
-      if (endpoint === 'admin') {
-        adminOnlineIds.clear();
-        for (const id of online_ids) {
-          adminOnlineIds.add(id);
-        }
-      } else if (endpoint === 'tenant') {
-        tenantAdminOnlineIds.clear();
-        for (const id of online_ids) {
-          tenantAdminOnlineIds.add(id);
-        }
-      }
-    });
+    sioStore.registerHandler('presence:online', handlePresenceOnline);
+    sioStore.registerHandler('presence:offline', handlePresenceOffline);
+    sioStore.registerHandler(
+      'tenant_presence:online',
+      handleTenantPresenceOnline,
+    );
+    sioStore.registerHandler(
+      'tenant_presence:offline',
+      handleTenantPresenceOffline,
+    );
+    sioStore.registerHandler('presence:list', handlePresenceList);
   }
 
   // ============================================================
@@ -247,6 +274,22 @@ export const usePresenceStore = defineStore('presence', () => {
   // ============================================================
 
   function $reset() {
+    try {
+      const sioStore = useSocketIOStore();
+      sioStore.unregisterHandler('presence:online', handlePresenceOnline);
+      sioStore.unregisterHandler('presence:offline', handlePresenceOffline);
+      sioStore.unregisterHandler(
+        'tenant_presence:online',
+        handleTenantPresenceOnline,
+      );
+      sioStore.unregisterHandler(
+        'tenant_presence:offline',
+        handleTenantPresenceOffline,
+      );
+      sioStore.unregisterHandler('presence:list', handlePresenceList);
+    } catch {
+      // 静默
+    }
     adminOnlineIds.clear();
     tenantAdminOnlineIds.clear();
     tenantPresenceMap.clear();

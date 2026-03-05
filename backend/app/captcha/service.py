@@ -1,16 +1,22 @@
 from __future__ import annotations
+
 import uuid
-from typing import Any
 from datetime import datetime, timedelta
-from app.core.logging import CaptchaLoggerMixin
+from typing import Any
+
+from app.captcha.provider import (
+    CaptchaChallenge,
+    CaptchaVerificationResult,
+    ICaptchaProvider,
+)
 from app.captcha.registry import registry
-from app.captcha.provider import CaptchaChallenge, CaptchaVerificationResult, ICaptchaProvider
 from app.core.base_model import utc_now
+from app.core.logging import CaptchaLoggerMixin
 
 
 class CaptchaService(CaptchaLoggerMixin):
     """验证码服务"""
-    
+
     def __init__(self) -> None:
         self._used: dict[str, datetime] = {}
         self._fail_counts: dict[str, tuple[int, datetime]] = {}

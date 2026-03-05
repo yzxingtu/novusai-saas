@@ -40,7 +40,7 @@ def get_registered_channel_codes() -> list[str]:
 def get_registered_channels_info() -> list[dict[str, str]]:
     """获取所有已注册渠道的基本信息"""
     result = []
-    for code, cls in CHANNEL_REGISTRY.items():
+    for _code, cls in CHANNEL_REGISTRY.items():
         instance = cls()
         result.append({
             "code": instance.channel_code,
@@ -54,10 +54,10 @@ def get_registered_channels_info() -> list[dict[str, str]]:
 # ============================================
 def _register_builtin_channels() -> None:
     """注册内置渠道（模块加载时执行）"""
-    from app.services.common.channels.inbox_channel import InboxChannel
-    from app.services.common.channels.ws_channel import WSChannel
     from app.services.common.channels.email_channel import EmailChannel
+    from app.services.common.channels.inbox_channel import InboxChannel
     from app.services.common.channels.webhook_channel import WebhookChannel
+    from app.services.common.channels.ws_channel import WSChannel
 
     register_channel(InboxChannel)
     register_channel(WSChannel)

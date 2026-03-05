@@ -1,5 +1,6 @@
 <script lang="ts" setup>
-defineOptions({ name: 'AdminAgentForm' });
+import type { PkgOption } from '../data';
+
 /**
  * 管理端智能体新建/编辑表单抽屉
  *
@@ -8,11 +9,11 @@ defineOptions({ name: 'AdminAgentForm' });
  */
 import type { AIAgentInfo, AIAgentSkillBindingInfo } from '#/api/admin/ai';
 
-import type { PkgOption } from '../data';
-
 import { computed, onMounted, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
+
+import { Alert, Select as ASelect, Tag as ATag } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
 import {
@@ -25,16 +26,20 @@ import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
-import { Alert, Select as ASelect, Tag as ATag } from 'ant-design-vue';
+import {
+  getFormDefaults,
+  getPackageSelectOptions,
+  useFormSchema,
+} from '../data';
 
-import { getFormDefaults, getPackageSelectOptions, useFormSchema } from '../data';
+defineOptions({ name: 'AdminAgentForm' });
 
 const emits = defineEmits<{ success: [] }>();
 
 const isSystemAgent = ref(false);
 const pendingPackageIds = ref<number[]>([]);
 const consentModes = ref<Record<string, string>>({});
-const selectedPackages = ref<Array<{ label: string; value: number }>>([])
+const selectedPackages = ref<Array<{ label: string; value: number }>>([]);
 const packageOptions = ref<PkgOption[]>([]);
 const packageLoading = ref(false);
 const autoBindPackages = ref<AIAgentSkillBindingInfo[]>([]);
@@ -44,115 +49,120 @@ const [Form, formApi] = useVbenForm({
   showDefaultActions: false,
 });
 
-const { Drawer, isEdit, recordId, rowData, openNew, openEdit } = useCrudDrawer<AIAgentInfo>({
-  formApi,
-  apiPath: '/admin/ai/agents',
-  schema: (edit) => useFormSchema(edit, edit && isSystemAgent.value),
-  defaults: getFormDefaults,
-  transform: (values, edit) => {
-    // suggested_questions: newline-separated text → JSON array
-    const sqText = (values.suggested_questions as string) || '';
-    const sqArray = sqText
-      .split('\n')
-      .map((s: string) => s.trim())
-      .filter((s: string) => s.length > 0);
+const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
+  useCrudDrawer<AIAgentInfo>({
+    formApi,
+    apiPath: '/admin/ai/agents',
+    schema: (edit) => useFormSchema(edit, edit && isSystemAgent.value),
+    defaults: getFormDefaults,
+    transform: (values, edit) => {
+      // suggested_questions: newline-separated text → JSON array
+      const sqText = (values.suggested_questions as string) || '';
+      const sqArray = sqText
+        .split('\n')
+        .map((s: string) => s.trim())
+        .filter((s: string) => s.length > 0);
 
-    const result: Record<string, unknown> = {
-      avatar: values.avatar || null,
-      description: values.description || null,
-      model_id: values.model_id,
-      system_prompt: values.system_prompt || null,
-      temperature: values.temperature,
-      max_tokens: values.max_tokens,
-      top_p: values.top_p ?? null,
-      welcome_message: values.welcome_message || null,
-      suggested_questions: sqArray.length > 0 ? sqArray : null,
-    };
-    if (!edit || !isSystemAgent.value) {
-      result.name = values.name;
-      result.execution_mode = values.execution_mode;
-      Object.assign(result, extractScopePayload(values));
-    }
-    return result;
-  },
-  toFormValues: (data) => {
-    return {
-      name: data.name,
-      avatar: data.avatar || '',
-      description: data.description,
-      scope: data.scope,
-      tenant_id: data.tenant_id ?? null,
-      tenant_ids: ((data as unknown as Record<string, unknown>).assigned_tenant_ids as number[]) ?? [],
-      model_id: data.model_id,
-      execution_mode: data.execution_mode,
-      system_prompt: data.system_prompt,
-      temperature: data.temperature,
-      max_tokens: data.max_tokens,
-      top_p: data.top_p,
-      welcome_message: data.welcome_message || '',
-      suggested_questions: Array.isArray(data.suggested_questions)
-        ? data.suggested_questions.join('\n')
-        : '',
-    };
-  },
-  afterOpen: () => {
-    // rowData is set before afterOpen; detailData is not yet loaded
-    const sys = !!(rowData.value as Record<string, unknown> | undefined)?.is_system;
-    isSystemAgent.value = sys;
-    // Re-apply schema: initial schema() call ran before isSystemAgent was detected
-    formApi.setState({ schema: useFormSchema(isEdit.value, sys) });
-  },
-  onSuccess: async () => {
-    const agentId = recordId.value as number | undefined;
-    if (agentId && pendingPackageIds.value.length >= 0) {
+      const result: Record<string, unknown> = {
+        avatar: values.avatar || null,
+        description: values.description || null,
+        model_id: values.model_id,
+        system_prompt: values.system_prompt || null,
+        temperature: values.temperature,
+        max_tokens: values.max_tokens,
+        top_p: values.top_p ?? null,
+        welcome_message: values.welcome_message || null,
+        suggested_questions: sqArray.length > 0 ? sqArray : null,
+      };
+      if (!edit || !isSystemAgent.value) {
+        result.name = values.name;
+        result.execution_mode = values.execution_mode;
+        Object.assign(result, extractScopePayload(values));
+      }
+      return result;
+    },
+    toFormValues: (data) => {
+      return {
+        name: data.name,
+        avatar: data.avatar || '',
+        description: data.description,
+        scope: data.scope,
+        tenant_id: data.tenant_id ?? null,
+        tenant_ids:
+          ((data as unknown as Record<string, unknown>)
+            .assigned_tenant_ids as number[]) ?? [],
+        model_id: data.model_id,
+        execution_mode: data.execution_mode,
+        system_prompt: data.system_prompt,
+        temperature: data.temperature,
+        max_tokens: data.max_tokens,
+        top_p: data.top_p,
+        welcome_message: data.welcome_message || '',
+        suggested_questions: Array.isArray(data.suggested_questions)
+          ? data.suggested_questions.join('\n')
+          : '',
+      };
+    },
+    afterOpen: () => {
+      // rowData is set before afterOpen; detailData is not yet loaded
+      const sys = !!(rowData.value as Record<string, unknown> | undefined)
+        ?.is_system;
+      isSystemAgent.value = sys;
+      // Re-apply schema: initial schema() call ran before isSystemAgent was detected
+      formApi.setState({ schema: useFormSchema(isEdit.value, sys) });
+    },
+    onSuccess: async () => {
+      const agentId = recordId.value as number | undefined;
+      if (agentId && pendingPackageIds.value.length >= 0) {
+        try {
+          await batchBindAIAgentSkillsApi(agentId, {
+            package_ids: pendingPackageIds.value,
+            consent_modes:
+              Object.keys(consentModes.value).length > 0
+                ? consentModes.value
+                : undefined,
+          });
+        } catch {
+          // package binding errors are non-fatal
+        }
+      }
+      emits('success');
+    },
+    detailApi: async (id) => {
+      const agent = await getAIAgentDetailApi(id as number);
       try {
-        await batchBindAIAgentSkillsApi(agentId, {
-          package_ids: pendingPackageIds.value,
-          consent_modes: Object.keys(consentModes.value).length > 0
-            ? consentModes.value
-            : undefined,
-        });
-      } catch {
-        // package binding errors are non-fatal
-      }
-    }
-    emits('success');
-  },
-  detailApi: async (id) => {
-    const agent = await getAIAgentDetailApi(id as number);
-    try {
-      const bindings = await getAIAgentSkillsApi(id as number);
-      // Separate auto-bind vs manual bindings
-      const autoBind: AIAgentSkillBindingInfo[] = [];
-      const manualBind: AIAgentSkillBindingInfo[] = [];
-      for (const b of bindings) {
-        if (b.is_auto_bound) {
-          autoBind.push(b);
-        } else {
-          manualBind.push(b);
+        const bindings = await getAIAgentSkillsApi(id as number);
+        // Separate auto-bind vs manual bindings
+        const autoBind: AIAgentSkillBindingInfo[] = [];
+        const manualBind: AIAgentSkillBindingInfo[] = [];
+        for (const b of bindings) {
+          if (b.is_auto_bound) {
+            autoBind.push(b);
+          } else {
+            manualBind.push(b);
+          }
         }
-      }
-      autoBindPackages.value = autoBind;
+        autoBindPackages.value = autoBind;
 
-      const manualOptions = manualBind.map((b) => ({
-        label: b.package_name || `#${b.package_id}`,
-        value: b.package_id,
-      }));
-      const modes: Record<string, string> = {};
-      for (const b of manualBind) {
-        if (b.consent_mode && b.consent_mode !== 'auto') {
-          modes[String(b.package_id)] = b.consent_mode;
+        const manualOptions = manualBind.map((b) => ({
+          label: b.package_name || `#${b.package_id}`,
+          value: b.package_id,
+        }));
+        const modes: Record<string, string> = {};
+        for (const b of manualBind) {
+          if (b.consent_mode && b.consent_mode !== 'auto') {
+            modes[String(b.package_id)] = b.consent_mode;
+          }
         }
+        consentModes.value = modes;
+        selectedPackages.value = manualOptions;
+        pendingPackageIds.value = manualOptions.map((p) => p.value);
+      } catch {
+        autoBindPackages.value = [];
       }
-      consentModes.value = modes;
-      selectedPackages.value = manualOptions;
-      pendingPackageIds.value = manualOptions.map((p) => p.value);
-    } catch {
-      autoBindPackages.value = [];
-    }
-    return agent;
-  },
-});
+      return agent;
+    },
+  });
 
 defineExpose({ openNew, openEdit });
 
@@ -175,14 +185,11 @@ function setConsentMode(pkgId: number, mode: string) {
   }
 }
 
-
 const title = computed(() => {
   if (isSystemAgent.value && isEdit.value) {
     return $t('admin.ai.agent.systemAgent');
   }
-  return isEdit.value
-    ? $t('admin.common.edit')
-    : $t('admin.ai.agent.create');
+  return isEdit.value ? $t('admin.common.edit') : $t('admin.ai.agent.create');
 });
 
 async function loadPackageOptions() {
@@ -202,13 +209,19 @@ const manualPackageOptions = computed(() => {
   return packageOptions.value.filter((p) => !autoIds.has(p.value));
 });
 
-function getOptionTags(value: number): Array<{ text: string; color: string }> {
+function getOptionTags(value: number): Array<{ color: string; text: string }> {
   const opt = packageOptions.value.find((o) => o.value === value);
   if (!opt) return [];
-  const tags: Array<{ text: string; color: string }> = [];
-  if (opt.isSystem) tags.push({ text: $t('admin.ai.skillPackage.system'), color: 'red' });
-  if (opt.sourcePlugin) tags.push({ text: $t('admin.ai.skillPackage.sourcePlugin'), color: 'purple' });
-  if (opt.scope) tags.push({ text: opt.scope, color: getScopeColor(opt.scope) });
+  const tags: Array<{ color: string; text: string }> = [];
+  if (opt.isSystem)
+    tags.push({ text: $t('admin.ai.skillPackage.system'), color: 'red' });
+  if (opt.sourcePlugin)
+    tags.push({
+      text: $t('admin.ai.skillPackage.sourcePlugin'),
+      color: 'purple',
+    });
+  if (opt.scope)
+    tags.push({ text: opt.scope, color: getScopeColor(opt.scope) });
   return tags;
 }
 
@@ -217,7 +230,10 @@ function onPackageChange(val: unknown) {
   const items = raw.map((item) => {
     if (typeof item === 'object' && item !== null) {
       const obj = item as Record<string, unknown>;
-      return { label: String(obj.label || ''), value: Number(obj.value || obj.key || 0) };
+      return {
+        label: String(obj.label || ''),
+        value: Number(obj.value || obj.key || 0),
+      };
     }
     return { label: `#${item}`, value: Number(item) };
   });
@@ -275,19 +291,35 @@ function onPackageChange(val: unknown) {
       </ASelect>
 
       <!-- Unified binding list: auto-bind + manual, each with consent mode -->
-      <div v-if="autoBindPackages.length > 0 || selectedPackages.length > 0" class="mt-3 space-y-2">
+      <div
+        v-if="autoBindPackages.length > 0 || selectedPackages.length > 0"
+        class="mt-3 space-y-2"
+      >
         <!-- Auto-bind packages (locked, with consent mode) -->
         <div
           v-for="pkg in autoBindPackages"
           :key="`auto-${pkg.package_id}`"
           class="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2"
         >
-          <IconifyIcon icon="lucide:lock" class="size-3.5 shrink-0 text-primary/60" />
-          <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ pkg.package_name }}</span>
-          <ATag v-if="pkg.package_is_system" color="red" class="!m-0 shrink-0 !text-[10px]">
+          <IconifyIcon
+            icon="lucide:lock"
+            class="size-3.5 shrink-0 text-primary/60"
+          />
+          <span class="min-w-0 flex-1 truncate text-sm font-medium">{{
+            pkg.package_name
+          }}</span>
+          <ATag
+            v-if="pkg.package_is_system"
+            color="red"
+            class="!m-0 shrink-0 !text-[10px]"
+          >
             {{ $t('admin.ai.skillPackage.system') }}
           </ATag>
-          <ATag v-if="pkg.package_scope" :color="getScopeColor(pkg.package_scope)" class="!m-0 shrink-0 !text-[10px]">
+          <ATag
+            v-if="pkg.package_scope"
+            :color="getScopeColor(pkg.package_scope)"
+            class="!m-0 shrink-0 !text-[10px]"
+          >
             {{ getScopeText(pkg.package_scope) }}
           </ATag>
           <ATag color="green" class="!m-0 shrink-0 !text-[10px]">
@@ -301,7 +333,9 @@ function onPackageChange(val: unknown) {
           :key="`manual-${pkg.value}`"
           class="flex items-center gap-2 rounded-md border border-border px-3 py-2"
         >
-          <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ pkg.label }}</span>
+          <span class="min-w-0 flex-1 truncate text-sm font-medium">{{
+            pkg.label
+          }}</span>
           <ASelect
             :value="getConsentMode(pkg.value)"
             :options="consentModeOptions"

@@ -4,8 +4,6 @@
  */
 import type { EmailLogInfo } from '#/api/admin/email-log';
 
-defineOptions({ name: 'SystemEmailLogList' });
-
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -24,6 +22,8 @@ import {
 } from './data';
 import EmailPreviewDrawer from './modules/EmailPreviewDrawer.vue';
 import SendEmailDrawer from './modules/SendEmailDrawer.vue';
+
+defineOptions({ name: 'SystemEmailLogList' });
 
 const [SendEmailDrawerComp, sendDrawerApi] = useVbenDrawer({
   connectedComponent: SendEmailDrawer,

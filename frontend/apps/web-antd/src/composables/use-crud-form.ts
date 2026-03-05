@@ -45,11 +45,11 @@ function createToFormValues<T>(
   fields: string[],
 ): (data: T) => Record<string, any> {
   return (data: T) => {
+    const source = data as Record<string, unknown>;
     const result: Record<string, any> = {};
     for (const field of fields) {
       const camelField = snakeToCamel(field);
-      // @ts-ignore
-      result[field] = data[camelField] ?? data[field];
+      result[field] = source[camelField] ?? source[field];
     }
     return result;
   };

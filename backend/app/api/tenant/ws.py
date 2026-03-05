@@ -11,7 +11,6 @@ from app.core.response import success
 from app.rbac.decorators import auth_only
 from app.sio.presence import PresenceManager
 
-
 router = APIRouter(prefix="/ws", tags=["WebSocket 在线状态"])
 
 

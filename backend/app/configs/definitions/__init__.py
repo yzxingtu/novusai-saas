@@ -4,26 +4,23 @@
 导入所有配置定义并注册到全局 ConfigRegistry
 """
 
-from app.configs.registry import config_registry
+# 导入平台配置（触发配置项注册到分组）
+# 导入租户配置（触发配置项注册到分组）
+from app.configs.definitions import platform, tenant
 
 # 导入分组定义
 from app.configs.definitions.groups import (
+    ALL_CONFIG_GROUPS,
     PLATFORM_CONFIG_GROUPS,
     TENANT_CONFIG_GROUPS,
-    ALL_CONFIG_GROUPS,
 )
-
-# 导入平台配置（触发配置项注册到分组）
-from app.configs.definitions import platform
-
-# 导入租户配置（触发配置项注册到分组）
-from app.configs.definitions import tenant
+from app.configs.registry import config_registry
 
 
 def register_all_configs() -> None:
     """
     注册所有配置到 registry
-    
+
     在应用启动时调用此函数
     """
     # 注册所有配置分组（分组中已包含配置项）
@@ -41,4 +38,6 @@ __all__ = [
     "TENANT_CONFIG_GROUPS",
     "ALL_CONFIG_GROUPS",
     "register_all_configs",
+    "platform",
+    "tenant",
 ]

@@ -13,7 +13,6 @@ from app.core.base_schema import (
 )
 from app.core.i18n import _
 
-
 # ============================================
 # Shared field mixins
 # ============================================
@@ -32,6 +31,7 @@ class _AgentOptionalFields(BaseModel):
     output_schema: list | None = Field(None, description=_("enum.agent_model.output_schema"))
     quota_config: dict | None = Field(None, description=_("enum.agent_model.quota_config"))
     routing_config: dict | None = Field(None, description=_("enum.agent_model.routing_config"))
+    memory_enabled: bool | None = Field(None, description=_("enum.agent_model.memory_enabled"))
 
 
 # ============================================
@@ -119,6 +119,14 @@ class AgentResponse(_AgentOptionalFields, TenantResponseSchema):
     # 关联字段
     model_name: str | None = Field(None, description=_("enum.agent_model.model_name"))
     model_code: str | None = Field(None, description=_("enum.agent_model.model_code"))
+    effective_memory_enabled: bool | None = Field(
+        None,
+        description=_("enum.agent_model.effective_memory_enabled"),
+    )
+    memory_disabled_by_tenant: bool | None = Field(
+        None,
+        description=_("enum.agent_model.memory_disabled_by_tenant"),
+    )
 
 
 class AgentListItem(TenantResponseSchema):

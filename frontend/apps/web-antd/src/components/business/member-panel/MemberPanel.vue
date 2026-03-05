@@ -19,12 +19,12 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
+import { usePresenceStore } from '#/store';
+
 import AdminFormDrawer from './modules/AdminFormDrawer.vue';
 import MemberItem from './modules/MemberItem.vue';
 import ResetPasswordModal from './modules/ResetPasswordModal.vue';
 import { toResetPasswordInfo } from './types';
-import { usePresenceStore } from '#/store';
-
 import { useMemberPanel } from './use-member-panel';
 
 const props = withDefaults(
@@ -55,6 +55,13 @@ const props = withDefaults(
   },
 );
 
+const emit = defineEmits<{
+  (e: 'leaderChanged', leaderId: null | number): void;
+  (e: 'memberAdded', member: OrgMember): void;
+  (e: 'memberRemoved', memberId: number): void;
+  (e: 'refresh'): void;
+}>();
+
 const presenceStore = usePresenceStore();
 
 /** 判断成员是否在线 */
@@ -62,13 +69,6 @@ function isMemberOnline(memberId: number): boolean {
   const userType = props.apiPrefix === 'admin' ? 'admin' : 'tenant_admin';
   return presenceStore.isOnline(userType, memberId);
 }
-
-const emit = defineEmits<{
-  (e: 'leaderChanged', leaderId: null | number): void;
-  (e: 'memberAdded', member: OrgMember): void;
-  (e: 'memberRemoved', memberId: number): void;
-  (e: 'refresh'): void;
-}>();
 
 // 搜索关键词（本地输入，用于双向绑定）
 const searchText = ref('');
@@ -234,7 +234,10 @@ onMounted(() => {
             </template>
           </Button>
         </Tooltip>
-        <Tooltip v-if="!allowMembers" :title="$t('shared.memberPanel.nodeNotAllowMembers')">
+        <Tooltip
+          v-if="!allowMembers"
+          :title="$t('shared.memberPanel.nodeNotAllowMembers')"
+        >
           <Button type="primary" size="small" disabled>
             <template #icon>
               <IconifyIcon icon="lucide:user-plus" />
@@ -306,7 +309,9 @@ onMounted(() => {
               :disabled="loading"
               @change="(checked) => toggleIncludeDescendants(Boolean(checked))"
             />
-            <span class="text-xs text-gray-500">{{ $t('shared.memberPanel.includeDescendants') }}</span>
+            <span class="text-xs text-gray-500">{{
+              $t('shared.memberPanel.includeDescendants')
+            }}</span>
           </div>
         </Tooltip>
       </div>
@@ -357,7 +362,11 @@ onMounted(() => {
           </template>
           <Empty
             v-else
-            :description="searchText ? $t('shared.memberPanel.emptySearch') : $t('shared.memberPanel.empty')"
+            :description="
+              searchText
+                ? $t('shared.memberPanel.emptySearch')
+                : $t('shared.memberPanel.empty')
+            "
             class="py-8"
           />
         </Spin>
@@ -369,7 +378,13 @@ onMounted(() => {
         class="flex flex-col gap-2 border-t border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700"
       >
         <div class="text-sm text-gray-500">
-          {{ $t('shared.memberPanel.paginationInfo', { start: paginationInfo.start, end: paginationInfo.end, total: paginationInfo.total }) }}
+          {{
+            $t('shared.memberPanel.paginationInfo', {
+              start: paginationInfo.start,
+              end: paginationInfo.end,
+              total: paginationInfo.total,
+            })
+          }}
         </div>
         <Pagination
           :current="pagination.page"

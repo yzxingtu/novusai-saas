@@ -18,23 +18,23 @@ export interface MarketplacePluginItem {
   author: string;
   tier: string;
   pricing_type: string;
-  price: number | null;
-  rating: number | null;
+  price: null | number;
+  rating: null | number;
   downloads: number;
   tags: string[];
   is_installed: boolean;
-  installed_version: string | null;
+  installed_version: null | string;
 }
 
 /** 市场插件详情 */
 export interface MarketplacePluginDetail extends MarketplacePluginItem {
-  readme: string | null;
-  changelog: string | null;
+  readme: null | string;
+  changelog: null | string;
   screenshots: string[];
-  homepage: string | null;
-  repository_url: string | null;
+  homepage: null | string;
+  repository_url: null | string;
   compatibility_ok: boolean;
-  platform_version_required: string | null;
+  platform_version_required: null | string;
 }
 
 /** 更新信息 */
@@ -52,17 +52,26 @@ export function getMarketplaceListApi(params?: Record<string, unknown>) {
 
 /** 市场详情 */
 export function getMarketplaceDetailApi(slug: string) {
-  return requestClient.get<MarketplacePluginDetail>(`${BASE_URL}/marketplace/${slug}`);
+  return requestClient.get<MarketplacePluginDetail>(
+    `${BASE_URL}/marketplace/${slug}`,
+  );
 }
 
 /** 市场安装预览 */
 export function marketplacePreviewInstallApi(slug: string) {
-  return requestClient.post<InstallPreview>(`${BASE_URL}/marketplace/${slug}/install`);
+  return requestClient.post<InstallPreview>(
+    `${BASE_URL}/marketplace/${slug}/install`,
+  );
 }
 
 /** 市场确认安装 */
-export function marketplaceConfirmInstallApi(slug: string, config?: Record<string, unknown>) {
-  return requestClient.post(`${BASE_URL}/marketplace/${slug}/confirm-install`, { config: config || {} });
+export function marketplaceConfirmInstallApi(
+  slug: string,
+  config?: Record<string, unknown>,
+) {
+  return requestClient.post(`${BASE_URL}/marketplace/${slug}/confirm-install`, {
+    config: config || {},
+  });
 }
 
 /** 检查更新 */

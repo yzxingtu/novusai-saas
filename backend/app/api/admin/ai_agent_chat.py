@@ -9,25 +9,30 @@ from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, ActiveAdmin, QueryParams
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import success, deleted, paginated
+from app.core.response import deleted, paginated, success
+from app.enums.agent import (
+    ConfirmActionEnum,
+    MemoryChannelEnum,
+    MemorySceneEnum,
+)
 from app.enums.common import UserRoleEnum
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
-    action_read,
     action_create,
     action_delete,
+    action_read,
+    permission_resource,
 )
 from app.rbac.services.permission_service import PermissionService
-from app.enums.agent import ConfirmActionEnum
 from app.schemas.ai.agent_chat import AgentChatRequest, AgentConfirmRequest
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.agent_service import AdminAgentService
 from app.services.ai.conversation_service import ConversationService
+from app.services.ai.session_memory_service import SessionMemoryService
 
 
 async def _get_agent_tenant_id(db: AsyncSession, agent_id: int) -> int:
@@ -73,7 +78,7 @@ class AdminAgentChatController(GlobalController):
         router = self.router
 
         # ========================================
-        # Chat execution
+        # 对话执行
         # ========================================
 
         @router.post("/{agent_id}/chat", summary="Send chat message (non-streaming)")
@@ -108,6 +113,9 @@ class AdminAgentChatController(GlobalController):
                 permissions=user_perms,
                 consented_actions=data.consented_actions,
                 attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
+                memory_scene=MemorySceneEnum.ADMIN_CHAT.value,
+                memory_channel=MemoryChannelEnum.ADMIN_CHAT.value,
+                memory_source=MemoryChannelEnum.ADMIN_CHAT.value,
             )
             return success(data=result.model_dump())
 
@@ -147,10 +155,13 @@ class AdminAgentChatController(GlobalController):
                 consented_actions=data.consented_actions,
                 attachments=[a.model_dump() for a in data.attachments] if data.attachments else None,
                 image_params=data.image_params.model_dump() if data.image_params else None,
+                memory_scene=MemorySceneEnum.ADMIN_CHAT.value,
+                memory_channel=MemoryChannelEnum.ADMIN_CHAT.value,
+                memory_source=MemoryChannelEnum.ADMIN_CHAT.value,
             )
 
         # ========================================
-        # Action confirmation
+        # 操作确认
         # ========================================
 
         @router.post("/confirm", summary="Confirm/cancel AI action")
@@ -169,7 +180,7 @@ class AdminAgentChatController(GlobalController):
 
             Permission: admin_agent_chat:confirm
             """
-            # confirm endpoint is agent-agnostic; use sentinel tenant_id=0
+            # 该接口与具体智能体无关，使用租户哨兵值 0
             service = AgentChatService(db, 0)
 
             if data.action == ConfirmActionEnum.CANCEL.value:
@@ -181,7 +192,7 @@ class AdminAgentChatController(GlobalController):
                 )
                 return success(data=result, message=msg_key)
 
-            # confirm
+            # 确认执行
             result = await service.confirm_action(
                 confirm_id=data.confirm_id,
                 tenant_id=0,
@@ -190,7 +201,7 @@ class AdminAgentChatController(GlobalController):
             return success(data=result)
 
         # ========================================
-        # Conversation management
+        # 对话管理
         # ========================================
 
         @router.get("/{agent_id}/conversations", summary="List agent conversations")
@@ -282,8 +293,35 @@ class AdminAgentChatController(GlobalController):
 
             return deleted(message=_("agent_chat.conversation_deleted"))
 
+        @router.delete(
+            "/{agent_id}/conversations/{conversation_id}/memory-state",
+            summary="Clear conversation memory",
+        )
+        @action_delete("action.admin_agent_chat.delete_conversation")
+        async def clear_conversation_memory(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            conversation_id: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            Clear memory state for a specific conversation.
+            """
+            tenant_id = await _get_agent_tenant_id(db, agent_id)
+            service = ConversationService(db, tenant_id)
+            conversation = await service.get_by_id(conversation_id)
+            if not conversation or conversation.agent_id != agent_id:
+                raise NotFoundException(
+                    message=_("agent_chat.error.conversation_not_found"),
+                )
 
-# Export router
+            memory_svc = SessionMemoryService(tenant_id)
+            deleted_count = await memory_svc.clear_conversation_memory(conversation_id)
+            return success(data={"deleted_count": deleted_count})
+
+
+# 导出路由
 router = AdminAgentChatController.get_router()
 
 __all__ = ["router", "AdminAgentChatController"]

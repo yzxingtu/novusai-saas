@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import asyncio
 import json
-import subprocess
 import sys
 import textwrap
 import time
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
@@ -121,6 +120,7 @@ class CodeExecutionExecutor(BaseToolExecutor):
         context: ExecutionContext | None = None,
     ) -> ToolResult:
         """在子进程沙箱中执行代码"""
+        _ = context
         start = time.perf_counter()
         cfg = definition.config or {}
 
@@ -239,6 +239,7 @@ class CodeExecutionExecutor(BaseToolExecutor):
         arguments: dict[str, Any],
     ) -> bool:
         """校验代码执行参数"""
+        _ = definition
         return bool(arguments.get("code"))
 
     @staticmethod

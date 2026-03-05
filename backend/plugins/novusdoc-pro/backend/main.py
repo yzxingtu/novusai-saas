@@ -18,7 +18,15 @@ class NovusdocProPlugin(PluginBase):
 
     async def on_enable(self, ctx) -> None:
         logger = ctx.get_logger()
-        logger.info("novusdoc-pro: enabled — collaboration features active")
+
+        try:
+            import y_py  # noqa: F401
+            logger.info("novusdoc-pro: enabled — collaboration features active")
+        except ImportError:
+            logger.warning(
+                "novusdoc-pro: enabled in degraded mode — y-py not available; "
+                "collaboration persistence is disabled for this runtime."
+            )
 
     async def on_disable(self, ctx) -> None:
         logger = ctx.get_logger()

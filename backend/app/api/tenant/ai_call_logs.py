@@ -7,16 +7,16 @@
 from fastapi import Request
 
 from app.core.base_controller import TenantController
-from app.core.deps import DbSession, QueryParams, ActiveTenantAdmin
 from app.core.base_schema import PageResponse
+from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException, AuthorizationException
+from app.exceptions import AuthorizationException, NotFoundException
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
     action_read,
+    permission_resource,
 )
 from app.repositories.ai import AICallLogRepository
 

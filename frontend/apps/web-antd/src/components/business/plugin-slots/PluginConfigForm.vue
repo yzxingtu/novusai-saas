@@ -24,13 +24,16 @@ interface ConfigSchema {
   required?: string[];
 }
 
-const props = withDefaults(defineProps<{
-  schema: ConfigSchema;
-  modelValue: Record<string, unknown>;
-  disabled?: boolean;
-}>(), {
-  disabled: false,
-});
+const props = withDefaults(
+  defineProps<{
+    disabled?: boolean;
+    modelValue: Record<string, unknown>;
+    schema: ConfigSchema;
+  }>(),
+  {
+    disabled: false,
+  },
+);
 
 const emit = defineEmits<{
   (e: 'update:modelValue', v: Record<string, unknown>): void;
@@ -38,23 +41,31 @@ const emit = defineEmits<{
 
 const form = ref<Record<string, unknown>>({ ...props.modelValue });
 
-watch(() => props.modelValue, (v) => {
-  form.value = { ...v };
-}, { deep: true });
+watch(
+  () => props.modelValue,
+  (v) => {
+    form.value = { ...v };
+  },
+  { deep: true },
+);
+
+function resolveFieldType(schema: SchemaProperty): string {
+  if (schema.enum) return 'select';
+  if (schema.type === 'boolean') return 'switch';
+  if (schema.type === 'integer' || schema.type === 'number') return 'number';
+  if (schema['x-encrypted']) return 'password';
+  return 'text';
+}
 
 const fields = computed(() => {
   const props_map = props.schema?.properties ?? {};
-  const required = new Set(props.schema?.required ?? []);
+  const required = new Set(props.schema?.required);
   return Object.entries(props_map).map(([key, schema]) => ({
     key,
     schema,
     required: required.has(key),
     isEncrypted: schema['x-encrypted'] === true,
-    fieldType: schema.enum ? 'select'
-      : schema.type === 'boolean' ? 'switch'
-      : schema.type === 'integer' || schema.type === 'number' ? 'number'
-      : schema['x-encrypted'] ? 'password'
-      : 'text',
+    fieldType: resolveFieldType(schema),
   }));
 });
 
@@ -66,7 +77,8 @@ function handleChange(key: string, value: unknown) {
 /** 脱敏值：已加密的字段显示为 sk-***xxx 形式 */
 function displayValue(key: string, schema: SchemaProperty): string {
   const v = form.value[key];
-  if (!schema['x-encrypted'] || !v || typeof v !== 'string') return String(v ?? '');
+  if (!schema['x-encrypted'] || !v || typeof v !== 'string')
+    return String(v ?? '');
   if (v.length > 6) return `${v.slice(0, 3)}***${v.slice(-3)}`;
   return '***';
 }
@@ -80,12 +92,18 @@ function displayValue(key: string, schema: SchemaProperty): string {
       :label="field.schema.title ?? field.key"
       :required="field.required"
     >
-      <a-tooltip v-if="field.schema.description" :title="field.schema.description" placement="topLeft">
+      <a-tooltip
+        v-if="field.schema.description"
+        :title="field.schema.description"
+        placement="topLeft"
+      >
         <!-- Select -->
         <a-select
           v-if="field.fieldType === 'select'"
           :value="form[field.key]"
-          :options="(field.schema.enum ?? []).map((v) => ({ label: v, value: v }))"
+          :options="
+            (field.schema.enum ?? []).map((v) => ({ label: v, value: v }))
+          "
           @change="(v: unknown) => handleChange(field.key, v)"
         />
         <!-- Switch -->
@@ -106,15 +124,23 @@ function displayValue(key: string, schema: SchemaProperty): string {
         <!-- Password / Encrypted -->
         <a-input-password
           v-else-if="field.fieldType === 'password'"
-          :value="(form[field.key] as string)"
-          :placeholder="field.isEncrypted ? displayValue(field.key, field.schema) : ''"
-          @change="(e: Event) => handleChange(field.key, (e.target as HTMLInputElement).value)"
+          :value="form[field.key] as string"
+          :placeholder="
+            field.isEncrypted ? displayValue(field.key, field.schema) : ''
+          "
+          @change="
+            (e: Event) =>
+              handleChange(field.key, (e.target as HTMLInputElement).value)
+          "
         />
         <!-- Text (default) -->
         <a-input
           v-else
-          :value="(form[field.key] as string)"
-          @change="(e: Event) => handleChange(field.key, (e.target as HTMLInputElement).value)"
+          :value="form[field.key] as string"
+          @change="
+            (e: Event) =>
+              handleChange(field.key, (e.target as HTMLInputElement).value)
+          "
         />
       </a-tooltip>
       <!-- No tooltip version -->
@@ -122,7 +148,9 @@ function displayValue(key: string, schema: SchemaProperty): string {
         <a-select
           v-if="field.fieldType === 'select'"
           :value="form[field.key]"
-          :options="(field.schema.enum ?? []).map((v) => ({ label: v, value: v }))"
+          :options="
+            (field.schema.enum ?? []).map((v) => ({ label: v, value: v }))
+          "
           @change="(v: unknown) => handleChange(field.key, v)"
         />
         <a-switch
@@ -140,14 +168,22 @@ function displayValue(key: string, schema: SchemaProperty): string {
         />
         <a-input-password
           v-else-if="field.fieldType === 'password'"
-          :value="(form[field.key] as string)"
-          :placeholder="field.isEncrypted ? displayValue(field.key, field.schema) : ''"
-          @change="(e: Event) => handleChange(field.key, (e.target as HTMLInputElement).value)"
+          :value="form[field.key] as string"
+          :placeholder="
+            field.isEncrypted ? displayValue(field.key, field.schema) : ''
+          "
+          @change="
+            (e: Event) =>
+              handleChange(field.key, (e.target as HTMLInputElement).value)
+          "
         />
         <a-input
           v-else
-          :value="(form[field.key] as string)"
-          @change="(e: Event) => handleChange(field.key, (e.target as HTMLInputElement).value)"
+          :value="form[field.key] as string"
+          @change="
+            (e: Event) =>
+              handleChange(field.key, (e.target as HTMLInputElement).value)
+          "
         />
       </template>
     </a-form-item>

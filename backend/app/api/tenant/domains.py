@@ -8,33 +8,33 @@ from fastapi import HTTPException, Request, status
 
 from app.core.base_controller import TenantController
 from app.core.base_schema import PageResponse
-from app.core.deps import DbSession, QueryParams, ActiveTenantAdmin
+from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
-from app.exceptions import BusinessException, NotFoundException
+from app.exceptions import BusinessException
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
-    action_read,
     action_create,
-    action_update,
     action_delete,
+    action_read,
+    action_update,
     permission_action,
+    permission_resource,
 )
 from app.schemas.tenant.domain import (
-    TenantDomainResponse,
-    TenantDomainVerificationInfo,
     TenantDomainCreateRequest,
+    TenantDomainResponse,
     TenantDomainUpdateRequest,
+    TenantDomainVerificationInfo,
 )
 from app.schemas.tenant.ssl import (
+    SslAutoRenewRequest,
     SslCertificateResponse,
     SslCertificateUploadRequest,
-    SslAutoRenewRequest,
 )
-from app.services.system.tenant_domain_service import TenantDomainTenantService
 from app.services.system.ssl_certificate_service import SslCertificateService
+from app.services.system.tenant_domain_service import TenantDomainTenantService
 
 
 @permission_resource(
@@ -171,10 +171,10 @@ class TenantDomainController(TenantController):
             # 检查自定义域名配额（allow_custom_domain + max_custom_domains）
             from sqlalchemy import select
             from sqlalchemy.orm import selectinload
+
+            from app.enums import ErrorCode
             from app.models.tenant.tenant import Tenant
             from app.services.tenant.quota_service import QuotaService
-            from app.enums import ErrorCode
-            from app.exceptions import BusinessException
             tenant_obj = (await db.execute(
                 select(Tenant)
                 .options(selectinload(Tenant.tenant_plan))
@@ -452,9 +452,10 @@ class TenantDomainController(TenantController):
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("tenant_domain.not_found"))
 
             # 套餐权限检查
-            from app.models.tenant.tenant import Tenant
             from sqlalchemy import select
             from sqlalchemy.orm import selectinload
+
+            from app.models.tenant.tenant import Tenant
             tenant_result = await db.execute(
                 select(Tenant).where(Tenant.id == current_admin.tenant_id).options(selectinload(Tenant.tenant_plan))
             )

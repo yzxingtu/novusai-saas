@@ -22,12 +22,12 @@ import {
   Upload,
 } from 'ant-design-vue';
 
+import { uploadAttachmentApi } from '#/api/tenant/attachment';
 import {
   getTenantAdminInfoApi,
   tenantChangePasswordApi,
   updateTenantProfileApi,
 } from '#/api/tenant/auth';
-import { uploadAttachmentApi } from '#/api/tenant/attachment';
 import { $t } from '#/locales';
 import { getProcessedImageUrl, toAvatarDisplayUrl } from '#/utils/image';
 
@@ -69,7 +69,9 @@ const passwordForm = ref({
   confirmPassword: '',
 });
 
-const displayName = computed(() => form.value.nickname || form.value.username || '-');
+const displayName = computed(
+  () => form.value.nickname || form.value.username || '-',
+);
 const avatarSrc = computed(() => {
   const val = form.value.avatar || userStore.userInfo?.avatar || '';
   if (!val) return '';
@@ -79,7 +81,9 @@ const avatarSrc = computed(() => {
   }
   return val;
 });
-const avatarInitial = computed(() => (displayName.value || '?').charAt(0).toUpperCase());
+const avatarInitial = computed(() =>
+  (displayName.value || '?').charAt(0).toUpperCase(),
+);
 
 async function loadProfile() {
   loading.value = true;
@@ -140,7 +144,11 @@ async function handleChangePassword() {
       confirmPassword: passwordForm.value.confirmPassword,
     });
     message.success($t('tenant.profile.messages.passwordChanged'));
-    passwordForm.value = { oldPassword: '', newPassword: '', confirmPassword: '' };
+    passwordForm.value = {
+      oldPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    };
   } catch {
     message.error($t('tenant.profile.messages.passwordFailed'));
   } finally {
@@ -203,7 +211,9 @@ onMounted(() => {
     <Spin :spinning="loading">
       <!-- Hero Section -->
       <Card class="overflow-hidden border-0 shadow-sm">
-        <div class="bg-gradient-to-r from-primary/5 via-primary/3 to-transparent rounded-xl p-8">
+        <div
+          class="via-primary/3 rounded-xl bg-gradient-to-r from-primary/5 to-transparent p-8"
+        >
           <div class="flex items-center gap-8">
             <!-- Avatar with upload overlay -->
             <div class="group relative flex-shrink-0">
@@ -217,12 +227,12 @@ onMounted(() => {
                     v-if="avatarSrc"
                     :src="avatarSrc"
                     :size="96"
-                    class="ring-4 ring-background shadow-lg transition-all group-hover:ring-primary/20"
+                    class="shadow-lg ring-4 ring-background transition-all group-hover:ring-primary/20"
                   />
                   <Avatar
                     v-else
                     :size="96"
-                    class="bg-primary/10 text-primary ring-4 ring-background text-2xl font-bold shadow-lg transition-all group-hover:ring-primary/20"
+                    class="bg-primary/10 text-2xl font-bold text-primary shadow-lg ring-4 ring-background transition-all group-hover:ring-primary/20"
                   >
                     {{ avatarInitial }}
                   </Avatar>
@@ -243,18 +253,24 @@ onMounted(() => {
 
             <!-- User info -->
             <div class="min-w-0 flex-1">
-              <h2 class="text-foreground mb-1 text-2xl font-bold">
+              <h2 class="mb-1 text-2xl font-bold text-foreground">
                 {{ displayName }}
               </h2>
-              <p class="text-muted-foreground mb-3 text-sm">
+              <p class="mb-3 text-sm text-muted-foreground">
                 @{{ form.username }}
               </p>
               <div class="flex flex-wrap items-center gap-4 text-sm">
-                <div v-if="form.email" class="text-muted-foreground flex items-center gap-1.5">
+                <div
+                  v-if="form.email"
+                  class="flex items-center gap-1.5 text-muted-foreground"
+                >
                   <IconifyIcon icon="lucide:mail" class="size-4" />
                   <span>{{ form.email }}</span>
                 </div>
-                <div v-if="form.tenantName" class="text-muted-foreground flex items-center gap-1.5">
+                <div
+                  v-if="form.tenantName"
+                  class="flex items-center gap-1.5 text-muted-foreground"
+                >
                   <IconifyIcon icon="lucide:building-2" class="size-4" />
                   <span>{{ form.tenantName }}</span>
                 </div>
@@ -266,14 +282,16 @@ onMounted(() => {
 
       <!-- Content Tabs -->
       <Card class="mt-6 border-0 shadow-sm">
-        <Tabs v-model:activeKey="activeTab">
+        <Tabs v-model:active-key="activeTab">
           <Tabs.TabPane key="basic" :tab="$t('tenant.profile.tabs.basic')">
             <div class="max-w-lg py-4">
               <Form layout="vertical">
                 <Form.Item :label="$t('shared.profile.nickname')">
                   <Input
                     v-model:value="form.nickname"
-                    :placeholder="$t('shared.profile.placeholder.inputNickname')"
+                    :placeholder="
+                      $t('shared.profile.placeholder.inputNickname')
+                    "
                     size="large"
                   />
                 </Form.Item>
@@ -308,27 +326,36 @@ onMounted(() => {
             </div>
           </Tabs.TabPane>
 
-          <Tabs.TabPane key="password" :tab="$t('tenant.profile.tabs.password')">
+          <Tabs.TabPane
+            key="password"
+            :tab="$t('tenant.profile.tabs.password')"
+          >
             <div class="max-w-lg py-4">
               <Form layout="vertical">
                 <Form.Item :label="$t('shared.profile.oldPassword')">
                   <Input.Password
                     v-model:value="passwordForm.oldPassword"
-                    :placeholder="$t('shared.profile.placeholder.inputOldPassword')"
+                    :placeholder="
+                      $t('shared.profile.placeholder.inputOldPassword')
+                    "
                     size="large"
                   />
                 </Form.Item>
                 <Form.Item :label="$t('shared.profile.newPassword')">
                   <Input.Password
                     v-model:value="passwordForm.newPassword"
-                    :placeholder="$t('shared.profile.placeholder.inputNewPassword')"
+                    :placeholder="
+                      $t('shared.profile.placeholder.inputNewPassword')
+                    "
                     size="large"
                   />
                 </Form.Item>
                 <Form.Item :label="$t('shared.profile.confirmPassword')">
                   <Input.Password
                     v-model:value="passwordForm.confirmPassword"
-                    :placeholder="$t('shared.profile.placeholder.confirmNewPassword')"
+                    :placeholder="
+                      $t('shared.profile.placeholder.confirmNewPassword')
+                    "
                     size="large"
                   />
                 </Form.Item>

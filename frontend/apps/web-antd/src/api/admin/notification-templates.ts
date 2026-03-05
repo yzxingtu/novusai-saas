@@ -13,7 +13,7 @@ export interface NotificationTemplateInfo {
   code: string;
   category: string;
   title_template: string;
-  body_template: string | null;
+  body_template: null | string;
   channels: string[];
   priority: string;
   is_system: boolean;

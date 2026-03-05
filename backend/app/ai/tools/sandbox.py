@@ -8,7 +8,6 @@ EventBus 事件发布和 Hook 触发
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -16,21 +15,21 @@ from typing import TYPE_CHECKING, Any
 from app.ai.events.bus import get_event_bus
 from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.events.types import ToolCallCompleted, ToolCallFailed, ToolCallRequested
-from app.ai.tools.security import (
-    InputValidator,
-    OutputSanitizer,
-    ExecutionLimiter,
-    ToolSecurityError,
-)
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.executors.builtin_executor import BuiltinToolExecutor
-from app.ai.tools.executors.text_to_sql_executor import TextToSQLExecutor
 from app.ai.tools.executors.crud_executor import (
     CreateRecordExecutor,
     DeleteRecordExecutor,
     UpdateRecordExecutor,
 )
+from app.ai.tools.executors.text_to_sql_executor import TextToSQLExecutor
 from app.ai.tools.executors.toolkit_executor import ToolkitExecutor
+from app.ai.tools.security import (
+    ExecutionLimiter,
+    InputValidator,
+    OutputSanitizer,
+    ToolSecurityError,
+)
 from app.ai.tools.types import ExecutionContext, ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -344,10 +343,10 @@ class ToolSandbox:
 
         # 7. 输出脱敏 + 截断
         if result.success:
-            result.output, _ = OutputSanitizer.sanitize(
+            result.output = OutputSanitizer.sanitize(
                 result.output,
                 max_size=self.config.max_output_size,
-            )
+            )[0]
 
         # 9. AFTER_TOOL_CALL 钩子
         await hook_registry.trigger(

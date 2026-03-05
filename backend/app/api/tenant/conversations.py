@@ -10,21 +10,20 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_controller import TenantController
-from app.core.deps import DbSession, ActiveTenantAdmin, QueryParams
+from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import success, deleted, paginated
+from app.core.response import deleted, paginated, success
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.models.tenant.tenant_admin import TenantAdmin
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
+    action_delete,
     action_read,
     action_update,
-    action_delete,
+    permission_resource,
 )
 from app.services.ai.conversation_service import ConversationService
-
 
 # ============================================
 # 请求 Schema

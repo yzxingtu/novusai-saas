@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 import sqlparse
 
-from app.ai.tools.security import SqlValidator, SqlInjectionBlockedError
+from app.ai.tools.security import SqlValidator
 from app.core.i18n import _
 from app.core.logging import LogManager
 
@@ -91,7 +91,14 @@ _TABLE_REF_PATTERN = re.compile(
     (?:FROM|JOIN)\s+           # FROM 或 JOIN 关键字
     (?:ONLY\s+)?               # 可选 ONLY
     (\w+)                      # 表名（捕获组）
-    (?:\s+(?:AS\s+)?\w+)?      # 可选别名
+    (?:                        # 可选别名（避免吞掉 JOIN/WHERE 等关键字）
+      \s+
+      (?!
+        JOIN\b|ON\b|WHERE\b|GROUP\b|ORDER\b|LIMIT\b|OFFSET\b|HAVING\b|
+        UNION\b|EXCEPT\b|INTERSECT\b|LEFT\b|RIGHT\b|FULL\b|INNER\b|CROSS\b
+      )
+      (?:AS\s+)?\w+
+    )?
     """,
     re.IGNORECASE | re.VERBOSE,
 )

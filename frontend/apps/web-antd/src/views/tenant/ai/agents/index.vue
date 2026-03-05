@@ -7,8 +7,6 @@
  */
 import type { AgentListItem } from '#/api/tenant/agents';
 
-defineOptions({ name: 'TenantAgentList' });
-
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -33,31 +31,37 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
+import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
 import {
   deleteAgentApi,
   getAgentListApi,
   publishAgentApi,
 } from '#/api/tenant/agents';
-import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
-import {
-  getExecutionModeText,
-  getStatusText,
-} from './data';
+import { getExecutionModeText, getStatusText } from './data';
 import AgentForm from './modules/AgentForm.vue';
 import VersionHistory from './modules/VersionHistory.vue';
+
+defineOptions({ name: 'TenantAgentList' });
 
 // ============================================================
 // 声明式 CRUD
 // ============================================================
 
 const {
-  list, total, loading, currentPage, pageSize, searchKeyword,
-  loadList, onSearch, onPageChange,
+  list,
+  total,
+  loading,
+  currentPage,
+  pageSize,
+  searchKeyword,
+  loadList,
+  onSearch,
+  onPageChange,
   handleMenuAction,
 } = useCrudList<AgentListItem>({
   api: {
@@ -76,9 +80,13 @@ const {
 });
 
 // ========== 回收站 ==========
-const recycleBinRef = ref<{ open: () => void; deletedCount: number } | null>(null);
+const recycleBinRef = ref<null | { deletedCount: number; open: () => void }>(
+  null,
+);
 const recycleBinCount = computed(() => recycleBinRef.value?.deletedCount ?? 0);
-function openRecycleBin() { recycleBinRef.value?.open(); }
+function openRecycleBin() {
+  recycleBinRef.value?.open();
+}
 
 // ============================================================
 // AgentForm（ref 模式）
@@ -167,19 +175,35 @@ const hasActiveFilters = computed(
 
 function getStatusDotClass(status: string): string {
   switch (status) {
-    case 'published': return 'bg-green-500';
-    case 'disabled': return 'bg-red-400';
-    default: return 'bg-gray-400';
+    case 'disabled': {
+      return 'bg-red-400';
+    }
+    case 'published': {
+      return 'bg-green-500';
+    }
+    default: {
+      return 'bg-gray-400';
+    }
   }
 }
 
 function getExecutionModeIcon(mode: string): string {
   switch (mode) {
-    case 'conversation': return 'lucide:message-circle';
-    case 'task': return 'lucide:list-checks';
-    case 'batch': return 'lucide:layers';
-    case 'api': return 'lucide:code';
-    default: return 'lucide:bot';
+    case 'api': {
+      return 'lucide:code';
+    }
+    case 'batch': {
+      return 'lucide:layers';
+    }
+    case 'conversation': {
+      return 'lucide:message-circle';
+    }
+    case 'task': {
+      return 'lucide:list-checks';
+    }
+    default: {
+      return 'lucide:bot';
+    }
   }
 }
 
@@ -195,7 +219,11 @@ const stats = computed(() => ({
     <!-- Drawers -->
     <AgentForm ref="agentFormRef" @success="loadList" />
     <VersionHistoryDrawer @success="loadList" />
-    <RecycleBinDrawer ref="recycleBinRef" resource="/tenant/ai/agents" @restored="loadList" />
+    <RecycleBinDrawer
+      ref="recycleBinRef"
+      resource="/tenant/ai/agents"
+      @restored="loadList"
+    />
 
     <!-- Publish Modal -->
     <Modal
@@ -223,10 +251,18 @@ const stats = computed(() => ({
         :placeholder="$t('tenant.ai.agent.placeholder.searchName')"
         allow-clear
         class="!w-64"
-        @update:value="(v: string) => { searchKeyword = v; doSearch(); }"
+        @update:value="
+          (v: string) => {
+            searchKeyword = v;
+            doSearch();
+          }
+        "
       >
         <template #prefix>
-          <IconifyIcon icon="lucide:search" class="size-4 text-muted-foreground" />
+          <IconifyIcon
+            icon="lucide:search"
+            class="size-4 text-muted-foreground"
+          />
         </template>
       </Input>
 
@@ -257,12 +293,14 @@ const stats = computed(() => ({
         {{ $t('common.reset') }}
       </Button>
 
-      <div class="flex-1" />
+      <div class="flex-1"></div>
 
-      <div class="hidden items-center gap-4 text-xs text-muted-foreground md:flex">
+      <div
+        class="hidden items-center gap-4 text-xs text-muted-foreground md:flex"
+      >
         <span>{{ $t('common.total') }} {{ stats.total }}</span>
         <span class="flex items-center gap-1">
-          <span class="inline-block size-2 rounded-full bg-green-500" />
+          <span class="inline-block size-2 rounded-full bg-green-500"></span>
           {{ stats.published }}
         </span>
       </div>
@@ -305,9 +343,11 @@ const stats = computed(() => ({
           <div class="flex items-start gap-3.5">
             <div
               class="flex size-11 shrink-0 items-center justify-center rounded-xl text-base font-semibold"
-              :class="agent.is_system
-                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                : 'bg-primary/10 text-primary'"
+              :class="
+                agent.is_system
+                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                  : 'bg-primary/10 text-primary'
+              "
             >
               <img
                 v-if="agent.avatar && !String(agent.avatar).includes(':')"
@@ -325,7 +365,9 @@ const stats = computed(() => ({
                 icon="lucide:shield-check"
                 class="size-5"
               />
-              <span v-else>{{ agent.name?.charAt(0)?.toUpperCase() || '?' }}</span>
+              <span v-else>{{
+                agent.name?.charAt(0)?.toUpperCase() || '?'
+              }}</span>
             </div>
 
             <div class="min-w-0 flex-1">
@@ -349,7 +391,7 @@ const stats = computed(() => ({
                 <span
                   class="inline-block size-2 rounded-full"
                   :class="getStatusDotClass(agent.status)"
-                />
+                ></span>
                 <span class="text-xs text-muted-foreground">
                   {{ getStatusText(agent.status) }}
                 </span>
@@ -381,7 +423,10 @@ const stats = computed(() => ({
                     @click="onPublish(agent)"
                   >
                     <div class="flex items-center gap-2">
-                      <IconifyIcon icon="lucide:rocket" class="size-4 text-success" />
+                      <IconifyIcon
+                        icon="lucide:rocket"
+                        class="size-4 text-success"
+                      />
                       <span>{{ $t('tenant.ai.agent.actions.publish') }}</span>
                     </div>
                   </MenuItem>
@@ -420,7 +465,10 @@ const stats = computed(() => ({
 
           <!-- Metadata chips -->
           <div class="mt-4 flex flex-wrap items-center gap-2">
-            <Tooltip v-if="agent.model_name" :title="$t('tenant.ai.agent.modelName')">
+            <Tooltip
+              v-if="agent.model_name"
+              :title="$t('tenant.ai.agent.modelName')"
+            >
               <div
                 class="flex items-center gap-1.5 rounded-md bg-accent px-2 py-1 text-[11px] text-muted-foreground"
               >
@@ -433,7 +481,10 @@ const stats = computed(() => ({
               <div
                 class="flex items-center gap-1.5 rounded-md bg-accent px-2 py-1 text-[11px] text-muted-foreground"
               >
-                <IconifyIcon :icon="getExecutionModeIcon(agent.execution_mode)" class="size-3" />
+                <IconifyIcon
+                  :icon="getExecutionModeIcon(agent.execution_mode)"
+                  class="size-3"
+                />
                 <span>{{ getExecutionModeText(agent.execution_mode) }}</span>
               </div>
             </Tooltip>
@@ -449,9 +500,18 @@ const stats = computed(() => ({
             </Tag>
             <Tooltip
               v-if="agent.skill_packages && agent.skill_packages.length > 3"
-              :title="agent.skill_packages.slice(3).map((p: { name: string }) => p.name).join(', ')"
+              :title="
+                agent.skill_packages
+                  .slice(3)
+                  .map((p: { name: string }) => p.name)
+                  .join(', ')
+              "
             >
-              <Tag color="cyan" class="!mr-0 !text-[11px]" style="padding: 0 6px; line-height: 20px">
+              <Tag
+                color="cyan"
+                class="!mr-0 !text-[11px]"
+                style="padding: 0 6px; line-height: 20px"
+              >
                 +{{ agent.skill_packages.length - 3 }}
               </Tag>
             </Tooltip>
@@ -483,7 +543,10 @@ const stats = computed(() => ({
       </div>
 
       <!-- Empty -->
-      <div v-else-if="!loading" class="flex min-h-[300px] items-center justify-center">
+      <div
+        v-else-if="!loading"
+        class="flex min-h-[300px] items-center justify-center"
+      >
         <Empty :description="$t('common.noData')">
           <Button
             v-access:code="['agent:create']"

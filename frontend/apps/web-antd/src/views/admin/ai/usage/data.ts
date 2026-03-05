@@ -9,20 +9,25 @@ import { searchDateRange, select } from '#/adapter/form';
 import { getAIModelListApi } from '#/api/admin/ai';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
-import { formatCost, formatTokens } from '#/utils/format';
-
-export { formatCost, formatTokens };
 
 export function getRequestTypeColor(type: string | undefined): string {
   switch (type) {
-    case 'chat': return 'blue';
-    case 'embedding': return 'purple';
-    case 'image': return 'magenta';
-    default: return 'default';
+    case 'chat': {
+      return 'blue';
+    }
+    case 'embedding': {
+      return 'purple';
+    }
+    case 'image': {
+      return 'magenta';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
-export function formatLatency(ms: number | null | undefined): string {
+export function formatLatency(ms: null | number | undefined): string {
   if (!ms) return '-';
   if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
   return `${Math.round(ms)}ms`;
@@ -121,7 +126,7 @@ export function useColumns(
 async function getModelSelectOptions() {
   const response = await getAIModelListApi({
     'page[size]': 200,
-    'sort': 'name',
+    sort: 'name',
     'filter[is_active]': true,
   });
   return response.items.map((item) => ({
@@ -147,7 +152,10 @@ export function useGridFormSchema(): VbenFormSchema[] {
     select('filter[request_type][eq]', $t('admin.ai.usage.requestType'), {
       options: [
         { label: $t('admin.ai.usage.type_options.chat'), value: 'chat' },
-        { label: $t('admin.ai.usage.type_options.embedding'), value: 'embedding' },
+        {
+          label: $t('admin.ai.usage.type_options.embedding'),
+          value: 'embedding',
+        },
         { label: $t('admin.ai.usage.type_options.image'), value: 'image' },
       ],
       placeholder: $t('admin.ai.usage.requestType'),
@@ -159,3 +167,5 @@ export function useGridFormSchema(): VbenFormSchema[] {
     }),
   ];
 }
+
+export { formatCost, formatTokens } from '#/utils/format';

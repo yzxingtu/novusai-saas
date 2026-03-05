@@ -227,11 +227,11 @@ interface TenantPublicConfigRaw {
 
   // Storage
   storage?: {
-    driver?: string;
+    allowed_extensions?: string;
     base_url?: string;
     chunk_size_mb?: number;
+    driver?: string;
     max_file_size_mb?: number;
-    allowed_extensions?: string;
   };
 }
 
@@ -330,9 +330,17 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
       verificationPrefix: '',
     },
     features: {
-      ...(raw.allow_registration != null ? { allow_registration: raw.allow_registration } : {}),
-      ...(raw.api_access != null ? { api_access: raw.api_access } : {}),
-      ...(raw.file_upload != null ? { file_upload: raw.file_upload } : {}),
+      ...(
+        raw.allow_registration === null || raw.allow_registration === undefined
+          ? {}
+          : { allow_registration: raw.allow_registration }
+      ),
+      ...(raw.api_access === null || raw.api_access === undefined
+        ? {}
+        : { api_access: raw.api_access }),
+      ...(raw.file_upload === null || raw.file_upload === undefined
+        ? {}
+        : { file_upload: raw.file_upload }),
     },
   };
 }

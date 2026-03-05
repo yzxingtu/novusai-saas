@@ -34,10 +34,19 @@
     "scopeAll": "全部文件",
     "scopeTenant": "租户 {id} 的文件",
     "startedAt": "开始时间",
-    "completedAt": "完成时间"
+    "completedAt": "完成时间",
+    "activeListTitle": "进行中的任务",
+    "fileUnit": "文件",
+    "failedCount": "{count} 失败"
+  },
+  "common": {
+    "builtinDriver": "内置驱动",
+    "direction": "迁移方向",
+    "selectSourceFirst": "先选择源驱动"
   },
   "action": {
     "start": "开始迁移",
+    "impactAnalysis": "影响分析",
     "pause": "暂停",
     "paused": "迁移已暂停",
     "resume": "恢复",
@@ -73,7 +82,8 @@
   },
   "history": {
     "title": "迁移历史",
-    "empty": "暂无迁移记录"
+    "empty": "暂无迁移记录",
+    "totalCount": "共 {total} 条"
   },
   "log": {
     "title": "迁移日志",

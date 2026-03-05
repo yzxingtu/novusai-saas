@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from app.models.ai.table_policy import AITablePolicyOverride
 from app.core.base_repository import TenantRepository
+from app.models.ai.table_policy import AITablePolicyOverride
 
 
 class AITablePolicyOverrideRepository(TenantRepository[AITablePolicyOverride]):

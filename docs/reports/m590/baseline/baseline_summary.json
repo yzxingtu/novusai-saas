@@ -1,0 +1,107 @@
+{
+  "plugin_status_rows": [
+    {
+      "id": 1081,
+      "name": "netdisk",
+      "status": "enabled"
+    },
+    {
+      "id": 1080,
+      "name": "weather-widget",
+      "status": "enabled"
+    },
+    {
+      "id": 1079,
+      "name": "tencent-cos",
+      "status": "disabled"
+    },
+    {
+      "id": 1078,
+      "name": "storage-migration",
+      "status": "enabled"
+    },
+    {
+      "id": 1077,
+      "name": "qiniu-kodo",
+      "status": "enabled"
+    },
+    {
+      "id": 1076,
+      "name": "novusdoc-pro",
+      "status": "enabled"
+    },
+    {
+      "id": 1075,
+      "name": "novusdoc",
+      "status": "enabled"
+    },
+    {
+      "id": 1074,
+      "name": "novus-crud-code",
+      "status": "enabled"
+    },
+    {
+      "id": 1073,
+      "name": "amazon-s3",
+      "status": "disabled"
+    },
+    {
+      "id": 1072,
+      "name": "aliyun-oss",
+      "status": "installed"
+    }
+  ],
+  "enable_order": [
+    "aliyun-oss",
+    "amazon-s3",
+    "netdisk",
+    "novus-crud-code",
+    "novusdoc",
+    "qiniu-kodo",
+    "storage-migration",
+    "tencent-cos",
+    "weather-widget",
+    "novusdoc-pro"
+  ],
+  "python_packages_applicable": [
+    "Pillow",
+    "aiofiles",
+    "alibabacloud-oss-v2",
+    "anyio",
+    "bcrypt",
+    "boto3",
+    "cos-python-sdk-v5",
+    "httpx",
+    "qiniu",
+    "redis"
+  ],
+  "npm_packages": [
+    "@tiptap/extension-character-count",
+    "@tiptap/extension-collaboration",
+    "@tiptap/extension-collaboration-cursor",
+    "@tiptap/extension-highlight",
+    "@tiptap/extension-image",
+    "@tiptap/extension-link",
+    "@tiptap/extension-placeholder",
+    "@tiptap/extension-table",
+    "@tiptap/extension-table-cell",
+    "@tiptap/extension-table-header",
+    "@tiptap/extension-table-row",
+    "@tiptap/extension-task-item",
+    "@tiptap/extension-task-list",
+    "@tiptap/extension-text-align",
+    "@tiptap/extension-underline",
+    "@tiptap/starter-kit",
+    "@tiptap/vue-3",
+    "@types/sortablejs",
+    "@vue-flow/background",
+    "@vue-flow/controls",
+    "@vue-flow/core",
+    "@vue-flow/minimap",
+    "sortablejs",
+    "vxe-table",
+    "xe-utils",
+    "y-protocols",
+    "yjs"
+  ]
+}

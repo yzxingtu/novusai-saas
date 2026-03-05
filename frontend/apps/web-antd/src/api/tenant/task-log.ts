@@ -1,9 +1,17 @@
+import type {
+  TaskLogDetailInfo,
+  TaskLogInfo,
+  TaskStatsItem,
+} from '#/api/shared/task-log-types';
 /**
  * 任务日志 API（租户端）
  * 对接后端 /tenant/tasks/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
+// ============================================================
+// 转换函数
+// ============================================================
 import { requestClient } from '#/utils/request';
 
 // ============================================================
@@ -25,19 +33,19 @@ interface TaskLogInfoRaw {
   task_name: string;
   queue: string;
   status: string;
-  args: Record<string, unknown> | null;
-  kwargs: Record<string, unknown> | null;
-  result: Record<string, unknown> | null;
-  error_message: string | null;
-  started_at: string | null;
-  finished_at: string | null;
-  duration_ms: number | null;
+  args: null | Record<string, unknown>;
+  kwargs: null | Record<string, unknown>;
+  result: null | Record<string, unknown>;
+  error_message: null | string;
+  started_at: null | string;
+  finished_at: null | string;
+  duration_ms: null | number;
   retry_count: number;
   created_at: string;
 }
 
 interface TaskLogDetailInfoRaw extends TaskLogInfoRaw {
-  traceback: string | null;
+  traceback: null | string;
 }
 
 interface TaskStatsItemRaw {
@@ -45,12 +53,6 @@ interface TaskStatsItemRaw {
   count: number;
   avg_duration_ms: number;
 }
-
-// ============================================================
-// 转换函数
-// ============================================================
-
-import type { TaskLogDetailInfo, TaskLogInfo, TaskStatsItem } from '#/api/shared/task-log-types';
 
 function transformTaskLogInfo(raw: TaskLogInfoRaw): TaskLogInfo {
   return {

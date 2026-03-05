@@ -7,7 +7,7 @@ RAG 上下文构建器
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass
 
 from app.ai.rag.retriever import ChunkSearchResult
 from app.ai.utils.token_estimator import estimate_tokens
@@ -213,6 +213,7 @@ class RAGContextBuilder:
         ref_index: int,
     ) -> SourceReference:
         """从检索结果构建 SourceReference"""
+        _ = ref_index
         page = None
         heading = None
         if chunk.metadata:

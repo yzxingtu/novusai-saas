@@ -10,10 +10,10 @@ from app.enums.base import StrEnum
 class UserTypeEnum(StrEnum):
     """
     用户类型枚举
-    
+
     标识操作日志中的用户来源
     """
-    
+
     # 平台管理员
     ADMIN = ("admin", "enum.user_type.admin")
     # 租户管理员
@@ -27,10 +27,10 @@ class UserTypeEnum(StrEnum):
 class LogModuleEnum(StrEnum):
     """
     业务模块枚举
-    
+
     标识操作日志中的业务模块分类
     """
-    
+
     # 认证模块
     AUTH = ("auth", "enum.log_module.auth")
     # 权限模块
@@ -64,10 +64,10 @@ class LogModuleEnum(StrEnum):
 class LogCategoryEnum(StrEnum):
     """
     系统日志分类枚举
-    
+
     用于文件日志的分类管理
     """
-    
+
     # 应用日志
     APP = ("app", "enum.log_category.app")
     # 错误日志

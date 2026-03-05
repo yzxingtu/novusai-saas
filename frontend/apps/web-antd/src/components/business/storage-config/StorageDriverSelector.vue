@@ -20,8 +20,8 @@ defineOptions({ name: 'StorageDriverSelector' });
 
 const props = withDefaults(
   defineProps<{
-    drivers: StorageDriverInfo[];
     disabled?: boolean;
+    drivers: StorageDriverInfo[];
     showLocal?: boolean;
   }>(),
   {
@@ -30,7 +30,9 @@ const props = withDefaults(
   },
 );
 
-const modelValue = defineModel<string | undefined>('value', { default: undefined });
+const modelValue = defineModel<string | undefined>('value', {
+  default: undefined,
+});
 
 const filteredDrivers = computed(() => {
   if (props.showLocal) return props.drivers;

@@ -5,24 +5,28 @@
 """
 
 from fastapi import Request
-from pydantic import BaseModel as PydanticBaseModel, Field
+from pydantic import BaseModel as PydanticBaseModel
+from pydantic import Field
+
 from app.api.shared._agent_assignment_helpers import (
     build_assignment_item as _build_assignment_item,
+)
+from app.api.shared._agent_assignment_helpers import (
     build_plugin_feature_i18n_map as _build_plugin_feature_i18n_map,
 )
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, ActiveAdmin, SuperAdmin
+from app.core.deps import ActiveAdmin, DbSession, SuperAdmin
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
     action_read,
     action_update,
     auth_only,
+    permission_resource,
 )
 from app.services.system.agent_assignment_service import AgentAssignmentService
 

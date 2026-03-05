@@ -8,28 +8,28 @@ from typing import Any
 
 from fastapi import Body, Request
 
+from app.api.shared._skill_helpers import (
+    enrich_plugin_skill_info as _enrich_plugin_skill_info,
+)
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, ActiveAdmin, QueryParams
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.core.response import success, created, deleted, paginated
+from app.core.response import created, deleted, paginated, success
 from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException, BusinessException
+from app.exceptions import NotFoundException
 from app.rbac.decorators import (
-    permission_resource,
-    MenuConfig,
-    action_read,
     action_create,
-    action_update,
     action_delete,
+    action_read,
+    action_update,
+    permission_resource,
 )
-from app.models.ai.skill import Skill
 from app.schemas.ai.skill import (
     SkillCreate,
-    SkillUpdate,
     SkillResponse,
+    SkillUpdate,
 )
-from app.api.shared._skill_helpers import enrich_plugin_skill_info as _enrich_plugin_skill_info
 from app.services.ai.skill_service import AdminSkillService
 
 logger = LogManager.get_logger("ai")
@@ -408,9 +408,9 @@ class AdminSkillController(GlobalController):
                 return success(data={"tools": [], "valves_schema": {}, "errors": []})
 
             from app.ai.skills.toolkit_parser import (
-                validate_toolkit_source,
-                parse_toolkit,
                 ToolkitParseError,
+                parse_toolkit,
+                validate_toolkit_source,
             )
 
             errors = validate_toolkit_source(source)

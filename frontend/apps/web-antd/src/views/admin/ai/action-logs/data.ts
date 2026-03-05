@@ -3,7 +3,6 @@
  */
 import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
-
 import type { AdminActionLogItem } from '#/api/admin/action-logs';
 
 import { searchInput, select } from '#/adapter/form';
@@ -21,77 +20,144 @@ function getTypeOptions() {
 
 function getStatusOptions() {
   return [
-    { label: $t('admin.ai.actionLog.status_options.success'), value: 'success' },
+    {
+      label: $t('admin.ai.actionLog.status_options.success'),
+      value: 'success',
+    },
     { label: $t('admin.ai.actionLog.status_options.failed'), value: 'failed' },
-    { label: $t('admin.ai.actionLog.status_options.rejected'), value: 'rejected' },
-    { label: $t('admin.ai.actionLog.status_options.pending'), value: 'pending_confirm' },
+    {
+      label: $t('admin.ai.actionLog.status_options.rejected'),
+      value: 'rejected',
+    },
+    {
+      label: $t('admin.ai.actionLog.status_options.pending'),
+      value: 'pending_confirm',
+    },
   ];
 }
 
 function getLevelOptions() {
   return [
     { label: $t('admin.ai.actionLog.level_options.read'), value: 'read' },
-    { label: $t('admin.ai.actionLog.level_options.safe_write'), value: 'safe_write' },
-    { label: $t('admin.ai.actionLog.level_options.dangerous'), value: 'dangerous' },
+    {
+      label: $t('admin.ai.actionLog.level_options.safe_write'),
+      value: 'safe_write',
+    },
+    {
+      label: $t('admin.ai.actionLog.level_options.dangerous'),
+      value: 'dangerous',
+    },
   ];
 }
 
 export function getTypeText(type: string | undefined): string {
   if (!type) return '-';
   switch (type) {
-    case 'query': return $t('admin.ai.actionLog.type_options.query');
-    case 'action': return $t('admin.ai.actionLog.type_options.action');
-    case 'confirm': return $t('admin.ai.actionLog.type_options.confirm');
-    default: return type;
+    case 'action': {
+      return $t('admin.ai.actionLog.type_options.action');
+    }
+    case 'confirm': {
+      return $t('admin.ai.actionLog.type_options.confirm');
+    }
+    case 'query': {
+      return $t('admin.ai.actionLog.type_options.query');
+    }
+    default: {
+      return type;
+    }
   }
 }
 
 export function getStatusText(status: string | undefined): string {
   if (!status) return '-';
   switch (status) {
-    case 'success': return $t('admin.ai.actionLog.status_options.success');
-    case 'failed': return $t('admin.ai.actionLog.status_options.failed');
-    case 'rejected': return $t('admin.ai.actionLog.status_options.rejected');
-    case 'pending_confirm': return $t('admin.ai.actionLog.status_options.pending');
-    default: return status;
+    case 'failed': {
+      return $t('admin.ai.actionLog.status_options.failed');
+    }
+    case 'pending_confirm': {
+      return $t('admin.ai.actionLog.status_options.pending');
+    }
+    case 'rejected': {
+      return $t('admin.ai.actionLog.status_options.rejected');
+    }
+    case 'success': {
+      return $t('admin.ai.actionLog.status_options.success');
+    }
+    default: {
+      return status;
+    }
   }
 }
 
 export function getLevelText(level: string | undefined): string {
   if (!level) return '-';
   switch (level) {
-    case 'read': return $t('admin.ai.actionLog.level_options.read');
-    case 'safe_write': return $t('admin.ai.actionLog.level_options.safe_write');
-    case 'dangerous': return $t('admin.ai.actionLog.level_options.dangerous');
-    default: return level;
+    case 'dangerous': {
+      return $t('admin.ai.actionLog.level_options.dangerous');
+    }
+    case 'read': {
+      return $t('admin.ai.actionLog.level_options.read');
+    }
+    case 'safe_write': {
+      return $t('admin.ai.actionLog.level_options.safe_write');
+    }
+    default: {
+      return level;
+    }
   }
 }
 
 export function getStatusColor(status: string | undefined): string {
   switch (status) {
-    case 'success': return 'success';
-    case 'failed': return 'error';
-    case 'rejected': return 'warning';
-    case 'pending_confirm': return 'processing';
-    default: return 'default';
+    case 'failed': {
+      return 'error';
+    }
+    case 'pending_confirm': {
+      return 'processing';
+    }
+    case 'rejected': {
+      return 'warning';
+    }
+    case 'success': {
+      return 'success';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
 export function getTypeColor(type: string | undefined): string {
   switch (type) {
-    case 'query': return 'blue';
-    case 'action': return 'purple';
-    case 'confirm': return 'orange';
-    default: return 'default';
+    case 'action': {
+      return 'purple';
+    }
+    case 'confirm': {
+      return 'orange';
+    }
+    case 'query': {
+      return 'blue';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
 export function getLevelColor(level: string | undefined): string {
   switch (level) {
-    case 'read': return 'green';
-    case 'safe_write': return 'orange';
-    case 'dangerous': return 'red';
-    default: return 'default';
+    case 'dangerous': {
+      return 'red';
+    }
+    case 'read': {
+      return 'green';
+    }
+    case 'safe_write': {
+      return 'orange';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
@@ -182,9 +248,13 @@ export function useColumns<T = AdminActionLogItem>(
  */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
-    searchInput('filter[action_name][ilike]', $t('admin.ai.actionLog.actionName'), {
-      placeholder: $t('admin.ai.actionLog.placeholder.searchName'),
-    }),
+    searchInput(
+      'filter[action_name][ilike]',
+      $t('admin.ai.actionLog.actionName'),
+      {
+        placeholder: $t('admin.ai.actionLog.placeholder.searchName'),
+      },
+    ),
     select('filter[action_type][eq]', $t('admin.ai.actionLog.actionType'), {
       options: getTypeOptions(),
       placeholder: $t('admin.ai.actionLog.placeholder.allTypes'),

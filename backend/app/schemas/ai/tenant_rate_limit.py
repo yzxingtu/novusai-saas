@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class TenantRateLimitBase(BaseModel):
     """租户速率限制配置基础 Schema"""
-    
+
     model_id: int = Field(..., description="模型 ID")
     rpm_limit: int | None = Field(None, ge=0, description="RPM 限制（每分钟请求数）")
     tpm_limit: int | None = Field(None, ge=0, description="TPM 限制（每分钟 Token 数）")
@@ -20,7 +20,7 @@ class TenantRateLimitBase(BaseModel):
 
 class TenantRateLimitCreate(TenantRateLimitBase):
     """创建租户速率限制配置"""
-    
+
     pass
 
 
@@ -32,7 +32,7 @@ class AdminRateLimitCreate(TenantRateLimitBase):
 
 class TenantRateLimitUpdate(BaseModel):
     """更新租户速率限制配置"""
-    
+
     rpm_limit: int | None = Field(None, ge=0, description="RPM 限制")
     tpm_limit: int | None = Field(None, ge=0, description="TPM 限制")
     description: str | None = Field(None, max_length=500, description="描述")
@@ -41,7 +41,7 @@ class TenantRateLimitUpdate(BaseModel):
 
 class TenantRateLimitResponse(TenantRateLimitBase):
     """租户速率限制配置响应"""
-    
+
     id: int
     tenant_id: int
     is_active: bool
@@ -52,7 +52,7 @@ class TenantRateLimitResponse(TenantRateLimitBase):
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def from_orm_model(cls, obj) -> "TenantRateLimitResponse":
+    def from_orm_model(cls, obj) -> TenantRateLimitResponse:
         """从 ORM 对象构建响应，自动提取关联 model_name"""
         model_name = None
         try:
@@ -78,7 +78,7 @@ class TenantRateLimitResponse(TenantRateLimitBase):
 
 class EffectiveRateLimits(BaseModel):
     """有效速率限制响应"""
-    
+
     rpm_limit: int | None = Field(None, description="RPM 限制")
     tpm_limit: int | None = Field(None, description="TPM 限制")
     source: str = Field(..., description="来源（tenant/model/none）")

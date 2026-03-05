@@ -4,23 +4,24 @@ AI 模型模型
 定义 AI 供应商提供的具体模型信息
 """
 
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Numeric, JSON
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
+
+from sqlalchemy import JSON, Boolean, ForeignKey, Integer, Numeric, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import BaseModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
-from app.enums.ai import ModelTierEnum, ModelTypeEnum
+from app.enums.ai import ModelTypeEnum
 
 
 class AIModel(BaseModel):
     """
     AI 模型模型
-    
+
     存储 AI 供应商提供的具体模型信息，如 GPT-4、Claude-3 等
     """
-    
+
     __tablename__ = "ai_models"
 
     __delete_deps__ = [
@@ -37,7 +38,7 @@ class AIModel(BaseModel):
         DeletionDep("KnowledgeBase", "vision_model_id", DeletionStrategy.NULLIFY,
                     label_field="name", i18n_key="knowledge_base_vision"),
     ]
-    
+
     # 允许前端筛选的字段
     __filterable__ = {
         "id": "id",
@@ -52,7 +53,7 @@ class AIModel(BaseModel):
         "supports_streaming": "supports_streaming",
         "created_at": "created_at",
     }
-    
+
     # 允许排序的字段
     __sortable__ = {
         "id": "id",
@@ -61,7 +62,7 @@ class AIModel(BaseModel):
         "output_price_per_1k": "output_price_per_1k",
         "created_at": "created_at",
     }
-    
+
     # 外键：所属供应商
     provider_id: Mapped[int] = mapped_column(
         Integer,
@@ -70,7 +71,7 @@ class AIModel(BaseModel):
         index=True,
         comment=_("enum.ai_model.provider_id")
     )
-    
+
     # 基本信息
     name: Mapped[str] = mapped_column(
         String(100),
@@ -83,7 +84,7 @@ class AIModel(BaseModel):
         index=True,
         comment=_("enum.ai_model.code")
     )
-    
+
     # 模型类型
     type: Mapped[str] = mapped_column(
         String(50),
@@ -91,21 +92,21 @@ class AIModel(BaseModel):
         default=ModelTypeEnum.CHAT.value,
         comment=_("enum.ai_model.type")
     )
-    
+
     # 上下文窗口大小（tokens）
     context_window: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
         comment=_("enum.ai_model.context_window")
     )
-    
+
     # 最大输出 tokens
     max_output_tokens: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
         comment=_("enum.ai_model.max_output_tokens")
     )
-    
+
     # 价格信息（每 1k tokens，单位：美元）
     input_price_per_1k: Mapped[float | None] = mapped_column(
         Numeric(10, 6),
@@ -117,7 +118,7 @@ class AIModel(BaseModel):
         nullable=True,
         comment=_("enum.ai_model.output_price_per_1k")
     )
-    
+
     # 速率限制 (每分钟请求数/Token 数)
     rpm_limit: Mapped[int | None] = mapped_column(
         Integer,
@@ -129,7 +130,7 @@ class AIModel(BaseModel):
         nullable=True,
         comment=_("enum.ai_model.tpm_limit")
     )
-    
+
     # 能力标记
     supports_function_calling: Mapped[bool] = mapped_column(
         Boolean,
@@ -146,7 +147,7 @@ class AIModel(BaseModel):
         default=True,
         comment=_("enum.ai_model.supports_streaming")
     )
-    
+
     # 图片限制（仅 supports_vision=True 时有效）
     max_image_count: Mapped[int | None] = mapped_column(
         Integer,
@@ -160,7 +161,7 @@ class AIModel(BaseModel):
         default=10,
         comment=_("enum.ai_model.max_image_size_mb")
     )
-    
+
     # 是否启用
     is_active: Mapped[bool] = mapped_column(
         Boolean,
@@ -168,7 +169,7 @@ class AIModel(BaseModel):
         index=True,
         comment=_("enum.ai_model.is_active")
     )
-    
+
     # 模型特定配置（JSON 格式）
     # 例如：默认参数、特殊能力标记等
     config: Mapped[dict | None] = mapped_column(
@@ -176,7 +177,7 @@ class AIModel(BaseModel):
         nullable=True,
         comment=_("enum.ai_model.config")
     )
-    
+
     # 模型级别（用于多模型路由策略）
     tier: Mapped[str | None] = mapped_column(
         String(20),
@@ -193,16 +194,16 @@ class AIModel(BaseModel):
         index=True,
         comment=_("enum.ai_model.fallback_model_id")
     )
-    
+
     # ==================== 关系 ====================
-    
+
     # 所属供应商
     provider = relationship(
         "AIProvider",
         back_populates="models",
         lazy="selectin",
     )
-    
+
     # 备用模型关系
     fallback_model = relationship(
         "AIModel",
@@ -210,7 +211,7 @@ class AIModel(BaseModel):
         foreign_keys=[fallback_model_id],
         lazy="selectin",
     )
-    
+
     @property
     def provider_name(self) -> str | None:
         return self.provider.name if self.provider else None
@@ -224,7 +225,7 @@ class AIModel(BaseModel):
 
 
 if TYPE_CHECKING:
-    from app.models.ai.provider import AIProvider
+    pass
 
 
 __all__ = ["AIModel"]

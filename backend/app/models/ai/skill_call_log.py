@@ -4,7 +4,7 @@
 记录每次工具/技能调用的详情，用于统计分析和审计。
 """
 
-from sqlalchemy import Column, Float, Index, Integer, String, Text
+from sqlalchemy import Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import TenantModel

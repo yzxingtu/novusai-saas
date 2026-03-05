@@ -13,6 +13,7 @@ from app.core.logging import LogManager
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+
     from app.models.ai.skill import Skill
     from app.schemas.ai.skill import SkillResponse
 
@@ -20,9 +21,9 @@ logger = LogManager.get_logger("ai")
 
 
 async def enrich_plugin_skill_info(
-    db: "AsyncSession",
-    skill: "Skill",
-    data: "SkillResponse",
+    db: AsyncSession,
+    skill: Skill,
+    data: SkillResponse,
 ) -> None:
     """
     为插件注册的技能补充 source_plugin 和 plugin_tools 信息
@@ -31,6 +32,7 @@ async def enrich_plugin_skill_info(
     若是则从 ExtensionRegistry 调用 resolver 获取工具列表。
     """
     from sqlalchemy import select
+
     from app.models.ai.skill_package import SkillPackage
     from app.schemas.ai.skill import PluginToolInfo
 

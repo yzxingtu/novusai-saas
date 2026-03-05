@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'LogDetail' });
 /**
  * 操作日志详情抽屉（租户端）
  */
@@ -23,6 +22,8 @@ import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
 import { getMethodColor, getStatusColor } from '../data';
+
+defineOptions({ name: 'LogDetail' });
 
 type OperationLogInfo = tenantApi.OperationLogInfo;
 

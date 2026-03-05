@@ -16,15 +16,16 @@ import { useSocketIOStore } from './socketio';
 /** 通知项 */
 export interface NotificationItem {
   id: number;
+  template_code?: null | string;
   category: string;
   title: string;
-  body?: string | null;
-  data?: Record<string, unknown> | null;
-  link?: string | null;
+  body?: null | string;
+  data?: null | Record<string, unknown>;
+  link?: null | string;
   priority: string;
   is_read: boolean;
-  read_at?: string | null;
-  created_at?: string | null;
+  read_at?: null | string;
+  created_at?: null | string;
 }
 
 /** 通知列表 API 响应 */
@@ -40,9 +41,9 @@ interface NotificationPushData {
   type: string;
   category: string;
   title: string;
-  body?: string | null;
-  data?: Record<string, unknown> | null;
-  link?: string | null;
+  body?: null | string;
+  data?: null | Record<string, unknown>;
+  link?: null | string;
   priority: string;
 }
 
@@ -84,6 +85,46 @@ export const useNotificationStore = defineStore('notification', () => {
 
   /** 当前端类型（决定 API 前缀） */
   let currentEndpoint: 'admin' | 'tenant' = 'admin';
+  /** 固定引用，便于 unregister，避免 handler 泄漏 */
+  const handleSocketNotification = (raw: unknown) => {
+    const data = raw as NotificationPushData;
+    if (!data?.title) return;
+
+    // 增加未读计数
+    unreadCount.value++;
+
+    // 添加到列表顶部（临时 ID，刷新后会更新）
+    notifications.value.unshift({
+      id: -Date.now(),
+      template_code: data.type,
+      category: data.category,
+      title: data.title,
+      body: data.body,
+      data: data.data,
+      link: data.link,
+      priority: data.priority,
+      is_read: false,
+      created_at: new Date().toISOString(),
+    });
+
+    _saveLocalNotifications(notifications.value);
+
+    // 触发 Toast 弹窗
+    try {
+      const { pushToast } = useNotificationToast();
+      pushToast({
+        template_code: data.type,
+        category: data.category,
+        title: data.title,
+        body: data.body,
+        data: data.data,
+        link: data.link,
+        priority: data.priority,
+      });
+    } catch {
+      // toast 未初始化时静默
+    }
+  };
 
   // ============================================================
   // API 前缀
@@ -150,7 +191,9 @@ export const useNotificationStore = defineStore('notification', () => {
   // ============================================================
 
   /** 添加本地临时通知（不走后端，持久化到 localStorage） */
-  function addLocalNotification(item: Omit<NotificationItem, 'id' | 'is_read' | 'created_at'>) {
+  function addLocalNotification(
+    item: Omit<NotificationItem, 'created_at' | 'id' | 'is_read'>,
+  ) {
     const notif: NotificationItem = {
       ...item,
       id: -Date.now(),
@@ -165,9 +208,11 @@ export const useNotificationStore = defineStore('notification', () => {
     try {
       const { pushToast } = useNotificationToast();
       pushToast({
+        template_code: item.template_code,
         category: item.category,
         title: item.title,
         body: item.body,
+        data: item.data,
         link: item.link,
         priority: item.priority,
       });
@@ -203,7 +248,9 @@ export const useNotificationStore = defineStore('notification', () => {
   async function markAllRead(category?: string): Promise<void> {
     try {
       const params = category ? `?category=${category}` : '';
-      await requestClient.put(`${getApiPrefix()}/notifications/read-all${params}`);
+      await requestClient.put(
+        `${getApiPrefix()}/notifications/read-all${params}`,
+      );
       for (const n of notifications.value) {
         if (!category || n.category === category) {
           n.is_read = true;
@@ -245,43 +292,8 @@ export const useNotificationStore = defineStore('notification', () => {
     initialized.value = true;
 
     const sioStore = useSocketIOStore();
-
-    sioStore.registerHandler('notification', (raw: unknown) => {
-      const data = raw as NotificationPushData;
-      if (!data?.title) return;
-
-      // 增加未读计数
-      unreadCount.value++;
-
-      // 添加到列表顶部（临时 ID，刷新后会更新）
-      notifications.value.unshift({
-        id: -Date.now(),
-        category: data.category,
-        title: data.title,
-        body: data.body,
-        data: data.data,
-        link: data.link,
-        priority: data.priority,
-        is_read: false,
-        created_at: new Date().toISOString(),
-      });
-
-      _saveLocalNotifications(notifications.value);
-
-      // 触发 Toast 弹窗
-      try {
-        const { pushToast } = useNotificationToast();
-        pushToast({
-          category: data.category,
-          title: data.title,
-          body: data.body,
-          link: data.link,
-          priority: data.priority,
-        });
-      } catch {
-        // toast 未初始化时静默
-      }
-    });
+    sioStore.unregisterHandler('notification', handleSocketNotification);
+    sioStore.registerHandler('notification', handleSocketNotification);
   }
 
   // ============================================================
@@ -289,6 +301,14 @@ export const useNotificationStore = defineStore('notification', () => {
   // ============================================================
 
   function $reset() {
+    try {
+      useSocketIOStore().unregisterHandler(
+        'notification',
+        handleSocketNotification,
+      );
+    } catch {
+      // 静默
+    }
     notifications.value = [];
     unreadCount.value = 0;
     loading.value = false;

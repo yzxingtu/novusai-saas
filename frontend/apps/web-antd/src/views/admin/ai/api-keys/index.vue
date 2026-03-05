@@ -10,10 +10,7 @@ import { IconifyIcon } from '@vben/icons';
 import { message, Modal, Progress, Switch, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
-import {
-  getAIApiKeyListApi,
-  toggleAIApiKeyStatusApi,
-} from '#/api/admin/ai';
+import { getAIApiKeyListApi, toggleAIApiKeyStatusApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
@@ -50,157 +47,188 @@ function onToggleActive(row: AIApiKeyInfo) {
   });
 }
 
-const { Grid, FormDrawer, onRefresh } =
-  useCrudPage<AIApiKeyInfo>({
-    api: {
-      list: getAIApiKeyListApi,
-      resource: '/admin/ai/api-keys',
-    },
-    columns: useColumns,
-    searchSchema: useGridFormSchema(),
-    formComponent: Form,
-    formDefaults: getFormDefaults,
-    i18nPrefix: 'admin.ai.apiKey',
-    nameField: 'name',
-    defaultSort: '-created_at',
-    createPermission: 'ai_api_key:create',
-  });
+const { Grid, FormDrawer, onRefresh } = useCrudPage<AIApiKeyInfo>({
+  api: {
+    list: getAIApiKeyListApi,
+    resource: '/admin/ai/api-keys',
+  },
+  columns: useColumns,
+  searchSchema: useGridFormSchema(),
+  formComponent: Form,
+  formDefaults: getFormDefaults,
+  i18nPrefix: 'admin.ai.apiKey',
+  nameField: 'name',
+  defaultSort: '-created_at',
+  createPermission: 'ai_api_key:create',
+});
 </script>
 
 <template>
-  <Page auto-content-height :description="$t('admin.ai.apiKey.pageDesc')" content-class="flex flex-col gap-4">
+  <Page
+    auto-content-height
+    :description="$t('admin.ai.apiKey.pageDesc')"
+    content-class="flex flex-col gap-4"
+  >
     <FormDrawer @success="onRefresh" />
 
     <Grid>
-        <!-- 名称列 -->
-        <template #name_cell="{ row }">
-          <div class="flex items-center gap-2">
-            <div
-              class="flex size-8 items-center justify-center rounded-lg"
-              :class="row.is_available ? 'bg-success/10' : 'bg-muted'"
-            >
-              <IconifyIcon
-                icon="lucide:key"
-                class="size-4"
-                :class="row.is_available ? 'text-success' : 'text-muted-foreground'"
-              />
-            </div>
-            <div class="flex flex-col">
-              <span class="font-medium text-foreground">{{ row.name }}</span>
-              <Tooltip v-if="row.last_used_at" :title="formatDate(row.last_used_at)">
-                <span class="text-xs text-muted-foreground">
-                  {{ $t('admin.ai.apiKey.lastUsedAt') }}: {{ formatRelativeTime(row.last_used_at) }}
-                </span>
-              </Tooltip>
-            </div>
-          </div>
-        </template>
-
-        <!-- Key 预览列：带复制按钮 -->
-        <template #keyPreview_cell="{ row }">
-          <div v-if="row.key_preview" class="flex items-center gap-1">
-            <code class="rounded bg-accent px-1.5 py-0.5 text-xs">
-              {{ row.key_preview }}
-            </code>
-            <Tooltip :title="$t('admin.ai.apiKey.messages.copy')">
-              <button
-                class="flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:text-primary"
-                @click="onCopyKeyPreview(row.key_preview)"
-              >
-                <IconifyIcon icon="lucide:copy" class="size-3" />
-              </button>
-            </Tooltip>
-          </div>
-          <span v-else class="text-muted-foreground">-</span>
-        </template>
-
-        <!-- 租户列 -->
-        <template #tenantName_cell="{ row }">
-          <Tag v-if="row.tenant_name" color="orange">
-            {{ row.tenant_name }}
-          </Tag>
-          <Tag v-else color="blue">
-            {{ $t('admin.ai.apiKey.scope.platform') }}
-          </Tag>
-        </template>
-
-        <!-- 使用次数列：进度条 -->
-        <template #usageCount_cell="{ row }">
-          <div v-if="row.usage_limit" class="flex flex-col items-end gap-0.5">
-            <span class="text-xs text-muted-foreground">
-              {{ row.usage_count }} / {{ row.usage_limit }}
-            </span>
-            <Progress
-              :percent="Math.min(100, Math.round((row.usage_count / row.usage_limit) * 100))"
-              :show-info="false"
-              :stroke-color="(row.usage_count / row.usage_limit) >= 0.9 ? 'hsl(var(--destructive))' : (row.usage_count / row.usage_limit) >= 0.7 ? 'hsl(var(--warning))' : 'hsl(var(--success))'"
-              size="small"
-              class="w-24"
+      <!-- 名称列 -->
+      <template #name_cell="{ row }">
+        <div class="flex items-center gap-2">
+          <div
+            class="flex size-8 items-center justify-center rounded-lg"
+            :class="row.is_available ? 'bg-success/10' : 'bg-muted'"
+          >
+            <IconifyIcon
+              icon="lucide:key"
+              class="size-4"
+              :class="
+                row.is_available ? 'text-success' : 'text-muted-foreground'
+              "
             />
           </div>
-          <span v-else class="text-muted-foreground">
-            {{ row.usage_count }}
-          </span>
-        </template>
-
-        <!-- 过期时间列 -->
-        <template #expiresAt_cell="{ row }">
-          <template v-if="row.expires_at">
-            <Tooltip :title="formatDate(row.expires_at)">
-              <span
-                class="text-sm"
-                :class="new Date(row.expires_at) < new Date() ? 'text-destructive' : new Date(row.expires_at) < new Date(Date.now() + 7 * 86400000) ? 'text-warning' : 'text-muted-foreground'"
-              >
-                {{ formatRelativeTime(row.expires_at) }}
+          <div class="flex flex-col">
+            <span class="font-medium text-foreground">{{ row.name }}</span>
+            <Tooltip
+              v-if="row.last_used_at"
+              :title="formatDate(row.last_used_at)"
+            >
+              <span class="text-xs text-muted-foreground">
+                {{ $t('admin.ai.apiKey.lastUsedAt') }}:
+                {{ formatRelativeTime(row.last_used_at) }}
               </span>
             </Tooltip>
-          </template>
-          <span v-else class="text-muted-foreground">-</span>
-        </template>
+          </div>
+        </div>
+      </template>
 
-        <!-- 创建时间列 -->
-        <template #createdAt_cell="{ row }">
-          <Tooltip :title="formatDate(row.created_at)">
-            <span class="text-muted-foreground">
-              {{ formatRelativeTime(row.created_at) }}
+      <!-- Key 预览列：带复制按钮 -->
+      <template #keyPreview_cell="{ row }">
+        <div v-if="row.key_preview" class="flex items-center gap-1">
+          <code class="rounded bg-accent px-1.5 py-0.5 text-xs">
+            {{ row.key_preview }}
+          </code>
+          <Tooltip :title="$t('admin.ai.apiKey.messages.copy')">
+            <button
+              class="flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:text-primary"
+              @click="onCopyKeyPreview(row.key_preview)"
+            >
+              <IconifyIcon icon="lucide:copy" class="size-3" />
+            </button>
+          </Tooltip>
+        </div>
+        <span v-else class="text-muted-foreground">-</span>
+      </template>
+
+      <!-- 租户列 -->
+      <template #tenantName_cell="{ row }">
+        <Tag v-if="row.tenant_name" color="orange">
+          {{ row.tenant_name }}
+        </Tag>
+        <Tag v-else color="blue">
+          {{ $t('admin.ai.apiKey.scope.platform') }}
+        </Tag>
+      </template>
+
+      <!-- 使用次数列：进度条 -->
+      <template #usageCount_cell="{ row }">
+        <div v-if="row.usage_limit" class="flex flex-col items-end gap-0.5">
+          <span class="text-xs text-muted-foreground">
+            {{ row.usage_count }} / {{ row.usage_limit }}
+          </span>
+          <Progress
+            :percent="
+              Math.min(
+                100,
+                Math.round((row.usage_count / row.usage_limit) * 100),
+              )
+            "
+            :show-info="false"
+            :stroke-color="
+              row.usage_count / row.usage_limit >= 0.9
+                ? 'hsl(var(--destructive))'
+                : row.usage_count / row.usage_limit >= 0.7
+                  ? 'hsl(var(--warning))'
+                  : 'hsl(var(--success))'
+            "
+            size="small"
+            class="w-24"
+          />
+        </div>
+        <span v-else class="text-muted-foreground">
+          {{ row.usage_count }}
+        </span>
+      </template>
+
+      <!-- 过期时间列 -->
+      <template #expiresAt_cell="{ row }">
+        <template v-if="row.expires_at">
+          <Tooltip :title="formatDate(row.expires_at)">
+            <span
+              class="text-sm"
+              :class="
+                new Date(row.expires_at) < new Date()
+                  ? 'text-destructive'
+                  : new Date(row.expires_at) <
+                      new Date(Date.now() + 7 * 86400000)
+                    ? 'text-warning'
+                    : 'text-muted-foreground'
+              "
+            >
+              {{ formatRelativeTime(row.expires_at) }}
             </span>
           </Tooltip>
         </template>
+        <span v-else class="text-muted-foreground">-</span>
+      </template>
 
-        <!-- 启用状态列 -->
-        <template #isActive_cell="{ row }">
+      <!-- 创建时间列 -->
+      <template #createdAt_cell="{ row }">
+        <Tooltip :title="formatDate(row.created_at)">
+          <span class="text-muted-foreground">
+            {{ formatRelativeTime(row.created_at) }}
+          </span>
+        </Tooltip>
+      </template>
+
+      <!-- 启用状态列 -->
+      <template #isActive_cell="{ row }">
+        <Switch
+          v-access:code="['ai_api_key:toggle_status']"
+          :checked="row.is_active"
+          :checked-children="$t('admin.common.enabled')"
+          :un-checked-children="$t('admin.common.disabled')"
+          size="small"
+          @change="() => onToggleActive(row)"
+        />
+      </template>
+
+      <!-- 可用状态列：禁用开关 + 过期警告 -->
+      <template #isAvailable_cell="{ row }">
+        <div class="flex items-center justify-center gap-1">
           <Switch
-            v-access:code="['ai_api_key:toggle_status']"
-            :checked="row.is_active"
-            :checked-children="$t('admin.common.enabled')"
-            :un-checked-children="$t('admin.common.disabled')"
+            :checked="row.is_available"
+            :checked-children="$t('admin.ai.apiKey.available')"
+            :un-checked-children="$t('admin.ai.apiKey.unavailable')"
             size="small"
-            @change="() => onToggleActive(row)"
+            disabled
           />
-        </template>
-
-        <!-- 可用状态列：禁用开关 + 过期警告 -->
-        <template #isAvailable_cell="{ row }">
-          <div class="flex items-center justify-center gap-1">
-            <Switch
-              :checked="row.is_available"
-              :checked-children="$t('admin.ai.apiKey.available')"
-              :un-checked-children="$t('admin.ai.apiKey.unavailable')"
-              size="small"
-              disabled
+          <Tooltip
+            v-if="
+              row.expires_at &&
+              new Date(row.expires_at) < new Date(Date.now() + 7 * 86400000)
+            "
+            :title="`${$t('admin.ai.apiKey.expiresAt')}: ${formatDate(
+              row.expires_at,
+            )}`"
+          >
+            <IconifyIcon
+              icon="lucide:alert-triangle"
+              class="size-3.5 text-warning"
             />
-            <Tooltip
-              v-if="row.expires_at && new Date(row.expires_at) < new Date(Date.now() + 7 * 86400000)"
-              :title="$t('admin.ai.apiKey.expiresAt') + ': ' + formatDate(row.expires_at)"
-            >
-              <IconifyIcon
-                icon="lucide:alert-triangle"
-                class="size-3.5 text-warning"
-              />
-            </Tooltip>
-          </div>
-        </template>
-
+          </Tooltip>
+        </div>
+      </template>
     </Grid>
   </Page>
 </template>

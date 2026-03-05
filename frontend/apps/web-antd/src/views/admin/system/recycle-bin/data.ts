@@ -38,12 +38,8 @@ const MODULE_SEARCH_SCHEMAS: Record<string, SchemaFactory> = {
     searchInput('name', $t('admin.ai.model.name')),
     searchInput('model_id', $t('admin.ai.model.code')),
   ],
-  agents: () => [
-    searchInput('name', $t('admin.ai.agent.name')),
-  ],
-  skill_packages: () => [
-    searchInput('name', $t('admin.ai.skillPackage.name')),
-  ],
+  agents: () => [searchInput('name', $t('admin.ai.agent.name'))],
+  skill_packages: () => [searchInput('name', $t('admin.ai.skillPackage.name'))],
   knowledge_bases: () => [
     searchInput('name', $t('admin.knowledgeBase.field.name')),
   ],
@@ -87,7 +83,7 @@ export function getModuleSearchSchema(moduleCode: string): VbenFormSchema[] {
 // key = "module:field" 或 "field"（通用回退）
 const COLUMN_LABELS: Record<string, () => string> = {
   // 通用字段
-  'status': () => $t('shared.common.status'),
+  status: () => $t('shared.common.status'),
   // AI 供应商
   'ai_providers:name': () => $t('admin.ai.provider.name'),
   'ai_providers:code': () => $t('admin.ai.provider.code'),

@@ -5,8 +5,9 @@
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Integer, String, ForeignKey
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
@@ -16,20 +17,20 @@ from app.core.deletion import DeletionDep, DeletionStrategy
 class TenantAdmin(TenantModel):
     """
     租户管理员模型
-    
+
     - 属于特定租户
     - 管理租户后台
     - 可管理租户内的用户、配置等
     - 独立于业务用户（TenantUser）
     """
-    
+
     __tablename__ = "tenant_admins"
 
     __delete_deps__ = [
         DeletionDep("TenantAdminRole", "leader_id", DeletionStrategy.NULLIFY,
                     label_field="name", i18n_key="tenant_admin_role_leader"),
     ]
-    
+
     # 可过滤字段声明（注意：不包含 password_hash 等敏感字段）
     __filterable__ = {
         "id": "id",
@@ -44,9 +45,9 @@ class TenantAdmin(TenantModel):
         "created_at": "created_at",
         "updated_at": "updated_at",
     }
-    
+
     __sortable__ = ["id", "username", "email", "nickname", "is_active", "is_owner", "role_id", "created_at", "updated_at", "last_login_at"]
-    
+
     # 下拉选项配置
     __selectable__ = {
         "label": "username",
@@ -54,7 +55,7 @@ class TenantAdmin(TenantModel):
         "search": ["username", "nickname", "email"],
         "extra": ["nickname", "avatar"],
     }
-    
+
     # 基本信息
     username: Mapped[str] = mapped_column(
         String(50), index=True, comment="用户名"
@@ -65,12 +66,12 @@ class TenantAdmin(TenantModel):
     phone: Mapped[str | None] = mapped_column(
         String(20), index=True, nullable=True, comment="手机号"
     )
-    
+
     # 认证信息
     password_hash: Mapped[str] = mapped_column(
         String(255), comment="密码哈希"
     )
-    
+
     # 管理员状态
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, comment="是否激活"
@@ -78,7 +79,7 @@ class TenantAdmin(TenantModel):
     is_owner: Mapped[bool] = mapped_column(
         Boolean, default=False, comment="是否租户所有者（最高权限）"
     )
-    
+
     # 个人资料
     nickname: Mapped[str | None] = mapped_column(
         String(100), nullable=True, comment="昵称"
@@ -86,7 +87,7 @@ class TenantAdmin(TenantModel):
     avatar: Mapped[str | None] = mapped_column(
         String(500), nullable=True, comment="头像 URL"
     )
-    
+
     # 登录信息
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="最后登录时间"
@@ -105,12 +106,12 @@ class TenantAdmin(TenantModel):
     locked_until: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="账户锁定到期时间"
     )
-    
+
     # 角色关联（租户内角色）
     role_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("tenant_admin_roles.id"), nullable=True, comment="角色 ID"
     )
-    
+
     # 角色关系
     role: Mapped["TenantAdminRole | None"] = relationship(
         "TenantAdminRole",
@@ -118,17 +119,17 @@ class TenantAdmin(TenantModel):
         lazy="selectin",
         foreign_keys=[role_id],
     )
-    
+
     def __repr__(self) -> str:
         return f"<TenantAdmin(id={self.id}, tenant_id={self.tenant_id}, username={self.username})>"
-    
+
     def has_permission(self, permission_code: str) -> bool:
         """
         检查租户管理员是否拥有指定权限
-        
+
         Args:
             permission_code: 权限代码
-        
+
         Returns:
             是否拥有该权限
         """
@@ -140,9 +141,6 @@ class TenantAdmin(TenantModel):
             return self.role.has_permission(permission_code)
         return False
 
-
-# 类型注解导入
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.models.auth.tenant_admin_role import TenantAdminRole
 

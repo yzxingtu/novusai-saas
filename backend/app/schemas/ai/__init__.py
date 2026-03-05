@@ -4,39 +4,39 @@ AI 相关 Schema 模块
 包含 AI 供应商、模型、API Key、调用日志等 Schema
 """
 
-from app.schemas.ai.provider import (
-    AIProviderCreate,
-    AIProviderUpdate,
-    AIProviderResponse,
-)
-from app.schemas.ai.model import (
-    AIModelCreate,
-    AIModelUpdate,
-    AIModelResponse,
+from app.schemas.ai.agent import (
+    AgentCreate,
+    AgentListItem,
+    AgentResponse,
+    AgentUpdate,
 )
 from app.schemas.ai.api_key import (
     ProviderApiKeyCreate,
-    ProviderApiKeyUpdate,
     ProviderApiKeyResponse,
+    ProviderApiKeyUpdate,
+)
+from app.schemas.ai.batch_run import (
+    BatchRunCreate,
+    BatchRunProgress,
+    BatchRunResponse,
 )
 from app.schemas.ai.call_log import (
     AICallLogResponse,
     AICallLogSummary,
 )
-from app.schemas.ai.agent import (
-    AgentCreate,
-    AgentUpdate,
-    AgentResponse,
-    AgentListItem,
-)
 from app.schemas.ai.conversation_message import (
     ConversationMessageCreate,
     ConversationMessageResponse,
 )
-from app.schemas.ai.batch_run import (
-    BatchRunCreate,
-    BatchRunResponse,
-    BatchRunProgress,
+from app.schemas.ai.model import (
+    AIModelCreate,
+    AIModelResponse,
+    AIModelUpdate,
+)
+from app.schemas.ai.provider import (
+    AIProviderCreate,
+    AIProviderResponse,
+    AIProviderUpdate,
 )
 
 __all__ = [

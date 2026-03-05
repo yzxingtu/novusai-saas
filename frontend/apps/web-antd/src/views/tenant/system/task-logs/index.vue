@@ -4,8 +4,6 @@
  */
 import type { tenantApi } from '#/api';
 
-defineOptions({ name: 'TenantSystemTaskLogList' });
-
 import { Page, useVbenDrawer } from '@vben/common-ui';
 
 import { Badge, Card, Tag, Tooltip } from 'ant-design-vue';
@@ -14,11 +12,17 @@ import { useCrudPage } from '#/adapter/vxe-table';
 import { tenantApi as tenant } from '#/api';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
-
 import { getTaskShortName } from '#/views/admin/system/task-logs/data';
 
-import { getQueueColor, getStatusColor, useColumns, useGridFormSchema } from './data';
+import {
+  getQueueColor,
+  getStatusColor,
+  useColumns,
+  useGridFormSchema,
+} from './data';
 import TaskLogDetail from './modules/TaskLogDetail.vue';
+
+defineOptions({ name: 'TenantSystemTaskLogList' });
 
 type TaskLogInfo = tenantApi.TaskLogInfo;
 
@@ -79,27 +83,40 @@ const { Grid } = useCrudPage<TaskLogInfo>({
         </template>
 
         <template #durationMs_cell="{ row }">
-          <span v-if="row.durationMs !== null" :class="row.durationMs > 5000 ? 'font-medium text-warning' : 'text-muted-foreground'">
+          <span
+            v-if="row.durationMs !== null"
+            :class="
+              row.durationMs > 5000
+                ? 'font-medium text-warning'
+                : 'text-muted-foreground'
+            "
+          >
             {{ row.durationMs }} ms
           </span>
           <span v-else class="text-muted-foreground">-</span>
         </template>
 
         <template #retryCount_cell="{ row }">
-          <Tag v-if="row.retryCount > 0" color="orange">{{ row.retryCount }}</Tag>
+          <Tag v-if="row.retryCount > 0" color="orange">
+            {{ row.retryCount }}
+          </Tag>
           <span v-else class="text-muted-foreground">0</span>
         </template>
 
         <template #errorMessage_cell="{ row }">
           <Tooltip v-if="row.errorMessage" :title="row.errorMessage">
-            <span class="line-clamp-1 text-destructive">{{ row.errorMessage }}</span>
+            <span class="line-clamp-1 text-destructive">{{
+              row.errorMessage
+            }}</span>
           </Tooltip>
           <span v-else class="text-muted-foreground">-</span>
         </template>
 
         <template #createdAt_cell="{ row }">
           <Tooltip :title="formatDate(row.createdAt)">
-            <span class="text-muted-foreground">{{ formatRelativeTime(row.createdAt) }}</span>
+            <span class="text-muted-foreground">{{
+              formatRelativeTime(row.createdAt)
+            }}</span>
           </Tooltip>
         </template>
       </Grid>

@@ -4,9 +4,10 @@
 定义套餐管理 API 的请求和响应数据结构
 """
 
+from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 from pydantic import Field, field_validator
 
@@ -14,12 +15,11 @@ from app.core.base_schema import BaseSchema
 from app.core.i18n import _
 from app.enums import BillingCycle
 
-
 # ==================== 配额结构 ====================
 
 class QuotaSchema(BaseSchema):
     """配额结构定义"""
-    
+
     storage_limit_gb: int | None = Field(None, ge=0, description="存储限制(GB)")
     max_users: int | None = Field(None, ge=0, description="最大用户数")
     max_admins: int | None = Field(None, ge=0, description="最大管理员数")
@@ -27,7 +27,7 @@ class QuotaSchema(BaseSchema):
     allow_custom_domain: bool | None = Field(None, description="是否允许自定义域名")
     api_calls_per_month: int | None = Field(None, ge=0, description="每月API调用次数")
     max_file_size_mb: int | None = Field(None, ge=0, description="最大文件大小(MB)")
-    
+
     def to_dict(self) -> dict[str, Any]:
         """转换为字典，仅包含非空值"""
         return {k: v for k, v in self.model_dump().items() if v is not None}
@@ -35,12 +35,12 @@ class QuotaSchema(BaseSchema):
 
 class FeaturesSchema(BaseSchema):
     """特性标记结构定义"""
-    
+
     ai_enabled: bool | None = Field(None, description="是否启用AI功能")
     advanced_analytics: bool | None = Field(None, description="是否启用高级分析")
     white_label: bool | None = Field(None, description="是否支持白标")
     priority_support: bool | None = Field(None, description="是否优先支持")
-    
+
     def to_dict(self) -> dict[str, Any]:
         """转换为字典，仅包含非空值"""
         return {k: v for k, v in self.model_dump().items() if v is not None}
@@ -50,7 +50,7 @@ class FeaturesSchema(BaseSchema):
 
 class TenantPlanResponse(BaseSchema):
     """套餐响应"""
-    
+
     id: int = Field(..., description="套餐 ID")
     code: str = Field(..., description="套餐代码")
     name: str = Field(..., description="套餐名称")
@@ -65,7 +65,7 @@ class TenantPlanResponse(BaseSchema):
     permissions_count: int = Field(0, description="关联权限数")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
-    
+
     @classmethod
     def from_model(cls, plan) -> "TenantPlanResponse":
         """从模型创建响应"""
@@ -89,7 +89,7 @@ class TenantPlanResponse(BaseSchema):
 
 class PermissionSimpleResponse(BaseSchema):
     """权限简要响应（用于套餐详情）"""
-    
+
     id: int = Field(..., description="权限 ID")
     code: str = Field(..., description="权限代码")
     name: str = Field(..., description="权限名称")
@@ -99,7 +99,7 @@ class PermissionSimpleResponse(BaseSchema):
 
 class PermissionTreeSimpleResponse(BaseSchema):
     """权限树简要响应（用于套餐权限分配）"""
-    
+
     id: int = Field(..., description="权限 ID")
     code: str = Field(..., description="权限代码")
     name: str = Field(..., description="权限名称")
@@ -118,11 +118,11 @@ PermissionTreeSimpleResponse.model_rebuild()
 
 class TenantPlanDetailResponse(TenantPlanResponse):
     """套餐详情响应（含权限列表）"""
-    
+
     permissions: list[PermissionSimpleResponse] = Field(
         default_factory=list, description="关联权限列表"
     )
-    
+
     @classmethod
     def from_model(
         cls,
@@ -130,7 +130,7 @@ class TenantPlanDetailResponse(TenantPlanResponse):
         translate_fn: Callable[[str], str] | None = None,
     ) -> "TenantPlanDetailResponse":
         """从模型创建详情响应
-        
+
         Args:
             plan: TenantPlan ORM 对象
             translate_fn: 可选的权限名称翻译函数
@@ -170,19 +170,19 @@ class TenantPlanDetailResponse(TenantPlanResponse):
 
 class TenantPlanCreateRequest(BaseSchema):
     """创建套餐请求"""
-    
+
     name: str = Field(..., min_length=1, max_length=100, description="套餐名称")
     description: str | None = Field(None, max_length=500, description="套餐描述")
     price: Decimal | None = Field(None, ge=0, description="价格")
     billing_cycle: str = Field(
-        default=BillingCycle.MONTHLY.value, 
+        default=BillingCycle.MONTHLY.value,
         description="计费周期"
     )
     is_active: bool = Field(True, description="是否启用")
     sort_order: int = Field(0, ge=0, description="排序顺序")
     quota: QuotaSchema | None = Field(None, description="配额配置")
     features: FeaturesSchema | None = Field(None, description="特性标记")
-    
+
     @field_validator("billing_cycle")
     @classmethod
     def validate_billing_cycle(cls, v: str) -> str:
@@ -194,7 +194,7 @@ class TenantPlanCreateRequest(BaseSchema):
 
 class TenantPlanUpdateRequest(BaseSchema):
     """更新套餐请求"""
-    
+
     name: str | None = Field(None, min_length=1, max_length=100, description="套餐名称")
     description: str | None = Field(None, max_length=500, description="套餐描述")
     price: Decimal | None = Field(None, ge=0, description="价格")
@@ -203,7 +203,7 @@ class TenantPlanUpdateRequest(BaseSchema):
     sort_order: int | None = Field(None, ge=0, description="排序顺序")
     quota: QuotaSchema | None = Field(None, description="配额配置")
     features: FeaturesSchema | None = Field(None, description="特性标记")
-    
+
     @field_validator("billing_cycle")
     @classmethod
     def validate_billing_cycle(cls, v: str | None) -> str | None:
@@ -215,9 +215,9 @@ class TenantPlanUpdateRequest(BaseSchema):
 
 class TenantPlanPermissionsRequest(BaseSchema):
     """设置套餐权限请求"""
-    
+
     permission_ids: list[int] = Field(
-        default_factory=list, 
+        default_factory=list,
         description="权限ID列表（仅支持菜单类型权限）"
     )
 

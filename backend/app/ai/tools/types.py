@@ -162,7 +162,7 @@ class ToolResult:
         tool_call_id: str,
         error: str,
         name: str = "",
-    ) -> "ToolResult":
+    ) -> ToolResult:
         """快捷构造错误结果"""
         return cls(
             tool_call_id=tool_call_id,

@@ -13,9 +13,7 @@ Toolkit 解析器
 from __future__ import annotations
 
 import ast
-import inspect
 import re
-import textwrap
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -389,30 +387,29 @@ def _annotation_to_json_type(annotation: ast.expr) -> str:
         return _TYPE_MAP.get(str(annotation.value), "string")
 
     # Optional[X] = Union[X, None], List[X], Dict[K, V], Union[X, Y, ...]
-    if isinstance(annotation, ast.Subscript):
-        if isinstance(annotation.value, ast.Name):
-            outer = annotation.value.id
-            if outer == "Optional":
-                # 提取内部类型
-                if isinstance(annotation.slice, ast.Name):
-                    return _TYPE_MAP.get(annotation.slice.id, "string")
-                return "string"
-            if outer == "Union":
-                # Union[X, Y, ...] → 取第一个非 None 的类型
-                if isinstance(annotation.slice, ast.Tuple):
-                    for elt in annotation.slice.elts:
-                        if isinstance(elt, ast.Constant) and elt.value is None:
-                            continue
-                        if isinstance(elt, ast.Name) and elt.id == "None":
-                            continue
-                        return _annotation_to_json_type(elt)
-                elif isinstance(annotation.slice, ast.Name):
-                    return _TYPE_MAP.get(annotation.slice.id, "string")
-                return "string"
-            if outer in ("list", "List"):
-                return "array"
-            if outer in ("dict", "Dict"):
-                return "object"
+    if isinstance(annotation, ast.Subscript) and isinstance(annotation.value, ast.Name):
+        outer = annotation.value.id
+        if outer == "Optional":
+            # 提取内部类型
+            if isinstance(annotation.slice, ast.Name):
+                return _TYPE_MAP.get(annotation.slice.id, "string")
+            return "string"
+        if outer == "Union":
+            # Union[X, Y, ...] → 取第一个非 None 的类型
+            if isinstance(annotation.slice, ast.Tuple):
+                for elt in annotation.slice.elts:
+                    if isinstance(elt, ast.Constant) and elt.value is None:
+                        continue
+                    if isinstance(elt, ast.Name) and elt.id == "None":
+                        continue
+                    return _annotation_to_json_type(elt)
+            elif isinstance(annotation.slice, ast.Name):
+                return _TYPE_MAP.get(annotation.slice.id, "string")
+            return "string"
+        if outer in ("list", "List"):
+            return "array"
+        if outer in ("dict", "Dict"):
+            return "object"
 
     # Union 类型：取第一个非 None 的类型
     if isinstance(annotation, ast.BinOp) and isinstance(annotation.op, ast.BitOr):
@@ -438,7 +435,7 @@ def _ast_value_to_python(node: ast.expr) -> Any:
     if isinstance(node, ast.Dict):
         return {
             _ast_value_to_python(k) if k else None: _ast_value_to_python(v)
-            for k, v in zip(node.keys, node.values)
+            for k, v in zip(node.keys, node.values, strict=False)
         }
     if isinstance(node, ast.Name):
         if node.id == "None":
@@ -475,9 +472,8 @@ def _extract_literal_values(annotation: ast.expr) -> list[str] | None:
             if isinstance(elt, ast.Constant) and elt.value is not None:
                 values.append(str(elt.value))
     # Literal['a'] → slice 是单个 Constant
-    elif isinstance(annotation.slice, ast.Constant):
-        if annotation.slice.value is not None:
-            values.append(str(annotation.slice.value))
+    elif isinstance(annotation.slice, ast.Constant) and annotation.slice.value is not None:
+        values.append(str(annotation.slice.value))
 
     return values if values else None
 
@@ -639,10 +635,9 @@ def validate_toolkit_source(source: str) -> list[str]:
     # Tools 类至少有一个公开方法
     has_public_method = False
     for node in ast.iter_child_nodes(tools_class):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            if not node.name.startswith("_"):
-                has_public_method = True
-                break
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith("_"):
+            has_public_method = True
+            break
 
     if not has_public_method:
         errors.append(_("toolkit.error.no_public_methods"))
@@ -711,14 +706,13 @@ def scan_dangerous_patterns(tree: ast.Module) -> list[str]:
                         f"— potential code execution risk"
                     )
             # 属性调用: os.system(...), subprocess.run(...)
-            elif isinstance(node.func, ast.Attribute):
-                if isinstance(node.func.value, ast.Name):
-                    pair = (node.func.value.id, node.func.attr)
-                    if pair in _DANGEROUS_ATTR_CALLS:
-                        warnings.append(
-                            f"[WARNING] Line {node.lineno}: call to "
-                            f"'{pair[0]}.{pair[1]}()' — potential security risk"
-                        )
+            elif isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+                pair = (node.func.value.id, node.func.attr)
+                if pair in _DANGEROUS_ATTR_CALLS:
+                    warnings.append(
+                        f"[WARNING] Line {node.lineno}: call to "
+                        f"'{pair[0]}.{pair[1]}()' — potential security risk"
+                    )
 
     return warnings
 

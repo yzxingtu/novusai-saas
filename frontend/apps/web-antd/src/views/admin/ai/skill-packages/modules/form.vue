@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'AdminSkillPackageForm' });
 /**
  * 管理端技能包新建/编辑表单抽屉
  */
@@ -12,8 +11,8 @@ import {
   numberField,
   switchField,
   textareaField,
+  useVbenForm,
 } from '#/adapter/form';
-import { useVbenForm } from '#/adapter/form';
 import { getSkillPackageDetailApi } from '#/api/admin/skill-packages';
 import {
   extractScopePayload,
@@ -21,6 +20,8 @@ import {
 } from '#/components/business/scope-select';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
+
+defineOptions({ name: 'AdminSkillPackageForm' });
 
 const emits = defineEmits<{ success: [] }>();
 
@@ -48,7 +49,8 @@ function useFormSchema() {
     }),
     ...useScopeFields({
       scopeHelp: $t('admin.ai.skillPackage.help.scope'),
-      scopeDisabled: (values: Record<string, unknown>) => values._mode === 'edit',
+      scopeDisabled: (values: Record<string, unknown>) =>
+        values._mode === 'edit',
     }),
     textareaField('description', $t('admin.ai.skillPackage.description'), {
       placeholder: $t('admin.ai.skillPackage.placeholder.inputDescription'),
@@ -104,9 +106,7 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillPackageInfo>({
 });
 
 const title = computed(() =>
-  isEdit.value
-    ? $t('admin.common.edit')
-    : $t('admin.ai.skillPackage.create'),
+  isEdit.value ? $t('admin.common.edit') : $t('admin.ai.skillPackage.create'),
 );
 </script>
 

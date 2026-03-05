@@ -12,10 +12,10 @@ import type {
   StorageQuotaInfo,
   StorageQuotaInfoRaw,
 } from '#/types/attachment';
-import { inferCategory } from '#/types/attachment';
 import type { PaginatedResponse, SelectOption } from '#/types/query';
 import type { ApiRequestOptions } from '#/utils/request';
 
+import { inferCategory } from '#/types/attachment';
 import { requestClient } from '#/utils/request';
 
 // ============================================================
@@ -256,14 +256,10 @@ export async function uploadAttachmentApi(
   onProgress?: (progress: { percent: number }) => void,
   options?: ApiRequestOptions,
 ): Promise<UploadAttachmentResponse> {
-  const {
-    file,
-    visibility = 'private',
-    business_type,
-    business_id,
-  } = params;
+  const { file, visibility = 'private', business_type, business_id } = params;
 
-  const uploadData: { file: Blob | File; [key: string]: Blob | File | string } = { file };
+  const uploadData: { [key: string]: Blob | File | string; file: Blob | File } =
+    { file };
   if (visibility) uploadData.visibility = visibility;
   if (business_type) uploadData.business_type = business_type;
   if (business_id) uploadData.business_id = String(business_id);
@@ -402,11 +398,7 @@ export async function smartUploadFile(
   }
 
   // 大文件分片上传
-  const {
-    visibility = 'private',
-    business_type,
-    business_id,
-  } = params;
+  const { visibility = 'private', business_type, business_id } = params;
 
   // 1. 初始化
   const initResult = await initChunkUploadApi(

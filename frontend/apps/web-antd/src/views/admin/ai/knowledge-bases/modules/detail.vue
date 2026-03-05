@@ -10,7 +10,14 @@ import type {
   AdminSearchResultItem,
 } from '#/api/admin/knowledge-bases';
 
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import {
+  computed,
+  onActivated,
+  onBeforeUnmount,
+  onDeactivated,
+  ref,
+  watch,
+} from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -22,10 +29,10 @@ import {
   InputNumber,
   message,
   Modal,
+  Pagination,
   Progress,
   Select,
   Spin,
-  Pagination,
   Tabs,
   Tag,
   Tooltip,
@@ -55,6 +62,7 @@ const emit = defineEmits<{ success: [] }>();
 
 const [Drawer, drawerApi] = useVbenDrawer({
   onOpenChange(isOpen) {
+    isDrawerOpen.value = isOpen;
     if (isOpen) {
       const data = drawerApi.getData<{ id: number; name: string }>();
       if (data) {
@@ -71,6 +79,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
 // ========== 基础状态 ==========
 const kbId = ref(0);
 const kbName = ref('');
+const isDrawerOpen = ref(false);
 const activeTab = ref('documents');
 const loading = ref(false);
 
@@ -97,17 +106,16 @@ async function loadDocuments() {
   }
 }
 
-
 // 文档录入回调（传给 KnowledgeDocumentPicker）
 async function handleUploadFile(file: File) {
   await uploadAdminDocumentApi(kbId.value, file);
 }
 
-async function handleTextSubmit(data: { title: string; content: string }) {
+async function handleTextSubmit(data: { content: string; title: string }) {
   await createAdminTextDocumentApi(kbId.value, data);
 }
 
-async function handleQASubmit(data: { question: string; answer: string }) {
+async function handleQASubmit(data: { answer: string; question: string }) {
   await createAdminQAPairApi(kbId.value, data);
 }
 
@@ -211,6 +219,7 @@ function handleWsNotification(payload: unknown) {
 }
 
 function startWsListener() {
+  if (!isDrawerOpen.value) return;
   socketStore.unregisterHandler('notification', handleWsNotification);
   socketStore.registerHandler('notification', handleWsNotification);
 }
@@ -238,6 +247,12 @@ async function fetchInitialProgress() {
 }
 
 onBeforeUnmount(stopWsListener);
+onDeactivated(stopWsListener);
+onActivated(() => {
+  if (isDrawerOpen.value) {
+    startWsListener();
+  }
+});
 
 // ========== 文档状态辅助 ==========
 function getDocStatusText(status: string | undefined): string {
@@ -247,13 +262,23 @@ function getDocStatusText(status: string | undefined): string {
 
 function getDocStatusColor(status: string | undefined): string {
   switch (status) {
-    case 'completed': return 'success';
-    case 'error': return 'error';
-    case 'pending': return 'default';
-    case 'parsing':
     case 'chunking':
-    case 'embedding': return 'processing';
-    default: return 'default';
+    case 'embedding':
+    case 'parsing': {
+      return 'processing';
+    }
+    case 'completed': {
+      return 'success';
+    }
+    case 'error': {
+      return 'error';
+    }
+    case 'pending': {
+      return 'default';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
@@ -261,7 +286,7 @@ function getFileIcon(fileType: string): string {
   const t = (fileType || '').toLowerCase();
   if (t === 'pdf') return 'lucide:file-text';
   if (['doc', 'docx'].includes(t)) return 'lucide:file-type';
-  if (['xls', 'xlsx', 'csv'].includes(t)) return 'lucide:sheet';
+  if (['csv', 'xls', 'xlsx'].includes(t)) return 'lucide:sheet';
   if (['md', 'txt'].includes(t)) return 'lucide:file-code';
   if (t === 'url') return 'lucide:globe';
   if (t === 'qa') return 'lucide:message-circle-question';
@@ -272,7 +297,7 @@ function getFileIconBg(fileType: string): string {
   const t = (fileType || '').toLowerCase();
   if (t === 'pdf') return 'bg-red-500/10';
   if (['doc', 'docx'].includes(t)) return 'bg-blue-500/10';
-  if (['xls', 'xlsx', 'csv'].includes(t)) return 'bg-green-500/10';
+  if (['csv', 'xls', 'xlsx'].includes(t)) return 'bg-green-500/10';
   if (['md', 'txt'].includes(t)) return 'bg-amber-500/10';
   if (t === 'url') return 'bg-purple-500/10';
   if (t === 'qa') return 'bg-cyan-500/10';
@@ -283,7 +308,7 @@ function getFileIconColor(fileType: string): string {
   const t = (fileType || '').toLowerCase();
   if (t === 'pdf') return 'text-red-500';
   if (['doc', 'docx'].includes(t)) return 'text-blue-500';
-  if (['xls', 'xlsx', 'csv'].includes(t)) return 'text-green-500';
+  if (['csv', 'xls', 'xlsx'].includes(t)) return 'text-green-500';
   if (['md', 'txt'].includes(t)) return 'text-amber-500';
   if (t === 'url') return 'text-purple-500';
   if (t === 'qa') return 'text-cyan-500';
@@ -293,7 +318,14 @@ function getFileIconColor(fileType: string): string {
 // ========== 分块预览 ==========
 const chunkPreviewVisible = ref(false);
 const chunkPreviewDoc = ref<AdminKnowledgeDocumentItem | null>(null);
-const chunkList = ref<Array<{ id: number; chunk_index: number; content: string; char_count: number }>>([]);
+const chunkList = ref<
+  Array<{
+    char_count: number;
+    chunk_index: number;
+    content: string;
+    id: number;
+  }>
+>([]);
 const chunkTotal = ref(0);
 const chunkPage = ref(1);
 const chunkLoading = ref(false);
@@ -365,9 +397,12 @@ watch(activeTab, (tab) => {
     :title="`${$t('admin.knowledgeBase.detail')} - ${kbName}`"
     class="w-[960px]"
   >
-    <Tabs v-model:activeKey="activeTab">
+    <Tabs v-model:active-key="activeTab">
       <!-- ==================== 文档管理 ==================== -->
-      <Tabs.TabPane key="documents" :tab="$t('admin.knowledgeBase.document.title')">
+      <Tabs.TabPane
+        key="documents"
+        :tab="$t('admin.knowledgeBase.document.title')"
+      >
         <!-- 操作栏 -->
         <div class="mb-4 flex items-center justify-between">
           <KnowledgeDocumentPicker
@@ -391,11 +426,21 @@ watch(activeTab, (tab) => {
 
         <!-- 文档列表 -->
         <Spin :spinning="loading">
-          <div v-if="documents.length === 0 && !loading" class="flex flex-col items-center justify-center py-16">
-            <div class="mb-3 flex size-14 items-center justify-center rounded-2xl bg-muted">
-              <IconifyIcon icon="lucide:file-text" class="size-7 text-muted-foreground" />
+          <div
+            v-if="documents.length === 0 && !loading"
+            class="flex flex-col items-center justify-center py-16"
+          >
+            <div
+              class="mb-3 flex size-14 items-center justify-center rounded-2xl bg-muted"
+            >
+              <IconifyIcon
+                icon="lucide:file-text"
+                class="size-7 text-muted-foreground"
+              />
             </div>
-            <p class="text-sm text-muted-foreground">{{ $t('admin.knowledgeBase.searchTest.noResults') }}</p>
+            <p class="text-sm text-muted-foreground">
+              {{ $t('admin.knowledgeBase.searchTest.noResults') }}
+            </p>
           </div>
           <div v-else class="space-y-2">
             <div
@@ -417,12 +462,20 @@ watch(activeTab, (tab) => {
               <!-- Document info -->
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2">
-                  <span class="truncate text-sm font-medium text-foreground">{{ doc.file_name }}</span>
-                  <Tag :color="getDocStatusColor(doc.status)" class="shrink-0" style="margin: 0;">
+                  <span class="truncate text-sm font-medium text-foreground">{{
+                    doc.file_name
+                  }}</span>
+                  <Tag
+                    :color="getDocStatusColor(doc.status)"
+                    class="shrink-0"
+                    style="margin: 0"
+                  >
                     {{ getDocStatusText(doc.status) }}
                   </Tag>
                 </div>
-                <div class="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                <div
+                  class="mt-1 flex items-center gap-3 text-xs text-muted-foreground"
+                >
                   <span class="inline-flex items-center gap-1">
                     <IconifyIcon icon="lucide:file" class="size-3" />
                     {{ (doc.file_type || '-').toUpperCase() }}
@@ -446,30 +499,69 @@ watch(activeTab, (tab) => {
                   :percent="docProgress[doc.id]?.progress ?? 0"
                   size="small"
                   :show-info="false"
-                  :stroke-color="{ from: 'hsl(var(--primary))', to: 'hsl(var(--success))' }"
+                  :stroke-color="{
+                    from: 'hsl(var(--primary))',
+                    to: 'hsl(var(--success))',
+                  }"
                   class="!mb-0 !mt-1.5 max-w-xs"
                 />
                 <!-- Error message -->
-                <Tooltip v-if="doc.error_message" :title="doc.error_message" :overlay-style="{ maxWidth: '400px' }">
-                  <span class="mt-0.5 inline-block cursor-help truncate text-xs text-destructive">
+                <Tooltip
+                  v-if="doc.error_message"
+                  :title="doc.error_message"
+                  :overlay-style="{ maxWidth: '400px' }"
+                >
+                  <span
+                    class="mt-0.5 inline-block cursor-help truncate text-xs text-destructive"
+                  >
                     {{ doc.error_message }}
                   </span>
                 </Tooltip>
               </div>
               <!-- Action buttons -->
-              <div class="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                <Tooltip v-if="doc.status === 'completed'" :title="$t('admin.knowledgeBase.document.viewChunks')">
-                  <Button type="text" size="small" class="!size-8 !min-w-0 !p-0" @click="openChunkPreview(doc)">
-                    <IconifyIcon icon="lucide:layers" class="size-4 text-muted-foreground hover:text-primary" />
+              <div
+                class="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+              >
+                <Tooltip
+                  v-if="doc.status === 'completed'"
+                  :title="$t('admin.knowledgeBase.document.viewChunks')"
+                >
+                  <Button
+                    type="text"
+                    size="small"
+                    class="!size-8 !min-w-0 !p-0"
+                    @click="openChunkPreview(doc)"
+                  >
+                    <IconifyIcon
+                      icon="lucide:layers"
+                      class="size-4 text-muted-foreground hover:text-primary"
+                    />
                   </Button>
                 </Tooltip>
-                <Tooltip v-if="doc.status === 'error'" :title="$t('admin.knowledgeBase.document.retry')">
-                  <Button type="text" size="small" class="!size-8 !min-w-0 !p-0" @click="handleRetryDoc(doc)">
-                    <IconifyIcon icon="lucide:rotate-cw" class="size-4 text-muted-foreground hover:text-warning" />
+                <Tooltip
+                  v-if="doc.status === 'error'"
+                  :title="$t('admin.knowledgeBase.document.retry')"
+                >
+                  <Button
+                    type="text"
+                    size="small"
+                    class="!size-8 !min-w-0 !p-0"
+                    @click="handleRetryDoc(doc)"
+                  >
+                    <IconifyIcon
+                      icon="lucide:rotate-cw"
+                      class="size-4 text-muted-foreground hover:text-warning"
+                    />
                   </Button>
                 </Tooltip>
                 <Tooltip :title="$t('admin.knowledgeBase.document.delete')">
-                  <Button type="text" size="small" danger class="!size-8 !min-w-0 !p-0" @click="handleDeleteDoc(doc)">
+                  <Button
+                    type="text"
+                    size="small"
+                    danger
+                    class="!size-8 !min-w-0 !p-0"
+                    @click="handleDeleteDoc(doc)"
+                  >
                     <IconifyIcon icon="lucide:trash-2" class="size-4" />
                   </Button>
                 </Tooltip>
@@ -484,14 +576,22 @@ watch(activeTab, (tab) => {
               :page-size="20"
               size="small"
               :show-size-changer="false"
-              @change="(p: number) => { docPage = p; loadDocuments(); }"
+              @change="
+                (p: number) => {
+                  docPage = p;
+                  loadDocuments();
+                }
+              "
             />
           </div>
         </Spin>
       </Tabs.TabPane>
 
       <!-- ==================== 检索测试 ==================== -->
-      <Tabs.TabPane key="search" :tab="$t('admin.knowledgeBase.searchTest.title')">
+      <Tabs.TabPane
+        key="search"
+        :tab="$t('admin.knowledgeBase.searchTest.title')"
+      >
         <!-- Search input -->
         <div class="mb-4">
           <Input
@@ -501,7 +601,10 @@ watch(activeTab, (tab) => {
             @press-enter="handleSearch"
           >
             <template #prefix>
-              <IconifyIcon icon="lucide:search" class="size-4 text-muted-foreground" />
+              <IconifyIcon
+                icon="lucide:search"
+                class="size-4 text-muted-foreground"
+              />
             </template>
             <template #suffix>
               <Button
@@ -517,7 +620,9 @@ watch(activeTab, (tab) => {
         </div>
 
         <!-- Search parameters -->
-        <div class="mb-4 flex items-center gap-6 rounded-lg border border-border/60 bg-accent/20 px-4 py-3">
+        <div
+          class="mb-4 flex items-center gap-6 rounded-lg border border-border/60 bg-accent/20 px-4 py-3"
+        >
           <div class="flex items-center gap-2">
             <span class="text-xs font-medium text-muted-foreground">Top K</span>
             <InputNumber
@@ -557,7 +662,10 @@ watch(activeTab, (tab) => {
 
         <!-- Search results -->
         <Spin :spinning="searchLoading">
-          <Empty v-if="searchResults.length === 0 && !searchLoading" :description="$t('admin.knowledgeBase.searchTest.noResults')" />
+          <Empty
+            v-if="searchResults.length === 0 && !searchLoading"
+            :description="$t('admin.knowledgeBase.searchTest.noResults')"
+          />
           <div v-else class="space-y-3">
             <div
               v-for="(result, idx) in searchResults"
@@ -565,20 +673,31 @@ watch(activeTab, (tab) => {
               class="overflow-hidden rounded-lg border border-border/60 transition-colors hover:border-border"
             >
               <!-- Result header -->
-              <div class="flex items-center justify-between border-b border-border/40 bg-accent/20 px-4 py-2">
+              <div
+                class="flex items-center justify-between border-b border-border/40 bg-accent/20 px-4 py-2"
+              >
                 <div class="flex items-center gap-2.5 text-xs">
-                  <span class="flex size-5 items-center justify-center rounded bg-primary/10 font-mono font-semibold text-primary">
+                  <span
+                    class="flex size-5 items-center justify-center rounded bg-primary/10 font-mono font-semibold text-primary"
+                  >
                     {{ idx + 1 }}
                   </span>
-                  <IconifyIcon icon="lucide:file-text" class="size-3.5 text-muted-foreground" />
-                  <span class="font-medium text-foreground">{{ result.document_name }}</span>
+                  <IconifyIcon
+                    icon="lucide:file-text"
+                    class="size-3.5 text-muted-foreground"
+                  />
+                  <span class="font-medium text-foreground">{{
+                    result.document_name
+                  }}</span>
                 </div>
                 <div class="flex items-center gap-2">
                   <div class="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
                     <div
                       class="h-full rounded-full bg-primary transition-all"
-                      :style="{ width: `${Math.min(result.score * 100, 100)}%` }"
-                    />
+                      :style="{
+                        width: `${Math.min(result.score * 100, 100)}%`,
+                      }"
+                    ></div>
                   </div>
                   <span class="font-mono text-xs font-medium text-primary">
                     {{ (result.score * 100).toFixed(1) }}%
@@ -587,7 +706,9 @@ watch(activeTab, (tab) => {
               </div>
               <!-- Result content -->
               <div class="px-4 py-3">
-                <div class="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                <div
+                  class="whitespace-pre-wrap text-sm leading-relaxed text-foreground"
+                >
                   {{ result.content }}
                 </div>
               </div>
@@ -605,9 +726,17 @@ watch(activeTab, (tab) => {
       width="720px"
     >
       <Spin :spinning="chunkLoading">
-        <div v-if="chunkList.length === 0 && !chunkLoading" class="flex flex-col items-center justify-center py-12">
-          <IconifyIcon icon="lucide:layers" class="mb-2 size-8 text-muted-foreground" />
-          <p class="text-sm text-muted-foreground">{{ $t('admin.knowledgeBase.searchTest.noResults') }}</p>
+        <div
+          v-if="chunkList.length === 0 && !chunkLoading"
+          class="flex flex-col items-center justify-center py-12"
+        >
+          <IconifyIcon
+            icon="lucide:layers"
+            class="mb-2 size-8 text-muted-foreground"
+          />
+          <p class="text-sm text-muted-foreground">
+            {{ $t('admin.knowledgeBase.searchTest.noResults') }}
+          </p>
         </div>
         <div v-else class="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
           <div
@@ -615,28 +744,57 @@ watch(activeTab, (tab) => {
             :key="chunk.id"
             class="rounded-lg border border-border/60 transition-colors hover:border-border"
           >
-            <div class="flex items-center gap-2 border-b border-border/40 bg-accent/20 px-3 py-2 text-xs text-muted-foreground">
-              <span class="flex size-5 items-center justify-center rounded bg-primary/10 font-mono font-semibold text-primary">
+            <div
+              class="flex items-center gap-2 border-b border-border/40 bg-accent/20 px-3 py-2 text-xs text-muted-foreground"
+            >
+              <span
+                class="flex size-5 items-center justify-center rounded bg-primary/10 font-mono font-semibold text-primary"
+              >
                 {{ chunk.chunk_index }}
               </span>
               <span>{{ chunk.char_count }} chars</span>
             </div>
-            <div class="max-h-40 overflow-y-auto whitespace-pre-wrap px-3 py-2.5 text-sm leading-relaxed text-foreground">
+            <div
+              class="max-h-40 overflow-y-auto whitespace-pre-wrap px-3 py-2.5 text-sm leading-relaxed text-foreground"
+            >
               {{ chunk.content }}
             </div>
           </div>
         </div>
-        <div v-if="chunkTotal > 10" class="mt-4 flex items-center justify-center gap-3 text-xs">
-          <Button v-if="chunkPage > 1" size="small" @click="chunkPage--; loadChunks()">
-            <template #icon><IconifyIcon icon="lucide:chevron-left" class="size-3.5" /></template>
+        <div
+          v-if="chunkTotal > 10"
+          class="mt-4 flex items-center justify-center gap-3 text-xs"
+        >
+          <Button
+            v-if="chunkPage > 1"
+            size="small"
+            @click="
+              chunkPage--;
+              loadChunks();
+            "
+          >
+            <template #icon>
+              <IconifyIcon icon="lucide:chevron-left" class="size-3.5" />
+            </template>
             {{ $t('admin.common.prev') }}
           </Button>
-          <span class="rounded-md bg-accent/50 px-2.5 py-1 font-mono text-muted-foreground">
+          <span
+            class="rounded-md bg-accent/50 px-2.5 py-1 font-mono text-muted-foreground"
+          >
             {{ chunkPage }} / {{ Math.ceil(chunkTotal / 10) }}
           </span>
-          <Button v-if="chunkPage < Math.ceil(chunkTotal / 10)" size="small" @click="chunkPage++; loadChunks()">
+          <Button
+            v-if="chunkPage < Math.ceil(chunkTotal / 10)"
+            size="small"
+            @click="
+              chunkPage++;
+              loadChunks();
+            "
+          >
             {{ $t('admin.common.next') }}
-            <template #icon><IconifyIcon icon="lucide:chevron-right" class="size-3.5" /></template>
+            <template #icon>
+              <IconifyIcon icon="lucide:chevron-right" class="size-3.5" />
+            </template>
           </Button>
         </div>
       </Spin>

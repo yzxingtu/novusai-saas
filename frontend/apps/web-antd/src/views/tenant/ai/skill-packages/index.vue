@@ -6,10 +6,9 @@
  * 右侧：选中包的技能 CRUD（Ant Table + 抽屉表单）
  */
 import type { UploadRequestOption } from 'ant-design-vue/es/vc-upload/interface';
-import type { SkillInfo } from '#/api/tenant/skills';
-import type { TenantSkillPackageInfo } from '#/api/tenant/skill-packages';
 
-defineOptions({ name: 'TenantSkillPackageList' });
+import type { TenantSkillPackageInfo } from '#/api/tenant/skill-packages';
+import type { SkillInfo } from '#/api/tenant/skills';
 
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -52,17 +51,21 @@ import {
   uploadSkillPackageApi,
 } from '#/api/tenant/skill-packages';
 import { deleteSkillApi, testSkillApi } from '#/api/tenant/skills';
+import ValvesConfigPanel from '#/components/business/valves-config-panel/ValvesConfigPanel.vue';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
-
-import PackageForm from './modules/form.vue';
-import ValvesConfigPanel from '#/components/business/valves-config-panel/ValvesConfigPanel.vue';
-import SkillForm from '../skills/modules/SkillForm.vue';
-import { getSkillTypeColor, getSkillTypeText } from '../skills/data';
 import { getScopeText } from '#/utils/scope-helpers';
 
+import { getSkillTypeColor, getSkillTypeText } from '../skills/data';
+import SkillForm from '../skills/modules/SkillForm.vue';
+import PackageForm from './modules/form.vue';
+
+defineOptions({ name: 'TenantSkillPackageList' });
+
 /** 判断是否为租户自有包（scope=all_tenants 且 tenant_id 不为 null，平台全局包不可编辑） */
-function isTenantOwned(pkg: TenantSkillPackageInfo | null | undefined): boolean {
+function isTenantOwned(
+  pkg: null | TenantSkillPackageInfo | undefined,
+): boolean {
   return !!pkg && pkg.scope === 'all_tenants' && pkg.tenant_id !== null;
 }
 
@@ -70,7 +73,7 @@ function isTenantOwned(pkg: TenantSkillPackageInfo | null | undefined): boolean 
 const packages = ref<TenantSkillPackageInfo[]>([]);
 const packagesLoading = ref(false);
 const searchKeyword = ref('');
-const selectedPackageId = ref<number | null>(null);
+const selectedPackageId = ref<null | number>(null);
 
 const filteredPackages = computed(() => {
   const kw = searchKeyword.value.toLowerCase().trim();
@@ -82,8 +85,8 @@ const filteredPackages = computed(() => {
   );
 });
 
-const selectedPackage = computed(() =>
-  packages.value.find((p) => p.id === selectedPackageId.value) ?? null,
+const selectedPackage = computed(
+  () => packages.value.find((p) => p.id === selectedPackageId.value) ?? null,
 );
 
 async function loadPackages() {
@@ -179,12 +182,24 @@ async function onDeletePackage(pkg: TenantSkillPackageInfo) {
   });
 }
 
-function handlePkgMenuClick(key: string | number, pkg: TenantSkillPackageInfo) {
+function handlePkgMenuClick(key: number | string, pkg: TenantSkillPackageInfo) {
   switch (String(key)) {
-    case 'detail': { goToDetail(pkg); break; }
-    case 'clone': { onCloneFromTemplate(pkg); break; }
-    case 'edit': { onEditPackage(pkg); break; }
-    case 'delete': { onDeletePackage(pkg); break; }
+    case 'clone': {
+      onCloneFromTemplate(pkg);
+      break;
+    }
+    case 'delete': {
+      onDeletePackage(pkg);
+      break;
+    }
+    case 'detail': {
+      goToDetail(pkg);
+      break;
+    }
+    case 'edit': {
+      onEditPackage(pkg);
+      break;
+    }
   }
 }
 
@@ -192,7 +207,9 @@ async function onCloneFromTemplate(pkg: TenantSkillPackageInfo) {
   try {
     const result = await cloneFromTemplateApi(pkg.id);
     message.success(
-      $t('tenant.ai.skillPackage.messages.cloneSuccess', { name: result.package_name }),
+      $t('tenant.ai.skillPackage.messages.cloneSuccess', {
+        name: result.package_name,
+      }),
     );
     await loadPackages();
   } catch {
@@ -212,8 +229,18 @@ const recycleBinCount = ref(0);
 
 const recycleBinColumns = [
   { title: $t('tenant.ai.skillPackage.name'), dataIndex: 'name', key: 'name' },
-  { title: $t('tenant.common.deletedAt'), dataIndex: 'deleted_at', key: 'deleted_at', width: 140 },
-  { title: $t('tenant.common.operation'), key: 'action', width: 160, align: 'center' as const },
+  {
+    title: $t('tenant.common.deletedAt'),
+    dataIndex: 'deleted_at',
+    key: 'deleted_at',
+    width: 140,
+  },
+  {
+    title: $t('tenant.common.operation'),
+    key: 'action',
+    width: 160,
+    align: 'center' as const,
+  },
 ];
 
 async function loadRecycleBinCount() {
@@ -262,7 +289,9 @@ async function onPermanentDelete(id: number) {
 }
 
 // ==================== Valves 配置 ====================
-const valvesConfigPanelRef = ref<InstanceType<typeof ValvesConfigPanel> | null>(null);
+const valvesConfigPanelRef = ref<InstanceType<typeof ValvesConfigPanel> | null>(
+  null,
+);
 
 function onOpenValvesConfig() {
   valvesConfigPanelRef.value?.open();
@@ -455,7 +484,10 @@ onMounted(() => {
           <div class="flex flex-col items-center gap-4 py-8">
             <div
               class="flex size-14 items-center justify-center rounded-2xl"
-              :style="{ background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 75%) 100%)' }"
+              :style="{
+                background:
+                  'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 75%) 100%)',
+              }"
             >
               <IconifyIcon
                 :icon="uploading ? 'lucide:loader-2' : 'lucide:cloud-upload'"
@@ -465,7 +497,11 @@ onMounted(() => {
             </div>
             <div class="flex flex-col items-center gap-1">
               <span class="text-sm font-semibold text-foreground">
-                {{ uploading ? $t('tenant.ai.skillPackage.messages.uploading') : $t('tenant.ai.skillPackage.uploadDragText') }}
+                {{
+                  uploading
+                    ? $t('tenant.ai.skillPackage.messages.uploading')
+                    : $t('tenant.ai.skillPackage.uploadDragText')
+                }}
               </span>
               <span class="text-xs text-muted-foreground">
                 {{ $t('tenant.ai.skillPackage.uploadDesc') }}
@@ -479,10 +515,18 @@ onMounted(() => {
     <!-- ========== 左侧：技能包列表 ========== -->
     <Card
       class="h-full w-[280px] shrink-0"
-      :body-style="{ padding: '12px', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }"
+      :body-style="{
+        padding: '12px',
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        overflow: 'hidden',
+      }"
     >
       <template #title>
-        <span class="text-sm font-medium">{{ $t('tenant.ai.skillPackage.title') }}</span>
+        <span class="text-sm font-medium">{{
+          $t('tenant.ai.skillPackage.title')
+        }}</span>
       </template>
       <template #extra>
         <Space :size="4">
@@ -494,7 +538,10 @@ onMounted(() => {
                 size="small"
                 @click="openRecycleBin"
               >
-                <IconifyIcon icon="lucide:trash-2" class="size-4 text-muted-foreground" />
+                <IconifyIcon
+                  icon="lucide:trash-2"
+                  class="size-4 text-muted-foreground"
+                />
               </Button>
             </Badge>
           </Tooltip>
@@ -530,14 +577,23 @@ onMounted(() => {
         class="mb-3"
       >
         <template #prefix>
-          <IconifyIcon icon="lucide:search" class="size-3.5 text-muted-foreground" />
+          <IconifyIcon
+            icon="lucide:search"
+            class="size-3.5 text-muted-foreground"
+          />
         </template>
       </Input>
 
       <!-- 包列表 -->
       <Spin :spinning="packagesLoading" class="min-h-0 flex-1 overflow-y-auto">
-        <div v-if="filteredPackages.length === 0" class="flex h-full items-center justify-center">
-          <Empty :description="$t('tenant.ai.skillPackage.detail.empty')" :image="Empty.PRESENTED_IMAGE_SIMPLE" />
+        <div
+          v-if="filteredPackages.length === 0"
+          class="flex h-full items-center justify-center"
+        >
+          <Empty
+            :description="$t('tenant.ai.skillPackage.detail.empty')"
+            :image="Empty.PRESENTED_IMAGE_SIMPLE"
+          />
         </div>
         <div v-else class="flex flex-col gap-1">
           <div
@@ -559,7 +615,9 @@ onMounted(() => {
                 <IconifyIcon
                   :icon="pkg.avatar || 'lucide:package'"
                   class="size-3.5"
-                  :class="pkg.is_active ? 'text-primary' : 'text-muted-foreground'"
+                  :class="
+                    pkg.is_active ? 'text-primary' : 'text-muted-foreground'
+                  "
                 />
               </div>
               <div class="min-w-0 flex-1">
@@ -571,7 +629,12 @@ onMounted(() => {
                     v-if="pkg.is_system"
                     color="purple"
                     class="shrink-0"
-                    style="font-size: 10px; line-height: 14px; padding: 0 3px; margin: 0;"
+                    style="
+                      padding: 0 3px;
+                      margin: 0;
+                      font-size: 10px;
+                      line-height: 14px;
+                    "
                   >
                     {{ $t('tenant.ai.skillPackage.system') }}
                   </Tag>
@@ -579,20 +642,35 @@ onMounted(() => {
                     v-if="pkg.scope !== 'all_tenants'"
                     color="purple"
                     class="shrink-0"
-                    style="font-size: 10px; line-height: 14px; padding: 0 3px; margin: 0;"
+                    style="
+                      padding: 0 3px;
+                      margin: 0;
+                      font-size: 10px;
+                      line-height: 14px;
+                    "
                   >
                     {{ getScopeText(pkg.scope) }}
                   </Tag>
                 </div>
                 <div class="mt-0.5 flex items-center gap-1.5">
                   <span class="whitespace-nowrap text-xs text-muted-foreground">
-                    {{ pkg.skill_count }} {{ $t('tenant.ai.skillPackage.detail.skills') }}
+                    {{ pkg.skill_count }}
+                    {{ $t('tenant.ai.skillPackage.detail.skills') }}
                   </span>
                   <Tag
                     :color="pkg.is_active ? 'success' : 'default'"
-                    style="font-size: 10px; line-height: 14px; padding: 0 3px; margin: 0;"
+                    style="
+                      padding: 0 3px;
+                      margin: 0;
+                      font-size: 10px;
+                      line-height: 14px;
+                    "
                   >
-                    {{ pkg.is_active ? $t('tenant.common.enabled') : $t('tenant.common.disabled') }}
+                    {{
+                      pkg.is_active
+                        ? $t('tenant.common.enabled')
+                        : $t('tenant.common.disabled')
+                    }}
                   </Tag>
                 </div>
               </div>
@@ -608,29 +686,52 @@ onMounted(() => {
                   class="!size-6 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100"
                   @click.stop
                 >
-                  <IconifyIcon icon="lucide:ellipsis-vertical" class="size-3.5 text-muted-foreground" />
+                  <IconifyIcon
+                    icon="lucide:ellipsis-vertical"
+                    class="size-3.5 text-muted-foreground"
+                  />
                 </Button>
                 <template #overlay>
-                  <Menu @click="(info: { key: string | number }) => handlePkgMenuClick(info.key, pkg)">
+                  <Menu
+                    @click="
+                      (info: { key: string | number }) =>
+                        handlePkgMenuClick(info.key, pkg)
+                    "
+                  >
                     <MenuItem key="detail">
                       <div class="flex items-center gap-2">
-                        <IconifyIcon icon="lucide:external-link" class="size-3.5" />
+                        <IconifyIcon
+                          icon="lucide:external-link"
+                          class="size-3.5"
+                        />
                         <span>{{ $t('shared.common.viewDetail') }}</span>
                       </div>
                     </MenuItem>
-                    <MenuItem v-if="pkg.is_system || !isTenantOwned(pkg)" key="clone">
+                    <MenuItem
+                      v-if="pkg.is_system || !isTenantOwned(pkg)"
+                      key="clone"
+                    >
                       <div class="flex items-center gap-2">
                         <IconifyIcon icon="lucide:copy" class="size-3.5" />
-                        <span>{{ $t('tenant.ai.skillPackage.cloneToMine') }}</span>
+                        <span>{{
+                          $t('tenant.ai.skillPackage.cloneToMine')
+                        }}</span>
                       </div>
                     </MenuItem>
-                    <MenuItem v-if="!pkg.is_system && isTenantOwned(pkg)" key="edit">
+                    <MenuItem
+                      v-if="!pkg.is_system && isTenantOwned(pkg)"
+                      key="edit"
+                    >
                       <div class="flex items-center gap-2">
                         <IconifyIcon icon="lucide:pencil" class="size-3.5" />
                         <span>{{ $t('tenant.common.edit') }}</span>
                       </div>
                     </MenuItem>
-                    <MenuItem v-if="!pkg.is_system && isTenantOwned(pkg)" key="delete" class="!text-destructive">
+                    <MenuItem
+                      v-if="!pkg.is_system && isTenantOwned(pkg)"
+                      key="delete"
+                      class="!text-destructive"
+                    >
                       <div class="flex items-center gap-2">
                         <IconifyIcon icon="lucide:trash-2" class="size-3.5" />
                         <span>{{ $t('tenant.common.delete') }}</span>
@@ -654,12 +755,22 @@ onMounted(() => {
     <!-- ========== 右侧：技能列表 ========== -->
     <Card
       class="h-full min-w-0 flex-1"
-      :body-style="{ padding: '16px', display: 'flex', flexDirection: 'column', height: '100%' }"
+      :body-style="{
+        padding: '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+      }"
     >
       <!-- 选中包的信息头 -->
-      <div v-if="selectedPackage" class="mb-4 flex items-center justify-between">
+      <div
+        v-if="selectedPackage"
+        class="mb-4 flex items-center justify-between"
+      >
         <div class="flex items-center gap-3">
-          <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10">
+          <div
+            class="flex size-9 items-center justify-center rounded-lg bg-primary/10"
+          >
             <IconifyIcon
               :icon="selectedPackage.avatar || 'lucide:package'"
               class="size-4.5 text-primary"
@@ -670,17 +781,38 @@ onMounted(() => {
               <span class="text-base font-semibold text-foreground">
                 {{ selectedPackage.name }}
               </span>
-              <Tag v-if="selectedPackage.is_system" color="purple" style="font-size: 10px; line-height: 16px; padding: 0 4px; margin: 0;">
+              <Tag
+                v-if="selectedPackage.is_system"
+                color="purple"
+                style="
+                  padding: 0 4px;
+                  margin: 0;
+                  font-size: 10px;
+                  line-height: 16px;
+                "
+              >
                 {{ $t('tenant.ai.skillPackage.system') }}
               </Tag>
               <Tag
                 :color="selectedPackage.is_active ? 'success' : 'default'"
-                style="font-size: 10px; line-height: 16px; padding: 0 4px; margin: 0;"
+                style="
+                  padding: 0 4px;
+                  margin: 0;
+                  font-size: 10px;
+                  line-height: 16px;
+                "
               >
-                {{ selectedPackage.is_active ? $t('tenant.common.enabled') : $t('tenant.common.disabled') }}
+                {{
+                  selectedPackage.is_active
+                    ? $t('tenant.common.enabled')
+                    : $t('tenant.common.disabled')
+                }}
               </Tag>
             </div>
-            <span v-if="selectedPackage.description" class="text-xs text-muted-foreground">
+            <span
+              v-if="selectedPackage.description"
+              class="text-xs text-muted-foreground"
+            >
               {{ selectedPackage.description }}
             </span>
           </div>
@@ -728,7 +860,12 @@ onMounted(() => {
                 <div class="flex flex-col">
                   <span class="font-medium">
                     {{ record.name }}
-                    <Tag v-if="record.is_system" color="purple" class="ml-1" style="font-size: 10px; line-height: 16px; padding: 0 4px;">
+                    <Tag
+                      v-if="record.is_system"
+                      color="purple"
+                      class="ml-1"
+                      style="padding: 0 4px; font-size: 10px; line-height: 16px"
+                    >
                       {{ $t('tenant.ai.skill.system') }}
                     </Tag>
                   </span>
@@ -748,16 +885,41 @@ onMounted(() => {
                 {{ getSkillTypeText(record.type) }}
               </Tag>
               <Badge
-                v-if="record.type === 'toolkit' && record.toolkit_meta?.tools?.length"
+                v-if="
+                  record.type === 'toolkit' &&
+                  record.toolkit_meta?.tools?.length
+                "
                 :count="record.toolkit_meta.tools.length"
-                :number-style="{ backgroundColor: 'hsl(var(--primary))', fontSize: '10px', minWidth: '16px', height: '16px', lineHeight: '16px' }"
+                :number-style="{
+                  backgroundColor: 'hsl(var(--primary))',
+                  fontSize: '10px',
+                  minWidth: '16px',
+                  height: '16px',
+                  lineHeight: '16px',
+                }"
                 :title="`${record.toolkit_meta.tools.length} tools`"
                 class="ml-1"
               />
               <Badge
-                v-if="record.type === 'builtin' && Array.isArray((record.config as Record<string, unknown>)?.tools)"
-                :count="((record.config as Record<string, unknown>).tools as unknown[]).length"
-                :number-style="{ backgroundColor: '#722ed1', fontSize: '10px', minWidth: '16px', height: '16px', lineHeight: '16px' }"
+                v-if="
+                  record.type === 'builtin' &&
+                  Array.isArray(
+                    (record.config as Record<string, unknown>)?.tools,
+                  )
+                "
+                :count="
+                  (
+                    (record.config as Record<string, unknown>)
+                      .tools as unknown[]
+                  ).length
+                "
+                :number-style="{
+                  backgroundColor: '#722ed1',
+                  fontSize: '10px',
+                  minWidth: '16px',
+                  height: '16px',
+                  lineHeight: '16px',
+                }"
                 :title="`${((record.config as Record<string, unknown>).tools as unknown[]).length} tools`"
                 class="ml-1"
               />

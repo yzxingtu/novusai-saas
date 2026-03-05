@@ -9,8 +9,9 @@ import type { ToolkitParseResult, ToolkitToolInfo } from './types';
 
 import { computed, defineAsyncComponent, ref, watch } from 'vue';
 
-import { usePreferences } from '@vben/preferences';
 import { IconifyIcon } from '@vben/icons';
+import { usePreferences } from '@vben/preferences';
+
 import { useDebounceFn } from '@vueuse/core';
 import {
   Alert,
@@ -34,12 +35,12 @@ defineOptions({ name: 'ToolkitEditor' });
 
 const props = withDefaults(
   defineProps<{
-    /** parse API function — caller injects admin or tenant version */
-    parseApi?: (source: string) => Promise<ToolkitParseResult>;
-    value?: string;
     disabled?: boolean;
     /** i18n prefix, e.g. 'admin.ai.skill' */
     localePrefix?: string;
+    /** parse API function — caller injects admin or tenant version */
+    parseApi?: (source: string) => Promise<ToolkitParseResult>;
+    value?: string;
   }>(),
   {
     value: '',
@@ -50,8 +51,8 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
+  parseComplete: [schema: null | Record<string, unknown>];
   'update:value': [val: string];
-  'parseComplete': [schema: Record<string, unknown> | null];
 }>();
 
 // ── i18n helper ──
@@ -81,7 +82,7 @@ const editorOptions = {
 };
 
 // ── Parse state ──
-const parseResult = ref<ToolkitParseResult | null>(null);
+const parseResult = ref<null | ToolkitParseResult>(null);
 const isParsing = ref(false);
 
 async function doParse(source: string) {
@@ -94,7 +95,11 @@ async function doParse(source: string) {
   try {
     parseResult.value = await props.parseApi(source);
   } catch {
-    parseResult.value = { tools: [], valves_schema: {}, errors: [t('networkError')] };
+    parseResult.value = {
+      tools: [],
+      valves_schema: {},
+      errors: [t('networkError')],
+    };
   } finally {
     isParsing.value = false;
     emit('parseComplete', parseResult.value?.valves_schema ?? null);
@@ -103,10 +108,9 @@ async function doParse(source: string) {
 
 const debouncedParse = useDebounceFn(doParse, 800);
 
-function handleEditorChange(val: string | undefined) {
-  const v = val ?? '';
-  emit('update:value', v);
-  debouncedParse(v);
+function handleEditorChange(val = '') {
+  emit('update:value', val);
+  debouncedParse(val);
 }
 
 // Auto-fill blank template when value is empty (new skill)
@@ -138,6 +142,24 @@ const valvesRequired = computed(() => {
   const schema = valvesSchema.value as Record<string, unknown>;
   return (schema.required ?? []) as string[];
 });
+
+function getValveType(prop: Record<string, unknown>): string {
+  const value = prop.type;
+  return typeof value === 'string' && value ? value : 'string';
+}
+
+function getValveDescription(prop: Record<string, unknown>): string {
+  const value = prop.description;
+  return typeof value === 'string' ? value : '';
+}
+
+function hasValveDefault(prop: Record<string, unknown>): boolean {
+  return Object.prototype.hasOwnProperty.call(prop, 'default');
+}
+
+function getValveDefault(prop: Record<string, unknown>): unknown {
+  return prop.default;
+}
 
 // ── Templates ──
 const BLANK_TEMPLATE = `"""
@@ -228,14 +250,16 @@ function handleBeforeUpload(file: File): false {
     message.error(t('onlyPyFiles'));
     return false;
   }
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const content = (e.target?.result as string) || '';
-    emit('update:value', content);
-    debouncedParse(content);
-    message.success(file.name);
-  };
-  reader.readAsText(file);
+  file
+    .text()
+    .then((content) => {
+      emit('update:value', content);
+      debouncedParse(content);
+      message.success(file.name);
+    })
+    .catch(() => {
+      message.error(t('networkError'));
+    });
   return false;
 }
 
@@ -264,7 +288,10 @@ const activeKeys = ref<string[]>(['tools']);
                 {{ t('templateBlank') }}
               </MenuItem>
               <MenuItem @click="applyTemplate(EXAMPLE_TEMPLATE)">
-                <IconifyIcon icon="lucide:file-code-2" class="mr-1.5 size-3.5" />
+                <IconifyIcon
+                  icon="lucide:file-code-2"
+                  class="mr-1.5 size-3.5"
+                />
                 {{ t('templateExample') }}
               </MenuItem>
             </Menu>
@@ -285,7 +312,7 @@ const activeKeys = ref<string[]>(['tools']);
         </Upload>
       </div>
       <!-- Monaco -->
-      <div class="border-border flex-1 overflow-hidden rounded border">
+      <div class="flex-1 overflow-hidden rounded border border-border">
         <Suspense>
           <MonacoEditor
             :value="props.value"
@@ -295,7 +322,9 @@ const activeKeys = ref<string[]>(['tools']);
             @change="handleEditorChange"
           />
           <template #fallback>
-            <div class="flex h-full items-center justify-center text-muted-foreground">
+            <div
+              class="flex h-full items-center justify-center text-muted-foreground"
+            >
               <Spin />
             </div>
           </template>
@@ -304,8 +333,12 @@ const activeKeys = ref<string[]>(['tools']);
     </div>
 
     <!-- Right: Preview -->
-    <div class="border-border w-[320px] shrink-0 overflow-y-auto rounded border p-3">
-      <div class="text-foreground mb-2 flex items-center gap-2 text-sm font-medium">
+    <div
+      class="w-[320px] shrink-0 overflow-y-auto rounded border border-border p-3"
+    >
+      <div
+        class="mb-2 flex items-center gap-2 text-sm font-medium text-foreground"
+      >
         <IconifyIcon icon="lucide:scan-search" class="size-4" />
         {{ t('preview') }}
         <Spin v-if="isParsing" size="small" class="ml-auto" />
@@ -327,42 +360,75 @@ const activeKeys = ref<string[]>(['tools']);
       </Alert>
 
       <!-- Tools -->
-      <Collapse v-model:activeKey="activeKeys" :bordered="false" size="small" class="bg-transparent">
+      <Collapse
+        v-model:active-key="activeKeys"
+        :bordered="false"
+        size="small"
+        class="bg-transparent"
+      >
         <CollapsePanel key="tools" :header="t('tools')">
           <template #extra>
-            <Badge :count="tools.length" :number-style="{ backgroundColor: tools.length ? '#52c41a' : '#d9d9d9' }" />
+            <Badge
+              :count="tools.length"
+              :number-style="{
+                backgroundColor: tools.length > 0 ? '#52c41a' : '#d9d9d9',
+              }"
+            />
           </template>
-          <div v-if="tools.length === 0" class="text-muted-foreground text-xs">
+          <div v-if="tools.length === 0" class="text-xs text-muted-foreground">
             {{ t('noTools') }}
           </div>
           <div v-for="tool in tools" :key="tool.name" class="mb-3 last:mb-0">
             <div class="flex items-center gap-1.5">
-              <IconifyIcon icon="lucide:wrench" class="text-primary size-3.5" />
-              <span class="text-foreground text-sm font-medium">{{ tool.name }}</span>
-              <Tag v-if="tool.is_async" color="blue" class="ml-auto text-[10px] leading-tight">
+              <IconifyIcon icon="lucide:wrench" class="size-3.5 text-primary" />
+              <span class="text-sm font-medium text-foreground">{{
+                tool.name
+              }}</span>
+              <Tag
+                v-if="tool.is_async"
+                color="blue"
+                class="ml-auto text-[10px] leading-tight"
+              >
                 {{ t('async') }}
               </Tag>
             </div>
-            <p v-if="tool.description" class="text-muted-foreground mt-0.5 text-xs leading-relaxed">
+            <p
+              v-if="tool.description"
+              class="mt-0.5 text-xs leading-relaxed text-muted-foreground"
+            >
               {{ tool.description }}
             </p>
             <div v-if="tool.parameters.length > 0" class="mt-1.5">
-              <div class="text-muted-foreground mb-1 text-[10px] uppercase tracking-wider">
+              <div
+                class="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground"
+              >
                 {{ t('parameters') }}
               </div>
               <div
                 v-for="param in tool.parameters"
                 :key="param.name"
-                class="bg-accent/50 mb-1 flex items-center gap-1.5 rounded px-2 py-1 text-xs"
+                class="mb-1 flex items-center gap-1.5 rounded bg-accent/50 px-2 py-1 text-xs"
               >
-                <code class="text-foreground font-mono text-[11px]">{{ param.name }}</code>
-                <Tag :color="param.required ? 'red' : 'default'" class="text-[10px] leading-tight">
+                <code class="font-mono text-[11px] text-foreground">{{
+                  param.name
+                }}</code>
+                <Tag
+                  :color="param.required ? 'red' : 'default'"
+                  class="text-[10px] leading-tight"
+                >
                   {{ param.type }}
                 </Tag>
                 <Tooltip v-if="param.description" :title="param.description">
-                  <IconifyIcon icon="lucide:info" class="text-muted-foreground size-3 cursor-help" />
+                  <IconifyIcon
+                    icon="lucide:info"
+                    class="size-3 cursor-help text-muted-foreground"
+                  />
                 </Tooltip>
-                <span v-if="param.required" class="text-destructive ml-auto text-[10px]">*</span>
+                <span
+                  v-if="param.required"
+                  class="ml-auto text-[10px] text-destructive"
+                  >*</span
+                >
               </div>
             </div>
           </div>
@@ -373,39 +439,45 @@ const activeKeys = ref<string[]>(['tools']);
           <template #extra>
             <Badge
               :count="Object.keys(valvesProperties).length"
-              :number-style="{ backgroundColor: hasValves ? '#1677ff' : '#d9d9d9' }"
+              :number-style="{
+                backgroundColor: hasValves ? '#1677ff' : '#d9d9d9',
+              }"
             />
           </template>
-          <div v-if="!hasValves" class="text-muted-foreground text-xs">
+          <div v-if="!hasValves" class="text-xs text-muted-foreground">
             {{ t('noValves') }}
           </div>
           <div v-else>
             <div
               v-for="(prop, fieldName) in valvesProperties"
               :key="fieldName"
-              class="bg-accent/50 mb-1.5 rounded px-2 py-1.5 text-xs"
+              class="mb-1.5 rounded bg-accent/50 px-2 py-1.5 text-xs"
             >
               <div class="flex items-center gap-1.5">
-                <code class="text-foreground font-mono text-[11px]">{{ fieldName }}</code>
+                <code class="font-mono text-[11px] text-foreground">{{
+                  fieldName
+                }}</code>
                 <Tag color="processing" class="text-[10px] leading-tight">
-                  {{ (prop as Record<string, unknown>).type ?? 'string' }}
+                  {{ getValveType(prop) }}
                 </Tag>
                 <span
-                  v-if="valvesRequired.includes(fieldName as string)"
-                  class="text-destructive ml-auto text-[10px]"
-                >*</span>
+                  v-if="valvesRequired.includes(fieldName)"
+                  class="ml-auto text-[10px] text-destructive"
+                  >*</span
+                >
               </div>
               <p
-                v-if="(prop as Record<string, unknown>).description"
-                class="text-muted-foreground mt-0.5 leading-relaxed"
+                v-if="getValveDescription(prop)"
+                class="mt-0.5 leading-relaxed text-muted-foreground"
               >
-                {{ (prop as Record<string, unknown>).description }}
+                {{ getValveDescription(prop) }}
               </p>
               <div
-                v-if="(prop as Record<string, unknown>).default !== undefined"
-                class="text-muted-foreground mt-0.5"
+                v-if="hasValveDefault(prop)"
+                class="mt-0.5 text-muted-foreground"
               >
-                {{ t('default') }}: <code>{{ JSON.stringify((prop as Record<string, unknown>).default) }}</code>
+                {{ t('default') }}:
+                <code>{{ JSON.stringify(getValveDefault(prop)) }}</code>
               </div>
             </div>
           </div>

@@ -168,7 +168,9 @@ export function useGridFormSchema(): VbenFormSchema[] {
         allowClear: true,
         class: 'w-full',
         options: [],
-        placeholder: $t('tenant.system.operationLog.placeholder.searchUsername'),
+        placeholder: $t(
+          'tenant.system.operationLog.placeholder.searchUsername',
+        ),
         showSearch: true,
         optionFilterProp: 'label',
       },

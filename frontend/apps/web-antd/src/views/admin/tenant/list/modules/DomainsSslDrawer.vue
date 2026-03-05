@@ -49,7 +49,7 @@ interface SslDrawerData {
 const drawerData = ref<null | SslDrawerData>(null);
 const loading = ref(false);
 const actionLoading = ref(false);
-const sslDetail = ref<SslCertificateInfo | null>(null);
+const sslDetail = ref<null | SslCertificateInfo>(null);
 const showUploadForm = ref(false);
 const uploadForm = ref({ certificate: '', privateKey: '', chain: '' });
 
@@ -59,7 +59,6 @@ const title = computed(() =>
     ? `${$t('admin.tenant.domain.ssl.title')} - ${drawerData.value.domain}`
     : $t('admin.tenant.domain.ssl.title'),
 );
-
 
 // Drawer
 const [Drawer, drawerApi] = useVbenDrawer({
@@ -103,7 +102,8 @@ async function onProvision() {
     await provisionSslApi(drawerData.value.tenantId, drawerData.value.domainId);
     message.success($t('admin.tenant.domain.ssl.provisionStarted'));
     await loadSslDetail();
-  } catch {} finally {
+  } catch {
+  } finally {
     actionLoading.value = false;
   }
 }
@@ -116,7 +116,8 @@ async function onRenew() {
     await renewSslApi(drawerData.value.tenantId, drawerData.value.domainId);
     message.success($t('admin.tenant.domain.ssl.renewStarted'));
     await loadSslDetail();
-  } catch {} finally {
+  } catch {
+  } finally {
     actionLoading.value = false;
   }
 }
@@ -133,7 +134,8 @@ async function onToggleAutoRenew(checked: boolean) {
     );
     sslDetail.value = result;
     message.success($t('admin.tenant.domain.ssl.autoRenewUpdated'));
-  } catch {} finally {
+  } catch {
+  } finally {
     actionLoading.value = false;
   }
 }
@@ -160,7 +162,8 @@ async function onUpload() {
     showUploadForm.value = false;
     uploadForm.value = { certificate: '', privateKey: '', chain: '' };
     await loadSslDetail();
-  } catch {} finally {
+  } catch {
+  } finally {
     actionLoading.value = false;
   }
 }
@@ -175,11 +178,15 @@ async function onDelete() {
     async onOk() {
       actionLoading.value = true;
       try {
-        await deleteSslCertApi(drawerData.value!.tenantId, drawerData.value!.domainId);
+        await deleteSslCertApi(
+          drawerData.value!.tenantId,
+          drawerData.value!.domainId,
+        );
         message.success($t('admin.tenant.domain.ssl.deleteSuccess'));
         sslDetail.value = null;
         await loadSslDetail();
-      } catch {} finally {
+      } catch {
+      } finally {
         actionLoading.value = false;
       }
     },
@@ -189,13 +196,48 @@ async function onDelete() {
 /** 获取 SSL 状态标签配置 */
 function getSslStatusConfig(status?: string) {
   switch (status) {
-    case 'active': return { color: 'success', text: $t('admin.tenant.domain.ssl.status.active') };
-    case 'expired': return { color: 'error', text: $t('admin.tenant.domain.ssl.status.expired') };
-    case 'provisioning': return { color: 'processing', text: $t('admin.tenant.domain.ssl.status.provisioning') };
-    case 'pending': return { color: 'processing', text: $t('admin.tenant.domain.ssl.status.pending') };
-    case 'failed': return { color: 'error', text: $t('admin.tenant.domain.ssl.status.failed') };
-    case 'revoked': return { color: 'warning', text: $t('admin.tenant.domain.ssl.status.revoked') };
-    default: return { color: 'default', text: $t('admin.tenant.domain.ssl.status.none') };
+    case 'active': {
+      return {
+        color: 'success',
+        text: $t('admin.tenant.domain.ssl.status.active'),
+      };
+    }
+    case 'expired': {
+      return {
+        color: 'error',
+        text: $t('admin.tenant.domain.ssl.status.expired'),
+      };
+    }
+    case 'failed': {
+      return {
+        color: 'error',
+        text: $t('admin.tenant.domain.ssl.status.failed'),
+      };
+    }
+    case 'pending': {
+      return {
+        color: 'processing',
+        text: $t('admin.tenant.domain.ssl.status.pending'),
+      };
+    }
+    case 'provisioning': {
+      return {
+        color: 'processing',
+        text: $t('admin.tenant.domain.ssl.status.provisioning'),
+      };
+    }
+    case 'revoked': {
+      return {
+        color: 'warning',
+        text: $t('admin.tenant.domain.ssl.status.revoked'),
+      };
+    }
+    default: {
+      return {
+        color: 'default',
+        text: $t('admin.tenant.domain.ssl.status.none'),
+      };
+    }
   }
 }
 
@@ -222,7 +264,9 @@ defineExpose({ open });
                 {{ getSslStatusConfig(sslDetail.status).text }}
               </Tag>
             </Descriptions.Item>
-            <Descriptions.Item :label="$t('admin.tenant.domain.ssl.type.label')">
+            <Descriptions.Item
+              :label="$t('admin.tenant.domain.ssl.type.label')"
+            >
               {{
                 sslDetail.certType === 'platform'
                   ? $t('admin.tenant.domain.ssl.type.platform')
@@ -255,7 +299,9 @@ defineExpose({ open });
                 :checked="sslDetail.autoRenew"
                 :loading="actionLoading"
                 size="small"
-                @change="(val: boolean | string | number) => onToggleAutoRenew(!!val)"
+                @change="
+                  (val: boolean | string | number) => onToggleAutoRenew(!!val)
+                "
               />
               <span class="ml-2 text-xs text-muted-foreground">
                 {{
@@ -269,7 +315,9 @@ defineExpose({ open });
               v-if="sslDetail.renewalError"
               :label="$t('admin.tenant.domain.ssl.renewalError')"
             >
-              <span class="text-xs text-destructive">{{ sslDetail.renewalError }}</span>
+              <span class="text-xs text-destructive">{{
+                sslDetail.renewalError
+              }}</span>
             </Descriptions.Item>
           </Descriptions>
         </div>
@@ -300,7 +348,12 @@ defineExpose({ open });
             <IconifyIcon icon="lucide:upload" class="mr-1 size-3" />
             {{ $t('admin.tenant.domain.ssl.actions.upload') }}
           </Button>
-          <Button danger size="small" :loading="actionLoading" @click="onDelete">
+          <Button
+            danger
+            size="small"
+            :loading="actionLoading"
+            @click="onDelete"
+          >
             <IconifyIcon icon="lucide:trash-2" class="mr-1 size-3" />
             {{ $t('admin.tenant.domain.ssl.actions.delete') }}
           </Button>
@@ -309,11 +362,20 @@ defineExpose({ open });
 
       <!-- 无证书状态 -->
       <template v-else>
-        <div class="flex flex-col items-center justify-center py-12 text-muted-foreground">
+        <div
+          class="flex flex-col items-center justify-center py-12 text-muted-foreground"
+        >
           <IconifyIcon icon="lucide:shield-off" class="mb-3 size-12" />
-          <p class="mb-4 text-sm">{{ $t('admin.tenant.domain.ssl.status.none') }}</p>
+          <p class="mb-4 text-sm">
+            {{ $t('admin.tenant.domain.ssl.status.none') }}
+          </p>
           <div class="flex gap-2">
-            <Button type="primary" size="small" :loading="actionLoading" @click="onProvision">
+            <Button
+              type="primary"
+              size="small"
+              :loading="actionLoading"
+              @click="onProvision"
+            >
               <IconifyIcon icon="lucide:shield-check" class="mr-1 size-3" />
               {{ $t('admin.tenant.domain.ssl.actions.provision') }}
             </Button>
@@ -340,7 +402,7 @@ defineExpose({ open });
               <Textarea
                 v-model:value="uploadForm.certificate"
                 :rows="4"
-                :placeholder="'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'"
+                placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
               />
             </div>
             <div>
@@ -350,22 +412,29 @@ defineExpose({ open });
               <Textarea
                 v-model:value="uploadForm.privateKey"
                 :rows="4"
-                :placeholder="'-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'"
+                placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
               />
             </div>
             <div>
               <label class="mb-1 block text-xs font-medium">
                 {{ $t('admin.tenant.domain.ssl.certificate.chain') }}
-                <span class="text-muted-foreground">({{ $t('shared.common.optional') }})</span>
+                <span class="text-muted-foreground"
+                  >({{ $t('shared.common.optional') }})</span
+                >
               </label>
               <Textarea
                 v-model:value="uploadForm.chain"
                 :rows="3"
-                :placeholder="'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'"
+                placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
               />
             </div>
             <div class="flex gap-2">
-              <Button type="primary" size="small" :loading="actionLoading" @click="onUpload">
+              <Button
+                type="primary"
+                size="small"
+                :loading="actionLoading"
+                @click="onUpload"
+              >
                 {{ $t('shared.common.confirm') }}
               </Button>
               <Button size="small" @click="showUploadForm = false">

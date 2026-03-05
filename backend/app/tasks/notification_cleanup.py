@@ -5,13 +5,14 @@
 通过 periodic_tasks 页面注册到调度系统。
 """
 
+import contextlib
 import time
 from datetime import timedelta
 
+from app.core.base_model import utc_now
 from app.core.database import sync_session_factory
 from app.core.logging import LogManager
-from app.tasks.base import register_task, BaseTask
-from app.core.base_model import utc_now
+from app.tasks.base import BaseTask, register_task
 
 logger = LogManager.get_logger("task")
 
@@ -30,15 +31,17 @@ def cleanup_expired_notifications(self: BaseTask) -> dict:
     """
     start = time.time()
 
-    from sqlalchemy import delete, and_
+    from sqlalchemy import delete
+
     from app.models.common.notification import Notification
 
     session = sync_session_factory()
     try:
         # 读取配置（同步环境，直接查 DB）
+        from sqlalchemy import select
+
         from app.configs.service import PLATFORM_TENANT_ID
         from app.models.system.config import SystemConfig, SystemConfigValue
-        from sqlalchemy import select
 
         # 查询 notification_retention_days 配置值
         retention_days = 90  # 默认值
@@ -53,10 +56,8 @@ def cleanup_expired_notifications(self: BaseTask) -> dict:
         result = session.execute(config_q)
         row = result.scalar_one_or_none()
         if row is not None:
-            try:
+            with contextlib.suppress(ValueError, TypeError):
                 retention_days = int(row)
-            except (ValueError, TypeError):
-                pass
 
         if retention_days <= 0:
             logger.info("Notification cleanup skipped: retention_days=%d", retention_days)

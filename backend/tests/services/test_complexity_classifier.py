@@ -6,10 +6,10 @@ ComplexityClassifier 单元测试
 
 from __future__ import annotations
 
-import pytest
 from dataclasses import dataclass
 from typing import Literal
 
+import pytest
 
 # ==================== 轻量 ChatMessage stub ====================
 
@@ -125,7 +125,7 @@ class TestComplexityClassifierBasic:
     def test_complex_very_long_multi_turn_and_keywords(self, classifier, ComplexityLevel):
         """>20轮对话 + 关键词 → COMPLEX（额外1分）"""
         msgs = []
-        for i in range(21):
+        for _ in range(21):
             msgs.append(_user("普通问题"))
             msgs.append(_assistant("回答"))
         msgs.append(_user("请分析并实现"))  # +2 关键词（分析+实现各算一次）
@@ -153,10 +153,10 @@ class TestComplexityClassifierEdgeCases:
         assert result == ComplexityLevel.SIMPLE
 
     def test_six_tools_over_threshold(self, classifier, ComplexityLevel):
-        """恰好6个工具（超过阈值）→ +1分"""
+        """恰好6个工具（超过阈值）→ +2分"""
         tools = [{"name": f"tool_{i}"} for i in range(6)]
         result = classifier.classify([_user("evaluate this")], tools=tools)
-        # evaluate → +1(score_1) + 1(tools>5) = 2 → MEDIUM
+        # evaluate → +1(score_1) + 2(tools>5) = 3 → MEDIUM
         assert result == ComplexityLevel.MEDIUM
 
     def test_only_assistant_messages(self, classifier, ComplexityLevel):

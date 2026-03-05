@@ -4,62 +4,66 @@
 提供应用的枚举类定义
 """
 
+from app.enums.agent import (
+    AccessTypeEnum,
+    AgentExecutionModeEnum,
+    AgentStatusEnum,
+    AgentVisibilityEnum,
+    BatchRunStatusEnum,
+    ConversationStatusEnum,
+    MessageRoleEnum,
+    SkillTypeEnum,
+    ToolTypeEnum,
+)
+from app.enums.ai import ToolParameterTypeEnum
+from app.enums.attachment import (
+    AttachmentSource,
+    AttachmentStatus,
+    AttachmentVisibility,
+)
 from app.enums.base import BaseEnum, IntEnum, StrEnum
+from app.enums.billing import BillingCycle
+from app.enums.cache import CacheCategoryEnum
 from app.enums.common import (
-    StatusEnum,
-    BoolEnum,
-    GenderEnum,
     AuditStatusEnum,
-    SortOrderEnum,
+    BoolEnum,
+    DeleteLevelEnum,
+    GenderEnum,
     OperationTypeEnum,
     PriorityEnum,
     ResourceScopeEnum,
     SkillBindModeEnum,
-    DeleteLevelEnum,
+    SortOrderEnum,
+    StatusEnum,
     UserRoleEnum,
 )
-from app.enums.rbac import (
-    PermissionType,
-    PermissionScope,
-)
-from app.enums.role import RoleType
-from app.enums.error_code import ErrorCode
 from app.enums.config import ConfigScope, ConfigValueType
-from app.enums.billing import BillingCycle
-from app.enums.log import UserTypeEnum, LogModuleEnum, LogCategoryEnum
-from app.enums.attachment import AttachmentVisibility, AttachmentStatus, AttachmentSource
-from app.enums.task import TaskStatusEnum, ScheduleTypeEnum, TaskScopeEnum
-from app.enums.agent import (
-    AgentStatusEnum,
-    AgentExecutionModeEnum,
-    ToolTypeEnum,
-    SkillTypeEnum,
-    ConversationStatusEnum,
-    MessageRoleEnum,
-    AgentVisibilityEnum,
-    AccessTypeEnum,
-    BatchRunStatusEnum,
-)
-from app.enums.ai import ToolParameterTypeEnum
-from app.enums.domain import DomainSslStatus, DomainType, SslCertType, SslCertStatus
+from app.enums.domain import DomainSslStatus, DomainType, SslCertStatus, SslCertType
+from app.enums.error_code import ErrorCode
 from app.enums.knowledge_base import (
-    KBStatusEnum,
+    ChunkStrategyEnum,
     DocumentStatusEnum,
     DocumentTypeEnum,
-    ChunkStrategyEnum,
-    SearchModeEnum,
+    KBStatusEnum,
     RewriteStrategyEnum,
+    SearchModeEnum,
 )
-from app.enums.cache import CacheCategoryEnum
+from app.enums.log import LogCategoryEnum, LogModuleEnum, UserTypeEnum
 from app.enums.plugin import (
-    PluginStatusEnum,
-    PluginScopeEnum,
-    PluginTierEnum,
     PluginInstallSourceEnum,
-    PluginPricingTypeEnum,
     PluginLicenseTypeEnum,
+    PluginPricingTypeEnum,
+    PluginScopeEnum,
+    PluginStatusEnum,
+    PluginTierEnum,
     PluginVersionStatusEnum,
 )
+from app.enums.rbac import (
+    PermissionScope,
+    PermissionType,
+)
+from app.enums.role import RoleType
+from app.enums.task import ScheduleTypeEnum, TaskScopeEnum, TaskStatusEnum
 
 __all__ = [
     # 基类

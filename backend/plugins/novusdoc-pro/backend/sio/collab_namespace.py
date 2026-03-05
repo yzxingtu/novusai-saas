@@ -177,6 +177,7 @@ class CollabNamespace(socketio.AsyncNamespace):
 
     async def on_disconnect(self, sid: str, reason: str = "") -> None:
         """客户端断开连接 — 清理所有房间"""
+        _ = reason
         from ..services.yjs_provider import YjsProviderManager
         manager = YjsProviderManager.get_instance()
 

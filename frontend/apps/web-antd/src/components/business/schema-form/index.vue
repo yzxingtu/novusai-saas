@@ -36,7 +36,7 @@ interface SchemaProperty {
   maxLength?: number;
   minimum?: number;
   maximum?: number;
-  items?: { type?: string; enum?: unknown[] };
+  items?: { enum?: unknown[]; type?: string };
 }
 
 /** JSON Schema root */
@@ -74,7 +74,7 @@ const propertyKeys = computed<string[]>(() => {
 
 /** Required fields set */
 const requiredSet = computed<Set<string>>(() => {
-  return new Set(props.schema?.required ?? []);
+  return new Set(props.schema?.required);
 });
 
 /** Initialize form model from schema defaults + modelValue */
@@ -87,16 +87,30 @@ function initModel() {
   for (const [key, prop] of Object.entries(properties)) {
     if (values[key] !== undefined) {
       formModel[key] = values[key];
-    } else if (prop.default !== undefined) {
-      formModel[key] = prop.default;
-    } else if (prop.type === 'boolean') {
-      formModel[key] = false;
-    } else if (prop.type === 'number' || prop.type === 'integer') {
-      formModel[key] = undefined;
-    } else if (prop.type === 'array') {
-      formModel[key] = [];
+    } else if (prop.default === undefined) {
+      switch (prop.type) {
+        case 'array': {
+          formModel[key] = [];
+
+          break;
+        }
+        case 'boolean': {
+          formModel[key] = false;
+
+          break;
+        }
+        case 'integer':
+        case 'number': {
+          formModel[key] = undefined;
+
+          break;
+        }
+        default: {
+          formModel[key] = undefined;
+        }
+      }
     } else {
-      formModel[key] = undefined;
+      formModel[key] = prop.default;
     }
   }
 }
@@ -119,7 +133,9 @@ watch(
     _syncing = true;
     emit('update:modelValue', { ...val });
     // Reset flag after microtask to allow future external updates
-    Promise.resolve().then(() => { _syncing = false; });
+    Promise.resolve().then(() => {
+      _syncing = false;
+    });
   },
   { deep: true },
 );
@@ -183,7 +199,14 @@ const formRules = computed<Record<string, Rule[]>>(() => {
 /** Determine field rendering type */
 function getFieldType(
   key: string,
-): 'boolean' | 'enum' | 'multi_enum' | 'number' | 'password' | 'string' | 'textarea' {
+):
+  | 'boolean'
+  | 'enum'
+  | 'multi_enum'
+  | 'number'
+  | 'password'
+  | 'string'
+  | 'textarea' {
   const prop = getProp(key);
 
   if (prop.type === 'boolean') return 'boolean';
@@ -200,15 +223,38 @@ function getFieldType(
 }
 
 /** Get enum options */
-function getEnumOptions(key: string): Array<{ label: string; value: string | number }> {
+function getEnumOptions(
+  key: string,
+): Array<{ label: string; value: number | string }> {
   const prop = getProp(key);
   const values = prop.enum ?? prop.items?.enum ?? [];
-  return values.map((v) => ({ label: String(v), value: v as string | number }));
+  return values.map((v) => ({ label: String(v), value: v as number | string }));
 }
 
 /** Generic handler for Select @change */
 function onSelectChange(key: string, val: unknown) {
   formModel[key] = val;
+}
+
+function getMultiSelectValue(key: string): Array<number | string> {
+  const value = formModel[key];
+  return Array.isArray(value) ? (value as Array<number | string>) : [];
+}
+
+function getNumberValue(key: string): number | undefined {
+  const value = formModel[key];
+  return typeof value === 'number' ? value : undefined;
+}
+
+function getSelectValue(key: string): number | string | undefined {
+  const value = formModel[key];
+  if (typeof value === 'number' || typeof value === 'string') return value;
+  return undefined;
+}
+
+function getStringValue(key: string): string {
+  const value = formModel[key];
+  return typeof value === 'string' ? value : '';
 }
 
 /** Public API */
@@ -249,13 +295,15 @@ defineExpose({ validate, getValues, reset, formRef });
         <Switch
           v-if="getFieldType(key) === 'boolean'"
           :checked="!!formModel[key]"
-          @update:checked="(v: boolean | string | number) => (formModel[key] = !!v)"
+          @update:checked="
+            (v: boolean | string | number) => (formModel[key] = !!v)
+          "
         />
 
         <!-- number / integer -->
         <InputNumber
           v-else-if="getFieldType(key) === 'number'"
-          :value="formModel[key] as number"
+          :value="getNumberValue(key)"
           :style="{ width: '100%' }"
           :min="getProp(key).minimum"
           :max="getProp(key).maximum"
@@ -265,7 +313,7 @@ defineExpose({ validate, getValues, reset, formRef });
         <!-- enum (single select) -->
         <Select
           v-else-if="getFieldType(key) === 'enum'"
-          :value="formModel[key] as string | number | undefined"
+          :value="getSelectValue(key)"
           :options="getEnumOptions(key)"
           @change="(v: unknown) => onSelectChange(key, v)"
         />
@@ -273,7 +321,7 @@ defineExpose({ validate, getValues, reset, formRef });
         <!-- array enum (multi select) -->
         <Select
           v-else-if="getFieldType(key) === 'multi_enum'"
-          :value="(formModel[key] as Array<string | number>) ?? []"
+          :value="getMultiSelectValue(key)"
           mode="multiple"
           :options="getEnumOptions(key)"
           @change="(v: unknown) => onSelectChange(key, v)"
@@ -282,7 +330,7 @@ defineExpose({ validate, getValues, reset, formRef });
         <!-- password -->
         <Input.Password
           v-else-if="getFieldType(key) === 'password'"
-          :value="formModel[key] as string"
+          :value="getStringValue(key)"
           autocomplete="new-password"
           @update:value="(v: string) => (formModel[key] = v)"
         />
@@ -290,7 +338,7 @@ defineExpose({ validate, getValues, reset, formRef });
         <!-- textarea -->
         <Input.TextArea
           v-else-if="getFieldType(key) === 'textarea'"
-          :value="formModel[key] as string"
+          :value="getStringValue(key)"
           :rows="4"
           @update:value="(v: string) => (formModel[key] = v)"
         />
@@ -298,7 +346,7 @@ defineExpose({ validate, getValues, reset, formRef });
         <!-- string (default) -->
         <Input
           v-else
-          :value="formModel[key] as string"
+          :value="getStringValue(key)"
           @update:value="(v: string) => (formModel[key] = v)"
         />
       </Form.Item>

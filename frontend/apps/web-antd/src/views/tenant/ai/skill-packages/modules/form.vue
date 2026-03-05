@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'TenantSkillPackageForm' });
 /**
  * 租户端技能包新建/编辑表单抽屉
  */
@@ -12,11 +11,13 @@ import {
   numberField,
   switchField,
   textareaField,
+  useVbenForm,
 } from '#/adapter/form';
-import { useVbenForm } from '#/adapter/form';
 import { getSkillPackageDetailApi } from '#/api/tenant/skill-packages';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
+
+defineOptions({ name: 'TenantSkillPackageForm' });
 
 const emits = defineEmits<{ success: [] }>();
 
@@ -77,9 +78,7 @@ const { Drawer, isEdit } = useCrudDrawer<TenantSkillPackageInfo>({
 });
 
 const title = computed(() =>
-  isEdit.value
-    ? $t('tenant.common.edit')
-    : $t('tenant.ai.skillPackage.create'),
+  isEdit.value ? $t('tenant.common.edit') : $t('tenant.ai.skillPackage.create'),
 );
 </script>
 

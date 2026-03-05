@@ -4,8 +4,6 @@
  *
  * 从租户列表的管理员展开面板中调用。
  */
-defineOptions({ name: 'TenantAdminForm' });
-
 import type { TenantAdminItem } from '#/api/admin/tenant';
 
 import { ref } from 'vue';
@@ -15,6 +13,8 @@ import { Button, Drawer, Form, FormItem, Input, message } from 'ant-design-vue';
 import { createTenantAdminApi, updateTenantAdminApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 
+defineOptions({ name: 'TenantAdminForm' });
+
 const emit = defineEmits<{ success: [] }>();
 
 const visible = ref(false);
@@ -22,7 +22,7 @@ const loading = ref(false);
 const tenantId = ref(0);
 const tenantName = ref('');
 
-const editingAdmin = ref<TenantAdminItem | null>(null);
+const editingAdmin = ref<null | TenantAdminItem>(null);
 const isEdit = ref(false);
 
 const form = ref({
@@ -60,11 +60,14 @@ function close() {
 
 /** 提交 */
 async function handleSubmit() {
-  if (!isEdit.value && (!form.value.username || !form.value.email || !form.value.password)) {
+  if (
+    !isEdit.value &&
+    (!form.value.username || !form.value.email || !form.value.password)
+  ) {
     message.warning($t('admin.tenant.adminPanel.formRequired'));
     return;
   }
-  if (isEdit.value && (!form.value.email)) {
+  if (isEdit.value && !form.value.email) {
     message.warning($t('admin.tenant.adminPanel.formRequired'));
     return;
   }
@@ -102,7 +105,11 @@ defineExpose({ open });
 <template>
   <Drawer
     v-model:open="visible"
-    :title="isEdit ? $t('admin.tenant.adminPanel.editTitle', { name: tenantName }) : $t('admin.tenant.adminPanel.createTitle', { name: tenantName })"
+    :title="
+      isEdit
+        ? $t('admin.tenant.adminPanel.editTitle', { name: tenantName })
+        : $t('admin.tenant.adminPanel.createTitle', { name: tenantName })
+    "
     :width="400"
     destroy-on-close
   >
@@ -118,10 +125,7 @@ defineExpose({ open });
           :disabled="isEdit"
         />
       </FormItem>
-      <FormItem
-        :label="$t('admin.tenant.adminPanel.email')"
-        required
-      >
+      <FormItem :label="$t('admin.tenant.adminPanel.email')" required>
         <Input
           v-model:value="form.email"
           :placeholder="$t('admin.tenant.adminPanel.emailPlaceholder')"

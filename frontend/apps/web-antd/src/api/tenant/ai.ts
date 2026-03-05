@@ -118,10 +118,10 @@ export async function getTenantAIModelsApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<TenantAIModelInfo[]> {
-  return requestClient.get<TenantAIModelInfo[]>(
-    `${CONFIG_PREFIX}/models`,
-    { params, ...options },
-  );
+  return requestClient.get<TenantAIModelInfo[]>(`${CONFIG_PREFIX}/models`, {
+    params,
+    ...options,
+  });
 }
 
 /** 获取我的 API Keys */
@@ -165,10 +165,10 @@ export async function getTenantAIUsageSummaryApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<TenantAIUsageSummary> {
-  return requestClient.get<TenantAIUsageSummary>(
-    `${USAGE_PREFIX}/summary`,
-    { params, ...options },
-  );
+  return requestClient.get<TenantAIUsageSummary>(`${USAGE_PREFIX}/summary`, {
+    params,
+    ...options,
+  });
 }
 
 // ============================================================
@@ -216,10 +216,10 @@ export async function getTenantAICallLogListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<TenantCallLogPageResponse> {
-  return requestClient.get<TenantCallLogPageResponse>(
-    CALL_LOG_PREFIX,
-    { params, ...options },
-  );
+  return requestClient.get<TenantCallLogPageResponse>(CALL_LOG_PREFIX, {
+    params,
+    ...options,
+  });
 }
 
 /** 获取调用日志详情 */
@@ -328,10 +328,10 @@ export async function getTenantQuotasApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<TenantQuotaWithUsageInfo[]> {
-  return requestClient.get<TenantQuotaWithUsageInfo[]>(
-    QUOTA_PREFIX,
-    { params: { include_usage: true, ...params }, ...options },
-  );
+  return requestClient.get<TenantQuotaWithUsageInfo[]>(QUOTA_PREFIX, {
+    params: { include_usage: true, ...params },
+    ...options,
+  });
 }
 
 /** 获取配额详情 */
@@ -350,11 +350,7 @@ export async function createTenantQuotaApi(
   data: TenantQuotaCreateRequest,
   options?: ApiRequestOptions,
 ): Promise<TenantQuotaInfo> {
-  return requestClient.post<TenantQuotaInfo>(
-    QUOTA_PREFIX,
-    data,
-    options,
-  );
+  return requestClient.post<TenantQuotaInfo>(QUOTA_PREFIX, data, options);
 }
 
 /** 更新配额 */
@@ -436,16 +432,21 @@ export async function deleteTenantRateLimitApi(
  * 租户端没有独立的供应商列表 API，通过模型列表的 provider_id/provider_name 提取。
  * 用于表单中的供应商下拉选择。
  */
-export async function getTenantProviderSelectOptions(): Promise<TenantProviderOption[]> {
+export async function getTenantProviderSelectOptions(): Promise<
+  TenantProviderOption[]
+> {
   try {
     const models = await getTenantAIModelsApi();
     const providerMap = new Map<number, string>();
     for (const model of models) {
       if (model.provider_id && !providerMap.has(model.provider_id)) {
-        providerMap.set(model.provider_id, model.provider_name || `Provider #${model.provider_id}`);
+        providerMap.set(
+          model.provider_id,
+          model.provider_name || `Provider #${model.provider_id}`,
+        );
       }
     }
-    return Array.from(providerMap.entries()).map(([id, name]) => ({
+    return [...providerMap.entries()].map(([id, name]) => ({
       label: name,
       value: id,
     }));
@@ -498,7 +499,10 @@ export async function upsertTablePolicyOverrideApi(
   policyId: number,
   data: TablePolicyOverrideRequest,
 ) {
-  return requestClient.put(`/tenant/ai/table-policies/${policyId}/override`, data);
+  return requestClient.put(
+    `/tenant/ai/table-policies/${policyId}/override`,
+    data,
+  );
 }
 
 /** 删除策略覆盖（恢复全局） */

@@ -9,7 +9,6 @@ import type { PermissionNode } from '#/components/business/permission-selector';
 import { computed, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
-import { $t } from '#/locales';
 
 import {
   Alert,
@@ -42,6 +41,7 @@ import {
   updateTenantRoleApi,
 } from '#/api/tenant/role';
 import { PermissionSelector } from '#/components/business/permission-selector';
+import { $t } from '#/locales';
 
 import {
   formRules,
@@ -321,7 +321,10 @@ watch(
           <RadioGroup
             v-model:value="formData.type"
             :disabled="mode === 'edit'"
-            @change="(e: RadioChangeEvent) => handleTypeChange(e.target.value as OrgNodeType)"
+            @change="
+              (e: RadioChangeEvent) =>
+                handleTypeChange(e.target.value as OrgNodeType)
+            "
           >
             <div class="grid grid-cols-3 gap-3">
               <div
@@ -386,7 +389,10 @@ watch(
         <!-- 设置行 -->
         <div class="grid grid-cols-3 gap-4">
           <!-- 是否允许成员 -->
-          <FormItem :label="$t('shared.orgNode.allowMembers')" name="allowMembers">
+          <FormItem
+            :label="$t('shared.orgNode.allowMembers')"
+            name="allowMembers"
+          >
             <Switch v-model:checked="formData.allowMembers" />
           </FormItem>
 
@@ -408,10 +414,17 @@ watch(
 
         <!-- 权限分配 -->
         <Collapse class="mt-4" :bordered="false">
-          <CollapsePanel key="permissions" :header="$t('shared.orgNode.permissions')">
+          <CollapsePanel
+            key="permissions"
+            :header="$t('shared.orgNode.permissions')"
+          >
             <template #extra>
               <span class="text-sm text-gray-500">
-                {{ $t('shared.orgNode.selectedCount', { count: formData.permissionIds.length }) }}
+                {{
+                  $t('shared.orgNode.selectedCount', {
+                    count: formData.permissionIds.length,
+                  })
+                }}
               </span>
             </template>
             <Spin :spinning="permissionLoading">

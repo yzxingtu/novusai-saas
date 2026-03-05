@@ -75,10 +75,15 @@ export function getScopeOptions(allowedScopes?: string[]): ScopeOption[] {
   const scopes = allowedScopes ?? Object.keys(SCOPE_CONFIG);
   return scopes
     .filter((s) => s in SCOPE_CONFIG)
-    .map((s) => ({
-      label: $t(SCOPE_CONFIG[s]!.textKey),
-      value: s,
-    }));
+    .map((s) => {
+      const config = SCOPE_CONFIG[s];
+      if (!config) return null;
+      return {
+        label: $t(config.textKey),
+        value: s,
+      };
+    })
+    .filter((item): item is ScopeOption => item !== null);
 }
 
 /** 获取管理端可选的 scope 列表（排除 assigned_tenants，因为管理端不需要） */

@@ -12,9 +12,6 @@ import {
 } from '#/adapter/form';
 import { getTenantAIModelsApi } from '#/api/tenant/ai';
 import { $t } from '#/locales';
-import { formatTokens } from '#/utils/format';
-
-export { formatTokens };
 
 /**
  * 获取模型下拉选项
@@ -75,18 +72,17 @@ export function getPeriodText(period: string | undefined): string {
 export function getQuotaTypeText(type: string | undefined): string {
   if (!type) return '-';
   switch (type) {
-    case 'soft': {
-      return $t('tenant.ai.quota.type_options.soft');
-    }
     case 'hard': {
       return $t('tenant.ai.quota.type_options.hard');
+    }
+    case 'soft': {
+      return $t('tenant.ai.quota.type_options.soft');
     }
     default: {
       return type;
     }
   }
 }
-
 
 // ============ 配额表单 ============
 
@@ -180,3 +176,5 @@ export function getRateLimitFormDefaults(): Record<string, unknown> {
     is_active: true,
   };
 }
+
+export { formatTokens } from '#/utils/format';

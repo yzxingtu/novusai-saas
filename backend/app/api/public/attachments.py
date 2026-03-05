@@ -87,9 +87,9 @@ async def get_processed_image(
 ):
     """
     动态图片处理端点
-    
+
     支持通过 URL 参数进行图片缩放、裁剪、格式转换等处理。
-    
+
     **参数说明:**
     - `w`: 宽度 (1-4096)
     - `h`: 高度 (1-4096)
@@ -101,7 +101,7 @@ async def get_processed_image(
       - `crop`: 裁剪指定区域
       - `pad`: 等比缩放并填充背景
     - `p`: 预设名称 (thumb/avatar/preview/banner/small/medium/large)
-    
+
     **预设配置:**
     - `thumb`: 150x150 fill
     - `avatar`: 200x200 fill
@@ -128,16 +128,16 @@ async def get_processed_image(
     download_service = AttachmentDownloadService(db)
     attachment = await download_service.get_attachment(attachment_id)
     await download_service.validate_access(attachment, token)
-    
+
     # 图片处理服务
     image_service = ImageProcessService(db, tenant_id=attachment.tenant_id)
-    
+
     # 检查图片处理功能是否启用
     if not await image_service.is_enabled():
         # 未启用，直接重定向到原始文件
         url = await download_service.get_redirect_url(attachment, expires=3600, preview=True)
         return RedirectResponse(url=url)
-    
+
     params = await image_service.parse_params(
         width=w,
         height=h,
@@ -146,19 +146,19 @@ async def get_processed_image(
         mode=m,
         preset=p,
     )
-    
+
     # 如果无需处理，重定向到原始访问 URL
     if params.is_empty():
         url = await download_service.get_redirect_url(attachment, expires=3600, preview=True)
         return RedirectResponse(url=url)
-    
+
     # 通过服务层获取处理后的图片
     result = await image_service.get_processed_image_response(attachment, params)
-    
+
     # 如果返回 URL，重定向（云存储原生处理）
     if isinstance(result, str):
         return RedirectResponse(url=result)
-    
+
     # 返回处理后的图片数据（本地处理）
     data, mime_type = result
     return Response(

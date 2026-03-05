@@ -55,16 +55,16 @@ export function getSslStatusConfig(status: SslStatus) {
         text: $t('tenant.system.domain.ssl.failed'),
       };
     }
-    case 'provisioning': {
-      return {
-        status: 'processing' as const,
-        text: $t('tenant.system.domain.ssl.provisioning'),
-      };
-    }
     case 'pending': {
       return {
         status: 'processing' as const,
         text: $t('tenant.system.domain.ssl.pending'),
+      };
+    }
+    case 'provisioning': {
+      return {
+        status: 'processing' as const,
+        text: $t('tenant.system.domain.ssl.provisioning'),
       };
     }
     default: {

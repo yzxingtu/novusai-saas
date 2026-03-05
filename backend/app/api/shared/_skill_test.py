@@ -79,7 +79,9 @@ async def _test_knowledge_base(
             "details": None,
         }
 
-    from app.repositories.ai.knowledge_base_repository import AdminKnowledgeBaseRepository
+    from app.repositories.ai.knowledge_base_repository import (
+        AdminKnowledgeBaseRepository,
+    )
     kb_repo = AdminKnowledgeBaseRepository(db)
 
     found_kbs = []

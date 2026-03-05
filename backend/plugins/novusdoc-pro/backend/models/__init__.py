@@ -1,8 +1,8 @@
 from .comment import NovusdocProComment, NovusdocProCommentReply
-from .version import NovusdocProVersion
-from .share import NovusdocProShare
 from .member import NovusdocProDocMember
+from .share import NovusdocProShare
 from .template import NovusdocProTemplate
+from .version import NovusdocProVersion
 
 __all__ = [
     "NovusdocProComment",

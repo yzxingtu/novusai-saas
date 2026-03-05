@@ -2,17 +2,16 @@
 租户 AI 配额配置 Service
 """
 
-from typing import Optional, List, Dict, Any
 from datetime import date
+from typing import Any
 
-from app.repositories.ai.tenant_quota_repository import TenantQuotaRepository
-from app.models.ai import TenantQuota
+from app.ai.quota import UsageTracker
 from app.core.base_service import TenantService
 from app.core.i18n import _
-from app.ai.quota import UsageTracker
 from app.core.logging import LogManager
 from app.enums.ai import QuotaPeriodEnum, QuotaTypeEnum
-
+from app.models.ai import TenantQuota
+from app.repositories.ai.tenant_quota_repository import TenantQuotaRepository
 
 logger = LogManager.get_logger("ai.quota_service")
 
@@ -27,9 +26,9 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
 
     async def get_quota(
         self,
-        model_id: Optional[int] = None,
+        model_id: int | None = None,
         period: str = QuotaPeriodEnum.MONTHLY.value
-    ) -> Optional[TenantQuota]:
+    ) -> TenantQuota | None:
         """
         获取租户配额配置
 
@@ -46,9 +45,9 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
 
     async def get_quota_with_usage(
         self,
-        model_id: Optional[int] = None,
+        model_id: int | None = None,
         period: str = QuotaPeriodEnum.MONTHLY.value
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         获取配额配置及当前使用量
 
@@ -93,8 +92,8 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
 
     async def get_all_quotas_with_usage(
         self,
-        period: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        period: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         获取租户所有配额配置及使用量
 
@@ -118,9 +117,9 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
 
     async def check_quota_warning(
         self,
-        model_id: Optional[int] = None,
+        model_id: int | None = None,
         period: str = QuotaPeriodEnum.MONTHLY.value
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         检查配额预警状态
 
@@ -146,8 +145,8 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
 
     async def get_active_quotas(
         self,
-        period: Optional[str] = None,
-    ) -> List[TenantQuota]:
+        period: str | None = None,
+    ) -> list[TenantQuota]:
         """
         获取租户活跃配额列表
 
@@ -164,12 +163,12 @@ class TenantQuotaService(TenantService[TenantQuota, TenantQuotaRepository]):
 
     async def create_quota(
         self,
-        model_id: Optional[int],
+        model_id: int | None,
         period: str,
         limit: int,
         quota_type: str = QuotaTypeEnum.SOFT.value,
-        warning_threshold: Optional[int] = None,
-        description: Optional[str] = None
+        warning_threshold: int | None = None,
+        description: str | None = None
     ) -> TenantQuota:
         """
         创建配额配置

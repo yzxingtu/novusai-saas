@@ -6,24 +6,15 @@
  * - 服务端缓存：通过 API 获取统计、执行清理
  * - 前端缓存：客户端扫描 localStorage / sessionStorage / preferences
  */
-import { ref, computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { useVbenModal } from '@vben/common-ui';
 import { useTabbarStore } from '@vben/stores';
 
-import {
-  Checkbox,
-  Divider,
-  Spin,
-  Tag,
-  message,
-} from 'ant-design-vue';
+import { Checkbox, Divider, message, Spin, Tag } from 'ant-design-vue';
 
-import {
-  getCacheSummaryApi,
-  clearCacheApi,
-} from '#/api/admin/cache';
+import { clearCacheApi, getCacheSummaryApi } from '#/api/admin/cache';
 import { $t } from '#/locales';
 
 // ============================================================
@@ -42,18 +33,24 @@ interface CacheItem {
 // 前端缓存类别定义
 // ============================================================
 
-const FE_CATEGORIES = ['fe_local_storage', 'fe_tab_cache', 'fe_preferences'] as const;
-type FrontendCategory = typeof FE_CATEGORIES[number];
+type FrontendCategory = 'fe_local_storage' | 'fe_preferences' | 'fe_tab_cache';
 
 /** Token 相关 key 后缀，清理 localStorage 时必须保留 */
 const TOKEN_KEY_SUFFIXES = [
-  'admin_token', 'admin_refresh_token',
-  'tenant_admin_token', 'tenant_admin_refresh_token',
-  'tenant_user_token', 'tenant_user_refresh_token',
+  'admin_token',
+  'admin_refresh_token',
+  'tenant_admin_token',
+  'tenant_admin_refresh_token',
+  'tenant_user_token',
+  'tenant_user_refresh_token',
 ];
 
 /** Preference 相关 key 后缀 */
-const PREF_KEY_SUFFIXES = ['preferences', 'preferences-locale', 'preferences-theme'];
+const PREF_KEY_SUFFIXES = [
+  'preferences',
+  'preferences-locale',
+  'preferences-theme',
+];
 
 // ============================================================
 // State
@@ -72,11 +69,16 @@ const isAdminSide = computed(() => {
 });
 const selectedCategories = ref<Set<string>>(new Set());
 
-const allItems = computed(() => [...backendItems.value, ...frontendItems.value]);
+const allItems = computed(() => [
+  ...backendItems.value,
+  ...frontendItems.value,
+]);
 const totalCount = computed(() => allItems.value.length);
 
 const allSelected = computed(() => {
-  return totalCount.value > 0 && selectedCategories.value.size === totalCount.value;
+  return (
+    totalCount.value > 0 && selectedCategories.value.size === totalCount.value
+  );
 });
 
 const hasSelection = computed(() => selectedCategories.value.size > 0);
@@ -126,11 +128,9 @@ function toggleCategory(category: string) {
 }
 
 function toggleAll() {
-  if (allSelected.value) {
-    selectedCategories.value = new Set();
-  } else {
-    selectedCategories.value = new Set(allItems.value.map((c) => c.category));
-  }
+  selectedCategories.value = allSelected.value
+    ? new Set()
+    : new Set(allItems.value.map((c) => c.category));
 }
 
 // ============================================================
@@ -220,16 +220,6 @@ function clearFrontendCategory(category: FrontendCategory) {
       keysToRemove.forEach((k) => localStorage.removeItem(k));
       break;
     }
-    case 'fe_tab_cache': {
-      sessionStorage.clear();
-      try {
-        const tabbarStore = useTabbarStore();
-        tabbarStore.$reset();
-      } catch {
-        // tabbar store may not be initialized
-      }
-      break;
-    }
     case 'fe_preferences': {
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
@@ -239,6 +229,16 @@ function clearFrontendCategory(category: FrontendCategory) {
         }
       }
       keysToRemove.forEach((k) => localStorage.removeItem(k));
+      break;
+    }
+    case 'fe_tab_cache': {
+      sessionStorage.clear();
+      try {
+        const tabbarStore = useTabbarStore();
+        tabbarStore.$reset();
+      } catch {
+        // tabbar store may not be initialized
+      }
       break;
     }
   }
@@ -345,8 +345,12 @@ defineExpose({ open });
         <!-- Header: select all + total size -->
         <div class="mb-3 flex items-center justify-between">
           <Checkbox :checked="allSelected" @change="toggleAll">
-            {{ allSelected ? $t('admin.system.cache.deselectAll') : $t('admin.system.cache.selectAll') }}
-            <span class="text-muted-foreground ml-1 text-xs">
+            {{
+              allSelected
+                ? $t('admin.system.cache.deselectAll')
+                : $t('admin.system.cache.selectAll')
+            }}
+            <span class="ml-1 text-xs text-muted-foreground">
               ({{ selectedCount }}/{{ totalCount }})
             </span>
           </Checkbox>
@@ -366,7 +370,9 @@ defineExpose({ open });
               :key="item.category"
               class="flex cursor-pointer items-center rounded-lg border border-border px-3 py-2.5 transition-colors hover:bg-accent/50"
               :class="{
-                'border-primary/30 bg-primary/5': selectedCategories.has(item.category),
+                'border-primary/30 bg-primary/5': selectedCategories.has(
+                  item.category,
+                ),
               }"
               @click="toggleCategory(item.category)"
             >
@@ -381,8 +387,13 @@ defineExpose({ open });
                   {{ $t(`admin.system.cache.category.${item.category}`) }}
                 </div>
               </div>
-              <div class="ml-4 flex items-center gap-3 text-xs text-muted-foreground">
-                <span>{{ item.key_count }} {{ $t('admin.system.cache.columns.keyCount') }}</span>
+              <div
+                class="ml-4 flex items-center gap-3 text-xs text-muted-foreground"
+              >
+                <span
+                  >{{ item.key_count }}
+                  {{ $t('admin.system.cache.columns.keyCount') }}</span
+                >
                 <Tag :color="item.size_bytes > 0 ? 'orange' : 'default'">
                   {{ item.size_human }}
                 </Tag>
@@ -401,7 +412,9 @@ defineExpose({ open });
             :key="item.category"
             class="flex cursor-pointer items-center rounded-lg border border-border px-3 py-2.5 transition-colors hover:bg-accent/50"
             :class="{
-              'border-primary/30 bg-primary/5': selectedCategories.has(item.category),
+              'border-primary/30 bg-primary/5': selectedCategories.has(
+                item.category,
+              ),
             }"
             @click="toggleCategory(item.category)"
           >
@@ -416,8 +429,13 @@ defineExpose({ open });
                 {{ $t(`admin.system.cache.category.${item.category}`) }}
               </div>
             </div>
-            <div class="ml-4 flex items-center gap-3 text-xs text-muted-foreground">
-              <span>{{ item.key_count }} {{ $t('admin.system.cache.columns.keyCount') }}</span>
+            <div
+              class="ml-4 flex items-center gap-3 text-xs text-muted-foreground"
+            >
+              <span
+                >{{ item.key_count }}
+                {{ $t('admin.system.cache.columns.keyCount') }}</span
+              >
               <Tag :color="item.size_bytes > 0 ? 'orange' : 'default'">
                 {{ item.size_human }}
               </Tag>

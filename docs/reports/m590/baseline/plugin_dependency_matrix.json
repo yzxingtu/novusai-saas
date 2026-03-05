@@ -1,0 +1,300 @@
+{
+  "generated_at": "2026-03-03T10:37:19.702462+00:00",
+  "plugins": [
+    {
+      "plugin": "aliyun-oss",
+      "version": "1.0.0",
+      "python_dependencies": [
+        {
+          "requirement": "alibabacloud-oss-v2>=1.0.0",
+          "applicable": true,
+          "status": "satisfied",
+          "installed_version": "1.2.4"
+        },
+        {
+          "requirement": "anyio>=4.0.0",
+          "applicable": true,
+          "status": "satisfied",
+          "installed_version": "4.12.1"
+        }
+      ],
+      "npm_dependencies": []
+    },
+    {
+      "plugin": "amazon-s3",
+      "version": "1.0.0",
+      "python_dependencies": [
+        {
+          "requirement": "boto3>=1.35",
+          "applicable": true,
+          "status": "satisfied",
+          "installed_version": "1.42.59"
+        },
+        {
+          "requirement": "anyio>=4.0.0",
+          "applicable": true,
+          "status": "satisfied",
+          "installed_version": "4.12.1"
+        }
+      ],
+      "npm_dependencies": []
+    },
+    {
+      "plugin": "netdisk",
+      "version": "1.0.0",
+      "python_dependencies": [
+        {
+          "requirement": "aiofiles>=23.0",
+          "applicable": true,
+          "status": "satisfied",
+          "installed_version": "25.1.0"
+        },
+        {
+          "requirement": "bcrypt>=4.0",
+          "applicable": true,
+          "status": "satisfied",
+          "installed_version": "5.0.0"
+        },
+        {
+          "requirement": "Pillow>=10.0",
+          "applicable": true,
+          "status": "satisfied",
+          "installed_version": "12.1.1"
+        }
+      ],
+      "npm_dependencies": []
+    },
+    {
+      "plugin": "novus-crud-code",
+      "version": "1.0.0",
+      "python_dependencies": [],
+      "npm_dependencies": [
+        {
+          "dependency": "@vue-flow/core",
+          "resolved_package": "@vue-flow/core",
+          "installed": true
+        },
+        {
+          "dependency": "@vue-flow/background",
+          "resolved_package": "@vue-flow/background",
+          "installed": true
+        },
+        {
+          "dependency": "@vue-flow/controls",
+          "resolved_package": "@vue-flow/controls",
+          "installed": true
+        },
+        {
+          "dependency": "@vue-flow/minimap",
+          "resolved_package": "@vue-flow/minimap",
+          "installed": true
+        },
+        {
+          "dependency": "vxe-table",
+          "resolved_package": "vxe-table",
+          "installed": true
+        },
+        {
+          "dependency": "xe-utils",
+          "resolved_package": "xe-utils",
+          "installed": true
+        },
+        {
+          "dependency": "sortablejs",
+          "resolved_package": "sortablejs",
+          "installed": true
+        },
+        {
+          "dependency": "@types/sortablejs",
+          "resolved_package": "@types/sortablejs",
+          "installed": true
+        }
+      ]
+    },
+    {
+      "plugin": "novusdoc",
+      "version": "1.0.0",
+      "python_dependencies": [],
+      "npm_dependencies": [
+        {
+          "dependency": "@tiptap/vue-3",
+          "resolved_package": "@tiptap/vue-3",
+          "installed": true
+        },
+        {
+          "dependency": "@tiptap/starter-kit",
+          "resolved_package": "@tiptap/starter-kit",
+          "installed": true
+        },
+        {
+          "dependency": "@tiptap/extension-placeholder",
+          "resolved_package": "@tiptap/extension-placeholder",
+          "installed": true
+        },
+        {
+          "dependency": "@tiptap/extension-character-count",
+          "resolved_package": "@tiptap/extension-character-count",
+          "installed": true
+        },
+        {
+          "dependency": "@tiptap/extension-image",
+          "resolved_package": "@tiptap/extension-image",
+          "installed": true
+        },
+        {
+          "dependency": "@tiptap/extension-link",
+          "resolved_package": "@tiptap/extension-link",
+          "installed": true
+        },
+        {
+          "dependency": "@tiptap/extension-underline",
+          "resolved_package": "@tiptap/extension-underline",
+          "installed": true
+        },
+        {
+          "dependency": "@tiptap/extension-text-align",
+          "resolved_package": "@tiptap/extension-text-align",
+          "installed": true
+        },
+        {
+          "dependency": "@tiptap/extension-highlight",
+          "resolved_package": "@tiptap/extension-highlight",
+          "installed": true
+        },
+        {
+          "dependency": "@tiptap/extension-table",
+          "resolved_package": "@tiptap/extension-table",
+          "installed": true
+        },
+        {
+          "dependency": "@tiptap/extension-table-row",
+          "resolved_package": "@tiptap/extension-table-row",
+          "installed": true
+        },
+        {
+          "dependency": "@tiptap/extension-table-cell",
+          "resolved_package": "@tiptap/extension-table-cell",
+          "installed": true
+        },
+        {
+          "dependency": "@tiptap/extension-table-header",
+          "resolved_package": "@tiptap/extension-table-header",
+          "installed": true
+        },
+        {
+          "dependency": "@tiptap/extension-task-list",
+          "resolved_package": "@tiptap/extension-task-list",
+          "installed": true
+        },
+        {
+          "dependency": "@tiptap/extension-task-item",
+          "resolved_package": "@tiptap/extension-task-item",
+          "installed": true
+        }
+      ]
+    },
+    {
+      "plugin": "novusdoc-pro",
+      "version": "1.0.0",
+      "python_dependencies": [
+        {
+          "requirement": "y-py>=0.6.0; python_version < '3.12' or sys_platform != 'win32'",
+          "applicable": false,
+          "status": "skipped_by_marker",
+          "installed_version": null
+        },
+        {
+          "requirement": "redis>=5.0",
+          "applicable": true,
+          "status": "satisfied",
+          "installed_version": "7.2.1"
+        }
+      ],
+      "npm_dependencies": [
+        {
+          "dependency": "@tiptap/extension-collaboration",
+          "resolved_package": "@tiptap/extension-collaboration",
+          "installed": true
+        },
+        {
+          "dependency": "@tiptap/extension-collaboration-cursor",
+          "resolved_package": "@tiptap/extension-collaboration-cursor",
+          "installed": true
+        },
+        {
+          "dependency": "yjs",
+          "resolved_package": "yjs",
+          "installed": true
+        },
+        {
+          "dependency": "y-protocols",
+          "resolved_package": "y-protocols",
+          "installed": true
+        }
+      ]
+    },
+    {
+      "plugin": "qiniu-kodo",
+      "version": "1.0.0",
+      "python_dependencies": [
+        {
+          "requirement": "qiniu>=7.14",
+          "applicable": true,
+          "status": "satisfied",
+          "installed_version": "7.17.0"
+        },
+        {
+          "requirement": "httpx>=0.24",
+          "applicable": true,
+          "status": "satisfied",
+          "installed_version": "0.28.1"
+        },
+        {
+          "requirement": "anyio>=4.0.0",
+          "applicable": true,
+          "status": "satisfied",
+          "installed_version": "4.12.1"
+        }
+      ],
+      "npm_dependencies": []
+    },
+    {
+      "plugin": "storage-migration",
+      "version": "1.0.0",
+      "python_dependencies": [],
+      "npm_dependencies": []
+    },
+    {
+      "plugin": "tencent-cos",
+      "version": "1.0.0",
+      "python_dependencies": [
+        {
+          "requirement": "cos-python-sdk-v5>=1.9",
+          "applicable": true,
+          "status": "satisfied",
+          "installed_version": "1.9.41"
+        },
+        {
+          "requirement": "anyio>=4.0.0",
+          "applicable": true,
+          "status": "satisfied",
+          "installed_version": "4.12.1"
+        }
+      ],
+      "npm_dependencies": []
+    },
+    {
+      "plugin": "weather-widget",
+      "version": "1.0.0",
+      "python_dependencies": [
+        {
+          "requirement": "httpx>=0.26.0",
+          "applicable": true,
+          "status": "satisfied",
+          "installed_version": "0.28.1"
+        }
+      ],
+      "npm_dependencies": []
+    }
+  ]
+}

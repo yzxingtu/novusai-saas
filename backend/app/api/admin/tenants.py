@@ -9,41 +9,41 @@ from sqlalchemy import select
 
 from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
-from app.core.deps import DbSession, QueryParams, ActiveAdmin
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.logging import ImpersonateLoggerMixin
+from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.core.response import success
 from app.core.security import (
-    create_impersonate_token,
     IMPERSONATE_TOKEN_EXPIRE_SECONDS,
     TOKEN_SCOPE_TENANT_ADMIN,
+    create_impersonate_token,
 )
+from app.enums import ErrorCode
 from app.enums.rbac import PermissionScope
-from app.models import Admin, TenantAdmin
+from app.exceptions import BusinessException
 from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.rbac.decorators import (
-    permission_resource,
-    permission_action,
     MenuConfig,
-    action_read,
     action_create,
-    action_update,
     action_delete,
+    action_read,
+    action_update,
+    permission_action,
+    permission_resource,
 )
 from app.schemas.system import (
-    TenantResponse,
-    TenantStorageStats,
     TenantCreateRequest,
-    TenantUpdateRequest,
-    TenantStatusRequest,
     TenantImpersonateRequest,
     TenantImpersonateResponse,
     TenantResetOwnerPasswordRequest,
+    TenantResponse,
+    TenantStatusRequest,
+    TenantStorageStats,
+    TenantUpdateRequest,
 )
-from app.schemas.common.select import SelectResponse
-from app.core.recycle_bin import register_admin_recycle_bin_routes
-from app.services.system import TenantService
 from app.services.common import StorageQuotaService
+from app.services.system import TenantService
 
 
 # 审计日志辅助类
@@ -69,14 +69,14 @@ _audit_helper = _ImpersonateAuditLogger()
 class AdminTenantController(GlobalController):
     """
     租户管理控制器
-    
+
     提供租户 CRUD、状态切换等接口
     """
-    
+
     prefix = "/tenants"
     tags = ["Tenant Management"]
     service_class = TenantService
-    
+
     def _register_routes(self) -> None:
         """注册路由"""
         router = self.router
@@ -87,7 +87,7 @@ class AdminTenantController(GlobalController):
             service_class=TenantService,
             resource_name="tenant",
         )
-        
+
         @router.get("/select", summary="获取租户下拉选项")
         @action_read("action.tenant.select")
         async def select_tenants(
@@ -101,13 +101,13 @@ class AdminTenantController(GlobalController):
         ):
             """
             获取租户下拉选项
-            
+
             用于筛选器或表单中的租户选择组件
-            
+
             分页模式：
             - page=0: 不分页，返回全部数据（受 limit 限制）
             - page>=1: 分页模式，返回分页信息（total, has_more）
-            
+
             权限: tenant:select
             """
             # 解析 is_active 参数
@@ -116,7 +116,7 @@ class AdminTenantController(GlobalController):
                 active_filter = False
             elif is_active.lower() == "true":
                 active_filter = True
-            
+
             service = TenantService(db)
             response = await service.get_select_options(
                 search=search,
@@ -129,7 +129,7 @@ class AdminTenantController(GlobalController):
                 data=response,
                 message=_("common.success"),
             )
-        
+
         @router.get("", summary="获取租户列表")
         @action_read("action.tenant.list")
         async def list_tenants(
@@ -140,21 +140,21 @@ class AdminTenantController(GlobalController):
         ):
             """
             获取所有租户列表
-            
+
             - 支持通用筛选: filter[field][op]=value
             - 支持排序: sort=-created_at,name
             - 支持分页: page[number]=1&page[size]=20
-            
+
             权限: tenant:list
             """
             service = TenantService(db)
             items, total = await service.query_list(spec, scope="admin")
-            
+
             # 批量获取存储统计
             tenant_ids = [item.id for item in items]
             quota_service = StorageQuotaService(db)
             storage_stats_map = await quota_service.get_tenant_storage_stats_batch(tenant_ids)
-            
+
             # 构建响应数据
             response_items = []
             for item in items:
@@ -163,7 +163,7 @@ class AdminTenantController(GlobalController):
                 if stats:
                     data.storage_stats = TenantStorageStats(**stats)
                 response_items.append(data)
-            
+
             return success(
                 data=PageResponse.create(
                     items=response_items,
@@ -173,7 +173,7 @@ class AdminTenantController(GlobalController):
                 ),
                 message=_("common.success"),
             )
-        
+
         @router.get("/{tenant_id}", summary="获取租户详情")
         @action_read("action.tenant.detail")
         async def get_tenant(
@@ -184,31 +184,31 @@ class AdminTenantController(GlobalController):
         ):
             """
             获取租户详情
-            
+
             权限: tenant:detail
             """
             service = TenantService(db)
             tenant = await service.get_by_id(tenant_id)
-            
+
             if tenant is None:
                 from fastapi import HTTPException, status
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=_("tenant.not_found"),
                 )
-            
+
             # 获取存储统计
             quota_service = StorageQuotaService(db)
             storage_stats = await quota_service.get_tenant_storage_stats(tenant_id)
-            
+
             data = TenantResponse.model_validate(tenant, from_attributes=True)
             data.storage_stats = TenantStorageStats(**storage_stats)
-            
+
             return success(
                 data=data,
                 message=_("common.success"),
             )
-        
+
         @router.post("", summary="创建租户")
         @action_create("action.tenant.create")
         async def create_tenant(
@@ -219,9 +219,9 @@ class AdminTenantController(GlobalController):
         ):
             """
             创建租户
-            
+
             - 租户编码由系统自动生成
-            
+
             权限: tenant:create
             """
             service = TenantService(db)
@@ -239,12 +239,12 @@ class AdminTenantController(GlobalController):
                 remark=data.remark,
             )
             await db.commit()
-            
+
             return success(
                 data=TenantResponse.model_validate(tenant, from_attributes=True),
                 message=_("tenant.created"),
             )
-        
+
         @router.put("/{tenant_id}", summary="更新租户")
         @action_update("action.tenant.update")
         async def update_tenant(
@@ -256,22 +256,22 @@ class AdminTenantController(GlobalController):
         ):
             """
             更新租户信息
-            
+
             权限: tenant:update
             """
             service = TenantService(db)
-            
+
             # 移除 None 值
             update_data = {k: v for k, v in data.model_dump().items() if v is not None}
-            
+
             tenant = await service.update_tenant(tenant_id, update_data)
             await db.commit()
-            
+
             return success(
                 data=TenantResponse.model_validate(tenant, from_attributes=True),
                 message=_("tenant.updated"),
             )
-        
+
         @router.delete("/{tenant_id}", summary="删除租户")
         @action_delete("action.tenant.delete")
         async def delete_tenant(
@@ -282,13 +282,13 @@ class AdminTenantController(GlobalController):
         ):
             """
             删除租户（软删除）
-            
+
             **注意**: 删除租户会导致该租户下所有数据不可访问
-            
+
             权限: tenant:delete
             """
             service = TenantService(db)
-            
+
             # 检查租户是否存在
             tenant = await service.get_by_id(tenant_id)
             if tenant is None:
@@ -297,12 +297,12 @@ class AdminTenantController(GlobalController):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=_("tenant.not_found"),
                 )
-            
+
             await service.delete(tenant_id)
             await db.commit()
-            
+
             return success(message=_("tenant.deleted"))
-        
+
         @router.put("/{tenant_id}/status", summary="切换租户状态")
         @action_update("action.tenant.toggle_status")
         async def toggle_tenant_status(
@@ -314,20 +314,20 @@ class AdminTenantController(GlobalController):
         ):
             """
             启用或禁用租户
-            
+
             - 禁用后租户下所有用户无法登录
-            
+
             权限: tenant:update
             """
             service = TenantService(db)
             tenant = await service.toggle_status(tenant_id, data.is_active)
             await db.commit()
-            
+
             return success(
                 data=TenantResponse.model_validate(tenant, from_attributes=True),
                 message=_("tenant.status_updated"),
             )
-        
+
         @router.post("/{tenant_id}/impersonate", summary="一键登录租户后台")
         @permission_action("impersonate", "action.tenant.impersonate")
         async def impersonate_tenant(
@@ -339,28 +339,28 @@ class AdminTenantController(GlobalController):
         ):
             """
             生成一键登录租户后台的 Token
-            
+
             - Token 60 秒过期，一次性使用
             - 可选指定目标角色 role_id
-            
+
             权限: tenant:impersonate
             """
             # 获取租户信息
             service = TenantService(db)
             tenant = await service.get_by_id(tenant_id)
-            
+
             if tenant is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=_("tenant.not_found"),
                 )
-            
+
             if not tenant.is_active:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=_("tenant.disabled"),
                 )
-            
+
             # 验证目标角色（如果指定）
             role_id = data.role_id if data else None
             if role_id:
@@ -377,7 +377,7 @@ class AdminTenantController(GlobalController):
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=_("tenant_admin.role_not_found"),
                     )
-            
+
             # 生成 impersonate token
             token = create_impersonate_token(
                 admin_id=current_admin.id,
@@ -385,7 +385,7 @@ class AdminTenantController(GlobalController):
                 target_tenant_id=tenant_id,
                 target_role_id=role_id,
             )
-            
+
             # 记录审计日志
             _audit_helper.logger.info(
                 "Admin impersonate initiated | admin_id=%s | admin_username=%s | "
@@ -396,7 +396,7 @@ class AdminTenantController(GlobalController):
                 tenant.code,
                 role_id,
             )
-            
+
             return success(
                 data=TenantImpersonateResponse(
                     impersonate_token=token,
@@ -406,7 +406,7 @@ class AdminTenantController(GlobalController):
                 ),
                 message=_("common.success"),
             )
-        
+
         @router.get("/{tenant_id}/storage-config", summary="获取租户存储配置")
         @action_read("action.tenant.detail")
         async def get_tenant_storage_config(
@@ -420,7 +420,9 @@ class AdminTenantController(GlobalController):
 
             权限: tenant:detail
             """
-            from app.services.common.storage_config_resolver import StorageConfigResolver
+            from app.services.common.storage_config_resolver import (
+                StorageConfigResolver,
+            )
 
             resolver = StorageConfigResolver(db)
             mode = await resolver.get_storage_mode(tenant_id)
@@ -578,15 +580,15 @@ class AdminTenantController(GlobalController):
         ):
             """
             重置租户超级管理员（owner）密码
-            
+
             - 用于租户管理员忘记密码或安全事件处理
-            
+
             权限: tenant:reset_owner_password
             """
             service = TenantService(db)
             await service.reset_owner_password(tenant_id, data.new_password)
             await db.commit()
-            
+
             return success(message=_("tenant.owner_password_reset"))
 
 

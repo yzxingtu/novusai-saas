@@ -1,0 +1,281 @@
+{
+  "generated_at": "2026-03-03T19:19:36.7482424+08:00",
+  "disable_order": [
+    "novusdoc-pro",
+    "weather-widget",
+    "tencent-cos",
+    "storage-migration",
+    "qiniu-kodo",
+    "novusdoc",
+    "novus-crud-code",
+    "netdisk",
+    "amazon-s3",
+    "aliyun-oss"
+  ],
+  "enable_order": [
+    "aliyun-oss",
+    "amazon-s3",
+    "netdisk",
+    "novus-crud-code",
+    "novusdoc",
+    "qiniu-kodo",
+    "storage-migration",
+    "tencent-cos",
+    "weather-widget",
+    "novusdoc-pro"
+  ],
+  "operations": [
+    {
+      "step": "disable",
+      "plugin": "novusdoc-pro",
+      "plugin_id": 1076,
+      "before_status": "enabled",
+      "ok": true,
+      "error": "",
+      "after_status": "disabled"
+    },
+    {
+      "step": "disable",
+      "plugin": "weather-widget",
+      "plugin_id": 1080,
+      "before_status": "enabled",
+      "ok": true,
+      "error": "",
+      "after_status": "disabled"
+    },
+    {
+      "step": "disable",
+      "plugin": "tencent-cos",
+      "plugin_id": 1079,
+      "before_status": "enabled",
+      "ok": true,
+      "error": "",
+      "after_status": "disabled"
+    },
+    {
+      "step": "disable",
+      "plugin": "storage-migration",
+      "plugin_id": 1078,
+      "before_status": "enabled",
+      "ok": true,
+      "error": "",
+      "after_status": "disabled"
+    },
+    {
+      "step": "disable",
+      "plugin": "qiniu-kodo",
+      "plugin_id": 1077,
+      "before_status": "enabled",
+      "ok": true,
+      "error": "",
+      "after_status": "disabled"
+    },
+    {
+      "step": "disable",
+      "plugin": "novusdoc",
+      "plugin_id": 1075,
+      "before_status": "enabled",
+      "ok": true,
+      "error": "",
+      "after_status": "disabled"
+    },
+    {
+      "step": "disable",
+      "plugin": "novus-crud-code",
+      "plugin_id": 1074,
+      "before_status": "enabled",
+      "ok": true,
+      "error": "",
+      "after_status": "disabled"
+    },
+    {
+      "step": "disable",
+      "plugin": "netdisk",
+      "plugin_id": 1081,
+      "before_status": "enabled",
+      "ok": true,
+      "error": "",
+      "after_status": "disabled"
+    },
+    {
+      "step": "disable",
+      "plugin": "amazon-s3",
+      "plugin_id": 1073,
+      "before_status": "enabled",
+      "ok": true,
+      "error": "",
+      "after_status": "disabled"
+    },
+    {
+      "step": "disable",
+      "plugin": "aliyun-oss",
+      "plugin_id": 1072,
+      "before_status": "enabled",
+      "ok": true,
+      "error": "",
+      "after_status": "disabled"
+    },
+    {
+      "step": "enable",
+      "plugin": "aliyun-oss",
+      "plugin_id": 1072,
+      "before_status": "disabled",
+      "ok": true,
+      "error": "",
+      "after_status": "enabled"
+    },
+    {
+      "step": "enable",
+      "plugin": "amazon-s3",
+      "plugin_id": 1073,
+      "before_status": "disabled",
+      "ok": true,
+      "error": "",
+      "after_status": "enabled"
+    },
+    {
+      "step": "enable",
+      "plugin": "netdisk",
+      "plugin_id": 1081,
+      "before_status": "disabled",
+      "ok": true,
+      "error": "",
+      "after_status": "enabled"
+    },
+    {
+      "step": "enable",
+      "plugin": "novus-crud-code",
+      "plugin_id": 1074,
+      "before_status": "disabled",
+      "ok": true,
+      "error": "",
+      "after_status": "enabled"
+    },
+    {
+      "step": "enable",
+      "plugin": "novusdoc",
+      "plugin_id": 1075,
+      "before_status": "disabled",
+      "ok": true,
+      "error": "",
+      "after_status": "enabled"
+    },
+    {
+      "step": "enable",
+      "plugin": "qiniu-kodo",
+      "plugin_id": 1077,
+      "before_status": "disabled",
+      "ok": true,
+      "error": "",
+      "after_status": "enabled"
+    },
+    {
+      "step": "enable",
+      "plugin": "storage-migration",
+      "plugin_id": 1078,
+      "before_status": "disabled",
+      "ok": true,
+      "error": "",
+      "after_status": "enabled"
+    },
+    {
+      "step": "enable",
+      "plugin": "tencent-cos",
+      "plugin_id": 1079,
+      "before_status": "disabled",
+      "ok": true,
+      "error": "",
+      "after_status": "enabled"
+    },
+    {
+      "step": "enable",
+      "plugin": "weather-widget",
+      "plugin_id": 1080,
+      "before_status": "disabled",
+      "ok": true,
+      "error": "",
+      "after_status": "enabled"
+    },
+    {
+      "step": "enable",
+      "plugin": "novusdoc-pro",
+      "plugin_id": 1076,
+      "before_status": "disabled",
+      "ok": true,
+      "error": "",
+      "after_status": "enabled"
+    }
+  ],
+  "final_statuses": [
+    {
+      "id": 1072,
+      "name": "aliyun-oss",
+      "status": "enabled",
+      "version": "1.0.0",
+      "scope": "admin_and_all"
+    },
+    {
+      "id": 1073,
+      "name": "amazon-s3",
+      "status": "enabled",
+      "version": "1.0.0",
+      "scope": "admin_and_all"
+    },
+    {
+      "id": 1081,
+      "name": "netdisk",
+      "status": "enabled",
+      "version": "1.0.0",
+      "scope": "admin_and_assigned"
+    },
+    {
+      "id": 1074,
+      "name": "novus-crud-code",
+      "status": "enabled",
+      "version": "1.0.0",
+      "scope": "admin_only"
+    },
+    {
+      "id": 1075,
+      "name": "novusdoc",
+      "status": "enabled",
+      "version": "1.0.0",
+      "scope": "admin_and_all"
+    },
+    {
+      "id": 1076,
+      "name": "novusdoc-pro",
+      "status": "enabled",
+      "version": "1.0.0",
+      "scope": "admin_and_assigned"
+    },
+    {
+      "id": 1077,
+      "name": "qiniu-kodo",
+      "status": "enabled",
+      "version": "1.0.0",
+      "scope": "admin_and_all"
+    },
+    {
+      "id": 1078,
+      "name": "storage-migration",
+      "status": "enabled",
+      "version": "1.0.0",
+      "scope": "admin_only"
+    },
+    {
+      "id": 1079,
+      "name": "tencent-cos",
+      "status": "enabled",
+      "version": "1.0.0",
+      "scope": "admin_and_all"
+    },
+    {
+      "id": 1080,
+      "name": "weather-widget",
+      "status": "enabled",
+      "version": "1.0.0",
+      "scope": "admin_and_assigned"
+    }
+  ]
+}

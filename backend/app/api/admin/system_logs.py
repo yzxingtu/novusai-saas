@@ -11,18 +11,17 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, ActiveAdmin
+from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
-    permission_resource,
-    action_read,
-    action_delete,
     MenuConfig,
+    action_delete,
+    action_read,
+    permission_resource,
 )
 from app.services.system import SystemLogService
-
 
 # ============ Schemas ============
 
@@ -77,17 +76,17 @@ class LogStatsResponse(BaseModel):
 class AdminSystemLogController(GlobalController):
     """
     平台端系统日志控制器
-    
+
     提供文件日志的查看、下载、删除接口
     """
-    
+
     prefix = "/system-logs"
     tags = ["System Log Management"]
-    
+
     def _register_routes(self) -> None:
         """注册路由"""
         router = self.router
-        
+
         @router.get("/stats", summary="获取日志统计")
         @action_read("action.system_log.stats")
         async def get_log_stats(
@@ -97,14 +96,14 @@ class AdminSystemLogController(GlobalController):
         ):
             """
             获取日志统计信息
-            
+
             返回总文件数、总大小及各分类统计
-            
+
             权限: system_log:stats
             """
             service = SystemLogService()
             stats = service.get_log_stats()
-            
+
             return success(
                 data=LogStatsResponse(
                     total_files=stats["total_files"],
@@ -115,7 +114,7 @@ class AdminSystemLogController(GlobalController):
                 ),
                 message=_("common.success"),
             )
-        
+
         @router.get("/categories", summary="获取日志分类列表")
         @action_read("action.system_log.categories")
         async def list_categories(
@@ -125,14 +124,14 @@ class AdminSystemLogController(GlobalController):
         ):
             """
             获取日志分类列表
-            
+
             返回所有日志分类及其统计信息
-            
+
             权限: system_log:categories
             """
             service = SystemLogService()
             categories = service.list_categories()
-            
+
             return success(
                 data=[
                     LogCategoryResponse(
@@ -146,7 +145,7 @@ class AdminSystemLogController(GlobalController):
                 ],
                 message=_("common.success"),
             )
-        
+
         @router.get("/files", summary="获取日志文件列表")
         @action_read("action.system_log.files")
         async def list_files(
@@ -157,14 +156,14 @@ class AdminSystemLogController(GlobalController):
         ):
             """
             获取日志文件列表
-            
+
             可按分类筛选，按修改时间倒序排列
-            
+
             权限: system_log:files
             """
             service = SystemLogService()
             files = service.list_log_files(category=category)
-            
+
             return success(
                 data=[
                     LogFileResponse(
@@ -178,7 +177,7 @@ class AdminSystemLogController(GlobalController):
                 ],
                 message=_("common.success"),
             )
-        
+
         @router.get("/files/{filename}/content", summary="读取日志文件内容")
         @action_read("action.system_log.read")
         async def read_file_content(
@@ -192,9 +191,9 @@ class AdminSystemLogController(GlobalController):
         ):
             """
             分页读取日志文件内容
-            
+
             默认最新的日志在前（倒序）
-            
+
             权限: system_log:read
             """
             service = SystemLogService()
@@ -204,13 +203,13 @@ class AdminSystemLogController(GlobalController):
                 page_size=page_size,
                 reverse=reverse,
             )
-            
+
             if content is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=_("system_log.file_not_found"),
                 )
-            
+
             return success(
                 data=LogContentResponse(
                     lines=content.lines,
@@ -221,7 +220,7 @@ class AdminSystemLogController(GlobalController):
                 ),
                 message=_("common.success"),
             )
-        
+
         @router.get("/files/{filename}/download", summary="下载日志文件")
         @action_read("action.system_log.download")
         async def download_file(
@@ -232,24 +231,24 @@ class AdminSystemLogController(GlobalController):
         ):
             """
             下载日志文件
-            
+
             权限: system_log:download
             """
             service = SystemLogService()
             file_path = service.get_log_file_path(filename)
-            
+
             if file_path is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=_("system_log.file_not_found"),
                 )
-            
+
             return FileResponse(
                 path=file_path,
                 filename=filename,
                 media_type="text/plain; charset=utf-8",
             )
-        
+
         @router.delete("/files/{filename}", summary="删除日志文件")
         @action_delete("action.system_log.delete")
         async def delete_file(
@@ -260,13 +259,13 @@ class AdminSystemLogController(GlobalController):
         ):
             """
             删除日志文件
-            
+
             注意：不允许删除当前活动日志文件（如 app.log）
-            
+
             权限: system_log:delete
             """
             service = SystemLogService()
-            
+
             # 检查文件是否存在
             file_path = service.get_log_file_path(filename)
             if file_path is None:
@@ -274,16 +273,16 @@ class AdminSystemLogController(GlobalController):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=_("system_log.file_not_found"),
                 )
-            
+
             # 尝试删除
             deleted = service.delete_log_file(filename)
-            
+
             if not deleted:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=_("system_log.cannot_delete_current"),
                 )
-            
+
             return success(
                 data={"deleted": filename},
                 message=_("system_log.deleted"),

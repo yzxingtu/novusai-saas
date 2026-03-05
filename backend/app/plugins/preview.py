@@ -13,7 +13,6 @@ from pydantic import BaseModel, Field
 
 from app.core.logging import get_logger
 from app.plugins.loader import PluginLoader
-from app.plugins.manifest import PluginManifest
 
 logger = get_logger(__name__)
 
@@ -65,15 +64,16 @@ async def generate_preview(
     loader = loader or PluginLoader()
 
     # 解析 manifest
-    plugin_name = plugin_path.name
-    manifest = loader.load_manifest(plugin_name)
+    # 直接按路径读取，支持 staging/temp 目录预览，避免要求插件先落盘到 PLUGINS_DIR
+    manifest = loader.load_manifest_from_path(plugin_path)
 
     # 基本信息
     icon_value = manifest.icon
     # 如果是图片文件，转为 base64 data URL（预览时插件还未安装，无法通过 /plugin-assets/ 访问）
     if icon_value and not icon_value.startswith("http") and ":" not in icon_value:
-        icon_file = plugin_path / icon_value
-        if icon_file.is_file():
+        icon_file = (plugin_path / icon_value).resolve()
+        # 防止路径遍历：确保 icon 文件在插件目录内
+        if icon_file.is_file() and plugin_path.resolve() in icon_file.parents:
             import base64
             import mimetypes
             mime = mimetypes.guess_type(str(icon_file))[0] or "image/png"
@@ -162,7 +162,35 @@ async def generate_preview(
     if conflicts:
         warnings.append(f"Detected {len(conflicts)} conflict(s) with existing extensions")
     if manifest.dependencies.python:
-        warnings.append(f"Will install {len(manifest.dependencies.python)} Python package(s)")
+        # 实际检查哪些包已安装、哪些需要 pip install，避免误报
+        try:
+            import importlib.metadata as _imeta
+
+            from packaging.requirements import Requirement
+            from packaging.version import Version
+
+            to_install: list[str] = []
+            for req_str in manifest.dependencies.python:
+                try:
+                    req_obj = Requirement(req_str.strip())
+                    dist = _imeta.distribution(req_obj.name)
+                    if req_obj.specifier and Version(dist.version) not in req_obj.specifier:
+                        to_install.append(req_str)
+                    # 已满足 → 不计入 to_install
+                except _imeta.PackageNotFoundError:
+                    to_install.append(req_str)
+                except Exception:
+                    to_install.append(req_str)
+
+            if to_install:
+                warnings.append(f"Will install {len(to_install)} Python package(s)")
+            else:
+                warnings.append(
+                    f"Python dependencies already satisfied ({len(manifest.dependencies.python)} package(s))"
+                )
+        except ImportError:
+            # packaging 未安装时降级为原静态提示
+            warnings.append(f"Will install {len(manifest.dependencies.python)} Python package(s)")
     if manifest.pricing.type == "paid" and not manifest.pricing.price:
         warnings.append("Paid plugin but no price specified")
     if scan_result.has_warnings:

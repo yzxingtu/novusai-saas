@@ -9,8 +9,6 @@ import type { OrgTreeNodeData } from '#/components/business/org-tree';
 
 import { computed, onMounted, ref } from 'vue';
 
-defineOptions({ name: 'TenantOrganization' });
-
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -33,6 +31,8 @@ import { OrgTreeNode, useOrgTree } from '#/components/business/org-tree';
 import { NODE_TYPE_CONFIG } from '#/components/business/org-tree/types';
 import { PermissionPreview } from '#/components/business/permission-preview';
 import { $t } from '#/locales';
+
+defineOptions({ name: 'TenantOrganization' });
 
 // ============================================================
 // 组织树管理

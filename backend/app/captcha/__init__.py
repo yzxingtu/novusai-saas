@@ -1,5 +1,9 @@
-from app.captcha.provider import ICaptchaProvider, CaptchaChallenge, CaptchaVerificationResult
-from app.captcha.registry import registry, CaptchaRegistry
+from app.captcha.provider import (
+    CaptchaChallenge,
+    CaptchaVerificationResult,
+    ICaptchaProvider,
+)
+from app.captcha.registry import CaptchaRegistry, registry
 from app.captcha.service import CaptchaService
 
 __all__ = [

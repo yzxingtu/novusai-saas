@@ -7,16 +7,15 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, model_validator
 
 from app.core.base_schema import BaseSchema
-from app.core.config import settings
 from app.schemas.tenant.domain import TenantDomainSimpleResponse
 
 
 class TenantPlanInfo(BaseSchema):
     """租户套餐信息（简略）"""
-    
+
     id: int = Field(..., description="套餐 ID")
     code: str = Field(..., description="套餐代码")
     name: str = Field(..., description="套餐名称")
@@ -24,7 +23,7 @@ class TenantPlanInfo(BaseSchema):
 
 class TenantStorageStats(BaseSchema):
     """租户存储统计信息"""
-    
+
     used_bytes: int = Field(0, description="已使用存储空间（字节）")
     limit_bytes: int = Field(0, description="存储限制（字节），0 表示无限制")
     limit_gb: int = Field(0, description="存储限制（GB），0 表示无限制")
@@ -35,7 +34,7 @@ class TenantStorageStats(BaseSchema):
 
 class TenantResponse(BaseSchema):
     """租户信息响应"""
-    
+
     id: int = Field(..., description="租户 ID")
     code: str = Field(..., description="租户编码")
     name: str = Field(..., description="租户名称")
@@ -60,7 +59,7 @@ class TenantResponse(BaseSchema):
     # 时间字段
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
-    
+
     @model_validator(mode="before")
     @classmethod
     def extract_tenant_info(cls, data: Any) -> Any:
@@ -83,7 +82,7 @@ class TenantResponse(BaseSchema):
                 "created_at": data.created_at,
                 "updated_at": data.updated_at,
             }
-            
+
             # 提取套餐信息
             if hasattr(data, "tenant_plan") and data.tenant_plan is not None:
                 plan = data.tenant_plan
@@ -92,13 +91,14 @@ class TenantResponse(BaseSchema):
                     "code": plan.code,
                     "name": plan.name,
                 }
-            
+
             # 提取域名信息
             if hasattr(data, "domains") and data.domains:
                 domains_list = [
                     {
                         "id": d.id,
                         "domain": d.domain,
+                        "domain_type": d.domain_type,
                         "is_primary": d.is_primary,
                         "is_verified": d.is_verified,
                         "ssl_status": d.ssl_status,
@@ -111,14 +111,14 @@ class TenantResponse(BaseSchema):
                 result["primary_domain"] = next(
                     (d for d in domains_list if d["is_primary"]), None
                 )
-            
+
             return result
         return data
 
 
 class TenantCreateRequest(BaseSchema):
     """创建租户请求"""
-    
+
     name: str = Field(..., min_length=1, max_length=100, description="租户名称")
     contact_name: str | None = Field(None, max_length=50, description="联系人姓名")
     contact_phone: str | None = Field(None, max_length=20, description="联系人电话")
@@ -136,7 +136,7 @@ class TenantCreateRequest(BaseSchema):
 
 class TenantUpdateRequest(BaseSchema):
     """更新租户请求"""
-    
+
     name: str | None = Field(None, min_length=1, max_length=100, description="租户名称")
     contact_name: str | None = Field(None, max_length=50, description="联系人姓名")
     contact_phone: str | None = Field(None, max_length=20, description="联系人电话")
@@ -152,19 +152,19 @@ class TenantUpdateRequest(BaseSchema):
 
 class TenantStatusRequest(BaseSchema):
     """租户状态切换请求"""
-    
+
     is_active: bool = Field(..., description="是否启用")
 
 
 class TenantImpersonateRequest(BaseSchema):
     """一键登录租户后台请求"""
-    
+
     role_id: int | None = Field(None, description="目标角色 ID（可选）")
 
 
 class TenantImpersonateResponse(BaseSchema):
     """一键登录租户后台响应"""
-    
+
     impersonate_token: str = Field(..., description="一键登录 Token（60秒有效，一次性）")
     tenant_code: str = Field(..., description="租户编码")
     tenant_name: str = Field(..., description="租户名称")
@@ -173,7 +173,7 @@ class TenantImpersonateResponse(BaseSchema):
 
 class TenantResetOwnerPasswordRequest(BaseSchema):
     """重置租户超级管理员密码请求"""
-    
+
     new_password: str = Field(..., min_length=6, max_length=100, description="新密码")
 
 

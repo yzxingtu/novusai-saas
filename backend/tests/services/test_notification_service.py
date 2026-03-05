@@ -6,7 +6,7 @@ NotificationService 单元测试
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -99,7 +99,7 @@ class TestNotificationMarkRead:
         service.repo = AsyncMock()
         mock_db.execute = AsyncMock()
 
-        count = await service.mark_all_read(user_type="tenant_admin", user_id=1)
+        await service.mark_all_read(user_type="tenant_admin", user_id=1)
         # mark_all_read uses db.execute directly, just verify it doesn't crash
 
 

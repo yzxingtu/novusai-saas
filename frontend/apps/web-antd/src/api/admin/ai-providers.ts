@@ -122,7 +122,7 @@ export interface AIHealthStatus {
   is_available: boolean;
   response_time_ms: number;
   consecutive_failures: number;
-  error_message: string | null;
+  error_message: null | string;
   checked_at: string;
 }
 
@@ -148,7 +148,7 @@ export interface TestAIGatewayResult {
   output_tokens: number;
   total_tokens: number;
   response_text: string;
-  error: string | null;
+  error: null | string;
   model: string;
   provider: string;
 }
@@ -175,10 +175,10 @@ export async function getAIProviderListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<PageResponse<AIProviderInfo>> {
-  return requestClient.get<PageResponse<AIProviderInfo>>(
-    PROVIDER_PREFIX,
-    { params, ...options },
-  );
+  return requestClient.get<PageResponse<AIProviderInfo>>(PROVIDER_PREFIX, {
+    params,
+    ...options,
+  });
 }
 
 /** 获取可用适配器类型列表（内置 + 插件） */
@@ -196,10 +196,7 @@ export async function getAIProviderDetailApi(
   id: number,
   options?: ApiRequestOptions,
 ): Promise<AIProviderInfo> {
-  return requestClient.get<AIProviderInfo>(
-    `${PROVIDER_PREFIX}/${id}`,
-    options,
-  );
+  return requestClient.get<AIProviderInfo>(`${PROVIDER_PREFIX}/${id}`, options);
 }
 
 /** 创建供应商 */
@@ -207,11 +204,7 @@ export async function createAIProviderApi(
   data: AIProviderCreateRequest,
   options?: ApiRequestOptions,
 ): Promise<AIProviderInfo> {
-  return requestClient.post<AIProviderInfo>(
-    PROVIDER_PREFIX,
-    data,
-    options,
-  );
+  return requestClient.post<AIProviderInfo>(PROVIDER_PREFIX, data, options);
 }
 
 /** 更新供应商 */
@@ -266,10 +259,10 @@ export async function getAIApiKeyListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<PageResponse<AIApiKeyInfo>> {
-  return requestClient.get<PageResponse<AIApiKeyInfo>>(
-    API_KEY_PREFIX,
-    { params, ...options },
-  );
+  return requestClient.get<PageResponse<AIApiKeyInfo>>(API_KEY_PREFIX, {
+    params,
+    ...options,
+  });
 }
 
 /** 获取供应商的 API Key 列表 */
@@ -291,10 +284,7 @@ export async function getAIApiKeyDetailApi(
   id: number,
   options?: ApiRequestOptions,
 ): Promise<AIApiKeyInfo> {
-  return requestClient.get<AIApiKeyInfo>(
-    `${API_KEY_PREFIX}/${id}`,
-    options,
-  );
+  return requestClient.get<AIApiKeyInfo>(`${API_KEY_PREFIX}/${id}`, options);
 }
 
 /** 创建 API Key */
@@ -302,11 +292,7 @@ export async function createAIApiKeyApi(
   data: AIApiKeyCreateRequest,
   options?: ApiRequestOptions,
 ): Promise<AIApiKeyInfo> {
-  return requestClient.post<AIApiKeyInfo>(
-    API_KEY_PREFIX,
-    data,
-    options,
-  );
+  return requestClient.post<AIApiKeyInfo>(API_KEY_PREFIX, data, options);
 }
 
 /** 更新 API Key */

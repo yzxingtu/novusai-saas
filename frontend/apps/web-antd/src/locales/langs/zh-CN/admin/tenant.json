@@ -102,7 +102,7 @@
     "owner": "所有者",
     "lastLogin": "最后登录",
     "ownerCannotDisable": "所有者管理员不可禁用",
-      "confirmDisable": "确定禁用该管理员？",
+    "confirmDisable": "确定禁用该管理员？",
     "confirmEnable": "确定启用该管理员？",
     "createTitle": "为「{name}」创建管理员",
     "editTitle": "编辑管理员 - {name}",

@@ -28,14 +28,14 @@ function getInitial(username: string | null): string {
 </script>
 
 <template>
-  <div class="ndp-collab-avatars">
+  <div class="flex items-center">
     <Tooltip
       v-for="(user, idx) in visibleUsers"
       :key="user.userId ?? idx"
       :title="user.username || 'Anonymous'"
     >
       <div
-        class="ndp-collab-avatar"
+        class="flex size-7 items-center justify-center rounded-full border-2 border-background text-[11px] font-semibold text-white"
         :style="{ backgroundColor: user.color, marginLeft: idx > 0 ? '-6px' : '0' }"
       >
         {{ getInitial(user.username) }}
@@ -43,7 +43,7 @@ function getInitial(username: string | null): string {
     </Tooltip>
     <div
       v-if="overflowCount > 0"
-      class="ndp-collab-avatar"
+      class="flex size-7 items-center justify-center rounded-full border-2 border-background text-[11px] font-semibold text-white"
       :style="{ backgroundColor: '#6B7280', marginLeft: '-6px' }"
     >
       +{{ overflowCount }}

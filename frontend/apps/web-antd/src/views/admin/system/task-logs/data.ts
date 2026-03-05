@@ -27,7 +27,7 @@ export function getTaskShortName(taskName: string): string {
 /**
  * 格式化耗时为易读字符串
  */
-export function formatDuration(ms: number | null | undefined): string {
+export function formatDuration(ms: null | number | undefined): string {
   if (ms === null || ms === undefined) return '-';
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
@@ -41,7 +41,7 @@ export function formatDuration(ms: number | null | undefined): string {
  */
 export function getResultSummary(
   row: TaskLogInfo,
-): { text: string; type: 'error' | 'info' | 'success' } | null {
+): null | { text: string; type: 'error' | 'info' | 'success' } {
   if (row.errorMessage) {
     return { text: row.errorMessage, type: 'error' };
   }
@@ -49,13 +49,19 @@ export function getResultSummary(
   const r = row.result as Record<string, unknown>;
   const parts: string[] = [];
   if ('total_cleaned' in r) {
-    parts.push(`${$t('admin.system.taskLog.resultKeys.cleaned')}: ${r.total_cleaned}`);
+    parts.push(
+      `${$t('admin.system.taskLog.resultKeys.cleaned')}: ${r.total_cleaned}`,
+    );
   }
   if ('cleaned' in r) {
-    parts.push(`${$t('admin.system.taskLog.resultKeys.cleaned')}: ${r.cleaned}`);
+    parts.push(
+      `${$t('admin.system.taskLog.resultKeys.cleaned')}: ${r.cleaned}`,
+    );
   }
   if ('reset_count' in r) {
-    parts.push(`${$t('admin.system.taskLog.resultKeys.reset')}: ${r.reset_count}`);
+    parts.push(
+      `${$t('admin.system.taskLog.resultKeys.reset')}: ${r.reset_count}`,
+    );
   }
   if ('db' in r) {
     parts.push(`DB: ${r.db}`);
@@ -105,20 +111,20 @@ export function getStatusColor(status: string | undefined): string {
 export function getQueueColor(queue: string | undefined): string {
   if (!queue) return 'default';
   switch (queue) {
+    case 'ai_gateway': {
+      return 'purple';
+    }
     case 'default': {
       return 'blue';
     }
     case 'high_priority': {
       return 'red';
     }
-    case 'ai_gateway': {
-      return 'purple';
+    case 'notification': {
+      return 'green';
     }
     case 'scheduled': {
       return 'cyan';
-    }
-    case 'notification': {
-      return 'green';
     }
     default: {
       return 'default';

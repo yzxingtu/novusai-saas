@@ -38,7 +38,7 @@ export interface ProviderPerformanceItem {
 }
 
 export interface TenantRankingItem {
-  tenant_id: number | null;
+  tenant_id: null | number;
   tenant_name: string;
   calls: number;
   tokens: number;
@@ -66,26 +66,56 @@ export interface DateRangeParams {
 
 // ── API Functions ──
 
-export async function getCallTrendApi(params?: DateRangeParams): Promise<CallTrendItem[]> {
-  return requestClient.get<CallTrendItem[]>(`${API_PREFIX}/call-trend`, { params });
+export async function getCallTrendApi(
+  params?: DateRangeParams,
+): Promise<CallTrendItem[]> {
+  return requestClient.get<CallTrendItem[]>(`${API_PREFIX}/call-trend`, {
+    params,
+  });
 }
 
-export async function getModelDistributionApi(params?: DateRangeParams): Promise<ModelDistributionItem[]> {
-  return requestClient.get<ModelDistributionItem[]>(`${API_PREFIX}/model-distribution`, { params });
+export async function getModelDistributionApi(
+  params?: DateRangeParams,
+): Promise<ModelDistributionItem[]> {
+  return requestClient.get<ModelDistributionItem[]>(
+    `${API_PREFIX}/model-distribution`,
+    { params },
+  );
 }
 
-export async function getProviderPerformanceApi(params?: Omit<DateRangeParams, 'tenant_id'>): Promise<ProviderPerformanceItem[]> {
-  return requestClient.get<ProviderPerformanceItem[]>(`${API_PREFIX}/provider-performance`, { params });
+export async function getProviderPerformanceApi(
+  params?: Omit<DateRangeParams, 'tenant_id'>,
+): Promise<ProviderPerformanceItem[]> {
+  return requestClient.get<ProviderPerformanceItem[]>(
+    `${API_PREFIX}/provider-performance`,
+    { params },
+  );
 }
 
-export async function getTenantRankingApi(topN = 10, params?: Omit<DateRangeParams, 'tenant_id'>): Promise<TenantRankingItem[]> {
-  return requestClient.get<TenantRankingItem[]>(`${API_PREFIX}/tenant-ranking`, { params: { top_n: topN, ...params } });
+export async function getTenantRankingApi(
+  topN = 10,
+  params?: Omit<DateRangeParams, 'tenant_id'>,
+): Promise<TenantRankingItem[]> {
+  return requestClient.get<TenantRankingItem[]>(
+    `${API_PREFIX}/tenant-ranking`,
+    { params: { top_n: topN, ...params } },
+  );
 }
 
-export async function getLatencyDistributionApi(params?: DateRangeParams): Promise<LatencyDistributionItem[]> {
-  return requestClient.get<LatencyDistributionItem[]>(`${API_PREFIX}/latency-distribution`, { params });
+export async function getLatencyDistributionApi(
+  params?: DateRangeParams,
+): Promise<LatencyDistributionItem[]> {
+  return requestClient.get<LatencyDistributionItem[]>(
+    `${API_PREFIX}/latency-distribution`,
+    { params },
+  );
 }
 
-export async function getSuccessRateTrendApi(params?: DateRangeParams): Promise<SuccessRateTrendItem[]> {
-  return requestClient.get<SuccessRateTrendItem[]>(`${API_PREFIX}/success-rate-trend`, { params });
+export async function getSuccessRateTrendApi(
+  params?: DateRangeParams,
+): Promise<SuccessRateTrendItem[]> {
+  return requestClient.get<SuccessRateTrendItem[]>(
+    `${API_PREFIX}/success-rate-trend`,
+    { params },
+  );
 }

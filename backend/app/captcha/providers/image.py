@@ -1,23 +1,29 @@
 from __future__ import annotations
+
 import base64
-import uuid
-import string
-import random
 import hashlib
+import random
+import string
+import uuid
 from datetime import datetime, timedelta
 from typing import Any
+
 try:
     from captcha.image import ImageCaptcha
 except Exception:
     ImageCaptcha = None  # type: ignore
-from app.captcha.provider import ICaptchaProvider, CaptchaChallenge, CaptchaVerificationResult
-from app.core.logging import CaptchaLoggerMixin
+from app.captcha.provider import (
+    CaptchaChallenge,
+    CaptchaVerificationResult,
+    ICaptchaProvider,
+)
 from app.core.base_model import utc_now
+from app.core.logging import CaptchaLoggerMixin
 
 
 class ImageCaptchaProvider(ICaptchaProvider, CaptchaLoggerMixin):
     """图形验证码提供者"""
-    
+
     def __init__(self) -> None:
         self._store: dict[str, dict[str, Any]] = {}
         self._charsets = {
@@ -69,6 +75,7 @@ class ImageCaptchaProvider(ICaptchaProvider, CaptchaLoggerMixin):
         )
 
     async def verify(self, challenge_id: str, solution: str, ctx: dict[str, Any]) -> CaptchaVerificationResult:
+        _ = ctx
         self.logger.debug(
             f"[VERIFY] challenge_id={challenge_id} solution={solution} "
             f"solution_lower={solution.strip().lower()} store_keys={list(self._store.keys())}"

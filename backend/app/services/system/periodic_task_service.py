@@ -9,8 +9,9 @@ from datetime import datetime, timedelta
 from app.celery_app import celery_app
 from app.core.base_model import utc_now
 from app.core.base_service import GlobalService
-from app.exceptions import BusinessException
+from app.core.i18n import _
 from app.core.logging import LogManager
+from app.exceptions import BusinessException
 from app.models.system.periodic_task import PeriodicTask
 from app.repositories.system.periodic_task_repository import PeriodicTaskRepository
 
@@ -40,7 +41,7 @@ class PeriodicTaskService(GlobalService[PeriodicTask, PeriodicTaskRepository]):
         registry = get_task_registry()
         task_info = registry.get(task.task_path, {})
         queue = task_info.get("queue", "scheduled")
-        
+
         result = celery_app.send_task(
             task.task_path,
             args=list(task.args.values()) if task.args else [],
@@ -107,14 +108,14 @@ class PeriodicTaskService(GlobalService[PeriodicTask, PeriodicTaskRepository]):
             non_allowed = set(data.keys()) - allowed_fields
             if non_allowed:
                 raise BusinessException(
-                    message=f"该任务不允许编辑，仅允许切换启用状态"
+                    message=_("periodic_task.error.edit_locked")
                 )
 
     async def _before_delete(self, id: int) -> None:
         instance = await self.get_by_id(id)
         if instance and instance.is_locked:
             raise BusinessException(
-                message=f"任务 '{instance.name}' 已被保护，禁止删除"
+                message=_("periodic_task.error.delete_locked", name=instance.name)
             )
 
     async def _after_create(self, instance: PeriodicTask) -> None:
@@ -128,6 +129,7 @@ class PeriodicTaskService(GlobalService[PeriodicTask, PeriodicTaskRepository]):
             logger.warning(f"Failed to refresh schedule after create: {e}")
 
     async def _after_update(self, instance: PeriodicTask) -> None:
+        _ = instance
         from app.tasks.scheduler import refresh_schedule
         try:
             refresh_schedule()

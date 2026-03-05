@@ -9,14 +9,14 @@ import { requestClient } from '#/utils/request';
 /** 知识库列表项（全租户） */
 export interface AdminKnowledgeBaseItem {
   id: number;
-  tenant_id: number | null;
+  tenant_id: null | number;
   name: string;
-  description: string | null;
+  description: null | string;
   scope: string;
   visibility?: string;
   assigned_tenant_ids?: number[];
-  embedding_model_name: string | null;
-  embedding_model_id: number | null;
+  embedding_model_name: null | string;
+  embedding_model_id: null | number;
   document_count: number;
   total_chunks: number;
   total_size_bytes: number;
@@ -34,7 +34,7 @@ export interface AdminKnowledgeBaseCreateParams {
   description?: string;
   scope: string;
   visibility?: string;
-  tenant_id?: number | null;
+  tenant_id?: null | number;
   tenant_ids?: number[];
   assigned_tenant_ids?: number[];
   embedding_model_id: number;
@@ -52,7 +52,7 @@ export interface AdminKnowledgeBaseUpdateParams {
   description?: string;
   scope?: string;
   visibility?: string;
-  tenant_id?: number | null;
+  tenant_id?: null | number;
   tenant_ids?: number[];
   assigned_tenant_ids?: number[];
   embedding_model_id?: number;
@@ -80,10 +80,10 @@ export async function getAdminKnowledgeBaseListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<PageResponse<AdminKnowledgeBaseItem>> {
-  return requestClient.get<PageResponse<AdminKnowledgeBaseItem>>(
-    PREFIX,
-    { params, ...options },
-  );
+  return requestClient.get<PageResponse<AdminKnowledgeBaseItem>>(PREFIX, {
+    params,
+    ...options,
+  });
 }
 
 /** 获取全局统计 */
@@ -101,10 +101,7 @@ export async function getAdminKnowledgeBaseDetailApi(
   id: number,
   options?: ApiRequestOptions,
 ): Promise<AdminKnowledgeBaseItem> {
-  return requestClient.get<AdminKnowledgeBaseItem>(
-    `${PREFIX}/${id}`,
-    options,
-  );
+  return requestClient.get<AdminKnowledgeBaseItem>(`${PREFIX}/${id}`, options);
 }
 
 /** 创建知识库 */
@@ -147,10 +144,10 @@ export interface AdminKnowledgeDocumentItem {
   file_name: string;
   file_type: string;
   file_size: number;
-  file_hash: string | null;
+  file_hash: null | string;
   status: string;
-  error_message: string | null;
-  error_stage: string | null;
+  error_message: null | string;
+  error_stage: null | string;
   chunk_count: number;
   token_count: number;
   char_count: number;
@@ -163,10 +160,10 @@ export interface AdminSearchResultItem {
   chunk_id: number;
   content: string;
   score: number;
-  metadata: Record<string, unknown> | null;
+  metadata: null | Record<string, unknown>;
   document_name: string;
   document_id: number;
-  highlight: string | null;
+  highlight: null | string;
 }
 
 /** 文档处理进度 */
@@ -213,10 +210,7 @@ export async function deleteAdminDocumentApi(
   docId: number,
   options?: ApiRequestOptions,
 ): Promise<void> {
-  await requestClient.delete(
-    `${PREFIX}/${kbId}/documents/${docId}`,
-    options,
-  );
+  await requestClient.delete(`${PREFIX}/${kbId}/documents/${docId}`, options);
 }
 
 /** 重试文档 */
@@ -262,17 +256,32 @@ export async function getAdminDocumentChunksApi(
   docId: number,
   params?: { page?: number; page_size?: number },
   options?: ApiRequestOptions,
-): Promise<{ chunks: Array<{ id: number; chunk_index: number; content: string; char_count: number; token_count: number; metadata: Record<string, unknown> }>; total: number }> {
-  return requestClient.get(
-    `${PREFIX}/${kbId}/documents/${docId}/chunks`,
-    { params, ...options },
-  );
+): Promise<{
+  chunks: Array<{
+    char_count: number;
+    chunk_index: number;
+    content: string;
+    id: number;
+    metadata: Record<string, unknown>;
+    token_count: number;
+  }>;
+  total: number;
+}> {
+  return requestClient.get(`${PREFIX}/${kbId}/documents/${docId}/chunks`, {
+    params,
+    ...options,
+  });
 }
 
 /** 检索测试 */
 export async function searchAdminKnowledgeBaseApi(
   kbId: number,
-  data: { query: string; top_k?: number; score_threshold?: number; search_mode?: string },
+  data: {
+    query: string;
+    score_threshold?: number;
+    search_mode?: string;
+    top_k?: number;
+  },
   options?: ApiRequestOptions,
 ): Promise<AdminSearchResultItem[]> {
   return requestClient.post<AdminSearchResultItem[]>(
@@ -285,7 +294,7 @@ export async function searchAdminKnowledgeBaseApi(
 /** 直接文本输入创建文档 */
 export async function createAdminTextDocumentApi(
   kbId: number,
-  data: { title: string; content: string },
+  data: { content: string; title: string },
   options?: ApiRequestOptions,
 ): Promise<AdminKnowledgeDocumentItem> {
   return requestClient.post<AdminKnowledgeDocumentItem>(
@@ -298,7 +307,7 @@ export async function createAdminTextDocumentApi(
 /** 添加 Q&A 问答对 */
 export async function createAdminQAPairApi(
   kbId: number,
-  data: { question: string; answer: string },
+  data: { answer: string; question: string },
   options?: ApiRequestOptions,
 ): Promise<AdminKnowledgeDocumentItem> {
   return requestClient.post<AdminKnowledgeDocumentItem>(
@@ -328,7 +337,7 @@ export async function batchImportAdminQAApi(
   kbId: number,
   file: File,
   options?: ApiRequestOptions,
-): Promise<{ imported: number; skipped: number; errors: string[] }> {
+): Promise<{ errors: string[]; imported: number; skipped: number }> {
   const formData = new FormData();
   formData.append('file', file);
   return requestClient.post(
@@ -343,15 +352,12 @@ export interface SelectableKBItem {
   id: number;
   name: string;
   scope: string;
-  description: string | null;
+  description: null | string;
 }
 
 /** 获取可选知识库列表（管理端：admin + global） */
 export async function getAdminSelectableKBApi(
   options?: ApiRequestOptions,
 ): Promise<SelectableKBItem[]> {
-  return requestClient.get<SelectableKBItem[]>(
-    `${PREFIX}/selectable`,
-    options,
-  );
+  return requestClient.get<SelectableKBItem[]>(`${PREFIX}/selectable`, options);
 }

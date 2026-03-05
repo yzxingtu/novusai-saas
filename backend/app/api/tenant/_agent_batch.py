@@ -6,11 +6,11 @@
 
 from fastapi import APIRouter, Request
 
-from app.core.deps import DbSession, ActiveTenantAdmin
+from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.exceptions import NotFoundException
-from app.rbac.decorators import action_read, action_create, action_update
+from app.rbac.decorators import action_create, action_read, action_update
 from app.schemas.ai.batch_run import BatchRunCreate, BatchRunResponse
 
 router = APIRouter()

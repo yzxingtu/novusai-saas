@@ -129,9 +129,18 @@ export function useTabbar() {
     () => route.fullPath,
     () => {
       const meta = route.matched?.[route.matched.length - 1]?.meta;
+      const tabMeta = {
+        ...(meta || route.meta),
+      };
+
+      // 默认按 path 作为 tab key，避免 query 抖动导致 tab 与 KeepAlive 实例膨胀
+      if (tabMeta.fullPathKey === undefined) {
+        tabMeta.fullPathKey = false;
+      }
+
       tabbarStore.addTab({
         ...route,
-        meta: meta || route.meta,
+        meta: tabMeta,
       });
     },
     { immediate: true },

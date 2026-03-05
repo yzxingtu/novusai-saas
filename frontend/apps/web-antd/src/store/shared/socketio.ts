@@ -10,6 +10,7 @@ import type { SocketIOStatus } from '#/composables/use-socketio';
 import { computed, ref, watch } from 'vue';
 
 import { useAppConfig } from '@vben/hooks';
+
 import { defineStore } from 'pinia';
 
 import { getApiEndpoint } from '#/api';
@@ -39,7 +40,9 @@ export const useSocketIOStore = defineStore('socketio', () => {
   const handlers = new Map<string, Set<(data: unknown) => void>>();
 
   /** Socket.IO composable 实例（延迟创建） */
-  let sioInstance: ReturnType<typeof useSocketIO> | null = null;
+  let sioInstance: null | ReturnType<typeof useSocketIO> = null;
+  /** status watch 停止函数（避免重复 connect 时累积 watcher） */
+  let stopStatusWatch: (() => void) | null = null;
 
   // ============================================================
   // 连接管理
@@ -64,7 +67,11 @@ export const useSocketIOStore = defineStore('socketio', () => {
     if (!ns) return;
 
     // 如果已连接到同一 endpoint，忽略
-    if (sioInstance && currentEndpoint.value === ep && status.value === 'connected') {
+    if (
+      sioInstance &&
+      currentEndpoint.value === ep &&
+      status.value === 'connected'
+    ) {
       return;
     }
 
@@ -73,13 +80,18 @@ export const useSocketIOStore = defineStore('socketio', () => {
       sioInstance.disconnect();
       sioInstance = null;
     }
+    if (stopStatusWatch) {
+      stopStatusWatch();
+      stopStatusWatch = null;
+    }
 
     currentEndpoint.value = ep;
 
     // 创建新连接（使用后端 API URL，开发环境不能用 window.location.origin）
     const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
     // 使用 getter 函数实时读取 TokenStorage，确保 token 刷新后 Socket.IO 能获取最新值
-    const tokenGetter = () => TokenStorage.getToken(ep as 'admin' | 'tenant' | 'user') || '';
+    const tokenGetter = () =>
+      TokenStorage.getToken(ep as 'admin' | 'tenant' | 'user') || '';
     sioInstance = useSocketIO({
       namespace: ns,
       token: tokenGetter,
@@ -88,9 +100,13 @@ export const useSocketIOStore = defineStore('socketio', () => {
     });
 
     // 同步 status
-    watch(sioInstance.status, (newStatus) => {
-      status.value = newStatus;
-    }, { immediate: true });
+    stopStatusWatch = watch(
+      sioInstance.status,
+      (newStatus) => {
+        status.value = newStatus;
+      },
+      { immediate: true },
+    );
 
     // 绑定所有已注册的 handlers
     _bindHandlers();
@@ -107,6 +123,10 @@ export const useSocketIOStore = defineStore('socketio', () => {
     if (sioInstance) {
       sioInstance.disconnect();
       sioInstance = null;
+    }
+    if (stopStatusWatch) {
+      stopStatusWatch();
+      stopStatusWatch = null;
     }
     currentEndpoint.value = '';
     status.value = 'disconnected';
@@ -126,7 +146,10 @@ export const useSocketIOStore = defineStore('socketio', () => {
     if (!handlers.has(event)) {
       handlers.set(event, new Set());
     }
-    handlers.get(event)!.add(handler);
+    const eventHandlers = handlers.get(event);
+    if (eventHandlers) {
+      eventHandlers.add(handler);
+    }
 
     // 如果已有连接，立即绑定
     if (sioInstance) {
@@ -203,6 +226,10 @@ export const useSocketIOStore = defineStore('socketio', () => {
     if (sioInstance) {
       sioInstance.disconnect();
       sioInstance = null;
+    }
+    if (stopStatusWatch) {
+      stopStatusWatch();
+      stopStatusWatch = null;
     }
     handlers.clear();
     currentEndpoint.value = '';

@@ -71,7 +71,8 @@ async function loadDomains() {
   try {
     const result = await getTenantDomainsApi();
     domains.value = result.items;
-  } catch {} finally {
+  } catch {
+  } finally {
     loading.value = false;
   }
 }

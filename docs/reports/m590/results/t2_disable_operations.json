@@ -1,0 +1,125 @@
+{
+  "generated_at": "2026-03-03T10:47:37.723711+00:00",
+  "disable_order_attempted": [
+    "novusdoc-pro",
+    "weather-widget",
+    "tencent-cos",
+    "storage-migration",
+    "qiniu-kodo",
+    "novusdoc",
+    "novus-crud-code",
+    "netdisk",
+    "amazon-s3",
+    "aliyun-oss"
+  ],
+  "enabled_before": [
+    "netdisk",
+    "weather-widget",
+    "storage-migration",
+    "qiniu-kodo",
+    "novusdoc-pro",
+    "novusdoc",
+    "novus-crud-code"
+  ],
+  "operations": [
+    {
+      "time": "2026-03-03T10:47:37.026953+00:00",
+      "plugin": "novusdoc-pro",
+      "plugin_id": 1076,
+      "status_code": 200,
+      "ok": true,
+      "response": {
+        "code": 0,
+        "message": "操作成功",
+        "data": {
+          "message": "Plugin disabled"
+        }
+      }
+    },
+    {
+      "time": "2026-03-03T10:47:37.133434+00:00",
+      "plugin": "weather-widget",
+      "plugin_id": 1080,
+      "status_code": 200,
+      "ok": true,
+      "response": {
+        "code": 0,
+        "message": "操作成功",
+        "data": {
+          "message": "Plugin disabled"
+        }
+      }
+    },
+    {
+      "time": "2026-03-03T10:47:37.206718+00:00",
+      "plugin": "storage-migration",
+      "plugin_id": 1078,
+      "status_code": 200,
+      "ok": true,
+      "response": {
+        "code": 0,
+        "message": "操作成功",
+        "data": {
+          "message": "Plugin disabled"
+        }
+      }
+    },
+    {
+      "time": "2026-03-03T10:47:37.289413+00:00",
+      "plugin": "qiniu-kodo",
+      "plugin_id": 1077,
+      "status_code": 200,
+      "ok": true,
+      "response": {
+        "code": 0,
+        "message": "操作成功",
+        "data": {
+          "message": "Plugin disabled"
+        }
+      }
+    },
+    {
+      "time": "2026-03-03T10:47:37.387543+00:00",
+      "plugin": "novusdoc",
+      "plugin_id": 1075,
+      "status_code": 200,
+      "ok": true,
+      "response": {
+        "code": 0,
+        "message": "操作成功",
+        "data": {
+          "message": "Plugin disabled"
+        }
+      }
+    },
+    {
+      "time": "2026-03-03T10:47:37.500658+00:00",
+      "plugin": "novus-crud-code",
+      "plugin_id": 1074,
+      "status_code": 200,
+      "ok": true,
+      "response": {
+        "code": 0,
+        "message": "操作成功",
+        "data": {
+          "message": "Plugin disabled"
+        }
+      }
+    },
+    {
+      "time": "2026-03-03T10:47:37.580330+00:00",
+      "plugin": "netdisk",
+      "plugin_id": 1081,
+      "status_code": 200,
+      "ok": true,
+      "response": {
+        "code": 0,
+        "message": "操作成功",
+        "data": {
+          "message": "Plugin disabled"
+        }
+      }
+    }
+  ],
+  "enabled_after": []
+}

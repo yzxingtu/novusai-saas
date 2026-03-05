@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from app.core.logging import get_logger
 
-from .utils import resolve_tenant_id, safe_int
 from ..services import folder_service
+from .utils import resolve_tenant_id, safe_int
 
 logger = get_logger("plugin.novusdoc.api")
 

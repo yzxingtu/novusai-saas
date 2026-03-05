@@ -4,22 +4,22 @@
 
 覆盖 challenge/verify 接口及登录流程的验证码触发校验
 """
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from tests.api.base import (
     BaseAPITest,
-    assert_success,
     assert_error,
     assert_has_keys,
+    assert_success,
     assert_true,
     config,
 )
 
 
-class TestCaptchaFlow(BaseAPITest):
+class ManualTestCaptchaFlow(BaseAPITest):
     module_name = "验证码最小化自测 (/api/public/captcha)"
 
     def _run_tests(self) -> None:
@@ -72,6 +72,7 @@ class TestCaptchaFlow(BaseAPITest):
 
 
 if __name__ == "__main__":
-    test = TestCaptchaFlow()
+    test = ManualTestCaptchaFlow()
     report = test.run_all()
     report.print_summary()
+

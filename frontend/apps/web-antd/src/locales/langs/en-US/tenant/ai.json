@@ -174,6 +174,19 @@
       "saveSuccess": "Saved successfully",
       "noQuotaLimit": "0 means no limit"
     },
+    "memory": {
+      "title": "Session Memory",
+      "desc": "Tenants can disable session memory for tenant-owned agents. The override only affects the current tenant.",
+      "readonlyHint": "Memory switch is read-only for this agent",
+      "platformDefault": "Platform Default",
+      "adminSwitch": "Admin Switch",
+      "tenantSwitch": "Tenant Switch",
+      "effective": "Effective",
+      "restoreDefault": "Restore Default",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "saveSuccess": "Memory switch updated"
+    },
     "routing": {
       "description": "Smart routing automatically selects the most suitable AI model based on conversation complexity, attachment type, and token count, balancing performance and cost.",
       "enableRouting": "Enable Smart Routing",
@@ -185,6 +198,10 @@
       "longContextThresholdHelp": "Automatically switches to the long-context model when input tokens exceed this threshold",
       "autoSelect": "Auto Select",
       "noLimit": "No Limit",
+      "statusEnabled": "Smart Routing On",
+      "statusDisabled": "Routing Off",
+      "visionModelHelp": "Routes to this model when image attachments are present",
+      "longContextModelHelp": "Switches to this model when tokens exceed the threshold",
       "tier": {
         "fast": "Fast",
         "standard": "Standard",
@@ -231,6 +248,8 @@
       "step4Desc": "Usage limits"
     },
     "publish": "Publish",
+    "versionHistory": "Version History",
+    "accessConfig": "Access Configuration",
     "noDescription": "No description",
     "actions": {
       "test": "Test Chat",

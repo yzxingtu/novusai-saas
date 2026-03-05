@@ -6,13 +6,11 @@ AuthService 单元测试
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from tests.services.conftest import make_mock_model, make_scalar_result
-
 
 # ── Helpers ──
 
@@ -65,8 +63,8 @@ class TestPasswordPolicy:
 
     @pytest.mark.asyncio
     async def test_password_too_short(self, mock_db):
-        from app.services.common.auth_service import AuthService
         from app.exceptions import BusinessException
+        from app.services.common.auth_service import AuthService
 
         service = AuthService(mock_db)
 
@@ -81,8 +79,8 @@ class TestPasswordPolicy:
 
     @pytest.mark.asyncio
     async def test_password_medium_complexity_no_digit(self, mock_db):
-        from app.services.common.auth_service import AuthService
         from app.exceptions import BusinessException
+        from app.services.common.auth_service import AuthService
 
         service = AuthService(mock_db)
 
@@ -111,8 +109,8 @@ class TestPasswordPolicy:
 
     @pytest.mark.asyncio
     async def test_password_high_complexity_no_special(self, mock_db):
-        from app.services.common.auth_service import AuthService
         from app.exceptions import BusinessException
+        from app.services.common.auth_service import AuthService
 
         service = AuthService(mock_db)
 
@@ -145,58 +143,66 @@ class TestAdminLogin:
 
     @pytest.mark.asyncio
     async def test_login_user_not_found(self, mock_db):
-        from app.services.common.auth_service import AuthService
         from app.exceptions import AuthenticationException
+        from app.services.common.auth_service import AuthService
 
         mock_db.execute.return_value = make_scalar_result(None)
         service = AuthService(mock_db)
 
-        with patch.object(service, "_record_admin_login_failure", new_callable=AsyncMock):
-            with patch.object(service._config_service, "get_platform_config", new_callable=AsyncMock, return_value=True):
-                with pytest.raises(AuthenticationException):
-                    await service.authenticate_admin("nonexistent", "password")
+        with (
+            patch.object(service, "_record_admin_login_failure", new_callable=AsyncMock),
+            patch.object(service._config_service, "get_platform_config", new_callable=AsyncMock, return_value=True),
+            pytest.raises(AuthenticationException),
+        ):
+            await service.authenticate_admin("nonexistent", "password")
 
     @pytest.mark.asyncio
     async def test_login_wrong_password(self, mock_db):
-        from app.services.common.auth_service import AuthService
         from app.exceptions import AuthenticationException
+        from app.services.common.auth_service import AuthService
 
         admin = _make_admin()
         mock_db.execute.return_value = make_scalar_result(admin)
         service = AuthService(mock_db)
 
-        with patch.object(service, "_is_account_locked", new_callable=AsyncMock, return_value=False):
-            with patch.object(service, "_record_admin_login_failure", new_callable=AsyncMock):
-                with patch.object(service._config_service, "get_platform_config", new_callable=AsyncMock, return_value=False):
-                    with patch("app.services.common.auth_service.verify_password", return_value=False):
-                        with pytest.raises(AuthenticationException):
-                            await service.authenticate_admin("admin", "wrong_password")
+        with (
+            patch.object(service, "_is_account_locked", new_callable=AsyncMock, return_value=False),
+            patch.object(service, "_record_admin_login_failure", new_callable=AsyncMock),
+            patch.object(service._config_service, "get_platform_config", new_callable=AsyncMock, return_value=False),
+            patch("app.services.common.auth_service.verify_password", return_value=False),
+            pytest.raises(AuthenticationException),
+        ):
+            await service.authenticate_admin("admin", "wrong_password")
 
     @pytest.mark.asyncio
     async def test_login_account_locked(self, mock_db):
-        from app.services.common.auth_service import AuthService
         from app.exceptions import AuthenticationException
+        from app.services.common.auth_service import AuthService
 
         admin = _make_admin()
         mock_db.execute.return_value = make_scalar_result(admin)
         service = AuthService(mock_db)
 
-        with patch.object(service, "_is_account_locked", new_callable=AsyncMock, return_value=True):
-            with pytest.raises(AuthenticationException):
-                await service.authenticate_admin("admin", "password")
+        with (
+            patch.object(service, "_is_account_locked", new_callable=AsyncMock, return_value=True),
+            pytest.raises(AuthenticationException),
+        ):
+            await service.authenticate_admin("admin", "password")
 
     @pytest.mark.asyncio
     async def test_login_inactive_account(self, mock_db):
-        from app.services.common.auth_service import AuthService
         from app.exceptions import AuthenticationException
+        from app.services.common.auth_service import AuthService
 
         admin = _make_admin(is_active=False)
         mock_db.execute.return_value = make_scalar_result(admin)
         service = AuthService(mock_db)
 
-        with patch.object(service, "_is_account_locked", new_callable=AsyncMock, return_value=False):
-            with pytest.raises(AuthenticationException):
-                await service.authenticate_admin("admin", "password")
+        with (
+            patch.object(service, "_is_account_locked", new_callable=AsyncMock, return_value=False),
+            pytest.raises(AuthenticationException),
+        ):
+            await service.authenticate_admin("admin", "password")
 
     @pytest.mark.asyncio
     async def test_login_success(self, mock_db):
@@ -206,13 +212,15 @@ class TestAdminLogin:
         mock_db.execute.return_value = make_scalar_result(admin)
         service = AuthService(mock_db)
 
-        with patch.object(service, "_is_account_locked", new_callable=AsyncMock, return_value=False):
-            with patch.object(service, "_reset_admin_login_failures", new_callable=AsyncMock):
-                with patch.object(service._config_service, "get_platform_config", new_callable=AsyncMock, return_value=False):
-                    with patch("app.services.common.auth_service.verify_password", return_value=True):
-                        with patch("app.services.common.auth_service.create_access_token", return_value="access_tok"):
-                            with patch("app.services.common.auth_service.create_refresh_token", return_value="refresh_tok"):
-                                result = await service.authenticate_admin("admin", "correct_password")
+        with (
+            patch.object(service, "_is_account_locked", new_callable=AsyncMock, return_value=False),
+            patch.object(service, "_reset_admin_login_failures", new_callable=AsyncMock),
+            patch.object(service._config_service, "get_platform_config", new_callable=AsyncMock, return_value=False),
+            patch("app.services.common.auth_service.verify_password", return_value=True),
+            patch("app.services.common.auth_service.create_access_token", return_value="access_tok"),
+            patch("app.services.common.auth_service.create_refresh_token", return_value="refresh_tok"),
+        ):
+            result = await service.authenticate_admin("admin", "correct_password")
 
         assert result["access_token"] == "access_tok"
         assert result["refresh_token"] == "refresh_tok"
@@ -224,15 +232,17 @@ class TestChangePassword:
 
     @pytest.mark.asyncio
     async def test_change_password_wrong_old(self, mock_db):
-        from app.services.common.auth_service import AuthService
         from app.exceptions import BusinessException
+        from app.services.common.auth_service import AuthService
 
         admin = _make_admin()
         service = AuthService(mock_db)
 
-        with patch("app.services.common.auth_service.verify_password", return_value=False):
-            with pytest.raises(BusinessException):
-                await service.change_admin_password(admin, "wrong_old", "new_pass123!")
+        with (
+            patch("app.services.common.auth_service.verify_password", return_value=False),
+            pytest.raises(BusinessException),
+        ):
+            await service.change_admin_password(admin, "wrong_old", "new_pass123!")
 
     @pytest.mark.asyncio
     async def test_change_password_success(self, mock_db):
@@ -241,10 +251,12 @@ class TestChangePassword:
         admin = _make_admin()
         service = AuthService(mock_db)
 
-        with patch("app.services.common.auth_service.verify_password", return_value=True):
-            with patch("app.services.common.auth_service.get_password_hash", return_value="new_hash"):
-                with patch.object(service, "_validate_password_policy", new_callable=AsyncMock):
-                    await service.change_admin_password(admin, "old_pass", "new_pass123!")
+        with (
+            patch("app.services.common.auth_service.verify_password", return_value=True),
+            patch("app.services.common.auth_service.get_password_hash", return_value="new_hash"),
+            patch.object(service, "_validate_password_policy", new_callable=AsyncMock),
+        ):
+            await service.change_admin_password(admin, "old_pass", "new_pass123!")
 
         assert admin.password_hash == "new_hash"
 
@@ -282,14 +294,14 @@ class TestRealTokenGeneration:
     """使用真实 Token 生成函数，验证 JWT 格式"""
 
     def test_access_token_is_jwt(self):
-        from app.core.security import create_access_token, TOKEN_SCOPE_ADMIN
+        from app.core.security import TOKEN_SCOPE_ADMIN, create_access_token
 
         token = create_access_token(subject=1, scope=TOKEN_SCOPE_ADMIN)
         parts = token.split(".")
         assert len(parts) == 3  # JWT: header.payload.signature
 
     def test_token_pair_contains_both(self):
-        from app.core.security import create_token_pair, TOKEN_SCOPE_ADMIN
+        from app.core.security import TOKEN_SCOPE_ADMIN, create_token_pair
 
         pair = create_token_pair(subject=1, scope=TOKEN_SCOPE_ADMIN)
         assert "access_token" in pair
@@ -300,7 +312,7 @@ class TestRealTokenGeneration:
         assert pair["refresh_token"].count(".") == 2
 
     def test_access_and_refresh_tokens_differ(self):
-        from app.core.security import create_token_pair, TOKEN_SCOPE_ADMIN
+        from app.core.security import TOKEN_SCOPE_ADMIN, create_token_pair
 
         pair = create_token_pair(subject=1, scope=TOKEN_SCOPE_ADMIN)
         assert pair["access_token"] != pair["refresh_token"]

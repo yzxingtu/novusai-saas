@@ -6,7 +6,16 @@
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, ForeignKey, Index, Integer, JSON, String, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
@@ -112,8 +121,7 @@ class AgentSkillBinding(TenantModel):
 
 
 if TYPE_CHECKING:
-    from app.models.ai.agent import Agent
-    from app.models.ai.skill_package import SkillPackage
+    pass
 
 
 __all__ = ["AgentSkillBinding"]

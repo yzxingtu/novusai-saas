@@ -4,13 +4,13 @@
 
 from typing import Any
 
-from app.core.base_service import TenantService, GlobalService
+from app.core.base_service import GlobalService, TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import SkillTypeEnum, get_all_skill_types
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.skill import Skill
-from app.repositories.ai.skill_repository import SkillRepository, AdminSkillRepository
+from app.repositories.ai.skill_repository import AdminSkillRepository, SkillRepository
 
 logger = LogManager.get_logger("ai")
 

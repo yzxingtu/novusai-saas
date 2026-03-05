@@ -52,6 +52,7 @@ export interface TenantDomainBriefRaw {
   id: number;
   tenant_id: number;
   domain: string;
+  domain_type?: 'custom' | 'default';
   is_verified: boolean;
   verified_at: null | string;
   is_primary: boolean;
@@ -151,8 +152,7 @@ function transformDomainBrief(raw: TenantDomainBriefRaw): TenantDomainBrief {
   return {
     id: raw.id,
     domain: raw.domain,
-    // 根据 remark 或其他逻辑推断类型，因为后端未返回 domain_type
-    domainType: raw.remark?.includes('默认') ? 'default' : 'custom',
+    domainType: raw.domain_type === 'default' ? 'default' : 'custom',
     isPrimary: raw.is_primary,
     verificationStatus: raw.is_verified ? 'verified' : 'pending',
     sslStatus: raw.ssl_status,
@@ -396,15 +396,15 @@ export interface TenantAdminItem {
   id: number;
   username: string;
   email: string;
-  nickname: string | null;
-  avatar: string | null;
+  nickname: null | string;
+  avatar: null | string;
   is_owner: boolean;
   is_active: boolean;
-  role_name: string | null;
-  role_id: number | null;
-  last_login_at: string | null;
-  last_login_ip: string | null;
-  created_at: string | null;
+  role_name: null | string;
+  role_id: null | number;
+  last_login_at: null | string;
+  last_login_ip: null | string;
+  created_at: null | string;
 }
 
 /** 创建租户管理员请求 */
@@ -434,10 +434,7 @@ export async function createTenantAdminApi(
   tenantId: number,
   data: TenantAdminCreateRequest,
 ): Promise<Record<string, unknown>> {
-  return requestClient.post(
-    `${API_PREFIX}/${tenantId}/admins`,
-    data,
-  );
+  return requestClient.post(`${API_PREFIX}/${tenantId}/admins`, data);
 }
 
 /**
@@ -448,10 +445,7 @@ export async function updateTenantAdminApi(
   adminId: number,
   data: { email?: string; nickname?: string; password?: string },
 ): Promise<Record<string, unknown>> {
-  return requestClient.put(
-    `${API_PREFIX}/${tenantId}/admins/${adminId}`,
-    data,
-  );
+  return requestClient.put(`${API_PREFIX}/${tenantId}/admins/${adminId}`, data);
 }
 
 /**

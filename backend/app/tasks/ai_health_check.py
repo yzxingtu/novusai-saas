@@ -12,12 +12,12 @@ import redis
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.base_model import utc_now
 from app.core.config import settings
 from app.core.database import sync_session_factory
-from app.core.logging import LogManager
 from app.core.i18n import _
-from app.tasks.base import register_task, BaseTask
-from app.core.base_model import utc_now
+from app.core.logging import LogManager
+from app.tasks.base import BaseTask, register_task
 
 logger = LogManager.get_logger("tasks.ai")
 
@@ -101,7 +101,7 @@ def _check_provider_health(provider: object, db: Session, redis_client: redis.Re
         # 获取供应商的 API Key
         stmt = select(ProviderApiKey).where(
             ProviderApiKey.provider_id == provider_id,
-            ProviderApiKey.tenant_id == None,
+            ProviderApiKey.tenant_id.is_(None),
             ProviderApiKey.is_active.is_(True),
             ProviderApiKey.is_deleted.is_(False),
         ).limit(1)

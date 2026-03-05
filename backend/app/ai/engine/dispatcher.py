@@ -5,7 +5,6 @@
 """
 
 import time
-from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,19 +16,17 @@ from app.ai.agent_quota import (
     AgentQuotaManager,
 )
 from app.ai.events.hooks import HookPoint, get_hook_registry
+from app.ai.skills.resolver import resolve_for_agent
 from app.ai.tools.sandbox import SandboxConfig, ToolSandbox
 from app.ai.utils.token_estimator import estimate_tokens
+from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import AgentExecutionModeEnum, AgentStatusEnum
 from app.exceptions import BusinessException, NotFoundException
-from app.core.i18n import _
 from app.models.ai.agent import Agent
 from app.repositories.ai.agent_repository import AgentRepository
 
-from app.ai.skills.resolver import resolve_for_agent
-
 from .base import BaseEngine
-from .batch import BatchEngine
 from .conversation import ConversationEngine
 from .task import TaskEngine
 from .types import BatchItem, BatchResult, ExecutionRequest, ExecutionResult
@@ -73,12 +70,16 @@ class ExecutionDispatcher:
     async def dispatch(
         self,
         request: ExecutionRequest,
+        pre_loaded_agent: Agent | None = None,
     ) -> ExecutionResult:
         """
         分发执行请求
 
         Args:
             request: 执行请求
+            pre_loaded_agent: 调用方已校验的 Agent 实例（可选）。
+                若提供则跳过 DB 加载，避免双重查询；
+                调用方须保证已做存在性 + 发布状态校验。
 
         Returns:
             ExecutionResult
@@ -90,20 +91,25 @@ class ExecutionDispatcher:
         quota_config = AgentQuotaConfig()
 
         try:
-            # 1. 加载 Agent
-            if request.tenant_id == 0:
-                from app.repositories.ai.agent_repository import AdminAgentRepository
-                agent_repo = AdminAgentRepository(self.db)
+            # 1. 加载 Agent（若调用方已预加载则直接使用，避免双重 DB 查询）
+            if pre_loaded_agent is not None:
+                agent = pre_loaded_agent
             else:
-                agent_repo = AgentRepository(self.db, request.tenant_id)
-            agent = await agent_repo.get_by_id(request.agent_id)
-            if not agent:
-                raise NotFoundException(message=_("agent.error.not_found"))
+                if request.tenant_id == 0:
+                    from app.repositories.ai.agent_repository import (
+                        AdminAgentRepository,
+                    )
+                    agent_repo = AdminAgentRepository(self.db)
+                else:
+                    agent_repo = AgentRepository(self.db, request.tenant_id)
+                agent = await agent_repo.get_by_id(request.agent_id)
+                if not agent:
+                    raise NotFoundException(message=_("agent.error.not_found"))
 
-            if agent.status != AgentStatusEnum.PUBLISHED.value:
-                raise BusinessException(
-                    message=_("agent.error.not_published")
-                )
+                if agent.status != AgentStatusEnum.PUBLISHED.value:
+                    raise BusinessException(
+                        message=_("agent.error.not_published")
+                    )
 
             # 从 agent 加载配额配置
             quota_config = AgentQuotaConfig.from_dict(agent.quota_config)
@@ -147,24 +153,16 @@ class ExecutionDispatcher:
 
                 # 3.6 套餐月 API 调用次数配额检查
                 if request.tenant_id:
-                    from sqlalchemy.orm import selectinload
-                    from app.models.tenant.tenant import Tenant
-                    from app.services.tenant.quota_service import QuotaService
                     from app.enums import ErrorCode
-                    from app.exceptions import BusinessException
-                    tenant_obj = (await self.db.execute(
-                        select(Tenant)
-                        .options(selectinload(Tenant.tenant_plan))
-                        .where(Tenant.id == request.tenant_id)
-                    )).scalar_one_or_none()
-                    if tenant_obj:
-                        quota_svc = QuotaService(self.db, tenant_obj)
-                        api_check = await quota_svc.check_api_calls_quota()
-                        if not api_check.allowed:
-                            raise BusinessException(
-                                message=api_check.message or _("quota.api_calls_exceeded"),
-                                code=ErrorCode.CONFLICT,
-                            )
+                    from app.services.tenant.quota_service import QuotaService
+                    api_check = await QuotaService.check_api_quota_for_tenant_id(
+                        self.db, request.tenant_id
+                    )
+                    if not api_check.allowed:
+                        raise BusinessException(
+                            message=api_check.message or _("quota.api_calls_exceeded"),
+                            code=ErrorCode.CONFLICT,
+                        )
 
             # 4. BEFORE_EXECUTE 钩子
             hook_registry = get_hook_registry()
@@ -189,8 +187,22 @@ class ExecutionDispatcher:
                 self.db, agent, tenant_id=request.tenant_id,
             )
 
+            # 5.5 读取平台 Toolkit 安全配置（与 stream_chat 路径保持一致）
+            from app.configs.service import ConfigService
+            _cfg = ConfigService(self.db)
+            _toolkit_security_level = str(await _cfg.get_platform_config(
+                "toolkit_security_level", default="normal",
+            ))
+            _toolkit_memory_limit_mb = int(await _cfg.get_platform_config(
+                "toolkit_memory_limit_mb", default=256,
+            ))
+
             # 6. 创建 Engine 并执行
-            engine = self._create_engine(agent, request)
+            engine = self._create_engine(
+                agent, request,
+                toolkit_security_level=_toolkit_security_level,
+                toolkit_memory_limit_mb=_toolkit_memory_limit_mb,
+            )
             result = await engine.execute(agent, request, skill_result=skill_result)
 
             # 6. AFTER_EXECUTE 钩子
@@ -372,6 +384,8 @@ class ExecutionDispatcher:
         self,
         agent: Agent,
         request: ExecutionRequest,
+        toolkit_security_level: str = "normal",
+        toolkit_memory_limit_mb: int = 256,
     ) -> BaseEngine:
         """根据执行模式创建对应引擎"""
         from app.ai.gateway import AIGateway
@@ -387,6 +401,8 @@ class ExecutionDispatcher:
             gateway=gateway,
             db=self.db,
             agent=agent,
+            toolkit_security_level=toolkit_security_level,
+            toolkit_memory_limit_mb=toolkit_memory_limit_mb,
         )
         # 传递前端会话级授权
         if request.consented_actions:

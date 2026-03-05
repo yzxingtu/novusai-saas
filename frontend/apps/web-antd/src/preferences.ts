@@ -11,4 +11,7 @@ export const overridesPreferences = defineOverridesPreferences({
     accessMode: 'backend',
     name: import.meta.env.VITE_APP_TITLE,
   },
+  tabbar: {
+    maxCount: 30,
+  },
 });

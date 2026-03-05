@@ -34,6 +34,11 @@ class BatchEngine(BaseEngine):
         execute 仅用于满足 BaseEngine 接口。
         批量执行应使用 execute_batch()。
         """
+        logger.debug(
+            "BatchEngine.execute is not supported: agent_id=%s request_agent_id=%s",
+            getattr(agent, "id", None),
+            getattr(request, "agent_id", None),
+        )
         return ExecutionResult(
             success=False,
             error=_("agent.error.use_execute_batch"),

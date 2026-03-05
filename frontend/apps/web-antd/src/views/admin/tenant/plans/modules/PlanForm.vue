@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'PlanForm' });
 /**
  * 套餐新建/编辑表单抽屉
  */
@@ -14,9 +13,11 @@ import { $t } from '#/locales';
 
 import { getFormDefaults, useFormSchema } from '../data';
 
-type TenantPlanInfo = adminApi.TenantPlanInfo;
+defineOptions({ name: 'PlanForm' });
 
 const emits = defineEmits<{ success: [] }>();
+
+type TenantPlanInfo = adminApi.TenantPlanInfo;
 
 // 表单
 const [Form, formApi] = useVbenForm({

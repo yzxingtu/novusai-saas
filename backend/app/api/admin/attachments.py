@@ -4,31 +4,31 @@
 提供跨租户的附件管理接口（平台管理员专用）
 """
 
-from fastapi import Query, Request, UploadFile, File, Form
+from fastapi import File, Form, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse
 
 from app.configs.service import ConfigService
 from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
-from app.core.deps import DbSession, QueryParams, ActiveAdmin
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.attachment import AttachmentSource, AttachmentVisibility
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
-    action_read,
     action_create,
     action_delete,
+    action_read,
+    permission_resource,
 )
 from app.schemas.tenant.attachment import (
-    AttachmentAccessUrlResponse,
-    AttachmentResponse,
-    AttachmentListItem,
-    AttachmentUploadResponse,
     AdminChunkUploadInitRequest,
+    AttachmentAccessUrlResponse,
+    AttachmentListItem,
+    AttachmentResponse,
+    AttachmentUploadResponse,
     ChunkUploadInitResponse,
     ChunkUploadProgressResponse,
 )
@@ -51,10 +51,10 @@ from app.services.tenant.attachment_download_service import AttachmentDownloadSe
 class AdminAttachmentController(GlobalController):
     """
     平台端附件管理控制器
-    
+
     提供跨租户的附件管理接口
     """
-    
+
     prefix = "/attachments"
     tags = ["Attachment Management"]
 
@@ -112,12 +112,12 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             平台端上传附件
-            
+
             - tenant_id=0: 平台附件（站点 Logo、系统资源等）
             - tenant_id>0: 代租户上传附件
-            
+
             不受租户配额限制，使用平台存储配置
-            
+
             权限: attachment:upload
             """
             # 未指定 visibility 时使用平台配置的默认值
@@ -160,10 +160,10 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             初始化分片上传会话（平台端）
-            
+
             - tenant_id=0: 平台附件
             - tenant_id>0: 代租户上传
-            
+
             权限: attachment:chunk_init
             """
             service = AdminAttachmentService(db)
@@ -196,7 +196,7 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             上传分片数据
-            
+
             权限: attachment:chunk_upload
             """
             service = AdminAttachmentService(db)
@@ -220,7 +220,7 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             完成分片上传并合并文件
-            
+
             权限: attachment:chunk_complete
             """
             service = AdminAttachmentService(db)
@@ -246,7 +246,7 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             获取分片上传进度
-            
+
             权限: attachment:chunk_status
             """
             service = AdminAttachmentService(db)
@@ -266,7 +266,7 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             取消分片上传并清理临时文件
-            
+
             权限: attachment:chunk_abort
             """
             service = AdminAttachmentService(db)
@@ -288,9 +288,9 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             获取附件下拉选项
-            
+
             用于从现有附件中选择文件
-            
+
             权限: attachment:select
             """
             service = AdminAttachmentService(db)
@@ -316,10 +316,10 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             获取附件存储统计
-            
+
             - 不传 tenant_id: 统计所有租户
             - 传入 tenant_id: 统计指定租户
-            
+
             权限: attachment:stats
             """
             service = AdminAttachmentService(db)
@@ -335,9 +335,9 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             获取按租户分组的存储统计
-            
+
             返回各租户的附件数量和存储用量
-            
+
             权限: attachment:stats_by_tenant
             """
             service = AdminAttachmentService(db)
@@ -354,12 +354,12 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             获取附件列表
-            
+
             - 支持通用筛选: filter[field][op]=value
             - 支持按租户筛选: filter[tenant_id][eq]=1
             - 支持排序: sort=-created_at,name
             - 支持分页: page[number]=1&page[size]=20
-            
+
             权限: attachment:list
             """
             service = AdminAttachmentService(db)
@@ -384,7 +384,7 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             获取附件详情
-            
+
             权限: attachment:detail
             """
             service = AdminAttachmentService(db)
@@ -406,7 +406,7 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             删除附件（软删除）
-            
+
             权限: attachment:delete
             """
             service = AdminAttachmentService(db)
@@ -425,7 +425,7 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             获取附件下载 URL
-            
+
             权限: attachment:download_url
             """
             # 平台端不做租户隔离，传入 None
@@ -446,7 +446,7 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             获取附件预览 URL
-            
+
             权限: attachment:preview_url
             """
             service = AttachmentDownloadService(db, tenant_id=None)
@@ -466,7 +466,7 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             下载附件
-            
+
             权限: attachment:download
             """
             service = AttachmentDownloadService(db, tenant_id=None)
@@ -489,7 +489,7 @@ class AdminAttachmentController(GlobalController):
         ):
             """
             预览附件
-            
+
             权限: attachment:preview
             """
             service = AttachmentDownloadService(db, tenant_id=None)

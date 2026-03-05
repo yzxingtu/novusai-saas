@@ -4,10 +4,9 @@
 包含 ACME/Let's Encrypt 连接配置、自动续期策略等
 """
 
-from app.configs.meta import ConfigMeta, ConfigOption, DisplayRule
 from app.configs.definitions.groups import PLATFORM_SSL_GROUP
+from app.configs.meta import ConfigMeta, ConfigOption, DisplayRule
 from app.enums.config import ConfigScope, ConfigValueType
-
 
 # ==========================================
 # ACME 服务配置

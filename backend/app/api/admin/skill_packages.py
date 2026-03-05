@@ -7,31 +7,34 @@
 from typing import Any
 
 from fastapi import Query, Request, UploadFile
+
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, ActiveAdmin, QueryParams
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.core.response import success, created, deleted, paginated
+from app.core.recycle_bin import register_admin_recycle_bin_routes
+from app.core.response import created, deleted, paginated, success
 from app.enums.common import ResourceScopeEnum
 from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException, BusinessException
-from app.rbac.decorators import (
-    permission_resource,
-    MenuConfig,
-    action_read,
-    action_create,
-    action_update,
-    action_delete,
-)
+from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.skill_package import SkillPackage
-from app.core.recycle_bin import register_admin_recycle_bin_routes
-from app.services.ai.skill_package_service import AdminSkillPackageService
-from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
+from app.rbac.decorators import (
+    MenuConfig,
+    action_create,
+    action_delete,
+    action_read,
+    action_update,
+    permission_resource,
+)
+from app.repositories.system.resource_tenant_assignment_repository import (
+    ResourceTenantAssignmentRepository,
+)
 from app.schemas.ai.skill_package import (
     SkillPackageCreate,
-    SkillPackageUpdate,
     SkillPackageResponse,
+    SkillPackageUpdate,
 )
+from app.services.ai.skill_package_service import AdminSkillPackageService
 
 SCOPES_NEEDING_ASSIGNMENT = (
     ResourceScopeEnum.ASSIGNED_TENANTS.value,
@@ -313,7 +316,9 @@ class AdminSkillPackageController(GlobalController):
             - scope=admin, tenant_id=NULL
             - is_system=True 时不可删除
             """
-            from app.api.shared._skill_package_upload import process_skill_package_upload
+            from app.api.shared._skill_package_upload import (
+                process_skill_package_upload,
+            )
             from app.services.ai.skill_service import AdminSkillService
 
             service = AdminSkillPackageService(db)
@@ -401,8 +406,8 @@ class AdminSkillPackageController(GlobalController):
             if not pkg:
                 raise NotFoundException(message=_("skill_package.error.not_found"))
 
-            from app.services.ai.skill_service import AdminSkillService
             from app.schemas.common.query import FilterRule
+            from app.services.ai.skill_service import AdminSkillService
             skill_svc = AdminSkillService(db)
             items, total = await skill_svc.query_list(
                 query,
@@ -441,12 +446,17 @@ class AdminSkillPackageController(GlobalController):
 
             # Toolkit 类型技能：从 toolkit_content 解析
             if not tools:
-                from app.services.ai.skill_service import AdminSkillService
                 from app.schemas.common.query import FilterRule
+                from app.services.ai.skill_service import AdminSkillService
                 skill_svc = AdminSkillService(db)
-                skill_items, _ = await skill_svc.query_list(
+                skill_items, skill_total = await skill_svc.query_list(
                     None,
                     forced_filters=[FilterRule(field="package_id", value=package_id)],
+                )
+                logger.debug(
+                    "Resolved tools: loaded %d skills for package %d",
+                    skill_total,
+                    package_id,
                 )
                 for skill_item in skill_items:
                     if skill_item.type == "toolkit" and skill_item.toolkit_content:

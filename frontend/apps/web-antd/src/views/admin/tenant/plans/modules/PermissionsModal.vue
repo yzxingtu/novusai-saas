@@ -89,7 +89,8 @@ async function loadData() {
 
     // 提取已分配权限的 ID
     selectedPermissionIds.value = assignedPermissions.map((p) => p.id);
-  } catch {} finally {
+  } catch {
+  } finally {
     loading.value = false;
   }
 }

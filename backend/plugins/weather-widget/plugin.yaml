@@ -49,6 +49,27 @@ extensions:
         handler: "api.handlers.search_city"
         summary: "城市搜索"
         auth: required
+    admin_routes:
+      - method: GET
+        path: "config"
+        handler: "api.handlers.get_config"
+        summary: "获取插件配置（管理端）"
+        auth: required
+      - method: GET
+        path: "current"
+        handler: "api.handlers.get_current_weather"
+        summary: "获取当前天气（管理端）"
+        auth: required
+      - method: GET
+        path: "forecast"
+        handler: "api.handlers.get_forecast"
+        summary: "获取天气预报（管理端）"
+        auth: required
+      - method: GET
+        path: "geocoding"
+        handler: "api.handlers.search_city"
+        summary: "城市搜索（管理端）"
+        auth: required
 
   frontend:
     header_widgets:
@@ -58,11 +79,14 @@ extensions:
 
 config_schema:
   type: object
+  required: ["default_city"]
   properties:
     default_city:
       type: string
       title: "默认城市 / Default City"
       description: "天气组件启动时默认显示的城市 / Default city shown on widget startup"
+      minLength: 1
+      pattern: ".*\\S.*"
       default: "Shanghai"
     temperature_unit:
       type: string
@@ -88,7 +112,8 @@ config_schema:
       default: true
 
 dependencies:
-  python: []
+  python:
+    - "httpx>=0.26.0"
   plugins: []
 
 pricing:

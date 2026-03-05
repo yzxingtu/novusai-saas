@@ -9,29 +9,57 @@
 
 from fastapi import APIRouter
 
+from app.api.tenant.agent_chat import TenantAgentChatController
+from app.api.tenant.agent_chat import router as agent_chat_router
+from app.api.tenant.agents import TenantAgentController
+from app.api.tenant.agents import router as agents_router
+from app.api.tenant.ai_action_logs import TenantAIActionLogController
+from app.api.tenant.ai_action_logs import router as ai_action_logs_router
+from app.api.tenant.ai_call_logs import TenantAICallLogController
+from app.api.tenant.ai_call_logs import router as ai_call_logs_router
+from app.api.tenant.ai_config import TenantAIConfigController
+from app.api.tenant.ai_config import router as ai_config_router
+from app.api.tenant.ai_gateway import TenantAIGatewayController
+from app.api.tenant.ai_gateway import router as ai_gateway_router
+from app.api.tenant.ai_quotas import TenantAIQuotaController
+from app.api.tenant.ai_quotas import router as ai_quotas_router
+from app.api.tenant.ai_table_policies import TenantAITablePolicyController
+from app.api.tenant.ai_table_policies import router as ai_table_policies_router
+from app.api.tenant.ai_usage import TenantAIUsageController
+from app.api.tenant.ai_usage import router as ai_usage_router
+from app.api.tenant.analytics import router as analytics_router
+from app.api.tenant.attachments import TenantAttachmentController
+from app.api.tenant.attachments import router as attachments_router
 from app.api.tenant.auth import router as auth_router
-from app.api.tenant.configs import router as configs_router, TenantConfigController
-from app.api.tenant.attachments import router as attachments_router, TenantAttachmentController
-from app.api.tenant.domains import router as domains_router, TenantDomainController
-from app.api.tenant.operation_logs import router as operation_logs_router, TenantOperationLogController
-from app.api.tenant.periodic_tasks import router as periodic_tasks_router, TenantPeriodicTaskController
-from app.api.tenant.permissions import router as permissions_router, TenantPermissionController
-from app.api.tenant.roles import router as roles_router, TenantRoleController
-from app.api.tenant.tasks import router as tasks_router, TenantTaskLogController
-from app.api.tenant.ai_config import router as ai_config_router, TenantAIConfigController
-from app.api.tenant.ai_gateway import router as ai_gateway_router, TenantAIGatewayController
-from app.api.tenant.ai_quotas import router as ai_quotas_router, TenantAIQuotaController
-from app.api.tenant.ai_usage import router as ai_usage_router, TenantAIUsageController
-from app.api.tenant.ai_call_logs import router as ai_call_logs_router, TenantAICallLogController
-from app.api.tenant.agents import router as agents_router, TenantAgentController
-from app.api.tenant.conversations import router as conversations_router, TenantConversationController
-from app.api.tenant.agent_chat import router as agent_chat_router, TenantAgentChatController
-from app.api.tenant.ai_action_logs import router as ai_action_logs_router, TenantAIActionLogController
-from app.api.tenant.knowledge_bases import router as knowledge_bases_router, TenantKnowledgeBaseController
-from app.api.tenant.ai_table_policies import router as ai_table_policies_router, TenantAITablePolicyController
-from app.api.tenant.skill_packages import router as skill_packages_router, TenantSkillPackageController
-from app.api.tenant.skills import router as skills_router, TenantSkillController
+from app.api.tenant.configs import TenantConfigController
+from app.api.tenant.configs import router as configs_router
+from app.api.tenant.conversations import TenantConversationController
+from app.api.tenant.conversations import router as conversations_router
 from app.api.tenant.dashboard import router as dashboard_router
+from app.api.tenant.domains import TenantDomainController
+from app.api.tenant.domains import router as domains_router
+from app.api.tenant.knowledge_bases import TenantKnowledgeBaseController
+from app.api.tenant.knowledge_bases import router as knowledge_bases_router
+from app.api.tenant.notification_preferences import (
+    router as notification_preferences_router,
+)
+from app.api.tenant.notifications import router as notifications_router
+from app.api.tenant.operation_logs import TenantOperationLogController
+from app.api.tenant.operation_logs import router as operation_logs_router
+from app.api.tenant.periodic_tasks import TenantPeriodicTaskController
+from app.api.tenant.periodic_tasks import router as periodic_tasks_router
+from app.api.tenant.permissions import TenantPermissionController
+from app.api.tenant.permissions import router as permissions_router
+from app.api.tenant.plugins import router as plugins_router
+from app.api.tenant.roles import TenantRoleController
+from app.api.tenant.roles import router as roles_router
+from app.api.tenant.skill_packages import TenantSkillPackageController
+from app.api.tenant.skill_packages import router as skill_packages_router
+from app.api.tenant.skills import TenantSkillController
+from app.api.tenant.skills import router as skills_router
+from app.api.tenant.tasks import TenantTaskLogController
+from app.api.tenant.tasks import router as tasks_router
+from app.api.tenant.ws import router as ws_router
 
 # 创建租户管理后台路由器
 tenant_router = APIRouter()
@@ -69,19 +97,14 @@ tenant_router.include_router(ai_table_policies_router)
 tenant_router.include_router(skill_packages_router)
 tenant_router.include_router(skills_router)
 # WebSocket 在线状态
-from app.api.tenant.ws import router as ws_router
 tenant_router.include_router(ws_router)
 # 通知
-from app.api.tenant.notifications import router as notifications_router
 tenant_router.include_router(notifications_router)
 # 通知偏好
-from app.api.tenant.notification_preferences import router as notification_preferences_router
 tenant_router.include_router(notification_preferences_router)
 # 插件（租户端只读列表，按 scope + 分配过滤）
-from app.api.tenant.plugins import router as plugins_router
 tenant_router.include_router(plugins_router)
 # 数据分析
-from app.api.tenant.analytics import router as analytics_router
 tenant_router.include_router(analytics_router)
 
 

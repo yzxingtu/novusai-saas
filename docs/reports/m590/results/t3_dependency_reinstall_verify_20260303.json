@@ -1,0 +1,560 @@
+{
+  "generated_at": "2026-03-03T19:20:16.099904",
+  "python": {
+    "checked_total": 14,
+    "missing_total": 14
+  },
+  "npm": {
+    "checked_total": 27,
+    "missing_total": 0
+  },
+  "plugins": [
+    {
+      "plugin": "aliyun-oss",
+      "manifest_exists": true,
+      "python": {
+        "declared": [
+          "alibabacloud-oss-v2>=1.0.0",
+          "anyio>=4.0.0"
+        ],
+        "checked": [
+          {
+            "declared": "alibabacloud-oss-v2>=1.0.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          },
+          {
+            "declared": "anyio>=4.0.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          }
+        ],
+        "missing": [
+          {
+            "declared": "alibabacloud-oss-v2>=1.0.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          },
+          {
+            "declared": "anyio>=4.0.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          }
+        ]
+      },
+      "npm": {
+        "declared": [],
+        "checked": [],
+        "missing": []
+      }
+    },
+    {
+      "plugin": "amazon-s3",
+      "manifest_exists": true,
+      "python": {
+        "declared": [
+          "boto3>=1.35",
+          "anyio>=4.0.0"
+        ],
+        "checked": [
+          {
+            "declared": "boto3>=1.35",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          },
+          {
+            "declared": "anyio>=4.0.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          }
+        ],
+        "missing": [
+          {
+            "declared": "boto3>=1.35",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          },
+          {
+            "declared": "anyio>=4.0.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          }
+        ]
+      },
+      "npm": {
+        "declared": [],
+        "checked": [],
+        "missing": []
+      }
+    },
+    {
+      "plugin": "netdisk",
+      "manifest_exists": true,
+      "python": {
+        "declared": [
+          "aiofiles>=23.0",
+          "bcrypt>=4.0",
+          "Pillow>=10.0"
+        ],
+        "checked": [
+          {
+            "declared": "aiofiles>=23.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          },
+          {
+            "declared": "bcrypt>=4.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          },
+          {
+            "declared": "Pillow>=10.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          }
+        ],
+        "missing": [
+          {
+            "declared": "aiofiles>=23.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          },
+          {
+            "declared": "bcrypt>=4.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          },
+          {
+            "declared": "Pillow>=10.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          }
+        ]
+      },
+      "npm": {
+        "declared": [],
+        "checked": [],
+        "missing": []
+      }
+    },
+    {
+      "plugin": "novus-crud-code",
+      "manifest_exists": true,
+      "python": {
+        "declared": [],
+        "checked": [],
+        "missing": []
+      },
+      "npm": {
+        "declared": [
+          "@vue-flow/core",
+          "@vue-flow/background",
+          "@vue-flow/controls",
+          "@vue-flow/minimap",
+          "vxe-table",
+          "xe-utils",
+          "sortablejs",
+          "@types/sortablejs"
+        ],
+        "checked": [
+          {
+            "declared": "@vue-flow/core",
+            "name": "@vue-flow/core",
+            "installed": true
+          },
+          {
+            "declared": "@vue-flow/background",
+            "name": "@vue-flow/background",
+            "installed": true
+          },
+          {
+            "declared": "@vue-flow/controls",
+            "name": "@vue-flow/controls",
+            "installed": true
+          },
+          {
+            "declared": "@vue-flow/minimap",
+            "name": "@vue-flow/minimap",
+            "installed": true
+          },
+          {
+            "declared": "vxe-table",
+            "name": "vxe-table",
+            "installed": true
+          },
+          {
+            "declared": "xe-utils",
+            "name": "xe-utils",
+            "installed": true
+          },
+          {
+            "declared": "sortablejs",
+            "name": "sortablejs",
+            "installed": true
+          },
+          {
+            "declared": "@types/sortablejs",
+            "name": "@types/sortablejs",
+            "installed": true
+          }
+        ],
+        "missing": []
+      }
+    },
+    {
+      "plugin": "novusdoc",
+      "manifest_exists": true,
+      "python": {
+        "declared": [],
+        "checked": [],
+        "missing": []
+      },
+      "npm": {
+        "declared": [
+          "@tiptap/vue-3",
+          "@tiptap/starter-kit",
+          "@tiptap/extension-placeholder",
+          "@tiptap/extension-character-count",
+          "@tiptap/extension-image",
+          "@tiptap/extension-link",
+          "@tiptap/extension-underline",
+          "@tiptap/extension-text-align",
+          "@tiptap/extension-highlight",
+          "@tiptap/extension-table",
+          "@tiptap/extension-table-row",
+          "@tiptap/extension-table-cell",
+          "@tiptap/extension-table-header",
+          "@tiptap/extension-task-list",
+          "@tiptap/extension-task-item"
+        ],
+        "checked": [
+          {
+            "declared": "@tiptap/vue-3",
+            "name": "@tiptap/vue-3",
+            "installed": true
+          },
+          {
+            "declared": "@tiptap/starter-kit",
+            "name": "@tiptap/starter-kit",
+            "installed": true
+          },
+          {
+            "declared": "@tiptap/extension-placeholder",
+            "name": "@tiptap/extension-placeholder",
+            "installed": true
+          },
+          {
+            "declared": "@tiptap/extension-character-count",
+            "name": "@tiptap/extension-character-count",
+            "installed": true
+          },
+          {
+            "declared": "@tiptap/extension-image",
+            "name": "@tiptap/extension-image",
+            "installed": true
+          },
+          {
+            "declared": "@tiptap/extension-link",
+            "name": "@tiptap/extension-link",
+            "installed": true
+          },
+          {
+            "declared": "@tiptap/extension-underline",
+            "name": "@tiptap/extension-underline",
+            "installed": true
+          },
+          {
+            "declared": "@tiptap/extension-text-align",
+            "name": "@tiptap/extension-text-align",
+            "installed": true
+          },
+          {
+            "declared": "@tiptap/extension-highlight",
+            "name": "@tiptap/extension-highlight",
+            "installed": true
+          },
+          {
+            "declared": "@tiptap/extension-table",
+            "name": "@tiptap/extension-table",
+            "installed": true
+          },
+          {
+            "declared": "@tiptap/extension-table-row",
+            "name": "@tiptap/extension-table-row",
+            "installed": true
+          },
+          {
+            "declared": "@tiptap/extension-table-cell",
+            "name": "@tiptap/extension-table-cell",
+            "installed": true
+          },
+          {
+            "declared": "@tiptap/extension-table-header",
+            "name": "@tiptap/extension-table-header",
+            "installed": true
+          },
+          {
+            "declared": "@tiptap/extension-task-list",
+            "name": "@tiptap/extension-task-list",
+            "installed": true
+          },
+          {
+            "declared": "@tiptap/extension-task-item",
+            "name": "@tiptap/extension-task-item",
+            "installed": true
+          }
+        ],
+        "missing": []
+      }
+    },
+    {
+      "plugin": "novusdoc-pro",
+      "manifest_exists": true,
+      "python": {
+        "declared": [
+          "y-py>=0.6.0; python_version < '3.12' or sys_platform != 'win32'",
+          "redis>=5.0"
+        ],
+        "checked": [
+          {
+            "declared": "y-py>=0.6.0; python_version < '3.12' or sys_platform != 'win32'",
+            "applies": false,
+            "reason": "marker_not_matched",
+            "installed": false,
+            "installed_version": null
+          },
+          {
+            "declared": "redis>=5.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          }
+        ],
+        "missing": [
+          {
+            "declared": "redis>=5.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          }
+        ]
+      },
+      "npm": {
+        "declared": [
+          "@tiptap/extension-collaboration",
+          "@tiptap/extension-collaboration-cursor",
+          "yjs",
+          "y-protocols"
+        ],
+        "checked": [
+          {
+            "declared": "@tiptap/extension-collaboration",
+            "name": "@tiptap/extension-collaboration",
+            "installed": true
+          },
+          {
+            "declared": "@tiptap/extension-collaboration-cursor",
+            "name": "@tiptap/extension-collaboration-cursor",
+            "installed": true
+          },
+          {
+            "declared": "yjs",
+            "name": "yjs",
+            "installed": true
+          },
+          {
+            "declared": "y-protocols",
+            "name": "y-protocols",
+            "installed": true
+          }
+        ],
+        "missing": []
+      }
+    },
+    {
+      "plugin": "qiniu-kodo",
+      "manifest_exists": true,
+      "python": {
+        "declared": [
+          "qiniu>=7.14",
+          "httpx>=0.24",
+          "anyio>=4.0.0"
+        ],
+        "checked": [
+          {
+            "declared": "qiniu>=7.14",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          },
+          {
+            "declared": "httpx>=0.24",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          },
+          {
+            "declared": "anyio>=4.0.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          }
+        ],
+        "missing": [
+          {
+            "declared": "qiniu>=7.14",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          },
+          {
+            "declared": "httpx>=0.24",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          },
+          {
+            "declared": "anyio>=4.0.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          }
+        ]
+      },
+      "npm": {
+        "declared": [],
+        "checked": [],
+        "missing": []
+      }
+    },
+    {
+      "plugin": "storage-migration",
+      "manifest_exists": true,
+      "python": {
+        "declared": [],
+        "checked": [],
+        "missing": []
+      },
+      "npm": {
+        "declared": [],
+        "checked": [],
+        "missing": []
+      }
+    },
+    {
+      "plugin": "tencent-cos",
+      "manifest_exists": true,
+      "python": {
+        "declared": [
+          "cos-python-sdk-v5>=1.9",
+          "anyio>=4.0.0"
+        ],
+        "checked": [
+          {
+            "declared": "cos-python-sdk-v5>=1.9",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          },
+          {
+            "declared": "anyio>=4.0.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          }
+        ],
+        "missing": [
+          {
+            "declared": "cos-python-sdk-v5>=1.9",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          },
+          {
+            "declared": "anyio>=4.0.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          }
+        ]
+      },
+      "npm": {
+        "declared": [],
+        "checked": [],
+        "missing": []
+      }
+    },
+    {
+      "plugin": "weather-widget",
+      "manifest_exists": true,
+      "python": {
+        "declared": [
+          "httpx>=0.26.0"
+        ],
+        "checked": [
+          {
+            "declared": "httpx>=0.26.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          }
+        ],
+        "missing": [
+          {
+            "declared": "httpx>=0.26.0",
+            "applies": true,
+            "reason": "",
+            "installed": false,
+            "installed_version": null
+          }
+        ]
+      },
+      "npm": {
+        "declared": [],
+        "checked": [],
+        "missing": []
+      }
+    }
+  ]
+}

@@ -6,12 +6,11 @@ CallLogService + MeteringService 单元测试
 
 from __future__ import annotations
 
-from datetime import date
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from tests.services.conftest import make_mock_model, make_scalar_result, make_row_result
+from tests.services.conftest import make_mock_model
 
 
 def _make_call_log(**overrides):

@@ -92,7 +92,8 @@ async function onVerify() {
     } else {
       message.warning($t('tenant.system.domain.messages.verifyFailed'));
     }
-  } catch {} finally {
+  } catch {
+  } finally {
     verifying.value = false;
   }
 }

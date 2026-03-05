@@ -1,10 +1,16 @@
 from __future__ import annotations
+
 from fastapi import APIRouter, Request
+
 from app.captcha.service import captcha_service
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.error_code import ErrorCode
-from app.exceptions import BusinessException, ServiceUnavailableException, RateLimitException
+from app.exceptions import (
+    BusinessException,
+    RateLimitException,
+    ServiceUnavailableException,
+)
 from app.rbac.decorators import public
 from app.schemas.common.captcha import (
     CaptchaChallengeRequest,
@@ -12,7 +18,6 @@ from app.schemas.common.captcha import (
     CaptchaVerifyRequest,
     CaptchaVerifyResponse,
 )
-
 
 router = APIRouter(prefix="/captcha", tags=["验证码"])
 

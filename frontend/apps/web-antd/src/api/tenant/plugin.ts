@@ -1,9 +1,9 @@
+import type { PluginSlotData, PluginSlotsResponse } from '#/api/admin/plugin';
+
 /**
  * 租户端插件 API
  */
 import { requestClient } from '#/utils/request';
-
-import type { PluginSlotData, PluginSlotsResponse } from '#/api/admin/plugin';
 
 const BASE_URL = '/tenant/plugins';
 

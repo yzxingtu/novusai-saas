@@ -28,13 +28,14 @@
             )
 """
 
-from typing import Any, Callable, Type
+from collections.abc import Callable
+from typing import Any
 
 from fastapi import APIRouter, Body, Request
 
-from app.core.deps import DbSession, ActiveTenantAdmin, ActiveAdmin, QueryParams
+from app.core.deps import ActiveAdmin, ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import success, deleted, paginated
+from app.core.response import deleted, paginated, success
 from app.enums.common import DeleteLevelEnum
 from app.exceptions import NotFoundException, ValidationException
 from app.rbac.decorators import action_delete
@@ -44,7 +45,7 @@ _MAX_BATCH_SIZE = 100
 
 def register_tenant_recycle_bin_routes(
     router: APIRouter,
-    service_class: Type,
+    service_class: type,
     resource_name: str,
     serialize: Callable | None = None,
 ) -> None:
@@ -164,7 +165,7 @@ def register_tenant_recycle_bin_routes(
 
 def register_admin_recycle_bin_routes(
     router: APIRouter,
-    service_class: Type,
+    service_class: type,
     resource_name: str,
     serialize: Callable | None = None,
 ) -> None:

@@ -194,7 +194,7 @@ export function downloadBase64(base64: string, options: DownloadOptions): void {
   const binaryString = atob(base64Data);
   const bytes = new Uint8Array(binaryString.length);
   for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
+    bytes[i] = binaryString.codePointAt(i) ?? 0;
   }
 
   const blob = new Blob([bytes], { type: finalMimeType });

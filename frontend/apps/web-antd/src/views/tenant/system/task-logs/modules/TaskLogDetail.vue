@@ -1,16 +1,9 @@
 <script lang="ts" setup>
-defineOptions({ name: 'TenantTaskLogDetail' });
-
 import type { tenantApi } from '#/api';
 
 import { IconifyIcon } from '@vben/icons';
 
-import {
-  Descriptions,
-  DescriptionsItem,
-  Divider,
-  Tag,
-} from 'ant-design-vue';
+import { Descriptions, DescriptionsItem, Divider, Tag } from 'ant-design-vue';
 
 import { getTaskLogDetailApi } from '#/api/tenant/task-log';
 import { useCrudDrawer } from '#/composables';
@@ -18,6 +11,8 @@ import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
 import { getQueueColor, getStatusColor } from '../data';
+
+defineOptions({ name: 'TenantTaskLogDetail' });
 
 type TaskLogDetailInfo = tenantApi.TaskLogDetailInfo;
 
@@ -39,11 +34,21 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
           {{ $t('tenant.system.taskLog.basicInfo') }}
         </div>
         <Descriptions :column="2" bordered size="small">
-          <DescriptionsItem :label="$t('tenant.system.taskLog.taskName')" :span="2">
-            <code class="break-all rounded bg-accent px-1 py-0.5 text-xs">{{ detail.taskName }}</code>
+          <DescriptionsItem
+            :label="$t('tenant.system.taskLog.taskName')"
+            :span="2"
+          >
+            <code class="break-all rounded bg-accent px-1 py-0.5 text-xs">{{
+              detail.taskName
+            }}</code>
           </DescriptionsItem>
-          <DescriptionsItem :label="$t('tenant.system.taskLog.taskId')" :span="2">
-            <code class="break-all rounded bg-accent px-1 py-0.5 text-xs">{{ detail.taskId }}</code>
+          <DescriptionsItem
+            :label="$t('tenant.system.taskLog.taskId')"
+            :span="2"
+          >
+            <code class="break-all rounded bg-accent px-1 py-0.5 text-xs">{{
+              detail.taskId
+            }}</code>
           </DescriptionsItem>
           <DescriptionsItem :label="$t('tenant.system.taskLog.status.label')">
             <Tag :color="getStatusColor(detail.status)">
@@ -52,7 +57,12 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
           </DescriptionsItem>
           <DescriptionsItem :label="$t('tenant.system.taskLog.queue')">
             <Tag :color="getQueueColor(detail.queue)">
-              {{ $t(`tenant.system.taskLog.queueNames.${detail.queue}`, detail.queue) }}
+              {{
+                $t(
+                  `tenant.system.taskLog.queueNames.${detail.queue}`,
+                  detail.queue,
+                )
+              }}
             </Tag>
           </DescriptionsItem>
           <DescriptionsItem :label="$t('tenant.system.taskLog.retryCount')">
@@ -102,7 +112,10 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
               v-if="detail.traceback"
               :label="$t('tenant.system.taskLog.traceback')"
             >
-              <pre class="m-0 max-h-60 overflow-auto whitespace-pre-wrap break-all rounded bg-destructive/5 p-2 text-xs text-destructive">{{ detail.traceback }}</pre>
+              <pre
+                class="m-0 max-h-60 overflow-auto whitespace-pre-wrap break-all rounded bg-destructive/5 p-2 text-xs text-destructive"
+                >{{ detail.traceback }}</pre
+              >
             </DescriptionsItem>
           </Descriptions>
         </div>

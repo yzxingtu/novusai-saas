@@ -4,26 +4,26 @@
 
 export interface ModelCapabilities {
   supports_vision: boolean;
-  max_image_count: number | null;
-  max_image_size_mb: number | null;
+  max_image_count: null | number;
+  max_image_size_mb: null | number;
 }
 
 export interface AgentItem {
   id: number;
   tenant_id: number;
   name: string;
-  description: string | null;
-  avatar: string | null;
+  description: null | string;
+  avatar: null | string;
   status: string;
-  model_name?: string | null;
+  model_name?: null | string;
   model_capabilities?: ModelCapabilities | null;
-  welcome_message?: string | null;
-  suggested_questions?: string[] | null;
+  welcome_message?: null | string;
+  suggested_questions?: null | string[];
 }
 
 export interface ConversationItem {
   id: number;
-  title: string | null;
+  title: null | string;
   status: string;
   created_at: string;
 }
@@ -112,7 +112,7 @@ export interface ChatMessage {
   /** Pending tool consent request (consent_mode=ask) */
   pendingConsent?: PendingConsent;
   /** Tool optimizer result (shown when tools were pre-filtered) */
-  optimizingTools?: { total: number; selected: number };
+  optimizingTools?: { selected: number; total: number };
   /** Interactive action buttons for user to click */
   actionButtons?: ActionButton[];
   /** Whether action buttons have been used (disabled after click) */

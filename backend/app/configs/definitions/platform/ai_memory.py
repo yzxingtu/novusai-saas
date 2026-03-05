@@ -1,0 +1,25 @@
+"""
+平台 AI 记忆配置项
+
+控制平台层面的会话记忆默认开关。
+"""
+
+from app.configs.definitions.groups import PLATFORM_AI_MEMORY_GROUP
+from app.configs.meta import ConfigMeta
+from app.enums.config import ConfigScope, ConfigValueType
+
+PLATFORM_DEFAULT_MEMORY_ENABLED = ConfigMeta(
+    key="platform_default_memory_enabled",
+    name_key="config.platform.platform_default_memory_enabled.name",
+    description_key="config.platform.platform_default_memory_enabled.desc",
+    scope=ConfigScope.ADMIN_ONLY,
+    value_type=ConfigValueType.BOOLEAN,
+    default_value=True,
+    sort_order=10,
+)
+
+
+PLATFORM_AI_MEMORY_GROUP.configs = [PLATFORM_DEFAULT_MEMORY_ENABLED]
+
+
+__all__ = ["PLATFORM_DEFAULT_MEMORY_ENABLED"]

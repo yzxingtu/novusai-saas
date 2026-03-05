@@ -402,7 +402,11 @@ export function statusSelect(
 export function dateField(
   fieldName: string,
   label: string,
-  options: { placeholder?: string; required?: boolean; showTime?: boolean } = {},
+  options: {
+    placeholder?: string;
+    required?: boolean;
+    showTime?: boolean;
+  } = {},
 ): VbenFormSchema {
   const { placeholder, required = false, showTime = true } = options;
 
@@ -410,12 +414,14 @@ export function dateField(
     class: 'w-full',
     placeholder: placeholder || `选择${label}`,
     // showTime 配置(如果需要显示时间选择器)
-    ...(showTime ? {
-      showTime: {
-        defaultValue: dayjs('00:00:00', 'HH:mm:ss'),
-        format: 'HH:mm:ss',
-      }
-    } : {}),
+    ...(showTime
+      ? {
+          showTime: {
+            defaultValue: dayjs('00:00:00', 'HH:mm:ss'),
+            format: 'HH:mm:ss',
+          },
+        }
+      : {}),
   };
 
   return {
@@ -585,7 +591,12 @@ export function inputField(
 export function textareaField(
   fieldName: string,
   label: string,
-  options: { maxLength?: number; placeholder?: string; required?: boolean; rows?: number } = {},
+  options: {
+    maxLength?: number;
+    placeholder?: string;
+    required?: boolean;
+    rows?: number;
+  } = {},
 ): VbenFormSchema {
   const { placeholder, required = false, rows = 3, maxLength } = options;
 

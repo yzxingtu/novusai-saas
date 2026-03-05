@@ -5,17 +5,16 @@ AI 调用日志 Repository
 """
 
 from datetime import date
-from sqlalchemy import select, func, and_, or_, case
+
+from sqlalchemy import case, func, select
 
 from app.core.base_repository import BaseRepository
 from app.core.logging import LogManager
-from app.core.i18n import _
 from app.enums.ai import CallStatusEnum
 from app.models.ai import AICallLog
 from app.models.ai.model import AIModel
 from app.models.ai.provider import AIProvider
 from app.models.tenant.tenant import Tenant
-
 
 logger = LogManager.get_logger("ai.call_log")
 
@@ -90,7 +89,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             result.append(d)
 
         return result, total
-    
+
     async def get_statistics(
         self,
         tenant_id: int | None = None,
@@ -100,13 +99,13 @@ class AICallLogRepository(BaseRepository[AICallLog]):
     ) -> list[dict]:
         """
         获取统计信息
-        
+
         Args:
             tenant_id: 租户 ID (可选)
             start_date: 开始日期
             end_date: 结束日期
             group_by: 分组维度 (daily/model/user)
-            
+
         Returns:
             统计数据列表
         """
@@ -125,7 +124,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
                 (AICallLog.status == CallStatusEnum.FAILED.value, 1), else_=0
             )).label("failed_count"),
         ]
-        
+
         # 根据分组维度确定 SELECT 和 GROUP BY 列
         if group_by == "model":
             group_columns = [AICallLog.model_id]
@@ -140,22 +139,22 @@ class AICallLogRepository(BaseRepository[AICallLog]):
                 func.date(AICallLog.created_at).label("date"),
                 AICallLog.model_id,
             ] + agg_columns
-        
+
         stmt = select(*select_columns)
-        
+
         # 租户筛选
         if tenant_id:
             stmt = stmt.where(AICallLog.tenant_id == tenant_id)
-        
+
         # 日期筛选
         if start_date:
             stmt = stmt.where(AICallLog.created_at >= start_date)
         if end_date:
             stmt = stmt.where(AICallLog.created_at <= end_date)
-        
+
         # 分组
         stmt = stmt.group_by(*group_columns)
-        
+
         # 排序
         if group_by == "model":
             stmt = stmt.order_by(AICallLog.model_id)
@@ -163,10 +162,10 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             stmt = stmt.order_by(AICallLog.user_id)
         else:
             stmt = stmt.order_by(func.date(AICallLog.created_at).desc(), AICallLog.model_id)
-        
+
         result = await self.db.execute(stmt)
         rows = result.all()
-        
+
         return [
             {
                 "date": str(row.date) if hasattr(row, 'date') else None,
@@ -183,7 +182,7 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             }
             for row in rows
         ]
-    
+
     async def get_by_request_hash(
         self,
         request_hash: str,
@@ -191,11 +190,11 @@ class AICallLogRepository(BaseRepository[AICallLog]):
     ) -> AICallLog | None:
         """
         根据请求哈希查询日志(用于缓存命中检测)
-        
+
         Args:
             request_hash: 请求哈希
             tenant_id: 租户 ID (可选)
-            
+
         Returns:
             AICallLog 实例或 None
         """
@@ -203,16 +202,16 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             AICallLog.request_hash == request_hash,
             AICallLog.status == CallStatusEnum.SUCCESS.value,
         )
-        
+
         if tenant_id:
             stmt = stmt.where(AICallLog.tenant_id == tenant_id)
-        
+
         # 按创建时间倒序,获取最新的匹配记录
         stmt = stmt.order_by(AICallLog.created_at.desc())
-        
+
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
-    
+
     async def get_recent_logs(
         self,
         tenant_id: int | None = None,
@@ -221,26 +220,26 @@ class AICallLogRepository(BaseRepository[AICallLog]):
     ) -> list[AICallLog]:
         """
         获取最近的调用日志
-        
+
         Args:
             tenant_id: 租户 ID (可选)
             limit: 返回数量
             offset: 偏移量
-            
+
         Returns:
             AICallLog 列表
         """
         stmt = select(AICallLog)
-        
+
         if tenant_id:
             stmt = stmt.where(AICallLog.tenant_id == tenant_id)
-        
+
         stmt = stmt.order_by(AICallLog.created_at.desc())
         stmt = stmt.limit(limit).offset(offset)
-        
+
         result = await self.db.execute(stmt)
         return result.scalars().all()
-    
+
     async def get_failed_logs(
         self,
         tenant_id: int | None = None,
@@ -249,28 +248,28 @@ class AICallLogRepository(BaseRepository[AICallLog]):
     ) -> list[AICallLog]:
         """
         获取失败的调用日志
-        
+
         Args:
             tenant_id: 租户 ID (可选)
             start_date: 开始日期
             limit: 返回数量
-            
+
         Returns:
             AICallLog 列表
         """
         stmt = select(AICallLog).where(
             AICallLog.status == CallStatusEnum.FAILED.value
         )
-        
+
         if tenant_id:
             stmt = stmt.where(AICallLog.tenant_id == tenant_id)
-        
+
         if start_date:
             stmt = stmt.where(AICallLog.created_at >= start_date)
-        
+
         stmt = stmt.order_by(AICallLog.created_at.desc())
         stmt = stmt.limit(limit)
-        
+
         result = await self.db.execute(stmt)
         return result.scalars().all()
 

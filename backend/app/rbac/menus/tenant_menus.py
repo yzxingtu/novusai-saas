@@ -20,9 +20,8 @@ name 字段使用 i18n key，前端渲染时翻译。
 图标名称使用 kebab-case（小写字母，单词间用连字符分隔）
 """
 
-from app.enums.rbac import PermissionType, PermissionScope
+from app.enums.rbac import PermissionScope, PermissionType
 from app.rbac.decorators import PermissionMeta
-
 
 # 租户管理端目录菜单
 TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
@@ -41,7 +40,24 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         component="dashboard/Index",
         sort_order=0,
     ),
-    
+
+    # ========================================
+    # 工作台（目录，供内容/文档类插件挂载）
+    # ========================================
+    PermissionMeta(
+        code="menu:tenant.tenant_workspace",
+        name="menu.tenant.tenant_workspace",
+        type=PermissionType.MENU,
+        scope=PermissionScope.ALL_TENANTS,
+        resource="menu",
+        action="tenant.tenant_workspace",
+        icon="lucide:layout-panel-left",
+        path="/workspace",
+        sort_order=5,
+    ),
+    # 子菜单由插件声明:
+    # - menu:tenant.plugin_novusdoc_* (文档管理)
+
     # ========================================
     # 权限管理（目录）
     # ========================================
@@ -60,7 +76,7 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
     # - menu:tenant.tenant_user (用户管理)
     # - menu:tenant.permission (权限管理) - 可选，一般隐藏
     # - menu:tenant.organization (组织架构) - 由 roles.py 控制器声明
-    
+
     # ========================================
     # 系统管理（目录）
     # ========================================

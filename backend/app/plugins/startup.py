@@ -213,18 +213,18 @@ async def discover_and_register(db: AsyncSession) -> dict:
                 existing_plugin.scope = manifest.scope
                 existing_plugin.installed_packages = manifest.dependencies.python or []
                 existing_plugin.ai_requirements = manifest.ai_requirements.model_dump() if manifest.ai_requirements else existing_plugin.ai_requirements
+                existing_plugin.granted_capabilities = manifest.capabilities or existing_plugin.granted_capabilities
                 synced += 1
                 logger.info("Discover: synced manifest for %s", plugin_name)
 
     # ── DB 有但磁盘无 → 标记 error ──
     for plugin_name, plugin in db_plugins.items():
-        if plugin_name not in disk_plugins:
-            if plugin.status not in (PluginStatusEnum.ERROR.value,):
-                plugin.status = PluginStatusEnum.ERROR.value
-                plugin.error_message = "Plugin files missing from disk"
-                plugin.error_count += 1
-                missing += 1
-                logger.warning("Discover: plugin %s missing from disk, marked error", plugin_name)
+        if plugin_name not in disk_plugins and plugin.status not in (PluginStatusEnum.ERROR.value,):
+            plugin.status = PluginStatusEnum.ERROR.value
+            plugin.error_message = "Plugin files missing from disk"
+            plugin.error_count += 1
+            missing += 1
+            logger.warning("Discover: plugin %s missing from disk, marked error", plugin_name)
 
     if discovered > 0 or synced > 0 or missing > 0:
         await db.flush()
@@ -241,7 +241,12 @@ async def discover_and_register(db: AsyncSession) -> dict:
     }
 
 
-async def restore_enabled_plugins(db: AsyncSession) -> dict:
+async def restore_enabled_plugins(
+    db: AsyncSession,
+    *,
+    run_heavy: bool = True,
+    mutate_db_status: bool = True,
+) -> dict:
     """
     服务启动时恢复所有已启用插件的扩展点注册。
 
@@ -251,7 +256,7 @@ async def restore_enabled_plugins(db: AsyncSession) -> dict:
        a. 加载 manifest
        b. 通过 ExtensionRegistry 注册扩展点（hooks/events/webhooks）
        c. 记录成功
-    3. 单个插件失败 → 标记 error，继续其他插件
+    3. 单个插件失败 → 记录失败，按 mutate_db_status 决定是否写回 ERROR 状态
 
     Returns:
         {"restored": N, "failed": N, "total": N}
@@ -280,10 +285,14 @@ async def restore_enabled_plugins(db: AsyncSession) -> dict:
     restored = 0
     failed = 0
 
-    from app.plugins._extension_registrar import register_all_extensions
+    from app.plugins._extension_registrar import (
+        get_failed_extensions,
+        register_all_extensions,
+    )
     from app.plugins.lifecycle import PluginLifecycle
 
-    lifecycle = PluginLifecycle(db)
+    lifecycle = PluginLifecycle(db) if run_heavy else None
+    mode_label = "heavy" if run_heavy else "register-only"
 
     for plugin in enabled_plugins:
         try:
@@ -291,60 +300,102 @@ async def restore_enabled_plugins(db: AsyncSession) -> dict:
 
             # NOTE: manifest sync 已由 discover_and_register() 处理，此处不再重复
 
-            # 确保 Alembic 迁移已执行（防止 DB 重建后插件表丢失）
-            migrations_dir = loader.plugins_dir / plugin.name / "backend" / "migrations" / "versions"
-            if migrations_dir.is_dir():
-                try:
-                    await lifecycle.run_alembic_upgrade(plugin.name)
-                except Exception as exc:
-                    logger.warning(
-                        "Restore: alembic upgrade for %s failed: %s",
-                        plugin.name, exc,
-                    )
+            if run_heavy:
+                # 确保 Alembic 迁移已执行（防止 DB 重建后插件表丢失）
+                migrations_dir = loader.plugins_dir / plugin.name / "backend" / "migrations" / "versions"
+                if migrations_dir.is_dir():
+                    try:
+                        await lifecycle.run_alembic_upgrade(plugin.name)
+                    except Exception as exc:
+                        logger.warning(
+                            "Restore(%s): alembic upgrade for %s failed: %s",
+                            mode_label,
+                            plugin.name,
+                            exc,
+                        )
 
-            # 确保 Python 依赖已安装（防止克隆/拉取后 venv 缺失）
-            if manifest.dependencies.python:
-                await lifecycle._install_python_deps(plugin.name, manifest.dependencies.python)
+                # 确保 Python 依赖已安装（防止克隆/拉取后 venv 缺失）
+                if manifest.dependencies.python:
+                    await lifecycle._install_python_deps(plugin.name, manifest.dependencies.python)
 
-            # 确保前端 npm 依赖已安装（dev 模式，防止克隆/拉取后依赖缺失）
-            frontend_ext = manifest.extensions.frontend if manifest.extensions else None
-            npm_deps = frontend_ext.npm_dependencies if frontend_ext else []
-            if npm_deps:
-                await lifecycle._install_npm_deps(plugin.name, npm_deps)
+                # 确保前端 npm 依赖已安装（dev 模式，防止克隆/拉取后依赖缺失）
+                frontend_ext = manifest.extensions.frontend if manifest.extensions else None
+                npm_deps = frontend_ext.npm_dependencies if frontend_ext else []
+                if npm_deps:
+                    await lifecycle._install_npm_deps(plugin.name, npm_deps)
 
             # 注册所有扩展点（公共函数，与 lifecycle.enable 共用）
             menu_overrides = (plugin.config or {}).get("menu_overrides")
             register_all_extensions(registry, manifest, plugin.name, menu_overrides=menu_overrides)
 
-            # 重置错误计数（恢复成功）
-            if plugin.error_count > 0:
+            # fail-close：恢复阶段若关键扩展加载失败，回滚注册并标记 ERROR
+            failed_exts = get_failed_extensions(plugin.name)
+            if failed_exts:
+                registry.unregister_all(plugin.name)
+                failed_summary = "; ".join(
+                    f"{item['type']}:{item['entry_point']}" for item in failed_exts[:5]
+                )
+                raise RuntimeError(
+                    f"Extension load failed during startup restore: {failed_summary}"
+                )
+
+            # 仅重恢复 owner worker 允许写库状态，避免多 worker 并发抖动
+            if mutate_db_status and plugin.error_count > 0:
                 plugin.error_count = 0
                 plugin.error_message = None
 
             restored += 1
             logger.info(
-                "Restored plugin: %s (v%s, %d extensions)",
+                "Restored plugin(%s): %s (v%s, %d extensions)",
+                mode_label,
                 plugin.name, plugin.version,
                 registry.get_registered_count(plugin.name),
             )
 
         except Exception as exc:
             failed += 1
-            plugin.status = PluginStatusEnum.ERROR.value
-            plugin.error_message = f"Startup restore failed: {exc}"
-            plugin.error_count += 1
+            if mutate_db_status:
+                plugin.status = PluginStatusEnum.ERROR.value
+                plugin.error_message = f"Startup restore failed: {exc}"
+                plugin.error_count += 1
             logger.error(
-                "Failed to restore plugin %s: %s",
-                plugin.name, exc, exc_info=True,
+                "Failed to restore plugin(%s) %s: %s",
+                mode_label,
+                plugin.name,
+                exc,
+                exc_info=True,
             )
 
-    if restored > 0 or failed > 0:
+    if mutate_db_status and (restored > 0 or failed > 0):
         await db.flush()
 
     logger.info(
-        "Plugin restore complete: %d restored, %d failed, %d total",
-        restored, failed, len(enabled_plugins),
+        "Plugin restore(%s) complete: %d restored, %d failed, %d total",
+        mode_label,
+        restored,
+        failed,
+        len(enabled_plugins),
     )
+
+    # 仅 owner worker 汇总 ERROR 状态，避免多 worker 重复告警
+    if mutate_db_status:
+        error_result = await db.execute(
+            select(Plugin.name, Plugin.error_message).where(
+                Plugin.status == PluginStatusEnum.ERROR.value,
+                Plugin.is_deleted.is_(False),
+            )
+        )
+        error_plugins = error_result.all()
+        if error_plugins:
+            names = [row[0] for row in error_plugins]
+            logger.warning(
+                "Plugin system: %d plugin(s) in ERROR state and need manual repair: %s. "
+                "Go to Admin > Plugins and click the Repair button.",
+                len(error_plugins), ", ".join(names),
+            )
+            for row in error_plugins:
+                logger.warning("  ↳ [%s] %s", row[0], (row[1] or "unknown error")[:200])
+
     return {
         "restored": restored,
         "failed": failed,

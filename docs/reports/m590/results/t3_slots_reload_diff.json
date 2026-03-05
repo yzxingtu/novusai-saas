@@ -1,0 +1,28 @@
+{
+  "generated_at": "2026-03-03T11:04:31.311456+00:00",
+  "plugin_id": 1078,
+  "target_path": "/admin/plugins/storage-migration",
+  "exists_before": true,
+  "exists_after_disable": false,
+  "exists_after_enable": true,
+  "disable": {
+    "status": 200,
+    "body": {
+      "code": 0,
+      "message": "操作成功",
+      "data": {
+        "message": "Plugin disabled"
+      }
+    }
+  },
+  "enable": {
+    "status": 200,
+    "body": {
+      "code": 0,
+      "message": "操作成功",
+      "data": {
+        "message": "Plugin enabled"
+      }
+    }
+  }
+}

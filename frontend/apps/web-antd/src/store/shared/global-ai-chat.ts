@@ -1,3 +1,5 @@
+import { ref } from 'vue';
+
 /**
  * Global AI Floating Chat State
  *
@@ -5,17 +7,16 @@
  * active conversation) shared across admin and tenant layouts.
  */
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
 
 export const useGlobalAIChatStore = defineStore('global-ai-chat', () => {
   /** Whether the chat drawer is visible */
   const open = ref(false);
 
   /** Currently selected agent ID */
-  const selectedAgentId = ref<number | null>(null);
+  const selectedAgentId = ref<null | number>(null);
 
   /** Active conversation ID (null = new conversation) */
-  const activeConversationId = ref<number | null>(null);
+  const activeConversationId = ref<null | number>(null);
 
   /** Pending agent ID — set by external pages, consumed by drawer on open */
   const pendingAgentId = ref<number | undefined>(undefined);
@@ -98,10 +99,10 @@ export const useGlobalAIChatStore = defineStore('global-ai-chat', () => {
     for (const [key, handler] of toolCallHandlers) {
       try {
         handler(toolName, output);
-      } catch (err) {
+      } catch (error) {
         console.error(
           `[GlobalAIChat] Tool call handler '${key}' error:`,
-          err,
+          error,
         );
       }
     }

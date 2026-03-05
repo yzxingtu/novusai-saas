@@ -59,7 +59,7 @@ function nameView(name: string) {
       >
         <div
           :class="activeClass(theme.name)"
-          class="outline-box flex-center py-4 px-9"
+          class="outline-box flex-center px-9 py-4"
         >
           <component :is="theme.icon" class="size-5" />
         </div>

@@ -31,6 +31,7 @@ extensions:
 dependencies:
   python:
     - "boto3>=1.35"
+    - "anyio>=4.0.0"
   plugins: []
 
 pricing:

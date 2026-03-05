@@ -14,9 +14,9 @@ import { Button, Result, Spin } from 'ant-design-vue';
 
 import { tenantApi } from '#/api';
 import { $t } from '#/locales';
-import { toAvatarDisplayUrl } from '#/utils/image';
 import { HOME_PATHS } from '#/store/shared/multi-auth';
 import { TokenStorage } from '#/store/shared/token-storage';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 defineOptions({ name: 'TenantImpersonate' });
 
@@ -94,7 +94,7 @@ async function doImpersonateLogin() {
   } catch (error: unknown) {
     status.value = 'error';
     // 根据错误类型显示不同提示
-    const err = error as { response?: { status?: number }; message?: string };
+    const err = error as { message?: string; response?: { status?: number } };
     errorMessage.value =
       err?.response?.status === 401 || err?.response?.status === 400
         ? $t('tenant.impersonate.tokenExpired')

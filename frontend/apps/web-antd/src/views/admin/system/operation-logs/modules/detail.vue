@@ -93,7 +93,8 @@ const statusCodeType = computed(() => {
             <template v-if="detail.queryParams">
               <pre
                 class="m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-accent p-2 text-xs"
-                >{{ JSON.stringify(detail.queryParams, null, 2) }}</pre>
+                >{{ JSON.stringify(detail.queryParams, null, 2) }}</pre
+              >
             </template>
             <span v-else class="text-muted-foreground">-</span>
           </DescriptionsItem>
@@ -104,7 +105,8 @@ const statusCodeType = computed(() => {
             <template v-if="detail.requestBody">
               <pre
                 class="m-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-accent p-2 text-xs"
-                >{{ JSON.stringify(detail.requestBody, null, 2) }}</pre>
+                >{{ JSON.stringify(detail.requestBody, null, 2) }}</pre
+              >
             </template>
             <span v-else class="text-muted-foreground">-</span>
           </DescriptionsItem>

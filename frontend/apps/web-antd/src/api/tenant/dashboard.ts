@@ -29,22 +29,22 @@ export interface StorageDetail {
   total_size_bytes: number;
   total_size_mb: number;
   type_distribution: Array<{
-    mime_type: string;
     count: number;
+    mime_type: string;
     size_bytes: number;
   }>;
 }
 
 export interface TenantActivityItem {
   id: number;
-  username: string | null;
-  action: string | null;
-  module: string | null;
+  username: null | string;
+  action: null | string;
+  module: null | string;
   path: string;
   method: string;
-  status_code: number | null;
-  duration_ms: number | null;
-  created_at: string | null;
+  status_code: null | number;
+  duration_ms: null | number;
+  created_at: null | string;
 }
 
 // ── API Functions ──
@@ -54,13 +54,20 @@ export async function getTenantDashboardStatsApi(): Promise<TenantDashboardStats
 }
 
 export async function getAITrendApi(days = 7): Promise<AITrendItem[]> {
-  return requestClient.get<AITrendItem[]>(`${API_PREFIX}/ai-trend`, { params: { days } });
+  return requestClient.get<AITrendItem[]>(`${API_PREFIX}/ai-trend`, {
+    params: { days },
+  });
 }
 
 export async function getStorageDetailApi(): Promise<StorageDetail> {
   return requestClient.get<StorageDetail>(`${API_PREFIX}/storage-detail`);
 }
 
-export async function getTenantRecentActivitiesApi(limit = 20): Promise<TenantActivityItem[]> {
-  return requestClient.get<TenantActivityItem[]>(`${API_PREFIX}/recent-activities`, { params: { limit } });
+export async function getTenantRecentActivitiesApi(
+  limit = 20,
+): Promise<TenantActivityItem[]> {
+  return requestClient.get<TenantActivityItem[]>(
+    `${API_PREFIX}/recent-activities`,
+    { params: { limit } },
+  );
 }

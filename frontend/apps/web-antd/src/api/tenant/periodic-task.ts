@@ -1,9 +1,13 @@
+import type { PeriodicTaskInfo } from '#/api/shared/periodic-task-types';
 /**
  * 定时任务 API（租户端）
  * 对接后端 /tenant/periodic-tasks/* 接口
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
+// ============================================================
+// 转换函数
+// ============================================================
 import { requestClient } from '#/utils/request';
 
 // ============================================================
@@ -23,29 +27,23 @@ interface PeriodicTaskInfoRaw {
   name: string;
   task_path: string;
   schedule_type: string;
-  cron_expression: string | null;
-  interval_seconds: number | null;
+  cron_expression: null | string;
+  interval_seconds: null | number;
   is_active: boolean;
-  last_run_at: string | null;
-  next_run_at: string | null;
-  description: string | null;
+  last_run_at: null | string;
+  next_run_at: null | string;
+  description: null | string;
   created_at: string;
-  scope: string | null;
-  tenant_id: number | null;
+  scope: null | string;
+  tenant_id: null | number;
   is_locked: boolean;
   is_editable: boolean;
   max_retries: number;
   retry_delay: number;
-  timeout: number | null;
+  timeout: null | number;
   notify_on_failure: boolean;
-  notify_emails: string | null;
+  notify_emails: null | string;
 }
-
-// ============================================================
-// 转换函数
-// ============================================================
-
-import type { PeriodicTaskInfo } from '#/api/shared/periodic-task-types';
 
 function transformPeriodicTaskInfo(raw: PeriodicTaskInfoRaw): PeriodicTaskInfo {
   return {

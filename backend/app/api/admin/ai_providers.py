@@ -7,26 +7,26 @@
 from fastapi import Request
 
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, QueryParams, ActiveAdmin
 from app.core.base_schema import PageResponse
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
+from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
-    action_read,
     action_create,
-    action_update,
     action_delete,
+    action_read,
+    action_update,
+    permission_resource,
 )
 from app.schemas.ai.provider import (
     AIProviderCreate,
-    AIProviderUpdate,
     AIProviderResponse,
+    AIProviderUpdate,
 )
 from app.schemas.common import ReorderRequest
-from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.services.ai import AIProviderService
 
 

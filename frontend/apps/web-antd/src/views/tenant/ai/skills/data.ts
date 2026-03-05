@@ -15,13 +15,13 @@ import {
   switchField,
   textareaField,
 } from '#/adapter/form';
+import { getTenantTablePoliciesApi } from '#/api/tenant/ai';
 import { getKnowledgeBaseListApi } from '#/api/tenant/knowledge-bases';
 import { getSkillPackageSelectApi } from '#/api/tenant/skill-packages';
-import { getTenantTablePoliciesApi } from '#/api/tenant/ai';
 import { getSkillTypesApi, parseToolkitApi } from '#/api/tenant/skills';
 import { $t } from '#/locales';
 
-const _currentValvesSchema = ref<Record<string, unknown> | null>(null);
+const _currentValvesSchema = ref<null | Record<string, unknown>>(null);
 
 // ============ 知识库下拉 ============
 
@@ -55,20 +55,39 @@ export async function getTablePolicySelectOptions() {
 
 function getSearchModeOptions() {
   return [
-    { label: $t('tenant.ai.skill.knowledgeBaseConfig.searchModeOptions.vector'), value: 'vector' },
-    { label: $t('tenant.ai.skill.knowledgeBaseConfig.searchModeOptions.keyword'), value: 'keyword' },
-    { label: $t('tenant.ai.skill.knowledgeBaseConfig.searchModeOptions.hybrid'), value: 'hybrid' },
+    {
+      label: $t('tenant.ai.skill.knowledgeBaseConfig.searchModeOptions.vector'),
+      value: 'vector',
+    },
+    {
+      label: $t(
+        'tenant.ai.skill.knowledgeBaseConfig.searchModeOptions.keyword',
+      ),
+      value: 'keyword',
+    },
+    {
+      label: $t('tenant.ai.skill.knowledgeBaseConfig.searchModeOptions.hybrid'),
+      value: 'hybrid',
+    },
   ];
 }
 
 function getRewriteStrategyOptions() {
   return [
-    { label: $t('tenant.ai.skill.knowledgeBaseConfig.rewriteOptions.none'), value: 'none' },
-    { label: $t('tenant.ai.skill.knowledgeBaseConfig.rewriteOptions.multi'), value: 'multi' },
-    { label: $t('tenant.ai.skill.knowledgeBaseConfig.rewriteOptions.hyde'), value: 'hyde' },
+    {
+      label: $t('tenant.ai.skill.knowledgeBaseConfig.rewriteOptions.none'),
+      value: 'none',
+    },
+    {
+      label: $t('tenant.ai.skill.knowledgeBaseConfig.rewriteOptions.multi'),
+      value: 'multi',
+    },
+    {
+      label: $t('tenant.ai.skill.knowledgeBaseConfig.rewriteOptions.hyde'),
+      value: 'hyde',
+    },
   ];
 }
-
 
 /** 缓存技能类型列表 */
 const skillTypesCache = ref<SkillTypeOption[]>([]);
@@ -83,8 +102,14 @@ export async function loadSkillTypes(): Promise<SkillTypeOption[]> {
   } catch {
     return [
       { value: 'toolkit', label: $t('tenant.ai.skill.type_options.toolkit') },
-      { value: 'knowledge_base', label: $t('tenant.ai.skill.type_options.knowledge_base') },
-      { value: 'data_intelligence', label: $t('tenant.ai.skill.type_options.data_intelligence') },
+      {
+        value: 'knowledge_base',
+        label: $t('tenant.ai.skill.type_options.knowledge_base'),
+      },
+      {
+        value: 'data_intelligence',
+        label: $t('tenant.ai.skill.type_options.data_intelligence'),
+      },
       { value: 'builtin', label: $t('tenant.ai.skill.type_options.builtin') },
     ];
   }
@@ -103,12 +128,21 @@ export function getSkillTypeOptions() {
   }
   return [
     { label: $t('tenant.ai.skill.type_options.toolkit'), value: 'toolkit' },
-    { label: $t('tenant.ai.skill.type_options.knowledge_base'), value: 'knowledge_base' },
-    { label: $t('tenant.ai.skill.type_options.data_intelligence'), value: 'data_intelligence' },
+    {
+      label: $t('tenant.ai.skill.type_options.knowledge_base'),
+      value: 'knowledge_base',
+    },
+    {
+      label: $t('tenant.ai.skill.type_options.data_intelligence'),
+      value: 'data_intelligence',
+    },
     { label: $t('tenant.ai.skill.type_options.builtin'), value: 'builtin' },
     { label: $t('tenant.ai.skill.type_options.http'), value: 'http' },
     { label: $t('tenant.ai.skill.type_options.email'), value: 'email' },
-    { label: $t('tenant.ai.skill.type_options.code_execution'), value: 'code_execution' },
+    {
+      label: $t('tenant.ai.skill.type_options.code_execution'),
+      value: 'code_execution',
+    },
   ];
 }
 
@@ -123,7 +157,9 @@ export function getSkillTypeText(type: string | undefined): string {
   const text = $t(key);
   // fallback: 插件注册的 type 没有系统 i18n key，显示人类可读的格式
   if (text === key) {
-    return type.replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    return type
+      .replaceAll('_', ' ')
+      .replaceAll(/\b\w/g, (c) => c.toUpperCase());
   }
   return text;
 }
@@ -188,7 +224,11 @@ export function useColumns<T = SkillInfo>(
         },
         name: 'CellOperation',
         options: [
-          { code: 'test', text: $t('tenant.ai.skill.testBtn'), icon: 'lucide:play' },
+          {
+            code: 'test',
+            text: $t('tenant.ai.skill.testBtn'),
+            icon: 'lucide:play',
+          },
           'edit',
           'delete',
         ],
@@ -241,7 +281,8 @@ export function useFormSchema(): VbenFormSchema[] {
       component: 'ApiSelect',
       componentProps: {
         allowClear: false,
-        api: (params?: Record<string, unknown>) => getSkillPackageSelectApi(params),
+        api: (params?: Record<string, unknown>) =>
+          getSkillPackageSelectApi(params),
         class: 'w-full',
         placeholder: $t('tenant.ai.skillPackage.placeholder.searchName'),
         showSearch: true,
@@ -305,8 +346,13 @@ export function useFormSchema(): VbenFormSchema[] {
       label: '',
       hideLabel: true,
       componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('tenant.ai.skill.builtinTools.title') }),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'builtin' },
+      renderComponentContent: () => ({
+        default: () => $t('tenant.ai.skill.builtinTools.title'),
+      }),
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'builtin',
+      },
     },
     {
       component: 'Alert',
@@ -318,7 +364,10 @@ export function useFormSchema(): VbenFormSchema[] {
         showIcon: true,
         message: $t('tenant.ai.skill.builtinTools.hint'),
       },
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'builtin' },
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'builtin',
+      },
     },
     // ============ knowledge_base 专属字段 ============
     {
@@ -327,10 +376,13 @@ export function useFormSchema(): VbenFormSchema[] {
       label: '',
       hideLabel: true,
       componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('tenant.ai.skill.knowledgeBaseConfig.title') }),
+      renderComponentContent: () => ({
+        default: () => $t('tenant.ai.skill.knowledgeBaseConfig.title'),
+      }),
       dependencies: {
         triggerFields: ['type'],
-        if: (values: Record<string, unknown>) => values.type === 'knowledge_base',
+        if: (values: Record<string, unknown>) =>
+          values.type === 'knowledge_base',
       },
     },
     {
@@ -340,7 +392,9 @@ export function useFormSchema(): VbenFormSchema[] {
         api: getKnowledgeBaseSelectOptions,
         class: 'w-full',
         mode: 'multiple',
-        placeholder: $t('tenant.ai.skill.knowledgeBaseConfig.selectKbPlaceholder'),
+        placeholder: $t(
+          'tenant.ai.skill.knowledgeBaseConfig.selectKbPlaceholder',
+        ),
         showSearch: true,
         optionFilterProp: 'label',
       },
@@ -349,60 +403,94 @@ export function useFormSchema(): VbenFormSchema[] {
       help: $t('tenant.ai.skill.knowledgeBaseConfig.selectKbHelp'),
       dependencies: {
         triggerFields: ['type'],
-        if: (values: Record<string, unknown>) => values.type === 'knowledge_base',
+        if: (values: Record<string, unknown>) =>
+          values.type === 'knowledge_base',
       },
     },
     {
-      ...switchField('rag_enabled', $t('tenant.ai.skill.knowledgeBaseConfig.ragEnabled')),
+      ...switchField(
+        'rag_enabled',
+        $t('tenant.ai.skill.knowledgeBaseConfig.ragEnabled'),
+      ),
       dependencies: {
         triggerFields: ['type'],
-        if: (values: Record<string, unknown>) => values.type === 'knowledge_base',
+        if: (values: Record<string, unknown>) =>
+          values.type === 'knowledge_base',
       },
     },
     {
-      ...numberField('rag_top_k', $t('tenant.ai.skill.knowledgeBaseConfig.topK'), { min: 1, max: 20 }),
+      ...numberField(
+        'rag_top_k',
+        $t('tenant.ai.skill.knowledgeBaseConfig.topK'),
+        { min: 1, max: 20 },
+      ),
       dependencies: {
         triggerFields: ['type'],
-        if: (values: Record<string, unknown>) => values.type === 'knowledge_base',
+        if: (values: Record<string, unknown>) =>
+          values.type === 'knowledge_base',
       },
     },
     {
-      ...numberField('rag_score_threshold', $t('tenant.ai.skill.knowledgeBaseConfig.scoreThreshold'), { min: 0, max: 1 }),
+      ...numberField(
+        'rag_score_threshold',
+        $t('tenant.ai.skill.knowledgeBaseConfig.scoreThreshold'),
+        { min: 0, max: 1 },
+      ),
       dependencies: {
         triggerFields: ['type'],
-        if: (values: Record<string, unknown>) => values.type === 'knowledge_base',
+        if: (values: Record<string, unknown>) =>
+          values.type === 'knowledge_base',
       },
     },
     {
-      ...select('rag_search_mode', $t('tenant.ai.skill.knowledgeBaseConfig.searchMode'), {
-        options: getSearchModeOptions(),
-      }),
+      ...select(
+        'rag_search_mode',
+        $t('tenant.ai.skill.knowledgeBaseConfig.searchMode'),
+        {
+          options: getSearchModeOptions(),
+        },
+      ),
       dependencies: {
         triggerFields: ['type'],
-        if: (values: Record<string, unknown>) => values.type === 'knowledge_base',
+        if: (values: Record<string, unknown>) =>
+          values.type === 'knowledge_base',
       },
     },
     {
-      ...select('rag_rewrite_strategy', $t('tenant.ai.skill.knowledgeBaseConfig.rewriteStrategy'), {
-        options: getRewriteStrategyOptions(),
-      }),
+      ...select(
+        'rag_rewrite_strategy',
+        $t('tenant.ai.skill.knowledgeBaseConfig.rewriteStrategy'),
+        {
+          options: getRewriteStrategyOptions(),
+        },
+      ),
       dependencies: {
         triggerFields: ['type'],
-        if: (values: Record<string, unknown>) => values.type === 'knowledge_base',
+        if: (values: Record<string, unknown>) =>
+          values.type === 'knowledge_base',
       },
     },
     {
-      ...switchField('rag_reranker_enabled', $t('tenant.ai.skill.knowledgeBaseConfig.rerankerEnabled')),
+      ...switchField(
+        'rag_reranker_enabled',
+        $t('tenant.ai.skill.knowledgeBaseConfig.rerankerEnabled'),
+      ),
       dependencies: {
         triggerFields: ['type'],
-        if: (values: Record<string, unknown>) => values.type === 'knowledge_base',
+        if: (values: Record<string, unknown>) =>
+          values.type === 'knowledge_base',
       },
     },
     {
-      ...numberField('rag_context_token_ratio', $t('tenant.ai.skill.knowledgeBaseConfig.contextTokenRatio'), { min: 0, max: 1 }),
+      ...numberField(
+        'rag_context_token_ratio',
+        $t('tenant.ai.skill.knowledgeBaseConfig.contextTokenRatio'),
+        { min: 0, max: 1 },
+      ),
       dependencies: {
         triggerFields: ['type'],
-        if: (values: Record<string, unknown>) => values.type === 'knowledge_base',
+        if: (values: Record<string, unknown>) =>
+          values.type === 'knowledge_base',
       },
     },
     // ============ http 专属字段 ============
@@ -412,8 +500,13 @@ export function useFormSchema(): VbenFormSchema[] {
       label: '',
       hideLabel: true,
       componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('tenant.ai.skill.httpConfig.title') }),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
+      renderComponentContent: () => ({
+        default: () => $t('tenant.ai.skill.httpConfig.title'),
+      }),
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'http',
+      },
     },
     {
       ...inputField('http_url', $t('tenant.ai.skill.httpConfig.url'), {
@@ -421,77 +514,169 @@ export function useFormSchema(): VbenFormSchema[] {
         placeholder: $t('tenant.ai.skill.httpConfig.urlPlaceholder'),
       }),
       help: $t('tenant.ai.skill.httpConfig.urlHelp'),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'http',
+      },
     },
     {
       ...select('http_method', $t('tenant.ai.skill.httpConfig.method'), {
-        options: [{ label: 'GET', value: 'GET' }, { label: 'POST', value: 'POST' }, { label: 'PUT', value: 'PUT' }, { label: 'PATCH', value: 'PATCH' }, { label: 'DELETE', value: 'DELETE' }],
+        options: [
+          { label: 'GET', value: 'GET' },
+          { label: 'POST', value: 'POST' },
+          { label: 'PUT', value: 'PUT' },
+          { label: 'PATCH', value: 'PATCH' },
+          { label: 'DELETE', value: 'DELETE' },
+        ],
       }),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'http',
+      },
     },
     {
-      ...textareaField('http_headers', $t('tenant.ai.skill.httpConfig.headers'), {
-        placeholder: $t('tenant.ai.skill.httpConfig.headersPlaceholder'),
-        rows: 3,
-      }),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
+      ...textareaField(
+        'http_headers',
+        $t('tenant.ai.skill.httpConfig.headers'),
+        {
+          placeholder: $t('tenant.ai.skill.httpConfig.headersPlaceholder'),
+          rows: 3,
+        },
+      ),
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'http',
+      },
     },
     {
-      ...textareaField('http_body_template', $t('tenant.ai.skill.httpConfig.bodyTemplate'), {
-        placeholder: $t('tenant.ai.skill.httpConfig.bodyTemplatePlaceholder'),
-        rows: 4,
-      }),
+      ...textareaField(
+        'http_body_template',
+        $t('tenant.ai.skill.httpConfig.bodyTemplate'),
+        {
+          placeholder: $t('tenant.ai.skill.httpConfig.bodyTemplatePlaceholder'),
+          rows: 4,
+        },
+      ),
       help: $t('tenant.ai.skill.httpConfig.bodyTemplateHelp'),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'http',
+      },
     },
     {
-      ...textareaField('http_query_params', $t('tenant.ai.skill.httpConfig.queryParams'), {
-        placeholder: $t('tenant.ai.skill.httpConfig.queryParamsPlaceholder'),
-        rows: 2,
-      }),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
+      ...textareaField(
+        'http_query_params',
+        $t('tenant.ai.skill.httpConfig.queryParams'),
+        {
+          placeholder: $t('tenant.ai.skill.httpConfig.queryParamsPlaceholder'),
+          rows: 2,
+        },
+      ),
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'http',
+      },
     },
     {
       ...select('http_auth_type', $t('tenant.ai.skill.httpConfig.authType'), {
         options: [
-          { label: $t('tenant.ai.skill.httpConfig.authTypeOptions.none'), value: 'none' },
-          { label: $t('tenant.ai.skill.httpConfig.authTypeOptions.bearer'), value: 'bearer' },
-          { label: $t('tenant.ai.skill.httpConfig.authTypeOptions.api_key'), value: 'api_key' },
-          { label: $t('tenant.ai.skill.httpConfig.authTypeOptions.basic'), value: 'basic' },
+          {
+            label: $t('tenant.ai.skill.httpConfig.authTypeOptions.none'),
+            value: 'none',
+          },
+          {
+            label: $t('tenant.ai.skill.httpConfig.authTypeOptions.bearer'),
+            value: 'bearer',
+          },
+          {
+            label: $t('tenant.ai.skill.httpConfig.authTypeOptions.api_key'),
+            value: 'api_key',
+          },
+          {
+            label: $t('tenant.ai.skill.httpConfig.authTypeOptions.basic'),
+            value: 'basic',
+          },
         ],
       }),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'http',
+      },
     },
     {
-      ...inputField('http_auth_token', $t('tenant.ai.skill.httpConfig.authToken'), {
-        placeholder: $t('tenant.ai.skill.httpConfig.authTokenPlaceholder'),
-      }),
-      dependencies: { triggerFields: ['type', 'http_auth_type'], if: (v: Record<string, unknown>) => v.type === 'http' && v.http_auth_type === 'bearer' },
+      ...inputField(
+        'http_auth_token',
+        $t('tenant.ai.skill.httpConfig.authToken'),
+        {
+          placeholder: $t('tenant.ai.skill.httpConfig.authTokenPlaceholder'),
+        },
+      ),
+      dependencies: {
+        triggerFields: ['type', 'http_auth_type'],
+        if: (v: Record<string, unknown>) =>
+          v.type === 'http' && v.http_auth_type === 'bearer',
+      },
     },
     {
-      ...inputField('http_auth_key_name', $t('tenant.ai.skill.httpConfig.authKeyName'), {
-        placeholder: $t('tenant.ai.skill.httpConfig.authKeyNamePlaceholder'),
-      }),
-      dependencies: { triggerFields: ['type', 'http_auth_type'], if: (v: Record<string, unknown>) => v.type === 'http' && v.http_auth_type === 'api_key' },
+      ...inputField(
+        'http_auth_key_name',
+        $t('tenant.ai.skill.httpConfig.authKeyName'),
+        {
+          placeholder: $t('tenant.ai.skill.httpConfig.authKeyNamePlaceholder'),
+        },
+      ),
+      dependencies: {
+        triggerFields: ['type', 'http_auth_type'],
+        if: (v: Record<string, unknown>) =>
+          v.type === 'http' && v.http_auth_type === 'api_key',
+      },
     },
     {
-      ...inputField('http_auth_key_value', $t('tenant.ai.skill.httpConfig.authKeyValue')),
-      dependencies: { triggerFields: ['type', 'http_auth_type'], if: (v: Record<string, unknown>) => v.type === 'http' && v.http_auth_type === 'api_key' },
+      ...inputField(
+        'http_auth_key_value',
+        $t('tenant.ai.skill.httpConfig.authKeyValue'),
+      ),
+      dependencies: {
+        triggerFields: ['type', 'http_auth_type'],
+        if: (v: Record<string, unknown>) =>
+          v.type === 'http' && v.http_auth_type === 'api_key',
+      },
     },
     {
-      ...inputField('http_auth_username', $t('tenant.ai.skill.httpConfig.authUsername')),
-      dependencies: { triggerFields: ['type', 'http_auth_type'], if: (v: Record<string, unknown>) => v.type === 'http' && v.http_auth_type === 'basic' },
+      ...inputField(
+        'http_auth_username',
+        $t('tenant.ai.skill.httpConfig.authUsername'),
+      ),
+      dependencies: {
+        triggerFields: ['type', 'http_auth_type'],
+        if: (v: Record<string, unknown>) =>
+          v.type === 'http' && v.http_auth_type === 'basic',
+      },
     },
     {
-      ...inputField('http_auth_password', $t('tenant.ai.skill.httpConfig.authPassword')),
-      dependencies: { triggerFields: ['type', 'http_auth_type'], if: (v: Record<string, unknown>) => v.type === 'http' && v.http_auth_type === 'basic' },
+      ...inputField(
+        'http_auth_password',
+        $t('tenant.ai.skill.httpConfig.authPassword'),
+      ),
+      dependencies: {
+        triggerFields: ['type', 'http_auth_type'],
+        if: (v: Record<string, unknown>) =>
+          v.type === 'http' && v.http_auth_type === 'basic',
+      },
     },
     {
-      ...inputField('http_response_path', $t('tenant.ai.skill.httpConfig.responsePath'), {
-        placeholder: $t('tenant.ai.skill.httpConfig.responsePathPlaceholder'),
-      }),
+      ...inputField(
+        'http_response_path',
+        $t('tenant.ai.skill.httpConfig.responsePath'),
+        {
+          placeholder: $t('tenant.ai.skill.httpConfig.responsePathPlaceholder'),
+        },
+      ),
       help: $t('tenant.ai.skill.httpConfig.responsePathHelp'),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'http' },
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'http',
+      },
     },
     // ============ email 专属字段 ============
     {
@@ -500,44 +685,93 @@ export function useFormSchema(): VbenFormSchema[] {
       label: '',
       hideLabel: true,
       componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('tenant.ai.skill.emailConfig.title') }),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'email' },
+      renderComponentContent: () => ({
+        default: () => $t('tenant.ai.skill.emailConfig.title'),
+      }),
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'email',
+      },
     },
     {
       component: 'Alert',
       fieldName: '_email_smtp_hint',
       label: '',
       hideLabel: true,
-      componentProps: { type: 'info', showIcon: true, message: $t('tenant.ai.skill.emailConfig.smtpHint') },
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'email' },
+      componentProps: {
+        type: 'info',
+        showIcon: true,
+        message: $t('tenant.ai.skill.emailConfig.smtpHint'),
+      },
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'email',
+      },
     },
     {
-      ...inputField('email_subject_prefix', $t('tenant.ai.skill.emailConfig.subjectPrefix'), {
-        placeholder: $t('tenant.ai.skill.emailConfig.subjectPrefixPlaceholder'),
-      }),
+      ...inputField(
+        'email_subject_prefix',
+        $t('tenant.ai.skill.emailConfig.subjectPrefix'),
+        {
+          placeholder: $t(
+            'tenant.ai.skill.emailConfig.subjectPrefixPlaceholder',
+          ),
+        },
+      ),
       help: $t('tenant.ai.skill.emailConfig.subjectPrefixHelp'),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'email' },
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'email',
+      },
     },
     {
-      ...inputField('email_allowed_domains', $t('tenant.ai.skill.emailConfig.allowedDomains'), {
-        placeholder: $t('tenant.ai.skill.emailConfig.allowedDomainsPlaceholder'),
-      }),
+      ...inputField(
+        'email_allowed_domains',
+        $t('tenant.ai.skill.emailConfig.allowedDomains'),
+        {
+          placeholder: $t(
+            'tenant.ai.skill.emailConfig.allowedDomainsPlaceholder',
+          ),
+        },
+      ),
       help: $t('tenant.ai.skill.emailConfig.allowedDomainsHelp'),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'email' },
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'email',
+      },
     },
     {
-      ...numberField('email_max_recipients', $t('tenant.ai.skill.emailConfig.maxRecipients'), { min: 1, max: 50 }),
+      ...numberField(
+        'email_max_recipients',
+        $t('tenant.ai.skill.emailConfig.maxRecipients'),
+        { min: 1, max: 50 },
+      ),
       help: $t('tenant.ai.skill.emailConfig.maxRecipientsHelp'),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'email' },
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'email',
+      },
     },
     {
-      ...switchField('email_require_confirmation', $t('tenant.ai.skill.emailConfig.requireConfirmation')),
+      ...switchField(
+        'email_require_confirmation',
+        $t('tenant.ai.skill.emailConfig.requireConfirmation'),
+      ),
       help: $t('tenant.ai.skill.emailConfig.requireConfirmationHelp'),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'email' },
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'email',
+      },
     },
     {
-      ...switchField('email_allow_cc', $t('tenant.ai.skill.emailConfig.allowCc')),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'email' },
+      ...switchField(
+        'email_allow_cc',
+        $t('tenant.ai.skill.emailConfig.allowCc'),
+      ),
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'email',
+      },
     },
     // ============ code_execution 专属字段 ============
     {
@@ -546,34 +780,76 @@ export function useFormSchema(): VbenFormSchema[] {
       label: '',
       hideLabel: true,
       componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('tenant.ai.skill.codeExecutionConfig.title') }),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'code_execution' },
+      renderComponentContent: () => ({
+        default: () => $t('tenant.ai.skill.codeExecutionConfig.title'),
+      }),
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'code_execution',
+      },
     },
     {
       component: 'Alert',
       fieldName: '_code_sandbox_hint',
       label: '',
       hideLabel: true,
-      componentProps: { type: 'info', showIcon: true, message: $t('tenant.ai.skill.codeExecutionConfig.sandboxHint') },
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'code_execution' },
+      componentProps: {
+        type: 'info',
+        showIcon: true,
+        message: $t('tenant.ai.skill.codeExecutionConfig.sandboxHint'),
+      },
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'code_execution',
+      },
     },
     {
-      ...select('code_language', $t('tenant.ai.skill.codeExecutionConfig.language'), {
-        options: [{ label: $t('tenant.ai.skill.codeExecutionConfig.languageOptions.python'), value: 'python' }],
-      }),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'code_execution' },
+      ...select(
+        'code_language',
+        $t('tenant.ai.skill.codeExecutionConfig.language'),
+        {
+          options: [
+            {
+              label: $t(
+                'tenant.ai.skill.codeExecutionConfig.languageOptions.python',
+              ),
+              value: 'python',
+            },
+          ],
+        },
+      ),
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'code_execution',
+      },
     },
     {
-      ...numberField('code_memory_limit_mb', $t('tenant.ai.skill.codeExecutionConfig.memoryLimitMb'), { min: 64, max: 1024 }),
+      ...numberField(
+        'code_memory_limit_mb',
+        $t('tenant.ai.skill.codeExecutionConfig.memoryLimitMb'),
+        { min: 64, max: 1024 },
+      ),
       help: $t('tenant.ai.skill.codeExecutionConfig.memoryLimitHelp'),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'code_execution' },
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'code_execution',
+      },
     },
     {
-      ...inputField('code_allowed_modules', $t('tenant.ai.skill.codeExecutionConfig.allowedModules'), {
-        placeholder: $t('tenant.ai.skill.codeExecutionConfig.allowedModulesPlaceholder'),
-      }),
+      ...inputField(
+        'code_allowed_modules',
+        $t('tenant.ai.skill.codeExecutionConfig.allowedModules'),
+        {
+          placeholder: $t(
+            'tenant.ai.skill.codeExecutionConfig.allowedModulesPlaceholder',
+          ),
+        },
+      ),
       help: $t('tenant.ai.skill.codeExecutionConfig.allowedModulesHelp'),
-      dependencies: { triggerFields: ['type'], if: (v: Record<string, unknown>) => v.type === 'code_execution' },
+      dependencies: {
+        triggerFields: ['type'],
+        if: (v: Record<string, unknown>) => v.type === 'code_execution',
+      },
     },
     // ============ data_intelligence 专属字段 ============
     {
@@ -582,10 +858,13 @@ export function useFormSchema(): VbenFormSchema[] {
       label: '',
       hideLabel: true,
       componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('tenant.ai.skill.dataIntelligenceConfig.title') }),
+      renderComponentContent: () => ({
+        default: () => $t('tenant.ai.skill.dataIntelligenceConfig.title'),
+      }),
       dependencies: {
         triggerFields: ['type'],
-        if: (values: Record<string, unknown>) => values.type === 'data_intelligence',
+        if: (values: Record<string, unknown>) =>
+          values.type === 'data_intelligence',
       },
     },
     {
@@ -595,7 +874,9 @@ export function useFormSchema(): VbenFormSchema[] {
         api: getTablePolicySelectOptions,
         class: 'w-full',
         mode: 'multiple',
-        placeholder: $t('tenant.ai.skill.dataIntelligenceConfig.tablePoliciesPlaceholder'),
+        placeholder: $t(
+          'tenant.ai.skill.dataIntelligenceConfig.tablePoliciesPlaceholder',
+        ),
         showSearch: true,
         optionFilterProp: 'label',
       },
@@ -604,15 +885,21 @@ export function useFormSchema(): VbenFormSchema[] {
       help: $t('tenant.ai.skill.dataIntelligenceConfig.tablePoliciesHelp'),
       dependencies: {
         triggerFields: ['type'],
-        if: (values: Record<string, unknown>) => values.type === 'data_intelligence',
+        if: (values: Record<string, unknown>) =>
+          values.type === 'data_intelligence',
       },
     },
     {
-      ...numberField('di_max_rows_override', $t('tenant.ai.skill.dataIntelligenceConfig.maxRowsOverride'), { min: 0, max: 10000 }),
+      ...numberField(
+        'di_max_rows_override',
+        $t('tenant.ai.skill.dataIntelligenceConfig.maxRowsOverride'),
+        { min: 0, max: 10_000 },
+      ),
       help: $t('tenant.ai.skill.dataIntelligenceConfig.maxRowsOverrideHelp'),
       dependencies: {
         triggerFields: ['type'],
-        if: (values: Record<string, unknown>) => values.type === 'data_intelligence',
+        if: (values: Record<string, unknown>) =>
+          values.type === 'data_intelligence',
       },
     },
     // ============ toolkit 专属字段 ============
@@ -622,7 +909,9 @@ export function useFormSchema(): VbenFormSchema[] {
       label: '',
       hideLabel: true,
       componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({ default: () => $t('tenant.ai.skill.toolkitEditor.title') }),
+      renderComponentContent: () => ({
+        default: () => $t('tenant.ai.skill.toolkitEditor.title'),
+      }),
       dependencies: {
         triggerFields: ['type'],
         if: (values: Record<string, unknown>) => values.type === 'toolkit',
@@ -635,7 +924,7 @@ export function useFormSchema(): VbenFormSchema[] {
       componentProps: {
         parseApi: parseToolkitApi,
         localePrefix: 'tenant.ai.skill',
-        onParseComplete: (schema: Record<string, unknown> | null) => {
+        onParseComplete: (schema: null | Record<string, unknown>) => {
           _currentValvesSchema.value = schema;
         },
       },
@@ -707,6 +996,7 @@ export function getFormDefaults(): Record<string, unknown> {
     // code_execution defaults
     code_language: 'python',
     code_memory_limit_mb: 256,
-    code_allowed_modules: 'math,json,datetime,re,collections,itertools,functools,statistics,random,string',
+    code_allowed_modules:
+      'math,json,datetime,re,collections,itertools,functools,statistics,random,string',
   };
 }

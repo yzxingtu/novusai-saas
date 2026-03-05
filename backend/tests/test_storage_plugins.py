@@ -8,9 +8,9 @@ Validates:
 - Plugin disable safety check logic
 """
 
-import pytest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # ──────────────────────────────────────────────
 # 1. StorageManager only registers local
@@ -31,8 +31,8 @@ def test_storage_manager_only_local():
 
 def test_storage_manager_register_unregister():
     """StorageManager register/unregister should work for plugin drivers."""
-    from app.storage.manager import StorageManager
     from app.storage.base import StorageDriver
+    from app.storage.manager import StorageManager
 
     StorageManager._instance = None
     mgr = StorageManager()
@@ -84,13 +84,14 @@ PLUGINS_ROOT = Path(__file__).parent.parent / "plugins"
 @pytest.mark.parametrize("plugin_name", PLUGIN_DIRS)
 def test_plugin_yaml_valid(plugin_name: str):
     """Each storage plugin must have a valid plugin.yaml."""
-    from app.plugins.manifest import PluginManifest
     import yaml
+
+    from app.plugins.manifest import PluginManifest
 
     yaml_path = PLUGINS_ROOT / plugin_name / "plugin.yaml"
     assert yaml_path.is_file(), f"plugin.yaml missing for {plugin_name}"
 
-    with open(yaml_path, "r", encoding="utf-8") as f:
+    with open(yaml_path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     manifest = PluginManifest.model_validate(data)
@@ -206,8 +207,12 @@ def test_tenant_storage_mode_has_admin_override():
 
 def test_mode3_switches_exist():
     """Mode 3 platform switch and tenant switch must exist."""
-    from app.configs.definitions.platform.storage import PLATFORM_TENANT_STORAGE_SELF_CONFIG_ENABLED
-    from app.configs.definitions.tenant.storage import TENANT_STORAGE_SELF_CONFIG_ENABLED
+    from app.configs.definitions.platform.storage import (
+        PLATFORM_TENANT_STORAGE_SELF_CONFIG_ENABLED,
+    )
+    from app.configs.definitions.tenant.storage import (
+        TENANT_STORAGE_SELF_CONFIG_ENABLED,
+    )
 
     assert PLATFORM_TENANT_STORAGE_SELF_CONFIG_ENABLED.key == "platform_tenant_storage_self_config_enabled"
     assert PLATFORM_TENANT_STORAGE_SELF_CONFIG_ENABLED.default_value is False

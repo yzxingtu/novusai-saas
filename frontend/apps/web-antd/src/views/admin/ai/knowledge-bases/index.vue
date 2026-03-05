@@ -2,10 +2,10 @@
 /**
  * 平台管理端知识库管理页面 — useCrudList + 卡片网格
  */
-import type { AdminKnowledgeBaseItem } from '#/api/admin/knowledge-bases';
-import type { KnowledgeBaseGlobalStats } from '#/api/admin/knowledge-bases';
-
-defineOptions({ name: 'AdminKnowledgeBaseList' });
+import type {
+  AdminKnowledgeBaseItem,
+  KnowledgeBaseGlobalStats,
+} from '#/api/admin/knowledge-bases';
 
 import { computed, onMounted, ref } from 'vue';
 
@@ -26,20 +26,27 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
+import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
 import {
   deleteAdminKnowledgeBaseApi,
   getAdminKnowledgeBaseListApi,
   getKnowledgeBaseStatsApi,
 } from '#/api/admin/knowledge-bases';
-import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { formatFileSize } from '#/utils/file';
 
-import { getFormDefaults, getScopeColor, getScopeOptions, getScopeText } from './data';
+import {
+  getFormDefaults,
+  getScopeColor,
+  getScopeOptions,
+  getScopeText,
+} from './data';
 import Detail from './modules/detail.vue';
 import Form from './modules/form.vue';
+
+defineOptions({ name: 'AdminKnowledgeBaseList' });
 
 // ========== 统计卡片 ==========
 const stats = ref<KnowledgeBaseGlobalStats | null>(null);
@@ -56,10 +63,17 @@ onMounted(loadStats);
 
 // ========== 声明式 CRUD ==========
 const {
-  list, total, loading, currentPage, pageSize, searchKeyword,
+  list,
+  total,
+  loading,
+  currentPage,
+  pageSize,
+  searchKeyword,
   FormDrawer,
-  loadList, onCreate,
-  onSearch, onPageChange,
+  loadList,
+  onCreate,
+  onSearch,
+  onPageChange,
   handleMenuAction,
 } = useCrudList<AdminKnowledgeBaseItem>({
   api: {
@@ -87,9 +101,13 @@ function onDetailClick(row: AdminKnowledgeBaseItem) {
 }
 
 // ========== 回收站 ==========
-const recycleBinRef = ref<{ open: () => void; deletedCount: number } | null>(null);
+const recycleBinRef = ref<null | { deletedCount: number; open: () => void }>(
+  null,
+);
 const recycleBinCount = computed(() => recycleBinRef.value?.deletedCount ?? 0);
-function openRecycleBin() { recycleBinRef.value?.open(); }
+function openRecycleBin() {
+  recycleBinRef.value?.open();
+}
 
 // ========== 搜索过滤 ==========
 const scopeFilter = ref<string | undefined>(undefined);
@@ -107,7 +125,7 @@ function doSearch() {
 
 // ========== 辅助 ==========
 
-function onMenuClick(key: string | number, row: AdminKnowledgeBaseItem) {
+function onMenuClick(key: number | string, row: AdminKnowledgeBaseItem) {
   if (String(key) === 'detail') {
     onDetailClick(row);
   } else {
@@ -127,47 +145,90 @@ function onDetailSuccess() {
 </script>
 
 <template>
-  <Page auto-content-height :description="$t('admin.knowledgeBase.pageDesc')" content-class="flex flex-col gap-4">
+  <Page
+    auto-content-height
+    :description="$t('admin.knowledgeBase.pageDesc')"
+    content-class="flex flex-col gap-4"
+  >
     <FormDrawer @success="onFormSuccess" />
     <DetailDrawer @success="onDetailSuccess" />
-    <RecycleBinDrawer ref="recycleBinRef" resource="/admin/ai/knowledge-bases" @restored="loadList" />
+    <RecycleBinDrawer
+      ref="recycleBinRef"
+      resource="/admin/ai/knowledge-bases"
+      @restored="loadList"
+    />
 
     <!-- 统计卡片 -->
     <div v-if="stats" class="grid grid-cols-4 gap-4">
-      <div class="flex items-center gap-3.5 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-border">
-        <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+      <div
+        class="flex items-center gap-3.5 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-border"
+      >
+        <div
+          class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10"
+        >
           <IconifyIcon icon="lucide:book-open" class="size-5.5 text-primary" />
         </div>
         <div>
-          <div class="text-2xl font-bold tabular-nums text-foreground">{{ stats.total_knowledge_bases }}</div>
-          <div class="text-xs text-muted-foreground">{{ $t('admin.knowledgeBase.stats.totalKnowledgeBases') }}</div>
+          <div class="text-2xl font-bold tabular-nums text-foreground">
+            {{ stats.total_knowledge_bases }}
+          </div>
+          <div class="text-xs text-muted-foreground">
+            {{ $t('admin.knowledgeBase.stats.totalKnowledgeBases') }}
+          </div>
         </div>
       </div>
-      <div class="flex items-center gap-3.5 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-border">
-        <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-success/10">
+      <div
+        class="flex items-center gap-3.5 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-border"
+      >
+        <div
+          class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-success/10"
+        >
           <IconifyIcon icon="lucide:file-text" class="size-5.5 text-success" />
         </div>
         <div>
-          <div class="text-2xl font-bold tabular-nums text-foreground">{{ stats.total_documents }}</div>
-          <div class="text-xs text-muted-foreground">{{ $t('admin.knowledgeBase.stats.totalDocuments') }}</div>
+          <div class="text-2xl font-bold tabular-nums text-foreground">
+            {{ stats.total_documents }}
+          </div>
+          <div class="text-xs text-muted-foreground">
+            {{ $t('admin.knowledgeBase.stats.totalDocuments') }}
+          </div>
         </div>
       </div>
-      <div class="flex items-center gap-3.5 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-border">
-        <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-warning/10">
+      <div
+        class="flex items-center gap-3.5 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-border"
+      >
+        <div
+          class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-warning/10"
+        >
           <IconifyIcon icon="lucide:puzzle" class="size-5.5 text-warning" />
         </div>
         <div>
-          <div class="text-2xl font-bold tabular-nums text-foreground">{{ stats.total_chunks }}</div>
-          <div class="text-xs text-muted-foreground">{{ $t('admin.knowledgeBase.stats.totalChunks') }}</div>
+          <div class="text-2xl font-bold tabular-nums text-foreground">
+            {{ stats.total_chunks }}
+          </div>
+          <div class="text-xs text-muted-foreground">
+            {{ $t('admin.knowledgeBase.stats.totalChunks') }}
+          </div>
         </div>
       </div>
-      <div class="flex items-center gap-3.5 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-border">
-        <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-destructive/10">
-          <IconifyIcon icon="lucide:hard-drive" class="size-5.5 text-destructive" />
+      <div
+        class="flex items-center gap-3.5 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-border"
+      >
+        <div
+          class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-destructive/10"
+        >
+          <IconifyIcon
+            icon="lucide:hard-drive"
+            class="size-5.5 text-destructive"
+          />
         </div>
         <div>
-          <div class="text-2xl font-bold tabular-nums text-foreground">{{ formatFileSize(stats.total_size_bytes) }}</div>
-          <div class="text-xs text-muted-foreground">{{ $t('admin.knowledgeBase.stats.totalStorage') }}</div>
+          <div class="text-2xl font-bold tabular-nums text-foreground">
+            {{ formatFileSize(stats.total_size_bytes) }}
+          </div>
+          <div class="text-xs text-muted-foreground">
+            {{ $t('admin.knowledgeBase.stats.totalStorage') }}
+          </div>
         </div>
       </div>
     </div>
@@ -183,7 +244,10 @@ function onDetailSuccess() {
         @clear="doSearch"
       >
         <template #prefix>
-          <IconifyIcon icon="lucide:search" class="size-4 text-muted-foreground" />
+          <IconifyIcon
+            icon="lucide:search"
+            class="size-4 text-muted-foreground"
+          />
         </template>
       </Input>
       <Select
@@ -203,7 +267,7 @@ function onDetailSuccess() {
           </Button>
         </Badge>
       </Tooltip>
-      <div class="flex-1" />
+      <div class="flex-1"></div>
       <Button
         v-access:code="['ai_knowledge_base:create']"
         type="primary"
@@ -218,11 +282,21 @@ function onDetailSuccess() {
 
     <!-- 卡片网格 -->
     <Spin :spinning="loading">
-      <div v-if="list.length === 0 && !loading" class="flex flex-col items-center justify-center py-20">
-        <div class="mb-3 flex size-16 items-center justify-center rounded-2xl bg-muted">
-          <IconifyIcon icon="lucide:book-open" class="size-8 text-muted-foreground" />
+      <div
+        v-if="list.length === 0 && !loading"
+        class="flex flex-col items-center justify-center py-20"
+      >
+        <div
+          class="mb-3 flex size-16 items-center justify-center rounded-2xl bg-muted"
+        >
+          <IconifyIcon
+            icon="lucide:book-open"
+            class="size-8 text-muted-foreground"
+          />
         </div>
-        <p class="text-sm text-muted-foreground">{{ $t('admin.knowledgeBase.searchTest.noResults') }}</p>
+        <p class="text-sm text-muted-foreground">
+          {{ $t('admin.knowledgeBase.searchTest.noResults') }}
+        </p>
       </div>
       <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <div
@@ -233,21 +307,38 @@ function onDetailSuccess() {
         >
           <!-- 卡片头部 -->
           <div class="flex items-start gap-3 p-4 pb-2">
-            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-              <IconifyIcon icon="lucide:book-open" class="size-5 text-primary" />
+            <div
+              class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10"
+            >
+              <IconifyIcon
+                icon="lucide:book-open"
+                class="size-5 text-primary"
+              />
             </div>
             <div class="min-w-0 flex-1">
-              <h4 class="truncate text-sm font-semibold text-foreground">{{ item.name }}</h4>
+              <h4 class="truncate text-sm font-semibold text-foreground">
+                {{ item.name }}
+              </h4>
               <div class="mt-1 flex flex-wrap items-center gap-1.5">
                 <Tag
                   :color="getScopeColor(item.scope)"
-                  style="font-size: 10px; line-height: 16px; padding: 0 5px; margin: 0;"
+                  style="
+                    padding: 0 5px;
+                    margin: 0;
+                    font-size: 10px;
+                    line-height: 16px;
+                  "
                 >
                   {{ getScopeText(item.scope) }}
                 </Tag>
                 <Tag
                   :color="item.status === 'active' ? 'success' : 'error'"
-                  style="font-size: 10px; line-height: 16px; padding: 0 5px; margin: 0;"
+                  style="
+                    padding: 0 5px;
+                    margin: 0;
+                    font-size: 10px;
+                    line-height: 16px;
+                  "
                 >
                   {{ $t(`admin.knowledgeBase.status.${item.status}`) }}
                 </Tag>
@@ -261,10 +352,18 @@ function onDetailSuccess() {
                 class="!size-7 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100"
                 @click.stop
               >
-                <IconifyIcon icon="lucide:ellipsis-vertical" class="size-4 text-muted-foreground" />
+                <IconifyIcon
+                  icon="lucide:ellipsis-vertical"
+                  class="size-4 text-muted-foreground"
+                />
               </Button>
               <template #overlay>
-                <Menu @click="(info: { key: string | number }) => onMenuClick(info.key, item)">
+                <Menu
+                  @click="
+                    (info: { key: string | number }) =>
+                      onMenuClick(info.key, item)
+                  "
+                >
                   <MenuItem key="detail">
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:eye" class="size-3.5" />
@@ -290,29 +389,46 @@ function onDetailSuccess() {
 
           <!-- 描述 -->
           <div class="px-4 pb-2">
-            <p v-if="item.description" class="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+            <p
+              v-if="item.description"
+              class="line-clamp-2 text-xs leading-relaxed text-muted-foreground"
+            >
               {{ item.description }}
             </p>
             <p v-else class="text-xs text-muted-foreground/50">—</p>
           </div>
 
           <!-- Embedding 模型 -->
-          <div v-if="item.embedding_model_name" class="mx-4 mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <div
+            v-if="item.embedding_model_name"
+            class="mx-4 mb-2 flex items-center gap-1.5 text-xs text-muted-foreground"
+          >
             <IconifyIcon icon="lucide:cpu" class="size-3 shrink-0" />
             <span class="truncate">{{ item.embedding_model_name }}</span>
           </div>
 
           <!-- 统计数据 -->
-          <div class="flex items-center gap-4 border-t border-border/40 px-4 py-3 text-xs text-muted-foreground">
-            <div class="flex items-center gap-1" :title="$t('admin.knowledgeBase.field.documentCount')">
+          <div
+            class="flex items-center gap-4 border-t border-border/40 px-4 py-3 text-xs text-muted-foreground"
+          >
+            <div
+              class="flex items-center gap-1"
+              :title="$t('admin.knowledgeBase.field.documentCount')"
+            >
               <IconifyIcon icon="lucide:file-text" class="size-3.5" />
               <span class="tabular-nums">{{ item.document_count }}</span>
             </div>
-            <div class="flex items-center gap-1" :title="$t('admin.knowledgeBase.field.totalChunks')">
+            <div
+              class="flex items-center gap-1"
+              :title="$t('admin.knowledgeBase.field.totalChunks')"
+            >
               <IconifyIcon icon="lucide:puzzle" class="size-3.5" />
               <span class="tabular-nums">{{ item.total_chunks }}</span>
             </div>
-            <div class="flex items-center gap-1" :title="$t('admin.knowledgeBase.field.totalSizeBytes')">
+            <div
+              class="flex items-center gap-1"
+              :title="$t('admin.knowledgeBase.field.totalSizeBytes')"
+            >
               <IconifyIcon icon="lucide:hard-drive" class="size-3.5" />
               <span>{{ formatFileSize(item.total_size_bytes) }}</span>
             </div>

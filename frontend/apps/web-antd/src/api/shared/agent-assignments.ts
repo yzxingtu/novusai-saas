@@ -10,9 +10,9 @@ import { requestClient } from '#/utils/request';
 /** Resolve 响应 */
 export interface AgentAssignmentResolveResult {
   feature_code: string;
-  agent_id: number | null;
-  agent_name: string | null;
-  config: Record<string, unknown> | null;
+  agent_id: null | number;
+  agent_name: null | string;
+  config: null | Record<string, unknown>;
   is_active: boolean;
   is_override?: boolean;
 }
@@ -22,17 +22,17 @@ export interface AgentAssignmentItem {
   id: number;
   feature_code: string;
   feature_name: string;
-  description: string | null;
-  agent_id: number | null;
-  agent_name: string | null;
-  agent_avatar: string | null;
+  description: null | string;
+  agent_id: null | number;
+  agent_name: null | string;
+  agent_avatar: null | string;
   is_active: boolean;
   is_override: boolean;
-  config?: Record<string, unknown> | null;
+  config?: null | Record<string, unknown>;
   created_at?: string;
   updated_at?: string;
-  global_agent_id?: number | null;
-  global_agent_name?: string | null;
+  global_agent_id?: null | number;
+  global_agent_name?: null | string;
   display_name?: Record<string, string>;
   description_i18n?: Record<string, string>;
 }
@@ -91,12 +91,14 @@ export async function getPublishedAgentsApi(
  *
  * @param apiPrefix - '/admin' 或 '/tenant'
  * @param featureCode - 功能代码
- * @param data - 更新数据（agent_id 和/或 is_active）
+ * @param data - 更新数据
+ * @param data.agent_id - 绑定的智能体 ID（null 表示解绑）
+ * @param data.is_active - 是否启用此绑定
  */
 export async function updateAgentAssignmentApi(
   apiPrefix: string,
   featureCode: string,
-  data: { agent_id?: number | null; is_active?: boolean },
+  data: { agent_id?: null | number; is_active?: boolean },
 ): Promise<unknown> {
   return requestClient.put(
     `${apiPrefix}/ai/agent-assignments/${featureCode}`,

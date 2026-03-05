@@ -8,12 +8,12 @@ from fastapi import HTTPException, Request, status
 
 from app.core.base_controller import TenantController
 from app.core.base_schema import PageResponse
-from app.core.deps import DbSession, QueryParams, ActiveTenantAdmin
+from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
-from app.rbac.decorators import permission_resource, action_read, MenuConfig
-from app.schemas.system import OperationLogResponse, OperationLogListResponse
+from app.rbac.decorators import MenuConfig, action_read, permission_resource
+from app.schemas.system import OperationLogListResponse, OperationLogResponse
 from app.schemas.system.operation_log import OperatorSelectItem
 from app.services.system import OperationLogService
 
@@ -33,17 +33,17 @@ from app.services.system import OperationLogService
 class TenantOperationLogController(TenantController):
     """
     租户操作日志控制器
-    
+
     提供租户内操作日志查询接口，租户只能查看本租户的日志，无删除权限
     """
-    
+
     prefix = "/operation-logs"
     tags = ["Tenant Operation Logs"]
-    
+
     def _register_routes(self) -> None:
         """注册路由"""
         router = self.router
-        
+
         @router.get("", summary="获取操作日志列表")
         @action_read("action.operation_log.list")
         async def list_operation_logs(
@@ -54,11 +54,11 @@ class TenantOperationLogController(TenantController):
         ):
             """
             获取当前租户的操作日志列表
-            
+
             基于当前管理员权限过滤：
             - 租户所有者：可查看本租户所有日志
             - 普通管理员：只能查看自己及其角色子树下用户的日志
-            
+
             支持 JSON:API 风格筛选参数:
             - filter[username][ilike]=xxx 用户名模糊搜索
             - filter[module]=AUTH 按模块筛选
@@ -68,7 +68,7 @@ class TenantOperationLogController(TenantController):
             - filter[created_at][gte]=2024-01-01 按创建时间范围筛选
             - sort=-created_at 排序
             - page[number]=1&page[size]=20 分页
-            
+
             权限: operation_log:list
             """
             service = OperationLogService(db)
@@ -76,7 +76,7 @@ class TenantOperationLogController(TenantController):
                 tenant_admin=current_admin,
                 spec=spec,
             )
-            
+
             return success(
                 data=PageResponse.create(
                     items=[OperationLogListResponse.from_model(item) for item in items],
@@ -86,7 +86,7 @@ class TenantOperationLogController(TenantController):
                 ),
                 message=_("common.success"),
             )
-        
+
         @router.get("/operators", summary="获取操作人下拉列表")
         @action_read("action.operation_log.list")
         async def list_operators(
@@ -96,7 +96,7 @@ class TenantOperationLogController(TenantController):
         ):
             """
             获取当前租户操作日志中的去重操作人列表（含头像）
-            
+
             权限: operation_log:list
             """
             service = OperationLogService(db)
@@ -116,25 +116,25 @@ class TenantOperationLogController(TenantController):
         ):
             """
             获取操作日志详情
-            
+
             权限: operation_log:detail
             """
             service = OperationLogService(db)
             log = await service.get_by_id(log_id)
-            
+
             if log is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=_("operation_log.not_found"),
                 )
-            
+
             # 租户隔离：只能查看本租户的日志
             if log.tenant_id != current_admin.tenant_id:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=_("operation_log.not_found"),
                 )
-            
+
             return success(
                 data=OperationLogResponse.from_model(log),
                 message=_("common.success"),

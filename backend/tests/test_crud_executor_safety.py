@@ -13,11 +13,9 @@ import pytest
 
 from app.ai.tools.executors.crud_executor import (
     _SAFE_COLUMN_NAME_RE,
-    _SAFE_TABLE_NAME_RE,
     _validate_column_names,
     _validate_table_name,
 )
-
 
 # ============================================
 # _SAFE_COLUMN_NAME_RE tests

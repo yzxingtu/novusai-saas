@@ -8,14 +8,13 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-import time
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.ai.tools.types import ToolDefinition, ToolResult
+from app.ai.tools.types import ToolDefinition
 
 # ── 动态导入插件模块 ──
 
@@ -239,7 +238,7 @@ class TestWeatherWidgetExecutor:
         definition.name = "get_weather_forecast"
 
         with patch.object(executor_mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await self.executor.execute(
+            await self.executor.execute(
                 definition, "call-3", {"city": "Tokyo"}
             )
 
@@ -257,7 +256,7 @@ class TestWeatherWidgetExecutor:
         definition.name = "get_weather_forecast"
 
         with patch.object(executor_mod, "_get_open_meteo", return_value=mock_open_meteo):
-            result = await self.executor.execute(
+            await self.executor.execute(
                 definition, "call-4", {"city": "London", "days": "abc"}
             )
 

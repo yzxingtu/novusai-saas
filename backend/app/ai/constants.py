@@ -79,6 +79,56 @@ TEXT_TO_SQL_MAX_ROWS = 200
 TEXT_TO_SQL_TIMEOUT = 30
 
 
+# ============================================
+# 会话记忆场景（入口边界）
+# ============================================
+
+# 仅该场景允许启用会话记忆
+MEMORY_ENABLED_SCENE = "ai_chat_page"
+
+# 默认场景（未显式传入时使用）
+DEFAULT_MEMORY_SCENE = "unknown"
+
+# 渠道枚举值（用于 key namespacing/审计）
+MEMORY_CHANNEL_TENANT_CHAT = "tenant_chat"
+MEMORY_CHANNEL_ADMIN_CHAT = "admin_chat"
+MEMORY_CHANNEL_PLUGIN = "plugin"
+MEMORY_CHANNEL_SYSTEM = "system"
+
+
+# ============================================
+# 会话记忆存储（Redis）
+# ============================================
+
+# Key pattern:
+# mem:sess:{tenant_id}:{channel}:{source}:{agent_id}:{user_id}:{conversation_id}
+SESSION_MEMORY_KEY_PREFIX = "mem:sess:"
+
+# 会话记忆 TTL（秒），用于兜底清理
+SESSION_MEMORY_TTL_SECONDS = 24 * 60 * 60  # 24h
+
+
+def session_memory_key(
+    tenant_id: int,
+    channel: str,
+    source: str,
+    agent_id: int,
+    user_id: int,
+    conversation_id: int,
+) -> str:
+    """构建会话记忆 Redis key"""
+    safe_source = (source or "unknown").replace(":", "_")
+    return (
+        f"{SESSION_MEMORY_KEY_PREFIX}"
+        f"{tenant_id}:{channel}:{safe_source}:{agent_id}:{user_id}:{conversation_id}"
+    )
+
+
+def session_memory_conversation_pattern(tenant_id: int, conversation_id: int) -> str:
+    """按 tenant + conversation 维度匹配会话记忆 key（用于清理）"""
+    return f"{SESSION_MEMORY_KEY_PREFIX}{tenant_id}:*:*:*:*:{conversation_id}"
+
+
 __all__ = [
     # 频率限制
     "ACTION_RATE_KEY_PREFIX",
@@ -100,4 +150,16 @@ __all__ = [
     "DEFAULT_ACTION_RATE_LIMIT",
     "TEXT_TO_SQL_MAX_ROWS",
     "TEXT_TO_SQL_TIMEOUT",
+    # 会话记忆场景
+    "MEMORY_ENABLED_SCENE",
+    "DEFAULT_MEMORY_SCENE",
+    "MEMORY_CHANNEL_TENANT_CHAT",
+    "MEMORY_CHANNEL_ADMIN_CHAT",
+    "MEMORY_CHANNEL_PLUGIN",
+    "MEMORY_CHANNEL_SYSTEM",
+    # 会话记忆存储
+    "SESSION_MEMORY_KEY_PREFIX",
+    "SESSION_MEMORY_TTL_SECONDS",
+    "session_memory_key",
+    "session_memory_conversation_pattern",
 ]

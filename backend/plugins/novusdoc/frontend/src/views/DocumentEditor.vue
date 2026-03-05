@@ -235,9 +235,9 @@ async function handleAISidebarSend(
 </script>
 
 <template>
-  <div class="nd-editor-page">
+  <div class="flex h-full max-h-full flex-col overflow-hidden bg-background">
     <!-- Top nav bar -->
-    <header class="nd-editor-header">
+    <header class="flex min-h-12 items-center justify-between border-b border-border bg-background/85 px-4 py-2 backdrop-blur-sm z-10 max-md:flex-wrap max-md:gap-2 max-md:px-3 max-md:py-1.5">
       <div class="flex items-center gap-2">
         <Tooltip :title="$t('plugin.novusdoc.toolbar.back')">
           <Button size="small" type="text" @click="handleBack">
@@ -249,7 +249,7 @@ async function handleAISidebarSend(
 
         <input
           v-model="titleInput"
-          class="nd-title-input"
+          class="w-[300px] border-none bg-transparent px-2.5 py-1 text-[15px] font-semibold text-foreground outline-none rounded-md transition-colors focus:bg-accent placeholder:text-muted-foreground max-md:w-full max-md:min-w-0 max-md:text-sm"
           :placeholder="$t('plugin.novusdoc.doc.untitled')"
           @input="handleTitleChange"
           @keydown.enter="editorRef?.focus()"
@@ -313,7 +313,7 @@ async function handleAISidebarSend(
           <div
             v-for="(u, idx) in collab.onlineUsers.value.slice(0, 5)"
             :key="u.userId ?? idx"
-            class="nd-collab-avatar"
+            class="relative z-[1] flex size-6 shrink-0 cursor-default items-center justify-center rounded-full border-2 border-background text-[11px] font-semibold text-white"
             :style="{ backgroundColor: u.color, marginLeft: idx > 0 ? '-4px' : '0' }"
             :title="u.username || 'Anonymous'"
           >
@@ -342,7 +342,7 @@ async function handleAISidebarSend(
     <!-- Editor content + AI panels -->
     <div class="flex flex-1 min-h-0">
       <Spin :spinning="loading" class="flex-1 overflow-y-auto">
-        <div class="nd-editor-content">
+        <div class="mx-auto w-full max-w-[760px] min-h-0 p-4 md:px-8 md:py-6 lg:px-16 lg:py-9">
           <NovusEditor
             ref="editorRef"
             :content="doc?.content as JSONContent"
@@ -367,21 +367,21 @@ async function handleAISidebarSend(
         />
 
         <!-- AI Result Panel (inside scroll area, sticky at bottom) -->
-        <div v-if="docAI.loading.value || docAI.ghostText.value || docAI.error.value" class="nd-ai-result-panel">
-          <div v-if="docAI.loading.value" class="nd-ai-result-loading">
-            <span class="nd-ai-result-dots">
-              <span class="nd-ai-rdot"></span>
-              <span class="nd-ai-rdot"></span>
-              <span class="nd-ai-rdot"></span>
+        <div v-if="docAI.loading.value || docAI.ghostText.value || docAI.error.value" class="sticky bottom-0 left-0 right-0 z-10 border-t border-border bg-background px-4 py-2">
+          <div v-if="docAI.loading.value" class="flex items-center gap-2 py-1.5">
+            <span class="flex gap-0.5">
+              <span class="nd-ai-rdot size-[5px] rounded-full bg-primary"></span>
+              <span class="nd-ai-rdot size-[5px] rounded-full bg-primary"></span>
+              <span class="nd-ai-rdot size-[5px] rounded-full bg-primary"></span>
             </span>
             <span class="text-xs text-muted-foreground">{{ $t('plugin.novusdoc.ai.generating') }}</span>
             <Button size="small" type="text" @click="docAI.cancel()">
               <IconifyIcon icon="lucide:x" class="size-3" />
             </Button>
           </div>
-          <div v-else-if="docAI.ghostText.value" class="nd-ai-result-preview">
-            <div class="nd-ai-result-text">{{ docAI.ghostText.value.slice(0, 300) }}{{ docAI.ghostText.value.length > 300 ? '...' : '' }}</div>
-            <div class="nd-ai-result-actions">
+          <div v-else-if="docAI.ghostText.value" class="flex flex-col gap-2">
+            <div class="max-h-[150px] overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-muted px-3 py-2 text-[13px] leading-relaxed text-foreground">{{ docAI.ghostText.value.slice(0, 300) }}{{ docAI.ghostText.value.length > 300 ? '...' : '' }}</div>
+            <div class="flex justify-end gap-2">
               <Button size="small" type="primary" @click="docAI.acceptGhostText()">
                 <IconifyIcon icon="lucide:check" class="mr-1 size-3" />
                 {{ $t('plugin.novusdoc.ai.accept') }}
@@ -392,7 +392,7 @@ async function handleAISidebarSend(
               </Button>
             </div>
           </div>
-          <div v-else-if="docAI.error.value" class="nd-ai-result-error">
+          <div v-else-if="docAI.error.value" class="flex items-center gap-2 py-1.5 text-destructive">
             <IconifyIcon icon="lucide:alert-circle" class="size-4" />
             <span class="text-xs">{{ docAI.error.value }}</span>
             <Button size="small" type="text" @click="docAI.dismissGhostText()">
@@ -415,25 +415,25 @@ async function handleAISidebarSend(
     </div>
 
     <!-- Pro: 版本历史抽屉 -->
-    <div v-if="showVersionDrawer" class="nd-pro-drawer">
-      <div class="nd-pro-drawer__header">
+    <div v-if="showVersionDrawer" class="nd-pro-drawer absolute bottom-0 right-0 top-0 z-20 flex w-[360px] flex-col border-l border-border bg-background shadow-lg">
+      <div class="flex items-center justify-between border-b border-border px-4 py-3">
         <span class="font-semibold">{{ $t('plugin.novusdoc.pro.versionHistory') }}</span>
         <Button size="small" type="text" @click="showVersionDrawer = false">
           <IconifyIcon icon="lucide:x" class="size-4" />
         </Button>
       </div>
-      <div class="nd-pro-drawer__actions">
+      <div class="border-b border-border px-4 py-2">
         <Button size="small" @click="handleCreateVersion">
           <IconifyIcon icon="lucide:plus" class="mr-1 size-3" />
           {{ $t('plugin.novusdoc.pro.createVersion') }}
         </Button>
       </div>
-      <div class="nd-pro-drawer__list">
+      <div class="flex-1 overflow-y-auto py-2">
         <Spin :spinning="pro.loading.value">
           <div
             v-for="v in pro.versions.value"
             :key="v.id"
-            class="nd-pro-version-item"
+            class="border-b border-border/50 px-4 py-2.5 transition-colors hover:bg-accent/50"
           >
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium">{{ v.title || $t('plugin.novusdoc.doc.untitled') }}</span>
@@ -454,19 +454,19 @@ async function handleAISidebarSend(
     </div>
 
     <!-- Pro: 评论抽屉 -->
-    <div v-if="showCommentDrawer" class="nd-pro-drawer">
-      <div class="nd-pro-drawer__header">
+    <div v-if="showCommentDrawer" class="nd-pro-drawer absolute bottom-0 right-0 top-0 z-20 flex w-[360px] flex-col border-l border-border bg-background shadow-lg">
+      <div class="flex items-center justify-between border-b border-border px-4 py-3">
         <span class="font-semibold">{{ $t('plugin.novusdoc.pro.comments') }}</span>
         <Button size="small" type="text" @click="showCommentDrawer = false">
           <IconifyIcon icon="lucide:x" class="size-4" />
         </Button>
       </div>
-      <div class="nd-pro-drawer__list">
+      <div class="flex-1 overflow-y-auto py-2">
         <Spin :spinning="pro.loading.value">
           <div
             v-for="c in pro.comments.value"
             :key="c.id"
-            class="nd-pro-comment-item"
+            class="border-b border-border/50 px-4 py-2.5 transition-colors hover:bg-accent/50"
           >
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium">{{ c.creator_name || $t('plugin.novusdoc.pro.anonymous') }}</span>

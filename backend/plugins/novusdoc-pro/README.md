@@ -49,4 +49,4 @@ NovusDoc 商业扩展插件，为 NovusDoc 编辑器增加实时协作、评论�
 ## Dependencies
 
 - **novusdoc** plugin (required)
-- **y-py** >= 0.6.0 (required for collaboration persistence)
+- **y-py** >= 0.6.0 (used for collaboration persistence; on Windows + Python 3.12 the plugin enables in degraded mode without persistence)

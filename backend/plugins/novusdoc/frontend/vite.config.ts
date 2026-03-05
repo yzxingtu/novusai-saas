@@ -18,9 +18,8 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
-        'vue', 'vue-router', 'ant-design-vue', '@novus/plugin-shared',
-        'lowlight',
-        /^@tiptap\//,
+        'vue', 'vue-router', 'ant-design-vue', '@novus/plugin-shared', '@vben/common-ui', '@vben/icons',
+        // @tiptap/* and lowlight are bundled directly into the UMD to avoid host globals complexity
       ],
       output: {
         globals: {
@@ -28,6 +27,8 @@ export default defineConfig({
           'vue-router': 'VueRouter',
           'ant-design-vue': 'AntDesignVue',
           '@novus/plugin-shared': 'NovusPluginShared',
+          '@vben/common-ui': 'VbenCommonUI',
+          '@vben/icons': 'VbenIcons',
         },
         assetFileNames: '[name][extname]',
       },

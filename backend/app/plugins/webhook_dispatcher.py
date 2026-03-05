@@ -12,7 +12,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import time
-from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
@@ -49,6 +48,7 @@ async def webhook_dispatcher(
 
     async with async_session_factory() as db:
         from sqlalchemy import select
+
         from app.models.system.plugin import Plugin
 
         result = await db.execute(
@@ -74,11 +74,17 @@ async def webhook_dispatcher(
     method = request.method.upper()
 
     matched_webhook = None
+    _webhook_path_params: dict[str, str] = {}
     for wh in webhooks:
         wh_path = wh.get("path", "").strip("/")
         wh_method = wh.get("method", "POST").upper()
-        if wh_path == path and wh_method == method:
+        if wh_method != method:
+            continue
+        from app.plugins.api_dispatcher import _match_route_path
+        matched, params = _match_route_path(wh_path, path)
+        if matched:
             matched_webhook = wh
+            _webhook_path_params = params
             break
 
     if not matched_webhook:

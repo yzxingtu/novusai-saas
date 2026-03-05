@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'AIQuotaForm' });
 /**
  * AI 配额新建/编辑表单抽屉
  */
@@ -13,6 +12,8 @@ import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
 import { getFormDefaults, useFormSchema } from '../data';
+
+defineOptions({ name: 'AIQuotaForm' });
 
 const emits = defineEmits<{ success: [] }>();
 
@@ -56,9 +57,7 @@ const { Drawer, isEdit } = useCrudDrawer<AIQuotaInfo>({
 });
 
 const title = computed(() =>
-  isEdit.value
-    ? $t('admin.common.edit')
-    : $t('admin.ai.quota.create'),
+  isEdit.value ? $t('admin.common.edit') : $t('admin.ai.quota.create'),
 );
 </script>
 

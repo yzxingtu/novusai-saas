@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'TaskLogDetail' });
 /**
  * 任务日志详情抽屉
  */
@@ -7,12 +6,7 @@ import type { adminApi } from '#/api';
 
 import { IconifyIcon } from '@vben/icons';
 
-import {
-  Descriptions,
-  DescriptionsItem,
-  Divider,
-  Tag,
-} from 'ant-design-vue';
+import { Descriptions, DescriptionsItem, Divider, Tag } from 'ant-design-vue';
 
 import { getTaskLogDetailApi } from '#/api/admin/task-log';
 import { useCrudDrawer } from '#/composables';
@@ -20,6 +14,8 @@ import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
 import { getQueueColor, getStatusColor } from '../data';
+
+defineOptions({ name: 'TaskLogDetail' });
 
 type TaskLogDetailInfo = adminApi.TaskLogDetailInfo;
 
@@ -42,12 +38,18 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
           {{ $t('admin.system.taskLog.basicInfo') }}
         </div>
         <Descriptions :column="2" bordered size="small">
-          <DescriptionsItem :label="$t('admin.system.taskLog.taskName')" :span="2">
+          <DescriptionsItem
+            :label="$t('admin.system.taskLog.taskName')"
+            :span="2"
+          >
             <code class="break-all rounded bg-accent px-1 py-0.5 text-xs">
               {{ detail.taskName }}
             </code>
           </DescriptionsItem>
-          <DescriptionsItem :label="$t('admin.system.taskLog.taskId')" :span="2">
+          <DescriptionsItem
+            :label="$t('admin.system.taskLog.taskId')"
+            :span="2"
+          >
             <code class="break-all rounded bg-accent px-1 py-0.5 text-xs">
               {{ detail.taskId }}
             </code>
@@ -59,7 +61,12 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
           </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.system.taskLog.queue')">
             <Tag :color="getQueueColor(detail.queue)">
-              {{ $t(`admin.system.taskLog.queueNames.${detail.queue}`, detail.queue) }}
+              {{
+                $t(
+                  `admin.system.taskLog.queueNames.${detail.queue}`,
+                  detail.queue,
+                )
+              }}
             </Tag>
           </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.system.taskLog.retryCount')">

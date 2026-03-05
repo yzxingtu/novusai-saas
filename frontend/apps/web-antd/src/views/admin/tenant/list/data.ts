@@ -77,7 +77,7 @@ export function getPlanColor(plan: null | TenantPlan | undefined): string {
 
 /**
  * 表格列定义
- * @param onActionClick 操作按钮点击回调
+ * @param _onActionClick 操作按钮点击回调
  * @param onStatusChange 状态切换回调
  */
 export function useColumns<T = TenantInfo>(

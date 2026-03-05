@@ -4,10 +4,9 @@ WebSocket & 通知设置配置项
 包含 Socket.IO 连接参数和通知系统配置
 """
 
-from app.configs.meta import ConfigMeta, DisplayRule
 from app.configs.definitions.groups import PLATFORM_WEBSOCKET_GROUP
+from app.configs.meta import ConfigMeta, DisplayRule
 from app.enums.config import ConfigScope, ConfigValueType
-
 
 # ==========================================
 # Socket.IO 连接配置

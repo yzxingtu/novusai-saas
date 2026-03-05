@@ -108,10 +108,10 @@ export async function getAIModelListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<PageResponse<AIModelInfo>> {
-  return requestClient.get<PageResponse<AIModelInfo>>(
-    MODEL_PREFIX,
-    { params, ...options },
-  );
+  return requestClient.get<PageResponse<AIModelInfo>>(MODEL_PREFIX, {
+    params,
+    ...options,
+  });
 }
 
 /** 获取供应商的模型列表 */
@@ -141,10 +141,7 @@ export async function getAIModelDetailApi(
   id: number,
   options?: ApiRequestOptions,
 ): Promise<AIModelInfo> {
-  return requestClient.get<AIModelInfo>(
-    `${MODEL_PREFIX}/${id}`,
-    options,
-  );
+  return requestClient.get<AIModelInfo>(`${MODEL_PREFIX}/${id}`, options);
 }
 
 /** 创建模型 */
@@ -152,11 +149,7 @@ export async function createAIModelApi(
   data: AIModelCreateRequest,
   options?: ApiRequestOptions,
 ): Promise<AIModelInfo> {
-  return requestClient.post<AIModelInfo>(
-    MODEL_PREFIX,
-    data,
-    options,
-  );
+  return requestClient.post<AIModelInfo>(MODEL_PREFIX, data, options);
 }
 
 /** 更新模型 */
@@ -165,11 +158,7 @@ export async function updateAIModelApi(
   data: AIModelUpdateRequest,
   options?: ApiRequestOptions,
 ): Promise<AIModelInfo> {
-  return requestClient.put<AIModelInfo>(
-    `${MODEL_PREFIX}/${id}`,
-    data,
-    options,
-  );
+  return requestClient.put<AIModelInfo>(`${MODEL_PREFIX}/${id}`, data, options);
 }
 
 /** 删除模型 */

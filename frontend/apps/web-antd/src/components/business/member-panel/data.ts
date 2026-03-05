@@ -141,7 +141,7 @@ export function useAdminFormSchema(options: {
             defaultValue: nodeId ?? undefined,
           },
         ]
-      : (nodeName
+      : nodeName
         ? [
             {
               component: 'Input',
@@ -154,7 +154,7 @@ export function useAdminFormSchema(options: {
               help: $t('admin.system.admin.help.roleAutoBinding'),
             },
           ]
-        : [])),
+        : []),
     {
       component: 'RadioGroup',
       componentProps: {

@@ -6,15 +6,15 @@ admin/tenant 两端 update_package_valves 的公共流程提取。
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
-
 import re
+from typing import TYPE_CHECKING, Any
 
 from app.core.i18n import _
 from app.exceptions import BusinessException, ValidationException
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+
     from app.core.base_service import BaseService
 
 SECRET_MASK = "******"

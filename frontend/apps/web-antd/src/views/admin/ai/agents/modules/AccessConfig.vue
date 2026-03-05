@@ -4,8 +4,6 @@
  *
  * 功能：配置可见性（public/private）和访问类型
  */
-defineOptions({ name: 'AdminAccessConfigDrawer' });
-
 import { computed, ref, watch } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
@@ -23,11 +21,10 @@ import {
   Spin,
 } from 'ant-design-vue';
 
-import {
-  getAIAgentAccessApi,
-  updateAIAgentAccessApi,
-} from '#/api/admin/ai';
+import { getAIAgentAccessApi, updateAIAgentAccessApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
+
+defineOptions({ name: 'AdminAccessConfigDrawer' });
 
 const agentId = ref(0);
 const agentName = ref('');
@@ -64,10 +61,22 @@ const visibilityOptions = computed(() => [
 ]);
 
 const accessTypeOptions = computed(() => [
-  { label: $t('admin.ai.agent.access_type_options.all_users'), value: 'all_users' },
-  { label: $t('admin.ai.agent.access_type_options.org_node'), value: 'org_node' },
-  { label: $t('admin.ai.agent.access_type_options.specific_users'), value: 'specific_users' },
-  { label: $t('admin.ai.agent.access_type_options.api_only'), value: 'api_only' },
+  {
+    label: $t('admin.ai.agent.access_type_options.all_users'),
+    value: 'all_users',
+  },
+  {
+    label: $t('admin.ai.agent.access_type_options.org_node'),
+    value: 'org_node',
+  },
+  {
+    label: $t('admin.ai.agent.access_type_options.specific_users'),
+    value: 'specific_users',
+  },
+  {
+    label: $t('admin.ai.agent.access_type_options.api_only'),
+    value: 'api_only',
+  },
 ]);
 
 async function loadAccessConfig() {
@@ -134,7 +143,9 @@ watch(visibility, (val) => {
             >
               <div class="flex items-center gap-1">
                 <IconifyIcon
-                  :icon="opt.value === 'public' ? 'lucide:globe' : 'lucide:lock'"
+                  :icon="
+                    opt.value === 'public' ? 'lucide:globe' : 'lucide:lock'
+                  "
                   class="size-3.5"
                 />
                 {{ opt.label }}
@@ -142,9 +153,11 @@ watch(visibility, (val) => {
             </Radio>
           </RadioGroup>
           <Alert
-            :message="isPrivate
-              ? $t('admin.ai.agent.messages.visibilityPrivateHint')
-              : $t('admin.ai.agent.messages.visibilityPublicHint')"
+            :message="
+              isPrivate
+                ? $t('admin.ai.agent.messages.visibilityPrivateHint')
+                : $t('admin.ai.agent.messages.visibilityPublicHint')
+            "
             type="info"
             show-icon
             class="mt-1"

@@ -1,6 +1,7 @@
 {
   "tenant": {
     "dashboard": "仪表板",
+    "tenant_workspace": "工作台",
     "system": "权限管理",
     "system_mgmt": "系统管理",
     "system_maintenance": "系统维护",

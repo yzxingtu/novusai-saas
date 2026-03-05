@@ -60,7 +60,7 @@ def start_dev(loglevel: str = "info") -> None:
     if platform.system() == "Windows":
         # Windows 不支持 --beat，需要分开启动 worker 和 beat
         import threading
-        
+
         def run_worker():
             subprocess.run([
                 sys.executable, "-m", "celery",
@@ -70,7 +70,7 @@ def start_dev(loglevel: str = "info") -> None:
                 f"--loglevel={loglevel}",
                 "--pool=solo",
             ], cwd=BACKEND_DIR)
-        
+
         def run_beat():
             subprocess.run([
                 sys.executable, "-m", "celery",
@@ -78,13 +78,13 @@ def start_dev(loglevel: str = "info") -> None:
                 "beat",
                 f"--loglevel={loglevel}",
             ], cwd=BACKEND_DIR)
-        
+
         print(f"Starting Celery Worker + Beat (Windows mode, cwd={BACKEND_DIR})")
         worker_thread = threading.Thread(target=run_worker, daemon=True)
         beat_thread = threading.Thread(target=run_beat, daemon=True)
         worker_thread.start()
         beat_thread.start()
-        
+
         try:
             worker_thread.join()
         except KeyboardInterrupt:

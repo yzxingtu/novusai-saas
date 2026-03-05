@@ -19,27 +19,27 @@ import { toAvatarDisplayUrl } from '#/utils/image';
 
 const props = withDefaults(
   defineProps<{
-    msg: ChatMessage;
-    index: number;
     compact?: boolean;
+    index: number;
+    msg: ChatMessage;
     selectedAgent?: AgentItem | null;
   }>(),
   { compact: false, selectedAgent: null },
 );
 
 const emit = defineEmits<{
-  copy: [content: string];
+  actionClick: [index: number, value: string];
   confirm: [index: number];
-  reject: [index: number];
-  'consent-confirm': [index: number];
-  'consent-reject': [index: number];
-  'open-url': [url: string];
-  'action-click': [index: number, value: string];
-  regenerate: [index: number];
+  consentConfirm: [index: number];
+  consentReject: [index: number];
+  copy: [content: string];
   edit: [index: number];
+  openUrl: [url: string];
+  regenerate: [index: number];
+  reject: [index: number];
 }>();
 
-function agentAvatar(agent: { avatar?: string | null }) {
+function agentAvatar(agent: { avatar?: null | string }) {
   return agent.avatar ? toAvatarDisplayUrl(agent.avatar) : null;
 }
 
@@ -92,13 +92,26 @@ function agentInitial(agent: { name: string }) {
         <div
           v-if="msg.optimizingTools"
           class="flex items-center rounded-lg bg-accent/50 text-muted-foreground"
-          :class="compact ? 'mb-1 gap-1.5 px-2 py-1 text-[11px]' : 'mb-2 gap-2 px-3 py-1.5 text-xs'"
+          :class="
+            compact
+              ? 'mb-1 gap-1.5 px-2 py-1 text-[11px]'
+              : 'mb-2 gap-2 px-3 py-1.5 text-xs'
+          "
         >
           <span
             class="text-primary"
-            :class="compact ? 'icon-[lucide--sparkles] h-3 w-3' : 'icon-[lucide--sparkles] h-3.5 w-3.5'"
-          />
-          <span>{{ $t('common.globalAiChat.optimizingTools', { total: msg.optimizingTools.total, selected: msg.optimizingTools.selected }) }}</span>
+            :class="
+              compact
+                ? 'icon-[lucide--sparkles] h-3 w-3'
+                : 'icon-[lucide--sparkles] h-3.5 w-3.5'
+            "
+          ></span>
+          <span>{{
+            $t('common.globalAiChat.optimizingTools', {
+              total: msg.optimizingTools.total,
+              selected: msg.optimizingTools.selected,
+            })
+          }}</span>
         </div>
 
         <!-- Tool calls -->
@@ -109,17 +122,25 @@ function agentInitial(agent: { name: string }) {
           <details
             v-for="(tc, tcIdx) in msg.toolCalls"
             :key="tcIdx"
-            class="group/tc overflow-hidden border border-border/30 bg-accent/30 backdrop-blur-sm [&>summary]:list-none [&>summary::-webkit-details-marker]:hidden"
+            class="group/tc overflow-hidden border border-border/30 bg-accent/30 backdrop-blur-sm [&>summary::-webkit-details-marker]:hidden [&>summary]:list-none"
             :class="compact ? 'rounded-lg' : 'rounded-xl'"
           >
             <summary
-              class="flex cursor-pointer items-center select-none"
-              :class="compact ? 'gap-1.5 px-2 py-1 text-[11px]' : 'gap-2 px-3 py-1.5 text-xs'"
+              class="flex cursor-pointer select-none items-center"
+              :class="
+                compact
+                  ? 'gap-1.5 px-2 py-1 text-[11px]'
+                  : 'gap-2 px-3 py-1.5 text-xs'
+              "
             >
               <Spin v-if="tc.status === 'running'" size="small" />
               <IconifyIcon
                 v-else
-                :icon="tc.status === 'success' ? 'lucide:check-circle' : 'lucide:x-circle'"
+                :icon="
+                  tc.status === 'success'
+                    ? 'lucide:check-circle'
+                    : 'lucide:x-circle'
+                "
                 class="shrink-0"
                 :class="[
                   compact ? 'size-3' : 'size-3.5',
@@ -128,11 +149,21 @@ function agentInitial(agent: { name: string }) {
               />
               <span class="flex-1 truncate text-muted-foreground">
                 <template v-if="tc.skillName">
-                  <span class="font-medium text-foreground/70">{{ tc.skillName }}</span>
-                  <span :class="compact ? 'mx-0.5' : 'mx-1'" class="text-muted-foreground/50">›</span>
+                  <span class="font-medium text-foreground/70">{{
+                    tc.skillName
+                  }}</span>
+                  <span
+                    :class="compact ? 'mx-0.5' : 'mx-1'"
+                    class="text-muted-foreground/50"
+                    >›</span
+                  >
                 </template>
                 {{ tc.displayName || tc.name }}
-                <span v-if="tc.summary && tc.status === 'success'" class="ml-1 text-muted-foreground/70">— {{ tc.summary }}</span>
+                <span
+                  v-if="tc.summary && tc.status === 'success'"
+                  class="ml-1 text-muted-foreground/70"
+                  >— {{ tc.summary }}</span
+                >
               </span>
               <!-- Tag status (page mode only) -->
               <Tag
@@ -140,9 +171,16 @@ function agentInitial(agent: { name: string }) {
                 :color="tc.status === 'success' ? 'success' : 'error'"
                 size="small"
               >
-                {{ tc.status === 'success' ? $t('common.globalAiChat.toolSuccess') : $t('common.globalAiChat.toolFailed') }}
+                {{
+                  tc.status === 'success'
+                    ? $t('common.globalAiChat.toolSuccess')
+                    : $t('common.globalAiChat.toolFailed')
+                }}
               </Tag>
-              <span v-if="!compact && tc.status === 'running'" class="text-muted-foreground">
+              <span
+                v-if="!compact && tc.status === 'running'"
+                class="text-muted-foreground"
+              >
                 {{ $t('common.globalAiChat.toolRunning') }}
               </span>
               <span v-if="tc.durationMs" class="text-muted-foreground/60">
@@ -160,9 +198,17 @@ function agentInitial(agent: { name: string }) {
               class="border-t border-border/50"
               :class="compact ? 'px-2 py-1.5 text-[11px]' : 'px-3 py-2 text-xs'"
             >
-              <div v-if="tc.arguments && Object.keys(tc.arguments).length" class="mb-1">
-                <span class="font-medium text-muted-foreground">{{ $t('common.globalAiChat.args') }}</span>
-                <code class="ml-1 text-muted-foreground" :class="compact ? 'text-[10px]' : 'text-[11px]'">
+              <div
+                v-if="tc.arguments && Object.keys(tc.arguments).length > 0"
+                class="mb-1"
+              >
+                <span class="font-medium text-muted-foreground">{{
+                  $t('common.globalAiChat.args')
+                }}</span>
+                <code
+                  class="ml-1 text-muted-foreground"
+                  :class="compact ? 'text-[10px]' : 'text-[11px]'"
+                >
                   {{ JSON.stringify(tc.arguments) }}
                 </code>
               </div>
@@ -173,7 +219,10 @@ function agentInitial(agent: { name: string }) {
               >
                 {{ tc.output }}
               </div>
-              <div v-if="tc.error" class="whitespace-pre-wrap break-all text-red-500">
+              <div
+                v-if="tc.error"
+                class="whitespace-pre-wrap break-all text-red-500"
+              >
                 {{ tc.error }}
               </div>
               <a
@@ -183,7 +232,10 @@ function agentInitial(agent: { name: string }) {
                 class="mt-1 inline-flex items-center gap-1 text-primary hover:underline"
                 :class="compact ? 'text-[10px]' : 'text-[11px]'"
               >
-                <IconifyIcon icon="lucide:external-link" :class="compact ? 'size-2.5' : 'size-3'" />
+                <IconifyIcon
+                  icon="lucide:external-link"
+                  :class="compact ? 'size-2.5' : 'size-3'"
+                />
                 {{ $t('common.globalAiChat.viewResult') }}
               </a>
             </div>
@@ -206,7 +258,7 @@ function agentInitial(agent: { name: string }) {
           :class="compact ? 'px-3 py-2 text-sm' : 'px-4 py-3'"
         >
           <MarkdownRender :content="msg.content" :streaming="!!msg.streaming" />
-          <span v-if="msg.streaming" class="streaming-cursor" />
+          <span v-if="msg.streaming" class="streaming-cursor"></span>
         </div>
 
         <!-- Generated images -->
@@ -222,13 +274,22 @@ function agentInitial(agent: { name: string }) {
           >
             <img
               :src="img.isBase64 ? `data:image/png;base64,${img.url}` : img.url"
-              :alt="img.revisedPrompt || $t('common.globalAiChat.generatedImage')"
+              :alt="
+                img.revisedPrompt || $t('common.globalAiChat.generatedImage')
+              "
               class="cursor-pointer object-cover transition-transform hover:scale-105"
               :class="compact ? 'max-h-48 max-w-56' : 'max-h-64 max-w-72'"
-              @click="emit('open-url', img.isBase64 ? `data:image/png;base64,${img.url}` : img.url)"
+              @click="
+                emit(
+                  'openUrl',
+                  img.isBase64 ? `data:image/png;base64,${img.url}` : img.url,
+                )
+              "
             />
             <a
-              :href="img.isBase64 ? `data:image/png;base64,${img.url}` : img.url"
+              :href="
+                img.isBase64 ? `data:image/png;base64,${img.url}` : img.url
+              "
               :download="img.isBase64 ? 'generated-image.png' : undefined"
               target="_blank"
               class="absolute bottom-2 right-2 flex size-7 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity hover:bg-black/70 group-hover/img:opacity-100"
@@ -256,13 +317,20 @@ function agentInitial(agent: { name: string }) {
             class="flex items-center font-medium text-foreground"
             :class="compact ? 'mb-1.5 gap-1.5 text-xs' : 'mb-2 gap-2 text-sm'"
           >
-            <IconifyIcon icon="lucide:shield-question" class="size-4 text-warning" />
+            <IconifyIcon
+              icon="lucide:shield-question"
+              class="size-4 text-warning"
+            />
             <span>{{ $t('common.globalAiChat.confirmationTitle') }}</span>
           </div>
           <div
             v-if="msg.pendingConfirmation.preview"
             class="overflow-y-auto rounded-md bg-accent/50"
-            :class="compact ? 'mb-2 max-h-32 px-2 py-1.5 text-[10px]' : 'mb-3 max-h-40 px-3 py-2 text-xs'"
+            :class="
+              compact
+                ? 'mb-2 max-h-32 px-2 py-1.5 text-[10px]'
+                : 'mb-3 max-h-40 px-3 py-2 text-xs'
+            "
           >
             <table class="w-full text-left">
               <tr
@@ -270,27 +338,54 @@ function agentInitial(agent: { name: string }) {
                 :key="String(key)"
                 class="border-b border-border/30 last:border-0"
               >
-                <td class="whitespace-nowrap py-0.5 pr-3 font-medium text-foreground/70">{{ key }}</td>
-                <td class="break-all py-0.5 text-muted-foreground">{{ typeof val === 'object' ? JSON.stringify(val) : val }}</td>
+                <td
+                  class="whitespace-nowrap py-0.5 pr-3 font-medium text-foreground/70"
+                >
+                  {{ key }}
+                </td>
+                <td class="break-all py-0.5 text-muted-foreground">
+                  {{ typeof val === 'object' ? JSON.stringify(val) : val }}
+                </td>
               </tr>
             </table>
           </div>
-          <div v-if="!msg.pendingConfirmation.resolved" class="flex items-center gap-2">
-            <Button type="primary" size="small" @click="emit('confirm', props.index)">
+          <div
+            v-if="!msg.pendingConfirmation.resolved"
+            class="flex items-center gap-2"
+          >
+            <Button
+              type="primary"
+              size="small"
+              @click="emit('confirm', props.index)"
+            >
               <template #icon>
-                <IconifyIcon icon="lucide:check" :class="compact ? 'size-3' : 'size-3.5'" />
+                <IconifyIcon
+                  icon="lucide:check"
+                  :class="compact ? 'size-3' : 'size-3.5'"
+                />
               </template>
               {{ $t('common.globalAiChat.confirmBtn') }}
             </Button>
             <Button size="small" danger @click="emit('reject', props.index)">
               <template #icon>
-                <IconifyIcon icon="lucide:x" :class="compact ? 'size-3' : 'size-3.5'" />
+                <IconifyIcon
+                  icon="lucide:x"
+                  :class="compact ? 'size-3' : 'size-3.5'"
+                />
               </template>
               {{ $t('common.globalAiChat.rejectBtn') }}
             </Button>
           </div>
-          <div v-else :class="compact ? 'text-[11px]' : 'text-xs'" class="text-muted-foreground">
-            <IconifyIcon icon="lucide:check-circle" class="mr-1 inline text-success" :class="compact ? 'size-3' : 'size-3.5'" />
+          <div
+            v-else
+            :class="compact ? 'text-[11px]' : 'text-xs'"
+            class="text-muted-foreground"
+          >
+            <IconifyIcon
+              icon="lucide:check-circle"
+              class="mr-1 inline text-success"
+              :class="compact ? 'size-3' : 'size-3.5'"
+            />
             {{ $t('common.globalAiChat.confirmationResolved') }}
           </div>
         </div>
@@ -305,39 +400,82 @@ function agentInitial(agent: { name: string }) {
             class="flex items-center font-medium text-foreground"
             :class="compact ? 'mb-1.5 gap-1.5 text-xs' : 'mb-2 gap-2 text-sm'"
           >
-            <IconifyIcon icon="lucide:shield-alert" class="size-4 text-warning" />
+            <IconifyIcon
+              icon="lucide:shield-alert"
+              class="size-4 text-warning"
+            />
             <span>{{ $t('common.globalAiChat.consentTitle') }}</span>
           </div>
           <div
             class="text-muted-foreground"
             :class="compact ? 'mb-1.5 text-xs' : 'mb-2 text-sm'"
           >
-            <span v-if="msg.pendingConsent.skillName" class="font-medium text-foreground/70">{{ msg.pendingConsent.skillName }} ›</span>
-            <code class="ml-1 font-mono">{{ msg.pendingConsent.toolName }}</code>
+            <span
+              v-if="msg.pendingConsent.skillName"
+              class="font-medium text-foreground/70"
+              >{{ msg.pendingConsent.skillName }} ›</span
+            >
+            <code class="ml-1 font-mono">{{
+              msg.pendingConsent.toolName
+            }}</code>
           </div>
           <div
-            v-if="msg.pendingConsent.arguments && Object.keys(msg.pendingConsent.arguments).length"
+            v-if="
+              msg.pendingConsent.arguments &&
+              Object.keys(msg.pendingConsent.arguments).length > 0
+            "
             class="overflow-y-auto rounded-md bg-accent/50 font-mono text-muted-foreground"
-            :class="compact ? 'mb-2 max-h-32 px-2 py-1.5 text-[10px]' : 'mb-3 max-h-40 px-3 py-2 text-xs'"
+            :class="
+              compact
+                ? 'mb-2 max-h-32 px-2 py-1.5 text-[10px]'
+                : 'mb-3 max-h-40 px-3 py-2 text-xs'
+            "
           >
-            <pre class="whitespace-pre-wrap">{{ JSON.stringify(msg.pendingConsent.arguments, null, 2) }}</pre>
+            <pre class="whitespace-pre-wrap">{{
+              JSON.stringify(msg.pendingConsent.arguments, null, 2)
+            }}</pre>
           </div>
-          <div v-if="!msg.pendingConsent.resolved" class="flex items-center gap-2">
-            <Button type="primary" size="small" @click="emit('consent-confirm', props.index)">
+          <div
+            v-if="!msg.pendingConsent.resolved"
+            class="flex items-center gap-2"
+          >
+            <Button
+              type="primary"
+              size="small"
+              @click="emit('consentConfirm', props.index)"
+            >
               <template #icon>
-                <IconifyIcon icon="lucide:check" :class="compact ? 'size-3' : 'size-3.5'" />
+                <IconifyIcon
+                  icon="lucide:check"
+                  :class="compact ? 'size-3' : 'size-3.5'"
+                />
               </template>
               {{ $t('common.globalAiChat.consentAllow') }}
             </Button>
-            <Button size="small" danger @click="emit('consent-reject', props.index)">
+            <Button
+              size="small"
+              danger
+              @click="emit('consentReject', props.index)"
+            >
               <template #icon>
-                <IconifyIcon icon="lucide:x" :class="compact ? 'size-3' : 'size-3.5'" />
+                <IconifyIcon
+                  icon="lucide:x"
+                  :class="compact ? 'size-3' : 'size-3.5'"
+                />
               </template>
               {{ $t('common.globalAiChat.consentDeny') }}
             </Button>
           </div>
-          <div v-else :class="compact ? 'text-[11px]' : 'text-xs'" class="text-muted-foreground">
-            <IconifyIcon icon="lucide:check-circle" class="mr-1 inline text-success" :class="compact ? 'size-3' : 'size-3.5'" />
+          <div
+            v-else
+            :class="compact ? 'text-[11px]' : 'text-xs'"
+            class="text-muted-foreground"
+          >
+            <IconifyIcon
+              icon="lucide:check-circle"
+              class="mr-1 inline text-success"
+              :class="compact ? 'size-3' : 'size-3.5'"
+            />
             {{ $t('common.globalAiChat.consentResolved') }}
           </div>
         </div>
@@ -352,20 +490,39 @@ function agentInitial(agent: { name: string }) {
               class="flex cursor-pointer items-center text-muted-foreground hover:text-foreground"
               :class="compact ? 'gap-1 text-[11px]' : 'gap-1.5 text-xs'"
             >
-              <IconifyIcon icon="lucide:book-open" :class="compact ? 'size-3' : 'size-3.5'" />
-              <span>{{ $t('common.globalAiChat.ragSources') }} ({{ msg.ragSources.length }})</span>
+              <IconifyIcon
+                icon="lucide:book-open"
+                :class="compact ? 'size-3' : 'size-3.5'"
+              />
+              <span
+                >{{ $t('common.globalAiChat.ragSources') }} ({{
+                  msg.ragSources.length
+                }})</span
+              >
             </summary>
             <div
-              :class="compact ? 'mt-1 space-y-1 pl-4' : 'mt-1.5 space-y-1.5 pl-5'"
+              :class="
+                compact ? 'mt-1 space-y-1 pl-4' : 'mt-1.5 space-y-1.5 pl-5'
+              "
             >
               <div
                 v-for="(src, si) in msg.ragSources"
                 :key="si"
                 class="rounded-md bg-accent/50 text-muted-foreground"
-                :class="compact ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-1.5 text-xs'"
+                :class="
+                  compact ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-1.5 text-xs'
+                "
               >
-                <div class="font-medium text-foreground">{{ src.doc_name }}</div>
-                <div :class="compact ? 'mt-0.5 line-clamp-2' : 'mt-0.5 line-clamp-3'">{{ src.snippet }}</div>
+                <div class="font-medium text-foreground">
+                  {{ src.doc_name }}
+                </div>
+                <div
+                  :class="
+                    compact ? 'mt-0.5 line-clamp-2' : 'mt-0.5 line-clamp-3'
+                  "
+                >
+                  {{ src.snippet }}
+                </div>
               </div>
             </div>
           </details>
@@ -373,7 +530,9 @@ function agentInitial(agent: { name: string }) {
 
         <!-- Action Buttons -->
         <div
-          v-if="msg.actionButtons && msg.actionButtons.length > 0 && !msg.streaming"
+          v-if="
+            msg.actionButtons && msg.actionButtons.length > 0 && !msg.streaming
+          "
           class="flex flex-wrap"
           :class="compact ? 'mt-1.5 gap-1.5' : 'mt-2 gap-2'"
         >
@@ -381,11 +540,17 @@ function agentInitial(agent: { name: string }) {
             v-for="(btn, bi) in msg.actionButtons"
             :key="bi"
             size="small"
-            :type="btn.style === 'primary' ? 'primary' : btn.style === 'danger' ? 'default' : 'default'"
+            :type="
+              btn.style === 'primary'
+                ? 'primary'
+                : btn.style === 'danger'
+                  ? 'default'
+                  : 'default'
+            "
             :danger="btn.style === 'danger'"
             :disabled="!!msg.actionButtonsUsed"
             :class="compact ? '!text-xs' : ''"
-            @click="emit('action-click', props.index, btn.value)"
+            @click="emit('actionClick', props.index, btn.value)"
           >
             {{ btn.label }}
           </Button>
@@ -397,8 +562,12 @@ function agentInitial(agent: { name: string }) {
           class="flex items-center text-muted-foreground/70"
           :class="compact ? 'mt-1 gap-1.5 text-[11px]' : 'mt-2 gap-1.5 text-xs'"
         >
-          <span v-if="msg.tokenUsage" class="mr-1">{{ msg.tokenUsage }} {{ $t('common.globalAiChat.tokens') }}</span>
-          <span v-if="!compact && msg.durationMs" class="mr-1">{{ (msg.durationMs / 1000).toFixed(1) }}s</span>
+          <span v-if="msg.tokenUsage" class="mr-1"
+            >{{ msg.tokenUsage }} {{ $t('common.globalAiChat.tokens') }}</span
+          >
+          <span v-if="!compact && msg.durationMs" class="mr-1"
+            >{{ (msg.durationMs / 1000).toFixed(1) }}s</span
+          >
           <Tooltip v-if="!compact" :title="$t('common.globalAiChat.copy')">
             <button
               class="flex size-6 items-center justify-center rounded-md opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
@@ -420,7 +589,10 @@ function agentInitial(agent: { name: string }) {
               :class="compact ? 'size-5' : 'size-6'"
               @click="emit('regenerate', props.index)"
             >
-              <IconifyIcon icon="lucide:refresh-cw" :class="compact ? 'size-3' : 'size-3.5'" />
+              <IconifyIcon
+                icon="lucide:refresh-cw"
+                :class="compact ? 'size-3' : 'size-3.5'"
+              />
             </button>
           </Tooltip>
         </div>
@@ -441,18 +613,32 @@ function agentInitial(agent: { name: string }) {
             :src="att.preview || att.url"
             :alt="att.name || ''"
             class="cursor-pointer rounded-lg object-contain"
-            :class="compact ? 'max-h-32 max-w-40' : 'max-h-48 max-w-60 border border-white/20'"
-            @click="emit('open-url', att.url)"
+            :class="
+              compact
+                ? 'max-h-32 max-w-40'
+                : 'max-h-48 max-w-60 border border-white/20'
+            "
+            @click="emit('openUrl', att.url)"
           />
           <a
             v-else
             :href="att.url"
             target="_blank"
             class="flex items-center rounded-lg bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20"
-            :class="compact ? 'gap-1 px-1.5 py-0.5 text-[11px]' : 'gap-1.5 px-2 py-1 text-xs'"
+            :class="
+              compact
+                ? 'gap-1 px-1.5 py-0.5 text-[11px]'
+                : 'gap-1.5 px-2 py-1 text-xs'
+            "
           >
-            <IconifyIcon :icon="getFileIcon(att.name || '', att.mime_type)" :class="compact ? 'size-3' : 'size-3.5'" />
-            <span :class="compact ? 'max-w-[80px]' : 'max-w-[120px]'" class="truncate">
+            <IconifyIcon
+              :icon="getFileIcon(att.name || '', att.mime_type)"
+              :class="compact ? 'size-3' : 'size-3.5'"
+            />
+            <span
+              :class="compact ? 'max-w-[80px]' : 'max-w-[120px]'"
+              class="truncate"
+            >
               {{ att.name || $t('common.globalAiChat.file') }}
             </span>
           </a>
@@ -479,11 +665,11 @@ function agentInitial(agent: { name: string }) {
 
 <style scoped>
 .streaming-cursor::after {
-  content: '▍';
   display: inline;
-  animation: blink 0.8s step-end infinite;
-  color: hsl(var(--primary));
   font-weight: bold;
+  color: hsl(var(--primary));
+  content: '▍';
+  animation: blink 0.8s step-end infinite;
 }
 
 @keyframes blink {
@@ -491,6 +677,7 @@ function agentInitial(agent: { name: string }) {
   100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0;
   }

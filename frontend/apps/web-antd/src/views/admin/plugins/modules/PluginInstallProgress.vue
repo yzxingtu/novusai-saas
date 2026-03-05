@@ -4,11 +4,11 @@
  *
  * 通过 Socket.IO 实时展示安装步骤、日志输出、进度条。
  */
-import { nextTick, ref, watch } from 'vue';
-
-import { Button, Drawer, Progress, Tag } from 'ant-design-vue';
+import { nextTick, onUnmounted, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
+
+import { Button, Drawer, Progress, Tag } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 import { usePluginInstallProgressStore } from '#/store';
@@ -48,19 +48,35 @@ function stepLabel(step: string): string {
 /** 步骤状态图标 */
 function stepIcon(status: string): string {
   switch (status) {
-    case 'running': return 'lucide:loader-2';
-    case 'success': return 'lucide:check-circle-2';
-    case 'error': return 'lucide:x-circle';
-    default: return 'lucide:circle';
+    case 'error': {
+      return 'lucide:x-circle';
+    }
+    case 'running': {
+      return 'lucide:loader-2';
+    }
+    case 'success': {
+      return 'lucide:check-circle-2';
+    }
+    default: {
+      return 'lucide:circle';
+    }
   }
 }
 
 function stepIconClass(status: string): string {
   switch (status) {
-    case 'running': return 'text-primary animate-spin';
-    case 'success': return 'text-success';
-    case 'error': return 'text-destructive';
-    default: return 'text-muted-foreground';
+    case 'error': {
+      return 'text-destructive';
+    }
+    case 'running': {
+      return 'text-primary animate-spin';
+    }
+    case 'success': {
+      return 'text-success';
+    }
+    default: {
+      return 'text-muted-foreground';
+    }
   }
 }
 
@@ -79,6 +95,25 @@ function handleReload() {
   window.location.reload();
 }
 
+// 完成后 3 秒自动关闭（不需要页面刷新时）
+let autoCloseTimer: null | ReturnType<typeof setTimeout> = null;
+watch(
+  () => progressStore.isComplete,
+  (complete) => {
+    if (complete && !progressStore.needsReload) {
+      autoCloseTimer = setTimeout(() => {
+        progressStore.hide();
+        autoCloseTimer = null;
+      }, 3000);
+    }
+  },
+);
+onUnmounted(() => {
+  if (autoCloseTimer !== null) {
+    clearTimeout(autoCloseTimer);
+  }
+});
+
 // 日志自动滚到底部
 watch(
   () => progressStore.logs.length,
@@ -95,11 +130,13 @@ watch(
 <template>
   <Drawer
     :open="progressStore.visible"
-    :title="progressStore.currentAction === 'uninstall'
-      ? $t('admin.plugin.progress.uninstallTitle')
-      : progressStore.currentAction === 'enable'
-        ? $t('admin.plugin.progress.enableTitle')
-        : $t('admin.plugin.progress.installTitle')"
+    :title="
+      progressStore.currentAction === 'uninstall'
+        ? $t('admin.plugin.progress.uninstallTitle')
+        : progressStore.currentAction === 'enable'
+          ? $t('admin.plugin.progress.enableTitle')
+          : $t('admin.plugin.progress.installTitle')
+    "
     :width="480"
     :closable="!progressStore.isRunning"
     :mask-closable="!progressStore.isRunning"
@@ -108,7 +145,9 @@ watch(
     <!-- 插件名 -->
     <div class="mb-4 flex items-center gap-2">
       <IconifyIcon icon="lucide:puzzle" class="size-5 text-primary" />
-      <span class="text-base font-semibold">{{ progressStore.pluginName }}</span>
+      <span class="text-base font-semibold">{{
+        progressStore.pluginName
+      }}</span>
       <Tag v-if="progressStore.isComplete" color="success">
         {{ $t('admin.plugin.progress.completed') }}
       </Tag>
@@ -137,11 +176,14 @@ watch(
       >
         <IconifyIcon
           :icon="stepIcon(step.status)"
-          :class="['mt-0.5 size-4 shrink-0', stepIconClass(step.status)]"
+          class="mt-0.5 size-4 shrink-0"
+          :class="[stepIconClass(step.status)]"
         />
         <div class="min-w-0 flex-1">
           <span class="font-medium">{{ stepLabel(step.step) }}</span>
-          <span v-if="step.message" class="ml-2 text-muted-foreground">{{ step.message }}</span>
+          <span v-if="step.message" class="ml-2 text-muted-foreground">{{
+            step.message
+          }}</span>
         </div>
       </div>
     </div>
@@ -155,16 +197,26 @@ watch(
         ref="logContainer"
         class="max-h-[240px] overflow-y-auto rounded-md bg-accent/50 p-3 font-mono text-xs leading-relaxed text-foreground"
       >
-        <div v-for="(line, idx) in progressStore.logs" :key="idx" class="whitespace-pre-wrap break-all">
+        <div
+          v-for="(line, idx) in progressStore.logs"
+          :key="idx"
+          class="whitespace-pre-wrap break-all"
+        >
           {{ line }}
         </div>
       </div>
     </div>
 
     <!-- 错误信息 -->
-    <div v-if="progressStore.isFailed && progressStore.errorMessage" class="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+    <div
+      v-if="progressStore.isFailed && progressStore.errorMessage"
+      class="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+    >
       <div class="flex items-start gap-2">
-        <IconifyIcon icon="lucide:alert-circle" class="mt-0.5 size-4 shrink-0" />
+        <IconifyIcon
+          icon="lucide:alert-circle"
+          class="mt-0.5 size-4 shrink-0"
+        />
         <span>{{ progressStore.errorMessage }}</span>
       </div>
     </div>
@@ -179,10 +231,7 @@ watch(
         <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-4" />
         {{ $t('admin.plugin.progress.reload') }}
       </Button>
-      <Button
-        v-if="!progressStore.isRunning"
-        @click="handleClose"
-      >
+      <Button v-if="!progressStore.isRunning" @click="handleClose">
         {{ $t('common.close') }}
       </Button>
     </div>

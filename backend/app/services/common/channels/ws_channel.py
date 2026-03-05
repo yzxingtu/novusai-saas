@@ -49,6 +49,7 @@ class WSChannel(NotificationChannel):
         tenant_id: int | None = None,
         **kwargs: Any,
     ) -> bool:
+        _ = (db, tenant_id, kwargs)
         try:
             from app.core.socketio_server import sio
 

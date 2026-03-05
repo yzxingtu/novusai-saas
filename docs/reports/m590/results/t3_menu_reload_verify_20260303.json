@@ -1,0 +1,74 @@
+{
+  "generated_at": "2026-03-03T19:21:58.8725048+08:00",
+  "results": [
+    {
+      "plugin": "storage-migration",
+      "menu_path": "/admin/plugins/storage-migration",
+      "before_has": false,
+      "disable_ok": true,
+      "after_disable_has": false,
+      "enable_ok": true,
+      "after_enable_has": false
+    },
+    {
+      "plugin": "novus-crud-code",
+      "menu_path": "/admin/plugins/novus-crud-code/projects",
+      "before_has": false,
+      "disable_ok": true,
+      "after_disable_has": false,
+      "enable_ok": true,
+      "after_enable_has": false
+    },
+    {
+      "plugin": "novusdoc",
+      "menu_path": "/admin/plugins/novusdoc/docs",
+      "before_has": false,
+      "disable_ok": true,
+      "after_disable_has": false,
+      "enable_ok": true,
+      "after_enable_has": false
+    }
+  ],
+  "final_statuses": [
+    {
+      "name": "aliyun-oss",
+      "status": "enabled"
+    },
+    {
+      "name": "amazon-s3",
+      "status": "enabled"
+    },
+    {
+      "name": "netdisk",
+      "status": "enabled"
+    },
+    {
+      "name": "novus-crud-code",
+      "status": "enabled"
+    },
+    {
+      "name": "novusdoc",
+      "status": "enabled"
+    },
+    {
+      "name": "novusdoc-pro",
+      "status": "enabled"
+    },
+    {
+      "name": "qiniu-kodo",
+      "status": "enabled"
+    },
+    {
+      "name": "storage-migration",
+      "status": "enabled"
+    },
+    {
+      "name": "tencent-cos",
+      "status": "enabled"
+    },
+    {
+      "name": "weather-widget",
+      "status": "enabled"
+    }
+  ]
+}

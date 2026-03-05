@@ -13,12 +13,16 @@
 文件命名：{category}.log，轮转后生成 {category}.log.2026-01-20 等
 """
 
+import contextlib
 import logging
 import os
 import sys
-from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Literal
+
+from app.core.config import settings
+from app.enums.log import LogCategoryEnum
 
 
 class _WindowsSafeRotatingFileHandler(RotatingFileHandler):
@@ -37,14 +41,8 @@ class _WindowsSafeRotatingFileHandler(RotatingFileHandler):
         if os.name != "nt":
             return super().doRollover()
 
-        try:
+        with contextlib.suppress(PermissionError):
             super().doRollover()
-        except PermissionError:
-            pass
-
-from app.core.config import settings
-from app.enums.log import LogCategoryEnum
-
 
 # 日志格式
 DEFAULT_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
@@ -73,16 +71,16 @@ _CATEGORY_LOGGER_PREFIX = "novusai."
 class LogManager:
     """
     日志管理器
-    
+
     提供按模块独立的日志配置，支持分类日志和日期轮转
     """
-    
+
     _initialized: bool = False
     _log_dir: Path | None = None
     _loggers: dict[str, logging.Logger] = {}
     _category_loggers: dict[str, logging.Logger] = {}
     _log_level: int = logging.INFO
-    
+
     @classmethod
     def init(
         cls,
@@ -93,7 +91,7 @@ class LogManager:
     ) -> None:
         """
         初始化日志系统
-        
+
         Args:
             log_dir: 日志目录
             log_level: 日志级别
@@ -102,66 +100,66 @@ class LogManager:
         """
         if cls._initialized:
             return
-        
+
         # 设置日志目录
         cls._log_dir = Path(log_dir or settings.LOG_DIR)
         cls._log_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # 获取日志级别
         cls._log_level = LOG_LEVELS.get(
             (log_level or settings.LOG_LEVEL).upper(),
             logging.INFO
         )
-        
+
         # 配置根日志器
         root_logger = logging.getLogger()
         root_logger.setLevel(cls._log_level)
-        
+
         # 清除已有处理器
         root_logger.handlers.clear()
-        
+
         # 添加控制台处理器
         if enable_console:
             console_handler = cls._create_console_handler(cls._log_level)
             root_logger.addHandler(console_handler)
-        
+
         # 添加文件处理器
         if enable_file:
             # 主日志文件（app.log）- 按日期轮转
             app_handler = cls._create_timed_handler(
-                LogCategoryEnum.APP.value, 
+                LogCategoryEnum.APP.value,
                 cls._log_level,
                 backup_count=30,
             )
             root_logger.addHandler(app_handler)
-            
+
             # 错误日志单独文件（error.log）- 按日期轮转
             error_handler = cls._create_timed_handler(
-                LogCategoryEnum.ERROR.value, 
+                LogCategoryEnum.ERROR.value,
                 logging.ERROR,
                 backup_count=90,  # 错误日志保留更久
             )
             root_logger.addHandler(error_handler)
-            
+
             # 初始化分类日志器（db/task/queue）
             cls._init_category_loggers()
-        
+
         # 调整第三方库日志级别
         logging.getLogger("uvicorn").setLevel(logging.INFO)
         logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
         logging.getLogger("httpx").setLevel(logging.WARNING)
         logging.getLogger("httpcore").setLevel(logging.WARNING)
-        
+
         # SQLAlchemy 日志重定向到 db 分类
         cls._setup_sqlalchemy_logging()
-        
+
         cls._initialized = True
-    
+
     @classmethod
     def _init_category_loggers(cls) -> None:
         """
         初始化分类日志器
-        
+
         为需要独立文件的分类创建日志器和文件处理器
         """
         # 需要独立文件的分类（app/error 已经通过根日志器处理）
@@ -174,14 +172,14 @@ class LogManager:
             LogCategoryEnum.AUTH,
             LogCategoryEnum.IMPERSONATE,
         ]
-        
+
         for category in categories:
             logger_name = f"{_CATEGORY_LOGGER_PREFIX}{category.value}"
             logger = logging.getLogger(logger_name)
             logger.setLevel(cls._log_level)
             logger.disabled = False  # 确保 logger 未被禁用
             logger.propagate = False  # 不向上传播，避免重复记录
-            
+
             # 添加文件处理器
             handler = cls._create_timed_handler(
                 category.value,
@@ -189,32 +187,32 @@ class LogManager:
                 backup_count=30,
             )
             logger.addHandler(handler)
-            
+
             # 控制台输出（开发环境）
             if settings.DEBUG:
                 console_handler = cls._create_console_handler(cls._log_level)
                 logger.addHandler(console_handler)
-            
+
             cls._category_loggers[category.value] = logger
-    
+
     @classmethod
     def _setup_sqlalchemy_logging(cls) -> None:
         """
         配置 SQLAlchemy 日志
-        
+
         将 SQLAlchemy 日志重定向到 db 分类日志器（仅文件，不输出到控制台）
         """
         # 获取 db 日志器
         db_logger = cls._category_loggers.get(LogCategoryEnum.DB.value)
         if db_logger is None:
             return
-        
+
         # 配置 SQLAlchemy engine 日志
         sa_logger = logging.getLogger("sqlalchemy.engine")
         sa_level = logging.DEBUG if settings.DEBUG else logging.WARNING
         sa_logger.setLevel(sa_level)
         sa_logger.propagate = False  # 不向根日志器传播
-        
+
         # 清除已有处理器，复用 db 分类日志器的文件处理器（避免重复打开同一文件）
         # Windows 上两个 RotatingFileHandler 指向同一文件会导致轮转时 PermissionError
         sa_logger.handlers.clear()
@@ -222,20 +220,20 @@ class LogManager:
             if isinstance(h, RotatingFileHandler):
                 sa_logger.addHandler(h)
                 break
-    
+
     @classmethod
     def _create_console_handler(cls, level: int) -> logging.StreamHandler:
         """创建控制台处理器"""
         handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(level)
-        
+
         # 开发环境使用详细格式
         fmt = DETAILED_FORMAT if settings.DEBUG else DEFAULT_FORMAT
         formatter = logging.Formatter(fmt, datefmt="%Y-%m-%d %H:%M:%S")
         handler.setFormatter(formatter)
-        
+
         return handler
-    
+
     @classmethod
     def _create_file_handler(
         cls,
@@ -246,7 +244,7 @@ class LogManager:
     ) -> RotatingFileHandler:
         """
         创建文件处理器（按大小轮转）
-        
+
         Args:
             name: 日志文件名（不含扩展名）
             level: 日志级别
@@ -255,7 +253,7 @@ class LogManager:
         """
         if cls._log_dir is None:
             raise RuntimeError("LogManager not initialized")
-        
+
         log_file = cls._log_dir / f"{name}.log"
         handler = _WindowsSafeRotatingFileHandler(
             log_file,
@@ -264,12 +262,12 @@ class LogManager:
             encoding="utf-8",
         )
         handler.setLevel(level)
-        
+
         formatter = logging.Formatter(DETAILED_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
         handler.setFormatter(formatter)
-        
+
         return handler
-    
+
     @classmethod
     def _create_timed_handler(
         cls,
@@ -280,19 +278,20 @@ class LogManager:
     ) -> _WindowsSafeRotatingFileHandler:
         """
         创建文件处理器（按大小轮转，避免 Windows 文件占用问题）
-        
+
         Windows 不允许重命名被占用的文件，TimedRotatingFileHandler 会失败。
         使用 _WindowsSafeRotatingFileHandler 按大小轮转，轮转失败时静默跳过。
-        
+
         Args:
             name: 日志文件名
             level: 日志级别
             when: 轮转时机（忽略，保留参数兼容性）
             backup_count: 保留备份数
         """
+        _ = when
         if cls._log_dir is None:
             raise RuntimeError("LogManager not initialized")
-        
+
         log_file = cls._log_dir / f"{name}.log"
         handler = _WindowsSafeRotatingFileHandler(
             log_file,
@@ -301,12 +300,12 @@ class LogManager:
             encoding="utf-8",
         )
         handler.setLevel(level)
-        
+
         formatter = logging.Formatter(DETAILED_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
         handler.setFormatter(formatter)
-        
+
         return handler
-    
+
     @classmethod
     def get_logger(
         cls,
@@ -317,37 +316,37 @@ class LogManager:
     ) -> logging.Logger:
         """
         获取模块日志器
-        
+
         Args:
             name: 日志器名称（通常为模块名）
             separate_file: 是否使用独立日志文件
             level: 日志级别（可选）
-            
+
         Returns:
             配置好的日志器
-            
+
         Example:
             logger = LogManager.get_logger(__name__)
             logger.info("Hello")
-            
+
             # 独立日志文件
             audit_logger = LogManager.get_logger("audit", separate_file=True)
         """
         # 确保已初始化
         if not cls._initialized:
             cls.init()
-        
+
         # 检查缓存
         cache_key = f"{name}:{separate_file}"
         if cache_key in cls._loggers:
             return cls._loggers[cache_key]
-        
+
         logger = logging.getLogger(name)
-        
+
         # 设置级别：优先使用指定级别，否则使用全局配置级别
         effective_level = level if level is not None else cls._log_level
         logger.setLevel(effective_level)
-        
+
         # 添加独立文件处理器
         if separate_file and cls._log_dir:
             # 使用简化的文件名
@@ -355,140 +354,140 @@ class LogManager:
             # 使用相同的有效级别
             handler = cls._create_timed_handler(file_name, effective_level)
             logger.addHandler(handler)
-            
+
             # 独立文件 logger 也输出到控制台（开发环境）
             if settings.DEBUG:
                 console_handler = cls._create_console_handler(effective_level)
                 logger.addHandler(console_handler)
-            
+
             # 不向上传播，避免重复记录到 app.log
             logger.propagate = False
-        
+
         cls._loggers[cache_key] = logger
         return logger
-    
+
     @classmethod
     def get_category_logger(cls, category: LogCategoryEnum | str) -> logging.Logger:
         """
         获取分类日志器
-        
+
         Args:
             category: 日志分类（LogCategoryEnum 或字符串）
-            
+
         Returns:
             分类日志器
-            
+
         Example:
             db_logger = LogManager.get_category_logger(LogCategoryEnum.DB)
             db_logger.info("Executing query...")
         """
         if not cls._initialized:
             cls.init()
-        
+
         category_value = category.value if isinstance(category, LogCategoryEnum) else category
-        
+
         # app/error 使用根日志器
         if category_value in (LogCategoryEnum.APP.value, LogCategoryEnum.ERROR.value):
             return logging.getLogger()
-        
+
         # 其他分类使用独立日志器
         logger = cls._category_loggers.get(category_value)
         if logger is None:
             # 回退到根日志器
             return logging.getLogger()
         return logger
-    
+
     @classmethod
     def get_app_logger(cls) -> logging.Logger:
         """
         获取应用日志器
-        
+
         记录到 logs/app.log
         """
         return cls.get_category_logger(LogCategoryEnum.APP)
-    
+
     @classmethod
     def get_error_logger(cls) -> logging.Logger:
         """
         获取错误日志器
-        
+
         记录到 logs/error.log（仅 ERROR 级别以上）
         """
         return cls.get_category_logger(LogCategoryEnum.ERROR)
-    
+
     @classmethod
     def get_db_logger(cls) -> logging.Logger:
         """
         获取数据库日志器
-        
+
         记录到 logs/db.log
         """
         return cls.get_category_logger(LogCategoryEnum.DB)
-    
+
     @classmethod
     def get_task_logger(cls) -> logging.Logger:
         """
         获取计划任务日志器
-        
+
         记录到 logs/task.log
         """
         return cls.get_category_logger(LogCategoryEnum.TASK)
-    
+
     @classmethod
     def get_queue_logger(cls) -> logging.Logger:
         """
         获取队列日志器
-        
+
         记录到 logs/queue.log
         """
         return cls.get_category_logger(LogCategoryEnum.QUEUE)
-    
+
     @classmethod
     def get_captcha_logger(cls) -> logging.Logger:
         """
         获取验证码日志器
-        
+
         记录到 logs/captcha.log
         """
         return cls.get_category_logger(LogCategoryEnum.CAPTCHA)
-    
+
     @classmethod
     def get_storage_logger(cls) -> logging.Logger:
         """
         获取存储日志器
-        
+
         记录到 logs/storage.log
         """
         return cls.get_category_logger(LogCategoryEnum.STORAGE)
-    
+
     @classmethod
     def get_auth_logger(cls) -> logging.Logger:
         """
         获取认证日志器
-        
+
         记录到 logs/auth.log
         """
         return cls.get_category_logger(LogCategoryEnum.AUTH)
-    
+
     @classmethod
     def get_impersonate_logger(cls) -> logging.Logger:
         """
         获取一键登录审计日志器
-        
+
         记录到 logs/impersonate.log
         """
         return cls.get_category_logger(LogCategoryEnum.IMPERSONATE)
-    
+
     @classmethod
     def get_log_dir(cls) -> Path | None:
         """获取日志目录路径"""
         return cls._log_dir
-    
+
     @classmethod
     def list_log_files(cls) -> list[Path]:
         """
         列出日志目录中的所有日志文件
-        
+
         Returns:
             日志文件路径列表
         """
@@ -500,17 +499,17 @@ class LogManager:
 def get_logger(name: str, *, separate_file: bool = False) -> logging.Logger:
     """
     获取日志器的便捷函数
-    
+
     Args:
         name: 日志器名称
         separate_file: 是否使用独立日志文件
-        
+
     Returns:
         logging.Logger
-        
+
     Example:
         from app.core.logging import get_logger
-        
+
         logger = get_logger(__name__)
         logger.info("Processing request")
     """
@@ -569,32 +568,32 @@ def init_logging() -> None:
 class LoggerMixin:
     """
     日志器混入类
-    
+
     提供延迟加载的 logger 属性，避免模块导入时 LogManager 未初始化的问题。
-    
+
     使用方式 1 - 默认使用 app 日志：
         class MyService(LoggerMixin):
             def do_something(self):
                 self.logger.info("Doing something")
-    
+
     使用方式 2 - 指定日志分类：
         class CaptchaProvider(LoggerMixin):
             _log_category = LogCategoryEnum.CAPTCHA
-            
+
             def generate(self):
                 self.logger.debug("Generating captcha")
-    
+
     使用方式 3 - 多重继承：
         class AttachmentService(BaseService, LoggerMixin):
             _log_category = LogCategoryEnum.STORAGE
     """
-    
+
     # 子类可覆盖此属性指定日志分类
     _log_category: LogCategoryEnum | None = None
-    
+
     # 类级别日志器缓存
     __class_loggers: dict[type, logging.Logger] = {}
-    
+
     @property
     def logger(self) -> logging.Logger:
         """
@@ -609,7 +608,7 @@ class LoggerMixin:
             else:
                 # 默认使用 app 日志器
                 LoggerMixin.__class_loggers[cls] = LogManager.get_app_logger()
-        
+
         logger = LoggerMixin.__class_loggers[cls]
         # 确保 logger 未被禁用（uvicorn --reload 可能会禁用 logger）
         if logger.disabled:

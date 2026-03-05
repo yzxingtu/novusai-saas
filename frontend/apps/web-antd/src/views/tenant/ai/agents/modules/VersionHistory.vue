@@ -9,8 +9,6 @@ import type {
   AgentVersionListItem,
 } from '#/api/tenant/agents';
 
-defineOptions({ name: 'AgentVersionHistory' });
-
 import { computed, ref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
@@ -39,12 +37,14 @@ import {
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
+defineOptions({ name: 'AgentVersionHistory' });
+
 const emits = defineEmits<{ success: [] }>();
 
 const loading = ref(false);
 const versions = ref<AgentVersionListItem[]>([]);
 const agentId = ref<number>(0);
-const publishedVersion = ref<number | null>(null);
+const publishedVersion = ref<null | number>(null);
 
 // 版本对比状态
 const diffLoading = ref(false);
@@ -57,7 +57,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
     if (isOpen) {
       const data = drawerApi.getData<{
         id: number;
-        publishedVersion: number | null;
+        publishedVersion: null | number;
       }>();
       if (data?.id) {
         agentId.value = data.id;
@@ -230,17 +230,13 @@ const diffChanges = computed(() => {
             >
               <div class="flex flex-col gap-1">
                 <div>
-                  <Tag color="red" class="mr-1">
-                    v{{ diffResult.v1 }}
-                  </Tag>
+                  <Tag color="red" class="mr-1"> v{{ diffResult.v1 }} </Tag>
                   <code class="break-all text-xs">
                     {{ formatFieldValue(item.v1) }}
                   </code>
                 </div>
                 <div>
-                  <Tag color="green" class="mr-1">
-                    v{{ diffResult.v2 }}
-                  </Tag>
+                  <Tag color="green" class="mr-1"> v{{ diffResult.v2 }} </Tag>
                   <code class="break-all text-xs">
                     {{ formatFieldValue(item.v2) }}
                   </code>
@@ -266,9 +262,7 @@ const diffChanges = computed(() => {
           <div class="flex items-start justify-between">
             <div class="flex-1">
               <div class="flex items-center gap-2">
-                <span class="font-medium">
-                  v{{ ver.version }}
-                </span>
+                <span class="font-medium"> v{{ ver.version }} </span>
                 <Tag
                   v-if="ver.version === publishedVersion"
                   color="success"

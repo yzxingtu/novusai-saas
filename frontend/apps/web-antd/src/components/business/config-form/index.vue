@@ -543,7 +543,7 @@ defineExpose({
             <slot
               :name="`generate-${cfg.key}`"
               :set-value="(v: string) => (formModel[cfg.key] = v)"
-            />
+            ></slot>
           </div>
 
           <!-- color -->

@@ -9,16 +9,15 @@ from fastapi import Request
 from pydantic import BaseModel, Field
 
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, ActiveAdmin, QueryParams
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import success, paginated
+from app.core.response import paginated, success
 from app.enums.rbac import PermissionScope
-from app.models.common.notification_template import NotificationTemplate
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
     action_read,
     action_update,
+    permission_resource,
 )
 from app.repositories.common.notification_template_repository import (
     NotificationTemplateRepository,

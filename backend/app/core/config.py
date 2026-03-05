@@ -7,6 +7,7 @@
 from functools import lru_cache
 from zoneinfo import ZoneInfo
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,16 +28,16 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     APP_ENV: str = "development"  # development, staging, production
     DEBUG: bool = True
-    
+
     # 时区配置（用于后端和数据库）
     TIMEZONE: str = "Asia/Shanghai"
-    
+
     # API 配置
     API_V1_PREFIX: str = "/api/v1"
-    
+
     # 跨域配置
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5666", "http://localhost:5667" ]
-    
+
     # ========================================
     # 安全配置
     # ========================================
@@ -44,7 +45,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ALGORITHM: str = "HS256"
-    
+
     # ========================================
     # 数据库配置
     # ========================================
@@ -53,12 +54,12 @@ class Settings(BaseSettings):
     DATABASE_USER: str = "postgres"
     DATABASE_PASSWORD: str = "postgres"
     DATABASE_NAME: str = "novusai_saas"
-    
+
     # 连接池配置
     DATABASE_POOL_SIZE: int = 5
     DATABASE_MAX_OVERFLOW: int = 10
     DATABASE_POOL_TIMEOUT: int = 30
-    
+
     @property
     def DATABASE_URL(self) -> str:
         """构建数据库连接 URL"""
@@ -66,7 +67,7 @@ class Settings(BaseSettings):
             f"postgresql+asyncpg://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}"
             f"@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
         )
-    
+
     @property
     def DATABASE_URL_SYNC(self) -> str:
         """同步数据库连接 URL (用于 Alembic)"""
@@ -74,7 +75,7 @@ class Settings(BaseSettings):
             f"postgresql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}"
             f"@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
         )
-    
+
     # ========================================
     # Redis 配置
     # ========================================
@@ -82,14 +83,14 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str = ""
     REDIS_DB: int = 0
-    
+
     @property
     def REDIS_URL(self) -> str:
         """构建 Redis 连接 URL"""
         if self.REDIS_PASSWORD:
             return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
-    
+
     # ========================================
     # Celery 配置
     # ========================================
@@ -111,7 +112,7 @@ class Settings(BaseSettings):
     @property
     def celery_result_backend(self) -> str:
         return self.CELERY_RESULT_BACKEND or self.REDIS_URL
-    
+
     # ========================================
     # AI 数据智能（Text-to-SQL）配置
     # ========================================
@@ -141,26 +142,26 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     LOG_DIR: str = "logs"
-    
+
     # ========================================
     # 分页配置
     # ========================================
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100
-    
+
     # ========================================
     # 租户域名配置
     # ========================================
     # 租户子域名后缀，如 .app.novusai.com
     # 租户访问地址为: {tenant_code}.app.novusai.com
     TENANT_DOMAIN_SUFFIX: str = ".app.novusai.com"
-    
+
     # 是否允许租户绑定自定义域名
     ALLOW_CUSTOM_DOMAIN: bool = True
-    
+
     # 租户域名验证前缀（用于 DNS TXT 记录验证）
     DOMAIN_VERIFICATION_PREFIX: str = "_novusai-verification"
-    
+
     # ========================================
     # SSL 证书管理
     # ========================================
@@ -176,7 +177,7 @@ class Settings(BaseSettings):
     ACME_USE_STAGING: bool = True
     # 自动续期提前天数
     SSL_AUTO_RENEW_DAYS: int = 30
-    
+
     # ========================================
     # 插件市场配置
     # ========================================
@@ -198,12 +199,30 @@ class Settings(BaseSettings):
         """获取时区对象"""
         return ZoneInfo(self.TIMEZONE)
 
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def _parse_debug(cls, value: object) -> bool:
+        """兼容常见布尔字符串，避免外部环境变量污染导致启动失败。"""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            truthy = {"1", "true", "yes", "on", "debug", "dev", "development"}
+            falsy = {"0", "false", "no", "off", "release", "prod", "production", "staging"}
+            if normalized in truthy:
+                return True
+            if normalized in falsy:
+                return False
+        raise ValueError("DEBUG must be a boolean-like value")
+
 
 @lru_cache
 def get_settings() -> Settings:
     """
     获取应用配置单例
-    
+
     使用 lru_cache 确保只创建一个 Settings 实例
     """
     return Settings()

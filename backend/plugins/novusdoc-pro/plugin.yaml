@@ -20,7 +20,9 @@ capabilities:
   - notifications:send
 
 dependencies:
-  python: []
+  python:
+    - "y-py>=0.6.0; python_version < '3.12' or sys_platform != 'win32'"
+    - "redis>=5.0"
   plugins:
     - "novusdoc"
 
@@ -323,6 +325,7 @@ extensions:
       - "@tiptap/extension-collaboration-cursor"
       - "yjs"
       - "y-protocols"
+      - "socket.io-client"
 
     tenant:
       entry: "src/index.ts"

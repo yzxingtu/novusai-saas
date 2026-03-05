@@ -2,14 +2,14 @@
 /**
  * 重置租户管理员密码弹窗
  */
-defineOptions({ name: 'TenantAdminResetPwdModal' });
-
 import { ref } from 'vue';
 
 import { Input, message, Modal } from 'ant-design-vue';
 
 import { updateTenantAdminApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
+
+defineOptions({ name: 'TenantAdminResetPwdModal' });
 
 const props = defineProps<{
   tenantId: number;

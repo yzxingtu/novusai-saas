@@ -15,25 +15,29 @@ import anyio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.service import ConfigService
+from app.core.base_model import utc_now
 from app.core.base_service import GlobalService
 from app.core.i18n import _
 from app.enums import ErrorCode
-from app.enums.attachment import AttachmentSource, AttachmentStatus, AttachmentVisibility
+from app.enums.attachment import (
+    AttachmentSource,
+    AttachmentStatus,
+    AttachmentVisibility,
+)
 from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.attachment import Attachment
 from app.repositories.system.attachment_repository import AdminAttachmentRepository
 from app.services.common.file_validator import FileValidator, validate_result_or_raise
 from app.storage import StorageConfig, StorageVisibility, storage_manager
-from app.core.base_model import utc_now
 
 
 class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository]):
     """
     平台端附件服务
-    
+
     提供跨租户的附件管理能力
     """
-    
+
     model = Attachment
     repository_class = AdminAttachmentRepository
 
@@ -60,9 +64,9 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
     ) -> dict[str, Any]:
         """
         平台端上传文件
-        
+
         不受租户配额限制，使用平台存储配置
-        
+
         Args:
             tenant_id: 目标租户 ID
             content: 文件内容
@@ -75,7 +79,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
             business_type: 业务类型
             business_id: 业务 ID
             metadata: 元数据
-        
+
         Returns:
             上传结果
         """
@@ -86,8 +90,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         validate_result_or_raise(validation_result)
 
         storage_config = await self._resolve_platform_storage_config()
-        temp_path, size, file_hash = await self._save_to_temp(content)
-        actual_size = file_size or size
+        temp_path, _size, file_hash = await self._save_to_temp(content)
 
         # 检查同租户是否已存在相同哈希的文件
         existing = await self.repo.get_by_hash(file_hash, tenant_id=tenant_id)
@@ -196,7 +199,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         await self._write_chunk(chunk_path, content)
         uploaded_chunks = set(session.get("uploaded_chunks", []))
         uploaded_chunks.add(chunk_index)
-        session["uploaded_chunks"] = sorted(list(uploaded_chunks))
+        session["uploaded_chunks"] = sorted(uploaded_chunks)
         uploaded_bytes = await self._calc_uploaded_bytes(upload_id, session["uploaded_chunks"])
         await self._save_session(session)
         return self._build_session_response(session, uploaded_bytes=uploaded_bytes)
@@ -371,14 +374,14 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         落库附件记录
         """
         extension = Path(filename).suffix.lstrip(".") if filename else None
-        
+
         # 获取 base_url
         if storage_config:
             driver = storage_manager.get_driver(storage_config)
             base_url = driver.get_base_url()
         else:
             base_url = ""
-        
+
         attachment = await self.repo.create(
             {
                 "tenant_id": tenant_id,
@@ -411,10 +414,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
         """
         suffix = Path(filename).suffix if filename else ""
         date_path = utc_now().strftime("%Y/%m/%d")
-        if tenant_id == 0:
-            prefix = "platform"
-        else:
-            prefix = f"tenants/{tenant_id}"
+        prefix = "platform" if tenant_id == 0 else f"tenants/{tenant_id}"
         return f"{prefix}/{date_path}/{uuid.uuid4().hex}{suffix}"
 
     def _get_upload_root(self) -> Path:
@@ -523,10 +523,10 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
     async def soft_delete(self, attachment_id: int) -> bool:
         """
         软删除附件
-        
+
         Args:
             attachment_id: 附件 ID
-        
+
         Returns:
             是否删除成功
         """
@@ -538,10 +538,10 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
     async def get_storage_stats(self, tenant_id: int | None = None) -> dict[str, Any]:
         """
         获取存储统计
-        
+
         Args:
             tenant_id: 可选的租户 ID，不传则统计所有租户
-        
+
         Returns:
             存储统计信息
         """
@@ -550,7 +550,7 @@ class AdminAttachmentService(GlobalService[Attachment, AdminAttachmentRepository
     async def get_storage_stats_by_tenant(self) -> list[dict[str, Any]]:
         """
         获取按租户分组的存储统计
-        
+
         Returns:
             各租户存储统计列表
         """

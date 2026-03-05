@@ -1,26 +1,24 @@
 /**
  * 插件前端动态加载工具
  *
- * 双模式加载：
- *   1. 内置插件（dev/build 编入主 bundle）→ 从 BUILTIN_PLUGINS 注册表直接 import
- *   2. 运行时插件（生产环境安装）→ 通过 <script> 标签加载 UMD 包
+ * 仅通过注入模式加载：
+ *   - 运行时插件（生产/开发）→ 通过 <script> 标签加载 UMD 包
+ *
+ * 设计约束：
+ *   - 不将 backend/plugins 源码编译进宿主前端 bundle
+ *   - 插件必须保持独立构建与独立发布
  */
-
-import { BUILTIN_PLUGINS as _RAW_BUILTINS } from 'virtual:novus-plugins-registry';
-
-/** 可变的内置插件注册表（从虚拟模块复制，支持运行时禁用/恢复） */
-const builtinLoaders = new Map<string, () => Promise<Record<string, unknown>>>(
-  Object.entries(_RAW_BUILTINS as Record<string, () => Promise<Record<string, unknown>>>),
-);
-
-/** 已禁用的内置插件集合 */
-const disabledBuiltins: Set<string> = new Set();
 
 /** 已加载的插件缓存 */
 const loadedPlugins: Map<string, Record<string, unknown>> = new Map();
 
 /** 加载中的 Promise 缓存（防止重复加载） */
-const loadingPromises: Map<string, Promise<Record<string, unknown>>> = new Map();
+const loadingPromises: Map<
+  string,
+  Promise<Record<string, unknown>>
+> = new Map();
+/** CSS 解析中的 Promise 缓存（防止重复加载） */
+const cssLoadingPromises: Map<string, Promise<void>> = new Map();
 
 /**
  * 将插件名转为全局变量名: crm-module → NovusPlugin_crm_module
@@ -29,18 +27,56 @@ function toGlobalVarName(pluginName: string): string {
   return `NovusPlugin_${pluginName.replaceAll('-', '_')}`;
 }
 
-/**
- * 加载插件 CSS 样式（如果存在）
- */
-function loadPluginCSS(pluginName: string): void {
-  const cssId = `novus-plugin-css-${pluginName}`;
-  if (document.getElementById(cssId)) return;
+function _injectPluginCSS(pluginName: string, cssFileName: string): void {
+  const normalized = cssFileName.replaceAll(/[^\w-]/g, '_');
+  const cssId = `novus-plugin-css-${pluginName}-${normalized}`;
+  if (document.querySelector(`#${CSS.escape(cssId)}`)) {
+    return;
+  }
 
   const link = document.createElement('link');
   link.id = cssId;
   link.rel = 'stylesheet';
-  link.href = `/plugin-assets/${pluginName}/${pluginName}.css`;
+  link.href = `/plugin-assets/${pluginName}/${cssFileName.replace(/^\/+/, '')}`;
   document.head.append(link);
+}
+
+/**
+ * 按 manifest 声明的 styles 列表加载插件 CSS。
+ * 不做 HEAD 探测，避免浏览器控制台出现大量 404 噪音。
+ */
+async function loadPluginCSS(
+  pluginName: string,
+  cssFiles: string[] = [],
+): Promise<void> {
+  if (cssFiles.length === 0) {
+    return;
+  }
+
+  const pending = cssLoadingPromises.get(pluginName);
+  if (pending) {
+    return pending;
+  }
+
+  const task = (async () => {
+    const uniqueCss = [
+      ...new Set(cssFiles.map((it) => it.trim()).filter(Boolean)),
+    ];
+    for (const cssFile of uniqueCss) {
+      try {
+        _injectPluginCSS(pluginName, cssFile);
+      } catch {
+        // 静默：不因 CSS 加载失败影响插件 JS 组件加载
+      }
+    }
+  })();
+
+  cssLoadingPromises.set(pluginName, task);
+  try {
+    await task;
+  } finally {
+    cssLoadingPromises.delete(pluginName);
+  }
 }
 
 /**
@@ -51,6 +87,7 @@ function loadPluginCSS(pluginName: string): void {
  */
 export async function loadPluginComponents(
   pluginName: string,
+  cssFiles: string[] = [],
 ): Promise<Record<string, unknown>> {
   // 已缓存
   const cached = loadedPlugins.get(pluginName);
@@ -60,81 +97,78 @@ export async function loadPluginComponents(
   const existing = loadingPromises.get(pluginName);
   if (existing) return existing;
 
-  // 优先级 1：内置插件（dev/build 时 Vite 编译的插件）
-  const builtinLoader = disabledBuiltins.has(pluginName)
-    ? undefined
-    : builtinLoaders.get(pluginName);
-  if (builtinLoader) {
-    const promise = builtinLoader().then((mod) => {
-      // 调用 setup() 注册 i18n 等
-      if (typeof mod.setup === 'function') {
-        try {
-          (mod.setup as () => void)();
-        } catch (err) {
-          console.error(`[PluginLoader] setup() failed for '${pluginName}':`, err);
-        }
-      }
-      loadedPlugins.set(pluginName, mod);
-      // 暴露到 window 以支持跨插件检测（如 novusdoc 检测 novusdoc-pro）
-      const globalVar = toGlobalVarName(pluginName);
-      (window as unknown as Record<string, unknown>)[globalVar] = mod;
-      loadingPromises.delete(pluginName);
-      return mod;
-    }).catch((err) => {
-      loadingPromises.delete(pluginName);
-      throw err;
-    });
-    loadingPromises.set(pluginName, promise);
-    return promise;
-  }
+  const promise = (async (): Promise<Record<string, unknown>> => {
+    // 先记录 loadingPromise，再进行 await，避免并发窗口重复注入 script
+    await loadPluginCSS(pluginName, cssFiles);
 
-  // 优先级 2：UMD 动态加载（运行时安装的插件）
-  loadPluginCSS(pluginName);
+    let mod: Record<string, unknown>;
 
-  const promise = new Promise<Record<string, unknown>>((resolve, reject) => {
-    const cacheBust = import.meta.env.DEV ? `?t=${Date.now()}` : '';
-    const scriptUrl = `/plugin-assets/${pluginName}/index.js${cacheBust}`;
-    const script = document.createElement('script');
-    script.src = scriptUrl;
-    script.async = true;
+    if (import.meta.env.DEV) {
+      // -------------------------------------------------
+      // Dev 模式：Vite 转译源码 → ESM import()
+      // 改插件代码后刷新浏览器即可，无需预先 build
+      // -------------------------------------------------
+      const devUrl = `/plugin-assets/${pluginName}/index.js?t=${Date.now()}`;
+      mod = (await import(/* @vite-ignore */ devUrl)) as Record<
+        string,
+        unknown
+      >;
+    } else {
+      // -------------------------------------------------
+      // Production：UMD <script> 注入
+      // -------------------------------------------------
+      mod = await new Promise<Record<string, unknown>>((resolve, reject) => {
+        const scriptUrl = `/plugin-assets/${pluginName}/index.js`;
+        const script = document.createElement('script');
+        script.src = scriptUrl;
+        script.async = true;
 
-    script.addEventListener('load', () => {
-      const globalVar = toGlobalVarName(pluginName);
-      const mod = (window as unknown as Record<string, unknown>)[globalVar] as
-        | Record<string, unknown>
-        | undefined;
+        script.addEventListener('load', () => {
+          const globalVar = toGlobalVarName(pluginName);
+          const m = (window as unknown as Record<string, unknown>)[
+            globalVar
+          ] as Record<string, unknown> | undefined;
 
-      if (mod) {
-        // 调用插件 setup() 注册 i18n 等
-        if (typeof mod.setup === 'function') {
-          try {
-            (mod.setup as () => void)();
-          } catch (err) {
-            console.error(`[PluginLoader] setup() failed for '${pluginName}':`, err);
+          if (m) {
+            resolve(m);
+            return;
           }
-        }
-        loadedPlugins.set(pluginName, mod);
-        resolve(mod);
-      } else {
-        reject(
-          new Error(
-            `Plugin '${pluginName}' loaded but window.${globalVar} not found`,
-          ),
+          reject(
+            new Error(
+              `Plugin '${pluginName}' loaded but window.${globalVar} not found`,
+            ),
+          );
+        });
+
+        script.addEventListener('error', () => {
+          reject(new Error(`Failed to load plugin script: ${scriptUrl}`));
+        });
+
+        document.head.append(script);
+      });
+    }
+
+    // 调用插件 setup() 注册 i18n 等
+    if (typeof mod.setup === 'function') {
+      try {
+        (mod.setup as () => void)();
+      } catch (error) {
+        console.error(
+          `[PluginLoader] setup() failed for '${pluginName}':`,
+          error,
         );
       }
-      loadingPromises.delete(pluginName);
-    });
-
-    script.addEventListener('error', () => {
-      loadingPromises.delete(pluginName);
-      reject(new Error(`Failed to load plugin script: ${scriptUrl}`));
-    });
-
-    document.head.append(script);
-  });
+    }
+    loadedPlugins.set(pluginName, mod);
+    return mod;
+  })();
 
   loadingPromises.set(pluginName, promise);
-  return promise;
+  try {
+    return await promise;
+  } finally {
+    loadingPromises.delete(pluginName);
+  }
 }
 
 /**
@@ -146,7 +180,7 @@ export async function loadPluginComponents(
 export async function getPluginComponent(
   pluginName: string,
   componentName: string,
-): Promise<unknown | null> {
+): Promise<null | unknown> {
   try {
     const mod = await loadPluginComponents(pluginName);
     return mod[componentName] ?? null;
@@ -166,18 +200,12 @@ export function isPluginLoaded(pluginName: string): boolean {
 }
 
 /**
- * 卸载插件（清除缓存 + 移除 script 标签 + 标记内置插件为禁用）
+ * 卸载插件（清除缓存 + 移除 script 标签）
  */
 export function unloadPlugin(pluginName: string): void {
   loadedPlugins.delete(pluginName);
   loadingPromises.delete(pluginName);
-
-  // 内置插件：标记为禁用（下次 loadPluginComponents 会跳过）
-  if (builtinLoaders.has(pluginName)) {
-    disabledBuiltins.add(pluginName);
-  }
-
-  // UMD 插件：移除 script 标签 + 清除全局变量
+  // 移除 script 标签 + 清除全局变量
   const scripts = document.querySelectorAll(
     `script[src*="/plugin-assets/${pluginName}/"]`,
   );
@@ -185,23 +213,13 @@ export function unloadPlugin(pluginName: string): void {
     s.remove();
   }
   const globalVar = toGlobalVarName(pluginName);
-  delete (window as unknown as Record<string, unknown>)[globalVar];
+  (window as unknown as Record<string, unknown>)[globalVar] = undefined;
 
   // 移除 CSS
-  const css = document.getElementById(`novus-plugin-css-${pluginName}`);
-  if (css) css.remove();
-}
-
-/**
- * 恢复已禁用的内置插件（重新启用后调用）
- */
-export function reloadPlugin(pluginName: string): void {
-  disabledBuiltins.delete(pluginName);
-}
-
-/**
- * 获取所有内置插件名称（供 composable 在 dev 模式下直接加载）
- */
-export function getBuiltinPluginNames(): string[] {
-  return [...builtinLoaders.keys()];
+  const cssNodes = document.querySelectorAll(
+    `[id^="novus-plugin-css-${pluginName}-"]`,
+  );
+  for (const cssNode of cssNodes) {
+    cssNode.remove();
+  }
 }

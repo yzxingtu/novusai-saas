@@ -36,6 +36,7 @@ class AdminNamespace(socketio.AsyncNamespace):
         从 auth.token 提取 JWT，验证 scope=admin。
         成功则保存 session 并加入 rooms。
         """
+        _ = environ
         # 检查实时通信总开关
         from app.sio.ws_config import get_ws_configs
         ws_cfg = await get_ws_configs("ws_enabled", "ws_max_connections_per_user")
@@ -74,9 +75,10 @@ class AdminNamespace(socketio.AsyncNamespace):
             raise ConnectionRefusedError("max_connections_exceeded")
 
         # 验证管理员是否存在且激活
+        from sqlalchemy import select
+
         from app.core.database import async_session_factory
         from app.models import Admin
-        from sqlalchemy import select
 
         async with async_session_factory() as db:
             result = await db.execute(

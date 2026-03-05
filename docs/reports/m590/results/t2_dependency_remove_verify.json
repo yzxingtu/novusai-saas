@@ -1,0 +1,239 @@
+{
+  "generated_at": "2026-03-03T11:01:43.722282+00:00",
+  "python": {
+    "targets": [
+      "Pillow",
+      "aiofiles",
+      "alibabacloud-oss-v2",
+      "anyio",
+      "bcrypt",
+      "boto3",
+      "cos-python-sdk-v5",
+      "httpx",
+      "qiniu",
+      "redis"
+    ],
+    "installed_count": 0,
+    "items": [
+      {
+        "package": "Pillow",
+        "installed": false,
+        "version": null
+      },
+      {
+        "package": "aiofiles",
+        "installed": false,
+        "version": null
+      },
+      {
+        "package": "alibabacloud-oss-v2",
+        "installed": false,
+        "version": null
+      },
+      {
+        "package": "anyio",
+        "installed": false,
+        "version": null
+      },
+      {
+        "package": "bcrypt",
+        "installed": false,
+        "version": null
+      },
+      {
+        "package": "boto3",
+        "installed": false,
+        "version": null
+      },
+      {
+        "package": "cos-python-sdk-v5",
+        "installed": false,
+        "version": null
+      },
+      {
+        "package": "httpx",
+        "installed": false,
+        "version": null
+      },
+      {
+        "package": "qiniu",
+        "installed": false,
+        "version": null
+      },
+      {
+        "package": "redis",
+        "installed": false,
+        "version": null
+      }
+    ]
+  },
+  "npm": {
+    "targets": [
+      "@tiptap/extension-character-count",
+      "@tiptap/extension-collaboration",
+      "@tiptap/extension-collaboration-cursor",
+      "@tiptap/extension-highlight",
+      "@tiptap/extension-image",
+      "@tiptap/extension-link",
+      "@tiptap/extension-placeholder",
+      "@tiptap/extension-table",
+      "@tiptap/extension-table-cell",
+      "@tiptap/extension-table-header",
+      "@tiptap/extension-table-row",
+      "@tiptap/extension-task-item",
+      "@tiptap/extension-task-list",
+      "@tiptap/extension-text-align",
+      "@tiptap/extension-underline",
+      "@tiptap/starter-kit",
+      "@tiptap/vue-3",
+      "@types/sortablejs",
+      "@vue-flow/background",
+      "@vue-flow/controls",
+      "@vue-flow/core",
+      "@vue-flow/minimap",
+      "sortablejs",
+      "vxe-table",
+      "xe-utils",
+      "y-protocols",
+      "yjs"
+    ],
+    "declared_count": 0,
+    "items": [
+      {
+        "package": "@tiptap/extension-character-count",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@tiptap/extension-collaboration",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@tiptap/extension-collaboration-cursor",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@tiptap/extension-highlight",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@tiptap/extension-image",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@tiptap/extension-link",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@tiptap/extension-placeholder",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@tiptap/extension-table",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@tiptap/extension-table-cell",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@tiptap/extension-table-header",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@tiptap/extension-table-row",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@tiptap/extension-task-item",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@tiptap/extension-task-list",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@tiptap/extension-text-align",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@tiptap/extension-underline",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@tiptap/starter-kit",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@tiptap/vue-3",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@types/sortablejs",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@vue-flow/background",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@vue-flow/controls",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@vue-flow/core",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "@vue-flow/minimap",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "sortablejs",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "vxe-table",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "xe-utils",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "y-protocols",
+        "declared_in_package_json": false,
+        "declared_version": null
+      },
+      {
+        "package": "yjs",
+        "declared_in_package_json": false,
+        "declared_version": null
+      }
+    ]
+  }
+}

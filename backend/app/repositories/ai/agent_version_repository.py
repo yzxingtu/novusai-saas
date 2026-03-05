@@ -2,9 +2,8 @@
 智能体版本 Repository
 """
 
-from typing import List
 
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 
 from app.core.base_repository import TenantRepository
 from app.models.ai.agent_version import AgentVersion
@@ -50,7 +49,7 @@ class AgentVersionRepository(TenantRepository[AgentVersion]):
         agent_id: int,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[AgentVersion]:
+    ) -> list[AgentVersion]:
         """
         获取智能体的版本列表（按版本号降序）
 

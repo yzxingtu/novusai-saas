@@ -17,8 +17,8 @@ import socket
 from typing import Any
 from urllib.parse import urlparse
 
-from app.core.logging import LogManager
 from app.core.i18n import _
+from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.tool.security")
 
@@ -105,14 +105,13 @@ class InputValidator:
 
             prop = properties[name]
             expected_type = prop.get("type")
-            if expected_type and value is not None:
-                if not InputValidator._check_type(value, expected_type):
-                    raise ToolInputValidationError(
-                        _("tool.error.param_type_mismatch",
-                          name=name,
-                          expected_type=expected_type,
-                          actual_type=type(value).__name__)
-                    )
+            if expected_type and value is not None and not InputValidator._check_type(value, expected_type):
+                raise ToolInputValidationError(
+                    _("tool.error.param_type_mismatch",
+                      name=name,
+                      expected_type=expected_type,
+                      actual_type=type(value).__name__)
+                )
 
     @staticmethod
     def _check_type(value: Any, expected: str) -> bool:

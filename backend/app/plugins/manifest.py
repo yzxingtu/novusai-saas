@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.enums.plugin import PluginScopeEnum
 
-
 # ── 类型别名 ──
 I18nText = dict[str, str]
 """多语言文本，如 {"zh-CN": "CRM 管理", "en": "CRM Management"}"""
@@ -22,6 +21,65 @@ _API_AUTH_VALUES = {"required", "none"}
 _WEBHOOK_AUTH_VALUES = {"none", "hmac", "token", "signature"}
 _PATH_PARAM_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _SOCKETIO_SEGMENT_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+_PLUGIN_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
+_NPM_DEP_SPEC_PATTERN = re.compile(
+    r"^(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*(?:@[A-Za-z0-9._~^<>=*-]+)?$",
+    re.IGNORECASE,
+)
+_DB_TABLE_PREFIX_PATTERN = re.compile(r"^[a-z][a-z0-9_]{2,62}_$")
+# Handler 路径：点分隔的 Python 模块路径，如 "api.handlers.handle_current"
+# 允许字母、数字、下划线和点；禁止 .. / \ 等路径遍历字符
+_HANDLER_PATH_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
+
+
+def _validate_handler_path(v: str, field_name: str = "handler") -> str:
+    """Handler 模块路径校验：防止路径遍历和非法字符（如 ../../etc）"""
+    path = (v or "").strip()
+    if not path:
+        raise ValueError(f"{field_name} cannot be empty")
+    if not _HANDLER_PATH_PATTERN.match(path):
+        raise ValueError(
+            f"{field_name} '{path}' is invalid. "
+            f"Only letters, digits, underscores and dots are allowed "
+            f"(e.g. 'api.handlers.my_handler')."
+        )
+    return path
+
+
+def _validate_plugin_dependency_name(v: str) -> str:
+    """插件依赖名称校验（小写 kebab-case）"""
+    name = (v or "").strip()
+    if not name:
+        raise ValueError("dependencies.plugins item cannot be empty")
+    if not _PLUGIN_NAME_PATTERN.match(name):
+        raise ValueError(
+            f"Invalid plugin dependency name '{name}'. "
+            "Must be lowercase kebab-case (e.g. 'crm-module')."
+        )
+    return name
+
+
+def _validate_npm_dependency_spec(v: str) -> str:
+    """npm 依赖规格校验，拒绝 CLI 注入字符与非法格式"""
+    spec = (v or "").strip()
+    if not spec:
+        raise ValueError("npm_dependencies item cannot be empty")
+    if spec.startswith("-"):
+        raise ValueError(f"Invalid npm dependency '{spec}': cannot start with '-'")
+
+    # 禁止 shell 元字符和空白（避免命令注入）
+    forbidden = {" ", "\t", "\n", "\r", ";", "&", "|", "`", "$", "\\", "\"", "'"}
+    if any(ch in spec for ch in forbidden):
+        raise ValueError(
+            f"Invalid npm dependency '{spec}': contains forbidden characters"
+        )
+
+    if not _NPM_DEP_SPEC_PATTERN.match(spec):
+        raise ValueError(
+            f"Invalid npm dependency '{spec}'. "
+            "Expected format: 'name', 'name@version', '@scope/name' or '@scope/name@version'."
+        )
+    return spec
 
 
 def _validate_frontend_plugin_route_path(path: str) -> str:
@@ -82,6 +140,13 @@ class SkillExtensionSchema(BaseModel):
     entry_point: str = ""
     config_schema: dict | None = None
 
+    @field_validator("entry_point")
+    @classmethod
+    def validate_entry_point(cls, v: str) -> str:
+        if not v:  # entry_point 是可选的
+            return v
+        return _validate_handler_path(v, "skill.entry_point")
+
 
 class AdapterExtensionSchema(BaseModel):
     """AI 适配器扩展声明"""
@@ -91,6 +156,11 @@ class AdapterExtensionSchema(BaseModel):
     entry_point: str
     supported_models: list[str] = Field(default_factory=list)
 
+    @field_validator("entry_point")
+    @classmethod
+    def validate_entry_point(cls, v: str) -> str:
+        return _validate_handler_path(v, "adapter.entry_point")
+
 
 class StorageDriverExtensionSchema(BaseModel):
     """存储驱动扩展声明"""
@@ -98,6 +168,11 @@ class StorageDriverExtensionSchema(BaseModel):
     code: str
     display_name: I18nText = Field(default_factory=dict)
     entry_point: str
+
+    @field_validator("entry_point")
+    @classmethod
+    def validate_entry_point(cls, v: str) -> str:
+        return _validate_handler_path(v, "storage_driver.entry_point")
 
 
 class ApiRouteSchema(BaseModel):
@@ -109,6 +184,11 @@ class ApiRouteSchema(BaseModel):
     summary: str = ""
     auth: str = "required"
     permission: str = ""
+
+    @field_validator("handler")
+    @classmethod
+    def validate_handler(cls, v: str) -> str:
+        return _validate_handler_path(v, "api.handler")
 
     @field_validator("method")
     @classmethod
@@ -157,6 +237,11 @@ class HookExtensionSchema(BaseModel):
     priority: int = 50
     description: str = ""
 
+    @field_validator("handler")
+    @classmethod
+    def validate_handler(cls, v: str) -> str:
+        return _validate_handler_path(v, "hook.handler")
+
 
 class TaskExtensionSchema(BaseModel):
     """定时任务扩展声明"""
@@ -168,6 +253,11 @@ class TaskExtensionSchema(BaseModel):
     interval_seconds: int | None = None
     queue: str = "default"
     description: str = ""
+
+    @field_validator("handler")
+    @classmethod
+    def validate_handler(cls, v: str) -> str:
+        return _validate_handler_path(v, "task.handler")
 
 
 class MiddlewareExtensionSchema(BaseModel):
@@ -189,6 +279,11 @@ class MiddlewareExtensionSchema(BaseModel):
     handler: str
     priority: int = 50
     description: str = ""
+
+    @field_validator("handler")
+    @classmethod
+    def validate_handler(cls, v: str) -> str:
+        return _validate_handler_path(v, "middleware.handler")
 
 
 class CustomExtensionSchema(BaseModel):
@@ -223,6 +318,11 @@ class ConsumerExtensionSchema(BaseModel):
     description: str = ""
     max_retries: int = 3
     retry_delay: int = 60
+
+    @field_validator("handler")
+    @classmethod
+    def validate_handler(cls, v: str) -> str:
+        return _validate_handler_path(v, "consumer.handler")
 
 
 class NotificationExtensionSchema(BaseModel):
@@ -270,6 +370,7 @@ class HeaderWidgetSchema(BaseModel):
     name: str
     component: str
     sort_order: int = 100
+    scope: str = ""
 
 
 class FloatingPanelSchema(BaseModel):
@@ -342,6 +443,14 @@ class FrontendExtensionSchema(BaseModel):
     tenant: FrontendSideSchema = Field(default_factory=FrontendSideSchema)
     npm_dependencies: list[str] = Field(default_factory=list)
 
+    @field_validator("npm_dependencies")
+    @classmethod
+    def validate_npm_dependencies(cls, v: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        for dep in v:
+            cleaned.append(_validate_npm_dependency_spec(dep))
+        return list(dict.fromkeys(cleaned))
+
 
 # ── Socket.IO Namespace ──
 
@@ -373,6 +482,11 @@ class SocketIONamespaceSchema(BaseModel):
         description="允许的 token scope 列表（tenant_admin / tenant_user / admin）",
     )
     description: str = ""
+
+    @field_validator("handler")
+    @classmethod
+    def validate_handler(cls, v: str) -> str:
+        return _validate_handler_path(v, "socketio.handler")
 
     @field_validator("path")
     @classmethod
@@ -422,6 +536,11 @@ class WebhookExtensionSchema(BaseModel):
     auth: WebhookAuthSchema = Field(default_factory=WebhookAuthSchema)
     description: str = ""
 
+    @field_validator("handler")
+    @classmethod
+    def validate_handler(cls, v: str) -> str:
+        return _validate_handler_path(v, "webhook.handler")
+
     @field_validator("method")
     @classmethod
     def validate_method(cls, v: str) -> str:
@@ -449,6 +568,11 @@ class EventExtensionSchema(BaseModel):
 
     event: str
     handler: str
+
+    @field_validator("handler")
+    @classmethod
+    def validate_handler(cls, v: str) -> str:
+        return _validate_handler_path(v, "event.handler")
 
 
 # ── Feature Flags (v7) ──
@@ -542,6 +666,37 @@ class DependenciesSchema(BaseModel):
     plugins: list[str] = Field(default_factory=list)
     system: list[str] = Field(default_factory=list)
 
+    @field_validator("python")
+    @classmethod
+    def validate_python_dependencies(cls, v: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        for req in v:
+            req_str = (req or "").strip()
+            if not req_str:
+                raise ValueError("dependencies.python item cannot be empty")
+            try:
+                from packaging.requirements import Requirement
+
+                parsed = Requirement(req_str)
+            except Exception as exc:
+                raise ValueError(
+                    f"Invalid python dependency '{req_str}': {exc}"
+                ) from exc
+            if parsed.url:
+                raise ValueError(
+                    f"Direct URL python dependency is not allowed: '{req_str}'"
+                )
+            cleaned.append(req_str)
+        return list(dict.fromkeys(cleaned))
+
+    @field_validator("plugins")
+    @classmethod
+    def validate_plugin_dependencies(cls, v: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        for dep in v:
+            cleaned.append(_validate_plugin_dependency_name(dep))
+        return list(dict.fromkeys(cleaned))
+
 
 class DeveloperSchema(BaseModel):
     """开发者信息"""
@@ -580,8 +735,22 @@ class ResourcesSchema(BaseModel):
 # 顶层 PluginManifest
 # ============================================================
 
-_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
+_NAME_PATTERN = _PLUGIN_NAME_PATTERN
 _VALID_SCOPES = {e.value for e in PluginScopeEnum}
+
+# 已定义的插件能力白名单（与 PluginContext._require() 中使用的字符串对齐）
+# 新增能力时需要同步更新此集合
+_VALID_CAPABILITIES: frozenset[str] = frozenset({
+    "db:read",           # 读取数据库（自有表）
+    "db:write",          # 写入数据库（自有表）
+    "db:own_tables",     # 操作自有 px_ 数据表（含 read+write）
+    "http:outbound",     # 发送外部 HTTP 请求（含 SSRF 防护）
+    "storage:read",      # 读取存储文件
+    "storage:write",     # 写入存储文件
+    "ai:call",           # 调用 AI 功能（via SystemAgentAssignment）
+    "config:write",      # 修改插件自身配置
+    "notifications:send",# 发送通知 / WebSocket 推送
+})
 
 
 class PluginManifest(BaseModel):
@@ -636,6 +805,7 @@ class PluginManifest(BaseModel):
 
     # ── v8 新增 ──
     capabilities: list[str] = Field(default_factory=list)
+    db_table_prefixes: list[str] = Field(default_factory=list)
     api_version: str = "1"
 
     # ── v7 新增 ──
@@ -664,3 +834,32 @@ class PluginManifest(BaseModel):
                 f"Invalid scope '{v}'. Must be one of: {sorted(_VALID_SCOPES)}"
             )
         return v
+
+    @field_validator("capabilities")
+    @classmethod
+    def validate_capabilities(cls, v: list[str]) -> list[str]:
+        """capabilities 只允许已定义的白名单能力字符串"""
+        unknown = [cap for cap in v if cap not in _VALID_CAPABILITIES]
+        if unknown:
+            raise ValueError(
+                f"Unknown capabilities: {unknown}. "
+                f"Valid capabilities: {sorted(_VALID_CAPABILITIES)}"
+            )
+        return list(dict.fromkeys(v))  # 去重保序
+
+    @field_validator("db_table_prefixes")
+    @classmethod
+    def validate_db_table_prefixes(cls, v: list[str]) -> list[str]:
+        """自定义 DB 表前缀白名单（可选），用于兼容历史前缀插件。"""
+        normalized: list[str] = []
+        for item in v:
+            prefix = (item or "").strip()
+            if not prefix:
+                raise ValueError("db_table_prefixes item cannot be empty")
+            if not _DB_TABLE_PREFIX_PATTERN.match(prefix):
+                raise ValueError(
+                    f"Invalid db_table_prefix '{prefix}'. "
+                    "Expected lowercase prefix ending with '_' (e.g. 'ncc_')."
+                )
+            normalized.append(prefix)
+        return list(dict.fromkeys(normalized))

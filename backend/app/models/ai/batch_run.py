@@ -7,7 +7,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, JSON
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import TenantModel
@@ -152,7 +152,7 @@ class BatchRun(TenantModel):
 
 
 if TYPE_CHECKING:
-    from app.models.ai.agent import Agent
+    pass
 
 
 __all__ = ["BatchRun"]

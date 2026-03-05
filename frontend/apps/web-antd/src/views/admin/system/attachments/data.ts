@@ -77,13 +77,22 @@ export function getCategoryFilterOptions(): {
   value: string;
 }[] {
   return [
-    { label: $t('admin.system.attachment.categoryType.image'), value: 'image/' },
+    {
+      label: $t('admin.system.attachment.categoryType.image'),
+      value: 'image/',
+    },
     {
       label: $t('admin.system.attachment.categoryType.document'),
       value: 'application/',
     },
-    { label: $t('admin.system.attachment.categoryType.video'), value: 'video/' },
-    { label: $t('admin.system.attachment.categoryType.audio'), value: 'audio/' },
+    {
+      label: $t('admin.system.attachment.categoryType.video'),
+      value: 'video/',
+    },
+    {
+      label: $t('admin.system.attachment.categoryType.audio'),
+      value: 'audio/',
+    },
   ];
 }
 

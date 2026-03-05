@@ -15,7 +15,6 @@ from app.core.base_schema import (
 )
 from app.core.i18n import _
 
-
 # ==================== 知识库 Schema ====================
 
 

@@ -8,10 +8,9 @@
 from __future__ import annotations
 
 import hashlib
-import json
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 
-from sqlalchemy import and_, select, func, text, literal_column
+from sqlalchemy import and_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.rag.embedding import EmbeddingService

@@ -1,0 +1,928 @@
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\api\admin\attachment.ts:233 [unicorn/no-immediate-mutation] Immediate mutation on object is not allowed.
+  231:   const uploadData: { [key: string]: Blob | File | string; file: Blob | File } =
+  232:     { file };
+  233:   uploadData.tenant_id = String(tenant_id);
+  234:   if (visibility) uploadData.visibility = visibility;
+  235:   if (business_type) uploadData.business_type = business_type;
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\api\admin\email-log.ts:119 [unicorn/no-array-callback-reference] Do not pass function `transformEmailLogInfo` directly to `.map(…)`.
+  117: 
+  118:   return {
+  119:     items: response.items.map(transformEmailLogInfo),
+  120:     total: response.total,
+  121:     page: response.page,
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\api\public\config.ts:333 [eqeqeq] Expected '===' and instead saw '=='.
+  331:     },
+  332:     features: {
+  333:       ...(raw.allow_registration == null ? {} : { allow_registration: raw.allow_registration }),
+  334:       ...(raw.api_access == null ? {} : { api_access: raw.api_access }),
+  335:       ...(raw.file_upload == null ? {} : { file_upload: raw.file_upload }),
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\api\public\config.ts:334 [eqeqeq] Expected '===' and instead saw '=='.
+  332:     features: {
+  333:       ...(raw.allow_registration == null ? {} : { allow_registration: raw.allow_registration }),
+  334:       ...(raw.api_access == null ? {} : { api_access: raw.api_access }),
+  335:       ...(raw.file_upload == null ? {} : { file_upload: raw.file_upload }),
+  336:     },
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\api\public\config.ts:335 [eqeqeq] Expected '===' and instead saw '=='.
+  333:       ...(raw.allow_registration == null ? {} : { allow_registration: raw.allow_registration }),
+  334:       ...(raw.api_access == null ? {} : { api_access: raw.api_access }),
+  335:       ...(raw.file_upload == null ? {} : { file_upload: raw.file_upload }),
+  336:     },
+  337:   };
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\AIChatPanel.vue:274 [eqeqeq] Expected '!==' and instead saw '!='.
+  272: watch(selectedAgentId, (id) => {
+  273:   loadConversations();
+  274:   if (id != null) {
+  275:     emit('agent-change', id);
+  276:   }
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\AIChatPanel.vue:275 [vue/custom-event-name-casing] Custom event name 'agent-change' must be camelCase.
+  273:   loadConversations();
+  274:   if (id != null) {
+  275:     emit('agent-change', id);
+  276:   }
+  277: });
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\AIChatPanel.vue:280 [vue/custom-event-name-casing] Custom event name 'conversation-change' must be camelCase.
+  278: 
+  279: watch(activeConversationId, (id) => {
+  280:   emit('conversation-change', id);
+  281: });
+  282: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\ChatMessageItem.vue:284 [vue/custom-event-name-casing] Custom event name 'open-url' must be camelCase.
+  282:               @click="
+  283:                 emit(
+  284:                   'open-url',
+  285:                   img.isBase64 ? `data:image/png;base64,${img.url}` : img.url,
+  286:                 )
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\ChatMessageItem.vue:445 [vue/custom-event-name-casing] Custom event name 'consent-confirm' must be camelCase.
+  443:               type="primary"
+  444:               size="small"
+  445:               @click="emit('consent-confirm', props.index)"
+  446:             >
+  447:               <template #icon>
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\ChatMessageItem.vue:458 [vue/custom-event-name-casing] Custom event name 'consent-reject' must be camelCase.
+  456:               size="small"
+  457:               danger
+  458:               @click="emit('consent-reject', props.index)"
+  459:             >
+  460:               <template #icon>
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\ChatMessageItem.vue:553 [vue/custom-event-name-casing] Custom event name 'action-click' must be camelCase.
+  551:             :disabled="!!msg.actionButtonsUsed"
+  552:             :class="compact ? '!text-xs' : ''"
+  553:             @click="emit('action-click', props.index, btn.value)"
+  554:           >
+  555:             {{ btn.label }}
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\ChatMessageItem.vue:621 [vue/custom-event-name-casing] Custom event name 'open-url' must be camelCase.
+  619:                 : 'max-h-48 max-w-60 border border-white/20'
+  620:             "
+  621:             @click="emit('open-url', att.url)"
+  622:           />
+  623:           <a
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\use-ai-chat.ts:79 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+   77:           initId && res.items.some((a) => a.id === initId)
+   78:             ? initId
+   79:             : res.items[0]!.id;
+   80:       }
+   81:     } catch {
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\use-ai-chat.ts:156 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+  154:     try {
+  155:       const prefix = unref(options.apiPrefix) as string;
+  156:       await deleteChatConversationApi(prefix, selectedAgentId.value!, convId);
+  157:       if (activeConversationId.value === convId) {
+  158:         messagesRequestSeq += 1;
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\use-ai-chat.ts:269 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+  267:     let i = 0;
+  268:     while (i < filtered.length) {
+  269:       const msg = filtered[i]!;
+  270: 
+  271:       if (msg.role === 'user') {
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\use-ai-chat.ts:286 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+  284:       const startIdx = i;
+  285: 
+  286:       while (i < filtered.length && filtered[i]!.role !== 'user') {
+  287:         const cur = filtered[i]!;
+  288: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\use-ai-chat.ts:287 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+  285: 
+  286:       while (i < filtered.length && filtered[i]!.role !== 'user') {
+  287:         const cur = filtered[i]!;
+  288: 
+  289:         if (cur.role === 'assistant') {
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\use-ai-chat.ts:312 [unicorn/no-nested-ternary] Nested ternary expression should be parenthesized.
+  310:                 name: funcName,
+  311:                 status: response
+  312:                   ? response.success
+  313:                     ? 'success'
+  314:                     : 'error'
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\use-ai-chat.ts:517 [unicorn/prefer-add-event-listener] Prefer `addEventListener` over `onerror`. Note that there is difference between `{window,element}.onerror` and `{window,element}.addEventListener('error')`.
+  515:         );
+  516:       });
+  517:       img.onerror = () => {
+  518:         URL.revokeObjectURL(img.src);
+  519:         resolve(file);
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\use-ai-chat.ts:711 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+  709:       await sendChatStreamApi(
+  710:         prefix,
+  711:         selectedAgentId.value!,
+  712:         {
+  713:           message: userMsg || ' ',
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\use-ai-chat.ts:1005 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+ 1003:     if (userMsgIndex < 0) return;
+ 1004: 
+ 1005:     const userContent = chatMessages.value[userMsgIndex]!.content;
+ 1006:     const userAttachments = chatMessages.value[userMsgIndex]!.attachments;
+ 1007: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\ai-chat-panel\use-ai-chat.ts:1006 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+ 1004: 
+ 1005:     const userContent = chatMessages.value[userMsgIndex]!.content;
+ 1006:     const userAttachments = chatMessages.value[userMsgIndex]!.attachments;
+ 1007: 
+ 1008:     // Remove the assistant message (and any messages after it)
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\cache-clear-modal\CacheClearModal.vue:36 [unused-imports/no-unused-vars] 'FE_CATEGORIES' is assigned a value but only used as a type. Allowed unused vars must match /^_/u.
+   34: // ============================================================
+   35: 
+   36: const FE_CATEGORIES = [
+   37:   'fe_local_storage',
+   38:   'fe_tab_cache',
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\config-image-picker\ConfigImagePicker.vue:29 [vue/require-default-prop] Prop 'modelValue' requires default value to be set.
+   27:     imageOnly?: boolean;
+   28:     /** 当前值：附件 ID（字符串形式），也兼容旧的 URL 格式 */
+   29:     modelValue?: string;
+   30:   }>(),
+   31:   {
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\conversation-detail\ConversationDetail.vue:68 [@typescript-eslint/no-explicit-any] Definition for rule '@typescript-eslint/no-explicit-any' was not found.
+   66:   formatTokens: (count: null | number | undefined) => string;
+   67:   /** 获取对话详情的 API 函数 */
+   68:   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   69:   getDetailApi: (...args: any[]) => Promise<any>;
+   70:   /** 获取状态文本的函数 */
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\conversation-detail\ConversationDetail.vue:104 [unicorn/no-array-sort] Use `Array#toSorted()` instead of `Array#sort()`.
+  102: const messages = computed<ConversationMessageItem[]>(() => {
+  103:   if (!detail.value?.message_list) return [];
+  104:   return [...detail.value.message_list].sort((a, b) => a.sequence - b.sequence);
+  105: });
+  106: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\file-picker\FilePicker.vue:48 [vue/require-default-prop] Prop 'endpoint' requires default value to be set.
+   46:     accept?: string;
+   47:     /** API 端类型：admin 使用平台附件 API，tenant 使用租户附件 API。默认根据 URL 自动检测。 */
+   48:     endpoint?: 'admin' | 'tenant';
+   49:     imageOnly?: boolean;
+   50:     maxConcurrency?: number;
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\image-upload\ImageUpload.vue:25 [vue/require-default-prop] Prop 'endpoint' requires default value to be set.
+   23:     accept?: string;
+   24:     /** API 端类型，默认从 URL 自动检测 */
+   25:     endpoint?: 'admin' | 'tenant';
+   26:     /** 当前值：附件 ID（字符串）或旧格式 URL */
+   27:     modelValue?: string;
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\image-upload\ImageUpload.vue:27 [vue/require-default-prop] Prop 'modelValue' requires default value to be set.
+   25:     endpoint?: 'admin' | 'tenant';
+   26:     /** 当前值：附件 ID（字符串）或旧格式 URL */
+   27:     modelValue?: string;
+   28:   }>(),
+   29:   {
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\markdown-render\index.vue:125 [unicorn/prefer-query-selector] Prefer `.querySelector()` over `.getElementById()`.
+  123:   const codeId = btn.dataset.codeId;
+  124:   if (!codeId) return;
+  125:   const el = document.getElementById(codeId);
+  126:   if (el) {
+  127:     navigator.clipboard
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\member-panel\data.ts:144 [unicorn/no-nested-ternary] Nested ternary expression should be parenthesized.
+  142:           },
+  143:         ]
+  144:       : nodeName
+  145:         ? [
+  146:             {
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\notification-panel\NotificationSettings.vue:54 [unicorn/prefer-ternary] This `if` statement can be replaced by a ternary expression.
+   52:       `${getApiBase()}/notification-preferences`,
+   53:     );
+   54:     if (Array.isArray(data)) {
+   55:       preferences.value = data;
+   56:     } else {
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\plugin-slots\PluginConfigForm.vue:64 [unicorn/no-nested-ternary] Do not nest ternary expressions.
+   62:       : schema.type === 'boolean'
+   63:         ? 'switch'
+   64:         : schema.type === 'integer' || schema.type === 'number'
+   65:           ? 'number'
+   66:           : schema['x-encrypted']
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\schema-form\index.vue:295 [vue/no-deprecated-filter] Filters are deprecated.
+  293:         <Select
+  294:           v-else-if="getFieldType(key) === 'enum'"
+  295:           :value="formModel[key] as string | number | undefined"
+  296:           :options="getEnumOptions(key)"
+  297:           @change="(v: unknown) => onSelectChange(key, v)"
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\storage-migration\StorageSwitchImpactModal.vue:71 [vue/custom-event-name-casing] Custom event name 'confirm-switch' must be camelCase.
+   69: function onConfirmSwitch() {
+   70:   visible.value = false;
+   71:   emit('confirm-switch');
+   72: }
+   73: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\storage-migration\StorageSwitchImpactModal.vue:76 [vue/custom-event-name-casing] Custom event name 'go-migrate' must be camelCase.
+   74: function onGoMigrate() {
+   75:   visible.value = false;
+   76:   emit('go-migrate', sourceDriver.value, targetDriver.value);
+   77: }
+   78: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\toolkit-editor\ToolkitEditor.vue:112 [unicorn/prefer-default-parameters] Prefer default parameters over reassignment.
+  110: 
+  111: function handleEditorChange(val: string | undefined) {
+  112:   const v = val ?? '';
+  113:   emit('update:value', v);
+  114:   debouncedParse(v);
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\toolkit-editor\ToolkitEditor.vue:261 [unicorn/prefer-blob-reading-methods] Prefer `Blob#text()` over `FileReader#readAsText(blob)`.
+  259:     message.success(file.name);
+  260:   });
+  261:   reader.readAsText(file);
+  262:   return false;
+  263: }
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\valves-config-panel\ValvesConfigPanel.vue:81 [unicorn/no-array-sort] Use `Array#toSorted()` instead of `Array#sort()`.
+   79:       isRequired: required.has(key),
+   80:     }))
+   81:     .sort((a, b) => {
+   82:       // required first, then alphabetical
+   83:       if (a.isRequired !== b.isRequired) return a.isRequired ? -1 : 1;
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\valves-config-panel\ValvesConfigPanel.vue:164 [regexp/no-unused-capturing-group] Capturing group number 1 is defined but never used.
+  162: 
+  163: function isSecret(key: string): boolean {
+  164:   return /\b(api_?key|secret|password|access_?token|auth_?token|apikey|private_?key)\b/i.test(
+  165:     key,
+  166:   );
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\business\valves-config-panel\ValvesConfigPanel.vue:164 [regexp/no-dupe-disjunctions] Unexpected useless alternative. This alternative is a strict subset of 'api_?key' and can be removed.
+  162: 
+  163: function isSecret(key: string): boolean {
+  164:   return /\b(api_?key|secret|password|access_?token|auth_?token|apikey|private_?key)\b/i.test(
+  165:     key,
+  166:   );
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\components\novus\index.ts:8 [unicorn/no-empty-file] Empty files are not allowed.
+    6: // 示例：导出组件
+    7: // export { default as NovusCard } from './card/index.vue';
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-crud-form.ts:51 [@typescript-eslint/ban-ts-comment] Include a description after the "@ts-ignore" directive to explain why the @ts-ignore is necessary. The description must be 3 characters or longer.
+   49:     for (const field of fields) {
+   50:       const camelField = snakeToCamel(field);
+   51:       // @ts-ignore
+   52:       result[field] = data[camelField] ?? data[field];
+   53:     }
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-crud-list.ts:486 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+  484:       total.value = result.total;
+  485: 
+  486:       // 选中状态处理
+  487:       if (
+  488:         selectable &&
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-notification-toast.ts:52 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+   50:   // 从队列中弹出下一条
+   51:   if (queue.length > 0 && toasts.value.length < MAX_VISIBLE) {
+   52:     const next = queue.shift()!;
+   53:     toasts.value.push(next);
+   54:     scheduleAutoClose(next);
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:15 [prettier/prettier] Insert `␍`
+   13:  */
+   14: 
+   15: import type { Component } from 'vue';
+   16: import type { Router } from 'vue-router';
+   17: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:16 [prettier/prettier] Insert `␍`
+   14: 
+   15: import type { Component } from 'vue';
+   16: import type { Router } from 'vue-router';
+   17: 
+   18: import { onMounted } from 'vue';
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:17 [prettier/prettier] Insert `␍`
+   15: import type { Component } from 'vue';
+   16: import type { Router } from 'vue-router';
+   17: 
+   18: import { onMounted } from 'vue';
+   19: import { useRouter } from 'vue-router';
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:18 [prettier/prettier] Insert `␍`
+   16: import type { Router } from 'vue-router';
+   17: 
+   18: import { onMounted } from 'vue';
+   19: import { useRouter } from 'vue-router';
+   20: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:19 [prettier/prettier] Insert `␍`
+   17: 
+   18: import { onMounted } from 'vue';
+   19: import { useRouter } from 'vue-router';
+   20: 
+   21: import { usePluginExtensionsStore } from '#/stores/plugin-extensions';
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:20 [prettier/prettier] Insert `␍`
+   18: import { onMounted } from 'vue';
+   19: import { useRouter } from 'vue-router';
+   20: 
+   21: import { usePluginExtensionsStore } from '#/stores/plugin-extensions';
+   22: import { usePluginSlotsStore } from '#/stores/plugin-slots';
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:21 [prettier/prettier] Insert `␍`
+   19: import { useRouter } from 'vue-router';
+   20: 
+   21: import { usePluginExtensionsStore } from '#/stores/plugin-extensions';
+   22: import { usePluginSlotsStore } from '#/stores/plugin-slots';
+   23: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:22 [prettier/prettier] Insert `␍`
+   20: 
+   21: import { usePluginExtensionsStore } from '#/stores/plugin-extensions';
+   22: import { usePluginSlotsStore } from '#/stores/plugin-slots';
+   23: 
+   24: type EndpointSide = 'admin' | 'tenant';
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:32 [prettier/prettier] Insert `␍`
+   30: }
+   31: 
+   32: /**
+   33:  * 已注册的插件路由名称（用于卸载清理）
+   34:  */
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:33 [prettier/prettier] Insert `␍`
+   31: 
+   32: /**
+   33:  * 已注册的插件路由名称（用于卸载清理）
+   34:  */
+   35: const registeredPluginRouteNames: Set<string> = new Set();
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:34 [prettier/prettier] Insert `␍`
+   32: /**
+   33:  * 已注册的插件路由名称（用于卸载清理）
+   34:  */
+   35: const registeredPluginRouteNames: Set<string> = new Set();
+   36: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:35 [prettier/prettier] Insert `␍`
+   33:  * 已注册的插件路由名称（用于卸载清理）
+   34:  */
+   35: const registeredPluginRouteNames: Set<string> = new Set();
+   36: 
+   37: /**
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:36 [prettier/prettier] Insert `␍`
+   34:  */
+   35: const registeredPluginRouteNames: Set<string> = new Set();
+   36: 
+   37: /**
+   38:  * 移除所有插件注册的动态路由
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:37 [prettier/prettier] Insert `␍`
+   35: const registeredPluginRouteNames: Set<string> = new Set();
+   36: 
+   37: /**
+   38:  * 移除所有插件注册的动态路由
+   39:  */
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:38 [prettier/prettier] Insert `␍`
+   36: 
+   37: /**
+   38:  * 移除所有插件注册的动态路由
+   39:  */
+   40: function removeAllPluginPageRoutes(router: Router) {
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:39 [prettier/prettier] Insert `␍`
+   37: /**
+   38:  * 移除所有插件注册的动态路由
+   39:  */
+   40: function removeAllPluginPageRoutes(router: Router) {
+   41:   for (const name of registeredPluginRouteNames) {
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:40 [prettier/prettier] Insert `␍`
+   38:  * 移除所有插件注册的动态路由
+   39:  */
+   40: function removeAllPluginPageRoutes(router: Router) {
+   41:   for (const name of registeredPluginRouteNames) {
+   42:     if (router.hasRoute(name)) {
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:41 [prettier/prettier] Insert `␍`
+   39:  */
+   40: function removeAllPluginPageRoutes(router: Router) {
+   41:   for (const name of registeredPluginRouteNames) {
+   42:     if (router.hasRoute(name)) {
+   43:       router.removeRoute(name);
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:42 [prettier/prettier] Insert `␍`
+   40: function removeAllPluginPageRoutes(router: Router) {
+   41:   for (const name of registeredPluginRouteNames) {
+   42:     if (router.hasRoute(name)) {
+   43:       router.removeRoute(name);
+   44:     }
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:43 [prettier/prettier] Insert `␍`
+   41:   for (const name of registeredPluginRouteNames) {
+   42:     if (router.hasRoute(name)) {
+   43:       router.removeRoute(name);
+   44:     }
+   45:   }
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:44 [prettier/prettier] Insert `␍`
+   42:     if (router.hasRoute(name)) {
+   43:       router.removeRoute(name);
+   44:     }
+   45:   }
+   46:   registeredPluginRouteNames.clear();
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:45 [prettier/prettier] Insert `␍`
+   43:       router.removeRoute(name);
+   44:     }
+   45:   }
+   46:   registeredPluginRouteNames.clear();
+   47: }
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:46 [prettier/prettier] Insert `␍`
+   44:     }
+   45:   }
+   46:   registeredPluginRouteNames.clear();
+   47: }
+   48: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\composables\use-plugin-frontend-init.ts:47 [prettier/prettier] Insert `␍`
+   45:   }
+   46:   registeredPluginRouteNames.clear();
+   47: }
+   48: 
+   49: // 标记插件路由是否已注册（防止重复注册）
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\core\adapter\vxe-table\components\crud-grid.vue:31 [vue/require-default-prop] Prop 'onExport' requires default value to be set.
+   29:   showExport?: boolean;
+   30:   /** 导出按钮点击回调 */
+   31:   onExport?: () => void;
+   32:   /** 是否显示回收站按钮 */
+   33:   showRecycleBin?: boolean;
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\core\adapter\vxe-table\components\crud-grid.vue:35 [vue/require-default-prop] Prop 'recycleBinCount' requires default value to be set.
+   33:   showRecycleBin?: boolean;
+   34:   /** 回收站记录数量 */
+   35:   recycleBinCount?: number;
+   36:   /** 回收站按钮点击回调 */
+   37:   onRecycleBin?: () => void;
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\core\adapter\vxe-table\components\crud-grid.vue:37 [vue/require-default-prop] Prop 'onRecycleBin' requires default value to be set.
+   35:   recycleBinCount?: number;
+   36:   /** 回收站按钮点击回调 */
+   37:   onRecycleBin?: () => void;
+   38:   /** 刷新回调 */
+   39:   onRefresh?: () => void;
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\core\adapter\vxe-table\components\crud-grid.vue:39 [vue/require-default-prop] Prop 'onRefresh' requires default value to be set.
+   37:   onRecycleBin?: () => void;
+   38:   /** 刷新回调 */
+   39:   onRefresh?: () => void;
+   40:   /** 创建回调（提供时显示创建按钮） */
+   41:   onCreate?: () => void;
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\core\adapter\vxe-table\components\crud-grid.vue:41 [vue/require-default-prop] Prop 'onCreate' requires default value to be set.
+   39:   onRefresh?: () => void;
+   40:   /** 创建回调（提供时显示创建按钮） */
+   41:   onCreate?: () => void;
+   42:   /** 创建按钮权限码 */
+   43:   createPermission?: string;
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\core\adapter\vxe-table\components\crud-grid.vue:43 [vue/require-default-prop] Prop 'createPermission' requires default value to be set.
+   41:   onCreate?: () => void;
+   42:   /** 创建按钮权限码 */
+   43:   createPermission?: string;
+   44:   /** 创建按钮文案 */
+   45:   createLabel?: string;
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\core\adapter\vxe-table\components\crud-grid.vue:45 [vue/require-default-prop] Prop 'createLabel' requires default value to be set.
+   43:   createPermission?: string;
+   44:   /** 创建按钮文案 */
+   45:   createLabel?: string;
+   46: }
+   47: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\core\adapter\vxe-table\components\export-modal.vue:162 [@typescript-eslint/no-non-null-assertion] Definition for rule '@typescript-eslint/no-non-null-assertion' was not found.
+  160:     exportColumns.forEach((col) => {
+  161:       const headerTitle = String(col.title || col.field);
+  162:       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  163:       rowData[headerTitle] = row[col.field!] ?? '';
+  164:     });
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\core\adapter\vxe-table\drag-sort.ts:313 [@typescript-eslint/ban-ts-comment] Include a description after the "@ts-ignore" directive to explain why the @ts-ignore is necessary. The description must be 3 characters or longer.
+  311:   });
+  312: 
+  313:   // @ts-ignore
+  314:   if (import.meta.hot) {
+  315:     // @ts-ignore
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\core\adapter\vxe-table\drag-sort.ts:315 [@typescript-eslint/ban-ts-comment] Include a description after the "@ts-ignore" directive to explain why the @ts-ignore is necessary. The description must be 3 characters or longer.
+  313:   // @ts-ignore
+  314:   if (import.meta.hot) {
+  315:     // @ts-ignore
+  316:     import.meta.hot.dispose(() => {
+  317:       stopPolling();
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\router\guard.ts:197 [regexp/no-unused-capturing-group] Capturing group number 1 is defined but never used.
+  195:       // 插件路由可能还未注册（layout onMounted 异步注册），
+  196:       // 如果目标是插件 URL 但路由不存在，在 guard 中同步注册插件路由
+  197:       const isPluginPath = /\/(tenant|admin)\/plugins\//.test(to.path);
+  198:       if (isPluginPath && to.name === 'FallbackNotFound') {
+  199:         const { ensurePluginRoutes } =
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\router\guard.ts:273 [regexp/no-unused-capturing-group] Capturing group number 1 is defined but never used.
+  271: 
+  272:     // 插件路由在 guard 中同步注册（无感方式，不跳转首页）
+  273:     const isPluginRedirect = /\/(tenant|admin)\/plugins\//.test(redirectPath);
+  274:     if (isPluginRedirect) {
+  275:       try {
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\store\shared\socketio.ts:139 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+  137:   // ============================================================
+  138: 
+  139:   /**
+  140:    * 注册事件 handler
+  141:    *
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\download.ts:197 [unicorn/prefer-code-point] Prefer `String#codePointAt()` over `String#charCodeAt()`.
+  195:   const bytes = new Uint8Array(binaryString.length);
+  196:   for (let i = 0; i < binaryString.length; i++) {
+  197:     bytes[i] = binaryString.charCodeAt(i);
+  198:   }
+  199: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\plugin-loader.ts:32 [unicorn/prefer-query-selector] Prefer `.querySelector()` over `.getElementById()`.
+   30: function _injectPluginCSS(pluginName: string, cssFileName: string): void {
+   31:   const normalized = cssFileName.replaceAll(/[^\w-]/g, '_');
+   32:   const cssId = `novus-plugin-css-${pluginName}-${normalized}`;
+   33:   if (document.getElementById(cssId)) {
+   34:     return;
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\plugin-loader.ts:52 [unicorn/prefer-query-selector] Prefer `.querySelector()` over `.getElementById()`.
+   50:   cssFiles: string[] = [],
+   51: ): Promise<void> {
+   52:   if (!cssFiles.length) {
+   53:     return;
+   54:   }
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\plugin-loader.ts:196 [@typescript-eslint/no-dynamic-delete] Do not delete dynamically computed property keys.
+  194:   // 移除 script 标签 + 清除全局变量
+  195:   const scripts = document.querySelectorAll(
+  196:     `script[src*="/plugin-assets/${pluginName}/"]`,
+  197:   );
+  198:   for (const s of scripts) {
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\plugin-loader.ts:199 [unicorn/prefer-query-selector] Prefer `.querySelector()` over `.getElementById()`.
+  197:   );
+  198:   for (const s of scripts) {
+  199:     s.remove();
+  200:   }
+  201:   const globalVar = toGlobalVarName(pluginName);
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\plugin-shared.ts:143 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+  141:   try {
+  142:     if (i18n?.global) {
+  143:       // 将扁平点分 key（如 'folder.all': '全部文档'）转为嵌套对象
+  144:       // 再包裹 prefix（如 "plugin.novusdoc"）→ { plugin: { novusdoc: { folder: { all: '全部文档' } } } }
+  145:       const nestedMessages: Record<string, unknown> = {};
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\plugin-shared.ts:144 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+  142:     if (i18n?.global) {
+  143:       // 将扁平点分 key（如 'folder.all': '全部文档'）转为嵌套对象
+  144:       // 再包裹 prefix（如 "plugin.novusdoc"）→ { plugin: { novusdoc: { folder: { all: '全部文档' } } } }
+  145:       const nestedMessages: Record<string, unknown> = {};
+  146:       for (const [key, value] of Object.entries(messages)) {
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\plugin-shared.ts:146 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+  144:       // 再包裹 prefix（如 "plugin.novusdoc"）→ { plugin: { novusdoc: { folder: { all: '全部文档' } } } }
+  145:       const nestedMessages: Record<string, unknown> = {};
+  146:       for (const [key, value] of Object.entries(messages)) {
+  147:         const keyParts = key.split('.');
+  148:         let current: Record<string, unknown> = nestedMessages;
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\plugin-shared.ts:148 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+  146:       for (const [key, value] of Object.entries(messages)) {
+  147:         const keyParts = key.split('.');
+  148:         let current: Record<string, unknown> = nestedMessages;
+  149:         for (let i = 0; i < keyParts.length - 1; i++) {
+  150:           if (
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\plugin-shared.ts:150 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+  148:         let current: Record<string, unknown> = nestedMessages;
+  149:         for (let i = 0; i < keyParts.length - 1; i++) {
+  150:           if (
+  151:             !(keyParts[i]! in current) ||
+  152:             typeof current[keyParts[i]!] !== 'object'
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\plugin-shared.ts:157 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+  155:           }
+  156:           current = current[keyParts[i]!] as Record<string, unknown>;
+  157:         }
+  158:         current[keyParts[keyParts.length - 1]!] = value;
+  159:       }
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\request\interceptors.ts:71 [regexp/no-unused-capturing-group] Capturing group number 1 is defined but never used.
+   69:   // 双端插件路由：/plugins/{name}/admin/* 或 /plugins/{name}/tenant/*
+   70:   if (url.startsWith('/plugins/')) {
+   71:     if (/^\/plugins\/[^/]+\/admin(\/|$)/.test(url)) return 'admin';
+   72:     if (/^\/plugins\/[^/]+\/tenant(\/|$)/.test(url)) return 'tenant';
+   73:   }
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\request\interceptors.ts:72 [regexp/no-unused-capturing-group] Capturing group number 1 is defined but never used.
+   70:   if (url.startsWith('/plugins/')) {
+   71:     if (/^\/plugins\/[^/]+\/admin(\/|$)/.test(url)) return 'admin';
+   72:     if (/^\/plugins\/[^/]+\/tenant(\/|$)/.test(url)) return 'tenant';
+   73:   }
+   74:   return 'user';
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\request\request-client.ts:83 [regexp/no-unused-capturing-group] Capturing group number 1 is defined but never used.
+   81:   // 双端插件路由：/plugins/{name}/admin/* 或 /plugins/{name}/tenant/*
+   82:   if (url.startsWith('/plugins/')) {
+   83:     if (/^\/plugins\/[^/]+\/admin(\/|$)/.test(url)) return 'admin';
+   84:     if (/^\/plugins\/[^/]+\/tenant(\/|$)/.test(url)) return 'tenant';
+   85:   }
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\request\request-client.ts:84 [regexp/no-unused-capturing-group] Capturing group number 1 is defined but never used.
+   82:   if (url.startsWith('/plugins/')) {
+   83:     if (/^\/plugins\/[^/]+\/admin(\/|$)/.test(url)) return 'admin';
+   84:     if (/^\/plugins\/[^/]+\/tenant(\/|$)/.test(url)) return 'tenant';
+   85:   }
+   86:   return 'user';
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\scope-helpers.ts:79 [@typescript-eslint/no-non-null-assertion] Forbidden non-null assertion.
+   77:     .filter((s) => s in SCOPE_CONFIG)
+   78:     .map((s) => ({
+   79:       label: $t(SCOPE_CONFIG[s]!.textKey),
+   80:       value: s,
+   81:     }));
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\vite-plugin-novus-plugins.ts:15 [unicorn/prefer-module] Do not use "__dirname".
+   13: 
+   14: const _dirname =
+   15:   typeof __dirname === 'undefined'
+   16:     ? fileURLToPath(new URL('.', import.meta.url))
+   17:     : __dirname;
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\utils\vite-plugin-novus-plugins.ts:17 [unicorn/prefer-module] Do not use "__dirname".
+   15:   typeof __dirname === 'undefined'
+   16:     ? fileURLToPath(new URL('.', import.meta.url))
+   17:     : __dirname;
+   18: 
+   19: interface PluginEntry {
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\ai\health\index.vue:162 [vue/no-deprecated-filter] Filters are deprecated.
+  160:             <Badge
+  161:               :status="
+  162:                 getStatusColor(status) as 'success' | 'warning' | 'error'
+  163:               "
+  164:               :text="getStatusText(status)"
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\ai\knowledge-bases\index.vue:5 [import/no-duplicates] '#/api/admin/knowledge-bases' imported multiple times.
+    3:  * 平台管理端知识库管理页面 — useCrudList + 卡片网格
+    4:  */
+    5: import type { AdminKnowledgeBaseItem } from '#/api/admin/knowledge-bases';
+    6: import type { KnowledgeBaseGlobalStats } from '#/api/admin/knowledge-bases';
+    7: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\ai\knowledge-bases\index.vue:6 [import/no-duplicates] '#/api/admin/knowledge-bases' imported multiple times.
+    4:  */
+    5: import type { AdminKnowledgeBaseItem } from '#/api/admin/knowledge-bases';
+    6: import type { KnowledgeBaseGlobalStats } from '#/api/admin/knowledge-bases';
+    7: 
+    8: import { computed, onMounted, ref } from 'vue';
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\ai\skills\modules\form.vue:5 [import/no-duplicates] '#/api/admin/skills' imported multiple times.
+    3:  * 管理端技能新建/编辑表单抽屉
+    4:  */
+    5: import type { AdminSkillInfo } from '#/api/admin/skills';
+    6: import type { PluginToolDefinition } from '#/api/admin/skills';
+    7: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\ai\skills\modules\form.vue:6 [import/no-duplicates] '#/api/admin/skills' imported multiple times.
+    4:  */
+    5: import type { AdminSkillInfo } from '#/api/admin/skills';
+    6: import type { PluginToolDefinition } from '#/api/admin/skills';
+    7: 
+    8: import { computed, ref, watch } from 'vue';
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\analytics\charts\TenantRankingChart.vue:24 [unicorn/no-array-reverse] Use `Array#toReversed()` instead of `Array#reverse()`.
+   22: function render() {
+   23:   if (props.data.length === 0) return;
+   24:   const sorted = [...props.data].reverse();
+   25:   renderEcharts({
+   26:     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\plugins\index.vue:449 [regexp/no-unused-capturing-group] Capturing group number 1 is defined but never used.
+  447: function isImageIcon(icon: null | string | undefined): boolean {
+  448:   if (!icon) return false;
+  449:   return /\.(png|jpg|jpeg|svg|webp)$/i.test(icon);
+  450: }
+  451: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\plugins\modules\PluginConfigDrawer.vue:11 [import/no-duplicates] '#/api/admin/plugin' imported multiple times.
+    9:   PluginLicenseInfo,
+   10:   PluginVersionInfo,
+   11: } from '#/api/admin/plugin';
+   12: import type {
+   13:   PluginBackupInfo,
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\plugins\modules\PluginConfigDrawer.vue:15 [import/no-duplicates] '#/api/admin/plugin' imported multiple times.
+   13:   PluginBackupInfo,
+   14:   PluginTenantAssignmentInfo,
+   15: } from '#/api/admin/plugin';
+   16: 
+   17: import { computed, ref } from 'vue';
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\plugins\modules\PluginConfigDrawer.vue:417 [prefer-const] 'data' is never reassigned. Use 'const' instead.
+  415:   try {
+  416:     let data: Record<string, unknown>;
+  417:     data =
+  418:       configSchemaFields.value.length > 0
+  419:         ? { ...configValues.value }
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\system\configs\list.vue:90 [unicorn/no-array-sort] Use `Array#toSorted()` instead of `Array#sort()`.
+   88: // 按 sort_order 排序的分组列表
+   89: const sortedGroups = computed(() =>
+   90:   [...groups.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+   91: );
+   92: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\system\configs\list.vue:99 [unicorn/no-array-sort] Use `Array#toSorted()` instead of `Array#sort()`.
+   97:     if (groups.value.length > 0) {
+   98:       // 按 sort_order 取第一个组
+   99:       const sorted = [...groups.value].sort(
+  100:         (a, b) => (a.sort_order || 0) - (b.sort_order || 0),
+  101:       );
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\system\configs\list.vue:117 [unicorn/no-array-sort] Use `Array#toSorted()` instead of `Array#sort()`.
+  115:   try {
+  116:     const detail = await getAdminConfigGroupDetailApi(code);
+  117:     configs.value = (detail.configs || []).sort(
+  118:       (a, b) => (a.sort_order || 0) - (b.sort_order || 0),
+  119:     );
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\system\configs\modules\PlatformStoragePanel.vue:113 [unicorn/no-array-sort] Use `Array#toSorted()` instead of `Array#sort()`.
+  111:     generalConfigs.value = configs
+  112:       .filter((c) => !excludeKeys.has(c.key))
+  113:       .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  114:   } finally {
+  115:     loading.value = false;
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\system\recycle-bin\index.vue:248 [unicorn/prefer-single-call] Do not call `Array#push()` multiple times.
+  246:   });
+  247: 
+  248:   cols.push({
+  249:     title: $t('common.recycleBin.deletedAt'),
+  250:     dataIndex: 'deleted_at',
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\system\recycle-bin\index.vue:255 [unicorn/prefer-single-call] Do not call `Array#push()` multiple times.
+  253:   });
+  254: 
+  255:   cols.push({
+  256:     title: $t('admin.common.operation'),
+  257:     key: 'action',
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\system\system-logs\index.vue:289 [regexp/no-super-linear-backtracking] The quantifier '\s*' can exchange characters with '.*'. Using any string accepted by /[\t\x0b\f \xa0\u1680\u2000-\u200a\u202f\u205f\u3000\ufeff]+/i, this can be exploited to cause at least polynomial backtracking.
+  287:   // 宽松匹配，适配更多格式
+  288:   const match = line.match(
+  289:     /^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s*\|\s*([A-Z]+)\s*\|\s*(.*)$/i,
+  290:   );
+  291:   if (match) {
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\tenant\list\modules\DomainsSslDrawer.vue:405 [vue/no-useless-v-bind] Unexpected `v-bind` with a string literal value.
+  403:                 v-model:value="uploadForm.certificate"
+  404:                 :rows="4"
+  405:                 :placeholder="'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'"
+  406:               />
+  407:             </div>
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\tenant\list\modules\DomainsSslDrawer.vue:415 [vue/no-useless-v-bind] Unexpected `v-bind` with a string literal value.
+  413:                 v-model:value="uploadForm.privateKey"
+  414:                 :rows="4"
+  415:                 :placeholder="'-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'"
+  416:               />
+  417:             </div>
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\admin\tenant\list\modules\DomainsSslDrawer.vue:428 [vue/no-useless-v-bind] Unexpected `v-bind` with a string literal value.
+  426:                 v-model:value="uploadForm.chain"
+  427:                 :rows="3"
+  428:                 :placeholder="'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'"
+  429:               />
+  430:             </div>
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\tenant\ai\action-logs\index.vue:7 [import/no-duplicates] '#/api/tenant/action-logs' imported multiple times.
+    5:  * 包含统计卡片 + 操作列表
+    6:  */
+    7: import type { ActionLogItem } from '#/api/tenant/action-logs';
+    8: import type { ActionLogStats } from '#/api/tenant/action-logs';
+    9: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\tenant\ai\action-logs\index.vue:8 [import/no-duplicates] '#/api/tenant/action-logs' imported multiple times.
+    6:  */
+    7: import type { ActionLogItem } from '#/api/tenant/action-logs';
+    8: import type { ActionLogStats } from '#/api/tenant/action-logs';
+    9: 
+   10: import { onMounted, ref } from 'vue';
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\tenant\ai\skills\modules\SkillForm.vue:274 [unicorn/no-await-expression-member] Do not access a member directly from an await expression.
+  272: async function loadDiTools(tablePolicyIds?: number[]) {
+  273:   try {
+  274:     const policies = (await getTenantTablePoliciesApi()).filter(
+  275:       (p) => p.is_active,
+  276:     );
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\tenant\analytics\charts\AgentRankingChart.vue:24 [unicorn/no-array-reverse] Use `Array#toReversed()` instead of `Array#reverse()`.
+   22: function render() {
+   23:   if (props.data.length === 0) return;
+   24:   const sorted = [...props.data].reverse();
+   25:   renderEcharts({
+   26:     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\tenant\system-mgmt\domains\modules\DomainsSslDrawer.vue:374 [vue/no-useless-v-bind] Unexpected `v-bind` with a string literal value.
+  372:                 v-model:value="uploadForm.certificate"
+  373:                 :rows="4"
+  374:                 :placeholder="'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'"
+  375:               />
+  376:             </div>
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\tenant\system-mgmt\domains\modules\DomainsSslDrawer.vue:384 [vue/no-useless-v-bind] Unexpected `v-bind` with a string literal value.
+  382:                 v-model:value="uploadForm.privateKey"
+  383:                 :rows="4"
+  384:                 :placeholder="'-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'"
+  385:               />
+  386:             </div>
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\tenant\system-mgmt\domains\modules\DomainsSslDrawer.vue:397 [vue/no-useless-v-bind] Unexpected `v-bind` with a string literal value.
+  395:                 v-model:value="uploadForm.chain"
+  396:                 :rows="3"
+  397:                 :placeholder="'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'"
+  398:               />
+  399:             </div>
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\tenant\system\configs\list.vue:66 [unicorn/no-array-sort] Use `Array#toSorted()` instead of `Array#sort()`.
+   64: // 按 sort_order 排序的分组列表
+   65: const sortedGroups = computed(() =>
+   66:   [...groups.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+   67: );
+   68: 
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\tenant\system\configs\list.vue:75 [unicorn/no-array-sort] Use `Array#toSorted()` instead of `Array#sort()`.
+   73:     if (groups.value.length > 0) {
+   74:       // 按 sort_order 取第一个组
+   75:       const sorted = [...groups.value].sort(
+   76:         (a, b) => (a.sort_order || 0) - (b.sort_order || 0),
+   77:       );
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\src\views\tenant\system\configs\list.vue:93 [unicorn/no-array-sort] Use `Array#toSorted()` instead of `Array#sort()`.
+   91:   try {
+   92:     const detail = await getTenantConfigGroupDetailApi(code);
+   93:     configs.value = (detail.configs || []).sort(
+   94:       (a, b) => (a.sort_order || 0) - (b.sort_order || 0),
+   95:     );
+---
+E:\git_clone\novusai-saas-yudi\frontend\apps\web-antd\vite.config.mts:14 [unicorn/prefer-module] Do not use "__dirname".
+   12:       plugins: [
+   13:         novusPluginsLoader({
+   14:           pluginsDir: resolve(__dirname, '../../../backend/plugins'),
+   15:         }) as any,
+   16:       ],
+---
+E:\git_clone\novusai-saas-yudi\frontend\internal\vite-config\src\config\application.ts:9 [n/no-extraneous-import] "sass-embedded" is extraneous.
+    7: import { findMonorepoRoot } from '@vben/node-utils';
+    8: 
+    9: import { NodePackageImporter } from 'sass-embedded';
+   10: import { defineConfig, loadEnv, mergeConfig } from 'vite';
+   11: 

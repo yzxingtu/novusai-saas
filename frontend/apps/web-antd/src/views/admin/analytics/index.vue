@@ -1,4 +1,15 @@
 <script lang="ts" setup>
+import type { Dayjs } from 'dayjs';
+
+import type {
+  CallTrendItem,
+  LatencyDistributionItem,
+  ModelDistributionItem,
+  ProviderPerformanceItem,
+  SuccessRateTrendItem,
+  TenantRankingItem,
+} from '#/api/admin/analytics';
+
 /**
  * Admin Analytics 数据分析页面（T17）
  *
@@ -7,16 +18,10 @@
 import { onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
+
 import { Card, DatePicker, Spin } from 'ant-design-vue';
-import type { Dayjs } from 'dayjs';
 
 import {
-  type CallTrendItem,
-  type LatencyDistributionItem,
-  type ModelDistributionItem,
-  type ProviderPerformanceItem,
-  type SuccessRateTrendItem,
-  type TenantRankingItem,
   getCallTrendApi,
   getLatencyDistributionApi,
   getModelDistributionApi,
@@ -25,14 +30,14 @@ import {
   getTenantRankingApi,
 } from '#/api/admin/analytics';
 import { $t } from '#/locales';
-
 import AiCallTrendChart from '#/views/_shared/charts/AiCallTrendChart.vue';
-import TokenTrendChart from '#/views/_shared/charts/TokenTrendChart.vue';
 import ModelDistributionChart from '#/views/_shared/charts/ModelDistributionChart.vue';
-import ProviderRadarChart from './charts/ProviderRadarChart.vue';
-import TenantRankingChart from './charts/TenantRankingChart.vue';
+import TokenTrendChart from '#/views/_shared/charts/TokenTrendChart.vue';
+
 import LatencyHistogramChart from './charts/LatencyHistogramChart.vue';
+import ProviderRadarChart from './charts/ProviderRadarChart.vue';
 import SuccessRateChart from './charts/SuccessRateChart.vue';
+import TenantRankingChart from './charts/TenantRankingChart.vue';
 
 defineOptions({ name: 'AdminAnalytics' });
 
@@ -91,7 +96,10 @@ onMounted(() => {
     <template #extra>
       <DatePicker.RangePicker
         v-model:value="dateRange"
-        :placeholder="[$t('admin.analytics.startDate'), $t('admin.analytics.endDate')]"
+        :placeholder="[
+          $t('admin.analytics.startDate'),
+          $t('admin.analytics.endDate'),
+        ]"
         @change="handleDateChange"
         allow-clear
       />

@@ -10,6 +10,7 @@ import type {
 } from '#/api/public/config';
 
 import { updatePreferences } from '@vben/preferences';
+
 import { defineStore } from 'pinia';
 
 import {
@@ -27,7 +28,7 @@ function updateHead(brand: BrandConfig) {
     if (!link) {
       link = document.createElement('link');
       link.rel = 'icon';
-      document.head.appendChild(link);
+      document.head.append(link);
     }
     link.href = brand.favicon;
   }
@@ -40,7 +41,7 @@ function updateHead(brand: BrandConfig) {
     if (!meta) {
       meta = document.createElement('meta');
       meta.name = 'description';
-      document.head.appendChild(meta);
+      document.head.append(meta);
     }
     meta.content = brand.siteDescription;
   }

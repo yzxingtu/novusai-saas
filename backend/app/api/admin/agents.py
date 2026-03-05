@@ -7,38 +7,41 @@
 from fastapi import Query, Request
 
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, ActiveAdmin, QueryParams
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.core.response import success, created, deleted, paginated
+from app.core.recycle_bin import register_admin_recycle_bin_routes
+from app.core.response import created, deleted, paginated, success
 from app.enums.common import ResourceScopeEnum
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
-from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
+from app.rbac.decorators import (
+    MenuConfig,
+    action_create,
+    action_delete,
+    action_read,
+    action_update,
+    permission_resource,
+)
+from app.repositories.system.resource_tenant_assignment_repository import (
+    ResourceTenantAssignmentRepository,
+)
+from app.schemas.ai.agent import AdminAgentCreate, AdminAgentUpdate
+from app.schemas.ai.agent_access import AgentAccessUpdate
+from app.schemas.ai.agent_memory import AgentMemoryToggleRequest
+from app.schemas.ai.agent_skill_binding import (
+    AgentSkillBatchBindRequest,
+    AgentSkillBindingUpdate,
+    AgentSkillBindRequest,
+)
+from app.schemas.ai.agent_version import AgentPublishRequest, AgentRollbackRequest
+from app.services.ai.agent_service import AdminAgentService, AgentService
+from app.services.ai.agent_skill_binding_service import AgentSkillBindingService
 
 SCOPES_NEEDING_ASSIGNMENT = (
     ResourceScopeEnum.ASSIGNED_TENANTS.value,
     ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
 )
-from app.rbac.decorators import (
-    permission_resource,
-    MenuConfig,
-    action_read,
-    action_create,
-    action_update,
-    action_delete,
-)
-from app.schemas.ai.agent import AdminAgentCreate, AdminAgentUpdate
-from app.schemas.ai.agent_access import AgentAccessUpdate
-from app.schemas.ai.agent_skill_binding import (
-    AgentSkillBindRequest,
-    AgentSkillBatchBindRequest,
-    AgentSkillBindingUpdate,
-)
-from app.schemas.ai.agent_version import AgentPublishRequest, AgentRollbackRequest
-from app.core.recycle_bin import register_admin_recycle_bin_routes
-from app.services.ai.agent_service import AgentService, AdminAgentService
-from app.services.ai.agent_skill_binding_service import AgentSkillBindingService
 
 logger = LogManager.get_logger("ai")
 
@@ -559,6 +562,42 @@ class AdminAgentController(GlobalController):
             )
             await db.commit()
             return success(data=config, message=_("agent.access.updated"))
+
+        @router.get("/{agent_id}/memory", summary="获取智能体记忆开关状态")
+        @action_read("action.ai_agent.detail")
+        async def get_memory_config(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            获取管理端智能体记忆配置状态
+
+            权限: ai_agent:detail
+            """
+            service = AdminAgentService(db)
+            config = await service.get_memory_config(agent_id)
+            return success(data=config)
+
+        @router.put("/{agent_id}/memory", summary="更新智能体记忆开关")
+        @action_update("action.ai_agent.update")
+        async def update_memory_config(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            admin: ActiveAdmin,
+            data: AgentMemoryToggleRequest,
+        ):
+            """
+            管理端更新 Agent 级记忆开关
+
+            权限: ai_agent:update
+            """
+            service = AdminAgentService(db)
+            config = await service.set_memory_enabled(agent_id, data.enabled)
+            await db.commit()
+            return success(data=config, message=_("agent.updated"))
 
 
 # 导出路由器

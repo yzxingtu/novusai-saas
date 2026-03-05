@@ -10,10 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.gateway import AIGateway
 from app.ai.rag.text_cleaner import clean_for_embedding
-from app.ai.types import EmbeddingResponse
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.exceptions import BusinessException, NotFoundException
+from app.exceptions import BusinessException
 from app.models.ai.knowledge_base import KnowledgeBase
 
 logger = LogManager.get_logger("ai.rag.embedding")

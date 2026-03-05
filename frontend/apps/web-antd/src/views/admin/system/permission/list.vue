@@ -7,8 +7,6 @@ import type { adminApi } from '#/api';
 
 import { onMounted, ref } from 'vue';
 
-defineOptions({ name: 'SystemPermissionList' });
-
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -16,6 +14,8 @@ import { Card, Empty, Spin, Tag, Tree } from 'ant-design-vue';
 
 import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
+
+defineOptions({ name: 'SystemPermissionList' });
 
 type PermissionNode = adminApi.PermissionNode;
 

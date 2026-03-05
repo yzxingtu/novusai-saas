@@ -1,4 +1,4 @@
-import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { defineConfig } from '@vben/vite-config';
 
@@ -6,12 +6,16 @@ import { defineConfig } from '@vben/vite-config';
 import { novusPluginsLoader } from './src/utils/vite-plugin-novus-plugins';
 
 export default defineConfig(async () => {
+  const pluginsDir = fileURLToPath(
+    new URL('../../../backend/plugins', import.meta.url),
+  );
+
   return {
     application: {},
     vite: {
       plugins: [
         novusPluginsLoader({
-          pluginsDir: resolve(__dirname, '../../../backend/plugins'),
+          pluginsDir,
         }) as any,
       ],
       resolve: {

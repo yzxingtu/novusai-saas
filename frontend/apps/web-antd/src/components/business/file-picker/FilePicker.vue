@@ -9,8 +9,6 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useVbenModal } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { getAttachmentUrl } from '#/utils/image';
-
 import {
   Button,
   Checkbox,
@@ -28,11 +26,18 @@ import {
   Upload,
 } from 'ant-design-vue';
 
-import { getAttachmentListApi as adminGetAttachmentListApi, uploadAttachmentApi as adminUploadAttachmentApi } from '#/api/admin/attachment';
-import { getAttachmentListApi as tenantGetAttachmentListApi, smartUploadFile as tenantSmartUploadFile } from '#/api/tenant/attachment';
+import {
+  getAttachmentListApi as adminGetAttachmentListApi,
+  uploadAttachmentApi as adminUploadAttachmentApi,
+} from '#/api/admin/attachment';
+import {
+  getAttachmentListApi as tenantGetAttachmentListApi,
+  smartUploadFile as tenantSmartUploadFile,
+} from '#/api/tenant/attachment';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { formatFileSize, getFileIcon } from '#/utils/file';
+import { getAttachmentUrl } from '#/utils/image';
 
 defineOptions({ name: 'FilePicker' });
 
@@ -51,6 +56,7 @@ const props = withDefaults(
   {
     multiple: false,
     accept: '*',
+    endpoint: undefined,
     maxCount: 10,
     imageOnly: false,
     maxFileSize: 100 * 1024 * 1024,
@@ -59,15 +65,15 @@ const props = withDefaults(
   },
 );
 
+const emit = defineEmits<{
+  (e: 'select', files: AttachmentInfo[]): void;
+}>();
+
 /** 解析实际使用的端类型：优先 prop，否则从 URL 自动检测 */
 const resolvedEndpoint = computed(() => {
   if (props.endpoint) return props.endpoint;
   return window.location.pathname.startsWith('/admin') ? 'admin' : 'tenant';
 });
-
-const emit = defineEmits<{
-  (e: 'select', files: AttachmentInfo[]): void;
-}>();
 
 interface UploadTask {
   uid: string;
@@ -148,7 +154,11 @@ function isImage(file: AttachmentInfo): boolean {
 
 function getPreviewUrl(file: AttachmentInfo): null | string {
   if (!isImage(file)) return null;
-  return getAttachmentUrl(file, { preset: 'thumb', format: 'webp', quality: 75 });
+  return getAttachmentUrl(file, {
+    preset: 'thumb',
+    format: 'webp',
+    quality: 75,
+  });
 }
 
 /** 获取原图 URL（用于放大预览），不传 preset 返回原始尺寸 */
@@ -187,7 +197,10 @@ async function loadFiles() {
     } else if (acceptMimeFilter.value) {
       params['filter[mime_type][ilike]'] = `${acceptMimeFilter.value}/`;
     }
-    const listApi = resolvedEndpoint.value === 'admin' ? adminGetAttachmentListApi : tenantGetAttachmentListApi;
+    const listApi =
+      resolvedEndpoint.value === 'admin'
+        ? adminGetAttachmentListApi
+        : tenantGetAttachmentListApi;
     const result = await listApi(params);
     files.value = result.items;
     total.value = result.total;
@@ -252,10 +265,23 @@ async function executeUploadTask(task: UploadTask): Promise<void> {
   task.abortController = new AbortController();
 
   try {
-    const uploadFn = resolvedEndpoint.value === 'admin'
-      ? (p: { file: File; visibility: string }, onProg: (pg: { percent: number }) => void, opts: Record<string, unknown>) =>
-          adminUploadAttachmentApi({ file: p.file, tenant_id: 0, visibility: p.visibility as 'private' | 'public' }, onProg, opts)
-      : tenantSmartUploadFile;
+    const uploadFn =
+      resolvedEndpoint.value === 'admin'
+        ? (
+            p: { file: File; visibility: string },
+            onProg: (pg: { percent: number }) => void,
+            opts: Record<string, unknown>,
+          ) =>
+            adminUploadAttachmentApi(
+              {
+                file: p.file,
+                tenant_id: 0,
+                visibility: p.visibility as 'private' | 'public',
+              },
+              onProg,
+              opts,
+            )
+        : tenantSmartUploadFile;
     const result = await uploadFn(
       { file: task.file, visibility: 'private' },
       (progress) => {
@@ -294,7 +320,12 @@ async function executeUploadTask(task: UploadTask): Promise<void> {
 }
 
 function checkAllUploadsComplete() {
-  if (uploadTasks.value.some((t) => t.status === 'uploading' || t.status === 'pending')) return;
+  if (
+    uploadTasks.value.some(
+      (t) => t.status === 'uploading' || t.status === 'pending',
+    )
+  )
+    return;
   if (uploadTasks.value.some((t) => t.status === 'error')) return;
   uploading.value = false;
   setTimeout(() => {
@@ -304,7 +335,9 @@ function checkAllUploadsComplete() {
 }
 
 function processQueue() {
-  const active = uploadTasks.value.filter((t) => t.status === 'uploading').length;
+  const active = uploadTasks.value.filter(
+    (t) => t.status === 'uploading',
+  ).length;
   const pending = uploadTasks.value.filter((t) => t.status === 'pending');
   if (active >= props.maxConcurrency || pending.length === 0) return;
   for (const task of pending.slice(0, props.maxConcurrency - active)) {
@@ -336,7 +369,10 @@ function addFilesToQueue(fileList: File[]) {
 }
 
 function handleCustomUpload(options: unknown) {
-  const opts = options as { file: File; onSuccess?: (...args: unknown[]) => void };
+  const opts = options as {
+    file: File;
+    onSuccess?: (...args: unknown[]) => void;
+  };
   addFilesToQueue([opts.file]);
   opts.onSuccess?.();
 }
@@ -359,7 +395,10 @@ function retryTask(task: UploadTask) {
 
 function clearCompletedTasks() {
   uploadTasks.value = uploadTasks.value.filter(
-    (t) => t.status === 'uploading' || t.status === 'pending' || t.status === 'error',
+    (t) =>
+      t.status === 'uploading' ||
+      t.status === 'pending' ||
+      t.status === 'error',
   );
 }
 
@@ -368,7 +407,9 @@ function clearErrors() {
 }
 
 function retryAllErrors() {
-  uploadTasks.value.filter((t) => t.status === 'error').forEach((t) => retryTask(t));
+  uploadTasks.value
+    .filter((t) => t.status === 'error')
+    .forEach((t) => retryTask(t));
 }
 
 // ============ 全弹窗拖拽 ============
@@ -402,7 +443,7 @@ function onModalDrop(e: DragEvent) {
   dragCounter = 0;
   isDragOver.value = false;
   const droppedFiles = e.dataTransfer?.files;
-  if (droppedFiles?.length) addFilesToQueue(Array.from(droppedFiles));
+  if (droppedFiles?.length) addFilesToQueue([...droppedFiles]);
 }
 
 function onWindowDragOver(e: DragEvent) {
@@ -455,8 +496,13 @@ defineExpose({
           v-if="isDragOver"
           class="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center gap-5 rounded-xl border-[3px] border-dashed border-primary/80 bg-primary/[0.04] backdrop-blur-sm"
         >
-          <div class="fp-drop-icon flex size-20 items-center justify-center rounded-3xl shadow-xl">
-            <IconifyIcon icon="lucide:cloud-upload" class="size-10 text-white" />
+          <div
+            class="fp-drop-icon flex size-20 items-center justify-center rounded-3xl shadow-xl"
+          >
+            <IconifyIcon
+              icon="lucide:cloud-upload"
+              class="size-10 text-white"
+            />
           </div>
           <div class="flex flex-col items-center gap-1.5">
             <span class="text-xl font-bold text-foreground">
@@ -482,8 +528,13 @@ defineExpose({
             class="!border-none !bg-transparent"
           >
             <div class="flex items-center gap-5 px-6 py-5">
-              <div class="fp-drop-icon flex size-14 shrink-0 items-center justify-center rounded-2xl shadow-lg transition-transform duration-300 group-hover:-translate-y-0.5">
-                <IconifyIcon icon="lucide:cloud-upload" class="size-7 text-white" />
+              <div
+                class="fp-drop-icon flex size-14 shrink-0 items-center justify-center rounded-2xl shadow-lg transition-transform duration-300 group-hover:-translate-y-0.5"
+              >
+                <IconifyIcon
+                  icon="lucide:cloud-upload"
+                  class="size-7 text-white"
+                />
               </div>
               <div class="flex flex-col gap-0.5 text-left">
                 <span class="text-[15px] font-semibold text-foreground">
@@ -492,7 +543,11 @@ defineExpose({
                 <span class="text-[13px] text-muted-foreground">
                   {{ $t('shared.filePicker.orClickToSelect') }}
                   ·
-                  {{ $t('shared.filePicker.maxSizeHint', { size: formatFileSize(maxFileSize) }) }}
+                  {{
+                    $t('shared.filePicker.maxSizeHint', {
+                      size: formatFileSize(maxFileSize),
+                    })
+                  }}
                 </span>
               </div>
             </div>
@@ -501,14 +556,29 @@ defineExpose({
 
         <!-- 上传任务队列 -->
         <Transition name="fp-slide">
-          <div v-if="uploadTasks.length > 0" class="mt-3 overflow-hidden rounded-xl border border-border/60 bg-card">
-            <div class="flex items-center justify-between border-b border-border/40 bg-muted/30 px-4 py-2.5">
+          <div
+            v-if="uploadTasks.length > 0"
+            class="mt-3 overflow-hidden rounded-xl border border-border/60 bg-card"
+          >
+            <div
+              class="flex items-center justify-between border-b border-border/40 bg-muted/30 px-4 py-2.5"
+            >
               <span class="text-xs font-semibold text-muted-foreground">
-                {{ $t('shared.filePicker.uploadingTitle', { count: uploadingCount, total: uploadTasks.length }) }}
+                {{
+                  $t('shared.filePicker.uploadingTitle', {
+                    count: uploadingCount,
+                    total: uploadTasks.length,
+                  })
+                }}
               </span>
               <span class="flex items-center gap-1">
                 <template v-if="errorCount > 0">
-                  <Button type="link" size="small" danger @click="retryAllErrors">
+                  <Button
+                    type="link"
+                    size="small"
+                    danger
+                    @click="retryAllErrors"
+                  >
                     {{ $t('shared.filePicker.retryAll') }}
                   </Button>
                   <Button type="link" size="small" @click="clearErrors">
@@ -532,7 +602,10 @@ defineExpose({
                     :icon="getFileIcon(task.name, task.file.type)"
                     class="shrink-0 text-base text-muted-foreground"
                   />
-                  <span class="min-w-0 flex-1 truncate text-xs" :title="task.name">
+                  <span
+                    class="min-w-0 flex-1 truncate text-xs"
+                    :title="task.name"
+                  >
                     {{ task.name }}
                   </span>
                   <span class="shrink-0 text-[11px] text-muted-foreground">
@@ -542,26 +615,52 @@ defineExpose({
                     <Progress
                       :percent="task.percent"
                       size="small"
-                      :status="task.status === 'error' ? 'exception' : task.status === 'success' ? 'success' : 'active'"
+                      :status="
+                        task.status === 'error'
+                          ? 'exception'
+                          : task.status === 'success'
+                            ? 'success'
+                            : 'active'
+                      "
                       :show-info="false"
                       :stroke-width="4"
                     />
                   </div>
                   <div class="flex w-6 shrink-0 justify-end">
-                    <IconifyIcon v-if="task.status === 'success'" icon="lucide:check" class="text-sm text-green-500" />
-                    <Tooltip v-else-if="task.status === 'error'" :title="task.error">
-                      <Button type="text" size="small" class="!size-5 !min-w-0" @click="retryTask(task)">
-                        <IconifyIcon icon="lucide:rotate-ccw" class="text-xs text-red-500" />
+                    <IconifyIcon
+                      v-if="task.status === 'success'"
+                      icon="lucide:check"
+                      class="text-sm text-green-500"
+                    />
+                    <Tooltip
+                      v-else-if="task.status === 'error'"
+                      :title="task.error"
+                    >
+                      <Button
+                        type="text"
+                        size="small"
+                        class="!size-5 !min-w-0"
+                        @click="retryTask(task)"
+                      >
+                        <IconifyIcon
+                          icon="lucide:rotate-ccw"
+                          class="text-xs text-red-500"
+                        />
                       </Button>
                     </Tooltip>
                     <Button
-                      v-else-if="task.status === 'pending' || task.status === 'uploading'"
+                      v-else-if="
+                        task.status === 'pending' || task.status === 'uploading'
+                      "
                       type="text"
                       size="small"
                       class="!size-5 !min-w-0"
                       @click="cancelTask(task)"
                     >
-                      <IconifyIcon icon="lucide:x" class="text-xs text-muted-foreground" />
+                      <IconifyIcon
+                        icon="lucide:x"
+                        class="text-xs text-muted-foreground"
+                      />
                     </Button>
                   </div>
                 </div>
@@ -596,7 +695,9 @@ defineExpose({
             @change="handleCategoryChange"
           />
 
-          <div class="ml-auto flex gap-0.5 rounded-lg border border-border/60 p-0.5">
+          <div
+            class="ml-auto flex gap-0.5 rounded-lg border border-border/60 p-0.5"
+          >
             <Tooltip :title="$t('shared.filePicker.gridView')">
               <Button
                 type="text"
@@ -605,7 +706,9 @@ defineExpose({
                 :class="viewMode === 'grid' ? '!bg-accent' : ''"
                 @click="viewMode = 'grid'"
               >
-                <template #icon><IconifyIcon icon="lucide:layout-grid" class="text-sm" /></template>
+                <template #icon>
+                  <IconifyIcon icon="lucide:layout-grid" class="text-sm" />
+                </template>
               </Button>
             </Tooltip>
             <Tooltip :title="$t('shared.filePicker.listView')">
@@ -616,7 +719,9 @@ defineExpose({
                 :class="viewMode === 'list' ? '!bg-accent' : ''"
                 @click="viewMode = 'list'"
               >
-                <template #icon><IconifyIcon icon="lucide:list" class="text-sm" /></template>
+                <template #icon>
+                  <IconifyIcon icon="lucide:list" class="text-sm" />
+                </template>
               </Button>
             </Tooltip>
           </div>
@@ -628,11 +733,20 @@ defineExpose({
             <!-- Grid -->
             <div v-if="viewMode === 'grid' && files.length > 0">
               <Row :gutter="[10, 10]">
-                <Col v-for="(file, idx) in files" :key="file.id" :span="4" :style="{ '--fp-i': idx }">
+                <Col
+                  v-for="(file, idx) in files"
+                  :key="file.id"
+                  :span="4"
+                  :style="{ '--fp-i': idx }"
+                >
                   <!-- 文件卡片：点击整张卡片即选中/取消选中 -->
                   <div
                     class="fp-card fp-fade-in group relative cursor-pointer rounded-lg border border-border/50 bg-card p-1.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
-                    :class="{ '!border-primary ring-2 ring-primary/20': selectedIds.has(file.id) }"
+                    :class="{
+                      '!border-primary ring-2 ring-primary/20': selectedIds.has(
+                        file.id,
+                      ),
+                    }"
                     @click="handleFileClick(file)"
                   >
                     <!-- 左上角：多选复选框 -->
@@ -645,20 +759,28 @@ defineExpose({
                       v-if="selectedIds.has(file.id)"
                       class="absolute right-0 top-0 z-10"
                     >
-                      <div class="flex size-6 items-center justify-center rounded-bl-lg rounded-tr-lg bg-primary text-white">
+                      <div
+                        class="flex size-6 items-center justify-center rounded-bl-lg rounded-tr-lg bg-primary text-white"
+                      >
                         <IconifyIcon icon="lucide:check" class="size-3.5" />
                       </div>
                     </div>
 
                     <!-- 预览区 -->
-                    <div class="relative mb-1.5 flex h-[90px] items-center justify-center overflow-hidden rounded-md bg-muted/30">
+                    <div
+                      class="relative mb-1.5 flex h-[90px] items-center justify-center overflow-hidden rounded-md bg-muted/30"
+                    >
                       <img
                         v-if="getPreviewUrl(file)"
                         :src="getPreviewUrl(file)!"
                         :alt="file.name"
                         loading="lazy"
                         class="size-full object-cover"
-                        @error="($event.target as HTMLImageElement).classList.add('hidden')"
+                        @error="
+                          ($event.target as HTMLImageElement).classList.add(
+                            'hidden',
+                          )
+                        "
                       />
                       <IconifyIcon
                         v-if="!getPreviewUrl(file)"
@@ -677,11 +799,18 @@ defineExpose({
                     </div>
 
                     <div class="px-0.5">
-                      <div class="truncate text-xs font-medium leading-tight" :title="file.name">
+                      <div
+                        class="truncate text-xs font-medium leading-tight"
+                        :title="file.name"
+                      >
                         {{ file.name.replace(/\.[^/.]+$/, '') }}
                       </div>
-                      <div class="mt-0.5 flex items-center justify-between text-[10px] text-muted-foreground">
-                        <span>{{ file.mimeType?.split('/')[1]?.toUpperCase() || 'FILE' }}</span>
+                      <div
+                        class="mt-0.5 flex items-center justify-between text-[10px] text-muted-foreground"
+                      >
+                        <span>{{
+                          file.mimeType?.split('/')[1]?.toUpperCase() || 'FILE'
+                        }}</span>
                         <span>{{ formatFileSize(file.size) }}</span>
                       </div>
                     </div>
@@ -691,13 +820,18 @@ defineExpose({
             </div>
 
             <!-- List -->
-            <div v-else-if="viewMode === 'list' && files.length > 0" class="flex flex-col gap-1">
+            <div
+              v-else-if="viewMode === 'list' && files.length > 0"
+              class="flex flex-col gap-1"
+            >
               <!-- 列表项：点击整行选中/取消选中 -->
               <div
                 v-for="file in files"
                 :key="file.id"
                 class="group flex cursor-pointer items-center gap-3 rounded-lg border border-transparent px-3 py-2 transition-all duration-150 hover:border-border hover:bg-accent/40"
-                :class="{ '!border-primary/50 bg-primary/5': selectedIds.has(file.id) }"
+                :class="{
+                  '!border-primary/50 bg-primary/5': selectedIds.has(file.id),
+                }"
                 @click="handleFileClick(file)"
               >
                 <Checkbox v-if="multiple" :checked="selectedIds.has(file.id)" />
@@ -707,13 +841,19 @@ defineExpose({
                   icon="lucide:circle-check"
                   class="size-4 shrink-0 text-primary"
                 />
-                <div class="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted/40">
+                <div
+                  class="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted/40"
+                >
                   <img
                     v-if="getPreviewUrl(file)"
                     :src="getPreviewUrl(file)!"
                     loading="lazy"
                     class="size-full object-cover"
-                    @error="($event.target as HTMLImageElement).classList.add('hidden')"
+                    @error="
+                      ($event.target as HTMLImageElement).classList.add(
+                        'hidden',
+                      )
+                    "
                   />
                   <IconifyIcon
                     v-if="!getPreviewUrl(file)"
@@ -722,11 +862,20 @@ defineExpose({
                   />
                 </div>
                 <div class="flex min-w-0 flex-1 flex-col">
-                  <span class="truncate text-sm font-medium" :title="file.name">{{ file.name }}</span>
+                  <span
+                    class="truncate text-sm font-medium"
+                    :title="file.name"
+                    >{{ file.name }}</span
+                  >
                   <span class="text-xs text-muted-foreground">
                     {{ formatFileSize(file.size) }}
                     <span class="mx-1">&middot;</span>
-                    <Tag v-if="file.category" :bordered="false" size="small" class="!text-[10px]">
+                    <Tag
+                      v-if="file.category"
+                      :bordered="false"
+                      size="small"
+                      class="!text-[10px]"
+                    >
                       {{ file.category }}
                     </Tag>
                   </span>
@@ -751,7 +900,10 @@ defineExpose({
               v-else-if="!loading && files.length === 0"
               class="flex min-h-[200px] flex-col items-center justify-center gap-3 py-12"
             >
-              <IconifyIcon icon="lucide:inbox" class="size-14 text-muted-foreground/30" />
+              <IconifyIcon
+                icon="lucide:inbox"
+                class="size-14 text-muted-foreground/30"
+              />
               <div class="text-sm font-medium text-muted-foreground">
                 {{ $t('shared.filePicker.empty') }}
               </div>
@@ -782,7 +934,9 @@ defineExpose({
       >
         <span class="text-xs text-muted-foreground">
           <template v-if="selectedIds.size > 0">
-            {{ $t('shared.filePicker.selectedCount', { count: selectedIds.size }) }}
+            {{
+              $t('shared.filePicker.selectedCount', { count: selectedIds.size })
+            }}
           </template>
         </span>
         <div class="flex gap-2">
@@ -802,7 +956,10 @@ defineExpose({
       <!-- 图片预览 -->
       <Image
         :src="previewUrl"
-        :preview="{ visible: previewVisible, onVisibleChange: (v: boolean) => (previewVisible = v) }"
+        :preview="{
+          visible: previewVisible,
+          onVisibleChange: (v: boolean) => (previewVisible = v),
+        }"
         class="hidden"
       />
     </div>
@@ -810,16 +967,27 @@ defineExpose({
 </template>
 
 <style scoped>
-/* === 上传区：渐变边框 + 拖拽激活 === */
+@keyframes fp-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .upload-dropzone {
-  border: 1.5px dashed hsl(var(--primary) / 30%);
   background: hsl(var(--primary) / 2%);
+  border: 1.5px dashed hsl(var(--primary) / 30%);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .upload-dropzone:hover {
-  border-color: hsl(var(--primary) / 60%);
   background: hsl(var(--primary) / 5%);
+  border-color: hsl(var(--primary) / 60%);
 }
 
 .upload-dropzone :deep(.ant-upload-drag) {
@@ -834,7 +1002,11 @@ defineExpose({
 
 /* === 渐变图标 === */
 .fp-drop-icon {
-  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 75%) 100%);
+  background: linear-gradient(
+    135deg,
+    hsl(var(--primary)) 0%,
+    hsl(var(--primary) / 75%) 100%
+  );
 }
 
 /* === 网格卡片交错淡入 === */
@@ -843,26 +1015,57 @@ defineExpose({
   animation-delay: calc(var(--fp-i, 0) * 25ms);
 }
 
-@keyframes fp-in {
-  from { opacity: 0; transform: translateY(6px) scale(0.98); }
-  to { opacity: 1; transform: none; }
+/* === 拖拽覆盖层 === */
+.fp-overlay-enter-active {
+  transition: all 0.2s ease-out;
 }
 
-/* === 拖拽覆盖层 === */
-.fp-overlay-enter-active { transition: all 0.2s ease-out; }
-.fp-overlay-leave-active { transition: all 0.15s ease-in; }
+.fp-overlay-leave-active {
+  transition: all 0.15s ease-in;
+}
+
 .fp-overlay-enter-from,
-.fp-overlay-leave-to { opacity: 0; }
+.fp-overlay-leave-to {
+  opacity: 0;
+}
 
 /* === 上传队列动画 === */
-.fp-slide-enter-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-.fp-slide-leave-active { transition: all 0.2s ease-in; }
-.fp-slide-enter-from,
-.fp-slide-leave-to { opacity: 0; max-height: 0; margin-top: 0; }
+.fp-slide-enter-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
 
-.fp-task-enter-active { transition: all 0.25s ease-out; }
-.fp-task-leave-active { transition: all 0.15s ease-in; }
-.fp-task-enter-from { opacity: 0; transform: translateX(-8px); }
-.fp-task-leave-to { opacity: 0; transform: translateX(8px); }
-.fp-task-move { transition: transform 0.25s ease; }
+.fp-slide-leave-active {
+  transition: all 0.2s ease-in;
+}
+
+.fp-slide-enter-from,
+.fp-slide-leave-to {
+  max-height: 0;
+  margin-top: 0;
+  opacity: 0;
+}
+
+.fp-task-enter-active {
+  transition: all 0.25s ease-out;
+}
+
+.fp-task-leave-active {
+  transition: all 0.15s ease-in;
+}
+
+.fp-task-enter-from {
+  opacity: 0;
+  transform: translateX(-8px);
+}
+
+.fp-task-leave-to {
+  opacity: 0;
+  transform: translateX(8px);
+}
+
+.fp-task-move {
+  transition: transform 0.25s ease;
+}
+
+/* === 上传区：渐变边框 + 拖拽激活 === */
 </style>

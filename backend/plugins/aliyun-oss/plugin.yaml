@@ -31,6 +31,7 @@ extensions:
 dependencies:
   python:
     - "alibabacloud-oss-v2>=1.0.0"
+    - "anyio>=4.0.0"
   plugins: []
 
 pricing:

@@ -5,16 +5,13 @@ AI 相关的 Celery 任务
 Celery Worker 是同步进程，使用同步 DB Session 直接写入。
 """
 
-import json
 import hashlib
-from typing import Optional
+import json
 
+from app.core.base_model import utc_now
 from app.core.database import sync_session_factory
 from app.core.logging import LogManager
-from app.core.i18n import _
-from app.core.base_model import utc_now
-from app.tasks.base import register_task, BaseTask
-
+from app.tasks.base import BaseTask, register_task
 
 logger = LogManager.get_logger("tasks.ai")
 
@@ -34,7 +31,7 @@ def _sanitize_request(request_data: dict) -> dict:
     return sanitized
 
 
-def _truncate_response(response_data) -> Optional[dict]:
+def _truncate_response(response_data) -> dict | None:
     """响应体截断处理（超过 10KB 截断）"""
     if not response_data:
         return response_data
@@ -57,7 +54,7 @@ def _generate_request_hash(
     model_id: int,
     messages: list,
     temperature: float,
-    tools: Optional[list],
+    tools: list | None,
 ) -> str:
     """生成请求哈希（用于缓存命中检测）"""
     params = {

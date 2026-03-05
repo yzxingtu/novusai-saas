@@ -110,7 +110,7 @@ async def test_webhook_dispatcher_redacts_internal_error_in_production(
 
     monkeypatch.setattr(
         "app.plugins.registry.ExtensionRegistry.get_instance",
-        lambda *args, **kwargs: _Registry(),
+        lambda *_args, **_kwargs: _Registry(),
     )
     monkeypatch.setattr("app.plugins.webhook_dispatcher.settings.DEBUG", False, raising=False)
 

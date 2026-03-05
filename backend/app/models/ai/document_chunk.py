@@ -7,7 +7,15 @@
 from typing import TYPE_CHECKING
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Column, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSON, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -155,7 +163,7 @@ class DocumentChunk(TenantModel):
 
 
 if TYPE_CHECKING:
-    from app.models.ai.knowledge_document import KnowledgeDocument
+    pass
 
 
 __all__ = ["DocumentChunk"]

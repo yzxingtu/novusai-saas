@@ -6,8 +6,6 @@
  */
 import type { AIAgentVersionItem } from '#/api/admin/ai';
 
-defineOptions({ name: 'AdminAgentVersionHistory' });
-
 import { computed, ref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
@@ -24,26 +22,25 @@ import {
   TimelineItem,
 } from 'ant-design-vue';
 
-import {
-  getAIAgentVersionsApi,
-  rollbackAIAgentApi,
-} from '#/api/admin/ai';
+import { getAIAgentVersionsApi, rollbackAIAgentApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
+
+defineOptions({ name: 'AdminAgentVersionHistory' });
 
 const emits = defineEmits<{ success: [] }>();
 
 const loading = ref(false);
 const versions = ref<AIAgentVersionItem[]>([]);
 const agentId = ref<number>(0);
-const publishedVersion = ref<number | null>(null);
+const publishedVersion = ref<null | number>(null);
 
 const [Drawer, drawerApi] = useVbenDrawer({
   onOpenChange: async (isOpen) => {
     if (isOpen) {
       const data = drawerApi.getData<{
         id: number;
-        publishedVersion: number | null;
+        publishedVersion: null | number;
       }>();
       if (data?.id) {
         agentId.value = data.id;

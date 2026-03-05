@@ -6,34 +6,34 @@
 
 from typing import Any
 
-from sqlalchemy import select, or_
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.configs.service import ConfigService
-from app.core.i18n import _
 from app.captcha.service import captcha_service
+from app.configs.service import ConfigService
+from app.core.base_model import utc_now
+from app.core.i18n import _
 from app.core.security import (
-    verify_password,
-    get_password_hash,
-    create_access_token,
-    create_refresh_token,
-    create_token_pair,
-    verify_token_with_scope,
-    verify_impersonate_token,
-    TOKEN_TYPE_REFRESH,
     TOKEN_SCOPE_ADMIN,
     TOKEN_SCOPE_TENANT_ADMIN,
     TOKEN_SCOPE_TENANT_USER,
+    TOKEN_TYPE_REFRESH,
+    create_access_token,
+    create_refresh_token,
+    create_token_pair,
+    get_password_hash,
+    verify_impersonate_token,
+    verify_password,
+    verify_token_with_scope,
 )
 from app.exceptions import AuthenticationException, BusinessException, NotFoundException
-from app.models import Admin, TenantAdmin, TenantUser, Tenant
-from app.core.base_model import utc_now
+from app.models import Admin, Tenant, TenantAdmin, TenantUser
 
 
 class AuthService:
     """
     认证服务
-    
+
     提供：
     - 平台管理员认证 (Admin)
     - 租户管理员认证 (TenantAdmin)
@@ -41,7 +41,7 @@ class AuthService:
     - Token 刷新
     - 密码修改
     """
-    
+
     def __init__(self, db: AsyncSession):
         """
         初始化服务
@@ -111,9 +111,9 @@ class AuthService:
             has_special = any(not c.isalnum() for c in password)
             if not (has_letter and has_digit and has_special):
                 raise BusinessException(message=_("auth.password_complexity_high"))
-    
+
     # ==================== 平台管理员认证 ====================
-    
+
     async def authenticate_admin(
         self,
         username: str,
@@ -133,7 +133,7 @@ class AuthService:
             captcha_challenge_id: 验证码挑战ID
             captcha_solution: 验证码解决方案
             captcha_provider_code: 验证码提供程序代码
-        
+
         Returns:
             包含 tokens 的字典
 
@@ -244,6 +244,7 @@ class AuthService:
             user_type: 用户类型 (admin/tenant_admin/tenant_user)
             tenant_id: 租户 ID（租户端使用租户配置）
         """
+        _ = client_ip
         from datetime import timedelta
 
         # 获取登录失败配置（租户端优先使用租户配置，回退到平台配置）
@@ -390,13 +391,13 @@ class AuthService:
     ) -> None:
         """
         验证验证码
-        
+
         Args:
             challenge_id: 验证码挑战ID
             solution: 验证码解决方案
             provider_code: 验证码提供程序代码
             ctx: 上下文信息
-        
+
         Raises:
             AuthenticationException: 验证码无效
         """
@@ -416,17 +417,17 @@ class AuthService:
                 message=_("auth.captcha_invalid"),
                 data={"captcha_required": True},
             )
-    
+
     async def refresh_admin_token(self, refresh_token: str) -> dict[str, Any]:
         """
         刷新平台管理员 Token
-        
+
         Args:
             refresh_token: 刷新令牌
-        
+
         Returns:
             新的 tokens
-        
+
         Raises:
             AuthenticationException: Token 无效
         """
@@ -435,7 +436,7 @@ class AuthService:
         )
         if admin_id is None:
             raise AuthenticationException(message=_("auth.refresh_token_invalid"))
-        
+
         # 查询管理员
         result = await self.db.execute(
             select(Admin).where(
@@ -444,15 +445,15 @@ class AuthService:
             )
         )
         admin = result.scalar_one_or_none()
-        
+
         if admin is None:
             raise AuthenticationException(message=_("auth.refresh_token_invalid"))
-        
+
         if not admin.is_active:
             raise AuthenticationException(message=_("auth.account_disabled"))
-        
+
         return create_token_pair(admin.id, scope=TOKEN_SCOPE_ADMIN)
-    
+
     async def change_admin_password(
         self,
         admin: Admin,
@@ -477,9 +478,9 @@ class AuthService:
         await self._validate_password_policy(new_password)
 
         admin.password_hash = get_password_hash(new_password)
-    
+
     # ==================== 租户管理员认证 ====================
-    
+
     async def authenticate_tenant_admin(
         self,
         username: str,
@@ -491,7 +492,7 @@ class AuthService:
     ) -> dict[str, Any]:
         """
         租户管理员认证
-        
+
         Args:
             username: 用户名或邮箱
             password: 密码
@@ -499,10 +500,10 @@ class AuthService:
             captcha_challenge_id: 验证码挑战ID
             captcha_solution: 验证码解决方案
             captcha_provider_code: 验证码提供程序代码
-        
+
         Returns:
             包含 tokens 的字典
-        
+
         Raises:
             AuthenticationException: 认证失败
         """
@@ -561,16 +562,16 @@ class AuthService:
                 message=_("auth.credentials_invalid"),
                 data={"captcha_required": captcha_required_after},
             )
-        
+
         # 检查租户状态
         tenant_result = await self.db.execute(
             select(Tenant).where(Tenant.id == tenant_admin.tenant_id)
         )
         tenant = tenant_result.scalar_one_or_none()
-        
+
         if tenant is None or not tenant.is_active:
             raise AuthenticationException(message=_("tenant.disabled"))
-        
+
         # 登录成功，重置失败计数
         await self._reset_login_failures(tenant_admin.id, "tenant_admin")
 
@@ -593,17 +594,17 @@ class AuthService:
         )
 
         return tokens
-    
+
     async def refresh_tenant_admin_token(self, refresh_token: str) -> dict[str, Any]:
         """
         刷新租户管理员 Token
-        
+
         Args:
             refresh_token: 刷新令牌
-        
+
         Returns:
             新的 tokens
-        
+
         Raises:
             AuthenticationException: Token 无效
         """
@@ -612,7 +613,7 @@ class AuthService:
         )
         if admin_id is None:
             raise AuthenticationException(message=_("auth.refresh_token_invalid"))
-        
+
         # 查询租户管理员
         result = await self.db.execute(
             select(TenantAdmin).where(
@@ -621,19 +622,19 @@ class AuthService:
             )
         )
         tenant_admin = result.scalar_one_or_none()
-        
+
         if tenant_admin is None:
             raise AuthenticationException(message=_("auth.refresh_token_invalid"))
-        
+
         if not tenant_admin.is_active:
             raise AuthenticationException(message=_("auth.account_disabled"))
-        
+
         return create_token_pair(
             tenant_admin.id,
             scope=TOKEN_SCOPE_TENANT_ADMIN,
             extra_claims={"tenant_id": tenant_admin.tenant_id},
         )
-    
+
     async def change_tenant_admin_password(
         self,
         tenant_admin: TenantAdmin,
@@ -658,37 +659,37 @@ class AuthService:
         await self._validate_password_policy(new_password, tenant_id=tenant_admin.tenant_id)
 
         tenant_admin.password_hash = get_password_hash(new_password)
-    
+
     async def impersonate_tenant_admin(
         self,
         impersonate_token: str,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         """
         验证平台管理员的 impersonate token 并换取正式 Token
-        
+
         Args:
             impersonate_token: 一键登录令牌
-        
+
         Returns:
             (tokens, audit_info) 元组
-        
+
         Raises:
             AuthenticationException: Token 无效
             NotFoundException: 租户或所有者不存在
         """
         # 验证 impersonate token
         payload = verify_impersonate_token(impersonate_token, TOKEN_SCOPE_TENANT_ADMIN)
-        
+
         if payload is None:
             raise AuthenticationException(message=_("auth.impersonate_token_invalid"))
-        
+
         admin_id = int(payload["sub"]) if payload.get("sub") else None
         target_tenant_id = payload.get("target_tenant_id")
         target_role_id = payload.get("target_role_id")
-        
+
         if admin_id is None:
             raise AuthenticationException(message=_("auth.impersonate_token_invalid"))
-        
+
         # 验证租户状态
         tenant_result = await self.db.execute(
             select(Tenant).where(
@@ -697,10 +698,10 @@ class AuthService:
             )
         )
         tenant = tenant_result.scalar_one_or_none()
-        
+
         if tenant is None or not tenant.is_active:
             raise AuthenticationException(message=_("tenant.disabled"))
-        
+
         # 获取租户的所有者信息
         owner_result = await self.db.execute(
             select(TenantAdmin).where(
@@ -710,10 +711,10 @@ class AuthService:
             )
         )
         tenant_owner = owner_result.scalar_one_or_none()
-        
+
         if tenant_owner is None:
             raise NotFoundException(message=_("tenant.owner_not_found"))
-        
+
         # 获取执行 impersonate 的平台管理员信息
         platform_admin_result = await self.db.execute(
             select(Admin).where(
@@ -723,22 +724,22 @@ class AuthService:
         )
         platform_admin = platform_admin_result.scalar_one_or_none()
         platform_admin_username = platform_admin.username if platform_admin else "unknown"
-        
+
         # 生成正式 Token
         extra_claims = {
             "tenant_id": target_tenant_id,
             "impersonated_by": admin_id,
         }
-        
+
         if target_role_id:
             extra_claims["impersonate_role_id"] = target_role_id
-        
+
         tokens = create_token_pair(
             tenant_owner.id,
             scope=TOKEN_SCOPE_TENANT_ADMIN,
             extra_claims=extra_claims,
         )
-        
+
         # 返回审计信息
         audit_info = {
             "admin_id": admin_id,
@@ -748,11 +749,11 @@ class AuthService:
             "tenant_owner_id": tenant_owner.id,
             "target_role_id": target_role_id,
         }
-        
+
         return tokens, audit_info
-    
+
     # ==================== 租户用户认证 ====================
-    
+
     async def authenticate_tenant_user(
         self,
         username: str,
@@ -764,15 +765,15 @@ class AuthService:
     ) -> dict[str, Any]:
         """
         租户用户认证
-        
+
         Args:
             username: 用户名、邮箱或手机号
             password: 密码
             client_ip: 客户端 IP
-        
+
         Returns:
             包含 tokens 的字典
-        
+
         Raises:
             AuthenticationException: 认证失败
         """
@@ -855,17 +856,17 @@ class AuthService:
         )
 
         return tokens
-    
+
     async def refresh_tenant_user_token(self, refresh_token: str) -> dict[str, Any]:
         """
         刷新租户用户 Token
-        
+
         Args:
             refresh_token: 刷新令牌
-        
+
         Returns:
             新的 tokens
-        
+
         Raises:
             AuthenticationException: Token 无效
         """
@@ -874,7 +875,7 @@ class AuthService:
         )
         if user_id is None:
             raise AuthenticationException(message=_("auth.refresh_token_invalid"))
-        
+
         # 查询用户
         result = await self.db.execute(
             select(TenantUser).where(
@@ -883,19 +884,19 @@ class AuthService:
             )
         )
         user = result.scalar_one_or_none()
-        
+
         if user is None:
             raise AuthenticationException(message=_("auth.refresh_token_invalid"))
-        
+
         if not user.is_active:
             raise AuthenticationException(message=_("auth.account_disabled"))
-        
+
         return create_token_pair(
             user.id,
             scope=TOKEN_SCOPE_TENANT_USER,
             extra_claims={"tenant_id": user.tenant_id},
         )
-    
+
     async def change_tenant_user_password(
         self,
         user: TenantUser,

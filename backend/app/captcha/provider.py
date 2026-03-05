@@ -1,7 +1,9 @@
 from __future__ import annotations
-from typing import Any, Protocol
-from pydantic import BaseModel
+
 from datetime import datetime
+from typing import Any, Protocol
+
+from pydantic import BaseModel
 
 
 class CaptchaChallenge(BaseModel):
@@ -25,6 +27,7 @@ class ICaptchaProvider(Protocol):
 
 class StubImageCaptchaProvider:
     async def generate_challenge(self, ctx: dict[str, Any]) -> CaptchaChallenge:
+        _ = ctx
         return CaptchaChallenge(
             challenge_id="stub",
             type="image",
@@ -34,4 +37,5 @@ class StubImageCaptchaProvider:
         )
 
     async def verify(self, challenge_id: str, solution: str, ctx: dict[str, Any]) -> CaptchaVerificationResult:
+        _ = (challenge_id, solution, ctx)
         return CaptchaVerificationResult(ok=False, reason="not_implemented", score=None)

@@ -7,7 +7,7 @@
 """
 
 from app.core.logging import LogManager
-from app.tasks.base import register_task, BaseTask
+from app.tasks.base import BaseTask, register_task
 
 logger = LogManager.get_logger("task")
 
@@ -122,8 +122,8 @@ def _record_notification_email_log(
     text_body: str | None = None,
 ) -> None:
     """记录通知邮件日志"""
-    from app.core.database import sync_session_factory
     from app.core.base_model import utc_now
+    from app.core.database import sync_session_factory
 
     session = None
     try:

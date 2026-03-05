@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import Field
 
@@ -17,7 +16,7 @@ from app.enums.role import RoleType
 
 class TenantAdminRoleResponse(BaseSchema):
     """租户角色响应"""
-    
+
     id: int = Field(..., description="角色 ID")
     tenant_id: int = Field(..., description="租户 ID")
     code: str = Field(..., description="角色代码")
@@ -44,20 +43,20 @@ class TenantAdminRoleResponse(BaseSchema):
 
 class TenantAdminRoleDetailResponse(TenantAdminRoleResponse):
     """租户角色详情响应（含权限）"""
-    
+
     permission_ids: list[int] = Field(default_factory=list, description="权限 ID 列表")
     permission_codes: list[str] = Field(default_factory=list, description="权限代码列表")
 
 
 class TenantAdminRoleTreeNode(TenantAdminRoleResponse):
     """租户角色树节点（含子节点）"""
-    
+
     children: list[TenantAdminRoleTreeNode] = Field(default_factory=list, description="子角色列表")
 
 
 class TenantAdminRoleCreateRequest(BaseSchema):
     """创建租户角色请求"""
-    
+
     name: str = Field(..., min_length=1, max_length=50, description="角色名称")
     description: str | None = Field(None, max_length=500, description="角色描述")
     is_active: bool = Field(True, description="是否启用")
@@ -71,7 +70,7 @@ class TenantAdminRoleCreateRequest(BaseSchema):
 
 class TenantAdminRoleUpdateRequest(BaseSchema):
     """更新租户角色请求"""
-    
+
     name: str | None = Field(None, min_length=1, max_length=50, description="角色名称")
     description: str | None = Field(None, max_length=500, description="角色描述")
     is_active: bool | None = Field(None, description="是否启用")
@@ -86,13 +85,13 @@ class TenantAdminRoleUpdateRequest(BaseSchema):
 
 class TenantAdminRolePermissionsRequest(BaseSchema):
     """分配租户角色权限请求"""
-    
+
     permission_ids: list[int] = Field(..., description="权限 ID 列表")
 
 
 class TenantAdminRoleMoveRequest(BaseSchema):
     """移动租户角色节点请求"""
-    
+
     new_parent_id: int | None = Field(None, description="新父角色 ID，None 表示移动到根级")
 
 
@@ -100,19 +99,19 @@ class TenantAdminRoleMoveRequest(BaseSchema):
 
 class TenantAdminRoleSetLeaderRequest(BaseSchema):
     """设置节点负责人请求"""
-    
+
     leader_id: int | None = Field(None, description="负责人 ID，None 表示取消负责人")
 
 
 class TenantAdminRoleAddMemberRequest(BaseSchema):
     """添加成员到节点请求"""
-    
+
     admin_id: int = Field(..., description="租户管理员 ID")
 
 
 class TenantAdminRoleCreateMemberRequest(BaseSchema):
     """在节点下创建成员请求"""
-    
+
     username: str = Field(..., min_length=2, max_length=50, description="用户名")
     email: str = Field(..., description="邮箱")
     password: str = Field(..., min_length=6, max_length=50, description="密码")
@@ -123,7 +122,7 @@ class TenantAdminRoleCreateMemberRequest(BaseSchema):
 
 class TenantAdminRoleUpdateMemberRequest(BaseSchema):
     """更新节点成员请求"""
-    
+
     email: str | None = Field(None, description="邮箱")
     phone: str | None = Field(None, description="手机号")
     nickname: str | None = Field(None, description="昵称")
@@ -134,19 +133,19 @@ class TenantAdminRoleUpdateMemberRequest(BaseSchema):
 
 class TenantAdminRoleResetPasswordRequest(BaseSchema):
     """重置节点成员密码请求"""
-    
+
     new_password: str = Field(..., min_length=6, max_length=50, description="新密码")
 
 
 class TenantAdminRoleToggleStatusRequest(BaseSchema):
     """切换节点成员状态请求"""
-    
+
     is_active: bool = Field(..., description="是否激活")
 
 
 class TenantAdminRoleMemberResponse(BaseSchema):
     """节点成员响应"""
-    
+
     id: int = Field(..., description="租户管理员 ID")
     username: str = Field(..., description="用户名")
     nickname: str | None = Field(None, description="昵称")

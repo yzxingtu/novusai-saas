@@ -1,25 +1,23 @@
 <script lang="ts" setup>
+import type { MenuDeclItem } from './modules/PluginMenuConfigModal.vue';
+
 /**
  * 平台插件管理页面 — 卡片式布局
  */
 import type { MenuOverrideItem, PluginInfo } from '#/api/admin/plugin';
-import type { MenuDeclItem } from './modules/PluginMenuConfigModal.vue';
-
-defineOptions({ name: 'AdminPluginList' });
 
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
-import { useAccessStore } from '@vben/stores';
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
+import { useAccessStore, useUserStore } from '@vben/stores';
 
 import {
   Button,
   Input,
   message,
   Modal,
-  Spin,
   Switch,
   Tag,
   Tooltip,
@@ -30,11 +28,17 @@ import {
   enablePluginApi,
   forceCleanupPluginApi,
   getPluginListApi,
+  installPluginDependenciesApi,
+  repairPluginApi,
   uninstallPluginApi,
+  uninstallPluginDependenciesApi,
   updatePluginMenuConfigApi,
 } from '#/api/admin/plugin';
-import { $t } from '#/locales';
 import { refreshPluginSlots } from '#/composables/use-plugin-frontend-init';
+import { $t } from '#/locales';
+import { generateAccess } from '#/router/access';
+import { accessRoutes } from '#/router/routes';
+import { usePluginInstallProgressStore } from '#/store';
 
 import {
   derivePluginType,
@@ -44,15 +48,16 @@ import {
   getTypeText,
   PLUGIN_TYPES,
 } from './data';
-import { usePluginInstallProgressStore } from '#/store';
-
 import PluginConfigDrawer from './modules/PluginConfigDrawer.vue';
 import PluginInstallProgress from './modules/PluginInstallProgress.vue';
 import PluginInstallWizard from './modules/PluginInstallWizard.vue';
 import PluginMenuConfigModal from './modules/PluginMenuConfigModal.vue';
 
+defineOptions({ name: 'AdminPluginList' });
+
 const router = useRouter();
 const accessStore = useAccessStore();
+const userStore = useUserStore();
 const progressStore = usePluginInstallProgressStore();
 const plugins = ref<PluginInfo[]>([]);
 const loading = ref(false);
@@ -63,19 +68,47 @@ const processingIds = ref<Set<number>>(new Set());
 const installWizardRef = ref<InstanceType<typeof PluginInstallWizard>>();
 const configDrawerRef = ref<InstanceType<typeof PluginConfigDrawer>>();
 const menuConfigModalRef = ref<InstanceType<typeof PluginMenuConfigModal>>();
-let pendingEnablePlugin: PluginInfo | null = null;
+let pendingEnablePlugin: null | PluginInfo = null;
 
 const statusFilters = computed(() => [
-  { value: 'all', label: $t('admin.plugin.type_options.all'), icon: 'lucide:layers' },
-  { value: 'enabled', label: $t('admin.plugin.status_options.enabled'), icon: 'lucide:check-circle' },
-  { value: 'installed', label: $t('admin.plugin.status_options.installed'), icon: 'lucide:download' },
-  { value: 'disabled', label: $t('admin.plugin.status_options.disabled'), icon: 'lucide:pause-circle' },
-  { value: 'error', label: $t('admin.plugin.status_options.error'), icon: 'lucide:alert-circle' },
+  {
+    value: 'all',
+    label: $t('admin.plugin.type_options.all'),
+    icon: 'lucide:layers',
+  },
+  {
+    value: 'enabled',
+    label: $t('admin.plugin.status_options.enabled'),
+    icon: 'lucide:check-circle',
+  },
+  {
+    value: 'installed',
+    label: $t('admin.plugin.status_options.installed'),
+    icon: 'lucide:download',
+  },
+  {
+    value: 'disabled',
+    label: $t('admin.plugin.status_options.disabled'),
+    icon: 'lucide:pause-circle',
+  },
+  {
+    value: 'error',
+    label: $t('admin.plugin.status_options.error'),
+    icon: 'lucide:alert-circle',
+  },
 ]);
 
 const typeFilters = computed(() => [
-  { value: 'all', label: $t('admin.plugin.type_options.all'), icon: 'lucide:grid-2x2' },
-  ...PLUGIN_TYPES.map((t) => ({ value: t, label: getTypeText(t), icon: getTypeIcon(t) })),
+  {
+    value: 'all',
+    label: $t('admin.plugin.type_options.all'),
+    icon: 'lucide:grid-2x2',
+  },
+  ...PLUGIN_TYPES.map((t) => ({
+    value: t,
+    label: getTypeText(t),
+    icon: getTypeIcon(t),
+  })),
 ]);
 
 const filteredPlugins = computed(() => {
@@ -90,7 +123,9 @@ const filteredPlugins = computed(() => {
     );
   }
   if (filterType.value !== 'all') {
-    result = result.filter((p) => derivePluginType(p.manifest) === filterType.value);
+    result = result.filter(
+      (p) => derivePluginType(p.manifest) === filterType.value,
+    );
   }
   if (filterStatus.value !== 'all') {
     result = result.filter((p) => p.status === filterStatus.value);
@@ -103,27 +138,89 @@ const stats = computed(() => {
   return {
     total: all.length,
     enabled: all.filter((p) => p.status === 'enabled').length,
-    disabled: all.filter((p) => p.status === 'disabled' || p.status === 'installed').length,
+    disabled: all.filter(
+      (p) => p.status === 'disabled' || p.status === 'installed',
+    ).length,
     error: all.filter((p) => p.status === 'error').length,
   };
 });
 
 const summaryCards = computed(() => [
-  { key: 'total', label: $t('admin.plugin.overview.total'), value: stats.value.total, icon: 'lucide:blocks', bgClass: 'bg-primary/10', iconClass: 'text-primary' },
-  { key: 'enabled', label: $t('admin.plugin.overview.enabled'), value: stats.value.enabled, icon: 'lucide:check-circle', bgClass: 'bg-success/10', iconClass: 'text-success' },
-  { key: 'disabled', label: $t('admin.plugin.overview.disabled'), value: stats.value.disabled, icon: 'lucide:pause-circle', bgClass: 'bg-accent', iconClass: 'text-muted-foreground' },
-  { key: 'error', label: $t('admin.plugin.overview.error'), value: stats.value.error, icon: 'lucide:alert-circle', bgClass: 'bg-destructive/10', iconClass: 'text-destructive' },
+  {
+    key: 'total',
+    label: $t('admin.plugin.overview.total'),
+    value: stats.value.total,
+    icon: 'lucide:blocks',
+    bgClass: 'bg-primary/10',
+    iconClass: 'text-primary',
+  },
+  {
+    key: 'enabled',
+    label: $t('admin.plugin.overview.enabled'),
+    value: stats.value.enabled,
+    icon: 'lucide:check-circle',
+    bgClass: 'bg-success/10',
+    iconClass: 'text-success',
+  },
+  {
+    key: 'disabled',
+    label: $t('admin.plugin.overview.disabled'),
+    value: stats.value.disabled,
+    icon: 'lucide:pause-circle',
+    bgClass: 'bg-accent',
+    iconClass: 'text-muted-foreground',
+  },
+  {
+    key: 'error',
+    label: $t('admin.plugin.overview.error'),
+    value: stats.value.error,
+    icon: 'lucide:alert-circle',
+    bgClass: 'bg-destructive/10',
+    iconClass: 'text-destructive',
+  },
 ]);
 
 async function loadPlugins() {
   loading.value = true;
   try {
-    const res = await getPluginListApi({ 'page[size]': 200, sort: '-created_at' }) as Record<string, unknown>;
+    const res = (await getPluginListApi({
+      'page[size]': 200,
+      sort: '-created_at',
+    })) as Record<string, unknown>;
     plugins.value = (res?.items as PluginInfo[]) || [];
   } catch {
     plugins.value = [];
   } finally {
     loading.value = false;
+  }
+}
+
+async function refreshAdminMenusAndPluginRoutes() {
+  try {
+    await refreshPluginSlots('/admin', router);
+  } catch (error) {
+    console.warn('[PluginAdmin] Failed to refresh plugin slots:', error);
+  }
+  try {
+    const userRoles = userStore.userInfo?.roles ?? [];
+    const { accessibleMenus, accessibleRoutes } = await generateAccess(
+      {
+        roles: userRoles,
+        router,
+        routes: accessRoutes,
+      },
+      'admin',
+    );
+    accessStore.setAccessMenus(accessibleMenus);
+    accessStore.setAccessRoutes(accessibleRoutes);
+    accessStore.setIsAccessChecked(true);
+  } catch (error) {
+    console.warn(
+      '[PluginAdmin] Failed to refresh admin menu/routes immediately:',
+      error,
+    );
+    // fallback: router guard will rebuild on next navigation
+    accessStore.setIsAccessChecked(false);
   }
 }
 
@@ -143,7 +240,11 @@ function isProcessing(id: number): boolean {
 async function withProcessing(id: number, fn: () => Promise<void>) {
   if (processingIds.value.has(id)) return;
   processingIds.value.add(id);
-  try { await fn(); } finally { processingIds.value.delete(id); }
+  try {
+    await fn();
+  } finally {
+    processingIds.value.delete(id);
+  }
 }
 
 function onDetail(plugin: PluginInfo) {
@@ -164,7 +265,10 @@ function onEnable(plugin: PluginInfo) {
   if (menus.length > 0) {
     // 有菜单扩展 → 先让管理员选择挂载位置
     pendingEnablePlugin = plugin;
-    const currentOverrides = ((plugin.config || {}) as Record<string, unknown>).menu_overrides as Record<string, { parent?: string; tenant_parent?: string }> | undefined;
+    const currentOverrides = ((plugin.config || {}) as Record<string, unknown>)
+      .menu_overrides as
+      | Record<string, { parent?: string; tenant_parent?: string }>
+      | undefined;
     menuConfigModalRef.value?.open(menus, currentOverrides);
   } else {
     doEnable(plugin);
@@ -184,18 +288,19 @@ function doEnable(plugin: PluginInfo, menuOverrides?: MenuOverrideItem[]) {
         progressStore.markComplete();
         message.success($t('admin.plugin.messages.enableSuccess'));
         await loadPlugins();
-        await refreshPluginSlots('/admin', router);
-        accessStore.setIsAccessChecked(false);
-      }).catch((err: unknown) => {
+        await refreshAdminMenusAndPluginRoutes();
+      }).catch((error: unknown) => {
         // SIO fallback: if no Socket.IO error event arrived, show error from HTTP
-        const msg = (err as { message?: string })?.message || $t('admin.plugin.messages.enableFailed');
+        const msg =
+          (error as { message?: string })?.message ||
+          $t('admin.plugin.messages.enableFailed');
         progressStore.markError(msg);
       });
     },
   });
 }
 
-let menuConfigUpdatePlugin: PluginInfo | null = null;
+let menuConfigUpdatePlugin: null | PluginInfo = null;
 
 async function onMenuConfigConfirm(overrides: MenuOverrideItem[]) {
   if (pendingEnablePlugin) {
@@ -208,6 +313,7 @@ async function onMenuConfigConfirm(overrides: MenuOverrideItem[]) {
     await updatePluginMenuConfigApi(plugin.id, overrides);
     message.success($t('admin.plugin.menu_config.save_success'));
     await loadPlugins();
+    await refreshAdminMenusAndPluginRoutes();
   }
 }
 
@@ -219,7 +325,10 @@ function onMenuConfigCancel() {
 function onMenuLocation(plugin: PluginInfo) {
   const menus = getPluginMenus(plugin);
   if (menus.length === 0) return;
-  const currentOverrides = ((plugin.config || {}) as Record<string, unknown>).menu_overrides as Record<string, { parent?: string; tenant_parent?: string }> | undefined;
+  const currentOverrides = ((plugin.config || {}) as Record<string, unknown>)
+    .menu_overrides as
+    | Record<string, { parent?: string; tenant_parent?: string }>
+    | undefined;
   menuConfigUpdatePlugin = plugin;
   menuConfigModalRef.value?.open(menus, currentOverrides);
 }
@@ -227,35 +336,66 @@ function onMenuLocation(plugin: PluginInfo) {
 function onDisable(plugin: PluginInfo) {
   Modal.confirm({
     title: $t('admin.plugin.confirm.disable', { name: plugin.display_name }),
-    onOk: () => withProcessing(plugin.id, async () => {
-      try {
-        await disablePluginApi(plugin.id);
-      } catch (err: unknown) {
-        type AxiosLike = { message?: string; response?: { data?: { message?: string } } };
-        const apiMsg = (err as AxiosLike)?.response?.data?.message ?? (err as AxiosLike)?.message ?? '';
-        if (apiMsg.includes('storage driver') || apiMsg.includes('used by tenant')) {
-          Modal.confirm({
-            title: $t('admin.plugin.confirm.force_disable_title', { name: plugin.display_name }),
-            content: $t('admin.plugin.confirm.force_disable_content'),
-            okType: 'danger',
-            okText: $t('admin.plugin.confirm.force_disable_ok'),
-            onOk: () => withProcessing(plugin.id, async () => {
-              await disablePluginApi(plugin.id, true);
-              message.success($t('admin.plugin.messages.disableSuccess'));
-              await loadPlugins();
-              await refreshPluginSlots('/admin', router);
-              accessStore.setIsAccessChecked(false);
-            }),
-          });
+    onOk: () => {
+      progressStore.reset();
+      progressStore.startOperation(plugin.display_name, 'disable');
+      return withProcessing(plugin.id, async () => {
+        try {
+          await disablePluginApi(plugin.id);
+        } catch (error: unknown) {
+          type AxiosLike = {
+            message?: string;
+            response?: { data?: { message?: string } };
+          };
+          const apiMsg =
+            (error as AxiosLike)?.response?.data?.message ??
+            (error as AxiosLike)?.message ??
+            '';
+          // 依赖插件错误 — 弹出友好提示
+          if (apiMsg.includes('depend on it') || apiMsg.includes('plugins [')) {
+            const match = apiMsg.match(/plugins \[([^\]]+)\]/);
+            const deps = match ? match[1] : apiMsg;
+            Modal.warning({
+              title: $t('admin.plugin.confirm.dependency_error_title', {
+                name: plugin.display_name,
+              }),
+              content: $t('admin.plugin.confirm.dependency_error_content', {
+                deps,
+              }),
+            });
+            return;
+          }
+          if (
+            apiMsg.includes('storage driver') ||
+            apiMsg.includes('used by tenant')
+          ) {
+            Modal.confirm({
+              title: $t('admin.plugin.confirm.force_disable_title', {
+                name: plugin.display_name,
+              }),
+              content: $t('admin.plugin.confirm.force_disable_content'),
+              okType: 'danger',
+              okText: $t('admin.plugin.confirm.force_disable_ok'),
+              onOk: () =>
+                withProcessing(plugin.id, async () => {
+                  await disablePluginApi(plugin.id, true);
+                  message.success($t('admin.plugin.messages.disableSuccess'));
+                  await loadPlugins();
+                  await refreshAdminMenusAndPluginRoutes();
+                }),
+            });
+            return;
+          }
+          // 其他意外错误 — 兜底提示
+          message.error(apiMsg || $t('admin.common.operationFailed'));
           return;
         }
-        throw err;
-      }
-      message.success($t('admin.plugin.messages.disableSuccess'));
-      await loadPlugins();
-      await refreshPluginSlots('/admin', router);
-      accessStore.setIsAccessChecked(false);
-    }),
+        progressStore.markComplete();
+        message.success($t('admin.plugin.messages.disableSuccess'));
+        await loadPlugins();
+        await refreshAdminMenusAndPluginRoutes();
+      });
+    },
   });
 }
 
@@ -272,9 +412,86 @@ function onUninstall(plugin: PluginInfo) {
         progressStore.markComplete();
         message.success($t('admin.plugin.messages.uninstallSuccess'));
         await loadPlugins();
-        await refreshPluginSlots('/admin');
-      }).catch((err: unknown) => {
-        const msg = (err as { message?: string })?.message || $t('admin.plugin.messages.uninstallFailed');
+        await refreshAdminMenusAndPluginRoutes();
+      }).catch((error: unknown) => {
+        const msg =
+          (error as { message?: string })?.message ||
+          $t('admin.plugin.messages.uninstallFailed');
+        progressStore.markError(msg);
+      });
+    },
+  });
+}
+
+function onInstallDependencies(plugin: PluginInfo) {
+  Modal.confirm({
+    title: $t('admin.plugin.confirm.installDependencies', {
+      name: plugin.display_name,
+    }),
+    onOk: () =>
+      withProcessing(plugin.id, async () => {
+        await installPluginDependenciesApi(plugin.id, {
+          npm: true,
+          python: true,
+        });
+        message.success($t('admin.plugin.messages.installDepsSuccess'));
+      }),
+  });
+}
+
+function onUninstallDependencies(plugin: PluginInfo) {
+  if (plugin.status === 'enabled') {
+    message.warning($t('admin.plugin.messages.disableBeforeUninstallDeps'));
+    return;
+  }
+
+  Modal.confirm({
+    title: $t('admin.plugin.confirm.uninstallDependencies', {
+      name: plugin.display_name,
+    }),
+    content: $t('admin.plugin.confirm.uninstallDependenciesContent'),
+    okType: 'danger',
+    onOk: () =>
+      withProcessing(plugin.id, async () => {
+        try {
+          await uninstallPluginDependenciesApi(plugin.id, {
+            python: true,
+            npm: true,
+          });
+          message.success($t('admin.plugin.messages.uninstallDepsSuccess'));
+        } catch (error: unknown) {
+          type AxiosLike = {
+            message?: string;
+            response?: { data?: { message?: string } };
+          };
+          const apiMsg =
+            (error as AxiosLike)?.response?.data?.message ??
+            (error as AxiosLike)?.message ??
+            '';
+          message.error(
+            apiMsg || $t('admin.plugin.messages.uninstallDepsFailed'),
+          );
+        }
+      }),
+  });
+}
+
+function onRepair(plugin: PluginInfo) {
+  Modal.confirm({
+    title: $t('admin.plugin.confirm.repair', { name: plugin.display_name }),
+    onOk() {
+      progressStore.reset();
+      progressStore.startOperation(plugin.display_name, 'enable');
+      withProcessing(plugin.id, async () => {
+        await repairPluginApi(plugin.id);
+        progressStore.markComplete();
+        message.success($t('admin.plugin.messages.repairSuccess'));
+        await loadPlugins();
+        await refreshAdminMenusAndPluginRoutes();
+      }).catch((error: unknown) => {
+        const msg =
+          (error as { message?: string })?.message ||
+          $t('admin.plugin.messages.repairFailed');
         progressStore.markError(msg);
       });
     },
@@ -283,13 +500,17 @@ function onUninstall(plugin: PluginInfo) {
 
 function onForceCleanup(plugin: PluginInfo) {
   Modal.confirm({
-    title: $t('admin.plugin.confirm.forceCleanup', { name: plugin.display_name }),
-    okType: 'danger',
-    onOk: () => withProcessing(plugin.id, async () => {
-      await forceCleanupPluginApi(plugin.id);
-      message.success($t('admin.plugin.messages.forceCleanupSuccess'));
-      await loadPlugins();
+    title: $t('admin.plugin.confirm.forceCleanup', {
+      name: plugin.display_name,
     }),
+    okType: 'danger',
+    onOk: () =>
+      withProcessing(plugin.id, async () => {
+        await forceCleanupPluginApi(plugin.id);
+        message.success($t('admin.plugin.messages.forceCleanupSuccess'));
+        await loadPlugins();
+        await refreshAdminMenusAndPluginRoutes();
+      }),
   });
 }
 
@@ -303,63 +524,113 @@ async function onWizardInstalled() {
   await loadPlugins();
 }
 
-function isIconifyIcon(icon: string | null | undefined): boolean {
+function isIconifyIcon(icon: null | string | undefined): boolean {
   return !!icon && icon.includes(':');
 }
 
-function isImageIcon(icon: string | null | undefined): boolean {
+function isImageIcon(icon: null | string | undefined): boolean {
   if (!icon) return false;
-  return /\.(png|jpg|jpeg|svg|webp)$/i.test(icon);
+  return /\.(?:png|jpg|jpeg|svg|webp)$/i.test(icon);
 }
 
 function getPluginIconUrl(pluginName: string, icon: string): string {
   if (icon.startsWith('http') || icon.startsWith('/')) return icon;
   return `/plugin-assets/${pluginName}/${icon}`;
 }
+
+function isDependencyInstalled(plugin: PluginInfo): boolean {
+  return plugin.dependency_status?.overall === 'installed';
+}
+
+function getDependencyStatusColor(plugin: PluginInfo): string {
+  return isDependencyInstalled(plugin) ? 'success' : 'error';
+}
+
+function getDependencyStatusText(plugin: PluginInfo): string {
+  return isDependencyInstalled(plugin)
+    ? $t('admin.plugin.dependency.installed')
+    : $t('admin.plugin.dependency.missing');
+}
 </script>
 
 <template>
-  <Page
-    auto-content-height
-    content-class="flex flex-col gap-5"
-  >
+  <Page auto-content-height content-class="flex flex-col gap-5">
     <!-- ===== 顶部 Hero 区域 ===== -->
-    <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/5 via-background to-primary/3 p-6">
-      <div class="relative z-10 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 class="text-xl font-bold text-foreground">{{ $t('admin.plugin.title') }}</h1>
-          <p class="mt-1 text-sm text-muted-foreground">{{ $t('admin.plugin.marketplace.empty') }}</p>
+    <div
+      class="relative !h-auto min-h-[180px] overflow-hidden rounded-2xl bg-gradient-to-br from-primary/5 via-background to-primary/5 p-6"
+    >
+      <div
+        class="relative z-10 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start"
+      >
+        <div class="min-w-0">
+          <h1 class="text-xl font-bold text-foreground">
+            {{ $t('admin.plugin.title') }}
+          </h1>
+          <p class="mt-1 text-sm text-muted-foreground">
+            {{ $t('admin.plugin.heroSubtitle') }}
+          </p>
           <!-- 统计摘要（内联） -->
           <div class="mt-4 flex flex-wrap items-center gap-5">
-            <div v-for="stat in summaryCards" :key="stat.key" class="flex items-center gap-2">
-              <div class="flex size-8 items-center justify-center rounded-lg" :class="stat.bgClass">
-                <IconifyIcon :icon="stat.icon" class="size-4" :class="stat.iconClass" />
+            <div
+              v-for="stat in summaryCards"
+              :key="stat.key"
+              class="flex items-center gap-2"
+            >
+              <div
+                class="flex size-8 items-center justify-center rounded-lg"
+                :class="stat.bgClass"
+              >
+                <IconifyIcon
+                  :icon="stat.icon"
+                  class="size-4"
+                  :class="stat.iconClass"
+                />
               </div>
               <div class="flex flex-col">
-                <span class="text-lg font-bold leading-tight text-foreground">{{ stat.value }}</span>
-                <span class="text-[11px] leading-tight text-muted-foreground">{{ stat.label }}</span>
+                <span class="text-lg font-bold leading-tight text-foreground">{{
+                  stat.value
+                }}</span>
+                <span class="text-[11px] leading-tight text-muted-foreground">{{
+                  stat.label
+                }}</span>
               </div>
             </div>
           </div>
         </div>
         <!-- 操作按钮组 -->
-        <div class="flex items-center gap-2">
-          <Button size="large" class="!rounded-xl" @click="router.push('/admin/plugins/marketplace')">
+        <div class="flex items-center gap-2 lg:justify-end">
+          <Button
+            size="large"
+            class="!rounded-xl"
+            @click="router.push('/admin/plugins/marketplace')"
+          >
             <IconifyIcon icon="lucide:store" class="mr-1.5 size-4" />
             {{ $t('admin.plugin.marketplaceBtn') }}
           </Button>
-          <Button type="primary" size="large" class="!rounded-xl !px-5 !shadow-lg !shadow-primary/20" @click="onUploadClick">
+          <Button
+            type="primary"
+            size="large"
+            class="!rounded-xl !px-5 !shadow-lg !shadow-primary/20"
+            @click="onUploadClick"
+          >
             <IconifyIcon icon="lucide:upload" class="mr-1.5 size-4" />
             {{ $t('admin.plugin.upload') }}
           </Button>
         </div>
       </div>
       <!-- 装饰背景 -->
-      <div class="absolute -right-12 -top-12 size-48 rounded-full bg-primary/5 blur-3xl" />
-      <div class="absolute -bottom-8 -left-8 size-32 rounded-full bg-primary/3 blur-2xl" />
+      <div
+        class="absolute -right-12 -top-12 size-48 rounded-full bg-primary/5 blur-3xl"
+      ></div>
+      <div
+        class="absolute -bottom-8 -left-8 size-32 rounded-full bg-primary/10 blur-2xl"
+      ></div>
     </div>
 
-    <PluginInstallWizard ref="installWizardRef" @installed="onWizardInstalled" />
+    <PluginInstallWizard
+      ref="installWizardRef"
+      @installed="onWizardInstalled"
+    />
     <PluginConfigDrawer ref="configDrawerRef" @saved="loadPlugins" />
 
     <!-- ===== 筛选工具栏 ===== -->
@@ -372,15 +643,17 @@ function getPluginIconUrl(pluginName: string, icon: string): string {
           allow-clear
           class="!w-56 !rounded-lg"
         />
-        <div class="h-6 w-px bg-border/50" />
+        <div class="h-6 w-px bg-border/50"></div>
         <div class="flex items-center gap-1 rounded-xl bg-muted/50 p-1">
           <button
             v-for="opt in statusFilters"
             :key="opt.value"
             class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200"
-            :class="filterStatus === opt.value
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'"
+            :class="
+              filterStatus === opt.value
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            "
             @click="filterStatus = opt.value"
           >
             <IconifyIcon :icon="opt.icon" class="size-3.5" />
@@ -397,9 +670,11 @@ function getPluginIconUrl(pluginName: string, icon: string): string {
           v-for="opt in typeFilters"
           :key="opt.value"
           class="flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all duration-200"
-          :class="filterType === opt.value
-            ? 'border-primary/30 bg-primary/10 text-primary'
-            : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'"
+          :class="
+            filterType === opt.value
+              ? 'border-primary/30 bg-primary/10 text-primary'
+              : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
+          "
           @click="filterType = opt.value"
         >
           <IconifyIcon :icon="opt.icon" class="size-3" />
@@ -409,170 +684,280 @@ function getPluginIconUrl(pluginName: string, icon: string): string {
     </div>
 
     <!-- ===== 插件卡片网格 ===== -->
-    <Spin :spinning="loading">
+    <div
+      v-if="loading"
+      class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+    >
       <div
-        v-if="filteredPlugins.length > 0"
-        class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+        v-for="n in 8"
+        :key="n"
+        class="overflow-hidden rounded-2xl border border-border/60 bg-card p-5"
       >
-        <div
-          v-for="plugin in filteredPlugins"
-          :key="plugin.id"
-          class="group relative cursor-pointer overflow-hidden rounded-2xl border border-border/60 bg-card transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5"
-          :class="{ 'pointer-events-none opacity-50': isProcessing(plugin.id) }"
-          @click="onDetail(plugin)"
-        >
-          <!-- 顶部状态条 -->
-          <div
-            class="h-1 w-full"
-            :class="
-              plugin.status === 'enabled' ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
-              : plugin.status === 'error' ? 'bg-gradient-to-r from-red-400 to-red-500'
-              : 'bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600'
-            "
-          />
+        <div class="h-1 w-full rounded bg-muted/70"></div>
+        <div class="mt-4 flex items-start gap-3.5">
+          <div class="size-12 rounded-xl bg-muted"></div>
+          <div class="flex-1 space-y-2">
+            <div class="h-4 w-2/3 rounded bg-muted"></div>
+            <div class="h-3 w-1/2 rounded bg-muted/70"></div>
+          </div>
+        </div>
+        <div class="mt-5 space-y-2">
+          <div class="h-3 w-full rounded bg-muted/70"></div>
+          <div class="h-3 w-5/6 rounded bg-muted/70"></div>
+        </div>
+        <div class="mt-5 flex gap-2">
+          <div class="h-6 w-14 rounded bg-muted/70"></div>
+          <div class="h-6 w-24 rounded bg-muted/70"></div>
+        </div>
+      </div>
+    </div>
 
-          <div class="p-5">
-            <!-- 头部：图标 + 名称 + 版本 -->
-            <div class="mb-3.5 flex items-start gap-3.5">
-              <div
-                class="flex size-12 shrink-0 items-center justify-center rounded-xl shadow-sm transition-all duration-200 group-hover:shadow-md"
+    <div
+      v-else-if="filteredPlugins.length > 0"
+      class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+    >
+      <div
+        v-for="plugin in filteredPlugins"
+        :key="plugin.id"
+        class="group relative cursor-pointer overflow-hidden rounded-2xl border border-border/60 bg-card transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5"
+        :class="{ 'pointer-events-none opacity-50': isProcessing(plugin.id) }"
+        @click="onDetail(plugin)"
+      >
+        <!-- 顶部状态条 -->
+        <div
+          class="h-1 w-full"
+          :class="
+            plugin.status === 'enabled'
+              ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+              : plugin.status === 'error'
+                ? 'bg-gradient-to-r from-red-400 to-red-500'
+                : 'bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600'
+          "
+        ></div>
+
+        <div class="p-5">
+          <!-- 头部：图标 + 名称 + 版本 -->
+          <div class="mb-3.5 flex items-start gap-3.5">
+            <div
+              class="flex size-12 shrink-0 items-center justify-center rounded-xl shadow-sm transition-all duration-200 group-hover:shadow-md"
+              :class="
+                plugin.status === 'enabled'
+                  ? 'bg-gradient-to-br from-primary/15 to-primary/5'
+                  : plugin.status === 'error'
+                    ? 'bg-gradient-to-br from-destructive/15 to-destructive/5'
+                    : 'bg-gradient-to-br from-primary/10 to-primary/5'
+              "
+            >
+              <img
+                v-if="isImageIcon(plugin.icon)"
+                :src="getPluginIconUrl(plugin.name, plugin.icon!)"
+                class="size-5.5 rounded"
+                :alt="plugin.display_name"
+              />
+              <IconifyIcon
+                v-else
+                :icon="
+                  isIconifyIcon(plugin.icon) ? plugin.icon! : 'lucide:plug'
+                "
+                class="size-5.5"
                 :class="
-                  plugin.status === 'enabled' ? 'bg-gradient-to-br from-primary/15 to-primary/5'
-                  : plugin.status === 'error' ? 'bg-gradient-to-br from-destructive/15 to-destructive/5'
-                  : 'bg-gradient-to-br from-primary/10 to-primary/3'
+                  plugin.status === 'enabled'
+                    ? 'text-primary'
+                    : plugin.status === 'error'
+                      ? 'text-destructive'
+                      : 'text-primary/60'
+                "
+              />
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <span
+                  class="truncate text-[15px] font-semibold leading-snug text-foreground"
+                >
+                  {{ plugin.display_name }}
+                </span>
+              </div>
+              <div
+                class="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground"
+              >
+                <span class="font-mono">v{{ plugin.version }}</span>
+                <template v-if="plugin.author">
+                  <span class="text-border">·</span>
+                  <span>{{ plugin.author }}</span>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <!-- 描述 -->
+          <p
+            class="mb-4 line-clamp-2 min-h-[2.25rem] text-[13px] leading-relaxed text-muted-foreground/80"
+          >
+            {{ plugin.description || '-' }}
+          </p>
+
+          <!-- 标签行 -->
+          <div class="mb-4 flex flex-wrap items-center gap-1.5">
+            <Tag
+              :color="getTypeColor(derivePluginType(plugin.manifest))"
+              class="!m-0 !rounded-md !border-0 !text-[11px]"
+            >
+              {{ getTypeText(derivePluginType(plugin.manifest)) }}
+            </Tag>
+            <Tag
+              v-if="plugin.scope && plugin.scope !== 'all_tenants'"
+              color="orange"
+              class="!m-0 !rounded-md !border-0 !text-[11px]"
+            >
+              {{ $t(`admin.plugin.scope_options.${plugin.scope}`) }}
+            </Tag>
+            <Tag
+              :color="getDependencyStatusColor(plugin)"
+              class="!m-0 !rounded-md !border-0 !text-[11px]"
+            >
+              {{ getDependencyStatusText(plugin) }}
+            </Tag>
+            <Tag
+              v-if="plugin.status === 'error'"
+              color="error"
+              class="!m-0 !rounded-md !border-0 !text-[11px]"
+            >
+              {{ getStatusText(plugin.status) }}
+            </Tag>
+          </div>
+
+          <!-- 底部操作栏 -->
+          <div
+            class="flex items-center justify-between border-t border-border/40 pt-3.5"
+            @click.stop
+          >
+            <!-- 开关 -->
+            <Switch
+              :checked="plugin.status === 'enabled'"
+              :checked-children="$t('admin.plugin.status_options.enabled')"
+              :un-checked-children="$t('admin.plugin.status_options.disabled')"
+              :disabled="plugin.status === 'error' || isProcessing(plugin.id)"
+              size="small"
+              @change="
+                () =>
+                  plugin.status === 'enabled'
+                    ? onDisable(plugin)
+                    : onEnable(plugin)
+              "
+            />
+            <!-- 操作按钮组 -->
+            <div class="flex items-center gap-0.5">
+              <Tooltip
+                v-if="
+                  plugin.status !== 'error' && getPluginMenus(plugin).length > 0
+                "
+                :title="$t('admin.plugin.menu_config.menu_location')"
+              >
+                <button
+                  class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                  @click="onMenuLocation(plugin)"
+                >
+                  <IconifyIcon icon="lucide:layout-list" class="size-4" />
+                </button>
+              </Tooltip>
+              <Tooltip :title="$t('admin.plugin.action.settings')">
+                <button
+                  class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                  @click="onDetail(plugin)"
+                >
+                  <IconifyIcon icon="lucide:settings" class="size-4" />
+                </button>
+              </Tooltip>
+              <Tooltip :title="$t('admin.plugin.action.installDependencies')">
+                <button
+                  class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                  @click="onInstallDependencies(plugin)"
+                >
+                  <IconifyIcon icon="lucide:package-plus" class="size-4" />
+                </button>
+              </Tooltip>
+              <Tooltip
+                :title="
+                  plugin.status === 'enabled'
+                    ? $t('admin.plugin.messages.disableBeforeUninstallDeps')
+                    : $t('admin.plugin.action.uninstallDependencies')
                 "
               >
-                <img
-                  v-if="isImageIcon(plugin.icon)"
-                  :src="getPluginIconUrl(plugin.name, plugin.icon!)"
-                  class="size-5.5 rounded"
-                  :alt="plugin.display_name"
-                />
-                <IconifyIcon
-                  v-else
-                  :icon="isIconifyIcon(plugin.icon) ? plugin.icon! : 'lucide:plug'"
-                  class="size-5.5"
-                  :class="
-                    plugin.status === 'enabled' ? 'text-primary'
-                    : plugin.status === 'error' ? 'text-destructive'
-                    : 'text-primary/60'
-                  "
-                />
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-2">
-                  <span class="truncate text-[15px] font-semibold leading-snug text-foreground">
-                    {{ plugin.display_name }}
-                  </span>
-                </div>
-                <div class="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                  <span class="font-mono">v{{ plugin.version }}</span>
-                  <template v-if="plugin.author">
-                    <span class="text-border">·</span>
-                    <span>{{ plugin.author }}</span>
-                  </template>
-                </div>
-              </div>
-            </div>
-
-            <!-- 描述 -->
-            <p class="mb-4 line-clamp-2 min-h-[2.25rem] text-[13px] leading-relaxed text-muted-foreground/80">
-              {{ plugin.description || '-' }}
-            </p>
-
-            <!-- 标签行 -->
-            <div class="mb-4 flex flex-wrap items-center gap-1.5">
-              <Tag :color="getTypeColor(derivePluginType(plugin.manifest))" class="!m-0 !rounded-md !border-0 !text-[11px]">
-                {{ getTypeText(derivePluginType(plugin.manifest)) }}
-              </Tag>
-              <Tag
-                v-if="plugin.scope && plugin.scope !== 'all_tenants'"
-                color="orange"
-                class="!m-0 !rounded-md !border-0 !text-[11px]"
+                <button
+                  :disabled="plugin.status === 'enabled'"
+                  class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-warning/10 hover:text-warning disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                  @click="onUninstallDependencies(plugin)"
+                >
+                  <IconifyIcon icon="lucide:package-minus" class="size-4" />
+                </button>
+              </Tooltip>
+              <Tooltip
+                v-if="
+                  plugin.status === 'error' &&
+                  !plugin.error_message?.includes('missing from disk')
+                "
+                :title="$t('admin.plugin.action.repair')"
               >
-                {{ $t(`admin.plugin.scope_options.${plugin.scope}`) }}
-              </Tag>
-              <Tag
-                v-if="plugin.status === 'error'"
-                color="error"
-                class="!m-0 !rounded-md !border-0 !text-[11px]"
+                <button
+                  class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-warning/10 hover:text-warning"
+                  @click="onRepair(plugin)"
+                >
+                  <IconifyIcon icon="lucide:wrench" class="size-4" />
+                </button>
+              </Tooltip>
+              <Tooltip
+                v-if="
+                  plugin.status === 'error' &&
+                  plugin.error_message?.includes('missing from disk')
+                "
+                :title="$t('admin.plugin.action.forceCleanup')"
               >
-                {{ getStatusText(plugin.status) }}
-              </Tag>
-            </div>
-
-            <!-- 底部操作栏 -->
-            <div class="flex items-center justify-between border-t border-border/40 pt-3.5" @click.stop>
-              <!-- 开关 -->
-              <Switch
-                :checked="plugin.status === 'enabled'"
-                :checked-children="$t('admin.plugin.status_options.enabled')"
-                :un-checked-children="$t('admin.plugin.status_options.disabled')"
-                :disabled="plugin.status === 'error' || isProcessing(plugin.id)"
-                size="small"
-                @change="() => plugin.status === 'enabled' ? onDisable(plugin) : onEnable(plugin)"
-              />
-              <!-- 操作按钮组 -->
-              <div class="flex items-center gap-0.5">
-                <Tooltip v-if="plugin.status !== 'error' && getPluginMenus(plugin).length > 0" :title="$t('admin.plugin.menu_config.menu_location')">
-                  <button
-                    class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-                    @click="onMenuLocation(plugin)"
-                  >
-                    <IconifyIcon icon="lucide:layout-list" class="size-4" />
-                  </button>
-                </Tooltip>
-                <Tooltip :title="$t('admin.plugin.action.settings')">
-                  <button
-                    class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-                    @click="onDetail(plugin)"
-                  >
-                    <IconifyIcon icon="lucide:settings" class="size-4" />
-                  </button>
-                </Tooltip>
-                <Tooltip v-if="plugin.status === 'error' && plugin.error_message?.includes('missing from disk')" :title="$t('admin.plugin.action.forceCleanup')">
-                  <button
-                    class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                    @click="onForceCleanup(plugin)"
-                  >
-                    <IconifyIcon icon="lucide:eraser" class="size-4" />
-                  </button>
-                </Tooltip>
-                <Tooltip v-else :title="$t('admin.plugin.action.uninstall')">
-                  <button
-                    class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                    @click="onUninstall(plugin)"
-                  >
-                    <IconifyIcon icon="lucide:trash-2" class="size-4" />
-                  </button>
-                </Tooltip>
-              </div>
+                <button
+                  class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  @click="onForceCleanup(plugin)"
+                >
+                  <IconifyIcon icon="lucide:eraser" class="size-4" />
+                </button>
+              </Tooltip>
+              <Tooltip v-else :title="$t('admin.plugin.action.uninstall')">
+                <button
+                  class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  @click="onUninstall(plugin)"
+                >
+                  <IconifyIcon icon="lucide:trash-2" class="size-4" />
+                </button>
+              </Tooltip>
             </div>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- 空状态 -->
-      <div v-else-if="!loading" class="flex flex-col items-center justify-center gap-4 py-24">
-        <div class="flex size-20 items-center justify-center rounded-2xl bg-muted">
-          <IconifyIcon icon="lucide:puzzle" class="size-10 text-muted-foreground/50" />
-        </div>
-        <div class="text-center">
-          <p class="text-sm font-medium text-foreground">
-            {{ $t('admin.plugin.marketplace.empty') }}
-          </p>
-        </div>
+    <!-- 空状态 -->
+    <div v-else class="flex flex-col items-center justify-center gap-4 py-24">
+      <div
+        class="flex size-20 items-center justify-center rounded-2xl bg-muted"
+      >
+        <IconifyIcon
+          icon="lucide:puzzle"
+          class="size-10 text-muted-foreground/50"
+        />
       </div>
-    </Spin>
+      <div class="text-center">
+        <p class="text-sm font-medium text-foreground">
+          {{ $t('admin.plugin.marketplace.empty') }}
+        </p>
+      </div>
+    </div>
 
-  <!-- 安装/卸载进度抽屉 -->
-  <PluginInstallProgress />
+    <!-- 安装/卸载进度抽屉 -->
+    <PluginInstallProgress />
 
-  <!-- 插件菜单位置配置弹窗 -->
-  <PluginMenuConfigModal
-    ref="menuConfigModalRef"
-    @confirm="onMenuConfigConfirm"
-    @cancel="onMenuConfigCancel"
-  />
+    <!-- 插件菜单位置配置弹窗 -->
+    <PluginMenuConfigModal
+      ref="menuConfigModalRef"
+      @confirm="onMenuConfigConfirm"
+      @cancel="onMenuConfigCancel"
+    />
   </Page>
 </template>

@@ -6,16 +6,20 @@
 
 from fastapi import APIRouter, Request
 
-from app.core.deps import DbSession, ActiveTenantAdmin
+from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.i18n import _
 from app.core.logging import ImpersonateLoggerMixin
 from app.core.response import success
-from app.rbac.decorators import public, auth_only
-from app.schemas.common import TokenResponse, RefreshTokenRequest, ImpersonateTokenRequest
+from app.rbac.decorators import auth_only, public
+from app.schemas.common import (
+    ImpersonateTokenRequest,
+    RefreshTokenRequest,
+    TokenResponse,
+)
 from app.schemas.tenant import (
+    TenantAdminChangePasswordRequest,
     TenantAdminLoginRequest,
     TenantAdminResponse,
-    TenantAdminChangePasswordRequest,
     TenantAdminUpdateProfileRequest,
 )
 from app.services.common import AuthService
@@ -41,12 +45,12 @@ async def tenant_admin_login(
 ):
     """
     租户管理员登录
-    
+
     - **username**: 用户名或邮箱
     - **password**: 密码
     """
     auth_service = AuthService(db)
-    
+
     tokens = await auth_service.authenticate_tenant_admin(
         username=login_data.username,
         password=login_data.password,
@@ -56,7 +60,7 @@ async def tenant_admin_login(
         captcha_provider_code=login_data.captcha_provider_code,
     )
     await db.commit()
-    
+
     return success(
         data=TokenResponse(**tokens),
         message=_("auth.login_success"),
@@ -74,7 +78,7 @@ async def refresh_token(
     """
     auth_service = AuthService(db)
     tokens = await auth_service.refresh_tenant_admin_token(refresh_data.refresh_token)
-    
+
     return success(
         data=TokenResponse(**tokens),
         message=_("common.success"),
@@ -107,6 +111,7 @@ async def get_current_tenant_admin_info(
     """
     from sqlalchemy import select as sa_select
     from sqlalchemy.orm import selectinload
+
     from app.models.tenant.tenant import Tenant
 
     result = await db.execute(
@@ -137,14 +142,14 @@ async def change_password(
     修改当前租户管理员密码
     """
     auth_service = AuthService(db)
-    
+
     await auth_service.change_tenant_admin_password(
         tenant_admin=current_admin,
         old_password=password_data.old_password,
         new_password=password_data.new_password,
     )
     await db.commit()
-    
+
     return success(
         message=_("auth.password_changed"),
     )
@@ -193,16 +198,16 @@ async def impersonate_login(
 ):
     """
     验证平台管理员的 impersonate token 并换取正式 Token
-    
+
     - Token 60 秒过期，一次性使用
     - 返回标准的 access_token 和 refresh_token
     """
     auth_service = AuthService(db)
-    
+
     tokens, audit_info = await auth_service.impersonate_tenant_admin(
         impersonate_token=data.impersonate_token,
     )
-    
+
     # 记录审计日志
     _audit_helper.logger.info(
         "Admin impersonate completed | admin_id=%s | admin_username=%s | "
@@ -216,7 +221,7 @@ async def impersonate_login(
         audit_info["target_role_id"],
         request.client.host if request.client else None,
     )
-    
+
     return success(
         data=TokenResponse(**tokens),
         message=_("auth.impersonate_success"),

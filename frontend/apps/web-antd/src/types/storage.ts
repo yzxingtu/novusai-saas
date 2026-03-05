@@ -8,7 +8,7 @@
 export interface StorageDriverInfo {
   name: string;
   display_name: string;
-  config_schema: Record<string, unknown> | null;
+  config_schema: null | Record<string, unknown>;
   is_builtin: boolean;
   is_available: boolean;
   plugin_name?: string;
@@ -20,7 +20,7 @@ export interface TenantStorageStatus {
   effective_mode: string;
   effective_driver: string;
   tenant_storage_mode: string;
-  tenant_storage_driver: string | null;
+  tenant_storage_driver: null | string;
   tenant_storage_root_path: string;
   tenant_storage_base_url: string;
   tenant_storage_options: Record<string, unknown>;

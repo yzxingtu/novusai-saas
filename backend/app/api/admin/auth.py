@@ -6,19 +6,18 @@
 
 from fastapi import APIRouter, Request
 
-from app.core.deps import DbSession, ActiveAdmin
+from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
-from app.rbac.decorators import public, auth_only
-from app.schemas.common import TokenResponse, RefreshTokenRequest
+from app.rbac.decorators import auth_only, public
+from app.schemas.common import RefreshTokenRequest, TokenResponse
 from app.schemas.system import (
+    AdminChangePasswordRequest,
     AdminLoginRequest,
     AdminResponse,
-    AdminChangePasswordRequest,
     AdminUpdateProfileRequest,
 )
 from app.services.common import AuthService
-
 
 router = APIRouter(prefix="/auth", tags=["平台管理员认证"])
 
@@ -32,12 +31,12 @@ async def admin_login(
 ):
     """
     平台管理员登录
-    
+
     - **username**: 用户名或邮箱
     - **password**: 密码
     """
     auth_service = AuthService(db)
-    
+
     tokens = await auth_service.authenticate_admin(
         username=login_data.username,
         password=login_data.password,
@@ -47,7 +46,7 @@ async def admin_login(
         captcha_provider_code=login_data.captcha_provider_code,
     )
     await db.commit()
-    
+
     return success(
         data=TokenResponse(**tokens),
         message=_("auth.login_success"),
@@ -65,7 +64,7 @@ async def refresh_token(
     """
     auth_service = AuthService(db)
     tokens = await auth_service.refresh_admin_token(refresh_data.refresh_token)
-    
+
     return success(
         data=TokenResponse(**tokens),
         message=_("common.success"),
@@ -110,14 +109,14 @@ async def change_password(
     修改当前管理员密码
     """
     auth_service = AuthService(db)
-    
+
     await auth_service.change_admin_password(
         admin=current_admin,
         old_password=password_data.old_password,
         new_password=password_data.new_password,
     )
     await db.commit()
-    
+
     return success(
         message=_("auth.password_changed"),
     )

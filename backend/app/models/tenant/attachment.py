@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, JSON, Index
+from sqlalchemy import JSON, Column, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import TenantModel
@@ -15,7 +15,7 @@ class Attachment(TenantModel):
 
     # 覆盖 TenantModel 的 tenant_id：允许 NULL（全局/管理端 KB 附件无租户归属）
     tenant_id = Column(Integer, nullable=True, index=True, comment="租户ID")
-    
+
     # 支持过滤字段
     __filterable__ = {
         "id": "id",
@@ -37,9 +37,9 @@ class Attachment(TenantModel):
         "created_at": "created_at",
         "updated_at": "updated_at",
     }
-    
+
     __sortable__ = ["id", "name", "original_name", "mime_type", "extension", "status", "driver", "source", "created_at", "updated_at"]
-    
+
     # 支持远程下拉配置
     __selectable__ = {
         "label": "original_name",      # 显示名称：原始文件名
@@ -47,13 +47,13 @@ class Attachment(TenantModel):
         "search": ["name", "original_name"],  # 搜索字段
         "extra": ["mime_type", "extension", "size"],  # 额外信息
     }
-    
+
     # 索引
     __table_args__ = (
         Index("ix_attachments_tenant_path", "tenant_id", "path", unique=True),
         Index("ix_attachments_tenant_hash", "tenant_id", "hash"),
     )
-    
+
     name: Mapped[str] = mapped_column(
         String(255),
         comment="文件名",

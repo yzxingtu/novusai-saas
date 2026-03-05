@@ -5,9 +5,8 @@
 遵循项目定时任务开发规范：sync DB、返回 dict、logger 格式化。
 """
 
-from app.core.i18n import _
 from app.core.logging import LogManager
-from app.tasks.base import register_task, BaseTask
+from app.tasks.base import BaseTask, register_task
 
 logger = LogManager.get_logger("task")
 
@@ -129,8 +128,8 @@ def _record_email_log(
     text_body: str | None = None,
 ) -> None:
     """记录邮件发送日志到 email_logs 表"""
-    from app.core.database import sync_session_factory
     from app.core.base_model import utc_now
+    from app.core.database import sync_session_factory
 
     session = None
     try:

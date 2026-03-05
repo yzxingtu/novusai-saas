@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.tools.types import ToolDefinition, ToolParameter
@@ -25,6 +25,7 @@ from app.enums.agent import SkillTypeEnum, ToolTypeEnum
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+
     from app.models.ai.skill import Skill
 
 logger = LogManager.get_logger("ai.skill.resolver")
@@ -127,6 +128,7 @@ class SkillResolver:
             return {}
 
         from sqlalchemy import select
+
         from app.models.ai.skill_package import SkillPackage
 
         stmt = select(
@@ -200,6 +202,7 @@ class SkillResolver:
 
         不生成工具，而是提取 knowledge_base_ids 供 RAG 注入。
         """
+        _ = skill
         kb_ids = config.get("knowledge_base_ids", [])
         if isinstance(kb_ids, list):
             for kid in kb_ids:
@@ -301,7 +304,9 @@ class SkillResolver:
         # CRUD 工具 — 直接由 Table Policy 的每表 allow_create/update/delete 控制
         create_tables = crud_allowed_tables.get("create", [])
         if create_tables:
-            create_list = ", ".join(f"{n}({l})" for n, l in create_tables)
+            create_list = ", ".join(
+                f"{table_name}({labels})" for table_name, labels in create_tables
+            )
             result.tools.append(ToolDefinition(
                 name="data_create",
                 description=(
@@ -330,7 +335,9 @@ class SkillResolver:
 
         update_tables = crud_allowed_tables.get("update", [])
         if update_tables:
-            update_list = ", ".join(f"{n}({l})" for n, l in update_tables)
+            update_list = ", ".join(
+                f"{table_name}({labels})" for table_name, labels in update_tables
+            )
             result.tools.append(ToolDefinition(
                 name="data_update",
                 description=(
@@ -361,7 +368,9 @@ class SkillResolver:
 
         delete_tables = crud_allowed_tables.get("delete", [])
         if delete_tables:
-            delete_list = ", ".join(f"{n}({l})" for n, l in delete_tables)
+            delete_list = ", ".join(
+                f"{table_name}({labels})" for table_name, labels in delete_tables
+            )
             result.tools.append(ToolDefinition(
                 name="data_delete",
                 description=(
@@ -910,10 +919,11 @@ async def _load_auto_bind_packages(
     - all_tenants agent → auto 包 scope IN (all_tenants, admin_and_all)
                          + scope IN (assigned_tenants, admin_and_assigned) 且在分配表中
     """
-    from sqlalchemy import select, and_, or_
-    from app.models.ai.skill_package import SkillPackage
-    from app.enums.common import ResourceScopeEnum, SkillBindModeEnum
+    from sqlalchemy import and_, or_, select
+
     from app.core.scope import ScopeChecker
+    from app.enums.common import SkillBindModeEnum
+    from app.models.ai.skill_package import SkillPackage
 
     # 基础条件：bind_mode=auto + is_active + not deleted
     base_conditions = [
@@ -937,7 +947,9 @@ async def _load_auto_bind_packages(
 
         # 加上 assigned_tenants / admin_and_assigned 中在分配表里的包
         if tenant_id:
-            from app.models.system.resource_tenant_assignment import ResourceTenantAssignment
+            from app.models.system.resource_tenant_assignment import (
+                ResourceTenantAssignment,
+            )
             assigned_pkg_ids_stmt = (
                 select(ResourceTenantAssignment.resource_id)
                 .where(
@@ -991,13 +1003,12 @@ async def resolve_for_agent(
     Raises:
         sqlalchemy.exc.SQLAlchemyError: DB 连接/查询异常（不再静默吞掉）
     """
-    from sqlalchemy import select, and_, or_
+    from sqlalchemy import and_, select
     from sqlalchemy.exc import SQLAlchemyError
+
+    from app.models.ai.agent_skill_binding import AgentSkillBinding
     from app.models.ai.skill import Skill as SkillModel
     from app.models.ai.skill_package import SkillPackage
-    from app.models.ai.agent_skill_binding import AgentSkillBinding
-    from app.enums.common import SkillBindModeEnum
-    from app.core.scope import ScopeChecker
 
     agent_tenant_id = tenant_id or getattr(agent, "tenant_id", None)
     agent_scope = getattr(agent, "scope", "all_tenants")

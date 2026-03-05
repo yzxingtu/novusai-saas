@@ -137,10 +137,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="nd-doc-list-page">
+  <div class="flex h-full min-h-0 max-md:flex-col">
     <!-- Sidebar: Folder tree -->
-    <aside class="nd-sidebar">
-      <div class="nd-sidebar-header">
+    <aside class="flex w-[240px] min-w-[240px] flex-col border-r border-border bg-background py-4 max-lg:w-[200px] max-lg:min-w-[200px] max-md:w-full max-md:min-w-0 max-md:max-h-[140px] max-md:border-b max-md:border-r-0 max-md:py-2">
+      <div class="flex items-center justify-between px-4 pb-3 pt-1">
         <span class="font-semibold text-sm text-foreground">
           <IconifyIcon icon="lucide:folder" class="mr-1 inline size-4" />
           {{ $t('plugin.novusdoc.folder.all') }}
@@ -152,10 +152,10 @@ onMounted(() => {
         </Tooltip>
       </div>
 
-      <div class="nd-folder-list">
+      <div class="flex-1 overflow-y-auto px-2 max-md:flex max-md:gap-1 max-md:overflow-x-auto">
         <div
-          class="nd-folder-item"
-          :class="{ 'nd-folder-active': activeFolderId === null }"
+          class="nd-fitem flex cursor-pointer items-center rounded-md px-3 py-2 text-[13px] text-foreground transition-all hover:bg-accent max-md:shrink-0 max-md:whitespace-nowrap max-md:py-1.5"
+          :class="{ 'bg-primary/10 !text-primary font-semibold': activeFolderId === null }"
           @click="selectFolder(null)"
         >
           <IconifyIcon icon="lucide:files" class="size-4 mr-2 text-muted-foreground" />
@@ -165,8 +165,8 @@ onMounted(() => {
         <div
           v-for="folder in folderTree"
           :key="folder.id"
-          class="nd-folder-item"
-          :class="{ 'nd-folder-active': activeFolderId === folder.id }"
+          class="nd-fitem flex cursor-pointer items-center rounded-md px-3 py-2 text-[13px] text-foreground transition-all hover:bg-accent max-md:shrink-0 max-md:whitespace-nowrap max-md:py-1.5"
+          :class="{ 'bg-primary/10 !text-primary font-semibold': activeFolderId === folder.id }"
           @click="selectFolder(folder.id)"
         >
           <IconifyIcon icon="lucide:folder" class="size-4 mr-2 text-muted-foreground" />
@@ -176,9 +176,9 @@ onMounted(() => {
     </aside>
 
     <!-- Main content -->
-    <main class="nd-main">
+    <main class="flex flex-1 flex-col overflow-y-auto bg-background px-7 py-5 min-w-0 max-md:px-4 max-md:py-3">
       <!-- Toolbar -->
-      <div class="nd-toolbar-row">
+      <div class="mb-5 flex items-center justify-between gap-3 max-md:mb-3 max-md:flex-wrap max-md:gap-2">
         <Button type="primary" @click="handleCreateDoc">
           <IconifyIcon icon="lucide:plus" class="mr-1 size-4" />
           {{ $t('plugin.novusdoc.doc.create') }}
@@ -195,7 +195,7 @@ onMounted(() => {
 
       <!-- Document grid -->
       <Spin :spinning="loading">
-        <div v-if="docs.length === 0 && !loading" class="nd-empty">
+        <div v-if="docs.length === 0 && !loading" class="flex justify-center py-20 opacity-80">
           <Empty :description="$t('plugin.novusdoc.doc.empty')">
             <Button type="primary" @click="handleCreateDoc">
               <IconifyIcon icon="lucide:plus" class="mr-1 size-4" />
@@ -204,15 +204,15 @@ onMounted(() => {
           </Empty>
         </div>
 
-        <div v-else class="nd-doc-grid">
+        <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4 max-lg:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] max-lg:gap-3 max-md:grid-cols-1 max-md:gap-2.5">
           <div
             v-for="doc in docs"
             :key="doc.id"
-            class="nd-doc-card"
+            class="nd-dcard relative cursor-pointer rounded-[10px] border border-border bg-card p-[18px_20px] transition-all hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-md max-md:p-[14px_16px]"
             @click="openDocEditor(doc.id)"
           >
-            <div class="nd-doc-card-header">
-              <h3 class="nd-doc-title">
+            <div class="flex items-start justify-between gap-2">
+              <h3 class="m-0 line-clamp-2 text-sm font-semibold leading-normal text-foreground">
                 {{ doc.title || $t('plugin.novusdoc.doc.untitled') }}
               </h3>
               <Dropdown>
@@ -235,15 +235,15 @@ onMounted(() => {
               </Dropdown>
             </div>
 
-            <div class="nd-doc-card-meta">
-              <span class="nd-doc-meta-item">
+            <div class="mt-3.5 flex justify-between border-t border-border/50 pt-3">
+              <span class="flex items-center gap-1">
                 <IconifyIcon icon="lucide:file-text" class="size-3 text-muted-foreground" />
                 <span class="text-muted-foreground text-xs">{{ doc.word_count }} {{ $t('plugin.novusdoc.doc.chars') }}</span>
               </span>
               <span class="text-muted-foreground text-xs">{{ formatDate(doc.updated_at) }}</span>
             </div>
 
-            <div v-if="doc.is_starred" class="nd-doc-card-star">
+            <div v-if="doc.is_starred" class="absolute right-2.5 top-2.5">
               <IconifyIcon icon="lucide:star" class="size-3.5 text-warning" />
             </div>
           </div>

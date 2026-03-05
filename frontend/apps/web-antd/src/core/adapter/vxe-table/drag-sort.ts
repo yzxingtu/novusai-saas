@@ -310,10 +310,11 @@ export function useAutoTableDragSort(
     dragSort.destroy();
   });
 
-  // @ts-ignore
-  if (import.meta.hot) {
-    // @ts-ignore
-    import.meta.hot.dispose(() => {
+  const hot = (
+    import.meta as ImportMeta & { hot?: { dispose: (cb: () => void) => void } }
+  ).hot;
+  if (hot) {
+    hot.dispose(() => {
       stopPolling();
       dragSort.destroy();
     });

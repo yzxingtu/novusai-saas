@@ -8,20 +8,20 @@
 from fastapi import Request
 
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, QueryParams, ActiveAdmin
 from app.core.base_schema import PageResponse
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
     action_read,
     action_update,
+    permission_resource,
 )
 from app.schemas.ai.table_policy import (
-    AITablePolicyUpdate,
     AITablePolicyResponse,
+    AITablePolicyUpdate,
 )
 from app.services.ai.table_policy_service import AITablePolicyService
 

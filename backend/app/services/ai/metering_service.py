@@ -5,14 +5,12 @@ AI 计量计费服务
 """
 
 from datetime import date
-from typing import Optional
 
 from app.core.base_service import GlobalService
-from app.core.logging import LogManager
 from app.core.i18n import _
+from app.core.logging import LogManager
 from app.models.ai import AIModel, UsageStat
 from app.repositories.ai.usage_stat_repository import UsageStatRepository
-
 
 logger = LogManager.get_logger("ai.metering")
 
@@ -107,8 +105,8 @@ class MeteringService(GlobalService[UsageStat, UsageStatRepository]):
         output_tokens: int,
         cost: float,
         success: bool = True,
-        user_id: Optional[int] = None,
-        latency_ms: Optional[int] = None,
+        user_id: int | None = None,
+        latency_ms: int | None = None,
     ):
         """
         记录使用量
@@ -169,8 +167,8 @@ class MeteringService(GlobalService[UsageStat, UsageStatRepository]):
     async def get_tenant_usage(
         self,
         tenant_id: int,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> dict:
         """
         获取租户使用量（含汇总 + 每日趋势 + 模型分布）
@@ -201,8 +199,8 @@ class MeteringService(GlobalService[UsageStat, UsageStatRepository]):
         self,
         tenant_id: int,
         user_id: int,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> dict:
         """
         获取用户使用量
@@ -217,8 +215,8 @@ class MeteringService(GlobalService[UsageStat, UsageStatRepository]):
     async def get_model_usage(
         self,
         model_id: int,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> dict:
         """
         获取模型使用量

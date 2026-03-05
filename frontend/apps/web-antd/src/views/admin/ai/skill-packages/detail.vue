@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-defineOptions({ name: 'AdminSkillPackageDetail' });
 /**
  * 管理端技能包详情页
  *
@@ -29,8 +28,8 @@ import {
   Space,
   Spin,
   Switch,
-  Tabs,
   TabPane,
+  Tabs,
   Tag,
   Tooltip,
 } from 'ant-design-vue';
@@ -41,16 +40,16 @@ import {
   getSkillPackageValvesApi,
   updateSkillPackageValvesApi,
 } from '#/api/admin/skill-packages';
-import { requestClient } from '#/utils/request';
-import {
-  deleteSkillApi,
-  toggleSkillStatusApi,
-} from '#/api/admin/skills';
+import { deleteSkillApi, toggleSkillStatusApi } from '#/api/admin/skills';
 import { $t } from '#/locales';
-import { formatRelativeTime } from '#/utils/common';
 import { getSkillTypeColor, getSkillTypeIcon } from '#/utils/ai-helpers';
+import { formatRelativeTime } from '#/utils/common';
+import { requestClient } from '#/utils/request';
 import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
+
 import { getSkillTypeText } from '../skills/data';
+
+defineOptions({ name: 'AdminSkillPackageDetail' });
 
 const route = useRoute();
 const router = useRouter();
@@ -64,7 +63,7 @@ const skillsLoading = ref(false);
 const activeTab = ref('skills');
 
 // Valves
-const valvesSchema = ref<Record<string, unknown> | null>(null);
+const valvesSchema = ref<null | Record<string, unknown>>(null);
 const valvesConfig = ref<Record<string, unknown>>({});
 const valvesSaving = ref(false);
 
@@ -73,11 +72,11 @@ interface ResolvedTool {
   name: string;
   description: string;
   parameters: Array<{
-    name: string;
-    type: string;
-    description: string;
-    required: boolean;
     default?: unknown;
+    description: string;
+    name: string;
+    required: boolean;
+    type: string;
   }>;
   timeout: number;
   source_skill_id: number;
@@ -128,9 +127,10 @@ async function loadValves() {
 async function loadResolvedTools() {
   toolsLoading.value = true;
   try {
-    const data = await requestClient.get<{ tools: ResolvedTool[]; tool_count: number }>(
-      `/admin/ai/skill-packages/${packageId.value}/resolved-tools`,
-    );
+    const data = await requestClient.get<{
+      tool_count: number;
+      tools: ResolvedTool[];
+    }>(`/admin/ai/skill-packages/${packageId.value}/resolved-tools`);
     resolvedTools.value = data.tools || [];
   } catch {
     resolvedTools.value = [];
@@ -192,15 +192,17 @@ const hasValves = computed(() => {
 
 const valvesProperties = computed(() => {
   if (!valvesSchema.value) return {};
-  return ((valvesSchema.value as Record<string, unknown>)?.properties || {}) as Record<
+  return ((valvesSchema.value as Record<string, unknown>)?.properties ||
+    {}) as Record<
     string,
-    { type?: string; description?: string; default?: unknown }
+    { default?: unknown; description?: string; type?: string }
   >;
 });
 
 const valvesRequired = computed(() => {
   if (!valvesSchema.value) return [];
-  return ((valvesSchema.value as Record<string, unknown>)?.required || []) as string[];
+  return ((valvesSchema.value as Record<string, unknown>)?.required ||
+    []) as string[];
 });
 </script>
 
@@ -219,67 +221,110 @@ const valvesRequired = computed(() => {
             class="size-5 text-primary"
           />
           <h2 class="m-0 text-lg font-semibold">{{ pkg.name }}</h2>
-          <Tag :color="getScopeColor(pkg.scope)">{{ getScopeText(pkg.scope) }}</Tag>
+          <Tag :color="getScopeColor(pkg.scope)">
+            {{ getScopeText(pkg.scope) }}
+          </Tag>
           <Tag v-if="pkg.is_system" color="purple">
             {{ $t('admin.ai.skillPackage.system') }}
           </Tag>
           <Badge
             :status="pkg.is_active ? 'success' : 'default'"
-            :text="pkg.is_active ? $t('admin.common.enabled') : $t('admin.common.disabled')"
+            :text="
+              pkg.is_active
+                ? $t('admin.common.enabled')
+                : $t('admin.common.disabled')
+            "
           />
         </div>
       </div>
 
       <!-- Basic Info Card -->
-      <Card v-if="pkg" class="mb-4" size="small" :title="$t('admin.ai.skillPackage.detail.basicInfo')">
+      <Card
+        v-if="pkg"
+        class="mb-4"
+        size="small"
+        :title="$t('admin.ai.skillPackage.detail.basicInfo')"
+      >
         <Descriptions :column="{ xs: 1, sm: 2, md: 3 }" size="small" bordered>
           <DescriptionsItem :label="$t('admin.ai.skillPackage.name')" :span="3">
             {{ pkg.name }}
           </DescriptionsItem>
-          <DescriptionsItem :label="$t('admin.ai.skillPackage.description')" :span="3">
+          <DescriptionsItem
+            :label="$t('admin.ai.skillPackage.description')"
+            :span="3"
+          >
             <span v-if="pkg.description">{{ pkg.description }}</span>
-            <span v-else class="text-muted-foreground">{{ $t('admin.ai.skillPackage.detail.noDescription') }}</span>
+            <span v-else class="text-muted-foreground">{{
+              $t('admin.ai.skillPackage.detail.noDescription')
+            }}</span>
           </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.ai.skillPackage.scope')">
-            <Tag :color="getScopeColor(pkg.scope)">{{ getScopeText(pkg.scope) }}</Tag>
+            <Tag :color="getScopeColor(pkg.scope)">
+              {{ getScopeText(pkg.scope) }}
+            </Tag>
           </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.ai.skillPackage.isActive')">
             <Badge
               :status="pkg.is_active ? 'success' : 'default'"
-              :text="pkg.is_active ? $t('admin.common.enabled') : $t('admin.common.disabled')"
+              :text="
+                pkg.is_active
+                  ? $t('admin.common.enabled')
+                  : $t('admin.common.disabled')
+              "
             />
           </DescriptionsItem>
-          <DescriptionsItem :label="$t('admin.ai.skillPackage.detail.isSystem')">
-            {{ pkg.is_system ? $t('admin.ai.skillPackage.detail.yes') : $t('admin.ai.skillPackage.detail.no') }}
+          <DescriptionsItem
+            :label="$t('admin.ai.skillPackage.detail.isSystem')"
+          >
+            {{
+              pkg.is_system
+                ? $t('admin.ai.skillPackage.detail.yes')
+                : $t('admin.ai.skillPackage.detail.no')
+            }}
           </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.ai.skillPackage.skillCount')">
-            <Badge :count="pkg.skill_count" :number-style="{ backgroundColor: '#1890ff' }" show-zero />
+            <Badge
+              :count="pkg.skill_count"
+              :number-style="{ backgroundColor: '#1890ff' }"
+              show-zero
+            />
           </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.ai.skillPackage.sortOrder')">
             {{ pkg.sort_order }}
           </DescriptionsItem>
-          <DescriptionsItem v-if="pkg.source_plugin" :label="$t('admin.ai.skillPackage.detail.sourcePlugin')">
+          <DescriptionsItem
+            v-if="pkg.source_plugin"
+            :label="$t('admin.ai.skillPackage.detail.sourcePlugin')"
+          >
             <Tag color="cyan">
               <IconifyIcon icon="lucide:plug" class="mr-0.5 inline size-3" />
               {{ pkg.source_plugin }}
             </Tag>
           </DescriptionsItem>
-          <DescriptionsItem v-if="pkg.tenant_id" :label="$t('admin.ai.skillPackage.detail.tenantName')">
+          <DescriptionsItem
+            v-if="pkg.tenant_id"
+            :label="$t('admin.ai.skillPackage.detail.tenantName')"
+          >
             ID: {{ pkg.tenant_id }}
           </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.common.createdAt')">
             {{ formatRelativeTime(pkg.created_at) }}
           </DescriptionsItem>
-          <DescriptionsItem :label="$t('admin.ai.skillPackage.detail.updatedAt')">
+          <DescriptionsItem
+            :label="$t('admin.ai.skillPackage.detail.updatedAt')"
+          >
             {{ formatRelativeTime(pkg.updated_at) }}
           </DescriptionsItem>
         </Descriptions>
       </Card>
 
       <!-- Tabs: Skills + Valves -->
-      <Tabs v-model:activeKey="activeTab">
+      <Tabs v-model:active-key="activeTab">
         <!-- Skills Tab -->
-        <TabPane key="skills" :tab="`${$t('admin.ai.skillPackage.detail.skills')} (${skills.length})`">
+        <TabPane
+          key="skills"
+          :tab="`${$t('admin.ai.skillPackage.detail.skills')} (${skills.length})`"
+        >
           <div class="mb-3 flex justify-end">
             <Button
               type="primary"
@@ -315,30 +360,50 @@ const valvesRequired = computed(() => {
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-2">
                         <span class="font-medium">{{ skill.name }}</span>
-                        <Tag :color="getSkillTypeColor(skill.type)" size="small">
+                        <Tag
+                          :color="getSkillTypeColor(skill.type)"
+                          size="small"
+                        >
                           {{ getSkillTypeText(skill.type) }}
                         </Tag>
                         <Tag v-if="skill.is_system" color="purple" size="small">
                           {{ $t('admin.ai.skillPackage.system') }}
                         </Tag>
                       </div>
-                      <div v-if="skill.description" class="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                      <div
+                        v-if="skill.description"
+                        class="mt-1 line-clamp-2 text-xs text-muted-foreground"
+                      >
                         {{ skill.description }}
                       </div>
-                      <div class="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                      <div
+                        class="mt-1 flex items-center gap-3 text-xs text-muted-foreground"
+                      >
                         <span v-if="skill.timeout">
-                          <IconifyIcon icon="lucide:clock" class="mr-0.5 inline size-3" />
+                          <IconifyIcon
+                            icon="lucide:clock"
+                            class="mr-0.5 inline size-3"
+                          />
                           {{ skill.timeout }}s
                         </span>
                         <span>
-                          <IconifyIcon icon="lucide:calendar" class="mr-0.5 inline size-3" />
+                          <IconifyIcon
+                            icon="lucide:calendar"
+                            class="mr-0.5 inline size-3"
+                          />
                           {{ formatRelativeTime(skill.created_at) }}
                         </span>
                       </div>
                     </div>
                   </div>
                   <Space>
-                    <Tooltip :title="skill.is_active ? $t('admin.common.disable') : $t('admin.common.enable')">
+                    <Tooltip
+                      :title="
+                        skill.is_active
+                          ? $t('admin.common.disable')
+                          : $t('admin.common.enable')
+                      "
+                    >
                       <Switch
                         :checked="skill.is_active"
                         size="small"
@@ -369,7 +434,9 @@ const valvesRequired = computed(() => {
         >
           <Spin :spinning="toolsLoading">
             <div v-if="resolvedTools.length === 0" class="py-8">
-              <Empty :description="$t('admin.ai.skillPackage.detail.noTools')" />
+              <Empty
+                :description="$t('admin.ai.skillPackage.detail.noTools')"
+              />
             </div>
             <div v-else class="flex flex-col gap-3">
               <Card
@@ -380,23 +447,39 @@ const valvesRequired = computed(() => {
                 class="transition-shadow hover:shadow-sm"
               >
                 <div class="flex items-start gap-3">
-                  <div class="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
-                    <IconifyIcon icon="lucide:wrench" class="size-4 text-primary" />
+                  <div
+                    class="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10"
+                  >
+                    <IconifyIcon
+                      icon="lucide:wrench"
+                      class="size-4 text-primary"
+                    />
                   </div>
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2">
-                      <span class="font-mono text-sm font-semibold text-foreground">{{ tool.name }}</span>
+                      <span
+                        class="font-mono text-sm font-semibold text-foreground"
+                        >{{ tool.name }}</span
+                      >
                       <Tag v-if="tool.timeout" size="small" color="default">
-                        <IconifyIcon icon="lucide:clock" class="mr-0.5 inline size-3" />
+                        <IconifyIcon
+                          icon="lucide:clock"
+                          class="mr-0.5 inline size-3"
+                        />
                         {{ tool.timeout }}s
                       </Tag>
                     </div>
-                    <p v-if="tool.description" class="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    <p
+                      v-if="tool.description"
+                      class="mt-1 text-xs leading-relaxed text-muted-foreground"
+                    >
                       {{ tool.description }}
                     </p>
                     <!-- 参数列表 -->
                     <div v-if="tool.parameters?.length" class="mt-2">
-                      <div class="text-xs font-medium text-muted-foreground mb-1">
+                      <div
+                        class="mb-1 text-xs font-medium text-muted-foreground"
+                      >
                         {{ $t('admin.ai.skillPackage.detail.toolParams') }}
                       </div>
                       <div class="flex flex-col gap-1">
@@ -405,11 +488,19 @@ const valvesRequired = computed(() => {
                           :key="param.name"
                           class="flex items-center gap-2 rounded bg-muted/50 px-2 py-1 text-xs"
                         >
-                          <span class="font-mono font-medium text-foreground">{{ param.name }}</span>
-                          <Tag size="small" :color="param.required ? 'red' : 'default'">
+                          <span class="font-mono font-medium text-foreground">{{
+                            param.name
+                          }}</span>
+                          <Tag
+                            size="small"
+                            :color="param.required ? 'red' : 'default'"
+                          >
                             {{ param.type }}{{ param.required ? ' *' : '' }}
                           </Tag>
-                          <span v-if="param.description" class="truncate text-muted-foreground">
+                          <span
+                            v-if="param.description"
+                            class="truncate text-muted-foreground"
+                          >
                             {{ param.description }}
                           </span>
                         </div>
@@ -441,19 +532,40 @@ const valvesRequired = computed(() => {
                 >
                   <label class="flex items-center gap-1 text-sm font-medium">
                     {{ key }}
-                    <Tag v-if="valvesRequired.includes(String(key))" color="error" size="small">
+                    <Tag
+                      v-if="valvesRequired.includes(String(key))"
+                      color="error"
+                      size="small"
+                    >
                       {{ $t('admin.ai.skillPackage.valves.required') }}
                     </Tag>
                   </label>
-                  <div v-if="prop.description" class="text-xs text-muted-foreground">
+                  <div
+                    v-if="prop.description"
+                    class="text-xs text-muted-foreground"
+                  >
                     {{ prop.description }}
                   </div>
                   <input
                     :value="(valvesConfig[String(key)] as string) || ''"
                     class="rounded border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-primary"
-                    :type="String(key).toLowerCase().includes('password') || String(key).toLowerCase().includes('secret') || String(key).toLowerCase().includes('key') ? 'password' : 'text'"
-                    :placeholder="prop.default !== undefined ? String(prop.default) : ''"
-                    @input="(e: Event) => { valvesConfig[String(key)] = (e.target as HTMLInputElement).value; }"
+                    :type="
+                      String(key).toLowerCase().includes('password') ||
+                      String(key).toLowerCase().includes('secret') ||
+                      String(key).toLowerCase().includes('key')
+                        ? 'password'
+                        : 'text'
+                    "
+                    :placeholder="
+                      prop.default !== undefined ? String(prop.default) : ''
+                    "
+                    @input="
+                      (e: Event) => {
+                        valvesConfig[String(key)] = (
+                          e.target as HTMLInputElement
+                        ).value;
+                      }
+                    "
                   />
                 </div>
               </div>
@@ -468,7 +580,9 @@ const valvesRequired = computed(() => {
               </div>
             </template>
             <template v-else>
-              <Empty :description="$t('admin.ai.skillPackage.valves.noSchema')" />
+              <Empty
+                :description="$t('admin.ai.skillPackage.valves.noSchema')"
+              />
             </template>
           </Card>
         </TabPane>

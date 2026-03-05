@@ -108,6 +108,7 @@ class FileValidator:
         Returns:
             验证结果
         """
+        _ = file_size
         extension = self._get_extension(filename)
 
         # 获取租户配置（留空则使用平台配置）

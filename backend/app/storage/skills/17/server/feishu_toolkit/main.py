@@ -6,12 +6,12 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from feishu_toolkit.calendar_api import router as calendar_router
-from feishu_toolkit.messaging_api import router as messaging_router
 from feishu_toolkit.approval_api import router as approval_router
-from feishu_toolkit.bitable_api import router as bitable_router
-from feishu_toolkit.contacts_api import router as contacts_router
 from feishu_toolkit.attendance_api import router as attendance_router
+from feishu_toolkit.bitable_api import router as bitable_router
+from feishu_toolkit.calendar_api import router as calendar_router
+from feishu_toolkit.contacts_api import router as contacts_router
+from feishu_toolkit.messaging_api import router as messaging_router
 
 app = FastAPI(
     title="飞书办公套件 API",

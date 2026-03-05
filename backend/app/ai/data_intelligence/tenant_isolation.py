@@ -18,8 +18,8 @@ from dataclasses import dataclass
 
 from app.ai.data_intelligence.schema_provider import TableSchema
 from app.core.i18n import _
-from app.enums.common import UserRoleEnum
 from app.core.logging import LogManager
+from app.enums.common import UserRoleEnum
 
 logger = LogManager.get_logger("ai.data_intelligence")
 
@@ -95,10 +95,13 @@ def _extract_table_refs(sql: str) -> list[tuple[str, str | None]]:
 
         # 确定最终别名
         alias = as_alias
-        if not alias and implicit_alias:
+        if (
+            not alias
+            and implicit_alias
+            and implicit_alias.lower() not in _SQL_KEYWORDS
+        ):
             # 检查是否是关键字
-            if implicit_alias.lower() not in _SQL_KEYWORDS:
-                alias = implicit_alias
+            alias = implicit_alias
 
         refs.append((table_name, alias))
 

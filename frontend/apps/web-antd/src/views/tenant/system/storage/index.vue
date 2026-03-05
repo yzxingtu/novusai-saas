@@ -43,7 +43,7 @@ const loading = ref(false);
 const saving = ref(false);
 const testing = ref(false);
 
-const status = ref<TenantStorageStatus | null>(null);
+const status = ref<null | TenantStorageStatus>(null);
 const drivers = ref<StorageDriverInfo[]>([]);
 
 const selectedDriver = ref<string | undefined>(undefined);
@@ -58,28 +58,48 @@ const credentialsVersion = ref(0);
 const canSelfConfig = computed(() => status.value?.can_self_config ?? false);
 
 /** 当前生效的存储模式 */
-const effectiveMode = computed(() => status.value?.effective_mode ?? 'platform');
+const effectiveMode = computed(
+  () => status.value?.effective_mode ?? 'platform',
+);
 
 /** 当前生效的驱动 */
-const effectiveDriver = computed(() => status.value?.effective_driver ?? 'local');
+const effectiveDriver = computed(
+  () => status.value?.effective_driver ?? 'local',
+);
 
 /** 模式标签颜色 */
 function getModeColor(mode: string): string {
   switch (mode) {
-    case 'platform': return 'blue';
-    case 'admin_override': return 'orange';
-    case 'custom': return 'green';
-    default: return 'default';
+    case 'admin_override': {
+      return 'orange';
+    }
+    case 'custom': {
+      return 'green';
+    }
+    case 'platform': {
+      return 'blue';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
 /** 模式显示文本 */
 function getModeText(mode: string): string {
   switch (mode) {
-    case 'platform': return $t('shared.storage.mode.platform');
-    case 'admin_override': return $t('shared.storage.mode.adminOverride');
-    case 'custom': return $t('shared.storage.mode.custom');
-    default: return mode;
+    case 'admin_override': {
+      return $t('shared.storage.mode.adminOverride');
+    }
+    case 'custom': {
+      return $t('shared.storage.mode.custom');
+    }
+    case 'platform': {
+      return $t('shared.storage.mode.platform');
+    }
+    default: {
+      return mode;
+    }
   }
 }
 
@@ -90,9 +110,9 @@ function getDriverDisplayName(name: string): string {
     return $t(`shared.${name}`);
   }
   // 驱动代码名（如 qiniu-kodo）→ 尝试翻译
-  const key = `shared.storage.driver.${name.replace(/-/g, '_')}`;
+  const key = `shared.storage.driver.${name.replaceAll('-', '_')}`;
   const result = $t(key);
-  return result !== key ? result : name;
+  return result === key ? name : result;
 }
 
 /** 加载数据 */
@@ -102,8 +122,11 @@ async function loadData() {
     let driversData: StorageDriverInfo[] = [];
     try {
       driversData = await getTenantStorageDriversApi();
-    } catch (e) {
-      console.error('[TenantStorage] getTenantStorageDriversApi failed:', e);
+    } catch (error) {
+      console.error(
+        '[TenantStorage] getTenantStorageDriversApi failed:',
+        error,
+      );
     }
     drivers.value = driversData;
 
@@ -112,12 +135,15 @@ async function loadData() {
 
     // custom 模式回填非敏感字段（驱动/Bucket/域名），但密钥从空白开始
     // 后端返回的 options 是脱敏的（如 AK****CD），不能回填到密码输入框
-    if (statusData.effective_mode === 'custom' && statusData.tenant_storage_driver) {
+    if (
+      statusData.effective_mode === 'custom' &&
+      statusData.tenant_storage_driver
+    ) {
       selectedDriver.value = statusData.tenant_storage_driver;
       credentials.value = {
         root_path: statusData.tenant_storage_root_path || '',
         base_url: statusData.tenant_storage_base_url || '',
-        options: {},  // 密钥不回填，从空白开始
+        options: {}, // 密钥不回填，从空白开始
       };
     } else {
       // 非 custom 模式（platform/admin_override）: 仅用于状态展示，不需要回填表单
@@ -137,7 +163,9 @@ async function onSave() {
     return;
   }
   if (!credentials.value.root_path?.trim()) {
-    message.warning($t('shared.storage.field.bucket') + ' ' + $t('shared.storage.required'));
+    message.warning(
+      `${$t('shared.storage.field.bucket')} ${$t('shared.storage.required')}`,
+    );
     return;
   }
   saving.value = true;
@@ -216,13 +244,17 @@ onActivated(() => {
             </Tag>
           </DescriptionsItem>
           <DescriptionsItem :label="$t('shared.storage.status.currentDriver')">
-            <Tag color="default">{{ getDriverDisplayName(effectiveDriver) }}</Tag>
+            <Tag color="default">
+              {{ getDriverDisplayName(effectiveDriver) }}
+            </Tag>
           </DescriptionsItem>
         </Descriptions>
 
         <!-- 只读提示：模式 1 或模式 2 -->
         <Alert
-          v-if="effectiveMode === 'platform' || effectiveMode === 'admin_override'"
+          v-if="
+            effectiveMode === 'platform' || effectiveMode === 'admin_override'
+          "
           type="info"
           show-icon
           :message="$t('shared.storage.status.readonlyHint')"
@@ -243,14 +275,21 @@ onActivated(() => {
       <Card v-if="effectiveMode === 'admin_override' && status">
         <template #title>
           <div class="flex items-center gap-2">
-            <IconifyIcon icon="lucide:shield-check" class="h-5 w-5 text-primary" />
+            <IconifyIcon
+              icon="lucide:shield-check"
+              class="h-5 w-5 text-primary"
+            />
             <span>{{ $t('shared.storage.adminOverrideDetail.title') }}</span>
           </div>
         </template>
 
         <Descriptions :column="1" bordered size="small">
-          <DescriptionsItem :label="$t('shared.storage.adminOverrideDetail.driver')">
-            <Tag color="blue">{{ getDriverDisplayName(status.tenant_storage_driver || '') }}</Tag>
+          <DescriptionsItem
+            :label="$t('shared.storage.adminOverrideDetail.driver')"
+          >
+            <Tag color="blue">
+              {{ getDriverDisplayName(status.tenant_storage_driver || '') }}
+            </Tag>
           </DescriptionsItem>
           <DescriptionsItem :label="$t('shared.storage.field.bucket')">
             {{ status.tenant_storage_root_path || '-' }}
@@ -290,11 +329,7 @@ onActivated(() => {
               </template>
               {{ $t('shared.storage.testConnection') }}
             </Button>
-            <Button
-              type="primary"
-              :loading="saving"
-              @click="onSave"
-            >
+            <Button type="primary" :loading="saving" @click="onSave">
               <template #icon>
                 <IconifyIcon icon="lucide:save" />
               </template>

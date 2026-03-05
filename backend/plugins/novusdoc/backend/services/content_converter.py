@@ -152,7 +152,7 @@ def _render_node(node: dict[str, Any]) -> str:
             open_tag = open_tag.format(level=level)
             close_tag = close_tag.format(level=level)
     else:
-        open_tag = f"<div>"
+        open_tag = "<div>"
         close_tag = "</div>"
 
     children = node.get("content", [])

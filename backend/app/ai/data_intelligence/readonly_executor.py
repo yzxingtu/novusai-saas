@@ -20,7 +20,6 @@ from sqlalchemy import text
 from app.ai.constants import TEXT_TO_SQL_MAX_ROWS, TEXT_TO_SQL_TIMEOUT
 from app.ai.data_intelligence.sql_safety import SQLSafetyValidator
 from app.core.database import get_readonly_session_factory
-from app.core.i18n import _
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.data_intelligence")
@@ -188,7 +187,7 @@ class ReadOnlyExecutor:
                 all_masked_cols: set[str] = set()
 
                 for raw_row in raw_rows:
-                    row_dict = dict(zip(columns, raw_row))
+                    row_dict = dict(zip(columns, raw_row, strict=False))
                     masked_row, masked_cols = _mask_row(row_dict)
                     rows.append(masked_row)
                     all_masked_cols.update(masked_cols)

@@ -464,7 +464,8 @@ defineExpose({
             </button>
 
             <span class="api-select-pagination__info">
-              {{ currentPage }}<span class="api-select-pagination__sep">/</span>{{ totalPages }}
+              {{ currentPage }}<span class="api-select-pagination__sep">/</span
+              >{{ totalPages }}
             </span>
 
             <button

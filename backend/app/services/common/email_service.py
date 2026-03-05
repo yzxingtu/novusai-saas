@@ -8,6 +8,7 @@
 在 Celery 任务中使用时需通过 sync 包装器调用。
 """
 
+import contextlib
 import re
 import smtplib
 import ssl as ssl_module
@@ -364,8 +365,8 @@ def send_email_sync(
 
 def _load_smtp_config_sync(session: Any) -> SmtpConfig:
     """同步加载 SMTP 配置"""
-    from app.models.system.config import SystemConfig, SystemConfigValue
     from app.configs.service import PLATFORM_TENANT_ID
+    from app.models.system.config import SystemConfig, SystemConfigValue
 
     def _get(key: str, default: Any = None) -> Any:
         row = (
@@ -384,10 +385,8 @@ def _load_smtp_config_sync(session: Any) -> SmtpConfig:
             # 配置值以 JSON 格式存储，字符串会带引号如 '"smtp.example.com"'
             # 先尝试 JSON 反序列化
             import json
-            try:
+            with contextlib.suppress(json.JSONDecodeError, TypeError):
                 val = json.loads(val)
-            except (json.JSONDecodeError, TypeError):
-                pass
             # 布尔值处理
             if isinstance(val, bool):
                 return val

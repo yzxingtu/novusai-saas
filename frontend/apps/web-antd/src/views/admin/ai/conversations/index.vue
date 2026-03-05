@@ -4,8 +4,6 @@
  */
 import type { AIConversationInfo } from '#/api/admin/ai';
 
-defineOptions({ name: 'AdminAIConversations' });
-
 import { ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -13,13 +11,24 @@ import { Page } from '@vben/common-ui';
 import { Avatar, Card, Descriptions, Tag } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
-import { getAIConversationDetailApi, getAIConversationListApi } from '#/api/admin/ai';
+import {
+  getAIConversationDetailApi,
+  getAIConversationListApi,
+} from '#/api/admin/ai';
 import ConversationDetail from '#/components/business/conversation-detail/ConversationDetail.vue';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
-import { formatCost, formatTokens, getStatusText, useColumns, useGridFormSchema } from './data';
+import {
+  formatCost,
+  formatTokens,
+  getStatusText,
+  useColumns,
+  useGridFormSchema,
+} from './data';
+
+defineOptions({ name: 'AdminAIConversations' });
 
 const detailOpen = ref(false);
 const detailId = ref<null | number>(null);
@@ -45,7 +54,11 @@ const { Grid } = useCrudPage<AIConversationInfo>({
 </script>
 
 <template>
-  <Page auto-content-height :description="$t('admin.ai.conversation.pageDesc')" content-class="flex flex-col gap-4">
+  <Page
+    auto-content-height
+    :description="$t('admin.ai.conversation.pageDesc')"
+    content-class="flex flex-col gap-4"
+  >
     <ConversationDetail
       v-model:open="detailOpen"
       :conversation-id="detailId"
@@ -56,7 +69,10 @@ const { Grid } = useCrudPage<AIConversationInfo>({
       :get-status-text="getStatusText"
     >
       <template #extra-descriptions="{ detail }">
-        <Descriptions.Item :label="$t('admin.ai.conversation.tenantName')" :span="1">
+        <Descriptions.Item
+          :label="$t('admin.ai.conversation.tenantName')"
+          :span="1"
+        >
           {{ detail.tenant_name || '-' }}
         </Descriptions.Item>
         <Descriptions.Item :label="$t('admin.ai.conversation.user')" :span="1">
@@ -66,10 +82,22 @@ const { Grid } = useCrudPage<AIConversationInfo>({
               :src="toAvatarDisplayUrl(detail.user_info.avatar)"
               :size="24"
             />
-            <Avatar v-else :size="24" class="bg-primary/10 text-primary text-xs">
-              {{ (detail.user_info.nickname || detail.user_info.username || '?').charAt(0) }}
+            <Avatar
+              v-else
+              :size="24"
+              class="bg-primary/10 text-xs text-primary"
+            >
+              {{
+                (
+                  detail.user_info.nickname ||
+                  detail.user_info.username ||
+                  '?'
+                ).charAt(0)
+              }}
             </Avatar>
-            <span>{{ detail.user_info.nickname || detail.user_info.username }}</span>
+            <span>{{
+              detail.user_info.nickname || detail.user_info.username
+            }}</span>
           </div>
           <span v-else class="text-muted-foreground">-</span>
         </Descriptions.Item>
@@ -80,7 +108,9 @@ const { Grid } = useCrudPage<AIConversationInfo>({
       <Grid>
         <!-- 租户列 -->
         <template #tenant_cell="{ row }">
-          <span v-if="row.tenant_name" class="text-foreground">{{ row.tenant_name }}</span>
+          <span v-if="row.tenant_name" class="text-foreground">{{
+            row.tenant_name
+          }}</span>
           <span v-else class="text-muted-foreground">-</span>
         </template>
 
@@ -92,14 +122,27 @@ const { Grid } = useCrudPage<AIConversationInfo>({
               :src="toAvatarDisplayUrl(row.user_info.avatar)"
               :size="28"
             />
-            <Avatar v-else :size="28" class="bg-primary/10 text-primary flex-shrink-0 text-xs">
-              {{ (row.user_info.nickname || row.user_info.username || '?').charAt(0) }}
+            <Avatar
+              v-else
+              :size="28"
+              class="flex-shrink-0 bg-primary/10 text-xs text-primary"
+            >
+              {{
+                (
+                  row.user_info.nickname ||
+                  row.user_info.username ||
+                  '?'
+                ).charAt(0)
+              }}
             </Avatar>
             <div class="min-w-0 flex-1">
               <div class="truncate text-sm text-foreground">
                 {{ row.user_info.nickname || row.user_info.username }}
               </div>
-              <div v-if="row.user_info.nickname" class="truncate text-xs text-muted-foreground">
+              <div
+                v-if="row.user_info.nickname"
+                class="truncate text-xs text-muted-foreground"
+              >
                 {{ row.user_info.username }}
               </div>
             </div>
@@ -110,7 +153,9 @@ const { Grid } = useCrudPage<AIConversationInfo>({
         <!-- 标题列 -->
         <template #title_cell="{ row }">
           <span v-if="row.title" class="text-foreground">{{ row.title }}</span>
-          <span v-else class="text-muted-foreground italic">{{ $t('common.noData') }}</span>
+          <span v-else class="italic text-muted-foreground">{{
+            $t('common.noData')
+          }}</span>
         </template>
 
         <!-- 状态列 -->
@@ -137,7 +182,10 @@ const { Grid } = useCrudPage<AIConversationInfo>({
 
         <!-- 费用列 -->
         <template #cost_cell="{ row }">
-          <span class="font-mono text-sm" :class="row.cost > 0 ? 'text-foreground' : 'text-muted-foreground'">
+          <span
+            class="font-mono text-sm"
+            :class="row.cost > 0 ? 'text-foreground' : 'text-muted-foreground'"
+          >
             {{ formatCost(row.cost) }}
           </span>
         </template>

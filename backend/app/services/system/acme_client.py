@@ -12,11 +12,10 @@ ACME 客户端封装
 import asyncio
 import time
 
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
-from cryptography.hazmat.primitives import hashes
 
 from app.core.config import settings
 from app.core.logging import LogManager
@@ -40,7 +39,7 @@ class AcmeClient:
     4. 等待验证通过
     5. 生成 CSR 并完成订单
     6. 下载证书
-    
+
     配置优先级：构造参数 > ConfigService（平台配置） > Settings（环境变量）
     """
 
@@ -50,9 +49,9 @@ class AcmeClient:
         account_email: str | None = None,
         use_staging: bool | None = None,
     ):
+        import josepy as jose
         from acme import client as acme_client
         from acme import messages
-        import josepy as jose
 
         self._acme_module = acme_client
         self._messages = messages

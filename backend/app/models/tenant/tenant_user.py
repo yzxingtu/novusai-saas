@@ -6,7 +6,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, JSON
+from sqlalchemy import JSON, Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import TenantModel
@@ -15,14 +15,14 @@ from app.core.base_model import TenantModel
 class TenantUser(TenantModel):
     """
     租户业务用户模型
-    
+
     - 属于特定租户
     - 租户的终端用户（客户、会员等）
     - 与租户管理员（TenantAdmin）独立
     """
-    
+
     __tablename__ = "tenant_users"
-    
+
     # 基本信息
     username: Mapped[str | None] = mapped_column(
         String(50), index=True, nullable=True, comment="用户名"
@@ -33,12 +33,12 @@ class TenantUser(TenantModel):
     phone: Mapped[str | None] = mapped_column(
         String(20), index=True, nullable=True, comment="手机号"
     )
-    
+
     # 认证信息
     password_hash: Mapped[str | None] = mapped_column(
         String(255), nullable=True, comment="密码哈希"
     )
-    
+
     # 第三方登录
     openid: Mapped[str | None] = mapped_column(
         String(100), index=True, nullable=True, comment="微信 OpenID"
@@ -46,12 +46,12 @@ class TenantUser(TenantModel):
     unionid: Mapped[str | None] = mapped_column(
         String(100), index=True, nullable=True, comment="微信 UnionID"
     )
-    
+
     # 用户状态
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, comment="是否激活"
     )
-    
+
     # 个人资料
     nickname: Mapped[str | None] = mapped_column(
         String(100), nullable=True, comment="昵称"
@@ -62,12 +62,12 @@ class TenantUser(TenantModel):
     gender: Mapped[int] = mapped_column(
         Integer, default=0, comment="性别: 0未知 1男 2女"
     )
-    
+
     # 扩展信息
     extra: Mapped[dict | None] = mapped_column(
         JSON, nullable=True, comment="扩展信息"
     )
-    
+
     # 登录信息
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="最后登录时间"
@@ -86,7 +86,7 @@ class TenantUser(TenantModel):
     locked_until: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="账户锁定到期时间"
     )
-    
+
     def __repr__(self) -> str:
         return f"<TenantUser(id={self.id}, tenant_id={self.tenant_id})>"
 

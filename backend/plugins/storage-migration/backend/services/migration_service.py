@@ -38,7 +38,7 @@ _cancel_flags: set[int] = set()
 class MigrationImpactAnalyzer:
     """Analyze impact before switching storage driver"""
 
-    def __init__(self, db: "AsyncSession"):
+    def __init__(self, db: AsyncSession):
         self._db = db
 
     async def analyze(
@@ -146,7 +146,7 @@ class StorageMigrationService:
     TASK_TABLE = "px_storage_migration_tasks"
     LOG_TABLE = "px_storage_migration_logs"
 
-    def __init__(self, db: "AsyncSession"):
+    def __init__(self, db: AsyncSession):
         self._db = db
 
     # ── Task CRUD ──────────────────────────────────────────────
@@ -414,6 +414,19 @@ class StorageMigrationService:
             event.set()  # Signal the migration loop to resume
         await self._update_task_status(task_id, "running")
         await self._db.commit()
+
+        # If server restarted, there is no in-memory coroutine running.
+        # In that case, we must re-create the pause event and start the
+        # background migration coroutine, otherwise task will be stuck.
+        if task_id not in _running_migrations:
+            event = asyncio.Event()
+            event.set()
+            _pause_events[task_id] = event
+            _cancel_flags.discard(task_id)
+
+            bg_task = asyncio.create_task(self._run_migration(task_id))
+            _running_migrations[task_id] = bg_task
+
         return {"status": "running", "task_id": task_id}
 
     async def cancel_task(self, task_id: int) -> dict:
@@ -674,11 +687,9 @@ class StorageMigrationService:
                     async with async_session_factory() as file_db:
                         ok = await self._migrate_single_file(
                             db=file_db,
-                            task_id=task_id,
                             log_id=log_entry["id"],
                             attachment_id=log_entry["attachment_id"],
                             file_path=log_entry["file_path"],
-                            file_size=log_entry["file_size"],
                             source_driver=source_storage,
                             target_driver=target_storage,
                             target_driver_name=target_driver_name,
@@ -771,12 +782,10 @@ class StorageMigrationService:
 
     async def _migrate_single_file(
         self,
-        db: "AsyncSession",
-        task_id: int,
+        db: AsyncSession,
         log_id: int,
         attachment_id: int,
         file_path: str,
-        file_size: int,
         source_driver: object,
         target_driver: object,
         target_driver_name: str,
@@ -886,7 +895,7 @@ class StorageMigrationService:
 
     @staticmethod
     async def _resolve_config_with_snapshot(
-        db: "AsyncSession",
+        db: AsyncSession,
         snapshot: dict | None,
         driver_name: str,
         scope: str,

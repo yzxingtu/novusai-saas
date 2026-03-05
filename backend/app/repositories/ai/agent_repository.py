@@ -2,19 +2,19 @@
 智能体 Repository
 """
 
-from typing import List
 
-
-from sqlalchemy import select, and_, or_, func, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import selectinload
 
+from app.core.base_model import utc_now
+from app.core.base_repository import BaseRepository, TenantRepository
+from app.enums.common import DeleteLevelEnum, ResourceScopeEnum
 from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
-from app.core.base_repository import TenantRepository, BaseRepository
-from app.enums.common import DeleteLevelEnum, ResourceScopeEnum
-from app.repositories.system.resource_tenant_assignment_repository import assigned_resource_ids_subquery
-from app.schemas.common.query import QuerySpec, FilterRule
-from app.core.base_model import utc_now
+from app.repositories.system.resource_tenant_assignment_repository import (
+    assigned_resource_ids_subquery,
+)
+from app.schemas.common.query import FilterRule, QuerySpec
 
 _ASSIGNED_SCOPES = (
     ResourceScopeEnum.ASSIGNED_TENANTS.value,
@@ -48,7 +48,9 @@ class AgentRepository(TenantRepository[Agent]):
                 return instance
             # 已分配 scope：检查 resource_tenant_assignments
             if instance.scope in _ASSIGNED_SCOPES:
-                from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
+                from app.repositories.system.resource_tenant_assignment_repository import (
+                    ResourceTenantAssignmentRepository,
+                )
                 repo = ResourceTenantAssignmentRepository(self.db)
                 if await repo.check_assignment("agent", instance.id, self.tenant_id):
                     return instance
@@ -164,7 +166,7 @@ class AgentRepository(TenantRepository[Agent]):
         status: str,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[Agent]:
+    ) -> list[Agent]:
         """
         按状态获取智能体列表（包含全局智能体）
 
@@ -204,7 +206,7 @@ class AgentRepository(TenantRepository[Agent]):
         self,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[Agent]:
+    ) -> list[Agent]:
         """
         获取已发布的智能体列表
 

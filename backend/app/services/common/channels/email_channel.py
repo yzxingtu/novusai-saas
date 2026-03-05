@@ -76,6 +76,7 @@ class EmailChannel(NotificationChannel):
             email_subject: 自定义邮件主题（默认用 title）
             email_text: 自定义纯文本正文
         """
+        _ = data
         try:
             email = await self._get_user_email(db, user_type, user_id)
             if not email:
@@ -91,7 +92,9 @@ class EmailChannel(NotificationChannel):
             # 没有自定义 HTML 时，自动使用通知 HTML 模板包装
             if not email_html:
                 try:
-                    from app.services.common.email_templates import render_notification_html
+                    from app.services.common.email_templates import (
+                        render_notification_html,
+                    )
                     email_html, email_text = render_notification_html(
                         title=title,
                         body=body,

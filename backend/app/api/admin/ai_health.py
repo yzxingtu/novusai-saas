@@ -6,17 +6,17 @@ AI 供应商健康状态 API (Admin)
 
 from fastapi import Request
 
+from app.ai.failover import FailoverService
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, ActiveAdmin
+from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
-    permission_resource,
     MenuConfig,
     action_read,
+    permission_resource,
 )
-from app.ai.failover import FailoverService
 
 
 @permission_resource(

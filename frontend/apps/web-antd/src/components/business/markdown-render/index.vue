@@ -5,14 +5,9 @@
  * 基于 markdown-it + highlight.js，支持代码高亮、复制、流式渲染。
  * 作为通用业务组件供对话界面、版本详情等场景复用。
  */
-defineOptions({ name: 'MarkdownRender' });
-
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { message } from 'ant-design-vue';
-
-import { $t } from '#/locales';
-
 import hljs from 'highlight.js/lib/core';
 import bash from 'highlight.js/lib/languages/bash';
 import css from 'highlight.js/lib/languages/css';
@@ -29,6 +24,21 @@ import xml from 'highlight.js/lib/languages/xml';
 import yaml from 'highlight.js/lib/languages/yaml';
 import MarkdownIt from 'markdown-it';
 
+import { $t } from '#/locales';
+
+defineOptions({ name: 'MarkdownRender' });
+
+const props = withDefaults(
+  defineProps<{
+    /** Markdown 文本内容 */
+    content: string;
+    /** 流式模式（正在接收中，跳过某些后处理） */
+    streaming?: boolean;
+  }>(),
+  {
+    streaming: false,
+  },
+);
 // 注册常用语言
 hljs.registerLanguage('javascript', javascript);
 hljs.registerLanguage('js', javascript);
@@ -51,18 +61,6 @@ hljs.registerLanguage('html', xml);
 hljs.registerLanguage('xml', xml);
 hljs.registerLanguage('markdown', markdown);
 hljs.registerLanguage('md', markdown);
-
-const props = withDefaults(
-  defineProps<{
-    /** Markdown 文本内容 */
-    content: string;
-    /** 流式模式（正在接收中，跳过某些后处理） */
-    streaming?: boolean;
-  }>(),
-  {
-    streaming: false,
-  },
-);
 
 // 初始化 markdown-it
 const md = new MarkdownIt({
@@ -124,7 +122,7 @@ function handleCopyClick(e: Event) {
   if (!btn) return;
   const codeId = btn.dataset.codeId;
   if (!codeId) return;
-  const el = document.getElementById(codeId);
+  const el = document.querySelector<HTMLElement>(`#${CSS.escape(codeId)}`);
   if (el) {
     navigator.clipboard
       .writeText(el.textContent || '')
@@ -149,22 +147,19 @@ const renderedHtml = computed(() => {
     return `<pre style="white-space:pre-wrap;word-break:break-word">${md.utils.escapeHtml(props.content)}</pre>`;
   }
 });
-
 </script>
 
 <template>
-  <div
-    ref="containerRef"
-    class="markdown-render"
-    v-html="renderedHtml"
-  />
+  <!-- eslint-disable-next-line vue/no-v-html -->
+  <div ref="containerRef" class="markdown-render" v-html="renderedHtml"></div>
 </template>
 
 <style>
 .markdown-render {
   font-size: 14px;
   line-height: 1.7;
-  word-break: break-word;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .markdown-render p {
@@ -178,28 +173,28 @@ const renderedHtml = computed(() => {
 }
 
 .markdown-render blockquote {
-  border-left: 3px solid hsl(var(--primary));
   padding-left: 0.8em;
   margin: 0.4em 0;
   color: hsl(var(--muted-foreground));
+  border-left: 3px solid hsl(var(--primary));
 }
 
 .markdown-render table {
-  border-collapse: collapse;
   width: 100%;
   margin: 0.5em 0;
+  border-collapse: collapse;
 }
 
 .markdown-render th,
 .markdown-render td {
-  border: 1px solid hsl(var(--border));
   padding: 6px 12px;
   text-align: left;
+  border: 1px solid hsl(var(--border));
 }
 
 .markdown-render th {
-  background: hsl(var(--accent));
   font-weight: 600;
+  background: hsl(var(--accent));
 }
 
 .markdown-render a {
@@ -209,10 +204,10 @@ const renderedHtml = computed(() => {
 
 /* 代码块 */
 .md-code-block {
-  border-radius: 8px;
-  overflow: hidden;
   margin: 0.5em 0;
+  overflow: hidden;
   border: 1px solid hsl(var(--border));
+  border-radius: 8px;
 }
 
 .md-code-header {
@@ -220,23 +215,23 @@ const renderedHtml = computed(() => {
   align-items: center;
   justify-content: space-between;
   padding: 4px 12px;
-  background: hsl(var(--accent));
   font-size: 12px;
+  background: hsl(var(--accent));
 }
 
 .md-code-lang {
-  color: hsl(var(--muted-foreground));
   font-family: monospace;
+  color: hsl(var(--muted-foreground));
 }
 
 .md-code-copy {
   display: inline-flex;
   align-items: center;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  color: hsl(var(--muted-foreground));
   padding: 2px;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  background: transparent;
+  border: none;
   border-radius: 4px;
   transition: color 0.2s;
 }
@@ -246,37 +241,71 @@ const renderedHtml = computed(() => {
 }
 
 .md-code-block pre.hljs {
-  margin: 0;
   padding: 12px 16px;
+  margin: 0;
   overflow-x: auto;
-  background: hsl(var(--accent) / 0.3);
   font-size: 13px;
   line-height: 1.5;
+  background: hsl(var(--accent) / 30%);
 }
 
 .md-code-block pre.hljs code {
-  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+  font-family: 'Fira Code', Consolas, Monaco, monospace;
 }
 
 /* 行内代码 */
 .markdown-render code:not(.hljs code) {
-  background: hsl(var(--accent));
   padding: 1px 5px;
-  border-radius: 4px;
+  font-family: 'Fira Code', Consolas, Monaco, monospace;
   font-size: 0.9em;
-  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+  background: hsl(var(--accent));
+  border-radius: 4px;
 }
 
 /* highlight.js 基础色 */
-.hljs-keyword { color: #c678dd; }
-.hljs-string { color: #98c379; }
-.hljs-number { color: #d19a66; }
-.hljs-comment { color: #5c6370; font-style: italic; }
-.hljs-function { color: #61afef; }
-.hljs-title { color: #e5c07b; }
-.hljs-built_in { color: #e06c75; }
-.hljs-attr { color: #d19a66; }
-.hljs-params { color: #abb2bf; }
-.hljs-literal { color: #56b6c2; }
-.hljs-type { color: #e5c07b; }
+.hljs-keyword {
+  color: #c678dd;
+}
+
+.hljs-string {
+  color: #98c379;
+}
+
+.hljs-number {
+  color: #d19a66;
+}
+
+.hljs-comment {
+  font-style: italic;
+  color: #5c6370;
+}
+
+.hljs-function {
+  color: #61afef;
+}
+
+.hljs-title {
+  color: #e5c07b;
+}
+
+/* stylelint-disable-next-line selector-class-pattern */
+.hljs-built_in {
+  color: #e06c75;
+}
+
+.hljs-attr {
+  color: #d19a66;
+}
+
+.hljs-params {
+  color: #abb2bf;
+}
+
+.hljs-literal {
+  color: #56b6c2;
+}
+
+.hljs-type {
+  color: #e5c07b;
+}
 </style>

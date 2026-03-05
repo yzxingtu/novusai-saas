@@ -4,8 +4,6 @@
  *
  * 在顶栏铃铛 Popover 中展示，支持分类 Tab 筛选、已读/未读、全部已读。
  */
-defineOptions({ name: 'NotificationPanel' });
-
 import type { NotificationItem } from '#/store/shared/notification';
 
 import { computed, onMounted, ref, watch } from 'vue';
@@ -14,11 +12,14 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Badge, Button, Empty, Spin, Tabs } from 'ant-design-vue';
 
+import PluginNotificationUI from '#/components/business/plugin-slots/PluginNotificationUI.vue';
 import { $t } from '#/locales';
 import { useNotificationStore } from '#/store';
 import { formatRelativeTime } from '#/utils/common';
 
 import NotificationSettings from './NotificationSettings.vue';
+
+defineOptions({ name: 'NotificationPanel' });
 
 const settingsRef = ref<InstanceType<typeof NotificationSettings>>();
 
@@ -40,9 +41,7 @@ const filteredNotifications = computed(() => {
   if (activeTab.value === 'all') {
     return notifStore.notifications;
   }
-  return notifStore.notifications.filter(
-    (n) => n.category === activeTab.value,
-  );
+  return notifStore.notifications.filter((n) => n.category === activeTab.value);
 });
 
 /** 分类图标映射 */
@@ -99,11 +98,7 @@ onMounted(() => {
 <template>
   <div class="w-[360px]">
     <!-- Tab 导航 -->
-    <Tabs
-      v-model:activeKey="activeTab"
-      size="small"
-      class="notification-tabs"
-    >
+    <Tabs v-model:active-key="activeTab" size="small" class="notification-tabs">
       <Tabs.TabPane
         v-for="tab in CATEGORY_TABS"
         :key="tab.key"
@@ -140,7 +135,11 @@ onMounted(() => {
               <div class="flex items-start justify-between gap-2">
                 <span
                   class="text-sm"
-                  :class="item.is_read ? 'text-muted-foreground' : 'font-medium text-foreground'"
+                  :class="
+                    item.is_read
+                      ? 'text-muted-foreground'
+                      : 'font-medium text-foreground'
+                  "
                 >
                   {{ item.title }}
                 </span>
@@ -153,6 +152,14 @@ onMounted(() => {
               >
                 {{ item.body }}
               </p>
+              <div v-if="item.template_code" class="mt-1">
+                <PluginNotificationUI
+                  :event="item.template_code"
+                  :data="
+                    (item.data as Record<string, unknown> | undefined) ?? {}
+                  "
+                />
+              </div>
               <span class="mt-1 text-[11px] text-muted-foreground/60">
                 {{ item.created_at ? formatRelativeTime(item.created_at) : '' }}
               </span>
@@ -170,7 +177,9 @@ onMounted(() => {
     </Spin>
 
     <!-- 底部操作 -->
-    <div class="flex items-center justify-between border-t border-border/50 px-4 py-2">
+    <div
+      class="flex items-center justify-between border-t border-border/50 px-4 py-2"
+    >
       <Button type="link" size="small" @click="handleMarkAllRead">
         {{ $t('common.notification.markAllRead') }}
       </Button>
@@ -188,7 +197,7 @@ onMounted(() => {
 
 <style scoped>
 .notification-tabs :deep(.ant-tabs-nav) {
-  margin-bottom: 0;
   padding: 0 16px;
+  margin-bottom: 0;
 }
 </style>

@@ -10,18 +10,10 @@ Covers:
 
 from __future__ import annotations
 
-import asyncio
-import json
-import sys
-import tempfile
-from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock
-
 import pytest
 
 from app.ai.tools.executors.toolkit_executor import ToolkitExecutor
-from app.ai.tools.types import ToolDefinition, ToolParameter
+from app.ai.tools.types import ToolDefinition
 
 
 def _make_definition(

@@ -6,19 +6,19 @@ AI 供应商 API Key 相关 Schema
 
 from datetime import datetime
 
-from pydantic import Field, computed_field
+from pydantic import Field
 
 from app.core.base_schema import (
     BaseCreateSchema,
-    BaseUpdateSchema,
     BaseResponseSchema,
+    BaseUpdateSchema,
 )
 from app.core.i18n import _
 
 
 class ProviderApiKeyCreate(BaseCreateSchema):
     """创建 API Key 请求"""
-    
+
     provider_id: int = Field(..., description=_("enum.ai_api_key.provider_id"))
     tenant_id: int | None = Field(None, description=_("enum.ai_api_key.tenant_id"))
     name: str = Field(..., max_length=100, description=_("enum.ai_api_key.name"))
@@ -30,7 +30,7 @@ class ProviderApiKeyCreate(BaseCreateSchema):
 
 class ProviderApiKeyUpdate(BaseUpdateSchema):
     """更新 API Key 请求（不允许更新 Key 本身）"""
-    
+
     name: str | None = Field(None, max_length=100, description=_("enum.ai_api_key.name"))
     is_active: bool | None = Field(None, description=_("enum.ai_api_key.is_active"))
     usage_limit: int | None = Field(None, ge=0, description=_("enum.ai_api_key.usage_limit"))
@@ -39,7 +39,7 @@ class ProviderApiKeyUpdate(BaseUpdateSchema):
 
 class ProviderApiKeyResponse(BaseResponseSchema):
     """API Key 响应（不返回明文 Key）"""
-    
+
     provider_id: int = Field(..., description=_("enum.ai_api_key.provider_id"))
     tenant_id: int | None = Field(None, description=_("enum.ai_api_key.tenant_id"))
     name: str = Field(..., description=_("enum.ai_api_key.name"))

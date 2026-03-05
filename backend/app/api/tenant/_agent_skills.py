@@ -6,15 +6,15 @@
 
 from fastapi import APIRouter, Request
 
-from app.core.deps import DbSession, ActiveTenantAdmin
+from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.i18n import _
-from app.core.response import success, created, deleted
+from app.core.response import created, deleted, success
 from app.exceptions import NotFoundException
 from app.rbac.decorators import action_read, action_update
 from app.schemas.ai.agent_skill_binding import (
-    AgentSkillBindRequest,
     AgentSkillBatchBindRequest,
     AgentSkillBindingUpdate,
+    AgentSkillBindRequest,
 )
 from app.services.ai.agent_service import AgentService
 from app.services.ai.agent_skill_binding_service import AgentSkillBindingService

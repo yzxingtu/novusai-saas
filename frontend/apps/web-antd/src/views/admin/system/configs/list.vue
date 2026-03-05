@@ -3,8 +3,6 @@ import type { ConfigGroupListItemMeta, ConfigItemMeta } from '#/types/config';
 
 import { computed, onActivated, onBeforeUnmount, onMounted, ref } from 'vue';
 
-defineOptions({ name: 'SystemConfigList' });
-
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -17,10 +15,13 @@ import {
   updateAdminConfigGroupApi,
 } from '#/api/admin/configs';
 import { ConfigForm } from '#/components';
+import PluginSettingsTabs from '#/components/business/plugin-slots/PluginSettingsTabs.vue';
 import { $t as t } from '#/locales';
 
 // 平台存储配置专用面板
 import PlatformStoragePanel from './modules/PlatformStoragePanel.vue';
+
+defineOptions({ name: 'SystemConfigList' });
 
 const generatingKey = ref(false);
 async function onGenerateFernetKey(setValue: (v: string) => void) {
@@ -28,7 +29,8 @@ async function onGenerateFernetKey(setValue: (v: string) => void) {
   try {
     const result = await generateFernetKeyApi();
     setValue(result.key);
-  } catch {} finally {
+  } catch {
+  } finally {
     generatingKey.value = false;
   }
 }
@@ -40,7 +42,10 @@ const loading = ref(false);
 const groupLoading = ref(false);
 const saving = ref(false);
 const formRef = ref<any>();
-const storagePanelRef = ref<{ onSave: () => Promise<void>; saving: { value: boolean } }>();
+const storagePanelRef = ref<{
+  onSave: () => Promise<void>;
+  saving: { value: boolean };
+}>();
 
 // 当前选中的分组数据
 const activeGroupData = computed(() =>
@@ -82,7 +87,7 @@ function getGroupDesc(g: ConfigGroupListItemMeta): string {
 
 // 按 sort_order 排序的分组列表
 const sortedGroups = computed(() =>
-  [...groups.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+  groups.value.toSorted((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
 );
 
 async function loadGroups() {
@@ -91,8 +96,12 @@ async function loadGroups() {
     groups.value = await getAdminConfigGroupsApi();
     if (groups.value.length > 0) {
       // 按 sort_order 取第一个组
-      const sorted = [...groups.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-      activeGroup.value = sorted[0]!.code;
+      const sorted = groups.value.toSorted(
+        (a, b) => (a.sort_order || 0) - (b.sort_order || 0),
+      );
+      const firstGroup = sorted[0];
+      if (!firstGroup) return;
+      activeGroup.value = firstGroup.code;
       // platform_storage 组用专用面板，不需要加载配置详情
       if (activeGroup.value !== 'platform_storage') {
         await loadGroupDetail(activeGroup.value);
@@ -107,7 +116,7 @@ async function loadGroupDetail(code: string) {
   loading.value = true;
   try {
     const detail = await getAdminConfigGroupDetailApi(code);
-    configs.value = (detail.configs || []).sort(
+    configs.value = (detail.configs || []).toSorted(
       (a, b) => (a.sort_order || 0) - (b.sort_order || 0),
     );
   } finally {
@@ -196,7 +205,9 @@ onBeforeUnmount(() => {
 
 <template>
   <Page auto-content-height>
-    <div class="relative z-0 flex h-full flex-col gap-4 overflow-hidden md:flex-row">
+    <div
+      class="relative z-0 flex h-full flex-col gap-4 overflow-hidden md:flex-row"
+    >
       <!-- 左侧：配置分组列表 -->
       <Card
         class="w-full flex-shrink-0 overflow-hidden md:w-[260px]"
@@ -268,7 +279,11 @@ onBeforeUnmount(() => {
           <Button
             type="primary"
             v-access:code="['platform_config:update']"
-            :loading="activeGroup === 'platform_storage' ? storagePanelRef?.saving?.value : saving"
+            :loading="
+              activeGroup === 'platform_storage'
+                ? storagePanelRef?.saving?.value
+                : saving
+            "
             :disabled="!activeGroup"
             @click="onSave"
           >
@@ -298,6 +313,7 @@ onBeforeUnmount(() => {
                 </Button>
               </template>
             </ConfigForm>
+            <PluginSettingsTabs />
           </div>
           <Empty
             v-else

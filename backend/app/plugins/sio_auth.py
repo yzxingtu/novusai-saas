@@ -8,6 +8,7 @@ AsyncNamespace，在 on_connect 前注入鉴权逻辑。
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 import socketio
@@ -37,9 +38,6 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
     所有非 connect/disconnect 事件直接委托给插件 handler。
     """
 
-    # sid → session 备份（防止 get_session 失败时无法清理）
-    _sid_sessions: dict[str, dict] = {}
-
     def __init__(
         self,
         delegate: socketio.AsyncNamespace,
@@ -53,6 +51,8 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
         self._auth_scopes = auth_scopes or ["tenant_admin"]
         # 将 delegate 的 server 引用指向自身（注册后由 server 设置）
         self._delegate_event_handlers: dict[str, Any] = {}
+        # sid → session 备份（实例级，避免跨插件 sid 键名冲突）
+        self._sid_sessions: dict[str, dict] = {}
 
     def _set_server(self, server: Any) -> None:
         """server 注册回调 — 同步设置 delegate 的 server"""
@@ -151,8 +151,9 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
         tenant_id = None
         username = ""
 
-        from app.core.database import async_session_factory
         from sqlalchemy import select
+
+        from app.core.database import async_session_factory
 
         async with async_session_factory() as db:
             if matched_scope == "admin":
@@ -234,10 +235,8 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
         """断开连接，清理在线状态，委托给插件 handler"""
         session = self._sid_sessions.pop(sid, None)
         if not session:
-            try:
+            with contextlib.suppress(Exception):
                 session = await self.get_session(sid)
-            except Exception:
-                pass
 
         if session:
             user_id = session.get("user_id")
@@ -278,10 +277,13 @@ class PluginAuthNamespaceWrapper(socketio.AsyncNamespace):
         if event in ("connect", "disconnect"):
             return await super()._trigger_event(event, *args)
 
-        # 委托给插件 handler
+        # 委托给插件 handler（兼容 async/sync）
         handler = getattr(self._delegate, f"on_{event}", None)
         if handler:
-            return await handler(*args)
+            import asyncio
+            if asyncio.iscoroutinefunction(handler):
+                return await handler(*args)
+            return handler(*args)
 
         # 无匹配 handler — 忽略
         return None

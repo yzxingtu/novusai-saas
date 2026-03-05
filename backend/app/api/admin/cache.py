@@ -7,15 +7,15 @@ Provides cache summary and clearing endpoints for platform administrators.
 from fastapi import Request
 
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, ActiveAdmin
+from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.cache import CacheCategoryEnum
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
-    permission_resource,
-    action_read,
     action_delete,
+    action_read,
+    permission_resource,
 )
 from app.schemas.system.cache import CacheClearRequest
 from app.services.system.cache_management_service import CacheManagementService
@@ -25,6 +25,7 @@ from app.services.system.cache_management_service import CacheManagementService
     resource="cache_management",
     name="menu.admin.cache_management",
     scope=PermissionScope.ADMIN_ONLY,
+    parent_resource="system_maintenance",
 )
 class AdminCacheController(GlobalController):
     """

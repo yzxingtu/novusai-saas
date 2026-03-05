@@ -3,13 +3,12 @@
 """
 
 from datetime import date, datetime
-from typing import List
 
-from sqlalchemy import select, update, and_, func
+from sqlalchemy import and_, func, select, update
 
-from app.models.ai.agent_conversation import AgentConversation
 from app.core.base_repository import BaseRepository, TenantRepository
 from app.enums.agent import ConversationStatusEnum
+from app.models.ai.agent_conversation import AgentConversation
 
 
 class AgentConversationRepository(TenantRepository[AgentConversation]):
@@ -26,7 +25,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
         agent_id: int,
         skip: int = 0,
         limit: int = 50,
-    ) -> List[AgentConversation]:
+    ) -> list[AgentConversation]:
         """
         按智能体获取对话列表
 
@@ -59,7 +58,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
         keyword: str,
         skip: int = 0,
         limit: int = 50,
-    ) -> tuple[List[AgentConversation], int]:
+    ) -> tuple[list[AgentConversation], int]:
         """
         按标题模糊搜索对话
 
@@ -101,7 +100,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
         self,
         before_date: date,
         agent_id: int | None = None,
-    ) -> List[AgentConversation]:
+    ) -> list[AgentConversation]:
         """
         获取指定日期前的 active 对话（用于批量归档）
 
@@ -133,7 +132,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
         before_date: date,
         agent_id: int | None = None,
         batch_size: int = 1000,
-    ) -> List[int]:
+    ) -> list[int]:
         """
         获取指定日期前的 active 对话 ID 列表（仅查 ID，避免全量加载 ORM 对象）
 
@@ -168,7 +167,7 @@ class AgentConversationRepository(TenantRepository[AgentConversation]):
 
     async def batch_update_status(
         self,
-        ids: List[int],
+        ids: list[int],
         status: str,
     ) -> int:
         """

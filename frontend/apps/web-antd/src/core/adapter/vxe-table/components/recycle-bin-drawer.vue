@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { Key } from 'ant-design-vue/es/table/interface';
+
 /**
  * RecycleBinDrawer - 回收站抽屉组件
  *
@@ -7,8 +9,6 @@
 import { computed, onMounted, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
-
-import type { Key } from 'ant-design-vue/es/table/interface';
 
 import {
   Button,
@@ -27,19 +27,24 @@ import { requestClient } from '#/utils/request';
 
 defineOptions({ name: 'RecycleBinDrawer' });
 
+const props = withDefaults(defineProps<Props>(), {
+  nameField: 'name',
+  columns: undefined,
+});
+
+// Emit for parent to know if restored
+const emit = defineEmits<{
+  (e: 'restored'): void;
+}>();
+
 interface Props {
   /** API 资源路径 (e.g. '/tenant/ai/agents') */
   resource: string;
   /** 名称字段 (默认 'name') */
   nameField?: string;
   /** 自定义列配置 */
-  columns?: Array<{ title: string; dataIndex: string; width?: number }>;
+  columns?: Array<{ dataIndex: string; title: string; width?: number }>;
 }
-
-const props = withDefaults(defineProps<Props>(), {
-  nameField: 'name',
-  columns: undefined,
-});
 
 const visible = ref(false);
 const loading = ref(false);
@@ -113,9 +118,7 @@ async function handleRestore(record: Record<string, unknown>) {
 
 /** 永久删除单条记录 */
 function handlePermanentDelete(record: Record<string, unknown>) {
-  const displayName = String(
-    record[props.nameField] || record.id,
-  );
+  const displayName = String(record[props.nameField] || record.id);
   Modal.confirm({
     title: $t('common.recycleBin.permanentDelete'),
     content: $t('common.recycleBin.confirmPermanentDelete', {
@@ -123,9 +126,7 @@ function handlePermanentDelete(record: Record<string, unknown>) {
     }),
     okType: 'danger',
     onOk: async () => {
-      await requestClient.delete(
-        `${props.resource}/recycle-bin/${record.id}`,
-      );
+      await requestClient.delete(`${props.resource}/recycle-bin/${record.id}`);
       message.success($t('common.recycleBin.deleteSuccess'));
       page.value = 1;
       await fetchList();
@@ -194,9 +195,8 @@ const tableColumns = computed(() => {
 
   return [
     {
-      title: props.nameField === 'name'
-        ? $t('common.basicInfo')
-        : props.nameField,
+      title:
+        props.nameField === 'name' ? $t('common.basicInfo') : props.nameField,
       dataIndex: props.nameField,
       ellipsis: true,
     },
@@ -236,11 +236,6 @@ const pagination = computed(() => ({
   },
 }));
 
-// Emit for parent to know if restored
-const emit = defineEmits<{
-  (e: 'restored'): void;
-}>();
-
 watch(visible, (val) => {
   if (!val && hasRestored.value) {
     emit('restored');
@@ -267,7 +262,9 @@ defineExpose({ open, close, refreshCount, deletedCount });
       class="mb-3 flex items-center justify-between rounded-lg bg-primary/5 px-4 py-2"
     >
       <span class="text-sm text-muted-foreground">
-        {{ $t('common.recycleBin.itemCount', { count: selectedRowKeys.length }) }}
+        {{
+          $t('common.recycleBin.itemCount', { count: selectedRowKeys.length })
+        }}
       </span>
       <Space>
         <Button size="small" @click="handleBatchRestore">
@@ -286,9 +283,7 @@ defineExpose({ open, close, refreshCount, deletedCount });
     </div>
 
     <!-- 保留天数提示 -->
-    <div
-      class="mb-3 flex items-center gap-1 text-xs text-muted-foreground/70"
-    >
+    <div class="mb-3 flex items-center gap-1 text-xs text-muted-foreground/70">
       <IconifyIcon icon="lucide:info" class="size-3.5" />
       <span>{{ $t('common.recycleBin.retentionDays', { days: 30 }) }}</span>
     </div>
@@ -323,10 +318,7 @@ defineExpose({ open, close, refreshCount, deletedCount });
                   @click="handleRestore(record)"
                 >
                   <template #icon>
-                    <IconifyIcon
-                      icon="lucide:rotate-ccw"
-                      class="size-4"
-                    />
+                    <IconifyIcon icon="lucide:rotate-ccw" class="size-4" />
                   </template>
                 </Button>
               </Tooltip>

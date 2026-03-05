@@ -7,15 +7,15 @@
 from fastapi import Request
 
 from app.core.base_controller import GlobalController
-from app.core.deps import DbSession, ActiveAdmin, QueryParams
+from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import success, paginated
+from app.core.response import paginated, success
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
-    permission_resource,
-    action_read,
     MenuConfig,
+    action_read,
+    permission_resource,
 )
 from app.services.ai.action_log_service import AIActionLogService
 

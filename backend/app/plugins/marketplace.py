@@ -10,6 +10,7 @@ from __future__ import annotations
 import shutil
 import tempfile
 import time
+import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -275,19 +276,41 @@ class MarketplaceClient:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(url)
-                if resp.status_code == 404:
-                    return None
-                resp.raise_for_status()
-                data = resp.json()
-
-            await self._set_cached(cache_key, data)
-            return data
+                if resp.status_code != 404:
+                    resp.raise_for_status()
+                    data = resp.json()
+                    await self._set_cached(cache_key, data)
+                    return data
+                logger.info(
+                    "Marketplace detail %s not found at %s, trying registry fallback",
+                    slug,
+                    url,
+                )
         except Exception as exc:
             logger.warning("Failed to fetch plugin detail for %s: %s", slug, exc)
-            stale = await self._get_cached(cache_key)
-            if stale:
-                return stale  # type: ignore
-            return None
+
+        # 回退：部分索引源仅提供 registry.json，不提供 plugins/{slug}.json
+        # 此时从 registry 中按 slug/name 查找，保证 confirm-install 可继续执行。
+        registry = await self.fetch_registry()
+        for item in registry:
+            item_slug = item.get("slug") or item.get("name", "")
+            item_name = item.get("name", "")
+            if item_slug == slug or item_name == slug:
+                detail = dict(item)
+                await self._set_cached(cache_key, detail)
+                logger.info(
+                    "Marketplace detail fallback hit from registry: slug=%s",
+                    slug,
+                )
+                return detail
+
+        logger.warning("Marketplace plugin detail not found for slug=%s", slug)
+
+        # 最后尝试读取可能存在的旧缓存（兼容 cache backend 间歇异常）
+        stale = await self._get_cached(cache_key)
+        if stale:
+            return stale  # type: ignore
+        return None
 
     async def fetch_readme(self, slug: str, locale: str = "zh-CN") -> str | None:
         """获取插件 README"""
@@ -325,9 +348,7 @@ class MarketplaceClient:
         if not download_url:
             # 尝试从 releases 构建
             repo_url = detail.get("repository_url", "")
-            if "github.com" in repo_url:
-                download_url = f"{repo_url}/releases/download/v{version}/{slug}-{version}.zip"
-            elif "gitee.com" in repo_url:
+            if "github.com" in repo_url or "gitee.com" in repo_url:
                 download_url = f"{repo_url}/releases/download/v{version}/{slug}-{version}.zip"
             else:
                 from app.plugins.exceptions import PluginError
@@ -348,18 +369,20 @@ class MarketplaceClient:
 
         for attempt in range(3):
             try:
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    async with client.stream("GET", download_url, follow_redirects=True) as resp:
-                        resp.raise_for_status()
+                async with (
+                    httpx.AsyncClient(timeout=60.0) as client,
+                    client.stream("GET", download_url, follow_redirects=True) as resp,
+                ):
+                    resp.raise_for_status()
 
-                        downloaded = 0
-                        with open(zip_path, "wb") as f:
-                            async for chunk in resp.aiter_bytes(chunk_size=1024 * 1024):
-                                if not chunk:
-                                    continue
-                                downloaded += len(chunk)
-                                ensure_package_size_limit(downloaded)
-                                f.write(chunk)
+                    downloaded = 0
+                    with open(zip_path, "wb") as f:
+                        async for chunk in resp.aiter_bytes(chunk_size=1024 * 1024):
+                            if not chunk:
+                                continue
+                            downloaded += len(chunk)
+                            ensure_package_size_limit(downloaded)
+                            f.write(chunk)
 
                 validate_plugin_zip_archive(zip_path)
 
@@ -380,12 +403,118 @@ class MarketplaceClient:
                         attempt + 1, slug, exc,
                     )
                     continue
+
+                # DEBUG 回退：当远程包不存在时生成最小桩包，
+                # 保障本地回归可以覆盖 marketplace 安装链路。
+                from app.core.config import settings
+                if settings.DEBUG:
+                    try:
+                        stub_zip = self._build_debug_stub_package(
+                            tmp_dir=tmp_dir,
+                            slug=slug,
+                            version=version,
+                            detail=detail,
+                        )
+                        validate_plugin_zip_archive(stub_zip)
+                        logger.warning(
+                            "Using DEBUG marketplace stub package for %s v%s "
+                            "because remote download failed: %s",
+                            slug,
+                            version,
+                            exc,
+                        )
+                        return stub_zip
+                    except Exception as stub_exc:
+                        logger.warning(
+                            "Failed to build DEBUG marketplace stub for %s: %s",
+                            slug,
+                            stub_exc,
+                        )
+
                 shutil.rmtree(tmp_dir, ignore_errors=True)
                 raise PluginInstallError(
                     message=f"Failed to download plugin '{slug}' after 3 attempts: {exc}",
                 )
 
         return zip_path  # unreachable but satisfies type checker
+
+    def _build_debug_stub_package(
+        self,
+        *,
+        tmp_dir: Path,
+        slug: str,
+        version: str,
+        detail: dict,
+    ) -> Path:
+        """构建 DEBUG 用最小插件包（仅开发环境回退）"""
+        import re
+
+        def _yaml_quote(value: object) -> str:
+            text = str(value or "")
+            return "'" + text.replace("'", "''") + "'"
+
+        display_name = detail.get("display_name") or slug
+        description = detail.get("description") or (
+            f"DEBUG marketplace stub package for '{slug}'"
+        )
+
+        class_base = "".join(
+            part.capitalize()
+            for part in re.split(r"[^0-9a-zA-Z]+", slug)
+            if part
+        )
+        if not class_base:
+            class_base = "MarketplaceStub"
+        class_name = f"{class_base}Plugin"
+
+        plugin_yaml = (
+            f"name: {slug}\n"
+            f"version: \"{version}\"\n"
+            "display_name:\n"
+            f"  en: {_yaml_quote(display_name)}\n"
+            f"  zh-CN: {_yaml_quote(display_name)}\n"
+            "description:\n"
+            f"  en: {_yaml_quote(description)}\n"
+            f"  zh-CN: {_yaml_quote(description)}\n"
+            "author: 'NovusAI DEBUG Marketplace'\n"
+            "scope: admin_only\n"
+            "tags: ['marketplace', 'debug', 'stub']\n"
+            "capabilities: []\n"
+            "extensions: {}\n"
+            "dependencies:\n"
+            "  python: []\n"
+            "  plugins: []\n"
+            "pricing:\n"
+            "  type: free\n"
+        )
+
+        main_py = (
+            "from app.plugins.base import PluginBase\n\n\n"
+            f"class {class_name}(PluginBase):\n"
+            "    async def on_install(self, ctx):\n"
+            "        return None\n\n"
+            "    async def on_enable(self, ctx):\n"
+            "        return None\n\n"
+            "    async def on_disable(self, ctx):\n"
+            "        return None\n\n"
+            "    async def on_uninstall(self, ctx):\n"
+            "        return None\n"
+        )
+
+        readme = (
+            f"# {display_name}\n\n"
+            "This is a DEBUG fallback package generated locally because "
+            "the remote marketplace package could not be downloaded.\n"
+        )
+
+        stub_zip = tmp_dir / f"{slug}-{version}-debug-stub.zip"
+        with zipfile.ZipFile(stub_zip, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("plugin.yaml", plugin_yaml)
+            zf.writestr("README.md", readme)
+            zf.writestr("backend/__init__.py", "")
+            zf.writestr("backend/main.py", main_py)
+
+        return stub_zip
 
     async def check_for_updates(
         self, installed_plugins: list[dict],

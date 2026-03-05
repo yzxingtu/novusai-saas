@@ -5,7 +5,6 @@
 """
 
 from datetime import datetime
-from typing import Any
 
 from pydantic import Field
 
@@ -15,11 +14,11 @@ from app.core.base_schema import BaseSchema
 def _translate_log_field(key: str, prefix: str) -> str | None:
     """
     翻译日志字段
-    
+
     Args:
         key: 字段值，如 "auth", "create"
         prefix: i18n key 前缀，如 "enum.log_module", "enum.operation"
-    
+
     Returns:
         翻译后的文本，无翻译时返回原值
     """
@@ -34,7 +33,7 @@ def _translate_log_field(key: str, prefix: str) -> str | None:
 
 class OperationLogResponse(BaseSchema):
     """操作日志响应"""
-    
+
     id: int = Field(..., description="日志 ID")
     tenant_id: int | None = Field(None, description="租户 ID")
     user_type: str = Field(..., description="用户类型")
@@ -57,7 +56,7 @@ class OperationLogResponse(BaseSchema):
     user_agent: str | None = Field(None, description="User-Agent")
     duration_ms: int | None = Field(None, description="请求耗时（毫秒）")
     created_at: datetime = Field(..., description="创建时间")
-    
+
     @classmethod
     def from_model(cls, log) -> "OperationLogResponse":
         """从模型创建响应"""
@@ -89,7 +88,7 @@ class OperationLogResponse(BaseSchema):
 
 class OperationLogListResponse(BaseSchema):
     """操作日志列表项响应（简化版）"""
-    
+
     id: int = Field(..., description="日志 ID")
     tenant_id: int | None = Field(None, description="租户 ID")
     user_type: str = Field(..., description="用户类型")
@@ -108,7 +107,7 @@ class OperationLogListResponse(BaseSchema):
     ip: str | None = Field(None, description="客户端 IP")
     duration_ms: int | None = Field(None, description="请求耗时（毫秒）")
     created_at: datetime = Field(..., description="创建时间")
-    
+
     @classmethod
     def from_model(cls, log) -> "OperationLogListResponse":
         """从模型创建列表响应"""
@@ -136,7 +135,7 @@ class OperationLogListResponse(BaseSchema):
 
 class OperatorSelectItem(BaseSchema):
     """操作人下拉选项"""
-    
+
     user_id: int = Field(..., description="用户 ID")
     user_type: str = Field(..., description="用户类型")
     username: str = Field(..., description="用户名")
@@ -146,20 +145,20 @@ class OperatorSelectItem(BaseSchema):
 
 class OperationLogDeleteRequest(BaseSchema):
     """批量删除日志请求"""
-    
+
     ids: list[int] = Field(..., min_length=1, max_length=100, description="日志 ID 列表")
 
 
 class LogStatsItem(BaseSchema):
     """日志统计项"""
-    
+
     name: str = Field(..., description="分类名称")
     count: int = Field(..., description="数量")
 
 
 class LogStatsResponse(BaseSchema):
     """日志统计响应"""
-    
+
     by_module: list[LogStatsItem] = Field(default_factory=list, description="按模块统计")
     by_action: list[LogStatsItem] = Field(default_factory=list, description="按操作类型统计")
     total: int = Field(..., description="总数")

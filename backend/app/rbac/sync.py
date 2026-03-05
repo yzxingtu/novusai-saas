@@ -25,38 +25,38 @@ from app.rbac.registry import permission_registry
 class PermissionSyncService(LoggerMixin):
     """
     权限同步服务
-    
+
     应用启动时调用，将装饰器/菜单定义文件中的权限同步到数据库
     """
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
-    
+
     def _topological_sort(self, permissions: list[PermissionMeta]) -> list[PermissionMeta]:
         """
         拓扑排序，确保父级权限先于子级处理
-        
+
         Args:
             permissions: 权限列表
-        
+
         Returns:
             排序后的权限列表
         """
         code_to_perm = {p.code: p for p in permissions}
         depth_cache: dict[str, int] = {}
-        
+
         # 计算每个权限的深度（到根的距离），带缓存
         def get_depth(perm: PermissionMeta, visited: set[str] | None = None) -> int:
             if perm.code in depth_cache:
                 return depth_cache[perm.code]
-            
+
             if visited is None:
                 visited = set()
             if perm.code in visited:
                 # 循环引用，返回 0 避免无限递归
                 return 0
             visited.add(perm.code)
-            
+
             if not perm.parent_code:
                 depth_cache[perm.code] = 0
                 return 0
@@ -67,20 +67,20 @@ class PermissionSyncService(LoggerMixin):
             depth = 1 + get_depth(parent, visited)
             depth_cache[perm.code] = depth
             return depth
-        
+
         # 按深度排序，深度小的（父级）先处理
         return sorted(permissions, key=lambda p: get_depth(p))
-    
+
     def _make_key(self, code: str, scope: str) -> str:
         """生成权限唯一标识（code + scope）"""
         return f"{code}:{scope}"
-    
+
     async def sync_permissions(self) -> dict[str, int]:
         """
         同步权限到数据库
-        
+
         使用 (code, scope) 组合作为唯一标识，因为同一个 code 在不同 scope 下是不同权限。
-        
+
         Returns:
             {"created": n, "updated": n, "disabled": n}
         """
@@ -97,33 +97,39 @@ class PermissionSyncService(LoggerMixin):
             self._make_key(p.code, p.scope): p for p in existing_permissions
         }
         existing_map = existing_keys  # key -> Permission
-        
+
         created_count = 0
         updated_count = 0
         disabled_count = 0
-        
-        # (code, scope) -> db_id 映射（用于父子关联）
+
+        # (code, scope) -> db_id 映射（用于父子关联，精确匹配）
         # 注意：parent_code 不含 scope，需要根据同 scope 查找
         code_scope_to_id: dict[str, int] = {
             self._make_key(p.code, p.scope): p.id for p in existing_permissions
         }
-        
+        # code-only 回退映射：当父级 scope 与子级不同时（如插件租户菜单挂载到系统菜单）避免误报
+        code_to_id: dict[str, int] = {
+            p.code: p.id for p in existing_permissions
+        }
+
         # 拓扑排序，确保父级先于子级处理
         sorted_permissions = self._topological_sort(registered_permissions)
-        
+
         for perm_meta in sorted_permissions:
             perm_key = self._make_key(perm_meta.code, perm_meta.scope.value)
-            
-            # 解析父级 ID（父级 code 与当前权限同 scope）
+
+            # 解析父级 ID
+            # 1) 先按 code+scope 精确匹配（父子同 scope 的场景）
+            # 2) 回退到 code-only 匹配（插件菜单挂载到系统菜单，父子 scope 可能不同）
             parent_id = None
             if perm_meta.parent_code:
                 parent_key = self._make_key(perm_meta.parent_code, perm_meta.scope.value)
-                parent_id = code_scope_to_id.get(parent_key)
+                parent_id = code_scope_to_id.get(parent_key) or code_to_id.get(perm_meta.parent_code)
                 if parent_id is None:
                     self.logger.warning(
                         f"权限 {perm_meta.code} ({perm_meta.scope.value}) 的父级 {perm_meta.parent_code} 不存在"
                     )
-            
+
             if perm_key in existing_map:
                 # 更新已存在的权限
                 db_perm = existing_map[perm_key]
@@ -141,7 +147,7 @@ class PermissionSyncService(LoggerMixin):
                 db_perm.is_enabled = True
                 # 始终更新 parent_id（支持菜单移动）
                 db_perm.parent_id = parent_id
-                
+
                 updated_count += 1
             else:
                 # 创建新权限
@@ -164,8 +170,9 @@ class PermissionSyncService(LoggerMixin):
                 self.db.add(db_perm)
                 await self.db.flush()  # 获取 ID
                 code_scope_to_id[perm_key] = db_perm.id
+                code_to_id[perm_meta.code] = db_perm.id
                 created_count += 1
-        
+
         # 禁用代码中已删除的权限
         orphan_keys = set(existing_map.keys()) - registered_keys
         for key in orphan_keys:
@@ -174,13 +181,13 @@ class PermissionSyncService(LoggerMixin):
                 db_perm.is_enabled = False
                 disabled_count += 1
                 self.logger.debug(f"禁用权限: {key}")
-        
+
         await self.db.commit()
-        
+
         self.logger.info(
             f"权限同步完成: 新增 {created_count}, 更新 {updated_count}, 禁用 {disabled_count}"
         )
-        
+
         return {
             "created": created_count,
             "updated": updated_count,
@@ -188,13 +195,103 @@ class PermissionSyncService(LoggerMixin):
         }
 
 
+    async def sync_plugin_permissions(self, plugin_name: str) -> int:
+        """
+        仅同步指定插件的菜单权限（flush，不 commit，不处理孤儿权限）。
+
+        用于插件 enable 流程中途调用，避免 sync_permissions() 的 commit 破坏外层事务原子性。
+        只处理代码中已注册的该插件权限（create/update），不会禁用任何现有权限。
+
+        Args:
+            plugin_name: 插件名称（用于前缀过滤，如 "my-plugin"）
+
+        Returns:
+            创建或更新的权限数量
+        """
+        safe_name = plugin_name.replace("-", "_")
+        prefix_admin = f"menu:admin.plugin_{safe_name}_"
+        prefix_tenant = f"menu:tenant.plugin_{safe_name}_"
+
+        # 只处理属于此插件的权限
+        plugin_perms = [
+            p for p in permission_registry.get_all()
+            if p.code.startswith(prefix_admin) or p.code.startswith(prefix_tenant)
+        ]
+        if not plugin_perms:
+            return 0
+
+        # 查询已有的插件权限（含 is_deleted）
+        result = await self.db.execute(
+            select(Permission).where(
+                (Permission.code.startswith(prefix_admin, autoescape=True))
+                | (Permission.code.startswith(prefix_tenant, autoescape=True))
+            )
+        )
+        existing_db: dict[str, Permission] = {
+            self._make_key(p.code, p.scope): p
+            for p in result.scalars().all()
+        }
+
+        # 构建父级 ID 映射（先查出所有已有 ID 以便关联父级）
+        all_result = await self.db.execute(select(Permission.code, Permission.id))
+        code_to_id: dict[str, int] = {row[0]: row[1] for row in all_result.all()}
+
+        count = 0
+        sorted_perms = self._topological_sort(plugin_perms)
+        for perm_meta in sorted_perms:
+            perm_key = self._make_key(perm_meta.code, perm_meta.scope.value)
+            parent_id = None
+            if perm_meta.parent_code:
+                parent_id = code_to_id.get(perm_meta.parent_code)
+
+            if perm_key in existing_db:
+                db_perm = existing_db[perm_key]
+                db_perm.name = perm_meta.name
+                db_perm.type = perm_meta.type.value
+                db_perm.scope = perm_meta.scope.value
+                db_perm.resource = perm_meta.resource
+                db_perm.action = perm_meta.action
+                db_perm.icon = perm_meta.icon
+                db_perm.path = perm_meta.path
+                db_perm.component = perm_meta.component
+                db_perm.sort_order = perm_meta.sort_order
+                db_perm.hidden = perm_meta.hidden
+                db_perm.is_enabled = True
+                db_perm.is_deleted = False
+                db_perm.parent_id = parent_id
+            else:
+                db_perm = Permission(
+                    code=perm_meta.code,
+                    name=perm_meta.name,
+                    type=perm_meta.type.value,
+                    scope=perm_meta.scope.value,
+                    resource=perm_meta.resource,
+                    action=perm_meta.action,
+                    parent_id=parent_id,
+                    sort_order=perm_meta.sort_order,
+                    icon=perm_meta.icon,
+                    path=perm_meta.path,
+                    component=perm_meta.component,
+                    hidden=perm_meta.hidden,
+                    is_enabled=True,
+                )
+                self.db.add(db_perm)
+                await self.db.flush()
+                code_to_id[perm_meta.code] = db_perm.id
+            count += 1
+
+        if count:
+            await self.db.flush()
+        return count
+
+
 async def sync_permissions_on_startup(db: AsyncSession) -> dict[str, int]:
     """
     启动时同步权限
-    
+
     Args:
         db: 数据库会话
-    
+
     Returns:
         同步结果统计
     """

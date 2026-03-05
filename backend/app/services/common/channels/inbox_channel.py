@@ -49,6 +49,7 @@ class InboxChannel(NotificationChannel):
         tenant_id: int | None = None,
         **kwargs: Any,
     ) -> bool:
+        _ = kwargs
         try:
             from app.models.common.notification import Notification
 

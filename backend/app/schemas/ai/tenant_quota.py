@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class TenantQuotaBase(BaseModel):
     """租户配额配置基础 Schema"""
-    
+
     model_id: int | None = Field(None, description="模型 ID（None 表示全局配额）")
     period: str = Field(default="monthly", description="周期（daily/monthly）")
     limit: int = Field(..., gt=0, description="配额限制（Token 数量）")
@@ -22,19 +22,19 @@ class TenantQuotaBase(BaseModel):
 
 class TenantQuotaCreate(TenantQuotaBase):
     """创建租户配额配置"""
-    
+
     pass
 
 
 class AdminTenantQuotaCreate(TenantQuotaBase):
     """平台管理员创建租户配额（含 tenant_id）"""
-    
+
     tenant_id: int = Field(..., description="租户 ID")
 
 
 class TenantQuotaUpdate(BaseModel):
     """更新租户配额配置"""
-    
+
     limit: int | None = Field(None, gt=0, description="配额限制")
     quota_type: str | None = Field(None, description="配额类型")
     warning_threshold: int | None = Field(None, ge=0, le=100, description="预警阈值")
@@ -44,7 +44,7 @@ class TenantQuotaUpdate(BaseModel):
 
 class TenantQuotaResponse(TenantQuotaBase):
     """租户配额配置响应"""
-    
+
     id: int
     tenant_id: int
     is_active: bool
@@ -56,7 +56,7 @@ class TenantQuotaResponse(TenantQuotaBase):
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def from_orm_model(cls, obj) -> "TenantQuotaResponse":
+    def from_orm_model(cls, obj) -> TenantQuotaResponse:
         """从 ORM 对象构建响应，自动提取关联 model_name"""
         model_name = None
         try:
@@ -84,7 +84,7 @@ class TenantQuotaResponse(TenantQuotaBase):
 
 class TenantQuotaWithUsage(BaseModel):
     """租户配额配置及使用量响应"""
-    
+
     quota: TenantQuotaResponse
     usage: int = Field(..., description="已使用 Token 数")
     limit: int = Field(..., description="配额限制")

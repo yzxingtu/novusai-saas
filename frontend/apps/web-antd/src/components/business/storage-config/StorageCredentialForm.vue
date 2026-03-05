@@ -14,16 +14,10 @@ import { $t } from '#/locales';
 
 defineOptions({ name: 'StorageCredentialForm' });
 
-interface CredentialValue {
-  root_path: string;
-  base_url: string;
-  options: Record<string, unknown>;
-}
-
 const props = withDefaults(
   defineProps<{
-    driver: string | null;
     disabled?: boolean;
+    driver: null | string;
     value?: CredentialValue;
   }>(),
   {
@@ -36,6 +30,12 @@ const emit = defineEmits<{
   'update:value': [value: CredentialValue];
 }>();
 
+interface CredentialValue {
+  root_path: string;
+  base_url: string;
+  options: Record<string, unknown>;
+}
+
 const formState = reactive<Record<string, any>>({});
 let isSyncingFromProps = false;
 
@@ -46,7 +46,11 @@ watch(
     if (!val) return;
     isSyncingFromProps = true;
     // 先清理 formState 中不再属于新值的旧 key，防止脏状态残留
-    const newKeys = new Set(['root_path', 'base_url', ...Object.keys(val.options || {})]);
+    const newKeys = new Set([
+      'base_url',
+      'root_path',
+      ...Object.keys(val.options || {}),
+    ]);
     Object.keys(formState).forEach((key) => {
       if (!newKeys.has(key)) {
         delete formState[key];
@@ -57,11 +61,17 @@ watch(
     const opts = val.options || {};
     Object.keys(opts).forEach((k) => {
       const v = opts[k];
-      if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+      if (
+        typeof v === 'string' ||
+        typeof v === 'number' ||
+        typeof v === 'boolean'
+      ) {
         formState[k] = v;
       }
     });
-    nextTick(() => { isSyncingFromProps = false; });
+    nextTick(() => {
+      isSyncingFromProps = false;
+    });
   },
   { immediate: true, deep: true },
 );
@@ -90,7 +100,7 @@ watch(
 interface FieldDef {
   key: string;
   label: string;
-  type: 'text' | 'password' | 'boolean';
+  type: 'boolean' | 'password' | 'text';
   required?: boolean;
   placeholder?: string;
 }
@@ -257,7 +267,9 @@ watch(
         delete formState[key];
       }
     });
-    nextTick(() => { isSyncingFromProps = false; });
+    nextTick(() => {
+      isSyncingFromProps = false;
+    });
   },
 );
 </script>
@@ -265,10 +277,7 @@ watch(
 <template>
   <Form layout="vertical" :disabled="disabled" autocomplete="off">
     <template v-for="field in fieldsByDriver" :key="field.key">
-      <FormItem
-        :label="$t(field.label)"
-        :required="field.required"
-      >
+      <FormItem :label="$t(field.label)" :required="field.required">
         <Switch
           v-if="field.type === 'boolean'"
           v-model:checked="formState[field.key]"

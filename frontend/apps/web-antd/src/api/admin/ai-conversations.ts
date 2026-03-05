@@ -14,8 +14,8 @@ import { requestClient } from '#/utils/request';
 export interface ConversationUserInfo {
   id: number;
   username: string;
-  nickname: string | null;
-  avatar: string | null;
+  nickname: null | string;
+  avatar: null | string;
 }
 
 /** 管理端对话列表项 */
@@ -23,14 +23,14 @@ export interface AIConversationInfo {
   id: number;
   tenant_id: number;
   agent_id: number;
-  user_id: number | null;
-  title: string | null;
+  user_id: null | number;
+  title: null | string;
   status: string;
   token_count: number;
   cost: number;
-  agent_name: string | null;
-  agent_avatar: string | null;
-  tenant_name: string | null;
+  agent_name: null | string;
+  agent_avatar: null | string;
+  tenant_name: null | string;
   user_info: ConversationUserInfo | null;
   created_at: string;
   updated_at: string;
@@ -58,10 +58,10 @@ export async function getAIConversationListApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<PageResponse<AIConversationInfo>> {
-  return requestClient.get<PageResponse<AIConversationInfo>>(
-    CONV_PREFIX,
-    { params, ...options },
-  );
+  return requestClient.get<PageResponse<AIConversationInfo>>(CONV_PREFIX, {
+    params,
+    ...options,
+  });
 }
 
 /** 获取对话详情 */

@@ -34,9 +34,9 @@ import {
 
 import { useColumns, useGridFormSchema } from './data';
 import DomainsModal from './modules/DomainsModal.vue';
+import ResetPasswordModal from './modules/ResetPasswordModal.vue';
 import TenantAdminPanel from './modules/TenantAdminPanel.vue';
 import Form from './modules/TenantForm.vue';
-import ResetPasswordModal from './modules/ResetPasswordModal.vue';
 import TenantStorageDrawer from './modules/TenantStorageDrawer.vue';
 
 defineOptions({ name: 'TenantList' });
@@ -66,7 +66,6 @@ const resetPasswordModalRef = ref<InstanceType<typeof ResetPasswordModal>>();
 
 // 存储配置抽屉引用
 const storageDrawerRef = ref<InstanceType<typeof TenantStorageDrawer>>();
-
 
 /**
  * 复制域名到剪贴板
@@ -176,36 +175,36 @@ async function onImpersonateInCurrentTab(row: TenantInfo) {
 }
 
 // 声明式 CRUD 页面（套餐下拉由 ApiSelect 自动加载，导出按钮自动添加）
-const {
-  Grid,
-  FormDrawer,
-  ExportModal,
-  onRefresh,
-  handleActionClick,
-} = useCrudPage<TenantInfo>({
-  api: {
-    list: admin.getTenantListApi,
-    resource: '/admin/tenants',
-    toggles: { is_active: admin.toggleTenantStatusApi },
-  },
-  columns: useColumns,
-  searchSchema: useGridFormSchema(),
-  formComponent: Form,
-  i18nPrefix: 'admin.tenant',
-  nameField: 'name',
-  recycleBin: true,
-  createPermission: 'tenant:create',
-  gridOptions: {
-    expandConfig: { accordion: true, iconOpen: 'vxe-icon-square-minus', iconClose: 'vxe-icon-square-plus', height: 'auto' },
-  },
-  customActions: {
-    impersonate: onImpersonate,
-    impersonateInCurrentTab: onImpersonateInCurrentTab,
-    manageDomains: onManageDomains,
-    resetPassword: onResetPassword,
-    storageConfig: onStorageConfig,
-  },
-});
+const { Grid, FormDrawer, ExportModal, onRefresh, handleActionClick } =
+  useCrudPage<TenantInfo>({
+    api: {
+      list: admin.getTenantListApi,
+      resource: '/admin/tenants',
+      toggles: { is_active: admin.toggleTenantStatusApi },
+    },
+    columns: useColumns,
+    searchSchema: useGridFormSchema(),
+    formComponent: Form,
+    i18nPrefix: 'admin.tenant',
+    nameField: 'name',
+    recycleBin: true,
+    createPermission: 'tenant:create',
+    gridOptions: {
+      expandConfig: {
+        accordion: true,
+        iconOpen: 'vxe-icon-square-minus',
+        iconClose: 'vxe-icon-square-plus',
+        height: 'auto',
+      },
+    },
+    customActions: {
+      impersonate: onImpersonate,
+      impersonateInCurrentTab: onImpersonateInCurrentTab,
+      manageDomains: onManageDomains,
+      resetPassword: onResetPassword,
+      storageConfig: onStorageConfig,
+    },
+  });
 </script>
 
 <template>
@@ -221,10 +220,7 @@ const {
       <Grid>
         <!-- 租户管理员展开行 -->
         <template #expand_content="{ row }">
-          <TenantAdminPanel
-            :tenant-id="row.id"
-            :tenant-name="row.name"
-          />
+          <TenantAdminPanel :tenant-id="row.id" :tenant-name="row.name" />
         </template>
         <!-- 租户名称 + 账号列 -->
         <template #name_cell="{ row }">
@@ -297,7 +293,11 @@ const {
             <!-- 更多域名 -->
             <Popover
               v-if="row.domains && row.domains.length > 1"
-              :title="$t('admin.tenant.domain.totalCount', { count: row.domains.length })"
+              :title="
+                $t('admin.tenant.domain.totalCount', {
+                  count: row.domains.length,
+                })
+              "
             >
               <template #content>
                 <div class="flex max-h-60 flex-col gap-1 overflow-y-auto p-1">
@@ -472,10 +472,15 @@ const {
                     </div>
                   </MenuItem>
                   <!-- 开发模式: 当前标签页进入 -->
-                  <MenuItem v-if="isDev" @click="onImpersonateInCurrentTab(row)">
+                  <MenuItem
+                    v-if="isDev"
+                    @click="onImpersonateInCurrentTab(row)"
+                  >
                     <div class="flex items-center gap-2 text-warning">
                       <IconifyIcon icon="lucide:arrow-right" class="size-4" />
-                      <span>{{ $t('admin.tenant.enterCurrentTab') }} (Dev)</span>
+                      <span
+                        >{{ $t('admin.tenant.enterCurrentTab') }} (Dev)</span
+                      >
                     </div>
                   </MenuItem>
                 </Menu>

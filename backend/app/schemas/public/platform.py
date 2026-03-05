@@ -34,7 +34,7 @@ class PlatformPublicConfig(BaseSchema):
     password_expiry_days: int | None = Field(None, description="密码过期天数")
     session_timeout_minutes: int | None = Field(None, description="会话超时时间")
     session_max_devices: int | None = Field(None, description="最大登录设备数")
-    
+
     # 存储配置
     storage: StoragePublicConfig | None = Field(None, description="存储配置")
 

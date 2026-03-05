@@ -6,7 +6,7 @@
 
 from typing import Any
 
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 
 from app.core.base_repository import TenantRepository
 from app.models.ai.agent_access import AgentAccess

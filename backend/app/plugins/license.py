@@ -169,7 +169,7 @@ def _parse_payload_without_verify(license_key: str) -> dict | None:
 async def activate_license(
     plugin_id: int,
     license_key: str,
-    db: "AsyncSession",
+    db: AsyncSession,
 ) -> dict:
     """
     激活 License Key。
@@ -273,7 +273,7 @@ async def activate_license(
 
 async def get_license_status_by_name(
     plugin_name: str,
-    db: "AsyncSession",
+    db: AsyncSession,
 ) -> dict:
     """
     通过插件名获取 License 状态（供插件 license_gate 的 AsyncSession 路径使用）。
@@ -378,7 +378,7 @@ def _mask_key(key: str | None) -> str:
 async def create_trial_license(
     plugin_id: int,
     trial_days: int,
-    db: "AsyncSession",
+    db: AsyncSession,
 ) -> None:
     """创建试用 License（安装付费插件无 Key 时自动调用）"""
     from datetime import timedelta
@@ -404,7 +404,7 @@ async def create_trial_license(
 
 async def get_license_status_by_id(
     plugin_id: int,
-    db: "AsyncSession",
+    db: AsyncSession,
 ) -> dict:
     """
     通过插件 ID 获取 License 状态（供 Admin API 使用）。
@@ -482,7 +482,7 @@ async def get_license_status_by_id(
 
 async def revoke_license(
     plugin_id: int,
-    db: "AsyncSession",
+    db: AsyncSession,
 ) -> None:
     """撤销插件的所有有效 License"""
     from sqlalchemy import update
@@ -499,7 +499,7 @@ async def revoke_license(
     logger.info("All licenses revoked for plugin %d", plugin_id)
 
 
-async def check_trial_expirations(db: "AsyncSession") -> list[dict]:
+async def check_trial_expirations(db: AsyncSession) -> list[dict]:
     """
     检查试用期到期情况（定时任务调用）。
 

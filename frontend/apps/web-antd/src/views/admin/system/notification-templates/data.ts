@@ -9,61 +9,130 @@ import { $t } from '#/locales';
 
 function getCategoryOptions() {
   return [
-    { label: $t('admin.system.notificationTemplate.category_options.system'), value: 'system' },
-    { label: $t('admin.system.notificationTemplate.category_options.ai'), value: 'ai' },
-    { label: $t('admin.system.notificationTemplate.category_options.task'), value: 'task' },
-    { label: $t('admin.system.notificationTemplate.category_options.biz'), value: 'biz' },
-    { label: $t('admin.system.notificationTemplate.category_options.audit'), value: 'audit' },
+    {
+      label: $t('admin.system.notificationTemplate.category_options.system'),
+      value: 'system',
+    },
+    {
+      label: $t('admin.system.notificationTemplate.category_options.ai'),
+      value: 'ai',
+    },
+    {
+      label: $t('admin.system.notificationTemplate.category_options.task'),
+      value: 'task',
+    },
+    {
+      label: $t('admin.system.notificationTemplate.category_options.biz'),
+      value: 'biz',
+    },
+    {
+      label: $t('admin.system.notificationTemplate.category_options.audit'),
+      value: 'audit',
+    },
   ];
 }
 
 function getPriorityOptions() {
   return [
-    { label: $t('admin.system.notificationTemplate.priority_options.low'), value: 'low' },
-    { label: $t('admin.system.notificationTemplate.priority_options.normal'), value: 'normal' },
-    { label: $t('admin.system.notificationTemplate.priority_options.high'), value: 'high' },
-    { label: $t('admin.system.notificationTemplate.priority_options.urgent'), value: 'urgent' },
+    {
+      label: $t('admin.system.notificationTemplate.priority_options.low'),
+      value: 'low',
+    },
+    {
+      label: $t('admin.system.notificationTemplate.priority_options.normal'),
+      value: 'normal',
+    },
+    {
+      label: $t('admin.system.notificationTemplate.priority_options.high'),
+      value: 'high',
+    },
+    {
+      label: $t('admin.system.notificationTemplate.priority_options.urgent'),
+      value: 'urgent',
+    },
   ];
 }
 
 export function getCategoryColor(category: string): string {
   switch (category) {
-    case 'system': return 'blue';
-    case 'ai': return 'purple';
-    case 'task': return 'green';
-    case 'biz': return 'orange';
-    case 'audit': return 'red';
-    default: return 'default';
+    case 'ai': {
+      return 'purple';
+    }
+    case 'audit': {
+      return 'red';
+    }
+    case 'biz': {
+      return 'orange';
+    }
+    case 'system': {
+      return 'blue';
+    }
+    case 'task': {
+      return 'green';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
 export function getPriorityColor(priority: string): string {
   switch (priority) {
-    case 'low': return 'default';
-    case 'normal': return 'blue';
-    case 'high': return 'orange';
-    case 'urgent': return 'red';
-    default: return 'default';
+    case 'high': {
+      return 'orange';
+    }
+    case 'low': {
+      return 'default';
+    }
+    case 'normal': {
+      return 'blue';
+    }
+    case 'urgent': {
+      return 'red';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
 export function getChannelLabel(channel: string): string {
   switch (channel) {
-    case 'ws': return $t('admin.system.notificationTemplate.channelWs');
-    case 'inbox': return $t('admin.system.notificationTemplate.channelInbox');
-    case 'email': return $t('admin.system.notificationTemplate.channelEmail');
-    case 'webhook': return $t('admin.system.notificationTemplate.channelWebhook');
-    default: return channel;
+    case 'email': {
+      return $t('admin.system.notificationTemplate.channelEmail');
+    }
+    case 'inbox': {
+      return $t('admin.system.notificationTemplate.channelInbox');
+    }
+    case 'webhook': {
+      return $t('admin.system.notificationTemplate.channelWebhook');
+    }
+    case 'ws': {
+      return $t('admin.system.notificationTemplate.channelWs');
+    }
+    default: {
+      return channel;
+    }
   }
 }
 
 export function getChannelColor(channel: string): string {
   switch (channel) {
-    case 'ws': return 'green';
-    case 'inbox': return 'blue';
-    case 'email': return 'orange';
-    case 'webhook': return 'purple';
-    default: return 'default';
+    case 'email': {
+      return 'orange';
+    }
+    case 'inbox': {
+      return 'blue';
+    }
+    case 'webhook': {
+      return 'purple';
+    }
+    case 'ws': {
+      return 'green';
+    }
+    default: {
+      return 'default';
+    }
   }
 }
 
@@ -151,13 +220,25 @@ export function useColumns<T = Record<string, unknown>>(
 
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
-    select('filter[category][eq]', $t('admin.system.notificationTemplate.category'), {
-      options: getCategoryOptions(),
-      placeholder: $t('admin.system.notificationTemplate.placeholder.allCategories'),
-    }),
-    select('filter[priority][eq]', $t('admin.system.notificationTemplate.priority'), {
-      options: getPriorityOptions(),
-      placeholder: $t('admin.system.notificationTemplate.placeholder.allPriorities'),
-    }),
+    select(
+      'filter[category][eq]',
+      $t('admin.system.notificationTemplate.category'),
+      {
+        options: getCategoryOptions(),
+        placeholder: $t(
+          'admin.system.notificationTemplate.placeholder.allCategories',
+        ),
+      },
+    ),
+    select(
+      'filter[priority][eq]',
+      $t('admin.system.notificationTemplate.priority'),
+      {
+        options: getPriorityOptions(),
+        placeholder: $t(
+          'admin.system.notificationTemplate.placeholder.allPriorities',
+        ),
+      },
+    ),
   ];
 }

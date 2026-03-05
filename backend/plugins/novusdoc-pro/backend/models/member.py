@@ -11,7 +11,7 @@ NovusDoc Pro 文档成员权限模型
 
 from __future__ import annotations
 
-from sqlalchemy import Integer, String, UniqueConstraint, Index
+from sqlalchemy import Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_model import TenantModel

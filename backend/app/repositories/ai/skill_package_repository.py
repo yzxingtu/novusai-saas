@@ -3,16 +3,19 @@
 """
 
 
-from sqlalchemy import delete as sa_delete, func, or_, select, and_, update
+from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import delete as sa_delete
 
+from app.core.base_model import utc_now
+from app.core.base_repository import BaseRepository, TenantRepository
+from app.enums.common import DeleteLevelEnum, ResourceScopeEnum
 from app.models.ai.agent_skill_binding import AgentSkillBinding
 from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage
-from app.core.base_repository import TenantRepository, BaseRepository
-from app.enums.common import DeleteLevelEnum, ResourceScopeEnum
-from app.repositories.system.resource_tenant_assignment_repository import assigned_resource_ids_subquery
-from app.schemas.common.query import QuerySpec, FilterRule
-from app.core.base_model import utc_now
+from app.repositories.system.resource_tenant_assignment_repository import (
+    assigned_resource_ids_subquery,
+)
+from app.schemas.common.query import FilterRule, QuerySpec
 
 _ASSIGNED_SCOPES = (
     ResourceScopeEnum.ASSIGNED_TENANTS.value,
@@ -139,7 +142,9 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
             if instance.scope == ResourceScopeEnum.ALL_TENANTS.value and instance.tenant_id is None:
                 return instance
             if instance.scope in _ASSIGNED_SCOPES:
-                from app.repositories.system.resource_tenant_assignment_repository import ResourceTenantAssignmentRepository
+                from app.repositories.system.resource_tenant_assignment_repository import (
+                    ResourceTenantAssignmentRepository,
+                )
                 repo = ResourceTenantAssignmentRepository(self.db)
                 if await repo.check_assignment("skill_package", instance.id, self.tenant_id):
                     return instance

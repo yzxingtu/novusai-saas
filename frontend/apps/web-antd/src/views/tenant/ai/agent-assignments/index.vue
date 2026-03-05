@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { AgentAssignmentItem } from '#/api/shared/agent-assignments';
+
 /**
  * Tenant — System Agent Assignment Management — useCrudList + 配置面板
  *
@@ -8,10 +10,17 @@ import { computed, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
+import { preferences } from '@vben/preferences';
 
-import { Button, Card, Popconfirm, Select, Table, Tag, message } from 'ant-design-vue';
-
-import type { AgentAssignmentItem } from '#/api/shared/agent-assignments';
+import {
+  Button,
+  Card,
+  message,
+  Popconfirm,
+  Select,
+  Table,
+  Tag,
+} from 'ant-design-vue';
 
 import {
   deleteAgentAssignmentApi,
@@ -21,13 +30,14 @@ import {
 } from '#/api/shared/agent-assignments';
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
-import { preferences } from '@vben/preferences';
 
 const T = 'tenant.ai.agentAssignment';
 
 // ========== 声明式列表管理 ==========
 const {
-  list: assignments, loading, loadList,
+  list: assignments,
+  loading,
+  loadList,
 } = useCrudList<AgentAssignmentItem>({
   api: {
     list: () => getAgentAssignmentListApi('/tenant'),
@@ -40,7 +50,10 @@ const {
 });
 
 // ========== Agent 选项 ==========
-interface AgentOption { label: string; value: number }
+interface AgentOption {
+  label: string;
+  value: number;
+}
 const agentOptions = ref<AgentOption[]>([]);
 
 async function loadAgentOptions() {
@@ -55,12 +68,14 @@ async function loadAgentOptions() {
 onMounted(loadAgentOptions);
 
 // ========== 自定义操作 ==========
-const saving = ref<string | null>(null);
+const saving = ref<null | string>(null);
 
-async function setOverride(featureCode: string, agentId: number | null) {
+async function setOverride(featureCode: string, agentId: null | number) {
   saving.value = featureCode;
   try {
-    await updateAgentAssignmentApi('/tenant', featureCode, { agent_id: agentId });
+    await updateAgentAssignmentApi('/tenant', featureCode, {
+      agent_id: agentId,
+    });
     message.success($t(`${T}.saveSuccess`));
     await loadList();
   } catch {
@@ -86,10 +101,12 @@ async function restoreDefault(featureCode: string) {
 // ========== 辅助：多语言 ==========
 const currentLocale = computed(() => preferences.app.locale);
 
-function pickLocale(dict: Record<string, string> | undefined): string | undefined {
+function pickLocale(
+  dict: Record<string, string> | undefined,
+): string | undefined {
   if (!dict) return undefined;
   const locale = currentLocale.value;
-  return dict[locale] ?? dict['zh-CN'] ?? dict['en'] ?? Object.values(dict)[0];
+  return dict[locale] ?? dict['zh-CN'] ?? dict.en ?? Object.values(dict)[0];
 }
 
 function featureName(record: AgentAssignmentItem): string {
@@ -140,7 +157,6 @@ const columns = [
     align: 'center' as const,
   },
 ];
-
 </script>
 
 <template>
@@ -166,10 +182,15 @@ const columns = [
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'feature_name'">
             <div class="flex items-center gap-2">
-              <IconifyIcon icon="lucide:plug" class="text-primary size-4" />
-              <span class="font-medium">{{ featureName(record as AgentAssignmentItem) }}</span>
+              <IconifyIcon icon="lucide:plug" class="size-4 text-primary" />
+              <span class="font-medium">{{
+                featureName(record as AgentAssignmentItem)
+              }}</span>
             </div>
-            <div v-if="featureDesc(record as AgentAssignmentItem)" class="text-muted-foreground mt-0.5 text-xs">
+            <div
+              v-if="featureDesc(record as AgentAssignmentItem)"
+              class="mt-0.5 text-xs text-muted-foreground"
+            >
               {{ featureDesc(record as AgentAssignmentItem) }}
             </div>
           </template>
@@ -179,7 +200,7 @@ const columns = [
           </template>
 
           <template v-else-if="column.key === 'global_default'">
-            <span class="text-muted-foreground text-sm">
+            <span class="text-sm text-muted-foreground">
               {{ record.global_agent_name || record.agent_name || '-' }}
             </span>
           </template>
@@ -192,7 +213,10 @@ const columns = [
               :placeholder="$t(`${T}.selectAgent`)"
               allow-clear
               style="width: 220px"
-              @change="(val: unknown) => setOverride(record.feature_code, (val as number) ?? null)"
+              @change="
+                (val: unknown) =>
+                  setOverride(record.feature_code, (val as number) ?? null)
+              "
             />
           </template>
 
@@ -220,7 +244,7 @@ const columns = [
                 {{ $t(`${T}.restoreDefault`) }}
               </Button>
             </Popconfirm>
-            <span v-else class="text-muted-foreground text-xs">-</span>
+            <span v-else class="text-xs text-muted-foreground">-</span>
           </template>
         </template>
       </Table>

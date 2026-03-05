@@ -6,11 +6,11 @@ TenantQuotaService + RateLimitService 单元测试
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
-from tests.services.conftest import make_mock_model, make_scalar_result
+from tests.services.conftest import make_mock_model
 
 
 def _make_quota(**overrides):

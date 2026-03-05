@@ -4,7 +4,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from app.core.base_schema import BaseCreateSchema, BaseUpdateSchema
 from app.core.i18n import _

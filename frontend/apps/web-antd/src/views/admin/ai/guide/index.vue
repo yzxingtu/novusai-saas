@@ -1,11 +1,11 @@
 <script lang="ts" setup>
-defineOptions({ name: 'AdminAIGuide' });
-
 import { IconifyIcon } from '@vben/icons';
 
 import { Card, Collapse, CollapsePanel } from 'ant-design-vue';
 
 import { $t } from '#/locales';
+
+defineOptions({ name: 'AdminAIGuide' });
 
 const setupSteps = [
   { key: 'step1', icon: 'lucide:plug', link: '/admin/ai/providers' },
@@ -62,7 +62,9 @@ const faqKeys = ['faq1', 'faq2', 'faq3', 'faq4'];
           :to="step.link"
           class="group flex items-start gap-4 rounded-lg border border-border p-4 transition-all hover:border-primary/40 hover:bg-primary/5"
         >
-          <div class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+          <div
+            class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary"
+          >
             {{ idx + 1 }}
           </div>
           <div class="min-w-0 flex-1">
@@ -100,7 +102,11 @@ const faqKeys = ['faq1', 'faq2', 'faq3', 'faq4'];
             class="mb-3 flex size-10 items-center justify-center rounded-lg"
             :class="section.bg"
           >
-            <IconifyIcon :icon="section.icon" class="size-5" :class="section.color" />
+            <IconifyIcon
+              :icon="section.icon"
+              class="size-5"
+              :class="section.color"
+            />
           </div>
           <h3 class="text-sm font-semibold text-foreground">
             {{ $t(`admin.ai.guidePage.sections.${section.key}.title`) }}

@@ -10,10 +10,12 @@ export type NotificationPriority = 'high' | 'low' | 'normal' | 'urgent';
 
 export interface ToastItem {
   id: number;
+  template_code?: null | string;
   category: string;
   title: string;
-  body?: string | null;
-  link?: string | null;
+  body?: null | string;
+  data?: null | Record<string, unknown>;
+  link?: null | string;
   priority: NotificationPriority;
   createdAt: number;
 }
@@ -26,9 +28,15 @@ let idCounter = 0;
 
 function getAutoCloseMs(priority: string): number {
   switch (priority) {
-    case 'urgent': return 0;
-    case 'high': return 8000;
-    default: return 5000;
+    case 'high': {
+      return 8000;
+    }
+    case 'urgent': {
+      return 0;
+    }
+    default: {
+      return 5000;
+    }
   }
 }
 
@@ -41,7 +49,8 @@ function removeToast(id: number) {
   toasts.value = toasts.value.filter((t) => t.id !== id);
   // 从队列中弹出下一条
   if (queue.length > 0 && toasts.value.length < MAX_VISIBLE) {
-    const next = queue.shift()!;
+    const next = queue.shift();
+    if (!next) return;
     toasts.value.push(next);
     scheduleAutoClose(next);
   }
@@ -59,17 +68,21 @@ function scheduleAutoClose(item: ToastItem) {
 }
 
 function pushToast(data: {
+  body?: null | string;
   category: string;
-  title: string;
-  body?: string | null;
-  link?: string | null;
+  data?: null | Record<string, unknown>;
+  link?: null | string;
   priority?: NotificationPriority | string;
+  template_code?: null | string;
+  title: string;
 }) {
   const item: ToastItem = {
     id: ++idCounter,
+    template_code: data.template_code,
     category: data.category,
     title: data.title,
     body: data.body,
+    data: data.data,
     link: data.link,
     priority: (data.priority || 'normal') as NotificationPriority,
     createdAt: Date.now(),

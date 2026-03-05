@@ -9,8 +9,6 @@ import { onMounted, ref } from 'vue';
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { getAttachmentUrl } from '#/utils/image';
-
 import { Card, Image, message, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
@@ -21,6 +19,7 @@ import {
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
+import { getAttachmentUrl } from '#/utils/image';
 
 import {
   formatFileSize,

@@ -46,9 +46,10 @@ const breadcrumbs = computed((): IBreadcrumb[] => {
     // 此时 i18n 尚未就绪，值为原始 key（如 "page.auth.profile"）。
     // 动态路由的 title 由后端已翻译。此处对未匹配到动态菜单的 title 尝试运行时翻译。
     const rawTitle = (title || '') as string;
-    const resolvedTitle = !menu && rawTitle.includes('.') && $te(rawTitle)
-      ? $t(rawTitle)
-      : rawTitle;
+    const resolvedTitle =
+      !menu && rawTitle.includes('.') && $te(rawTitle)
+        ? $t(rawTitle)
+        : rawTitle;
     const menuTitle = menu?.name || resolvedTitle;
 
     resultBreadcrumb.push({

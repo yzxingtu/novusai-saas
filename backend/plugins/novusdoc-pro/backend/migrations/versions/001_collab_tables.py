@@ -13,8 +13,8 @@ Creates:
 - px_novusdoc_pro_templates
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision = "novusdoc_pro_001"

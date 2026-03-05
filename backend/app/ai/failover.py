@@ -5,14 +5,15 @@ AI 供应商故障转移服务
 从 Redis 读取健康状态，在 AIGateway 调用失败时查找 fallback。
 """
 
+import contextlib
 import json
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from redis.exceptions import RedisError
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.redis import get_redis
-from app.core.i18n import _
 from app.models.ai import AIModel
 from app.repositories.ai.model_repository import AIModelRepository
 
@@ -79,7 +80,7 @@ class FailoverService:
         visited = set()
         current_id = model_id
 
-        for _ in range(max_depth):
+        for _attempt in range(max_depth):
             # 通过 Repository 获取当前模型
             model = await self._model_repo.get_by_id(current_id)
 
@@ -183,10 +184,8 @@ class FailoverService:
 
             results = []
             for entry in entries:
-                try:
+                with contextlib.suppress(json.JSONDecodeError, TypeError):
                     results.append(json.loads(entry))
-                except (json.JSONDecodeError, TypeError):
-                    pass
 
             return results
 

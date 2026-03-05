@@ -7,8 +7,6 @@ import type { adminApi } from '#/api';
 
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
-defineOptions({ name: 'SystemLogList' });
-
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -27,6 +25,8 @@ import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { downloadText } from '#/utils/download';
+
+defineOptions({ name: 'SystemLogList' });
 
 type SystemLogCategory = adminApi.SystemLogCategory;
 type SystemLogFile = adminApi.SystemLogFile;
@@ -284,18 +284,25 @@ function parseLogLine(line: string): {
   level: string;
   timestamp: string;
 } {
-  // 宽松匹配，适配更多格式
-  const match = line.match(
-    /^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s*\|\s*([A-Z]+)\s*\|\s*(.*)$/i,
-  );
-  if (match) {
-    return {
-      timestamp: match[1] || '',
-      level: match[2]?.toUpperCase() || '',
-      content: match[3] || '',
-      isStackTrace: false,
-    };
+  const parts = line.split('|');
+  if (parts.length >= 3) {
+    const timestamp = (parts[0] ?? '').trim();
+    const level = (parts[1] ?? '').trim().toUpperCase();
+    const content = parts.slice(2).join('|').trim();
+    const isValidTimestamp = /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/.test(
+      timestamp,
+    );
+
+    if (isValidTimestamp) {
+      return {
+        timestamp,
+        level,
+        content,
+        isStackTrace: false,
+      };
+    }
   }
+
   return {
     timestamp: '',
     level: '',
@@ -573,7 +580,8 @@ onMounted(() => {
                       <div class="flex items-center gap-2">
                         <span
                           class="min-w-0 flex-1 truncate text-xs font-medium"
-                          >{{ file.filename }}</span>
+                          >{{ file.filename }}</span
+                        >
                         <div class="flex flex-shrink-0 items-center gap-1">
                           <Tag
                             v-if="file.isCurrent"
@@ -748,9 +756,7 @@ onMounted(() => {
           ref="logContainerRef"
           class="scrollbar-thin relative flex-1 overflow-auto"
           :class="
-            isDarkTheme
-              ? 'bg-gray-950 text-gray-300'
-              : 'bg-white text-gray-800'
+            isDarkTheme ? 'bg-gray-950 text-gray-300' : 'bg-white text-gray-800'
           "
         >
           <Spin :spinning="contentLoading" wrapper-class-name="h-full">
@@ -825,7 +831,9 @@ onMounted(() => {
                   >
                     {{ $t('admin.system.systemLog.loadMore') }}
                   </Button>
-                  <span v-else class="text-xs opacity-40">--- {{ $t('admin.system.systemLog.endOfLog') }} ---</span>
+                  <span v-else class="text-xs opacity-40"
+                    >--- {{ $t('admin.system.systemLog.endOfLog') }} ---</span
+                  >
                 </div>
               </div>
             </template>
@@ -847,10 +855,14 @@ onMounted(() => {
           class="flex h-8 items-center justify-between border-t border-gray-100 bg-gray-50 px-4 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400"
         >
           <div class="flex gap-4">
-            <span>{{ $t('admin.system.systemLog.lines') }}:
-              {{ logContent?.lines?.length || 0 }}</span>
-            <span>{{ $t('admin.system.systemLog.totalLines') }}:
-              {{ logContent?.totalLines || 0 }}</span>
+            <span
+              >{{ $t('admin.system.systemLog.lines') }}:
+              {{ logContent?.lines?.length || 0 }}</span
+            >
+            <span
+              >{{ $t('admin.system.systemLog.totalLines') }}:
+              {{ logContent?.totalLines || 0 }}</span
+            >
           </div>
           <div class="flex gap-4">
             <span>{{ selectedFile?.sizeFormatted }}</span>

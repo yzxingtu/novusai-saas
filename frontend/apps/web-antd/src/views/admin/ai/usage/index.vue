@@ -1,23 +1,32 @@
 <script lang="ts" setup>
+import type { EchartsUIType } from '@vben/plugins/echarts';
+
+import type { CallTrendItem } from '#/api/admin/analytics';
+
 /**
  * 平台管理端 AI 使用量统计页面
  */
 import { computed, onMounted, ref, watch } from 'vue';
 
-import type { EchartsUIType } from '@vben/plugins/echarts';
-
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
+import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
 import { Card, Progress, Spin, Tag, Tooltip } from 'ant-design-vue';
-import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { getAICallLogStatisticsApi, getAIUsageStatsApi } from '#/api/admin/ai';
-import { type CallTrendItem, getCallTrendApi } from '#/api/admin/analytics';
+import { getCallTrendApi } from '#/api/admin/analytics';
 import { $t } from '#/locales';
 
-import { formatCost, formatLatency, formatTokens, getRequestTypeColor, useColumns, useGridFormSchema } from './data';
+import {
+  formatCost,
+  formatLatency,
+  formatTokens,
+  getRequestTypeColor,
+  useColumns,
+  useGridFormSchema,
+} from './data';
 
 defineOptions({ name: 'AdminAIUsage' });
 
@@ -125,31 +134,90 @@ async function loadTrend() {
 
 function renderCharts() {
   const data = trendData.value;
-  if (!data.length) return;
+  if (data.length === 0) return;
   const dates = data.map((i) => i.date.slice(5));
 
   renderCallChart({
     tooltip: { trigger: 'axis' },
-    legend: { data: [$t('admin.analytics.chart.calls'), $t('admin.analytics.chart.success'), $t('admin.analytics.chart.failed')], bottom: 0 },
-    grid: { left: '3%', right: '4%', bottom: '14%', top: '8%', containLabel: true },
+    legend: {
+      data: [
+        $t('admin.analytics.chart.calls'),
+        $t('admin.analytics.chart.success'),
+        $t('admin.analytics.chart.failed'),
+      ],
+      bottom: 0,
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '14%',
+      top: '8%',
+      containLabel: true,
+    },
     xAxis: { type: 'category', data: dates, boundaryGap: false },
     yAxis: { type: 'value' },
     series: [
-      { name: $t('admin.analytics.chart.calls'), type: 'line', data: data.map((i) => i.calls), smooth: true, itemStyle: { color: '#5B8FF9' } },
-      { name: $t('admin.analytics.chart.success'), type: 'line', data: data.map((i) => i.success), smooth: true, itemStyle: { color: '#5AD8A6' } },
-      { name: $t('admin.analytics.chart.failed'), type: 'line', data: data.map((i) => i.failed), smooth: true, itemStyle: { color: '#F6614E' } },
+      {
+        name: $t('admin.analytics.chart.calls'),
+        type: 'line',
+        data: data.map((i) => i.calls),
+        smooth: true,
+        itemStyle: { color: '#5B8FF9' },
+      },
+      {
+        name: $t('admin.analytics.chart.success'),
+        type: 'line',
+        data: data.map((i) => i.success),
+        smooth: true,
+        itemStyle: { color: '#5AD8A6' },
+      },
+      {
+        name: $t('admin.analytics.chart.failed'),
+        type: 'line',
+        data: data.map((i) => i.failed),
+        smooth: true,
+        itemStyle: { color: '#F6614E' },
+      },
     ],
   });
 
   renderTokenChart({
     tooltip: { trigger: 'axis' },
-    legend: { data: [$t('admin.analytics.chart.inputTokens'), $t('admin.analytics.chart.outputTokens')], bottom: 0 },
-    grid: { left: '3%', right: '4%', bottom: '14%', top: '8%', containLabel: true },
+    legend: {
+      data: [
+        $t('admin.analytics.chart.inputTokens'),
+        $t('admin.analytics.chart.outputTokens'),
+      ],
+      bottom: 0,
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '14%',
+      top: '8%',
+      containLabel: true,
+    },
     xAxis: { type: 'category', data: dates, boundaryGap: false },
     yAxis: { type: 'value' },
     series: [
-      { name: $t('admin.analytics.chart.inputTokens'), type: 'line', areaStyle: { opacity: 0.3 }, data: data.map((i) => i.input_tokens), smooth: true, itemStyle: { color: '#5B8FF9' }, stack: 'tokens' },
-      { name: $t('admin.analytics.chart.outputTokens'), type: 'line', areaStyle: { opacity: 0.3 }, data: data.map((i) => i.output_tokens), smooth: true, itemStyle: { color: '#5AD8A6' }, stack: 'tokens' },
+      {
+        name: $t('admin.analytics.chart.inputTokens'),
+        type: 'line',
+        areaStyle: { opacity: 0.3 },
+        data: data.map((i) => i.input_tokens),
+        smooth: true,
+        itemStyle: { color: '#5B8FF9' },
+        stack: 'tokens',
+      },
+      {
+        name: $t('admin.analytics.chart.outputTokens'),
+        type: 'line',
+        areaStyle: { opacity: 0.3 },
+        data: data.map((i) => i.output_tokens),
+        smooth: true,
+        itemStyle: { color: '#5AD8A6' },
+        stack: 'tokens',
+      },
     ],
   });
 }
@@ -180,7 +248,11 @@ const { Grid } = useCrudPage({
 </script>
 
 <template>
-  <Page auto-content-height :description="$t('admin.ai.usage.pageDesc')" content-class="flex flex-col gap-4">
+  <Page
+    auto-content-height
+    :description="$t('admin.ai.usage.pageDesc')"
+    content-class="flex flex-col gap-4"
+  >
     <!-- Summary statistics cards -->
     <Spin :spinning="summaryLoading">
       <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -214,10 +286,16 @@ const { Grid } = useCrudPage({
     <!-- Trend charts -->
     <Spin :spinning="trendLoading">
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card :title="$t('admin.analytics.callTrend')" :body-style="{ padding: '12px' }">
+        <Card
+          :title="$t('admin.analytics.callTrend')"
+          :body-style="{ padding: '12px' }"
+        >
           <EchartsUI ref="callChartRef" height="240px" />
         </Card>
-        <Card :title="$t('admin.analytics.tokenTrend')" :body-style="{ padding: '12px' }">
+        <Card
+          :title="$t('admin.analytics.tokenTrend')"
+          :body-style="{ padding: '12px' }"
+        >
           <EchartsUI ref="tokenChartRef" height="240px" />
         </Card>
       </div>
@@ -244,7 +322,10 @@ const { Grid } = useCrudPage({
         <!-- 模型 -->
         <template #modelName_cell="{ row }">
           <div class="flex items-center gap-1.5">
-            <IconifyIcon icon="lucide:brain" class="size-3.5 text-muted-foreground" />
+            <IconifyIcon
+              icon="lucide:brain"
+              class="size-3.5 text-muted-foreground"
+            />
             <span class="text-foreground">{{ row.model_name || '-' }}</span>
           </div>
         </template>
@@ -279,10 +360,22 @@ const { Grid } = useCrudPage({
 
         <!-- 成功率 -->
         <template #successRate_cell="{ row }">
-          <Tooltip :title="`${$t('admin.ai.usage.successCount')}: ${row.success_count} | ${$t('admin.ai.usage.failedCount')}: ${row.failed_count}`">
+          <Tooltip
+            :title="`${$t('admin.ai.usage.successCount')}: ${row.success_count} | ${$t('admin.ai.usage.failedCount')}: ${row.failed_count}`"
+          >
             <Progress
-              :percent="row.call_count > 0 ? Math.round((row.success_count / row.call_count) * 100) : 0"
-              :stroke-color="(row.success_count / row.call_count) >= 0.95 ? 'hsl(var(--success))' : (row.success_count / row.call_count) >= 0.8 ? 'hsl(var(--warning))' : 'hsl(var(--destructive))'"
+              :percent="
+                row.call_count > 0
+                  ? Math.round((row.success_count / row.call_count) * 100)
+                  : 0
+              "
+              :stroke-color="
+                row.success_count / row.call_count >= 0.95
+                  ? 'hsl(var(--success))'
+                  : row.success_count / row.call_count >= 0.8
+                    ? 'hsl(var(--warning))'
+                    : 'hsl(var(--destructive))'
+              "
               size="small"
               class="w-24"
             />
@@ -291,7 +384,12 @@ const { Grid } = useCrudPage({
 
         <!-- Total Cost -->
         <template #totalCost_cell="{ row }">
-          <span class="font-mono" :class="row.total_cost > 0 ? 'text-warning' : 'text-muted-foreground'">
+          <span
+            class="font-mono"
+            :class="
+              row.total_cost > 0 ? 'text-warning' : 'text-muted-foreground'
+            "
+          >
             {{ formatCost(row.total_cost) }}
           </span>
         </template>
@@ -300,7 +398,13 @@ const { Grid } = useCrudPage({
         <template #avgLatency_cell="{ row }">
           <span
             class="font-mono text-sm"
-            :class="row.avg_latency_ms > 5000 ? 'text-destructive' : row.avg_latency_ms > 2000 ? 'text-warning' : 'text-success'"
+            :class="
+              row.avg_latency_ms > 5000
+                ? 'text-destructive'
+                : row.avg_latency_ms > 2000
+                  ? 'text-warning'
+                  : 'text-success'
+            "
           >
             {{ formatLatency(row.avg_latency_ms) }}
           </span>

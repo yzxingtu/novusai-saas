@@ -161,10 +161,10 @@ export async function adminChangePasswordApi(
 
 /** 修改个人信息参数 */
 export interface UpdateAdminProfileParams {
-  nickname?: string | null;
-  avatar?: string | null;
-  email?: string | null;
-  phone?: string | null;
+  nickname?: null | string;
+  avatar?: null | string;
+  email?: null | string;
+  phone?: null | string;
 }
 
 /**

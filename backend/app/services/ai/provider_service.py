@@ -6,15 +6,17 @@ AI 供应商 Service
 
 import re
 
+from sqlalchemy.exc import IntegrityError
+
 from app.core.base_service import BaseService
 from app.core.i18n import _
-from app.exceptions import NotFoundException, ConflictException
+from app.exceptions import ConflictException, NotFoundException
+from app.models.ai import AIProvider
 from app.repositories.ai import AIProviderRepository
 from app.schemas.ai.provider import (
     AIProviderCreate,
     AIProviderUpdate,
 )
-from app.models.ai import AIProvider
 
 
 class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
@@ -83,7 +85,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
 
         code = base
         suffix = 1
-        while await self.repo.get_by_code(code):
+        while await self.repo.get_by_code(code, include_deleted=True):
             code = f"{base}_{suffix}"
             suffix += 1
         return code
@@ -117,7 +119,11 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         # 创建供应商
         provider = AIProvider(**dump)
         self.db.add(provider)
-        await self.db.flush()
+        try:
+            await self.db.flush()
+        except IntegrityError:
+            await self.db.rollback()
+            raise ConflictException(message=_("ai.error.provider_code_exists"))
         return provider
 
     async def update_provider(
@@ -162,6 +168,9 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
         """
         删除供应商（软删除）
 
+        删除后同步清除 Redis 健康状态键，防止已删除供应商继续
+        出现在健康检查页面（Redis 键 TTL 未到期时会残留）。
+
         Args:
             id: 供应商 ID
 
@@ -174,6 +183,18 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
 
         provider.soft_delete()
         await self.db.flush()
+
+        # 清除 Redis 健康状态键（BUG-A2 修复）
+        try:
+            from app.ai.failover import HEALTH_HISTORY_PREFIX, HEALTH_KEY_PREFIX
+            from app.core.redis import get_redis
+            redis = await get_redis()
+            health_key = HEALTH_KEY_PREFIX.format(provider_id=id)
+            history_key = HEALTH_HISTORY_PREFIX.format(provider_id=id)
+            await redis.delete(health_key, history_key)
+        except Exception:
+            # Redis 清理失败不阻断删除操作
+            pass
 
     async def toggle_status(
         self,

@@ -23,6 +23,25 @@ import { getAdminFormDefaults, useAdminFormSchema } from '../data';
 
 type OrgMember = adminApi.OrgMember | tenantApi.TenantOrgMember;
 
+const props = withDefaults(
+  defineProps<{
+    /** API 前缀 */
+    apiPrefix?: 'admin' | 'tenant';
+    /** 当前节点 ID（作为角色 ID，新建时使用） */
+    nodeId?: null | number;
+    /** 节点名称（用于显示） */
+    nodeName?: string;
+    /** 角色树 API（编辑模式下可选择角色） */
+    roleTreeApi?: RoleTreeApi;
+  }>(),
+  {
+    nodeId: null,
+    nodeName: '',
+    apiPrefix: 'admin',
+    roleTreeApi: undefined,
+  },
+);
+const emits = defineEmits<{ success: [] }>();
 const avatarValue = ref('');
 const avatarUploading = ref(false);
 
@@ -47,17 +66,18 @@ const currentUsername = ref('');
 async function handleAvatarUpload(file: File) {
   avatarUploading.value = true;
   try {
-    const result = props.apiPrefix === 'tenant'
-      ? await tenant.uploadAttachmentApi({
-          file,
-          visibility: 'public',
-          business_type: 'avatar',
-        })
-      : await admin.uploadAttachmentApi({
-          file,
-          visibility: 'public',
-          business_type: 'avatar',
-        });
+    const result =
+      props.apiPrefix === 'tenant'
+        ? await tenant.uploadAttachmentApi({
+            file,
+            visibility: 'public',
+            business_type: 'avatar',
+          })
+        : await admin.uploadAttachmentApi({
+            file,
+            visibility: 'public',
+            business_type: 'avatar',
+          });
     const attachmentId = String(
       (result as { attachment?: { id?: number } }).attachment?.id || '',
     );
@@ -86,27 +106,6 @@ function beforeAvatarUpload(file: File) {
   return false;
 }
 
-const props = withDefaults(
-  defineProps<{
-    /** API 前缀 */
-    apiPrefix?: 'admin' | 'tenant';
-    /** 当前节点 ID（作为角色 ID，新建时使用） */
-    nodeId?: null | number;
-    /** 节点名称（用于显示） */
-    nodeName?: string;
-    /** 角色树 API（编辑模式下可选择角色） */
-    roleTreeApi?: RoleTreeApi;
-  }>(),
-  {
-    nodeId: null,
-    nodeName: '',
-    apiPrefix: 'admin',
-    roleTreeApi: undefined,
-  },
-);
-
-const emits = defineEmits<{ success: [] }>();
-
 const isEdit = ref(false);
 const recordId = ref<number>();
 
@@ -129,11 +128,15 @@ const [Drawer, drawerApi] = useVbenDrawer({
       phone: values.phone || null,
       nickname: values.nickname || null,
       is_active: values.is_active ?? true,
-      ...(isEdit.value && avatarValue.value ? { avatar: avatarValue.value } : {}),
+      ...(isEdit.value && avatarValue.value
+        ? { avatar: avatarValue.value }
+        : {}),
     };
 
     // 目标角色ID：优先取表单选择的 role_id，其次回退到当前节点 id
-    const targetRoleId = ('role_id' in values ? values.role_id as number : null) ?? props.nodeId!;
+    const targetRoleId =
+      ('role_id' in values ? (values.role_id as number) : null) ??
+      props.nodeId!;
 
     drawerApi.lock();
     try {
@@ -142,7 +145,9 @@ const [Drawer, drawerApi] = useVbenDrawer({
         const data = {
           ...baseData,
           // 若用户修改了角色，传递 role_id 参数让后端处理角色切换
-          role_id: ('role_id' in values ? values.role_id as number | null : null) ?? null,
+          role_id:
+            ('role_id' in values ? (values.role_id as null | number) : null) ??
+            null,
         };
         await (props.apiPrefix === 'tenant'
           ? tenant.updateTenantMemberApi(
@@ -227,7 +232,9 @@ const [Drawer, drawerApi] = useVbenDrawer({
         nickname: data.nickname,
         is_active: data.isActive,
         // 若表单存在 role_id 字段，则设置为数据中的角色ID，否则回退到展示字段
-        role_id: ('roleId' in data ? data.roleId as number | null : null) ?? props.nodeId,
+        role_id:
+          ('roleId' in data ? (data.roleId as null | number) : null) ??
+          props.nodeId,
         role_display:
           data.roleName || props.nodeName || $t('admin.common.unassigned'),
       });
@@ -276,12 +283,12 @@ defineExpose({ openCreate, openEdit });
               v-if="avatarSrc"
               :src="avatarSrc"
               :size="80"
-              class="ring-4 ring-background shadow-lg transition-all group-hover:ring-primary/20"
+              class="shadow-lg ring-4 ring-background transition-all group-hover:ring-primary/20"
             />
             <Avatar
               v-else
               :size="80"
-              class="bg-primary/10 text-primary ring-4 ring-background text-2xl font-bold shadow-lg transition-all group-hover:ring-primary/20"
+              class="bg-primary/10 text-2xl font-bold text-primary shadow-lg ring-4 ring-background transition-all group-hover:ring-primary/20"
             >
               {{ avatarInitial }}
             </Avatar>

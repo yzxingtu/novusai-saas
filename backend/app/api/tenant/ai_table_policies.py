@@ -12,7 +12,12 @@ from fastapi import Request
 from app.core.base_controller import TenantController
 from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.response import deleted, success
-from app.rbac.decorators import permission_resource, action_read, action_update, action_delete
+from app.rbac.decorators import (
+    action_delete,
+    action_read,
+    action_update,
+    permission_resource,
+)
 from app.schemas.ai.table_policy_override import AITablePolicyOverrideUpdate
 from app.services.ai.table_policy_override_service import AITablePolicyOverrideService
 

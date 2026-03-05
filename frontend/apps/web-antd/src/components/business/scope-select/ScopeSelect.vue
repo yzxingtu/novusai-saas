@@ -6,18 +6,19 @@
  * 通过 allowedScopes prop 控制可选范围。
  */
 import { computed } from 'vue';
+
 import { Select } from 'ant-design-vue';
 
 import { getScopeOptions } from '#/utils/scope-helpers';
 
 const props = withDefaults(
   defineProps<{
-    modelValue?: string;
+    allowClear?: boolean;
     allowedScopes?: string[];
     disabled?: boolean;
+    modelValue?: string;
     placeholder?: string;
     size?: 'large' | 'middle' | 'small';
-    allowClear?: boolean;
   }>(),
   {
     modelValue: undefined,

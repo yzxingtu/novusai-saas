@@ -7,8 +7,6 @@ import type {
   TenantRateLimitInfo,
 } from '#/api/tenant/ai';
 
-defineOptions({ name: 'TenantAIQuotas' });
-
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -17,57 +15,53 @@ import {
   Empty,
   Progress,
   Spin,
-  Tabs,
   TabPane,
+  Tabs,
   Tag,
 } from 'ant-design-vue';
 
+import { getTenantQuotasApi, getTenantRateLimitsApi } from '#/api/tenant/ai';
 import { useCrudList } from '#/composables';
-import {
-  getTenantQuotasApi,
-  getTenantRateLimitsApi,
-} from '#/api/tenant/ai';
 import { $t } from '#/locales';
 
-import {
-  formatTokens,
-  getPeriodText,
-  getQuotaTypeText,
-} from './data';
+import { formatTokens, getPeriodText, getQuotaTypeText } from './data';
+
+defineOptions({ name: 'TenantAIQuotas' });
 
 // ========== 配额 Tab — useCrudList（只读，含使用量） ==========
-const {
-  list: quotas, loading: quotaLoading,
-} = useCrudList<TenantQuotaWithUsageInfo>({
-  api: {
-    list: getTenantQuotasApi,
-    resource: '',
-  },
-  i18nPrefix: 'tenant.ai.quota',
-  pager: false,
-  responseAdapter: (data) => ({
-    items: Array.isArray(data)
-      ? (data as TenantQuotaWithUsageInfo[]).map((item) => ({ ...item, id: item.quota?.id }))
-      : [],
-    total: Array.isArray(data) ? (data as unknown[]).length : 0,
-  }),
-});
+const { list: quotas, loading: quotaLoading } =
+  useCrudList<TenantQuotaWithUsageInfo>({
+    api: {
+      list: getTenantQuotasApi,
+      resource: '',
+    },
+    i18nPrefix: 'tenant.ai.quota',
+    pager: false,
+    responseAdapter: (data) => ({
+      items: Array.isArray(data)
+        ? (data as TenantQuotaWithUsageInfo[]).map((item) => ({
+            ...item,
+            id: item.quota?.id,
+          }))
+        : [],
+      total: Array.isArray(data) ? (data as unknown[]).length : 0,
+    }),
+  });
 
 // ========== 速率限制 Tab — useCrudList（只读） ==========
-const {
-  list: rateLimits, loading: rateLimitLoading,
-} = useCrudList<TenantRateLimitInfo>({
-  api: {
-    list: getTenantRateLimitsApi,
-    resource: '',
-  },
-  i18nPrefix: 'tenant.ai.rateLimit',
-  pager: false,
-  responseAdapter: (data) => ({
-    items: Array.isArray(data) ? data as TenantRateLimitInfo[] : [],
-    total: Array.isArray(data) ? (data as unknown[]).length : 0,
-  }),
-});
+const { list: rateLimits, loading: rateLimitLoading } =
+  useCrudList<TenantRateLimitInfo>({
+    api: {
+      list: getTenantRateLimitsApi,
+      resource: '',
+    },
+    i18nPrefix: 'tenant.ai.rateLimit',
+    pager: false,
+    responseAdapter: (data) => ({
+      items: Array.isArray(data) ? (data as TenantRateLimitInfo[]) : [],
+      total: Array.isArray(data) ? (data as unknown[]).length : 0,
+    }),
+  });
 
 /** 获取进度条颜色 */
 function getProgressColor(item: TenantQuotaWithUsageInfo): string {
@@ -78,7 +72,11 @@ function getProgressColor(item: TenantQuotaWithUsageInfo): string {
 </script>
 
 <template>
-  <Page auto-content-height :description="$t('tenant.ai.quota.pageDesc')" content-class="flex flex-col gap-4">
+  <Page
+    auto-content-height
+    :description="$t('tenant.ai.quota.pageDesc')"
+    content-class="flex flex-col gap-4"
+  >
     <Card :body-style="{ padding: '0' }">
       <Tabs default-active-key="quotas" class="px-4">
         <!-- ========== 配额 Tab ========== -->
@@ -92,7 +90,10 @@ function getProgressColor(item: TenantQuotaWithUsageInfo): string {
 
           <!-- 配额列表 -->
           <Spin :spinning="quotaLoading">
-            <div v-if="quotas.length > 0" class="grid grid-cols-1 gap-3 pb-4 md:grid-cols-2 xl:grid-cols-3">
+            <div
+              v-if="quotas.length > 0"
+              class="grid grid-cols-1 gap-3 pb-4 md:grid-cols-2 xl:grid-cols-3"
+            >
               <Card
                 v-for="item in quotas"
                 :key="item.quota.id"
@@ -103,28 +104,52 @@ function getProgressColor(item: TenantQuotaWithUsageInfo): string {
                   <!-- 左侧信息 -->
                   <div class="flex-1">
                     <div class="mb-2 flex items-center gap-2">
-                      <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10">
-                        <IconifyIcon icon="lucide:gauge" class="size-4.5 text-primary" />
+                      <div
+                        class="flex size-9 items-center justify-center rounded-lg bg-primary/10"
+                      >
+                        <IconifyIcon
+                          icon="lucide:gauge"
+                          class="size-4.5 text-primary"
+                        />
                       </div>
                       <div>
                         <div class="flex items-center gap-2">
-                          <span v-if="item.quota.model_name" class="font-medium text-foreground">
+                          <span
+                            v-if="item.quota.model_name"
+                            class="font-medium text-foreground"
+                          >
                             {{ item.quota.model_name }}
                           </span>
-                          <span v-else-if="item.quota.model_id" class="font-medium text-foreground">
-                            {{ $t('tenant.ai.quota.modelId') }} #{{ item.quota.model_id }}
+                          <span
+                            v-else-if="item.quota.model_id"
+                            class="font-medium text-foreground"
+                          >
+                            {{ $t('tenant.ai.quota.modelId') }} #{{
+                              item.quota.model_id
+                            }}
                           </span>
                           <Tag v-else color="blue">
                             {{ $t('tenant.ai.quota.globalQuota') }}
                           </Tag>
-                          <Tag :color="item.quota.period === 'daily' ? 'orange' : 'blue'">
+                          <Tag
+                            :color="
+                              item.quota.period === 'daily' ? 'orange' : 'blue'
+                            "
+                          >
                             {{ getPeriodText(item.quota.period) }}
                           </Tag>
-                          <Tag :color="item.quota.quota_type === 'hard' ? 'red' : 'green'">
+                          <Tag
+                            :color="
+                              item.quota.quota_type === 'hard' ? 'red' : 'green'
+                            "
+                          >
                             {{ getQuotaTypeText(item.quota.quota_type) }}
                           </Tag>
                         </div>
-                        <div v-if="item.quota.description" class="mt-0.5 text-xs text-muted-foreground">
+                        <div
+                          v-if="item.quota.description"
+                          class="mt-0.5 text-xs text-muted-foreground"
+                        >
                           {{ item.quota.description }}
                         </div>
                       </div>
@@ -132,7 +157,9 @@ function getProgressColor(item: TenantQuotaWithUsageInfo): string {
 
                     <!-- 进度条 -->
                     <div class="mt-3">
-                      <div class="mb-1 flex items-center justify-between text-sm">
+                      <div
+                        class="mb-1 flex items-center justify-between text-sm"
+                      >
                         <span class="text-muted-foreground">
                           {{ $t('tenant.ai.quota.usage') }}:
                           <span class="font-mono font-medium text-foreground">
@@ -144,7 +171,8 @@ function getProgressColor(item: TenantQuotaWithUsageInfo): string {
                           class="font-medium"
                           :class="{
                             'text-destructive': item.is_exceeded,
-                            'text-warning': item.is_warning && !item.is_exceeded,
+                            'text-warning':
+                              item.is_warning && !item.is_exceeded,
                             'text-success': !item.is_warning,
                           }"
                         >
@@ -157,20 +185,30 @@ function getProgressColor(item: TenantQuotaWithUsageInfo): string {
                         :stroke-color="getProgressColor(item)"
                         size="small"
                       />
-                      <div class="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                      <div
+                        class="mt-1 flex items-center gap-3 text-xs text-muted-foreground"
+                      >
                         <span>
-                          {{ $t('tenant.ai.quota.remaining') }}: {{ formatTokens(item.remaining) }}
+                          {{ $t('tenant.ai.quota.remaining') }}:
+                          {{ formatTokens(item.remaining) }}
                         </span>
-                        <Tag v-if="item.is_exceeded" color="error" class="text-xs">
+                        <Tag
+                          v-if="item.is_exceeded"
+                          color="error"
+                          class="text-xs"
+                        >
                           {{ $t('tenant.ai.quota.exceeded') }}
                         </Tag>
-                        <Tag v-else-if="item.is_warning" color="warning" class="text-xs">
+                        <Tag
+                          v-else-if="item.is_warning"
+                          color="warning"
+                          class="text-xs"
+                        >
                           {{ $t('tenant.ai.quota.warning') }}
                         </Tag>
                       </div>
                     </div>
                   </div>
-
                 </div>
               </Card>
             </div>
@@ -189,7 +227,10 @@ function getProgressColor(item: TenantQuotaWithUsageInfo): string {
 
           <!-- 速率限制列表 -->
           <Spin :spinning="rateLimitLoading">
-            <div v-if="rateLimits.length > 0" class="grid grid-cols-1 gap-3 pb-4 md:grid-cols-2 xl:grid-cols-3">
+            <div
+              v-if="rateLimits.length > 0"
+              class="grid grid-cols-1 gap-3 pb-4 md:grid-cols-2 xl:grid-cols-3"
+            >
               <Card
                 v-for="item in rateLimits"
                 :key="item.id"
@@ -206,13 +247,20 @@ function getProgressColor(item: TenantQuotaWithUsageInfo): string {
                       <IconifyIcon
                         icon="lucide:timer"
                         class="size-4.5"
-                        :class="item.is_active ? 'text-primary' : 'text-muted-foreground'"
+                        :class="
+                          item.is_active
+                            ? 'text-primary'
+                            : 'text-muted-foreground'
+                        "
                       />
                     </div>
                     <div>
                       <div class="flex items-center gap-2">
                         <span class="font-medium text-foreground">
-                          {{ item.model_name || `${$t('tenant.ai.rateLimit.modelId')} #${item.model_id}` }}
+                          {{
+                            item.model_name ||
+                            `${$t('tenant.ai.rateLimit.modelId')} #${item.model_id}`
+                          }}
                         </span>
                         <Tag :color="item.is_active ? 'success' : 'default'">
                           {{
@@ -222,25 +270,37 @@ function getProgressColor(item: TenantQuotaWithUsageInfo): string {
                           }}
                         </Tag>
                       </div>
-                      <div class="mt-1 flex items-center gap-4 text-sm text-muted-foreground">
+                      <div
+                        class="mt-1 flex items-center gap-4 text-sm text-muted-foreground"
+                      >
                         <span>
                           {{ $t('tenant.ai.rateLimit.rpmLimit') }}:
                           <span class="font-mono font-medium text-foreground">
-                            {{ item.rpm_limit ?? $t('tenant.ai.rateLimit.noLimit') }}
+                            {{
+                              item.rpm_limit ??
+                              $t('tenant.ai.rateLimit.noLimit')
+                            }}
                           </span>
-                          <span v-if="item.rpm_limit" class="ml-0.5">{{ $t('tenant.ai.rateLimit.rpmUnit') }}</span>
+                          <span v-if="item.rpm_limit" class="ml-0.5">{{
+                            $t('tenant.ai.rateLimit.rpmUnit')
+                          }}</span>
                         </span>
                         <span>
                           {{ $t('tenant.ai.rateLimit.tpmLimit') }}:
                           <span class="font-mono font-medium text-foreground">
-                            {{ item.tpm_limit ? formatTokens(item.tpm_limit) : $t('tenant.ai.rateLimit.noLimit') }}
+                            {{
+                              item.tpm_limit
+                                ? formatTokens(item.tpm_limit)
+                                : $t('tenant.ai.rateLimit.noLimit')
+                            }}
                           </span>
-                          <span v-if="item.tpm_limit" class="ml-0.5">{{ $t('tenant.ai.rateLimit.tpmUnit') }}</span>
+                          <span v-if="item.tpm_limit" class="ml-0.5">{{
+                            $t('tenant.ai.rateLimit.tpmUnit')
+                          }}</span>
                         </span>
                       </div>
                     </div>
                   </div>
-
                 </div>
               </Card>
             </div>

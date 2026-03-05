@@ -12,9 +12,8 @@ import io
 import mimetypes
 import tempfile
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, BinaryIO, Optional
+from typing import TYPE_CHECKING, BinaryIO
 
-import alibabacloud_oss_v2 as oss
 import anyio
 
 from app.exceptions import StorageConfigError, StorageError, StorageNotFoundError
@@ -28,6 +27,14 @@ from app.storage.base import (
 
 if TYPE_CHECKING:
     from app.utils.image import ImageProcessParams
+
+try:
+    import alibabacloud_oss_v2 as oss
+except ModuleNotFoundError as exc:  # pragma: no cover - exercised via runtime config
+    oss = None  # type: ignore[assignment]
+    _OSS_IMPORT_ERROR = exc
+else:
+    _OSS_IMPORT_ERROR = None
 
 
 class OssStorageDriver(StorageDriver):
@@ -77,6 +84,13 @@ class OssStorageDriver(StorageDriver):
 
     def __init__(self, config: StorageConfig):
         super().__init__(config)
+        if oss is None:
+            raise StorageConfigError(
+                message=(
+                    "Aliyun OSS SDK is not installed. "
+                    "Install 'alibabacloud-oss-v2' to enable this driver."
+                ),
+            ) from _OSS_IMPORT_ERROR
         options = config.options or {}
         self.bucket_name = options.get("bucket") or config.root_path
         endpoint = options.get("endpoint")
@@ -244,10 +258,10 @@ class OssStorageDriver(StorageDriver):
 
         return await anyio.to_thread.run_sync(_sign)
 
-    async def get_info(self, path: str) -> Optional[FileInfo]:
+    async def get_info(self, path: str) -> FileInfo | None:
         key = self._key(path)
 
-        def _head() -> Optional[FileInfo]:
+        def _head() -> FileInfo | None:
             try:
                 result = self.client.head_object(oss.HeadObjectRequest(
                     bucket=self.bucket_name,
@@ -302,7 +316,7 @@ class OssStorageDriver(StorageDriver):
 
     # ========== Image Processing ==========
 
-    def _build_oss_process_params(self, params: "ImageProcessParams") -> str:
+    def _build_oss_process_params(self, params: ImageProcessParams) -> str:
         operations: list[str] = []
         resize_parts: list[str] = []
         if params.width:
@@ -333,7 +347,7 @@ class OssStorageDriver(StorageDriver):
     async def get_image_url(
         self,
         path: str,
-        params: "ImageProcessParams",
+        params: ImageProcessParams,
         expires: int = 3600,
         visibility: StorageVisibility | None = None,
     ) -> str:
@@ -367,7 +381,7 @@ class OssStorageDriver(StorageDriver):
     async def get_processed_image(
         self,
         path: str,
-        params: "ImageProcessParams",
+        params: ImageProcessParams,
     ) -> tuple[bytes, str] | None:
         if params.is_empty():
             return None

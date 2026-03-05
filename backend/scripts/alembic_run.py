@@ -32,7 +32,7 @@ def _discover_plugin_migration_paths() -> list[str]:
 
 
 def main() -> None:
-    from alembic.config import Config, CommandLine
+    from alembic.config import CommandLine, Config
 
     cli = CommandLine(prog="alembic")
     options = cli.parser.parse_args(sys.argv[1:])

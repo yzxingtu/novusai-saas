@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 import time
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
@@ -127,7 +127,7 @@ class EmailToolExecutor(BaseToolExecutor):
                     error="Database session not available for email sending",
                 )
 
-            from app.services.common.email_service import EmailService, EmailMessage
+            from app.services.common.email_service import EmailMessage, EmailService
             service = EmailService(context.db)
             message = EmailMessage(
                 to=to_list,
@@ -181,6 +181,7 @@ class EmailToolExecutor(BaseToolExecutor):
         arguments: dict[str, Any],
     ) -> bool:
         """校验邮件参数"""
+        _ = definition
         return bool(arguments.get("to") and arguments.get("subject"))
 
 

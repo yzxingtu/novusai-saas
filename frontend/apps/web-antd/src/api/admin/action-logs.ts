@@ -16,17 +16,17 @@ export interface AdminActionLogItem {
   action_type: string;
   action_level: string;
   status: string;
-  agent_id: number | null;
-  operator_id: number | null;
-  duration_ms: number | null;
-  error_message: string | null;
+  agent_id: null | number;
+  operator_id: null | number;
+  duration_ms: null | number;
+  error_message: null | string;
   created_at: string;
 }
 
 /** 操作日志详情 */
 export interface AdminActionLogDetail extends AdminActionLogItem {
-  request_data: Record<string, unknown> | null;
-  response_data: Record<string, unknown> | null;
+  request_data: null | Record<string, unknown>;
+  response_data: null | Record<string, unknown>;
 }
 
 /** 操作日志列表分页响应 */

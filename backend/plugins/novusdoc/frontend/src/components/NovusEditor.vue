@@ -37,7 +37,7 @@ defineExpose({ editor, setContent, getJSON, getHTML, getText, focus, wordCount, 
 </script>
 
 <template>
-  <div class="nd-editor-wrapper">
-    <EditorContent v-if="editor" :editor="editor" class="nd-editor-content" />
+  <div class="nd-editor-wrapper min-h-[400px]">
+    <EditorContent v-if="editor" :editor="editor" />
   </div>
 </template>

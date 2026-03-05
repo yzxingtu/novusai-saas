@@ -1,13 +1,13 @@
 from __future__ import annotations
-from typing import Dict
+
 from app.captcha.provider import ICaptchaProvider
 from app.captcha.providers.image import ImageCaptchaProvider
 
 
 class CaptchaRegistry:
-    _instance: "CaptchaRegistry | None" = None
+    _instance: CaptchaRegistry | None = None
 
-    def __new__(cls) -> "CaptchaRegistry":
+    def __new__(cls) -> CaptchaRegistry:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._providers = {}
@@ -17,7 +17,7 @@ class CaptchaRegistry:
     def __init__(self) -> None:
         if self._initialized:
             return
-        self._providers: Dict[str, ICaptchaProvider] = {}
+        self._providers: dict[str, ICaptchaProvider] = {}
         self.register("image", ImageCaptchaProvider())
         self._initialized = True
 

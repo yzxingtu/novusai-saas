@@ -9,7 +9,6 @@ import type { TenantMemberListParams } from '#/api/tenant/organization';
 import { ref, watch } from 'vue';
 
 import { message } from 'ant-design-vue';
-import { $t } from '#/locales';
 
 // Admin API
 import {
@@ -25,6 +24,7 @@ import {
   removeTenantMemberFromNodeApi as tenantRemoveMemberApi,
   setTenantNodeLeaderApi as tenantSetLeaderApi,
 } from '#/api/tenant/organization';
+import { $t } from '#/locales';
 
 /** 默认每页数量 */
 const DEFAULT_PAGE_SIZE = 20;
@@ -155,7 +155,9 @@ export function useMemberPanel(
       for (const adminId of adminIds) {
         await addMemberApi(id, adminId);
       }
-      message.success($t('shared.memberPanel.batchAddSuccess', { count: adminIds.length }));
+      message.success(
+        $t('shared.memberPanel.batchAddSuccess', { count: adminIds.length }),
+      );
       await loadMembers();
       return true;
     } catch (error_) {
@@ -218,7 +220,11 @@ export function useMemberPanel(
     operating.value = true;
     try {
       await setLeaderApi(id, adminId);
-      message.success(adminId ? $t('shared.memberPanel.setLeaderSuccess') : $t('shared.memberPanel.cancelLeaderSuccess'));
+      message.success(
+        adminId
+          ? $t('shared.memberPanel.setLeaderSuccess')
+          : $t('shared.memberPanel.cancelLeaderSuccess'),
+      );
       // 重新加载列表以获取最新的 isLeader 状态
       await loadMembers();
       return true;

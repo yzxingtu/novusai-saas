@@ -4,21 +4,18 @@ OpenAI 兼容适配器
 支持 OpenAI 官方 API 及所有兼容服务（如 DeepSeek、智谱、通义千问等国产大模型）
 """
 
-from typing import AsyncIterator, cast
-from decimal import Decimal
-import asyncio
+from collections.abc import AsyncIterator
 
 from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from openai.types import CreateEmbeddingResponse
+from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from app.ai.adapters.base import BaseAdapter
-from app.ai.exceptions import convert_openai_error, AIGatewayError
-from app.core.i18n import _
+from app.ai.exceptions import AIGatewayError, convert_openai_error
 from app.ai.types import (
+    ChatChunk,
     ChatMessage,
     ChatResponse,
-    ChatChunk,
     EmbeddingResponse,
     ImageGenerationResponse,
     ImageResponse,
@@ -31,20 +28,20 @@ logger = LogManager.get_logger("ai")
 class OpenAIAdapter(BaseAdapter):
     """
     OpenAI 兼容适配器
-    
+
     支持 OpenAI 官方 API 及所有兼容服务
     """
-    
+
     def __init__(self, api_key: str, base_url: str | None = None, **kwargs):
         super().__init__(api_key, base_url, **kwargs)
-        
+
         # 初始化 OpenAI 客户端
         client_kwargs = {"api_key": api_key}
         if base_url:
             client_kwargs["base_url"] = base_url
-        
+
         self.client = AsyncOpenAI(**client_kwargs)
-    
+
     async def chat(
         self,
         messages: list[ChatMessage],
@@ -59,10 +56,11 @@ class OpenAIAdapter(BaseAdapter):
         """
         聊天对话（同步模式）
         """
+        _ = stream
         try:
             # 转换消息格式
             openai_messages = self._convert_messages(messages)
-            
+
             # 构建请求参数
             request_params: dict = {
                 "model": model,
@@ -70,30 +68,30 @@ class OpenAIAdapter(BaseAdapter):
                 "temperature": temperature,
                 "top_p": top_p,
             }
-            
+
             if max_tokens is not None:
                 request_params["max_tokens"] = max_tokens
-            
+
             if tools:
                 request_params["tools"] = tools
                 request_params["tool_choice"] = "auto"
-            
+
             # 添加额外参数
             request_params.update(kwargs)
-            
+
             # 调用 API
             logger.info("Chat request: model=%s messages=%d", model, len(messages))
             response: ChatCompletion = await self.client.chat.completions.create(**request_params)
-            
+
             # 转换响应
             return self._convert_chat_response(response, model)
-            
+
         except AIGatewayError:
             raise
         except Exception as e:
             logger.error("Chat error: model=%s error=%s", model, str(e))
             raise convert_openai_error(e, provider_code="openai", model_code=model)
-    
+
     async def stream_chat(
         self,
         messages: list[ChatMessage],
@@ -110,7 +108,7 @@ class OpenAIAdapter(BaseAdapter):
         try:
             # 转换消息格式
             openai_messages = self._convert_messages(messages)
-            
+
             # 构建请求参数
             request_params: dict = {
                 "model": model,
@@ -119,31 +117,31 @@ class OpenAIAdapter(BaseAdapter):
                 "top_p": top_p,
                 "stream": True,
             }
-            
+
             if max_tokens is not None:
                 request_params["max_tokens"] = max_tokens
-            
+
             if tools:
                 request_params["tools"] = tools
                 request_params["tool_choice"] = "auto"
-            
+
             # 添加额外参数
             request_params.update(kwargs)
-            
+
             # 调用流式 API
             logger.info("Stream chat request: model=%s", model)
             stream = await self.client.chat.completions.create(**request_params)
-            
+
             # 转换流式响应
             async for chunk in stream:
                 yield self._convert_chat_chunk(chunk, model)
-                
+
         except AIGatewayError:
             raise
         except Exception as e:
             logger.error("Stream chat error: model=%s error=%s", model, str(e))
             raise convert_openai_error(e, provider_code="openai", model_code=model)
-    
+
     async def embedding(
         self,
         texts: list[str],
@@ -161,7 +159,7 @@ class OpenAIAdapter(BaseAdapter):
                 model=model,
                 **kwargs
             )
-            
+
             # 转换响应
             return EmbeddingResponse(
                 embeddings=[item.embedding for item in response.data],
@@ -169,19 +167,19 @@ class OpenAIAdapter(BaseAdapter):
                 total_tokens=response.usage.total_tokens if response.usage else None,
                 model=model,
             )
-            
+
         except AIGatewayError:
             raise
         except Exception as e:
             logger.error("Embedding error: model=%s error=%s", model, str(e))
             raise convert_openai_error(e, provider_code="openai", model_code=model)
-    
+
     async def list_models(self) -> list[dict]:
         """
         列出供应商可用的模型列表
-        
+
         通过 OpenAI /models API 获取可用模型
-        
+
         Returns:
             模型信息列表
         """
@@ -197,19 +195,19 @@ class OpenAIAdapter(BaseAdapter):
         except Exception as e:
             logger.error("List models error: %s", str(e))
             raise convert_openai_error(e, provider_code="openai", model_code="")
-    
+
     def _convert_messages(self, messages: list[ChatMessage]) -> list[dict]:
         """
         转换消息格式
-        
+
         Args:
             messages: 统一格式的消息列表
-            
+
         Returns:
             OpenAI 格式的消息列表
         """
         openai_messages = []
-        
+
         for msg in messages:
             openai_msg: dict = {
                 "role": msg.role,
@@ -239,20 +237,20 @@ class OpenAIAdapter(BaseAdapter):
                 openai_msg["content"] = content_parts if content_parts else msg.content
             else:
                 openai_msg["content"] = msg.content
-            
+
             if msg.name:
                 openai_msg["name"] = msg.name
-            
+
             if msg.tool_calls:
                 openai_msg["tool_calls"] = msg.tool_calls
-            
+
             if msg.tool_call_id:
                 openai_msg["tool_call_id"] = msg.tool_call_id
-            
+
             openai_messages.append(openai_msg)
-        
+
         return openai_messages
-    
+
     def _convert_chat_response(self, response: ChatCompletion, model: str) -> ChatResponse:
         """
         转换 OpenAI 聊天响应为统一格式
@@ -265,7 +263,7 @@ class OpenAIAdapter(BaseAdapter):
             )
         choice = response.choices[0]
         message = choice.message
-        
+
         # 将 OpenAI SDK tool_calls 对象转为 dict 列表
         tool_calls_dicts: list[dict] | None = None
         if message.tool_calls:
@@ -287,13 +285,13 @@ class OpenAIAdapter(BaseAdapter):
             content=message.content or "",
             tool_calls=tool_calls_dicts,
         )
-        
+
         # 提取 Token 使用量
         usage = response.usage
         input_tokens = usage.prompt_tokens if usage else None
         output_tokens = usage.completion_tokens if usage else None
         total_tokens = usage.total_tokens if usage else None
-        
+
         return ChatResponse(
             message=chat_message,
             input_tokens=input_tokens,
@@ -304,25 +302,44 @@ class OpenAIAdapter(BaseAdapter):
             tool_calls=tool_calls_dicts,
             raw_response=response.model_dump() if hasattr(response, "model_dump") else None,
         )
-    
+
     def _convert_chat_chunk(self, chunk: ChatCompletionChunk, model: str) -> ChatChunk:
         """
         转换 OpenAI 流式响应块为统一格式
         """
+        _ = model
         if not chunk.choices:
             return ChatChunk(delta="")
         choice = chunk.choices[0]
         delta = choice.delta
-        
+
         # 提取增量内容
         delta_content = delta.content or ""
-        
+
         # 提取 Token 使用量（最后一个块包含）
         usage = chunk.usage
         input_tokens = usage.prompt_tokens if usage else None
         output_tokens = usage.completion_tokens if usage else None
         total_tokens = usage.total_tokens if usage else None
-        
+
+        # 将 OpenAI SDK tool_calls 对象转为可序列化 dict 列表（含 index 便于增量合并）
+        tool_calls_dicts: list[dict] | None = None
+        if delta.tool_calls:
+            tool_calls_dicts = []
+            for tc in delta.tool_calls:
+                func = getattr(tc, "function", None)
+                tool_calls_dicts.append(
+                    {
+                        "index": getattr(tc, "index", None),
+                        "id": getattr(tc, "id", None) or "",
+                        "type": getattr(tc, "type", None) or "function",
+                        "function": {
+                            "name": getattr(func, "name", None) or "",
+                            "arguments": getattr(func, "arguments", None) or "",
+                        },
+                    }
+                )
+
         return ChatChunk(
             delta=delta_content,
             role=delta.role,
@@ -330,9 +347,9 @@ class OpenAIAdapter(BaseAdapter):
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             total_tokens=total_tokens,
-            tool_calls=delta.tool_calls,
+            tool_calls=tool_calls_dicts,
         )
-    
+
     async def generate_image(
         self,
         prompt: str,

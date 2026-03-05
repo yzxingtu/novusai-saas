@@ -75,7 +75,7 @@ class PluginLoader:
             )
 
         try:
-            with open(yaml_path, "r", encoding="utf-8") as f:
+            with open(yaml_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
         except yaml.YAMLError as exc:
             raise PluginManifestError(
@@ -147,7 +147,12 @@ class PluginLoader:
                     )
                 module = importlib.util.module_from_spec(spec)
                 sys.modules[module_name] = module
-                spec.loader.exec_module(module)
+                try:
+                    spec.loader.exec_module(module)
+                except Exception:
+                    # 清除失败的模块条目，防止后续调用取到破损缓存
+                    sys.modules.pop(module_name, None)
+                    raise
         except Exception as exc:
             if isinstance(exc, (PluginError, PluginNotFoundError)):
                 raise
@@ -199,7 +204,7 @@ class PluginLoader:
         for json_file in sorted(locales_dir.glob("*.json")):
             lang_code = json_file.stem  # "zh-CN" from "zh-CN.json"
             try:
-                with open(json_file, "r", encoding="utf-8") as f:
+                with open(json_file, encoding="utf-8") as f:
                     data = json.load(f)
                 if isinstance(data, dict):
                     result[lang_code] = data
