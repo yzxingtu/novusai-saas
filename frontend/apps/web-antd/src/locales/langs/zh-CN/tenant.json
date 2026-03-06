@@ -199,7 +199,15 @@
   },
   "auth": {
     "title": "租户管理系统",
-    "tenantCodePlaceholder": "请输入租户编码"
+    "tenantCodePlaceholder": "请输入租户编码",
+    "welcomeBack": "欢迎回来",
+    "subtitle": "登录租户管理后台，管理业务与用户",
+    "featureTeam": "团队管理",
+    "featureTeamDesc": "管理团队成员、角色分配和权限控制",
+    "featureAI": "AI 智能助手",
+    "featureAIDesc": "智能体对话、知识库管理和技能包配置",
+    "featureBusiness": "业务运营",
+    "featureBusinessDesc": "数据分析、用量统计和系统配置"
   },
   "common": {
     "operation": "操作",

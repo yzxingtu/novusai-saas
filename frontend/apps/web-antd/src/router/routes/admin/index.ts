@@ -5,7 +5,7 @@ import type { RouteRecordRaw } from 'vue-router';
 
 import { $t } from '#/locales';
 
-const AuthPageLayout = () => import('#/layouts/auth.vue');
+const AuthPageLayout = () => import('#/layouts/admin-auth.vue');
 const BasicLayout = () => import('#/layouts/basic.vue');
 
 /** 平台管理端认证路由 */

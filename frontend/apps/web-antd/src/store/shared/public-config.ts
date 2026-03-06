@@ -79,9 +79,9 @@ function applyBrandConfig(brand: BrandConfig) {
         companyName: brand.copyright,
         icp: brand.icp,
       },
-      theme: {
-        colorPrimary: brand.primaryColor,
-      },
+      ...(brand.primaryColor
+        ? { theme: { colorPrimary: brand.primaryColor } }
+        : {}),
     });
     localStorage.setItem(BRAND_CONFIG_CACHE_KEY, brandSnapshot);
   }
@@ -220,7 +220,6 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       } catch (error) {
         this.error =
           error instanceof Error ? error.message : 'Failed to load config';
-        // 错误已存储在 state.error 中，由调用方决定如何处理
         return null;
       } finally {
         this.loading = false;

@@ -382,6 +382,10 @@ const headerSlots = computed(() => {
         @select="handleMixedMenuSelect"
       />
     </template>
+    <!-- 侧边栏底部区域 -->
+    <template v-if="$slots['sidebar-bottom']" #sidebar-bottom>
+      <slot name="sidebar-bottom"></slot>
+    </template>
     <!-- 侧边额外区域 -->
     <template #side-extra>
       <LayoutExtraMenu

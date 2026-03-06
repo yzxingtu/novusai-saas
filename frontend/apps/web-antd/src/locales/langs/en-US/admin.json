@@ -227,5 +227,16 @@
     "edit": "Edit",
     "operationSuccess": "Operation successful",
     "operationFailed": "Operation failed"
+  },
+  "auth": {
+    "title": "Platform Administration",
+    "welcomeBack": "Welcome Back",
+    "subtitle": "Sign in to manage global configuration and tenants",
+    "featureMultiTenant": "Multi-Tenant Management",
+    "featureMultiTenantDesc": "Centrally manage all tenant configurations, plans and lifecycle",
+    "featureAI": "AI Hub",
+    "featureAIDesc": "Unified management of AI providers, models and quota allocation",
+    "featureSecurity": "Security & Monitoring",
+    "featureSecurityDesc": "Comprehensive audit logs, RBAC and system health monitoring"
   }
 }

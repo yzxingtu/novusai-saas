@@ -227,5 +227,16 @@
     "edit": "编辑",
     "operationSuccess": "操作成功",
     "operationFailed": "操作失败"
+  },
+  "auth": {
+    "title": "平台管理系统",
+    "welcomeBack": "欢迎回来",
+    "subtitle": "登录平台管理后台，管理全局配置与租户",
+    "featureMultiTenant": "多租户管理",
+    "featureMultiTenantDesc": "集中管理所有租户的配置、套餐和生命周期",
+    "featureAI": "AI 能力中心",
+    "featureAIDesc": "统一管理 AI 供应商、模型和配额分配",
+    "featureSecurity": "安全与监控",
+    "featureSecurityDesc": "全方位审计日志、权限管理和系统健康监控"
   }
 }

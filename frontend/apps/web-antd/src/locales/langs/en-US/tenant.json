@@ -199,7 +199,15 @@
   },
   "auth": {
     "title": "Tenant Management",
-    "tenantCodePlaceholder": "Enter tenant code"
+    "tenantCodePlaceholder": "Enter tenant code",
+    "welcomeBack": "Welcome Back",
+    "subtitle": "Sign in to manage your business and users",
+    "featureTeam": "Team Management",
+    "featureTeamDesc": "Manage team members, role assignments and access control",
+    "featureAI": "AI Assistant",
+    "featureAIDesc": "Agent conversations, knowledge base and skill package configuration",
+    "featureBusiness": "Business Operations",
+    "featureBusinessDesc": "Data analytics, usage statistics and system configuration"
   },
   "common": {
     "operation": "Operation",

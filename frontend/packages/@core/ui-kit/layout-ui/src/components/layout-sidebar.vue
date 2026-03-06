@@ -284,6 +284,8 @@ function handleMouseleave() {
       <slot></slot>
     </VbenScrollbar>
 
+    <slot name="bottom"></slot>
+
     <div :style="collapseStyle"></div>
     <SidebarCollapseButton
       v-if="showCollapseButton && !isSidebarMixed"

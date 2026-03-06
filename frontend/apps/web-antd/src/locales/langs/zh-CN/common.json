@@ -404,5 +404,9 @@
       "monthly1st": "每月1号凌晨2点",
       "monthly1stDesc": "每月1号凌晨2:00执行"
     }
+  },
+  "endpoint": {
+    "admin": "管理端",
+    "tenant": "租户端"
   }
 }

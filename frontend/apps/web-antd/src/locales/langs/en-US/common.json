@@ -404,5 +404,9 @@
       "monthly1st": "Monthly 1st 2 AM",
       "monthly1stDesc": "Runs on the 1st of every month at 2:00 AM"
     }
+  },
+  "endpoint": {
+    "admin": "Admin",
+    "tenant": "Tenant"
   }
 }

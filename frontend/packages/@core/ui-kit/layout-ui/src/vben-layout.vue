@@ -530,6 +530,9 @@ const idMainContent = ELEMENT_ID_MAIN_CONTENT;
         <slot name="menu"></slot>
       </template>
 
+      <template #bottom>
+        <slot name="sidebar-bottom"></slot>
+      </template>
       <template #extra>
         <slot name="side-extra"></slot>
       </template>

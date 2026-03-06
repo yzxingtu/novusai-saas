@@ -74,6 +74,20 @@ const apiPrefix = computed(() => {
   return '/tenant';
 });
 
+// ============ Endpoint Indicator ============
+
+const isAdminEndpoint = computed(() => apiPrefix.value === '/admin');
+
+const endpointLabel = computed(() =>
+  isAdminEndpoint.value
+    ? $t('common.endpoint.admin')
+    : $t('common.endpoint.tenant'),
+);
+
+const endpointIcon = computed(() =>
+  isAdminEndpoint.value ? 'lucide:shield-check' : 'lucide:building-2',
+);
+
 const uploadUrl = computed(() => `${apiPrefix.value}/attachments/upload`);
 
 /** AI Panel 固定时的右侧偏移量（页面禁用 AI 时归零） */
@@ -276,6 +290,19 @@ watch(
     @clear-preferences-and-logout="() => cacheClearModalRef?.open()"
     @locale-change="handleLocaleChange"
   >
+    <template #sidebar-bottom>
+      <div
+        v-if="!preferences.sidebar.collapsed"
+        class="flex items-center justify-center border-t border-border px-2 py-2"
+      >
+        <span
+          class="inline-flex items-center gap-1 rounded-sm bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary"
+        >
+          <IconifyIcon :icon="endpointIcon" class="size-3" />
+          {{ endpointLabel }}
+        </span>
+      </div>
+    </template>
     <template #user-dropdown>
       <Tooltip
         :title="

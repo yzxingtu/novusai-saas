@@ -116,16 +116,6 @@ async function handleLogin(values: Record<string, any>) {
 
 <template>
   <div>
-    <!-- 平台管理端标识 -->
-    <div class="mb-6 flex items-center justify-center">
-      <div class="flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2">
-        <span class="i-lucide-shield-check text-xl text-primary"></span>
-        <span class="text-sm font-medium text-primary">
-          {{ $t('authentication.platformAdmin') }}
-        </span>
-      </div>
-    </div>
-
     <AuthenticationLogin
       :form-schema="formSchema"
       :loading="multiAuthStore.loginLoading"
@@ -135,8 +125,8 @@ async function handleLogin(values: Record<string, any>) {
       :show-register="false"
       :show-remember-me="false"
       :show-third-party-login="false"
-      :title="$t('admin.auth.title')"
-      :sub-title="$t('authentication.platformAdminDesc')"
+      :title="$t('admin.auth.welcomeBack')"
+      :sub-title="$t('admin.auth.subtitle')"
       @submit="handleLogin"
     >
       <!-- 验证码插槽 - 显示在密码输入框下方 -->
@@ -177,5 +167,74 @@ async function handleLogin(values: Record<string, any>) {
 .captcha-input {
   flex: 1;
   min-width: 0;
+}
+
+:deep(.flex-auto.overflow-hidden) {
+  overflow: visible !important;
+}
+
+:deep(input) {
+  border-radius: 10px !important;
+  height: 44px !important;
+  font-size: 14px !important;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease !important;
+}
+
+:deep(input:hover) {
+  border-color: hsl(var(--primary) / 0.5) !important;
+  background-color: hsl(var(--primary) / 0.05) !important;
+}
+
+:deep(input:focus),
+:deep(input:focus-visible) {
+  border-color: hsl(var(--primary)) !important;
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.25), 0 4px 16px hsl(var(--primary) / 0.15) !important;
+  outline: none !important;
+  --tw-ring-shadow: none !important;
+  ring-color: transparent !important;
+  background-color: hsl(var(--primary) / 0.04) !important;
+}
+
+:deep(button[aria-label="login"]) {
+  position: relative;
+  height: 44px !important;
+  border-radius: 10px !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, color-mix(in srgb, hsl(var(--primary)), #000 15%) 50%, color-mix(in srgb, hsl(var(--primary)), #000 30%) 100%) !important;
+  border: none !important;
+  box-shadow: 0 4px 14px hsl(var(--primary) / 0.3) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  overflow: hidden !important;
+}
+
+:deep(button[aria-label="login"])::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(255 255 255 / 20%),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+:deep(button[aria-label="login"]:hover) {
+  box-shadow: 0 6px 24px hsl(var(--primary) / 0.45) !important;
+  transform: translateY(-2px) scale(1.01);
+}
+
+:deep(button[aria-label="login"]:hover)::before {
+  left: 100%;
+}
+
+:deep(button[aria-label="login"]:active) {
+  transform: translateY(0) scale(0.98) !important;
+  box-shadow: 0 2px 8px hsl(var(--primary) / 0.3) !important;
 }
 </style>

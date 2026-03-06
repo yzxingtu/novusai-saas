@@ -61,8 +61,8 @@ export const overridesPreferences = defineOverridesPreferences({
     keepAlive: true,
   },
   theme: {
-    builtinType: 'default',
-    colorPrimary: 'hsl(212 100% 45%)',
+    builtinType: 'sky-blue',
+    colorPrimary: 'hsl(231 98% 65%)',
     colorSuccess: 'hsl(144 57% 58%)',
     colorWarning: 'hsl(42 84% 61%)',
     colorDestructive: 'hsl(348 100% 61%)',
