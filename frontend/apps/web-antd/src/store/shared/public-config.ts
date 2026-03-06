@@ -47,26 +47,45 @@ function updateHead(brand: BrandConfig) {
   }
 }
 
+const BRAND_CONFIG_CACHE_KEY = '__applied_brand_config__';
+
 /**
  * 应用品牌配置到全局偏好设置
+ * 仅在后端品牌配置发生变化时才覆盖偏好设置，
+ * 避免每次页面刷新时覆盖用户在偏好面板中的自定义设置
  */
 function applyBrandConfig(brand: BrandConfig) {
-  updatePreferences({
-    app: {
-      name: brand.siteName,
-    },
-    logo: {
-      source: brand.logo,
-      sourceDark: brand.logoDark,
-    },
-    copyright: {
-      companyName: brand.copyright,
-      icp: brand.icp,
-    },
-    theme: {
-      colorPrimary: brand.primaryColor,
-    },
+  const brandSnapshot = JSON.stringify({
+    copyright: brand.copyright,
+    icp: brand.icp,
+    logo: brand.logo,
+    logoDark: brand.logoDark,
+    primaryColor: brand.primaryColor,
+    siteName: brand.siteName,
   });
+
+  const lastApplied = localStorage.getItem(BRAND_CONFIG_CACHE_KEY);
+
+  if (lastApplied !== brandSnapshot) {
+    updatePreferences({
+      app: {
+        name: brand.siteName,
+      },
+      logo: {
+        source: brand.logo,
+        sourceDark: brand.logoDark,
+      },
+      copyright: {
+        companyName: brand.copyright,
+        icp: brand.icp,
+      },
+      theme: {
+        colorPrimary: brand.primaryColor,
+      },
+    });
+    localStorage.setItem(BRAND_CONFIG_CACHE_KEY, brandSnapshot);
+  }
+
   updateHead(brand);
 }
 
@@ -263,6 +282,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     resetPlatformConfig() {
       this.platformConfig = null;
       this.platformConfigLoaded = false;
+      localStorage.removeItem(BRAND_CONFIG_CACHE_KEY);
     },
 
     /**
@@ -271,6 +291,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     resetTenantConfig() {
       this.tenantConfig = null;
       this.tenantConfigLoaded = false;
+      localStorage.removeItem(BRAND_CONFIG_CACHE_KEY);
     },
 
     /**
@@ -286,6 +307,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       this.tenantLoginFailCount = 0;
       this.platformCaptchaRequired = false;
       this.tenantCaptchaRequired = false;
+      localStorage.removeItem(BRAND_CONFIG_CACHE_KEY);
     },
 
     /**
