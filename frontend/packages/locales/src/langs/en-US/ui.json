@@ -119,6 +119,11 @@
     "timezone": {
       "setTimezone": "Set Timezone",
       "setSuccess": "Timezone set successfully"
-    }
+    },
+    "refresh": "Refresh",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen",
+    "themeToggle": "Theme",
+    "languageToggle": "Language"
   }
 }

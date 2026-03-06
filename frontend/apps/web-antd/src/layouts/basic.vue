@@ -2,10 +2,18 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
-import { AuthenticationLoginExpiredModal } from '@vben/common-ui';
-import { useWatermark } from '@vben/hooks';
+import { AuthenticationLoginExpiredModal, VbenFullScreen } from '@vben/common-ui';
+import { useRefresh, useWatermark } from '@vben/hooks';
 import { IconifyIcon } from '@vben/icons';
-import { BasicLayout, LockScreen, UserDropdown } from '@vben/layouts';
+import {
+  BasicLayout,
+  LanguageToggle,
+  LockScreen,
+  PreferencesButton,
+  ThemeToggle,
+  TimezoneButton,
+  UserDropdown,
+} from '@vben/layouts';
 import { preferences } from '@vben/preferences';
 import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
 
@@ -50,6 +58,7 @@ const accessStore = useAccessStore();
 const tabbarStore = useTabbarStore();
 const pluginSlotsStore = usePluginSlotsStore();
 const { destroyWatermark, updateWatermark } = useWatermark();
+const { refresh } = useRefresh();
 const cacheClearModalRef = ref<InstanceType<typeof CacheClearModal>>();
 
 // ============ AI Panel ============
@@ -304,31 +313,77 @@ watch(
       </Tooltip>
     </template>
     <template #notification>
-      <Popover
-        trigger="click"
-        placement="bottomRight"
-        :arrow="false"
-        overlay-class-name="notification-popover"
+      <Tooltip
+        :title="$t('ui.widgets.notifications')"
+        placement="bottom"
       >
-        <template #content>
-          <NotificationPanel />
-        </template>
-        <div
-          class="relative flex cursor-pointer items-center justify-center rounded-md p-1.5 transition-colors hover:bg-accent"
+        <Popover
+          trigger="click"
+          placement="bottomRight"
+          :arrow="false"
+          overlay-class-name="notification-popover"
         >
-          <IconifyIcon icon="lucide:bell" class="size-4" />
-          <span
-            v-if="notificationStore.unreadCount > 0"
-            class="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] text-white"
+          <template #content>
+            <NotificationPanel />
+          </template>
+          <div
+            class="relative flex cursor-pointer items-center justify-center rounded-md p-1.5 transition-colors hover:bg-accent"
           >
-            {{
-              notificationStore.unreadCount > 99
-                ? '99+'
-                : notificationStore.unreadCount
-            }}
-          </span>
+            <IconifyIcon icon="lucide:bell" class="size-4" />
+            <span
+              v-if="notificationStore.unreadCount > 0"
+              class="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] text-white"
+            >
+              {{
+                notificationStore.unreadCount > 99
+                  ? '99+'
+                  : notificationStore.unreadCount
+              }}
+            </span>
+          </div>
+        </Popover>
+      </Tooltip>
+    </template>
+    <template #refresh>
+      <Tooltip :title="$t('ui.widgets.refresh')" placement="bottom">
+        <div
+          class="my-0 mr-1 flex cursor-pointer items-center justify-center rounded-md p-1.5 transition-colors hover:bg-accent"
+          @click="refresh"
+        >
+          <IconifyIcon icon="lucide:rotate-cw" class="size-4" />
         </div>
-      </Popover>
+      </Tooltip>
+    </template>
+    <template #theme-toggle>
+      <Tooltip :title="$t('ui.widgets.themeToggle')" placement="bottom">
+        <ThemeToggle class="mr-1 mt-[2px]" />
+      </Tooltip>
+    </template>
+    <template #language-toggle>
+      <Tooltip :title="$t('ui.widgets.languageToggle')" placement="bottom">
+        <LanguageToggle class="mr-1" />
+      </Tooltip>
+    </template>
+    <template #fullscreen>
+      <Tooltip :title="$t('ui.widgets.fullscreen')" placement="bottom">
+        <VbenFullScreen class="mr-1" />
+      </Tooltip>
+    </template>
+    <template #timezone>
+      <Tooltip
+        :title="$t('ui.widgets.timezone.setTimezone')"
+        placement="bottom"
+      >
+        <TimezoneButton class="mr-1 mt-[2px]" />
+      </Tooltip>
+    </template>
+    <template #preferences>
+      <Tooltip :title="$t('ui.widgets.setting')" placement="bottom">
+        <PreferencesButton
+          class="mr-1"
+          @clear-preferences-and-logout="() => cacheClearModalRef?.open()"
+        />
+      </Tooltip>
     </template>
     <!-- 插件 headerWidgets 动态注入（sort_order 映射到 header-right-{n} 槽位） -->
     <template #header-right-89>

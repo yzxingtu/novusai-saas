@@ -119,6 +119,11 @@
     "timezone": {
       "setTimezone": "设置时区",
       "setSuccess": "时区设置成功"
-    }
+    },
+    "refresh": "刷新",
+    "fullscreen": "全屏",
+    "exitFullscreen": "退出全屏",
+    "themeToggle": "主题",
+    "languageToggle": "语言"
   }
 }

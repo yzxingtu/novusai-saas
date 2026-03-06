@@ -336,6 +336,21 @@ const headerSlots = computed(() => {
         <template #timezone>
           <slot name="timezone"></slot>
         </template>
+        <template v-if="$slots['refresh']" #refresh>
+          <slot name="refresh"></slot>
+        </template>
+        <template v-if="$slots['theme-toggle']" #theme-toggle>
+          <slot name="theme-toggle"></slot>
+        </template>
+        <template v-if="$slots['language-toggle']" #language-toggle>
+          <slot name="language-toggle"></slot>
+        </template>
+        <template v-if="$slots['fullscreen']" #fullscreen>
+          <slot name="fullscreen"></slot>
+        </template>
+        <template v-if="$slots['preferences']" #preferences>
+          <slot name="preferences"></slot>
+        </template>
         <template v-for="item in headerSlots" #[item]>
           <slot :name="item"></slot>
         </template>
