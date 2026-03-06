@@ -38,7 +38,8 @@ backend/app/ai/
 │       ├── code_executor.py       # 沙箱 Python 执行
 │       ├── text_to_sql_executor.py # NL → SQL
 │       ├── api_action_executor.py  # 业务操作（含确认流程）
-│       └── builtin_executor.py    # 内置工具（日期、数学等）
+│       ├── builtin_executor.py    # 内置工具（日期、数学等）
+│       └── page_operation_executor.py # 页面操作执行（WebSocket 双向通信）
 │
 ├── rag/                       # RAG 管线
 │   ├── parser.py              # 文件解析（PDF/DOCX/TXT/MD/CSV/QA/PPTX/图片）
@@ -138,6 +139,107 @@ registry.register_platform_tools(agent)
 tools_schema = registry.get_openai_tools()
 # 执行工具调用
 result = await registry.execute_tool(tool_name, arguments)
+```
+
+### 页面感知与页面操作（Page Awareness & Operations）
+
+页面感知采用方案 C（混合），三层架构：
+
+- **Layer 1**：`page_context` 通过 `input_variables` 注入 system prompt，提供基础感知
+- **Layer 2**：系统级 builtin skill `get_page_context` 进入 LLM function calling tools schema，提供深度上下文
+- **Layer 3**：系统级 builtin skill `invoke_page_operation` 通过 WebSocket 双向通信执行前端页面操作（M310 新增）
+
+#### 前端接入点
+
+- 页面通过 `registerPageContext(key, resolver)` 注册页面上下文解析器
+- 页面通过 `registerPageOperations(key, operations)` 注册页面可执行操作（含 `handler` 回调）
+- 路由通过 `route.meta.ai` 声明页面 AI 策略，例如 `mode`、`pageContextKey`、`pageOperationsKey`
+- 发送消息前统一调用 `resolvePageContext()`，将结果作为 `page_context` 写入聊天请求体
+- 发送消息时携带 `page_session_id`，用于 WebSocket 操作通道定位
+- `PageSessionManager` 监听 `page_operation_invoke` 事件，执行操作后通过 `page_operation_result` 回传
+
+#### 后端接入点
+
+- `AgentChatService.chat()` / `stream_chat()` 接收 `page_context` + `page_session_id`
+- `PageContext.normalize_variables()` 将其收口到 `ExecutionRequest.input_variables["page_context"]`
+- `resolve_for_agent()` 负责加载 auto-bind 的系统级 SkillPackage
+- `SkillResolver._resolve_builtin()` 从 `config.tools` 生成 `ToolDefinition`（含 `get_page_context` 和 `invoke_page_operation`）
+- `BaseEngine._prepare_execution()` 收集 `skill_result.tools`
+- `to_openai_tools()` 将工具转为模型可见的 function schema
+- `PageOperationExecutor` 通过 `invoke_page_operation()` 创建 asyncio.Future，经 Socket.IO 下发操作指令到前端
+- `PageSessionMixin` 管理 page_session 房间加入/离开，处理操作结果回调
+
+#### 关键规则
+
+- **仅注册 Executor 不算完成** — 必须同时存在 `SkillPackage + builtin Skill + auto-bind`
+- `_PROTECTED_TOOL_NAMES` 白名单保护 `get_page_context`、`invoke_page_operation`、`list_page_operations` 不被工具优化器过滤
+- `readonly=true` 操作直接执行，`readonly=false` 操作前端弹出确认对话框
+- 操作超时 30s，超时后自动清理 Future
+- 已覆盖 29 页面（Admin 19 + Tenant 10），标准操作类型：`refresh_list`、`refresh_dashboard`、`export_data`、`navigate_to`
+
+#### `_load_auto_bind_packages` scope 审计（2026-03）
+
+优化前：`agent_scope` 参数未参与过滤，仅依赖 `tenant_id` 是否为 `None` 分流。
+
+优化后（+22/-6 行精确修改）：
+- **`tenant_id IS NULL` 基础条件**：auto-bind 仅加载系统级包，排除租户自建包
+- **管理端分支**（`tenant_id is None`）：增加 `agent_scope` 守卫，非管理端作用域直接返回空
+- **租户端分支**（`tenant_id` 有值）：`ADMIN_ONLY` agent 直接返回空；仅当 `agent_scope` 为 `ASSIGNED_TENANTS` / `ADMIN_AND_ALL` / `ADMIN_AND_ASSIGNED` 时才查分配表
+- 与 `AgentSkillBindingService._validate_scope()` 保持一致的兼容规则
+
+#### P0 修复（2026-03 审计后落地）
+
+**1. 工具优化器保护机制** (`optimizer.py`)
+
+`optimize_tools()` 在工具数 >6 时按关键词相关性筛选，`get_page_context` 作为基础设施工具与用户消息无关键词关联，会被误删。
+
+修复：新增 `_PROTECTED_TOOL_NAMES` 白名单，保护工具始终保留，优化名额仅用于剩余工具。扩展时只需往 frozenset 加工具名。
+
+**2. `page_data` 大小限制** (`agent_chat.py` + `page_context_executor.py`)
+
+- Schema 层：`PageContext` 添加 `@model_validator` 校验 `page_data` 序列化后 ≤ 4KB（`MAX_PAGE_DATA_BYTES=4096`），超限返回 422
+- Executor 层：输出截断保护 `MAX_OUTPUT_CHARS=6000`，防御绕过 schema 的内部路径
+
+#### 测试覆盖（31 项全通过）
+
+| 测试 | 覆盖点 |
+|------|--------|
+| `test_load_auto_bind_tenant_scope_excludes_assigned_when_all_tenants` | ALL_TENANTS agent 不查 assigned 作用域 |
+| `test_load_auto_bind_admin_scope_only_admin_visible` | ADMIN_ONLY agent 只查管理端可见作用域 |
+| `test_load_auto_bind_returns_empty_for_mismatched_scope` | 不匹配的 scope+tenant_id 组合直接返回空 |
+| `test_conversation_engine_injects_tools_into_gateway` | skill_result.tools → _prepare_execution → _call_llm → gateway.chat(tools=...) 完整链路 |
+
+#### 典型数据流
+
+```text
+前端页面
+  ├── registerPageContext(key, resolver)
+  ├── registerPageOperations(key, operations)  ← 含 handler 回调
+  └── route.meta.ai = { mode, pageContextKey }
+ 
+用户发消息
+  → resolvePageContext() → page_context
+  → POST /chat/stream { page_context, page_session_id }
+  → AgentChatService.chat()
+  → PageContext.normalize_variables()
+  → ExecutionRequest.input_variables["page_context"]
+  → resolve_for_agent()
+  → SkillResolver._resolve_builtin()
+  → to_openai_tools()
+
+Layer 2（上下文读取）:
+  → LLM 调用 get_page_context
+  → ToolSandbox → PageContextExecutor
+  → 返回页面结构化数据
+
+Layer 3（操作执行）:
+  → LLM 调用 invoke_page_operation
+  → ToolSandbox → PageOperationExecutor
+  → invoke_page_operation() 创建 asyncio.Future
+  → Socket.IO emit("page_operation_invoke") → page_session 房间
+  → 前端 PageSessionManager 执行 handler
+  → Socket.IO emit("page_operation_result") 回传
+  → Future resolve → ToolResult 返回给 LLM
 ```
 
 ### RAG 检索 (`rag/retriever.py`)

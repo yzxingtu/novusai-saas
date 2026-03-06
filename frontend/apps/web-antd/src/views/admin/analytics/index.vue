@@ -15,7 +15,9 @@ import type {
  *
  * 集成所有 ECharts 图表 + 日期范围筛选
  */
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { Page } from '@vben/common-ui';
 
@@ -89,6 +91,16 @@ function handleDateChange() {
 onMounted(() => {
   loadAll();
 });
+
+const cleanupPageContext = registerPageContext('admin/analytics', () => ({
+  page_key: 'admin.analytics',
+  page_title: $t('admin.analytics.title'),
+  page_data: {
+    resource: '/admin/analytics',
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

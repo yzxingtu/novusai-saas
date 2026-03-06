@@ -12,7 +12,9 @@ import type {
   ModelDistributionItem,
 } from '#/api/tenant/analytics';
 
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -234,6 +236,19 @@ function renderCharts() {
 
 watch([trendData, modelData], renderCharts);
 onMounted(loadCharts);
+
+const cleanupPageContext = registerPageContext('tenant/ai/usage', () => ({
+  page_key: 'tenant.ai.usage',
+  page_title: $t('tenant.ai.usage.name'),
+  page_data: {
+    resource: '/tenant/ai/usage',
+    total_calls: summary.value?.total_calls ?? 0,
+    total_tokens: summary.value?.total_tokens ?? 0,
+    total_cost: summary.value?.total_cost ?? 0,
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

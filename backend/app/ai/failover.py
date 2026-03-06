@@ -95,9 +95,8 @@ class FailoverService:
             # 防止循环
             if fallback_id in visited:
                 logger.warning(
-                    _("ai.log.failover_circular_detected"),
-                    model_id=current_id,
-                    fallback_id=fallback_id,
+                    "Failover: circular chain detected: model_id=%s fallback_id=%s",
+                    current_id, fallback_id,
                 )
                 return None
 
@@ -112,10 +111,8 @@ class FailoverService:
             # 检查备用模型的供应商是否健康
             if await self.is_provider_healthy(fallback.provider_id):
                 logger.info(
-                    _("ai.log.failover_found"),
-                    original_model_id=model_id,
-                    fallback_model_id=fallback.id,
-                    fallback_name=fallback.name,
+                    "Failover found: original_model=%s fallback_model=%s fallback_name=%s",
+                    model_id, fallback.id, fallback.name,
                 )
                 return fallback
 
@@ -123,9 +120,8 @@ class FailoverService:
             current_id = fallback_id
 
         logger.warning(
-            _("ai.log.failover_no_healthy"),
-            model_id=model_id,
-            max_depth=max_depth,
+            "Failover: no healthy provider found: model_id=%s max_depth=%s",
+            model_id, max_depth,
         )
         return None
 
@@ -191,9 +187,8 @@ class FailoverService:
 
         except (RedisError, json.JSONDecodeError) as e:
             logger.error(
-                _("ai.log.failover_get_history_failed"),
-                provider_id=provider_id,
-                error=str(e),
+                "Failover: get history failed: provider_id=%s error=%s",
+                provider_id, str(e),
             )
             return []
 

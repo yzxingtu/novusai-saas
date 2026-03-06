@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { ConfigGroupListItemMeta, ConfigItemMeta } from '#/types/config';
 
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -161,6 +163,17 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', beforeUnloadHandler);
 });
+
+const cleanupPageContext = registerPageContext('tenant/system/configs', () => ({
+  page_key: 'tenant.system.configs',
+  page_title: t('tenant.system.config.name'),
+  page_data: {
+    resource: '/tenant/system/configs',
+    total_groups: groups.value.length,
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

@@ -19,6 +19,11 @@ import { getPluginSlotsApi } from '#/api/admin/plugin';
 import { getTenantPluginSlotsApi } from '#/api/tenant/plugin';
 import { loadPluginComponents } from '#/utils/plugin-loader';
 
+export interface PluginSlotAI {
+  mode?: 'context_only' | 'disabled' | 'operate';
+  page_context_key?: string;
+}
+
 export interface PluginSlotItem {
   pluginName: string;
   name: string;
@@ -32,6 +37,7 @@ export interface PluginSlotItem {
   position?: string;
   grid?: Record<string, number>;
   event?: string;
+  ai?: PluginSlotAI;
   [key: string]: unknown;
 }
 
@@ -128,6 +134,7 @@ export const usePluginSlotsStore = defineStore('plugin-slots', () => {
             grid: slot.grid,
             event: typeof slot.event === 'string' ? slot.event : slot.name,
             hidden: storeKey === 'standalonePages',
+            ...(slot.ai ? { ai: slot.ai } : {}),
           });
         }
       }

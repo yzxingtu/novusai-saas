@@ -211,6 +211,8 @@ class ExecutionContext:
     db: AsyncSession | None = None
     consented_actions: set[str] = field(default_factory=set)  # "read:agents", "create:agents"
     skill_id: int | None = None
+    variables: dict[str, Any] = field(default_factory=dict)
+    page_session_id: str | None = None
 
     @property
     def is_platform_admin(self) -> bool:

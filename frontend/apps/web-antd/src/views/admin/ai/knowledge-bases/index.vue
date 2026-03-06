@@ -7,7 +7,9 @@ import type {
   KnowledgeBaseGlobalStats,
 } from '#/api/admin/knowledge-bases';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -142,6 +144,19 @@ function onDetailSuccess() {
   loadList();
   loadStats();
 }
+
+const cleanupPageContext = registerPageContext('admin/ai/knowledge-bases', () => ({
+  page_key: 'admin.ai.knowledge-bases',
+  page_title: $t('admin.knowledgeBase.name'),
+  page_data: {
+    resource: '/admin/ai/knowledge-bases',
+    total_knowledge_bases: stats.value?.total_knowledge_bases ?? 0,
+    total_documents: stats.value?.total_documents ?? 0,
+    total_size_bytes: stats.value?.total_size_bytes ?? 0,
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

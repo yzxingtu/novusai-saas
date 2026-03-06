@@ -14,7 +14,9 @@ import type {
  * 集成 ECharts 图表 + 日期范围筛选
  * T9/T10 复用 Admin 端的 AiCallTrendChart / ModelDistributionChart
  */
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { Page } from '@vben/common-ui';
 
@@ -78,6 +80,16 @@ function handleDateChange() {
 onMounted(() => {
   loadAll();
 });
+
+const cleanupPageContext = registerPageContext('tenant/analytics', () => ({
+  page_key: 'tenant.analytics',
+  page_title: $t('tenant.analytics.title'),
+  page_data: {
+    resource: '/tenant/analytics',
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

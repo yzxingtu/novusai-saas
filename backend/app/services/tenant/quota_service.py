@@ -10,6 +10,8 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.configs.service import ConfigService
+from app.core.config import settings
 from app.core.i18n import _
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
@@ -55,6 +57,19 @@ class QuotaService:
         """
         self.db = db
         self.tenant = tenant
+
+    async def _get_domain_suffix(self) -> str:
+        """
+        获取平台域名后缀
+
+        优先从平台配置读取，回退到环境变量
+        """
+        config_svc = ConfigService(self.db)
+        suffix = await config_svc.get_platform_config(
+            "tenant_domain_suffix",
+            default=settings.TENANT_DOMAIN_SUFFIX,
+        )
+        return suffix or settings.TENANT_DOMAIN_SUFFIX
 
     async def _lock_tenant_row(self) -> None:
         """
@@ -283,11 +298,14 @@ class QuotaService:
         # 锁定租户行，防止并发超额
         await self._lock_tenant_row()
 
-        # 统计当前自定义域名数（排除主域名/子域名）
+        # 获取平台域名后缀，用于区分默认域名和自定义域名
+        suffix = await self._get_domain_suffix()
+
+        # 统计当前自定义域名数（排除默认域名，按后缀判断）
         query = select(func.count(TenantDomain.id)).where(
             TenantDomain.tenant_id == self.tenant.id,
             TenantDomain.is_deleted.is_(False),
-            TenantDomain.is_primary.is_(False),  # 仅统计自定义域名
+            ~TenantDomain.domain.endswith(suffix),
         )
         result = await self.db.execute(query)
         current = result.scalar() or 0

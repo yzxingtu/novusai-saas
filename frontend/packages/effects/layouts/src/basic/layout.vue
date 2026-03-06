@@ -36,6 +36,13 @@ import { LayoutTabbar } from './tabbar';
 
 defineOptions({ name: 'BasicLayout' });
 
+const props = withDefaults(
+  defineProps<{
+    panelRightOffset?: number;
+  }>(),
+  { panelRightOffset: 0 },
+);
+
 const emit = defineEmits<{
   clearPreferencesAndLogout: [];
   clickLogo: [];
@@ -256,6 +263,7 @@ const headerSlots = computed(() => {
     :tabbar-enable="preferences.tabbar.enable"
     :tabbar-height="preferences.tabbar.height"
     :z-index="preferences.app.zIndex"
+    :panel-right-offset="props.panelRightOffset"
     @side-mouse-leave="handleSideMouseLeave"
     @toggle-sidebar="toggleSidebar"
     @update:sidebar-collapse="

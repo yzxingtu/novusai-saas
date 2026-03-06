@@ -8,6 +8,8 @@ import json
 from datetime import date, timedelta
 from typing import Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.ai.engine.output_parser import parse_output
 from app.ai.engine.types import ExecutionResult
 from app.ai.tools.types import ToolResult
@@ -18,8 +20,10 @@ from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import ConversationStatusEnum, MessageRoleEnum
 from app.exceptions import BusinessException, NotFoundException
+from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
 from app.repositories.ai.agent_conversation_repository import (
+    AdminAgentConversationRepository,
     AgentConversationRepository,
 )
 from app.repositories.ai.conversation_message_repository import (
@@ -53,11 +57,42 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
     # 详情
     # ========================================
 
+    @classmethod
+    async def get_service_for_conversation(
+        cls,
+        db: AsyncSession,
+        conversation_id: int,
+    ) -> tuple["ConversationService", AgentConversation]:
+        repo = AdminAgentConversationRepository(db)
+        conversation = await repo.get_by_id(conversation_id)
+        if not conversation:
+            raise NotFoundException(
+                message=_("agent_chat.error.conversation_not_found"),
+            )
+        return cls(db, conversation.tenant_id), conversation
+
+    async def get_accessible_conversation(
+        self,
+        conversation_id: int,
+        user_id: int | None = None,
+    ) -> AgentConversation:
+        conversation = await self.repo.get_by_id(conversation_id)
+        if not conversation:
+            raise NotFoundException(
+                message=_("agent_chat.error.conversation_not_found"),
+            )
+        if user_id is not None and conversation.user_id != user_id:
+            raise NotFoundException(
+                message=_("agent_chat.error.conversation_not_found"),
+            )
+        return conversation
+
     async def get_conversation_detail(
         self,
         conversation_id: int,
         message_skip: int = 0,
         message_limit: int = 50,
+        user_id: int | None = None,
     ) -> dict[str, Any]:
         """
         获取对话详情（含分页消息列表）
@@ -70,9 +105,10 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         Returns:
             对话详情字典，含 messages 和 message_count
         """
-        conversation = await self.repo.get_by_id(conversation_id)
-        if not conversation:
-            raise NotFoundException(message=_("conversation.not_found"))
+        conversation = await self.get_accessible_conversation(
+            conversation_id,
+            user_id=user_id,
+        )
 
         # 获取分页消息
         messages = await self.message_repo.get_by_conversation(
@@ -85,7 +121,19 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         )
 
         result = conversation.to_dict()
-        result["message_list"] = [msg.to_dict() for msg in messages]
+        # Enrich messages with agent info for multi-agent avatar display
+        message_list = []
+        for msg in messages:
+            msg_dict = msg.to_dict()
+            agent_obj = getattr(msg, "agent", None)
+            if agent_obj is not None:
+                msg_dict["agent_name"] = agent_obj.name
+                msg_dict["agent_avatar"] = agent_obj.avatar
+            else:
+                msg_dict["agent_name"] = None
+                msg_dict["agent_avatar"] = None
+            message_list.append(msg_dict)
+        result["message_list"] = message_list
         result["message_count"] = message_count
 
         # 提取关联智能体名称
@@ -98,6 +146,44 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             pass
 
         return result
+
+    async def delete_accessible_conversation(
+        self,
+        conversation_id: int,
+        user_id: int | None = None,
+    ) -> None:
+        await self.get_accessible_conversation(
+            conversation_id,
+            user_id=user_id,
+        )
+        await self.delete(conversation_id)
+
+    def _get_memory_tenant_id(self) -> int:
+        return self.tenant_id if self.tenant_id is not None else 0
+
+    async def get_conversation_memory_state(
+        self,
+        conversation_id: int,
+        user_id: int | None = None,
+    ) -> dict[str, Any]:
+        await self.get_accessible_conversation(
+            conversation_id,
+            user_id=user_id,
+        )
+        memory_svc = SessionMemoryService(self._get_memory_tenant_id())
+        return await memory_svc.get_conversation_memory_state(conversation_id)
+
+    async def clear_conversation_memory_state(
+        self,
+        conversation_id: int,
+        user_id: int | None = None,
+    ) -> int:
+        await self.get_accessible_conversation(
+            conversation_id,
+            user_id=user_id,
+        )
+        memory_svc = SessionMemoryService(self._get_memory_tenant_id())
+        return await memory_svc.clear_conversation_memory(conversation_id)
 
     # ========================================
     # 搜索
@@ -167,7 +253,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         })
 
         # 主动清理会话记忆（兜底 TTL 之外的即时清理）
-        memory_svc = SessionMemoryService(self.tenant_id)
+        memory_svc = SessionMemoryService(self._get_memory_tenant_id())
         try:
             await memory_svc.clear_conversation_memory(conversation_id)
         except Exception as exc:
@@ -179,9 +265,8 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             )
 
         logger.info(
-            _("conversation.log.archived"),
-            conversation_id=conversation_id,
-            tenant_id=self.tenant_id,
+            "Conversation archived: conversation_id=%s tenant_id=%s",
+            conversation_id, self.tenant_id,
         )
 
         return updated
@@ -223,7 +308,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             total_count += count
 
             # 批量归档后按 id 清理会话记忆
-            memory_svc = SessionMemoryService(self.tenant_id)
+            memory_svc = SessionMemoryService(self._get_memory_tenant_id())
             for cid in ids:
                 try:
                     await memory_svc.clear_conversation_memory(cid)
@@ -241,11 +326,8 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
         if total_count > 0:
             logger.info(
-                _("conversation.log.batch_archived"),
-                count=total_count,
-                tenant_id=self.tenant_id,
-                agent_id=agent_id,
-                before_days=before_days,
+                "Conversations batch archived: count=%s tenant_id=%s agent_id=%s before_days=%s",
+                total_count, self.tenant_id, agent_id, before_days,
             )
 
         return total_count
@@ -255,7 +337,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         对话删除后清理会话记忆（失败降级，不影响删除主流程）
         """
         await super()._after_delete(id)
-        memory_svc = SessionMemoryService(self.tenant_id)
+        memory_svc = SessionMemoryService(self._get_memory_tenant_id())
         try:
             await memory_svc.clear_conversation_memory(id)
         except Exception as exc:
@@ -345,6 +427,9 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                     "token_count": msg.token_count,
                     "tool_calls": msg.tool_calls,
                     "tool_call_id": msg.tool_call_id,
+                    "agent_id": msg.agent_id,
+                    "agent_name": getattr(getattr(msg, "agent", None), "name", None),
+                    "agent_avatar": getattr(getattr(msg, "agent", None), "avatar", None),
                     "created_at": str(msg.created_at) if msg.created_at else None,
                 }
                 for msg in messages
@@ -370,7 +455,13 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
         for msg in messages:
             label = role_labels.get(msg.role, msg.role)
-            lines.append(f"## {label}")
+            agent_name = getattr(getattr(msg, "agent", None), "name", None)
+            if agent_name:
+                lines.append(f"## {label} ({agent_name})")
+            elif msg.agent_id:
+                lines.append(f"## {label} (#{msg.agent_id})")
+            else:
+                lines.append(f"## {label}")
             lines.append("")
             lines.append(msg.content or "")
             lines.append("")
@@ -420,9 +511,10 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         """
         if conversation_id:
             # 续接已有对话
-            conversation = await self.repo.get_by_id(conversation_id)
-            if not conversation:
-                raise NotFoundException(message=_("agent_chat.error.conversation_not_found"))
+            conversation = await self.get_accessible_conversation(
+                conversation_id,
+                user_id=user_id if self.tenant_id != 0 else None,
+            )
 
             if conversation.status == ConversationStatusEnum.ARCHIVED.value:
                 raise BusinessException(
@@ -569,6 +661,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         conversation: AgentConversation,
         result: ExecutionResult,
         history_count: int,
+        agent_id: int | None = None,
     ) -> list[dict[str, Any]]:
         """
         将执行过程中产生的新消息持久化为 ConversationMessage
@@ -582,6 +675,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             conversation: 对话实例
             result: 执行结果
             history_count: 历史消息数量（用于计算新消息起始位置）
+            agent_id: 智能体 ID（写入 assistant/tool 消息，支持多智能体对话追溯）
 
         Returns:
             收集到的 tool_calls（用于响应）
@@ -637,6 +731,9 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                 if not tr.success and tr.error:
                     metadata["tool_error"] = tr.error
 
+            # assistant/tool 消息关联 agent_id（user/system 不关联）
+            msg_agent_id = agent_id if role in ("assistant", "tool") else None
+
             await self.message_repo.create({
                 "tenant_id": self.tenant_id,
                 "conversation_id": conversation.id,
@@ -646,6 +743,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
                 "token_count": token_estimate,
                 "tool_calls": tool_calls,
                 "tool_call_id": tool_call_id,
+                "agent_id": msg_agent_id,
                 "metadata_": metadata,
             })
 
@@ -658,10 +756,29 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
 
         return tool_calls_collected
 
+    async def mark_memory_updated(self, conversation_id: int) -> None:
+        """
+        标记最后一条 assistant 消息的 metadata 中 memory_updated = true
+
+        在 _persist_session_memory 成功后调用，用于前端加载历史时恢复记忆标记。
+        """
+        messages = await self.message_repo.get_last_n_messages(
+            conversation_id=conversation_id, n=1,
+        )
+        if not messages:
+            return
+        last_msg = messages[-1]
+        if last_msg.role != MessageRoleEnum.ASSISTANT.value:
+            return
+        metadata = dict(last_msg.metadata_ or {})
+        metadata["memory_updated"] = True
+        await self.message_repo.update(last_msg.id, {"metadata_": metadata})
+
     async def update_stats(
         self,
         conversation: AgentConversation,
         result: ExecutionResult,
+        current_agent: Agent | None = None,
     ) -> None:
         """
         更新对话统计信息，并尝试提取输出变量
@@ -679,7 +796,7 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
         }
 
         # 尝试提取输出变量
-        agent = conversation.agent
+        agent = current_agent or conversation.agent
         if agent and agent.output_schema and result.output:
             extracted = parse_output(result.output, agent.output_schema)
             if extracted:

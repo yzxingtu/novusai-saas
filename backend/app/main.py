@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, ORJSONResponse
+from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
@@ -55,7 +55,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info(f"Debug mode: {settings.DEBUG}")
 
         # 初始化数据库（检查/创建数据库 + 运行迁移）
-        await init_database()
+        if not await init_database():
+            raise RuntimeError("Database initialization failed")
         logger.info("Database initialized")
 
         # 提前初始化 Redis（后续启动步骤的分布式锁依赖 Redis）
@@ -451,7 +452,7 @@ def create_application() -> FastAPI:
         docs_url="/docs" if settings.DEBUG else None,
         redoc_url="/redoc" if settings.DEBUG else None,
         openapi_url="/openapi.json" if settings.DEBUG else None,
-        default_response_class=ORJSONResponse,
+        default_response_class=JSONResponse,
         lifespan=lifespan,
     )
 

@@ -4,7 +4,9 @@ import type { AIHealthStatus } from '#/api/admin/ai';
 /**
  * AI 供应商健康状态监控页面 — useCrudList + autoRefresh
  */
-import { computed } from 'vue';
+import { computed, onUnmounted } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -69,6 +71,19 @@ function getBadgeStatus(
 ): 'error' | 'success' | 'warning' {
   return getStatusColor(status) as 'error' | 'success' | 'warning';
 }
+
+const cleanupPageContext = registerPageContext('admin/ai/health', () => ({
+  page_key: 'admin.ai.health',
+  page_title: $t('admin.ai.health.name'),
+  page_data: {
+    resource: '/admin/ai/health',
+    healthy: healthyCount.value,
+    degraded: degradedCount.value,
+    unavailable: unavailableCount.value,
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

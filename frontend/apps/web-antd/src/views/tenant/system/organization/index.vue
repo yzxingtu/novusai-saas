@@ -7,7 +7,9 @@ import type { TenantRoleType } from '#/api/tenant/role';
  */
 import type { OrgTreeNodeData } from '#/components/business/org-tree';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -176,6 +178,16 @@ onMounted(async () => {
   }
   expandAll();
 });
+
+const cleanupPageContext = registerPageContext('tenant/system/organization', () => ({
+  page_key: 'tenant.system.organization',
+  page_title: $t('tenant.system.organization.name'),
+  page_data: {
+    resource: '/tenant/organization',
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

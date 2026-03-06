@@ -9,7 +9,9 @@
  */
 import type { StorageDriverInfo, TenantStorageStatus } from '#/types/storage';
 
-import { computed, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -223,6 +225,17 @@ onActivated(() => {
   }
   loadData();
 });
+
+const cleanupPageContext = registerPageContext('tenant/system/storage', () => ({
+  page_key: 'tenant.system.storage',
+  page_title: $t('tenant.system.storage.name'),
+  page_data: {
+    resource: '/tenant/system/storage',
+    effective_mode: status.value?.effective_mode ?? 'unknown',
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

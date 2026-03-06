@@ -126,11 +126,8 @@ class TenantRateLimitService(TenantService[TenantModelRateLimit, TenantModelRate
         rate_limit = await self.create(data)
 
         logger.info(
-            _("ai.log.rate_limit_created"),
-            tenant_id=self.tenant_id,
-            model_id=model_id,
-            rpm_limit=rpm_limit,
-            tpm_limit=tpm_limit,
+            "Rate limit created: tenant_id=%s model_id=%s rpm_limit=%s tpm_limit=%s",
+            self.tenant_id, model_id, rpm_limit, tpm_limit,
         )
 
         return rate_limit

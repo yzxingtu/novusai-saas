@@ -154,7 +154,9 @@
       "uploadRequired": "请填写证书和私钥内容",
       "deleteTitle": "删除证书",
       "deleteConfirm": "确定要删除此域名的 SSL 证书吗？",
-      "deleteSuccess": "证书已删除"
+      "deleteSuccess": "证书已删除",
+      "platformWildcard": "平台通配符 SSL 证书已覆盖",
+      "platformWildcardDesc": "默认域名由平台通配符 SSL 证书自动保护，无需单独配置"
     },
     "messages": {
       "addSuccess": "域名添加成功",

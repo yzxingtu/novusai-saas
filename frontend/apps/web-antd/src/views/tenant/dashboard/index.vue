@@ -14,8 +14,11 @@ import type {
   TenantDashboardStats,
 } from '#/api/tenant/dashboard';
 
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { IconifyIcon } from '@vben/icons';
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
@@ -235,6 +238,35 @@ const quickActions = computed(() => [
 function navigateTo(route: string) {
   router.push(route);
 }
+
+const cleanupPageOps = registerPageOperations('tenant.dashboard', [
+  {
+    name: 'refresh_dashboard',
+    label: $t('shared.pageOperation.refreshDashboard'),
+    description: 'Reload all dashboard statistics and charts',
+    readonly: true,
+    handler: async () => {
+      await loadAll();
+      return { success: true, message: 'Dashboard refreshed successfully' };
+    },
+  },
+]);
+
+const cleanupPageContext = registerPageContext('tenant/dashboard', () => ({
+  page_key: 'tenant.dashboard',
+  page_title: $t('tenant.dashboard.title'),
+  page_data: {
+    resource: '/tenant/dashboard',
+    api_calls: stats.value?.api_calls ?? 0,
+    storage_used_mb: stats.value?.storage_used_mb ?? 0,
+    total_tokens: stats.value?.total_tokens ?? 0,
+  },
+}));
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

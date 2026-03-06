@@ -22,6 +22,7 @@ from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
 from app.enums.agent import SkillTypeEnum, ToolTypeEnum
+from app.enums.common import ResourceScopeEnum
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -925,15 +926,23 @@ async def _load_auto_bind_packages(
     from app.enums.common import SkillBindModeEnum
     from app.models.ai.skill_package import SkillPackage
 
-    # 基础条件：bind_mode=auto + is_active + not deleted
+    # 基础条件：bind_mode=auto + is_active + not deleted + 系统级包
     base_conditions = [
         SkillPackage.bind_mode == SkillBindModeEnum.AUTO.value,
         SkillPackage.is_active.is_(True),
         SkillPackage.is_deleted.is_(False),
+        SkillPackage.tenant_id.is_(None),
     ]
 
-    if not tenant_id:
-        # 无租户上下文（管理端调用）→ 获取所有管理端可见的 auto 包
+    if tenant_id is None:
+        # 管理端调用 → agent_scope 必须是管理端相关作用域
+        if agent_scope not in (
+            ResourceScopeEnum.ADMIN_ONLY.value,
+            ResourceScopeEnum.ADMIN_AND_ALL.value,
+            ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+        ):
+            return []
+
         admin_scopes = ScopeChecker.get_admin_visible_scopes()
         stmt = (
             select(SkillPackage)
@@ -941,12 +950,19 @@ async def _load_auto_bind_packages(
             .order_by(SkillPackage.sort_order)
         )
     else:
-        # tenant agent → 获取 all_tenants + admin_and_all 的 auto 包
+        # 租户端调用 → admin_only agent 不应加载租户侧 auto 包
+        if agent_scope == ResourceScopeEnum.ADMIN_ONLY.value:
+            return []
+
         all_tenant_scopes = ScopeChecker.get_all_tenants_visible_scopes()
         scope_conditions = [SkillPackage.scope.in_(all_tenant_scopes)]
 
-        # 加上 assigned_tenants / admin_and_assigned 中在分配表里的包
-        if tenant_id:
+        # 仅当 agent_scope 需要分配表时才查 assigned 作用域
+        if agent_scope in (
+            ResourceScopeEnum.ASSIGNED_TENANTS.value,
+            ResourceScopeEnum.ADMIN_AND_ALL.value,
+            ResourceScopeEnum.ADMIN_AND_ASSIGNED.value,
+        ):
             from app.models.system.resource_tenant_assignment import (
                 ResourceTenantAssignment,
             )

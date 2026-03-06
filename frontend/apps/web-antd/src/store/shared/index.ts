@@ -3,7 +3,7 @@
  * 包含多端共享的状态管理
  */
 
-export * from './global-ai-chat';
+export * from './ai-panel';
 export * from './multi-auth';
 export * from './notification';
 export * from './presence';

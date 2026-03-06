@@ -4,7 +4,10 @@
  */
 import type { TenantAICallLogInfo } from '#/api/tenant/ai';
 
-import { ref } from 'vue';
+import { onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -48,7 +51,7 @@ function applyQuickFilter(filter: 'all' | 'failed' | 'success') {
   gridApi.reload();
 }
 
-const { Grid, gridApi } = useCrudPage<TenantAICallLogInfo>({
+const { Grid, gridApi, onRefresh } = useCrudPage<TenantAICallLogInfo>({
   api: {
     list: getTenantAICallLogListApi,
     resource: '/tenant/ai/call-logs',
@@ -60,6 +63,32 @@ const { Grid, gridApi } = useCrudPage<TenantAICallLogInfo>({
   customActions: {
     detail: onViewDetail,
   },
+});
+
+const cleanupPageContext = registerPageContext('tenant/ai/call-logs', () => ({
+  page_key: 'tenant.ai.call-logs',
+  page_title: $t('tenant.ai.callLog.name'),
+  page_data: {
+    resource: '/tenant/ai/call-logs',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('tenant.ai.call-logs', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the call log list',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'Call log list refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

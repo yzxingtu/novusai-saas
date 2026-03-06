@@ -4,7 +4,9 @@
  */
 import type { TenantAIModelInfo } from '#/api/tenant/ai';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -59,6 +61,17 @@ function onSearch() {
 }
 
 onMounted(loadModels);
+
+const cleanupPageContext = registerPageContext('tenant/ai/models', () => ({
+  page_key: 'tenant.ai.models',
+  page_title: $t('tenant.ai.model.name'),
+  page_data: {
+    resource: '/tenant/ai/models',
+    total: models.value.length,
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

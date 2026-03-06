@@ -313,8 +313,12 @@ class OpenAIAdapter(BaseAdapter):
         choice = chunk.choices[0]
         delta = choice.delta
 
-        # 提取增量内容
+        # 提取增量内容（兼容 reasoning_content，部分中转模型使用此字段）
         delta_content = delta.content or ""
+        if not delta_content:
+            reasoning = getattr(delta, "reasoning_content", None)
+            if reasoning:
+                delta_content = reasoning
 
         # 提取 Token 使用量（最后一个块包含）
         usage = chunk.usage

@@ -29,3 +29,6 @@ export {
   type UploadResult,
   useFileUpload,
 } from './use-file-upload';
+
+export { useAIPermission } from './use-ai-permission';
+export { useCurrentPageAIPolicy } from './use-ai-page-policy';

@@ -18,7 +18,6 @@ from app.enums.agent import (
 )
 from app.enums.common import UserRoleEnum
 from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException
 from app.rbac.decorators import (
     MenuConfig,
     action_create,
@@ -27,11 +26,15 @@ from app.rbac.decorators import (
     permission_resource,
 )
 from app.rbac.services.permission_service import PermissionService
-from app.schemas.ai.agent_chat import AgentChatRequest, AgentConfirmRequest
+from app.schemas.ai.agent_chat import (
+    AgentChatRequest,
+    AgentConfirmRequest,
+    AgentRouteRequest,
+    AgentRouteResponse,
+)
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.agent_service import AgentService
 from app.services.ai.conversation_service import ConversationService
-from app.services.ai.session_memory_service import SessionMemoryService
 
 
 @permission_resource(
@@ -41,9 +44,9 @@ from app.services.ai.session_memory_service import SessionMemoryService
     menu=MenuConfig(
         icon="lucide:message-square",
         path="/ai/chat",
-        component="ai/chat/index",
         parent="ai_workspace",
         sort_order=20,
+        hidden=True,
     ),
 )
 class TenantAgentChatController(TenantController):
@@ -109,6 +112,7 @@ class TenantAgentChatController(TenantController):
                 message=data.message,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
+                page_context=data.page_context,
                 user_id=tenant_admin.id,
                 knowledge_base_ids=data.knowledge_base_ids,
                 user_role=UserRoleEnum.TENANT_ADMIN.value,
@@ -118,6 +122,7 @@ class TenantAgentChatController(TenantController):
                 memory_scene=MemorySceneEnum.AI_CHAT_PAGE.value,
                 memory_channel=MemoryChannelEnum.TENANT_CHAT.value,
                 memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
+                page_session_id=data.page_session_id,
             )
 
             return success(data=result.model_dump())
@@ -153,6 +158,7 @@ class TenantAgentChatController(TenantController):
                 message=data.message,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
+                page_context=data.page_context,
                 user_id=tenant_admin.id,
                 knowledge_base_ids=data.knowledge_base_ids,
                 user_role=UserRoleEnum.TENANT_ADMIN.value,
@@ -163,7 +169,48 @@ class TenantAgentChatController(TenantController):
                 memory_scene=MemorySceneEnum.AI_CHAT_PAGE.value,
                 memory_channel=MemoryChannelEnum.TENANT_CHAT.value,
                 memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
+                page_session_id=data.page_session_id,
             )
+
+        # ========================================
+        # 智能路由
+        # ========================================
+
+        @router.post("/route", summary="智能体路由", response_model=None)
+        @action_create("action.agent_chat.route")
+        async def route_agent(
+            request: Request,
+            db: DbSession,
+            data: AgentRouteRequest,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            根据消息和页面上下文智能选择目标智能体
+
+            路由优先级:
+            1. pinned_agent_id 直通
+            2. Router 智能体 AI 选择
+            3. default_chat 降级
+
+            权限: agent_chat:route
+            """
+            from app.services.ai.agent_router_service import AgentRouterService
+
+            router_svc = AgentRouterService(db)
+            result = await router_svc.route(
+                tenant_id=tenant_admin.tenant_id,
+                message=data.message,
+                is_admin_context=False,
+                page_context=data.page_context.model_dump() if data.page_context else None,
+                pinned_agent_id=data.pinned_agent_id,
+            )
+
+            return success(data=AgentRouteResponse(
+                agent_id=result.agent_id,
+                agent_name=result.agent_name,
+                confidence=result.confidence,
+                routed_by=result.routed_by,
+            ).model_dump())
 
         # ========================================
         # 操作确认
@@ -208,49 +255,56 @@ class TenantAgentChatController(TenantController):
         # 对话管理
         # ========================================
 
-        @router.get("/{agent_id}/conversations", summary="获取 AI 对话列表")
+        @router.get("/conversations", summary="获取全局 AI 对话列表")
         @action_read("action.agent_chat.conversations")
-        async def list_conversations(
+        async def list_all_conversations(
             request: Request,
             db: DbSession,
-            agent_id: int,
             tenant_admin: ActiveTenantAdmin,
             query: QueryParams,
         ):
             """
-            获取指定智能体的对话列表
+            获取当前用户所有智能体的对话列表
 
-            支持 JSON:API 分页、筛选、排序
+            用于 AI 面板的全局历史侧边栏，包含 agent_name 和 agent_avatar。
 
             权限: agent_chat:conversations
             """
             service = ConversationService(db, tenant_admin.tenant_id)
             from app.schemas.common.query import FilterRule
             forced = [
-                FilterRule(field="agent_id", operator="eq", value=agent_id),
                 FilterRule(field="user_id", operator="eq", value=tenant_admin.id),
             ]
             items, total = await service.query_list(
                 spec=query,
                 forced_filters=forced,
             )
-
+            conv_list = []
+            for item in items:
+                d = item.to_dict()
+                agent_obj = getattr(item, "agent", None)
+                if agent_obj is not None:
+                    d["agent_name"] = agent_obj.name
+                    d["agent_avatar"] = agent_obj.avatar
+                else:
+                    d["agent_name"] = None
+                    d["agent_avatar"] = None
+                conv_list.append(d)
             return paginated(
-                items=[item.to_dict() for item in items],
+                items=conv_list,
                 total=total,
                 page=query.page,
                 page_size=query.size,
             )
 
         @router.get(
-            "/{agent_id}/conversations/{conversation_id}",
+            "/conversations/{conversation_id}",
             summary="获取对话详情",
         )
         @action_read("action.agent_chat.conversation_detail")
         async def get_conversation_detail(
             request: Request,
             db: DbSession,
-            agent_id: int,
             conversation_id: int,
             tenant_admin: ActiveTenantAdmin,
         ):
@@ -260,28 +314,20 @@ class TenantAgentChatController(TenantController):
             权限: agent_chat:conversation_detail
             """
             service = ConversationService(db, tenant_admin.tenant_id)
-            conversation = await service.get_by_id(conversation_id)
-            if (
-                not conversation
-                or conversation.agent_id != agent_id
-                or conversation.user_id != tenant_admin.id
-            ):
-                raise NotFoundException(
-                    message=_("agent_chat.error.conversation_not_found"),
-                )
-            result = await service.get_conversation_detail(conversation_id)
-
+            result = await service.get_conversation_detail(
+                conversation_id,
+                user_id=tenant_admin.id,
+            )
             return success(data=result)
 
         @router.delete(
-            "/{agent_id}/conversations/{conversation_id}",
+            "/conversations/{conversation_id}",
             summary="删除对话",
         )
         @action_delete("action.agent_chat.delete_conversation")
         async def delete_conversation(
             request: Request,
             db: DbSession,
-            agent_id: int,
             conversation_id: int,
             tenant_admin: ActiveTenantAdmin,
         ):
@@ -291,31 +337,42 @@ class TenantAgentChatController(TenantController):
             权限: agent_chat:delete_conversation
             """
             service = ConversationService(db, tenant_admin.tenant_id)
-
-            conversation = await service.get_by_id(conversation_id)
-            if (
-                not conversation
-                or conversation.agent_id != agent_id
-                or conversation.user_id != tenant_admin.id
-            ):
-                raise NotFoundException(
-                    message=_("agent_chat.error.conversation_not_found"),
-                )
-
-            await service.delete(conversation_id)
+            await service.delete_accessible_conversation(
+                conversation_id,
+                user_id=tenant_admin.id,
+            )
             await db.commit()
-
             return deleted(message=_("agent_chat.conversation_deleted"))
 
+        @router.get(
+            "/conversations/{conversation_id}/memory-state",
+            summary="获取本会话记忆状态",
+        )
+        @action_read("action.agent_chat.read_conversation")
+        async def get_conversation_memory(
+            request: Request,
+            db: DbSession,
+            conversation_id: int,
+            tenant_admin: ActiveTenantAdmin,
+        ):
+            """
+            获取当前会话的记忆状态（偏好/约束/任务/事实）
+            """
+            service = ConversationService(db, tenant_admin.tenant_id)
+            state = await service.get_conversation_memory_state(
+                conversation_id,
+                user_id=tenant_admin.id,
+            )
+            return success(data=state)
+
         @router.delete(
-            "/{agent_id}/conversations/{conversation_id}/memory-state",
+            "/conversations/{conversation_id}/memory-state",
             summary="清空本会话记忆",
         )
         @action_delete("action.agent_chat.delete_conversation")
         async def clear_conversation_memory(
             request: Request,
             db: DbSession,
-            agent_id: int,
             conversation_id: int,
             tenant_admin: ActiveTenantAdmin,
         ):
@@ -323,19 +380,11 @@ class TenantAgentChatController(TenantController):
             清空当前会话的记忆状态（仅当前租户当前用户）
             """
             service = ConversationService(db, tenant_admin.tenant_id)
-            conversation = await service.get_by_id(conversation_id)
-            if (
-                not conversation
-                or conversation.agent_id != agent_id
-                or conversation.user_id != tenant_admin.id
-            ):
-                raise NotFoundException(
-                    message=_("agent_chat.error.conversation_not_found"),
-                )
-
-            memory_svc = SessionMemoryService(tenant_admin.tenant_id)
-            deleted_count = await memory_svc.clear_conversation_memory(conversation_id)
-            return success(data={"deleted_count": deleted_count}, message=_("agent_chat.conversation_deleted"))
+            deleted_count = await service.clear_conversation_memory_state(
+                conversation_id,
+                user_id=tenant_admin.id,
+            )
+            return success(data={"deleted_count": deleted_count}, message=_("agent_chat.memory_cleared"))
 
 
 # 导出路由器

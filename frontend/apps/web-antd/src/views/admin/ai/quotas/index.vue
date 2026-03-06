@@ -4,7 +4,9 @@
  */
 import type { AIQuotaInfo, AIRateLimitInfo } from '#/api/admin/ai';
 
-import { ref } from 'vue';
+import { onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -103,6 +105,17 @@ const {
     edit: (row) => rateLimitFormRef.value?.openEdit(row as AIRateLimitInfo),
   },
 });
+
+const cleanupPageContext = registerPageContext('admin/ai/quotas', () => ({
+  page_key: 'admin.ai.quotas',
+  page_title: $t('admin.ai.quota.name'),
+  page_data: {
+    resource: '/admin/ai/quotas',
+    total_quotas: quotaTotal.value,
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

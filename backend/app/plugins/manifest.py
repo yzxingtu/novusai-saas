@@ -5,6 +5,7 @@
 """
 
 import re
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -382,6 +383,19 @@ class FloatingPanelSchema(BaseModel):
     position: str = "bottom-right"
 
 
+class StandalonePageAISchema(BaseModel):
+    """独立页面 AI 元信息（可选）"""
+
+    mode: Literal["disabled", "context_only", "operate"] = Field(
+        "context_only",
+        description="AI 模式：disabled / context_only / operate",
+    )
+    page_context_key: str | None = Field(
+        None,
+        description="页面上下文注册表 key（用于 resolvePageContext 精确匹配）",
+    )
+
+
 class StandalonePageSchema(BaseModel):
     """独立页面扩展"""
 
@@ -389,6 +403,10 @@ class StandalonePageSchema(BaseModel):
     path: str
     component: str
     title: I18nText = Field(default_factory=dict)
+    ai: StandalonePageAISchema | None = Field(
+        None,
+        description="页面级 AI 策略（未声明时走宿主默认策略）",
+    )
 
     @field_validator("path")
     @classmethod

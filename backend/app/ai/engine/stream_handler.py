@@ -56,7 +56,7 @@ class StreamExecutionHandler:
         request: ExecutionRequest,
         prep: PreparedExecution,
         start_time: float,
-        on_complete: Callable[[ExecutionResult], Awaitable[None]] | None = None,
+        on_complete: Callable[[ExecutionResult], Awaitable[dict[str, Any] | None]] | None = None,
     ):
         self.engine = engine
         self.agent = agent
@@ -76,17 +76,17 @@ class StreamExecutionHandler:
         _optimize_event = self.prep.optimize_event
         _tool_consent_modes = self.prep.tool_consent_modes
 
-        processor = ToolCallProcessor(
-            sandbox=self.engine.sandbox,
-            tools=tools,
-            consent_modes=_tool_consent_modes,
-        )
-
         total_tokens = 0
         all_tool_results: list[ToolResult] = []
         output = ""
 
         try:
+            processor = ToolCallProcessor(
+                sandbox=self.engine.sandbox,
+                tools=tools,
+                consent_modes=_tool_consent_modes,
+            )
+
             # 推送工具优化事件
             if _optimize_event is not None:
                 yield SSEChunkEncoder.encode(
@@ -146,18 +146,9 @@ class StreamExecutionHandler:
                     "sources": rag_sources,
                 })
 
-            # ---- 发送完成事件 ----
+            # ---- 构建结果并调用回调（在 done 事件之前） ----
             duration_ms = int((time.perf_counter() - self.start_time) * 1000)
 
-            yield SSEChunkEncoder.encode({
-                "event": "done",
-                "conversation_id": self.request.conversation_id,
-                "total_tokens": total_tokens,
-                "duration_ms": duration_ms,
-            })
-            yield SSEChunkEncoder.done()
-
-            # 构建结果并调用回调
             result = ExecutionResult(
                 success=True,
                 output=output,
@@ -168,8 +159,24 @@ class StreamExecutionHandler:
                 conversation_id=self.request.conversation_id,
             )
 
+            extra_done_data: dict[str, Any] = {}
             if self.on_complete:
-                await self.on_complete(result)
+                try:
+                    cb_result = await self.on_complete(result)
+                    if isinstance(cb_result, dict):
+                        extra_done_data = cb_result
+                except Exception as cb_exc:
+                    logger.error("on_complete callback error: %s", str(cb_exc))
+
+            # ---- 发送完成事件（含回调返回的额外数据） ----
+            yield SSEChunkEncoder.encode({
+                "event": "done",
+                "conversation_id": self.request.conversation_id,
+                "total_tokens": total_tokens,
+                "duration_ms": duration_ms,
+                **extra_done_data,
+            })
+            yield SSEChunkEncoder.done()
 
         except Exception as exc:
             logger.error(

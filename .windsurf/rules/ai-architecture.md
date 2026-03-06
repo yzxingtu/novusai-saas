@@ -69,7 +69,15 @@
 
 **禁止跳过步骤直接调用 AIGateway。**
 
-## 七、上传与存储规则
+## 七、页面感知与操作规则
+
+- 三层架构：Layer 1（system prompt 注入）+ Layer 2（`get_page_context` 工具）+ Layer 3（`invoke_page_operation` WebSocket 执行）
+- `_PROTECTED_TOOL_NAMES` 白名单保护页面感知/操作工具不被优化器过滤
+- `readonly=false` 操作必须前端用户确认后才执行
+- 操作超时 30s，超时后自动清理 asyncio.Future
+- 新增页面操作时必须通过 `registerPageOperations()` 注册，禁止绕过注册表直接执行
+
+## 八、上传与存储规则
 
 **所有文件上传必须通过附件系统（Attachment）完成，禁止自建上传逻辑。**
 

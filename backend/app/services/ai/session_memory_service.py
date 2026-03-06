@@ -370,6 +370,69 @@ class SessionMemoryService:
         )
         return final_state
 
+    async def get_conversation_memory_state(
+        self, conversation_id: int,
+    ) -> dict[str, Any]:
+        """
+        Read all memory state for a conversation (across all channels/sources).
+
+        Returns merged state dict with preferences/constraints/task_states/verified_facts.
+        """
+        redis = self._get_redis_safe()
+        if redis is None:
+            return {
+                "preferences": [],
+                "constraints": [],
+                "task_states": [],
+                "verified_facts": [],
+                "version": 0,
+                "updated_at": 0,
+            }
+
+        pattern = session_memory_conversation_pattern(self.tenant_id, conversation_id)
+        cursor = 0
+        merged: dict[str, Any] = {
+            "preferences": [],
+            "constraints": [],
+            "task_states": [],
+            "verified_facts": [],
+            "version": 0,
+            "updated_at": 0,
+        }
+
+        while True:
+            cursor, keys = await redis.scan(cursor=cursor, match=pattern, count=200)
+            for key in keys:
+                raw = await redis.get(key)
+                if not raw:
+                    continue
+                try:
+                    state = json.loads(raw)
+                    if not isinstance(state, dict):
+                        continue
+                    for field in ("preferences", "constraints", "task_states", "verified_facts"):
+                        merged[field] = self._merge_list(
+                            merged[field], state.get(field, []),
+                        )
+                    merged["version"] = max(
+                        merged["version"], int(state.get("version", 0)),
+                    )
+                    merged["updated_at"] = max(
+                        merged["updated_at"], int(state.get("updated_at", 0)),
+                    )
+                except (json.JSONDecodeError, ValueError):
+                    logger.warning("Invalid session memory payload, skip: key=%s", key)
+            if cursor == 0:
+                break
+
+        logger.info(
+            "Session memory state fetched: tenant=%s conversation=%s version=%s",
+            self.tenant_id,
+            conversation_id,
+            merged["version"],
+        )
+        return merged
+
     async def clear_conversation_memory(self, conversation_id: int) -> int:
         """
         清理当前 tenant 下指定 conversation 的所有会话记忆 key

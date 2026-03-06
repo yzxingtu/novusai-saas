@@ -4,7 +4,9 @@
  */
 import type { TenantAIApiKeyInfo } from '#/api/tenant/ai';
 
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { IconifyIcon, Plus } from '@vben/icons';
 
@@ -77,6 +79,17 @@ async function handleDelete(key: TenantAIApiKeyInfo) {
 }
 
 onMounted(loadKeys);
+
+const cleanupPageContext = registerPageContext('tenant/ai/api-keys', () => ({
+  page_key: 'tenant.ai.api-keys',
+  page_title: $t('tenant.ai.apiKey.name'),
+  page_data: {
+    resource: '/tenant/ai/api-keys',
+    total: keys.value.length,
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

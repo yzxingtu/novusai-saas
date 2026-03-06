@@ -12,8 +12,9 @@ import type {
   AIAgentMemoryConfig,
   AIAgentSkillBindingInfo,
 } from '#/api/admin/ai';
+import type { AdminSkillInfo } from '#/api/admin/skills';
 
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
@@ -32,6 +33,7 @@ import {
   Tabs,
   Tag,
   Textarea,
+  Upload,
 } from 'ant-design-vue';
 
 import {
@@ -45,7 +47,14 @@ import {
   updateAIAgentMemoryConfigApi,
   updateAIAgentSkillBindingApi,
 } from '#/api/admin/ai';
+import { smartUploadFile } from '#/api/admin/attachment';
+import { getSkillPackageSkillsApi } from '#/api/admin/skill-packages';
 import { $t } from '#/locales';
+import { toAvatarDisplayUrl } from '#/utils/image';
+import {
+  getSkillTypeColor,
+  getSkillTypeIcon,
+} from '#/utils/ai-helpers';
 import { getScopeIcon, getScopeText } from '#/utils/scope-helpers';
 
 import {
@@ -156,6 +165,66 @@ async function saveFields(fields: Record<string, unknown>) {
     message.error($t('common.saveFailed'));
   } finally {
     saving.value = false;
+  }
+}
+
+// ==================== Avatar Upload ====================
+const avatarUploading = ref(false);
+
+const avatarDisplayUrl = computed(() => {
+  const val = agent.value?.avatar;
+  return val ? toAvatarDisplayUrl(val) : '';
+});
+
+const avatarInitial = computed(() =>
+  (agent.value?.name || '?').charAt(0).toUpperCase(),
+);
+
+function beforeAvatarUpload(file: File) {
+  const isImage = file.type.startsWith('image/');
+  if (!isImage) {
+    message.error($t('admin.profile.messages.avatarTypeError'));
+    return false;
+  }
+  const isLt2M = file.size / 1024 / 1024 < 2;
+  if (!isLt2M) {
+    message.error($t('admin.profile.messages.avatarSizeError'));
+    return false;
+  }
+  handleAvatarUpload(file);
+  return false;
+}
+
+async function handleAvatarUpload(file: File) {
+  if (!agent.value) return;
+  avatarUploading.value = true;
+  try {
+    const result = await smartUploadFile({
+      file,
+      visibility: 'public',
+      business_type: 'avatar',
+    });
+    const attachmentId = String(result.attachment?.id || '');
+    if (!attachmentId) throw new Error('Upload failed');
+    agent.value = await updateAIAgentApi(agentId.value, { avatar: attachmentId });
+    message.success($t('admin.ai.agent.detail.saveSuccess'));
+  } catch {
+    message.error($t('shared.common.uploadFailed'));
+  } finally {
+    avatarUploading.value = false;
+  }
+}
+
+async function removeAvatar() {
+  if (!agent.value) return;
+  avatarUploading.value = true;
+  try {
+    agent.value = await updateAIAgentApi(agentId.value, { avatar: null });
+    message.success($t('admin.ai.agent.detail.saveSuccess'));
+  } catch {
+    message.error($t('common.saveFailed'));
+  } finally {
+    avatarUploading.value = false;
   }
 }
 
@@ -340,6 +409,43 @@ const consentModeOptions = [
   { label: $t('admin.ai.agent.consentModeOptions.ask'), value: 'ask' },
   { label: $t('admin.ai.agent.consentModeOptions.reject'), value: 'reject' },
 ];
+
+// ==================== Package Skills Expansion ====================
+const expandedPackages = reactive(new Set<number>());
+const packageSkills = reactive(new Map<number, AdminSkillInfo[]>());
+const packageSkillsLoading = reactive(new Set<number>());
+
+function getSkillTypeText(type: string | undefined): string {
+  if (!type) return '-';
+  const key = `admin.ai.skill.type_options.${type}`;
+  const text = $t(key);
+  if (text === key) {
+    return type
+      .replaceAll('_', ' ')
+      .replaceAll(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return text;
+}
+
+async function togglePackageSkills(packageId: number) {
+  if (expandedPackages.has(packageId)) {
+    expandedPackages.delete(packageId);
+    return;
+  }
+  expandedPackages.add(packageId);
+  if (packageSkills.has(packageId)) return;
+  packageSkillsLoading.add(packageId);
+  try {
+    const res = await getSkillPackageSkillsApi(packageId, {
+      'page[size]': 100,
+    });
+    packageSkills.set(packageId, res.items || []);
+  } catch {
+    packageSkills.set(packageId, []);
+  } finally {
+    packageSkillsLoading.delete(packageId);
+  }
+}
 
 // ==================== Quota Tab ====================
 const quotaConversationsPerDay = ref<number | undefined>(undefined);
@@ -546,22 +652,49 @@ function onTabChange(key: number | string) {
 
             <!-- Identity block -->
             <div class="flex items-start gap-5">
-              <div
-                class="flex size-16 shrink-0 items-center justify-center rounded-2xl text-2xl font-bold shadow-sm ring-2 ring-offset-2 ring-offset-card"
-                :class="
-                  agent.is_system
-                    ? 'bg-amber-500/15 text-amber-600 ring-amber-400/30 dark:text-amber-400'
-                    : 'bg-primary/10 text-primary ring-primary/20'
-                "
-              >
-                <IconifyIcon
-                  v-if="agent.is_system"
-                  icon="lucide:shield-check"
-                  class="size-7"
-                />
-                <span v-else>{{
-                  (agent.name || '?').charAt(0).toUpperCase()
-                }}</span>
+              <!-- Avatar with upload overlay -->
+              <div class="group relative shrink-0">
+                <Upload
+                  :show-upload-list="false"
+                  :before-upload="beforeAvatarUpload"
+                  accept="image/*"
+                >
+                  <div
+                    class="relative flex size-16 cursor-pointer items-center justify-center overflow-hidden rounded-2xl text-2xl font-bold shadow-sm ring-2 ring-offset-2 ring-offset-card"
+                    :class="
+                      agent.is_system
+                        ? 'bg-amber-500/15 text-amber-600 ring-amber-400/30 dark:text-amber-400'
+                        : 'bg-primary/10 text-primary ring-primary/20'
+                    "
+                  >
+                    <img
+                      v-if="avatarDisplayUrl"
+                      :src="avatarDisplayUrl"
+                      :alt="agent.name"
+                      class="size-full object-cover"
+                    />
+                    <span v-else>{{ avatarInitial }}</span>
+                    <!-- Upload overlay -->
+                    <div
+                      class="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/40 opacity-0 transition-all group-hover:opacity-100"
+                    >
+                      <Spin v-if="avatarUploading" size="small" />
+                      <IconifyIcon
+                        v-else
+                        icon="lucide:camera"
+                        class="size-5 text-white"
+                      />
+                    </div>
+                  </div>
+                </Upload>
+                <!-- Remove avatar button -->
+                <button
+                  v-if="avatarDisplayUrl && !avatarUploading"
+                  class="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-destructive text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+                  @click.stop="removeAvatar"
+                >
+                  <IconifyIcon icon="lucide:x" class="size-3" />
+                </button>
               </div>
 
               <div class="min-w-0 flex-1">
@@ -1092,31 +1225,107 @@ function onTabChange(key: number | string) {
                         <div
                           v-for="b in autoBindings"
                           :key="`auto-${b.package_id}`"
-                          class="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 px-4 py-3"
+                          class="overflow-hidden rounded-xl border border-primary/20 bg-primary/5"
                         >
-                          <div class="flex items-center gap-3">
-                            <IconifyIcon
-                              icon="lucide:lock"
-                              class="size-4 text-primary/50"
-                            />
-                            <span class="text-sm font-medium">{{
-                              b.package_name || `#${b.package_id}`
-                            }}</span>
-                            <Tag
-                              v-if="b.package_is_system"
-                              color="red"
-                              class="!text-[10px]"
-                            >
-                              {{ $t('admin.ai.skillPackage.system') }}
-                            </Tag>
+                          <div
+                            class="flex cursor-pointer items-center justify-between px-4 py-3"
+                            @click="togglePackageSkills(b.package_id)"
+                          >
+                            <div class="flex items-center gap-3">
+                              <IconifyIcon
+                                icon="lucide:lock"
+                                class="size-4 text-primary/50"
+                              />
+                              <span class="text-sm font-medium">{{
+                                b.package_name || `#${b.package_id}`
+                              }}</span>
+                              <Tag
+                                v-if="b.package_is_system"
+                                color="red"
+                                class="!text-[10px]"
+                              >
+                                {{ $t('admin.ai.skillPackage.system') }}
+                              </Tag>
+                            </div>
+                            <div class="flex items-center gap-2">
+                              <Tag color="blue" class="!text-[10px]">
+                                <IconifyIcon
+                                  icon="lucide:zap"
+                                  class="mr-0.5 inline size-3"
+                                />
+                                {{ $t('common.bindMode.auto') }}
+                              </Tag>
+                              <IconifyIcon
+                                :icon="
+                                  expandedPackages.has(b.package_id)
+                                    ? 'lucide:chevron-up'
+                                    : 'lucide:chevron-down'
+                                "
+                                class="size-4 text-muted-foreground transition-transform"
+                              />
+                            </div>
                           </div>
-                          <Tag color="blue" class="!text-[10px]">
-                            <IconifyIcon
-                              icon="lucide:zap"
-                              class="mr-0.5 inline size-3"
+                          <!-- Skills list -->
+                          <div
+                            v-if="expandedPackages.has(b.package_id)"
+                            class="border-t border-primary/10 bg-background/50 px-4 py-2"
+                          >
+                            <Spin
+                              v-if="packageSkillsLoading.has(b.package_id)"
+                              size="small"
+                              class="flex justify-center py-3"
                             />
-                            {{ $t('common.bindMode.auto') }}
-                          </Tag>
+                            <div
+                              v-else-if="
+                                packageSkills.get(b.package_id)?.length === 0
+                              "
+                              class="py-3 text-center text-xs text-muted-foreground"
+                            >
+                              {{ $t('admin.ai.agent.detail.noSkills') }}
+                            </div>
+                            <div v-else class="flex flex-col gap-1">
+                              <div
+                                v-for="skill in packageSkills.get(
+                                  b.package_id,
+                                )"
+                                :key="skill.id"
+                                class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent/40"
+                              >
+                                <div
+                                  class="flex size-6 flex-shrink-0 items-center justify-center rounded-md"
+                                  :style="{
+                                    backgroundColor: `color-mix(in srgb, currentColor 8%, transparent)`,
+                                  }"
+                                >
+                                  <IconifyIcon
+                                    :icon="getSkillTypeIcon(skill.type)"
+                                    class="size-3.5"
+                                    :style="{
+                                      color: `var(--ant-color-${getSkillTypeColor(skill.type)})`,
+                                    }"
+                                  />
+                                </div>
+                                <span
+                                  class="min-w-0 flex-1 truncate text-xs font-medium"
+                                  >{{ skill.name }}</span
+                                >
+                                <Tag
+                                  :color="getSkillTypeColor(skill.type)"
+                                  class="!mr-0 !text-[10px]"
+                                >
+                                  {{ getSkillTypeText(skill.type) }}
+                                </Tag>
+                                <span
+                                  :class="
+                                    skill.is_active
+                                      ? 'bg-green-500'
+                                      : 'bg-muted-foreground/30'
+                                  "
+                                  class="inline-block size-1.5 flex-shrink-0 rounded-full"
+                                ></span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1135,48 +1344,124 @@ function onTabChange(key: number | string) {
                         <div
                           v-for="b in manualBindings"
                           :key="b.package_id"
-                          class="flex items-center justify-between rounded-xl border bg-background px-4 py-3 transition-colors hover:bg-accent/30"
+                          class="overflow-hidden rounded-xl border bg-background transition-colors"
                         >
-                          <div class="flex items-center gap-3">
+                          <div
+                            class="flex items-center justify-between px-4 py-3"
+                          >
                             <div
-                              class="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary"
+                              class="flex flex-1 cursor-pointer items-center gap-3"
+                              @click="togglePackageSkills(b.package_id)"
                             >
-                              {{ (b.package_name || '?')[0] }}
+                              <div
+                                class="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary"
+                              >
+                                {{ (b.package_name || '?')[0] }}
+                              </div>
+                              <span class="text-sm font-medium">{{
+                                b.package_name || `#${b.package_id}`
+                              }}</span>
+                              <Tag
+                                v-if="b.package_is_system"
+                                color="red"
+                                class="!text-[10px]"
+                              >
+                                {{ $t('admin.ai.skillPackage.system') }}
+                              </Tag>
+                              <IconifyIcon
+                                :icon="
+                                  expandedPackages.has(b.package_id)
+                                    ? 'lucide:chevron-up'
+                                    : 'lucide:chevron-down'
+                                "
+                                class="size-4 text-muted-foreground transition-transform"
+                              />
                             </div>
-                            <span class="text-sm font-medium">{{
-                              b.package_name || `#${b.package_id}`
-                            }}</span>
-                            <Tag
-                              v-if="b.package_is_system"
-                              color="red"
-                              class="!text-[10px]"
-                            >
-                              {{ $t('admin.ai.skillPackage.system') }}
-                            </Tag>
+                            <div class="flex items-center gap-2">
+                              <ASelect
+                                :value="b.consent_mode"
+                                :options="consentModeOptions"
+                                size="small"
+                                class="!w-28"
+                                @change="
+                                  (val) =>
+                                    b.id !== null &&
+                                    updateConsentMode(b.id, String(val))
+                                "
+                              />
+                              <Popconfirm
+                                :title="$t('common.confirmDelete')"
+                                @confirm="unbindPkg(b.package_id)"
+                              >
+                                <Button size="small" danger type="text">
+                                  <IconifyIcon
+                                    icon="lucide:unlink"
+                                    class="size-3.5"
+                                  />
+                                </Button>
+                              </Popconfirm>
+                            </div>
                           </div>
-                          <div class="flex items-center gap-2">
-                            <ASelect
-                              :value="b.consent_mode"
-                              :options="consentModeOptions"
+                          <!-- Skills list -->
+                          <div
+                            v-if="expandedPackages.has(b.package_id)"
+                            class="border-t bg-accent/20 px-4 py-2"
+                          >
+                            <Spin
+                              v-if="packageSkillsLoading.has(b.package_id)"
                               size="small"
-                              class="!w-28"
-                              @change="
-                                (val) =>
-                                  b.id !== null &&
-                                  updateConsentMode(b.id, String(val))
-                              "
+                              class="flex justify-center py-3"
                             />
-                            <Popconfirm
-                              :title="$t('common.confirmDelete')"
-                              @confirm="unbindPkg(b.package_id)"
+                            <div
+                              v-else-if="
+                                packageSkills.get(b.package_id)?.length === 0
+                              "
+                              class="py-3 text-center text-xs text-muted-foreground"
                             >
-                              <Button size="small" danger type="text">
-                                <IconifyIcon
-                                  icon="lucide:unlink"
-                                  class="size-3.5"
-                                />
-                              </Button>
-                            </Popconfirm>
+                              {{ $t('admin.ai.agent.detail.noSkills') }}
+                            </div>
+                            <div v-else class="flex flex-col gap-1">
+                              <div
+                                v-for="skill in packageSkills.get(
+                                  b.package_id,
+                                )"
+                                :key="skill.id"
+                                class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent/40"
+                              >
+                                <div
+                                  class="flex size-6 flex-shrink-0 items-center justify-center rounded-md"
+                                  :style="{
+                                    backgroundColor: `color-mix(in srgb, currentColor 8%, transparent)`,
+                                  }"
+                                >
+                                  <IconifyIcon
+                                    :icon="getSkillTypeIcon(skill.type)"
+                                    class="size-3.5"
+                                    :style="{
+                                      color: `var(--ant-color-${getSkillTypeColor(skill.type)})`,
+                                    }"
+                                  />
+                                </div>
+                                <span
+                                  class="min-w-0 flex-1 truncate text-xs font-medium"
+                                  >{{ skill.name }}</span
+                                >
+                                <Tag
+                                  :color="getSkillTypeColor(skill.type)"
+                                  class="!mr-0 !text-[10px]"
+                                >
+                                  {{ getSkillTypeText(skill.type) }}
+                                </Tag>
+                                <span
+                                  :class="
+                                    skill.is_active
+                                      ? 'bg-green-500'
+                                      : 'bg-muted-foreground/30'
+                                  "
+                                  class="inline-block size-1.5 flex-shrink-0 rounded-full"
+                                ></span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>

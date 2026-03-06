@@ -154,7 +154,9 @@
       "uploadRequired": "Please fill in certificate and private key",
       "deleteTitle": "Delete Certificate",
       "deleteConfirm": "Are you sure you want to delete this domain's SSL certificate?",
-      "deleteSuccess": "Certificate deleted"
+      "deleteSuccess": "Certificate deleted",
+      "platformWildcard": "Platform Wildcard SSL Certificate Active",
+      "platformWildcardDesc": "Default domains are automatically protected by the platform wildcard SSL certificate, no separate configuration needed"
     },
     "messages": {
       "addSuccess": "Domain added successfully",

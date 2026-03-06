@@ -13,7 +13,6 @@ from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import paginated, success
 from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException
 from app.models.system.admin import Admin
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
@@ -251,13 +250,10 @@ class AdminAIConversationController(GlobalController):
             先从全局 Repo 查找对话取 tenant_id，再通过 Service 获取完整详情
             权限: ai_conversation:detail
             """
-            repo = AdminAgentConversationRepository(db)
-            conversation = await repo.get_by_id(conversation_id)
-
-            if not conversation:
-                raise NotFoundException(message=_("conversation.not_found"))
-
-            service = ConversationService(db, conversation.tenant_id)
+            service, conversation = await ConversationService.get_service_for_conversation(
+                db,
+                conversation_id,
+            )
             detail = await service.get_conversation_detail(
                 conversation_id=conversation_id,
                 message_skip=message_skip,

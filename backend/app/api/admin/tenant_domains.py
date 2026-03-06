@@ -146,6 +146,7 @@ class AdminTenantDomainController(GlobalController):
                 tenant_id=tenant_id,
                 domain=data.domain,
                 remark=data.remark,
+                skip_quota_check=True,
             )
 
             # 如果请求设为主域名，且域名已验证
@@ -361,6 +362,20 @@ class AdminTenantDomainController(GlobalController):
 
         # ==================== SSL 证书管理端点 ====================
 
+        async def _verify_domain_ownership(
+            db: DbSession,
+            tenant_id: int,
+            domain_id: int,
+        ) -> None:
+            """验证域名属于指定租户"""
+            service = TenantDomainService(db)
+            domain = await service.get_by_id(domain_id)
+            if not domain or domain.tenant_id != tenant_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=_("tenant_domain.not_found"),
+                )
+
         @router.get("/{domain_id}/ssl", summary="获取域名 SSL 证书详情")
         @permission_action("ssl_detail", "action.tenant_domain.ssl_detail")
         async def get_ssl_detail(
@@ -372,6 +387,8 @@ class AdminTenantDomainController(GlobalController):
         ):
             """获取域名 SSL 证书详情"""
             await _verify_tenant_exists(db, tenant_id)
+            await _verify_domain_ownership(db, tenant_id, domain_id)
+
             ssl_service = SslCertificateService(db)
             cert = await ssl_service.get_cert_detail(domain_id)
             if not cert:
@@ -422,6 +439,7 @@ class AdminTenantDomainController(GlobalController):
             仅 platform 类型证书可续期
             """
             await _verify_tenant_exists(db, tenant_id)
+            await _verify_domain_ownership(db, tenant_id, domain_id)
 
             ssl_service = SslCertificateService(db)
             cert = await ssl_service.get_cert_detail(domain_id)
@@ -452,6 +470,7 @@ class AdminTenantDomainController(GlobalController):
             自动设置 cert_type=custom, auto_renew=False
             """
             await _verify_tenant_exists(db, tenant_id)
+            await _verify_domain_ownership(db, tenant_id, domain_id)
 
             ssl_service = SslCertificateService(db)
             cert = await ssl_service.upload_custom_cert(
@@ -484,12 +503,10 @@ class AdminTenantDomainController(GlobalController):
             mode=custom: 上传新的自定义证书
             """
             await _verify_tenant_exists(db, tenant_id)
+            await _verify_domain_ownership(db, tenant_id, domain_id)
 
             if data.mode == "platform":
                 service = TenantDomainService(db)
-                domain = await service.get_by_id(domain_id)
-                if not domain or domain.tenant_id != tenant_id:
-                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("tenant_domain.not_found"))
 
                 from app.enums.domain import DomainSslStatus
                 await service.update(domain_id, {"ssl_status": DomainSslStatus.PROVISIONING.value})
@@ -524,6 +541,7 @@ class AdminTenantDomainController(GlobalController):
         ):
             """删除域名 SSL 证书，ssl_status 重置为 none"""
             await _verify_tenant_exists(db, tenant_id)
+            await _verify_domain_ownership(db, tenant_id, domain_id)
 
             ssl_service = SslCertificateService(db)
             await ssl_service.delete_cert(domain_id)
@@ -543,6 +561,7 @@ class AdminTenantDomainController(GlobalController):
         ):
             """开启/关闭 SSL 自动续期（仅 platform 类型可开启）"""
             await _verify_tenant_exists(db, tenant_id)
+            await _verify_domain_ownership(db, tenant_id, domain_id)
 
             ssl_service = SslCertificateService(db)
             cert = await ssl_service.toggle_auto_renew(domain_id, data.auto_renew)
@@ -567,33 +586,8 @@ class AdminTenantDomainController(GlobalController):
             """
             await _verify_tenant_exists(db, tenant_id)
 
-            from sqlalchemy import select
-
-            from app.enums.domain import DomainSslStatus
-            from app.models.tenant.tenant_domain import TenantDomain
-
-            result = await db.execute(
-                select(TenantDomain).where(
-                    TenantDomain.tenant_id == tenant_id,
-                    TenantDomain.is_verified.is_(True),
-                    TenantDomain.ssl_status.in_([
-                        DomainSslStatus.NONE.value,
-                        DomainSslStatus.FAILED.value,
-                        DomainSslStatus.EXPIRED.value,
-                    ]),
-                    TenantDomain.is_deleted.is_(False),
-                )
-            )
-            domains = list(result.scalars().all())
-
-            triggered = 0
-            from app.celery_app import celery_app
             service = TenantDomainService(db)
-            for domain in domains:
-                await service.update(domain.id, {"ssl_status": DomainSslStatus.PROVISIONING.value})
-                celery_app.send_task("app.tasks.ssl_tasks.task_provision_ssl", args=[domain.id], queue="default")
-                triggered += 1
-
+            triggered = await service.batch_provision_ssl(tenant_id)
             await db.commit()
 
             return success(

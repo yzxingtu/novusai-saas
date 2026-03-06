@@ -22,6 +22,7 @@ class AgentExecutionModeEnum(LabeledStrEnum):
     TASK = ("task", "enum.agent.execution_mode.task")
     BATCH = ("batch", "enum.agent.execution_mode.batch")
     API = ("api", "enum.agent.execution_mode.api")
+    ROUTER = ("router", "enum.agent.execution_mode.router")
 
 
 class MemorySceneEnum(LabeledStrEnum):

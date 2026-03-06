@@ -13,17 +13,19 @@ from app.core.security import (
     TokenExpiredError,
     verify_token_with_scope,
 )
+from app.sio.page_session import PageSessionMixin
 
 logger = LogManager.get_logger("app")
 
 
-class AdminNamespace(socketio.AsyncNamespace):
+class AdminNamespace(PageSessionMixin, socketio.AsyncNamespace):
     """
     /admin namespace — 平台管理员
 
     Rooms:
     - user:{user_id} — 指定管理员的所有设备
     - admins — 所有平台管理员
+    - page_session:{id} — 页面操作定位（动态加入）
     """
 
     # sid → session 备份，防止 get_session 失败时无法清理 presence

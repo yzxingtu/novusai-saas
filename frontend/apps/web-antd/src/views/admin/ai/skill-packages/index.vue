@@ -10,7 +10,9 @@ import type { UploadRequestOption } from 'ant-design-vue/es/vc-upload/interface'
 import type { AdminSkillPackageInfo } from '#/api/admin/skill-packages';
 import type { AdminSkillInfo } from '#/api/admin/skills';
 
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 import { useRouter } from 'vue-router';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
@@ -558,6 +560,18 @@ onMounted(() => {
   loadPackages();
   loadRecycleBinCount();
 });
+
+const cleanupPageContext = registerPageContext('admin/ai/skill-packages', () => ({
+  page_key: 'admin.ai.skill-packages',
+  page_title: $t('admin.ai.skillPackage.name'),
+  page_data: {
+    resource: '/admin/ai/skill-packages',
+    total_packages: packages.value.length,
+    selected_package: selectedPackage.value?.name ?? null,
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

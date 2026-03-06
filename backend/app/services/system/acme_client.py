@@ -70,6 +70,7 @@ class AcmeClient:
         self,
         domain: str,
         dns_setter: "callable | None" = None,
+        dns_deleter: "callable | None" = None,
     ) -> tuple[str, str, str | None]:
         """
         完整的证书签发流程
@@ -79,6 +80,9 @@ class AcmeClient:
             dns_setter: 异步回调函数，用于设置 DNS TXT 记录
                         签名: async def setter(record_name: str, record_value: str) -> None
                         如果为 None，使用内置 DNS 设置逻辑
+            dns_deleter: 异步回调函数，用于清理 DNS TXT 记录
+                         签名: async def deleter(record_name: str, record_value: str) -> None
+                         签发完成后自动调用，失败不影响主流程
 
         Returns:
             (certificate_pem, private_key_pem, chain_pem) 元组
@@ -136,6 +140,17 @@ class AcmeClient:
         # 10. 下载证书
         cert_pem, chain_pem = self._extract_certificate(order)
         logger.info("Certificate issued for %s", domain)
+
+        # 11. 清理 DNS TXT 记录（静默失败）
+        if dns_deleter:
+            try:
+                await dns_deleter(record_name, validation)
+                logger.info("DNS TXT record cleaned up: %s", record_name)
+            except Exception as e:
+                logger.warning(
+                    "Failed to clean up DNS TXT record %s: %s",
+                    record_name, str(e),
+                )
 
         return cert_pem, domain_key_pem, chain_pem
 

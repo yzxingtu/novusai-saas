@@ -3,19 +3,9 @@ import type { MenuRecordRaw } from '@vben/types';
 
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
-import {
-  ArrowDown,
-  ArrowUp,
-  CornerDownLeft,
-  MdiKeyboardEsc,
-  Search,
-} from '@vben/icons';
+import { Search } from '@vben/icons';
 import { $t } from '@vben/locales';
 import { isWindowsOs } from '@vben/utils';
-
-import { useVbenModal } from '@vben-core/popup-ui';
-
-import { useMagicKeys, whenever } from '@vueuse/core';
 
 import SearchPanel from './search-panel.vue';
 
@@ -33,105 +23,114 @@ const props = withDefaults(
 
 const keyword = ref('');
 const searchInputRef = ref<HTMLInputElement>();
+const open = ref(false);
 
-const [Modal, modalApi] = useVbenModal({
-  onCancel() {
-    modalApi.close();
-  },
-  onOpenChange(isOpen: boolean) {
-    if (!isOpen) {
-      keyword.value = '';
-    }
-  },
-});
-const open = modalApi.useStore((state) => state.isOpen);
-
-function handleClose() {
-  modalApi.close();
+function show() {
+  open.value = true;
   keyword.value = '';
 }
 
-const keys = useMagicKeys();
-const cmd = isWindowsOs() ? keys['ctrl+k'] : keys['cmd+k'];
-whenever(cmd!, () => {
-  if (props.enableShortcutKey) {
-    modalApi.open();
-  }
-});
+function hide() {
+  open.value = false;
+  keyword.value = '';
+}
 
-whenever(open, () => {
-  nextTick(() => {
+function toggleOpen() {
+  open.value ? hide() : show();
+}
+
+function handleClose() {
+  hide();
+}
+
+function handleMaskClick() {
+  hide();
+}
+
+watch(open, async (isOpen) => {
+  if (isOpen) {
+    await nextTick();
     searchInputRef.value?.focus();
-  });
+  }
 });
 
-const preventDefaultBrowserSearchHotKey = (event: KeyboardEvent) => {
-  if (event.key?.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey)) {
+function handleKeydown(event: KeyboardEvent) {
+  if (
+    event.key?.toLowerCase() === 'k' &&
+    (event.metaKey || event.ctrlKey)
+  ) {
     event.preventDefault();
+    event.stopPropagation();
+    if (props.enableShortcutKey) {
+      toggleOpen();
+    }
+    return;
   }
-};
-
-const toggleKeydownListener = () => {
-  if (props.enableShortcutKey) {
-    window.addEventListener('keydown', preventDefaultBrowserSearchHotKey);
-  } else {
-    window.removeEventListener('keydown', preventDefaultBrowserSearchHotKey);
+  if (event.key === 'Escape' && open.value) {
+    event.preventDefault();
+    hide();
   }
-};
-
-const toggleOpen = () => {
-  open.value ? modalApi.close() : modalApi.open();
-};
-
-watch(() => props.enableShortcutKey, toggleKeydownListener);
+}
 
 onMounted(() => {
-  toggleKeydownListener();
+  document.addEventListener('keydown', handleKeydown, { capture: true });
+});
 
-  onUnmounted(() => {
-    window.removeEventListener('keydown', preventDefaultBrowserSearchHotKey);
-  });
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown, { capture: true });
 });
 </script>
 
 <template>
   <div>
-    <Modal
-      :fullscreen-button="false"
-      class="w-[600px]"
-      header-class="py-2 border-b"
-    >
-      <template #title>
-        <div class="flex items-center">
-          <Search class="text-muted-foreground mr-2 size-4" />
-          <input
-            ref="searchInputRef"
-            v-model="keyword"
-            :placeholder="$t('ui.widgets.search.searchNavigate')"
-            class="ring-none placeholder:text-muted-foreground w-[80%] rounded-md border border-none bg-transparent p-2 pl-0 text-sm font-normal outline-none ring-0 ring-offset-transparent focus-visible:ring-transparent"
-          />
-        </div>
-      </template>
+    <Teleport to="body">
+      <Transition name="search-bar-mask">
+        <div
+          v-if="open"
+          class="fixed inset-0 z-[1100] bg-black/40 backdrop-blur-sm"
+          @click="handleMaskClick"
+        ></div>
+      </Transition>
 
-      <SearchPanel :keyword="keyword" :menus="menus" @close="handleClose" />
-      <template #footer>
-        <div class="flex w-full justify-start text-xs">
-          <div class="mr-2 flex items-center">
-            <CornerDownLeft class="mr-1 size-3" />
-            {{ $t('ui.widgets.search.select') }}
-          </div>
-          <div class="mr-2 flex items-center">
-            <ArrowUp class="mr-1 size-3" />
-            <ArrowDown class="mr-1 size-3" />
-            {{ $t('ui.widgets.search.navigate') }}
-          </div>
-          <div class="flex items-center">
-            <MdiKeyboardEsc class="mr-1 size-3" />
-            {{ $t('ui.widgets.search.close') }}
+      <Transition name="search-bar">
+        <div
+          v-if="open"
+          class="fixed left-1/2 top-[15%] z-[1101] w-full max-w-[580px] -translate-x-1/2"
+        >
+          <div
+            class="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-2xl"
+            @click.stop
+          >
+            <!-- Input Area -->
+            <div
+              class="flex items-center gap-3 border-b border-border/40 px-4 py-3"
+            >
+              <Search class="size-5 shrink-0 text-primary" />
+              <input
+                ref="searchInputRef"
+                v-model="keyword"
+                :placeholder="$t('ui.widgets.search.searchNavigate')"
+                class="min-w-0 flex-1 border-none bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
+                type="text"
+              />
+              <kbd
+                v-if="enableShortcutKey"
+                class="hidden rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-block"
+              >
+                {{ isWindowsOs() ? 'Ctrl' : '⌘' }} K
+              </kbd>
+            </div>
+
+            <!-- Search Results -->
+            <SearchPanel
+              :keyword="keyword"
+              :menus="menus"
+              @close="handleClose"
+            />
           </div>
         </div>
-      </template>
-    </Modal>
+      </Transition>
+    </Teleport>
     <div
       class="md:bg-accent group flex h-8 cursor-pointer items-center gap-3 rounded-2xl border-none bg-none px-2 py-0.5 outline-none"
       @click="toggleOpen()"
@@ -155,3 +154,38 @@ onMounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Mask transition */
+.search-bar-mask-enter-active {
+  transition: opacity 0.2s ease-out;
+}
+
+.search-bar-mask-leave-active {
+  transition: opacity 0.15s ease-in;
+}
+
+.search-bar-mask-enter-from,
+.search-bar-mask-leave-to {
+  opacity: 0;
+}
+
+/* Bar transition */
+.search-bar-enter-active {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.search-bar-leave-active {
+  transition: all 0.15s ease-in;
+}
+
+.search-bar-enter-from {
+  opacity: 0;
+  transform: translate(-50%, -20px) scale(0.96);
+}
+
+.search-bar-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -10px) scale(0.98);
+}
+</style>

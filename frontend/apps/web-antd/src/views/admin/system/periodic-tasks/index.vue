@@ -4,6 +4,11 @@
  */
 import type { adminApi } from '#/api';
 
+import { onUnmounted } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -82,6 +87,32 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<PeriodicTaskInfo>({
     trigger: onTriggerTask,
     logs: onViewLogs,
   },
+});
+
+const cleanupPageContext = registerPageContext('admin/system/periodic-tasks', () => ({
+  page_key: 'admin.system.periodic-tasks',
+  page_title: $t('admin.system.periodicTask.name'),
+  page_data: {
+    resource: '/admin/periodic-tasks',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('admin.system.periodic-tasks', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the periodic task list',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'Periodic task list refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

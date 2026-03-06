@@ -7,7 +7,9 @@ import type { AgentAssignmentItem } from '#/api/shared/agent-assignments';
  * 设计规范：detail-page-patterns.md（信息摘要栏 + 卡片行替代平表格）
  * useCrudList(keyField='feature_code') 管理列表数据，自定义 inline 编辑。
  */
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -189,6 +191,19 @@ const stats = computed(() => ({
   active: assignments.value.filter((a) => a.is_active).length,
   assigned: assignments.value.filter((a) => a.agent_id !== null).length,
 }));
+
+const cleanupPageContext = registerPageContext('admin/ai/agent-assignments', () => ({
+  page_key: 'admin.ai.agent-assignments',
+  page_title: $t('admin.ai.agentAssignment.title'),
+  page_data: {
+    resource: '/admin/ai/agent-assignments',
+    total: stats.value.total,
+    active: stats.value.active,
+    assigned: stats.value.assigned,
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

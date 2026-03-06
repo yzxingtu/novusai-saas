@@ -29,6 +29,7 @@ import {
   Tabs,
   Tag,
   Textarea,
+  Upload,
 } from 'ant-design-vue';
 
 import {
@@ -43,7 +44,9 @@ import {
 } from '#/api/tenant/agents';
 import { getTenantAIModelsApi } from '#/api/tenant/ai';
 import { getAvailablePackagesApi } from '#/api/tenant/skill-packages';
+import { smartUploadFile } from '#/api/tenant/attachment';
 import { $t } from '#/locales';
+import { toAvatarDisplayUrl } from '#/utils/image';
 import {
   getScopeColor,
   getScopeIcon,
@@ -179,6 +182,66 @@ async function saveFields(fields: Record<string, unknown>) {
     message.error($t('common.saveFailed'));
   } finally {
     saving.value = false;
+  }
+}
+
+// ==================== Avatar Upload ====================
+const avatarUploading = ref(false);
+
+const avatarDisplayUrl = computed(() => {
+  const val = agent.value?.avatar;
+  return val ? toAvatarDisplayUrl(val) : '';
+});
+
+const avatarInitial = computed(() =>
+  (agent.value?.name || '?').charAt(0).toUpperCase(),
+);
+
+function beforeAvatarUpload(file: File) {
+  const isImage = file.type.startsWith('image/');
+  if (!isImage) {
+    message.error($t('tenant.profile.messages.avatarTypeError'));
+    return false;
+  }
+  const isLt2M = file.size / 1024 / 1024 < 2;
+  if (!isLt2M) {
+    message.error($t('tenant.profile.messages.avatarSizeError'));
+    return false;
+  }
+  handleAvatarUpload(file);
+  return false;
+}
+
+async function handleAvatarUpload(file: File) {
+  if (!agent.value) return;
+  avatarUploading.value = true;
+  try {
+    const result = await smartUploadFile({
+      file,
+      visibility: 'public',
+      business_type: 'avatar',
+    });
+    const attachmentId = String(result.attachment?.id || '');
+    if (!attachmentId) throw new Error('Upload failed');
+    agent.value = await updateAgentApi(agentId.value, { avatar: attachmentId });
+    message.success($t('tenant.ai.agent.detail.saveSuccess'));
+  } catch {
+    message.error($t('shared.common.uploadFailed'));
+  } finally {
+    avatarUploading.value = false;
+  }
+}
+
+async function removeAvatar() {
+  if (!agent.value) return;
+  avatarUploading.value = true;
+  try {
+    agent.value = await updateAgentApi(agentId.value, { avatar: null });
+    message.success($t('tenant.ai.agent.detail.saveSuccess'));
+  } catch {
+    message.error($t('common.saveFailed'));
+  } finally {
+    avatarUploading.value = false;
   }
 }
 
@@ -553,19 +616,68 @@ function onTabChange(key: number | string) {
 
             <!-- Identity block -->
             <div class="flex items-start gap-5">
-              <div class="shrink-0">
-                <div
-                  v-if="agent.avatar"
-                  class="flex size-16 items-center justify-center overflow-hidden rounded-2xl shadow-sm ring-2 ring-primary/20 ring-offset-2 ring-offset-card"
+              <!-- Avatar with upload overlay -->
+              <div class="group relative shrink-0">
+                <Upload
+                  v-if="isTenantOwned"
+                  :show-upload-list="false"
+                  :before-upload="beforeAvatarUpload"
+                  accept="image/*"
                 >
-                  <img :src="agent.avatar" class="size-full object-cover" />
-                </div>
+                  <div
+                    class="relative flex size-16 cursor-pointer items-center justify-center overflow-hidden rounded-2xl text-2xl font-bold shadow-sm ring-2 ring-offset-2 ring-offset-card"
+                    :class="
+                      agent.is_system
+                        ? 'bg-amber-500/15 text-amber-600 ring-amber-400/30 dark:text-amber-400'
+                        : 'bg-primary/10 text-primary ring-primary/20'
+                    "
+                  >
+                    <img
+                      v-if="avatarDisplayUrl"
+                      :src="avatarDisplayUrl"
+                      :alt="agent.name"
+                      class="size-full object-cover"
+                    />
+                    <span v-else>{{ avatarInitial }}</span>
+                    <!-- Upload overlay -->
+                    <div
+                      class="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/40 opacity-0 transition-all group-hover:opacity-100"
+                    >
+                      <Spin v-if="avatarUploading" size="small" />
+                      <IconifyIcon
+                        v-else
+                        icon="lucide:camera"
+                        class="size-5 text-white"
+                      />
+                    </div>
+                  </div>
+                </Upload>
+                <!-- Read-only avatar (system or non-owned agents) -->
                 <div
                   v-else
-                  class="flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-2xl font-bold text-primary shadow-sm ring-2 ring-primary/20 ring-offset-2 ring-offset-card"
+                  class="flex size-16 items-center justify-center overflow-hidden rounded-2xl text-2xl font-bold shadow-sm ring-2 ring-offset-2 ring-offset-card"
+                  :class="
+                    agent.is_system
+                      ? 'bg-amber-500/15 text-amber-600 ring-amber-400/30 dark:text-amber-400'
+                      : 'bg-primary/10 text-primary ring-primary/20'
+                  "
                 >
-                  {{ (agent.name || '?').charAt(0).toUpperCase() }}
+                  <img
+                    v-if="avatarDisplayUrl"
+                    :src="avatarDisplayUrl"
+                    :alt="agent.name"
+                    class="size-full object-cover"
+                  />
+                  <span v-else>{{ avatarInitial }}</span>
                 </div>
+                <!-- Remove avatar button (tenant-owned only) -->
+                <button
+                  v-if="isTenantOwned && avatarDisplayUrl && !avatarUploading"
+                  class="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-destructive text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+                  @click.stop="removeAvatar"
+                >
+                  <IconifyIcon icon="lucide:x" class="size-3" />
+                </button>
               </div>
 
               <div class="min-w-0 flex-1">

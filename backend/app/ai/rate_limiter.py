@@ -126,11 +126,8 @@ class RateLimiter:
             if result >= 0:
                 rpm_count = int(result)
                 logger.warning(
-                    _("ai.log.rpm_limit_exceeded"),
-                    tenant_id=tenant_id,
-                    model_id=model_id,
-                    count=rpm_count,
-                    limit=rpm_limit,
+                    "RPM limit exceeded: tenant=%s model=%s count=%s limit=%s",
+                    tenant_id, model_id, rpm_count, rpm_limit,
                 )
                 raise RateLimitExceeded(
                     _("ai.error.rpm_limit_exceeded").format(
@@ -157,11 +154,8 @@ class RateLimiter:
             if result >= 0:
                 tpm_count = int(result)
                 logger.warning(
-                    _("ai.log.tpm_limit_exceeded"),
-                    tenant_id=tenant_id,
-                    model_id=model_id,
-                    count=tpm_count,
-                    limit=tpm_limit,
+                    "TPM limit exceeded: tenant=%s model=%s count=%s limit=%s",
+                    tenant_id, model_id, tpm_count, tpm_limit,
                 )
                 raise RateLimitExceeded(
                     _("ai.error.tpm_limit_exceeded").format(

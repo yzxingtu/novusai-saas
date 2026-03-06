@@ -1,0 +1,10 @@
+{
+  "confirmTitle": "Operation Confirmation",
+  "confirmContent": "AI assistant requests to execute: {operation}. Allow?",
+  "confirmContentWithDesc": "AI assistant requests to execute: {operation}\n\n{description}\n\nAllow?",
+  "confirmOk": "Allow",
+  "confirmCancel": "Cancel",
+  "refreshDashboard": "Refresh Dashboard",
+  "refreshList": "Refresh List",
+  "exportData": "Export Data"
+}

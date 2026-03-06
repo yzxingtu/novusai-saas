@@ -58,6 +58,7 @@ const mainRoutes: RouteRecordRaw = {
         affixTab: true,
         icon: 'lucide:layout-dashboard',
         title: $t('page.dashboard.title'),
+        ai: { mode: 'context_only' as const },
       },
     },
     // Analytics：数据分析页面
@@ -68,6 +69,7 @@ const mainRoutes: RouteRecordRaw = {
       meta: {
         icon: 'lucide:bar-chart-3',
         title: $t('tenant.analytics.title'),
+        ai: { mode: 'context_only' as const },
       },
     },
     // 技能包详情页：带 :id 动态参数 + activePath，后端不注册此路由

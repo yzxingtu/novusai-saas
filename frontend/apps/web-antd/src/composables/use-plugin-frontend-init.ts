@@ -151,6 +151,20 @@ function _registerStandalonePageRoutes(
     if (registeredPluginRouteNames.has(routeName) || router.hasRoute(routeName))
       continue;
 
+    const routeMeta: Record<string, unknown> = {
+      title: item.title ?? item.name,
+      icon: item.icon,
+      hideInMenu: true,
+    };
+    if (item.ai) {
+      routeMeta.ai = {
+        mode: item.ai.mode,
+        ...(item.ai.page_context_key
+          ? { pageContextKey: item.ai.page_context_key }
+          : {}),
+      };
+    }
+
     router.addRoute(parentName, {
       name: routeName,
       path: childPath,
@@ -160,11 +174,7 @@ function _registerStandalonePageRoutes(
           .NovusPluginShared,
         ...route.params,
       }),
-      meta: {
-        title: item.title ?? item.name,
-        icon: item.icon,
-        hideInMenu: true,
-      },
+      meta: routeMeta,
     });
     registeredPluginRouteNames.add(routeName);
   }

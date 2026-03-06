@@ -28,11 +28,15 @@ from app.rbac.decorators import (
     permission_resource,
 )
 from app.rbac.services.permission_service import PermissionService
-from app.schemas.ai.agent_chat import AgentChatRequest, AgentConfirmRequest
+from app.schemas.ai.agent_chat import (
+    AgentChatRequest,
+    AgentConfirmRequest,
+    AgentRouteRequest,
+    AgentRouteResponse,
+)
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.agent_service import AdminAgentService
 from app.services.ai.conversation_service import ConversationService
-from app.services.ai.session_memory_service import SessionMemoryService
 
 
 async def _get_agent_tenant_id(db: AsyncSession, agent_id: int) -> int:
@@ -57,9 +61,9 @@ async def _get_agent_tenant_id(db: AsyncSession, agent_id: int) -> int:
     menu=MenuConfig(
         icon="lucide:message-square-text",
         path="/ai/chat",
-        component="ai/chat/index",
         parent="ai_app",
         sort_order=40,
+        hidden=True,
     ),
 )
 class AdminAgentChatController(GlobalController):
@@ -107,6 +111,7 @@ class AdminAgentChatController(GlobalController):
                 message=data.message,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
+                page_context=data.page_context,
                 user_id=admin.id,
                 knowledge_base_ids=data.knowledge_base_ids,
                 user_role=UserRoleEnum.PLATFORM_ADMIN.value,
@@ -116,6 +121,7 @@ class AdminAgentChatController(GlobalController):
                 memory_scene=MemorySceneEnum.ADMIN_CHAT.value,
                 memory_channel=MemoryChannelEnum.ADMIN_CHAT.value,
                 memory_source=MemoryChannelEnum.ADMIN_CHAT.value,
+                page_session_id=data.page_session_id,
             )
             return success(data=result.model_dump())
 
@@ -148,6 +154,7 @@ class AdminAgentChatController(GlobalController):
                 message=data.message,
                 conversation_id=data.conversation_id,
                 variables=data.variables,
+                page_context=data.page_context,
                 user_id=admin.id,
                 knowledge_base_ids=data.knowledge_base_ids,
                 user_role=UserRoleEnum.PLATFORM_ADMIN.value,
@@ -158,7 +165,48 @@ class AdminAgentChatController(GlobalController):
                 memory_scene=MemorySceneEnum.ADMIN_CHAT.value,
                 memory_channel=MemoryChannelEnum.ADMIN_CHAT.value,
                 memory_source=MemoryChannelEnum.ADMIN_CHAT.value,
+                page_session_id=data.page_session_id,
             )
+
+        # ========================================
+        # 智能路由
+        # ========================================
+
+        @router.post("/route", summary="Intelligent agent routing", response_model=None)
+        @action_create("action.admin_agent_chat.route")
+        async def route_agent(
+            request: Request,
+            db: DbSession,
+            data: AgentRouteRequest,
+            admin: ActiveAdmin,
+        ):
+            """
+            Intelligently select target agent based on message and page context.
+
+            Priority:
+            1. pinned_agent_id pass-through
+            2. Router agent AI selection
+            3. default_chat fallback
+
+            Permission: admin_agent_chat:route
+            """
+            from app.services.ai.agent_router_service import AgentRouterService
+
+            router_svc = AgentRouterService(db)
+            result = await router_svc.route(
+                tenant_id=None,
+                message=data.message,
+                is_admin_context=True,
+                page_context=data.page_context.model_dump() if data.page_context else None,
+                pinned_agent_id=data.pinned_agent_id,
+            )
+
+            return success(data=AgentRouteResponse(
+                agent_id=result.agent_id,
+                agent_name=result.agent_name,
+                confidence=result.confidence,
+                routed_by=result.routed_by,
+            ).model_dump())
 
         # ========================================
         # 操作确认
@@ -204,46 +252,50 @@ class AdminAgentChatController(GlobalController):
         # 对话管理
         # ========================================
 
-        @router.get("/{agent_id}/conversations", summary="List agent conversations")
+        @router.get("/conversations", summary="List all conversations (global)")
         @action_read("action.admin_agent_chat.conversations")
-        async def list_conversations(
+        async def list_all_conversations(
             request: Request,
             db: DbSession,
-            agent_id: int,
             admin: ActiveAdmin,
             query: QueryParams,
         ):
             """
-            List conversations for the specified agent.
+            List conversations across all agents for the admin context.
 
-            Supports JSON:API pagination, filtering, sorting.
+            Used by the AI panel's global history sidebar.
+            Enriches each conversation with agent_name and agent_avatar.
 
             Permission: admin_agent_chat:conversations
             """
-            tenant_id = await _get_agent_tenant_id(db, agent_id)
-            service = ConversationService(db, tenant_id)
-            from app.schemas.common.query import FilterRule
-            forced = [FilterRule(field="agent_id", operator="eq", value=agent_id)]
-            items, total = await service.query_list(
-                spec=query,
-                forced_filters=forced,
-            )
+            service = ConversationService(db, 0)
+            items, total = await service.query_list(spec=query)
+            conv_list = []
+            for item in items:
+                d = item.to_dict()
+                agent_obj = getattr(item, "agent", None)
+                if agent_obj is not None:
+                    d["agent_name"] = agent_obj.name
+                    d["agent_avatar"] = agent_obj.avatar
+                else:
+                    d["agent_name"] = None
+                    d["agent_avatar"] = None
+                conv_list.append(d)
             return paginated(
-                items=[item.to_dict() for item in items],
+                items=conv_list,
                 total=total,
                 page=query.page,
                 page_size=query.size,
             )
 
         @router.get(
-            "/{agent_id}/conversations/{conversation_id}",
+            "/conversations/{conversation_id}",
             summary="Get conversation detail",
         )
         @action_read("action.admin_agent_chat.conversation_detail")
         async def get_conversation_detail(
             request: Request,
             db: DbSession,
-            agent_id: int,
             conversation_id: int,
             admin: ActiveAdmin,
         ):
@@ -252,25 +304,21 @@ class AdminAgentChatController(GlobalController):
 
             Permission: admin_agent_chat:conversation_detail
             """
-            tenant_id = await _get_agent_tenant_id(db, agent_id)
-            service = ConversationService(db, tenant_id)
-            conversation = await service.get_by_id(conversation_id)
-            if not conversation or conversation.agent_id != agent_id:
-                raise NotFoundException(
-                    message=_("agent_chat.error.conversation_not_found"),
-                )
+            service, _ = await ConversationService.get_service_for_conversation(
+                db,
+                conversation_id,
+            )
             result = await service.get_conversation_detail(conversation_id)
             return success(data=result)
 
         @router.delete(
-            "/{agent_id}/conversations/{conversation_id}",
+            "/conversations/{conversation_id}",
             summary="Delete conversation",
         )
         @action_delete("action.admin_agent_chat.delete_conversation")
         async def delete_conversation(
             request: Request,
             db: DbSession,
-            agent_id: int,
             conversation_id: int,
             admin: ActiveAdmin,
         ):
@@ -279,45 +327,54 @@ class AdminAgentChatController(GlobalController):
 
             Permission: admin_agent_chat:delete_conversation
             """
-            tenant_id = await _get_agent_tenant_id(db, agent_id)
-            service = ConversationService(db, tenant_id)
-
-            conversation = await service.get_by_id(conversation_id)
-            if not conversation or conversation.agent_id != agent_id:
-                raise NotFoundException(
-                    message=_("agent_chat.error.conversation_not_found"),
-                )
-
-            await service.delete(conversation_id)
+            service, _ = await ConversationService.get_service_for_conversation(
+                db,
+                conversation_id,
+            )
+            await service.delete_accessible_conversation(conversation_id)
             await db.commit()
-
             return deleted(message=_("agent_chat.conversation_deleted"))
 
+        @router.get(
+            "/conversations/{conversation_id}/memory-state",
+            summary="Get conversation memory state",
+        )
+        @action_read("action.admin_agent_chat.read_conversation")
+        async def get_conversation_memory(
+            request: Request,
+            db: DbSession,
+            conversation_id: int,
+            admin: ActiveAdmin,
+        ):
+            """
+            Get memory state for a specific conversation.
+            """
+            service, _ = await ConversationService.get_service_for_conversation(
+                db,
+                conversation_id,
+            )
+            state = await service.get_conversation_memory_state(conversation_id)
+            return success(data=state)
+
         @router.delete(
-            "/{agent_id}/conversations/{conversation_id}/memory-state",
+            "/conversations/{conversation_id}/memory-state",
             summary="Clear conversation memory",
         )
         @action_delete("action.admin_agent_chat.delete_conversation")
         async def clear_conversation_memory(
             request: Request,
             db: DbSession,
-            agent_id: int,
             conversation_id: int,
             admin: ActiveAdmin,
         ):
             """
             Clear memory state for a specific conversation.
             """
-            tenant_id = await _get_agent_tenant_id(db, agent_id)
-            service = ConversationService(db, tenant_id)
-            conversation = await service.get_by_id(conversation_id)
-            if not conversation or conversation.agent_id != agent_id:
-                raise NotFoundException(
-                    message=_("agent_chat.error.conversation_not_found"),
-                )
-
-            memory_svc = SessionMemoryService(tenant_id)
-            deleted_count = await memory_svc.clear_conversation_memory(conversation_id)
+            service, _ = await ConversationService.get_service_for_conversation(
+                db,
+                conversation_id,
+            )
+            deleted_count = await service.clear_conversation_memory_state(conversation_id)
             return success(data={"deleted_count": deleted_count})
 
 

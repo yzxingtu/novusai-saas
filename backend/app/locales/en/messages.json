@@ -493,15 +493,41 @@
       "confirm_id": "Confirm ID",
       "confirm_action": "Confirm or Cancel",
       "knowledge_base_ids": "Knowledge Base IDs",
-      "consented_actions": "Session-level consented actions"
+      "consented_actions": "Session-level consented actions",
+      "attachments": "Attachments",
+      "image_params": "Image Parameters",
+      "page_key": "Page Key",
+      "page_title": "Page Title",
+      "page_data": "Page Data",
+      "page_context": "Page Context",
+      "pinned_agent_id": "Pinned Agent ID",
+      "routed_agent_id": "Routed Agent ID",
+      "routed_agent_name": "Routed Agent Name",
+      "route_confidence": "Route Confidence",
+      "routed_by": "Routed By",
+      "attachment_type": "Attachment Type",
+      "attachment_url": "Attachment URL",
+      "attachment_name": "Attachment Name",
+      "attachment_mime_type": "Attachment MIME Type",
+      "image_size": "Image Size",
+      "image_quality": "Image Quality",
+      "image_style": "Image Style",
+      "image_n": "Number of Images",
+      "page_session_id": "Page Session ID"
     },
     "error": {
       "conversation_not_found": "Conversation not found",
       "conversation_archived": "Conversation is archived and cannot continue",
       "execution_failed": "Agent execution failed",
-      "skill_load_failed": "Some skills failed to load, agent will work without tools"
+      "skill_load_failed": "Some skills failed to load, agent will work without tools",
+      "router_not_found": "Router agent not found, please contact administrator",
+      "router_model_not_configured": "Router agent model not configured, please contact administrator",
+      "router_timeout": "Router agent timed out, using default agent",
+      "default_agent_not_configured": "Please ask administrator to configure default AI assistant",
+      "agent_not_accessible": "This agent is not accessible"
     },
-    "conversation_deleted": "Conversation deleted"
+    "conversation_deleted": "Conversation deleted",
+    "memory_cleared": "Session memory cleared"
   },
   "conversation": {
     "not_found": "Conversation not found",
@@ -1117,7 +1143,8 @@
         "conversation": "Conversation",
         "task": "Task",
         "batch": "Batch",
-        "api": "API"
+        "api": "API",
+        "router": "Router"
       },
       "tool_type": {
         "toolkit": "Toolkit",

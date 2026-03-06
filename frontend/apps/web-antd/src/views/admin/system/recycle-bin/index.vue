@@ -12,7 +12,9 @@ import type {
  * - 动态列：根据模块元数据渲染不同列
  * - 租户区分：租户级模块展示「所属租户」列
  */
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -273,6 +275,16 @@ onMounted(async () => {
     await searchFormApi.setState({ schema });
   }
 });
+
+const cleanupPageContext = registerPageContext('admin/system/recycle-bin', () => ({
+  page_key: 'admin.system.recycle-bin',
+  page_title: $t('admin.system.recycleBin.name'),
+  page_data: {
+    resource: '/admin/recycle-bin',
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

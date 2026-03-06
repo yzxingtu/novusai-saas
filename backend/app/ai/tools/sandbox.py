@@ -94,6 +94,8 @@ class ToolSandbox:
         agent: Agent | None = None,
         toolkit_security_level: str = "normal",
         toolkit_memory_limit_mb: int = 256,
+        input_variables: dict[str, Any] | None = None,
+        page_session_id: str | None = None,
     ):
         """
         Args:
@@ -108,6 +110,8 @@ class ToolSandbox:
             agent: 智能体模型实例（可选，供 TextToSQLExecutor 使用）
             toolkit_security_level: Toolkit 安全等级 (strict/normal/permissive)
             toolkit_memory_limit_mb: Toolkit 子进程内存限制 (MB)
+            input_variables: 运行时变量（页面上下文等，传递给 ExecutionContext.variables）
+            page_session_id: 前端页面会话 ID（用于 PageOperationExecutor 定位目标页面）
         """
         self.tenant_id = tenant_id
         self.agent_id = agent_id
@@ -115,15 +119,18 @@ class ToolSandbox:
         self.user_role = user_role
         self.permissions = permissions or set()
         self.consented_actions: set[str] = set()
+        self.input_variables: dict[str, Any] = input_variables or {}
         self.config = config or SandboxConfig()
         self._gateway = gateway
         self._db = db
         self._agent = agent
         self._toolkit_security_level = toolkit_security_level
         self._toolkit_memory_limit_mb = toolkit_memory_limit_mb
+        self._page_session_id = page_session_id
 
         # 初始化执行器
         self._executors: dict[str, BaseToolExecutor] = {}
+        self._named_executors: dict[str, BaseToolExecutor] = {}
         self._init_executors()
 
     def _init_executors(self) -> None:
@@ -156,6 +163,12 @@ class ToolSandbox:
         # 代码执行器
         from app.ai.tools.executors.code_execution_executor import CodeExecutionExecutor
         self._executors[ToolTypeEnum.CODE_EXECUTION.value] = CodeExecutionExecutor()
+        # 页面上下文执行器（按工具名匹配，优先于 type-based 查找）
+        from app.ai.tools.executors.page_context_executor import PageContextExecutor
+        self._named_executors["get_page_context"] = PageContextExecutor()
+        # 页面操作执行器（通过 WebSocket 下发操作到前端）
+        from app.ai.tools.executors.page_operation_executor import PageOperationExecutor
+        self._named_executors["invoke_page_operation"] = PageOperationExecutor()
 
     def get_executor(self, tool_type: str) -> BaseToolExecutor | None:
         """获取指定类型的执行器"""
@@ -257,7 +270,7 @@ class ToolSandbox:
             except Exception as pe:
                 logger.warning("Plugin executor lookup failed for %s: %s", definition.source_plugin, pe)
         if not executor:
-            executor = self._executors.get(definition.tool_type)
+            executor = self._named_executors.get(name) or self._executors.get(definition.tool_type)
         if not executor:
             return ToolResult(
                 tool_call_id=tool_call_id,
@@ -276,6 +289,8 @@ class ToolSandbox:
             db=self._db,
             consented_actions=self.consented_actions,
             skill_id=definition.source_skill_id,
+            variables=self.input_variables,
+            page_session_id=self._page_session_id,
         )
 
         # 5.5 执行器级参数校验

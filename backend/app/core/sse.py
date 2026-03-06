@@ -227,7 +227,7 @@ async def _wrap_generator_with_keepalive(
                         _keepalive_sender(keepalive_interval).__anext__()
                     )
                 except Exception as e:
-                    logger.error("Keepalive task failed", error=str(e))
+                    logger.error("Keepalive task failed: %s", str(e))
 
     except GeneratorExit:
         # 客户端断开连接
@@ -236,7 +236,7 @@ async def _wrap_generator_with_keepalive(
 
     except Exception as e:
         # 发生错误，发送错误事件
-        logger.error("Generator error", error=str(e))
+        logger.error("Generator error: %s", str(e))
         yield SSEFormatter.format_error(
             code="STREAM_ERROR",
             message=str(e),

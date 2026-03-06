@@ -23,9 +23,14 @@ export interface AgentItem {
 
 export interface ConversationItem {
   id: number;
+  agent_id: number;
   title: null | string;
   status: string;
   created_at: string;
+  /** Agent name (enriched by global conversations API) */
+  agent_name?: null | string;
+  /** Agent avatar URL (enriched by global conversations API) */
+  agent_avatar?: null | string;
 }
 
 export interface RagSource {
@@ -78,6 +83,10 @@ export interface PendingConsent {
   skillType?: string;
   /** Whether the user has responded (allowed or rejected) */
   resolved?: boolean;
+  /** Whether the consent was rejected (vs approved) */
+  rejected?: boolean;
+  /** Whether auto-approved by trust session */
+  autoApproved?: boolean;
 }
 
 export interface ActionButton {
@@ -104,6 +113,16 @@ export interface ChatMessage {
   streaming?: boolean;
   tokenUsage?: number;
   durationMs?: number;
+  /** Agent ID (for multi-agent conversation tracking) */
+  agent_id?: null | number;
+  /** Agent name (resolved from agents list) */
+  agent_name?: null | string;
+  /** Agent avatar URL (resolved from agents list) */
+  agent_avatar?: null | string;
+  /** Agent description (resolved from agents list) */
+  agent_description?: null | string;
+  /** LLM model name used by the agent */
+  model_name?: null | string;
   ragSources?: RagSource[];
   attachments?: ChatAttachment[];
   toolCalls?: ToolCallEvent[];
@@ -119,33 +138,9 @@ export interface ChatMessage {
   actionButtonsUsed?: boolean;
   /** Generated images from image generation models */
   imageResults?: ImageResult[];
+  /** Whether session memory was updated during this response */
+  memoryUpdated?: boolean;
+  /** Message creation timestamp (ISO string) */
+  created_at?: string;
 }
 
-export interface AIChatPanelProps {
-  /** 'page' = full page with sidebar, 'drawer' = compact drawer mode */
-  mode: 'drawer' | 'page';
-  /** API prefix: '/admin' or '/tenant' */
-  apiPrefix: string;
-  /** File upload URL */
-  uploadUrl: string;
-  /** Whether to show KB mention selector */
-  showKbSelector?: boolean;
-  /** Whether to show file attachments */
-  showAttachments?: boolean;
-  /** Function to fetch selectable KBs */
-  fetchKbApi?: () => Promise<unknown[]>;
-  /** i18n namespace prefix for labels */
-  i18nPrefix?: string;
-  /** Initial agent ID to auto-select on load */
-  initialAgentId?: number;
-  /** Initial conversation ID to auto-load after agent is selected */
-  initialConversationId?: number;
-  /** Custom welcome message (overrides default) */
-  welcomeMessage?: string;
-  /** Suggested question buttons shown in empty state */
-  suggestedQuestions?: string[];
-  /** Callback when a tool call completes successfully */
-  onToolCall?: (toolName: string, output: string) => void;
-  /** Callback when streaming completes (used for unread badge) */
-  onStreamComplete?: () => void;
-}

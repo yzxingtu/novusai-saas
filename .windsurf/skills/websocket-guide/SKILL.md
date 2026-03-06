@@ -39,6 +39,7 @@ description: Socket.IO 实时通信系统使用指南。当需要使用 WebSocke
 | `backend/app/sio/tenant_ns.py` | /tenant namespace |
 | `backend/app/sio/user_ns.py` | /user namespace |
 | `backend/app/sio/presence.py` | PresenceManager（Redis Hash 在线状态） |
+| `backend/app/sio/page_session.py` | PageSessionMixin + invoke_page_operation()（页面操作双向通信） |
 | `frontend/.../composables/use-socketio.ts` | useSocketIO composable |
 | `frontend/.../store/shared/socketio.ts` | useSocketIOStore 全局连接管理 |
 
@@ -207,11 +208,13 @@ on('my_event', (data) => { ... });
 | `presence:list` | S→C | 初始在线列表（连接时自动推送） |
 | `ai:typing:start` | S→C | AI 开始回复 |
 | `ai:typing:stop` | S→C | AI 回复完成 |
+| `page_operation_invoke` | S→C | AI 请求执行页面操作（M310） |
+| `page_operation_result` | C→S | 前端回传操作执行结果（M310） |
 
 ### 自定义事件命名规则
 
 - 使用 `命名空间:动作` 格式（冒号分隔）
-- 命名空间：`notification` / `presence` / `ai` / `im`（预留）
+- 命名空间：`notification` / `presence` / `ai` / `page_operation` / `im`（预留）
 - 全部小写，单词间用下划线
 
 ---
@@ -323,7 +326,61 @@ Presence Hash 设有 24h TTL，`set_online` 时自动刷新。即使 worker 崩�
 
 ---
 
-## 十、检查清单
+## 十、页面操作 WebSocket 通道（M310）
+
+AI 通过 `invoke_page_operation` builtin skill 触发前端页面操作，通过 Socket.IO 双向通信实现。
+
+### 通信流程
+
+```
+LLM function call: invoke_page_operation
+  → PageOperationExecutor → invoke_page_operation()
+  → 创建 asyncio.Future
+  → sio.emit("page_operation_invoke", data, room=f"page_session:{page_session_id}")
+  → 前端 PageSessionManager 查找已注册操作
+  → readonly=false 时弹出确认对话框
+  → 执行 handler
+  → sio.emit("page_operation_result", result)
+  → 后端 resolve Future → 返回 ToolResult
+```
+
+### Room 管理
+
+| Room | 用途 | 加入时机 |
+|------|------|--------|
+| `page_session:{page_session_id}` | 页面操作指令的精确定位 | 前端发送消息时携带 page_session_id |
+
+### 事件格式
+
+```python
+# page_operation_invoke（S→C）
+{
+    "request_id": "uuid",
+    "operation_key": "refresh_list",
+    "params": {},
+}
+
+# page_operation_result（C→S）
+{
+    "request_id": "uuid",
+    "success": True,
+    "data": { ... },
+    "error": None,
+}
+```
+
+### 安全模型
+
+| 操作类型 | 执行策略 |
+|----------|----------|
+| `readonly=true` | 直接执行，无需确认 |
+| `readonly=false` | 前端弹出确认对话框 |
+| 未注册操作 | 拒绝执行，返回错误 |
+| 超时（30s） | 返回超时错误，自动清理 Future |
+
+---
+
+## 十二、检查清单
 
 ### 后端
 

@@ -7,8 +7,10 @@
  */
 import type { AgentListItem } from '#/api/tenant/agents';
 
-import { computed, ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -212,6 +214,18 @@ const stats = computed(() => ({
   published: list.value.filter((a) => a.status === 'published').length,
   system: list.value.filter((a) => a.is_system).length,
 }));
+
+const cleanupPageContext = registerPageContext('tenant/ai/agents', () => ({
+  page_key: 'tenant.ai.agents',
+  page_title: $t('tenant.ai.agent.name'),
+  page_data: {
+    resource: '/tenant/ai/agents',
+    total: stats.value.total,
+    published: stats.value.published,
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>
@@ -358,11 +372,6 @@ const stats = computed(() => ({
               <IconifyIcon
                 v-else-if="agent.avatar && String(agent.avatar).includes(':')"
                 :icon="String(agent.avatar)"
-                class="size-5"
-              />
-              <IconifyIcon
-                v-else-if="agent.is_system"
-                icon="lucide:shield-check"
                 class="size-5"
               />
               <span v-else>{{

@@ -3,9 +3,9 @@ ModelRouter — AI 多模型路由引擎
 
 路由优先级（从高到低）：
 1. routing_config.enable_routing=False → 直接返回 agent 原始 provider+model（向后兼容）
-2. 有图片附件 → 优先 vision_model_id，否则查找同 provider supports_vision 模型
+2. 有图片附件 → 优先 vision_model_id，否则按 tier 查找 vision 模型（受 max_tier 限制）
 3. 有工具且目标模型不支持 FC → 升级到同 tier 内支持 FC 的模型
-4. estimated_tokens > long_context_threshold → 优先 long_context_model_id，否则找最大 context_window 模型
+4. estimated_tokens > long_context_threshold → 优先 long_context_model_id，否则按 tier 降级找大 context_window 模型（受 max_tier 限制）
 5. ComplexityClassifier 分类 → 映射到 tier
 6. 按 tier 从 DB 查询模型（同 provider 优先 + 价格 ASC）
 7. Provider 健康检查 → 不健康则降 tier
@@ -129,8 +129,12 @@ class ModelRouter:
         # 从 request 提取请求特征
         messages: list[ChatMessage] = getattr(request, "messages", []) or []
         tools: list | None = getattr(request, "tools", None)
-        # ExecutionRequest 的附件字段是 attachments（列表），不是 has_attachments
         has_attachments: bool = bool(getattr(request, "attachments", None))
+
+        # 检测是否包含图片附件（request 级 + message 级）
+        has_image_attachments = self._detect_image_attachments(
+            getattr(request, "attachments", None), messages,
+        )
 
         # 确保 agent 的 model 已加载
         agent_model: AIModel | None = getattr(agent, "model", None)
@@ -143,7 +147,7 @@ class ModelRouter:
         model_repo = AIModelRepository(self.db)
 
         # ── 2. 图片附件 → 需要 Vision 能力 ──
-        if has_attachments:
+        if has_image_attachments:
             vision_result = await self._route_for_vision(
                 routing_config, agent, agent_provider_id, model_repo
             )
@@ -163,7 +167,7 @@ class ModelRouter:
 
         # ── 4. ComplexityClassifier → tier ──
         complexity = self._classifier.classify(
-            messages, tools, has_attachments=has_attachments
+            messages, tools, has_attachments=has_attachments or has_image_attachments
         )
         target_tiers = _TIER_CANDIDATES.get(complexity.value, [])
 
@@ -215,26 +219,15 @@ class ModelRouter:
     ) -> RouteResult | None:
         """图片路由：优先显式配置的 vision_model_id"""
         _ = agent
-        from sqlalchemy import select
-        from sqlalchemy.orm import selectinload
-
-        from app.models.ai.model import AIModel as AIModelModel
 
         vision_model_id: int | None = routing_config.get("vision_model_id")
         if vision_model_id:
-            stmt = (
-                select(AIModelModel)
-                .where(
-                    AIModelModel.id == vision_model_id,
-                    AIModelModel.is_active.is_(True),
-                    AIModelModel.is_deleted.is_(False),
-                    AIModelModel.supports_vision.is_(True),
-                )
-                .options(selectinload(AIModelModel.provider))
-            )
-            result = await self.db.execute(stmt)
-            model = result.scalar_one_or_none()
-            if model and await self._is_provider_healthy(model.provider_id):
+            model = await model_repo.get_active_with_provider(vision_model_id)
+            if (
+                model
+                and getattr(model, "supports_vision", False)
+                and await self._is_provider_healthy(model.provider_id)
+            ):
                 return RouteResult(
                     provider_code=model.provider.code,
                     model_code=model.code,
@@ -244,12 +237,17 @@ class ModelRouter:
                     is_overridden=True,
                 )
 
-        # 退而求其次：按 tier 找 vision 模型
-        for tier in [
+        # 退而求其次：按 tier 找 vision 模型（受 max_tier 限制）
+        fallback_tiers = [
             ModelTierEnum.STANDARD.value,
             ModelTierEnum.PREMIUM.value,
             ModelTierEnum.FAST.value,
-        ]:
+        ]
+        max_tier = routing_config.get("max_tier")
+        if max_tier:
+            fallback_tiers = self._filter_tiers_by_max(fallback_tiers, max_tier)
+
+        for tier in fallback_tiers:
             model = await model_repo.get_by_tier(
                 tier=tier,
                 preferred_provider_id=agent_provider_id,
@@ -277,24 +275,10 @@ class ModelRouter:
     ) -> RouteResult | None:
         """长上下文路由：优先显式配置的 long_context_model_id"""
         _ = agent
-        from sqlalchemy import select
-        from sqlalchemy.orm import selectinload
-
-        from app.models.ai.model import AIModel as AIModelModel
 
         lc_model_id: int | None = routing_config.get("long_context_model_id")
         if lc_model_id:
-            stmt = (
-                select(AIModelModel)
-                .where(
-                    AIModelModel.id == lc_model_id,
-                    AIModelModel.is_active.is_(True),
-                    AIModelModel.is_deleted.is_(False),
-                )
-                .options(selectinload(AIModelModel.provider))
-            )
-            result = await self.db.execute(stmt)
-            model = result.scalar_one_or_none()
+            model = await model_repo.get_active_with_provider(lc_model_id)
             if model and await self._is_provider_healthy(model.provider_id):
                 return RouteResult(
                     provider_code=model.provider.code,
@@ -305,21 +289,31 @@ class ModelRouter:
                     is_overridden=True,
                 )
 
-        # 退而求其次：找最大 context_window 的模型
-        model = await model_repo.get_by_tier(
-            tier=ModelTierEnum.PREMIUM.value,
-            preferred_provider_id=agent_provider_id,
-            min_context_window=estimated_tokens,
-        )
-        if model and await self._is_provider_healthy(model.provider_id):
-            return RouteResult(
-                provider_code=model.provider.code,
-                model_code=model.code,
-                model_id=model.id,
-                tier=model.tier,
-                reason="long_context:tier_fallback",
-                is_overridden=True,
+        # 退而求其次：按 tier 降级找大 context_window 模型（受 max_tier 限制）
+        fallback_tiers = [
+            ModelTierEnum.PREMIUM.value,
+            ModelTierEnum.STANDARD.value,
+            ModelTierEnum.FAST.value,
+        ]
+        max_tier = routing_config.get("max_tier")
+        if max_tier:
+            fallback_tiers = self._filter_tiers_by_max(fallback_tiers, max_tier)
+
+        for tier in fallback_tiers:
+            model = await model_repo.get_by_tier(
+                tier=tier,
+                preferred_provider_id=agent_provider_id,
+                min_context_window=estimated_tokens,
             )
+            if model and await self._is_provider_healthy(model.provider_id):
+                return RouteResult(
+                    provider_code=model.provider.code,
+                    model_code=model.code,
+                    model_id=model.id,
+                    tier=model.tier,
+                    reason="long_context:tier_fallback",
+                    is_overridden=True,
+                )
 
         return None
 
@@ -364,6 +358,36 @@ class ModelRouter:
         except Exception as exc:
             logger.warning("ModelRouter health check failed: %s", str(exc))
             return True
+
+    @staticmethod
+    def _detect_image_attachments(
+        request_attachments: list[dict[str, Any]] | None,
+        messages: list[ChatMessage],
+    ) -> bool:
+        """
+        检测请求中是否包含图片附件（request 级 + message 级）
+
+        Args:
+            request_attachments: ExecutionRequest.attachments
+            messages: 消息列表（可能含 message.attachments）
+
+        Returns:
+            True if any image attachment found
+        """
+        # 检查 request 级附件
+        if request_attachments:
+            for att in request_attachments:
+                if isinstance(att, dict) and att.get("type") == "image":
+                    return True
+
+        # 检查 message 级附件（前端直接注入到 ChatMessage.attachments）
+        for msg in messages:
+            if msg.attachments:
+                for att in msg.attachments:
+                    if isinstance(att, dict) and att.get("type") == "image":
+                        return True
+
+        return False
 
     @staticmethod
     def _filter_tiers_by_max(tiers: list[str], max_tier: str) -> list[str]:

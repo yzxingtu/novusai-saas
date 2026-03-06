@@ -4,7 +4,10 @@
  */
 import type { AICallLogInfo } from '#/api/admin/ai';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -112,7 +115,7 @@ function onViewDetail(row: AICallLogInfo) {
 
 // ========== Grid ==========
 
-const { Grid } = useCrudPage<AICallLogInfo>({
+const { Grid, onRefresh } = useCrudPage<AICallLogInfo>({
   api: {
     list: getAICallLogListApi,
     resource: '/admin/ai/call-logs',
@@ -124,6 +127,35 @@ const { Grid } = useCrudPage<AICallLogInfo>({
   customActions: {
     detail: onViewDetail,
   },
+});
+
+const cleanupPageContext = registerPageContext('admin/ai/call-logs', () => ({
+  page_key: 'admin.ai.call-logs',
+  page_title: $t('admin.ai.callLog.name'),
+  page_data: {
+    resource: '/admin/ai/call-logs',
+    total_calls: summaryData.value.total_calls,
+    success_rate: successRate.value,
+    avg_latency_ms: summaryData.value.avg_latency_ms,
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('admin.ai.call-logs', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the call log list',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'Call log list refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

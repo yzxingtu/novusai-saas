@@ -28,6 +28,9 @@ import {
   ref,
   watch,
 } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 import { useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
@@ -90,6 +93,35 @@ async function loadAll() {
     loading.value = false;
   }
 }
+
+const cleanupPageContext = registerPageContext('admin/dashboard', () => ({
+  page_key: 'admin.dashboard',
+  page_title: $t('admin.dashboard.platformConsole'),
+  page_data: {
+    system_health: health.value?.status ?? 'unknown',
+    total_tenants: stats.value.total_tenants,
+    active_tenants: stats.value.active_tenants,
+    total_users: stats.value.total_users,
+    today_login: stats.value.today_login,
+    ai_calls_today: aiOverview.value?.today_calls ?? 0,
+    ai_total_tokens: aiOverview.value?.total_tokens ?? 0,
+    storage_files: storageOverview.value?.total_files ?? 0,
+    plugins_enabled: pluginOverview.value?.enabled ?? 0,
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('admin.dashboard', [
+  {
+    name: 'refresh_dashboard',
+    label: $t('shared.pageOperation.refreshDashboard'),
+    description: 'Reload all dashboard statistics and charts',
+    readonly: true,
+    handler: async () => {
+      await loadAll();
+      return { success: true, message: 'Dashboard refreshed successfully' };
+    },
+  },
+]);
 
 onMounted(() => {
   loadAll();
@@ -321,7 +353,11 @@ function stopClock() {
 onMounted(startClock);
 onActivated(startClock);
 onDeactivated(stopClock);
-onUnmounted(stopClock);
+onUnmounted(() => {
+  stopClock();
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

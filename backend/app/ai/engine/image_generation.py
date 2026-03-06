@@ -44,7 +44,7 @@ class ImageGenerationEngine:
         self,
         agent: Agent,
         request: ExecutionRequest,
-        on_complete: Callable[[ExecutionResult], Awaitable[None]] | None = None,
+        on_complete: Callable[[ExecutionResult], Awaitable[dict | None]] | None = None,
         image_params: dict | None = None,
     ) -> StreamingResponse:
         """
@@ -127,17 +127,9 @@ class ImageGenerationEngine:
                         "delta": display_text,
                     })
 
-                # 完成事件
+                # 回调（在 done 事件之前）
                 duration_ms = int((time.perf_counter() - start) * 1000)
-                yield SSEChunkEncoder.encode({
-                    "event": "done",
-                    "conversation_id": request.conversation_id,
-                    "total_tokens": 0,
-                    "duration_ms": duration_ms,
-                })
-                yield SSEChunkEncoder.done()
-
-                # 回调
+                extra_done_data: dict = {}
                 if on_complete:
                     result = ExecutionResult(
                         success=True,
@@ -150,7 +142,22 @@ class ImageGenerationEngine:
                         duration_ms=duration_ms,
                         conversation_id=request.conversation_id,
                     )
-                    await on_complete(result)
+                    try:
+                        cb_result = await on_complete(result)
+                        if isinstance(cb_result, dict):
+                            extra_done_data = cb_result
+                    except Exception as cb_exc:
+                        logger.error("on_complete callback error: %s", str(cb_exc))
+
+                # 完成事件
+                yield SSEChunkEncoder.encode({
+                    "event": "done",
+                    "conversation_id": request.conversation_id,
+                    "total_tokens": 0,
+                    "duration_ms": duration_ms,
+                    **extra_done_data,
+                })
+                yield SSEChunkEncoder.done()
 
             except Exception as exc:
                 logger.error(

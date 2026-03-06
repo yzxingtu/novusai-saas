@@ -6,8 +6,6 @@
 
 from typing import Any
 
-from app.core.i18n import _
-
 
 class AppException(Exception):
     """
@@ -42,7 +40,9 @@ class AppException(Exception):
             status_code: HTTP 状态码
             data: 附加数据
         """
-        self.message = message or _(self.default_message)
+        from app.core.i18n import _ as translate
+
+        self.message = message or translate(self.default_message)
         self.code = code or self.__class__.code
         self.status_code = status_code or self.__class__.status_code
         self.data = data

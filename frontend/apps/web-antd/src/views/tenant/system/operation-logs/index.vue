@@ -4,7 +4,10 @@
  */
 import type { tenantApi } from '#/api';
 
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 
@@ -12,6 +15,7 @@ import { Avatar, Card, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { tenantApi as tenant } from '#/api';
+import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
@@ -40,7 +44,7 @@ function onViewDetail(row: OperationLogInfo) {
 }
 
 // CRUD 页面（只读列表）
-const { Grid, gridApi } = useCrudPage<OperationLogInfo>({
+const { Grid, gridApi, onRefresh } = useCrudPage<OperationLogInfo>({
   api: {
     list: tenant.getOperationLogListApi,
     resource: '/tenant/operation-logs',
@@ -86,6 +90,32 @@ async function loadOperators() {
 
 onMounted(() => {
   loadOperators();
+});
+
+const cleanupPageContext = registerPageContext('tenant/system/operation-logs', () => ({
+  page_key: 'tenant.system.operation-logs',
+  page_title: $t('tenant.system.operationLog.name'),
+  page_data: {
+    resource: '/tenant/operation-logs',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('tenant.system.operation-logs', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the operation log list',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'Operation log list refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

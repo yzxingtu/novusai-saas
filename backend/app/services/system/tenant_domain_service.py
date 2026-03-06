@@ -142,6 +142,8 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         tenant_id: int,
         domain: str,
         remark: str | None = None,
+        *,
+        skip_quota_check: bool = False,
     ) -> TenantDomain:
         """
         添加自定义域名
@@ -152,6 +154,7 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             tenant_id: 租户 ID
             domain: 域名
             remark: 备注
+            skip_quota_check: 跳过配额检查（Admin 端使用）
 
         Returns:
             创建的域名
@@ -159,22 +162,23 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         Raises:
             BusinessException: 域名已存在、配额超限或套餐不允许自定义域名
         """
-        is_allowed, max_domains = await self._check_custom_domain_allowed(tenant_id)
-        if not is_allowed:
-            raise BusinessException(
-                message=_("tenant_domain.custom_domain_disabled"),
-                code=ErrorCode.FORBIDDEN,
-            )
+        if not skip_quota_check:
+            is_allowed, max_domains = await self._check_custom_domain_allowed(tenant_id)
+            if not is_allowed:
+                raise BusinessException(
+                    message=_("tenant_domain.custom_domain_disabled"),
+                    code=ErrorCode.FORBIDDEN,
+                )
 
-        suffix = await self._get_domain_suffix()
-        domains = await self.repo.get_tenant_domains(tenant_id)
-        custom_count = sum(1 for d in domains if not d.domain.endswith(suffix))
+            suffix = await self._get_domain_suffix()
+            domains = await self.repo.get_tenant_domains(tenant_id)
+            custom_count = sum(1 for d in domains if not d.domain.endswith(suffix))
 
-        if max_domains > 0 and custom_count >= max_domains:
-            raise BusinessException(
-                message=_("tenant_domain.quota_exceeded"),
-                code=ErrorCode.DOMAIN_QUOTA_EXCEEDED,
-            )
+            if max_domains > 0 and custom_count >= max_domains:
+                raise BusinessException(
+                    message=_("tenant_domain.quota_exceeded"),
+                    code=ErrorCode.DOMAIN_QUOTA_EXCEEDED,
+                )
 
         if await self.repo.domain_exists(domain):
             raise BusinessException(
@@ -500,6 +504,46 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             "name": domain.domain,
             "value": domain.cname_target,
         }
+
+
+    async def batch_provision_ssl(self, tenant_id: int) -> int:
+        """
+        批量为租户所有已验证但无 SSL 的域名触发签发
+
+        Args:
+            tenant_id: 租户 ID
+
+        Returns:
+            触发签发的域名数量
+        """
+        from app.enums.domain import DomainSslStatus
+
+        result = await self.db.execute(
+            select(TenantDomain).where(
+                TenantDomain.tenant_id == tenant_id,
+                TenantDomain.is_verified.is_(True),
+                TenantDomain.ssl_status.in_([
+                    DomainSslStatus.NONE.value,
+                    DomainSslStatus.FAILED.value,
+                    DomainSslStatus.EXPIRED.value,
+                ]),
+                TenantDomain.is_deleted.is_(False),
+            )
+        )
+        domains = list(result.scalars().all())
+
+        triggered = 0
+        from app.celery_app import celery_app
+        for domain in domains:
+            await self.update(domain.id, {"ssl_status": DomainSslStatus.PROVISIONING.value})
+            celery_app.send_task(
+                "app.tasks.ssl_tasks.task_provision_ssl",
+                args=[domain.id],
+                queue="default",
+            )
+            triggered += 1
+
+        return triggered
 
 
 class TenantDomainTenantService(TenantDomainService, TenantService[TenantDomain, TenantDomainTenantRepository]):

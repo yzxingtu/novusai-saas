@@ -444,10 +444,8 @@ class AgentService(TenantService[Agent, AgentRepository]):
         })
 
         logger.info(
-            _("agent.log.published"),
-            agent_id=agent_id,
-            tenant_id=self.tenant_id,
-            version=new_version,
+            "Agent published: agent_id=%s tenant_id=%s version=%s",
+            agent_id, self.tenant_id, new_version,
         )
 
         return updated
@@ -494,10 +492,8 @@ class AgentService(TenantService[Agent, AgentRepository]):
         )
 
         logger.info(
-            _("agent.version.log.rolled_back"),
-            agent_id=agent_id,
-            tenant_id=self.tenant_id,
-            version=version,
+            "Agent rolled back: agent_id=%s tenant_id=%s version=%s",
+            agent_id, self.tenant_id, version,
         )
 
         return updated
@@ -660,11 +656,8 @@ class AgentService(TenantService[Agent, AgentRepository]):
         })
 
         logger.info(
-            _("agent.access.log.updated"),
-            agent_id=agent_id,
-            tenant_id=self.tenant_id,
-            visibility=visibility,
-            access_type=access_type,
+            "Agent access updated: agent_id=%s tenant_id=%s visibility=%s access_type=%s",
+            agent_id, self.tenant_id, visibility, access_type,
         )
 
         return {
@@ -911,9 +904,8 @@ class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
         updated = await self.repo.update(agent_id, {"status": status})
 
         logger.info(
-            _("agent.log.admin_status_updated"),
-            agent_id=agent_id,
-            status=status,
+            "Agent admin status updated: agent_id=%s status=%s",
+            agent_id, status,
         )
 
         return updated

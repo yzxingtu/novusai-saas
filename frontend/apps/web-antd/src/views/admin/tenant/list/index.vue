@@ -4,7 +4,10 @@
  */
 import type { adminApi } from '#/api';
 
-import { computed, ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -165,7 +168,7 @@ async function onImpersonateInCurrentTab(row: TenantInfo) {
 }
 
 // 声明式 CRUD 页面（套餐下拉由 ApiSelect 自动加载，导出按钮自动添加）
-const { Grid, FormDrawer, ExportModal, onRefresh, handleActionClick } =
+const { Grid, FormDrawer, ExportModal, onRefresh, handleActionClick, openExportModal } =
   useCrudPage<TenantInfo>({
     api: {
       list: admin.getTenantListApi,
@@ -195,6 +198,42 @@ const { Grid, FormDrawer, ExportModal, onRefresh, handleActionClick } =
       storageConfig: onStorageConfig,
     },
   });
+
+const cleanupPageContext = registerPageContext('admin/tenant/list', () => ({
+  page_key: 'admin.tenant.list',
+  page_title: $t('admin.tenant.name'),
+  page_data: {
+    resource: '/admin/tenants',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('admin.tenant.list', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the tenant list data',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'Tenant list refreshed' };
+    },
+  },
+  {
+    name: 'export_data',
+    label: $t('shared.pageOperation.exportData'),
+    description: 'Open the data export dialog for the tenant list',
+    readonly: true,
+    handler: async () => {
+      openExportModal();
+      return { success: true, message: 'Export dialog opened' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

@@ -4,6 +4,11 @@
  */
 import type { AIApiKeyInfo } from '#/api/admin/ai';
 
+import { onUnmounted } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -60,6 +65,32 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AIApiKeyInfo>({
   nameField: 'name',
   defaultSort: '-created_at',
   createPermission: 'ai_api_key:create',
+});
+
+const cleanupPageContext = registerPageContext('admin/ai/api-keys', () => ({
+  page_key: 'admin.ai.api-keys',
+  page_title: $t('admin.ai.apiKey.name'),
+  page_data: {
+    resource: '/admin/ai/api-keys',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('admin.ai.api-keys', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the API key list',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'API key list refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

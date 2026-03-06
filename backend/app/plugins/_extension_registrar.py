@@ -242,12 +242,17 @@ def register_all_extensions(
 
     # standalone_pages — 独立页面路由（/admin/plugins/* 或 /tenant/plugins/*）
     for page in ext.frontend.standalone_pages:
-        registry.register_frontend_slot(
-            plugin_name, FrontendSlotTypeEnum.STANDALONE_PAGE.value,
+        slot_kwargs: dict[str, object] = dict(
             name=page.name,
             path=page.path,
             component=page.component,
             title=page.title,
+        )
+        if page.ai is not None:
+            slot_kwargs["ai"] = page.ai.model_dump(exclude_none=True)
+        registry.register_frontend_slot(
+            plugin_name, FrontendSlotTypeEnum.STANDALONE_PAGE.value,
+            **slot_kwargs,
         )
 
     # notification_ui — 通知中心自定义 UI 组件

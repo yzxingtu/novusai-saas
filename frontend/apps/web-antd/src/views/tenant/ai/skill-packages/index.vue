@@ -10,8 +10,10 @@ import type { UploadRequestOption } from 'ant-design-vue/es/vc-upload/interface'
 import type { TenantSkillPackageInfo } from '#/api/tenant/skill-packages';
 import type { SkillInfo } from '#/api/tenant/skills';
 
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon, Plus } from '@vben/icons';
@@ -452,6 +454,17 @@ onMounted(() => {
   loadPackages();
   loadRecycleBinCount();
 });
+
+const cleanupPageContext = registerPageContext('tenant/ai/skill-packages', () => ({
+  page_key: 'tenant.ai.skill-packages',
+  page_title: $t('tenant.ai.skillPackage.name'),
+  page_data: {
+    resource: '/tenant/ai/skill-packages',
+    total: packages.value.length,
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

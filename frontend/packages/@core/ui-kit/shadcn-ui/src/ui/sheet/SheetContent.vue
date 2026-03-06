@@ -82,6 +82,9 @@ function onAnimationEnd(event: AnimationEvent) {
           position,
           backdropFilter:
             overlayBlur && overlayBlur > 0 ? `blur(${overlayBlur}px)` : 'none',
+          ...(props.side === 'right'
+            ? { right: 'var(--ai-panel-right-offset, 0px)' }
+            : {}),
         }"
       />
     </Transition>
@@ -91,6 +94,12 @@ function onAnimationEnd(event: AnimationEvent) {
       :style="{
         ...(zIndex ? { zIndex } : {}),
         position,
+        ...(props.side === 'right'
+          ? {
+              right: 'var(--ai-panel-right-offset, 0px)',
+              maxWidth: 'calc(100vw - var(--ai-panel-right-offset, 0px))',
+            }
+          : {}),
       }"
       @animationend="onAnimationEnd"
       v-bind="{ ...forwarded, ...$attrs }"

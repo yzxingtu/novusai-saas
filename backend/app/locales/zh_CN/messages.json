@@ -493,15 +493,41 @@
       "confirm_id": "确认操作 ID",
       "confirm_action": "确认或取消",
       "knowledge_base_ids": "关联知识库 ID 列表",
-      "consented_actions": "会话级授权操作列表"
+      "consented_actions": "会话级授权操作列表",
+      "attachments": "附件列表",
+      "image_params": "图像参数",
+      "page_key": "页面标识",
+      "page_title": "页面标题",
+      "page_data": "页面数据",
+      "page_context": "页面上下文",
+      "pinned_agent_id": "固定智能体 ID",
+      "routed_agent_id": "路由目标智能体 ID",
+      "routed_agent_name": "路由目标智能体名称",
+      "route_confidence": "路由置信度",
+      "routed_by": "路由方式",
+      "attachment_type": "附件类型",
+      "attachment_url": "附件地址",
+      "attachment_name": "附件名称",
+      "attachment_mime_type": "附件 MIME 类型",
+      "image_size": "图片尺寸",
+      "image_quality": "图片质量",
+      "image_style": "图片风格",
+      "image_n": "生成数量",
+      "page_session_id": "页面会话 ID"
     },
     "error": {
       "conversation_not_found": "对话不存在",
       "conversation_archived": "对话已归档，无法继续",
       "execution_failed": "智能体执行失败",
-      "skill_load_failed": "部分技能加载失败，智能体将在无工具状态下工作"
+      "skill_load_failed": "部分技能加载失败，智能体将在无工具状态下工作",
+      "router_not_found": "路由智能体未找到，请联系管理员配置",
+      "router_model_not_configured": "路由智能体未配置模型，请联系管理员配置",
+      "router_timeout": "路由智能体响应超时，已使用默认智能体",
+      "default_agent_not_configured": "请管理员配置默认 AI 助手",
+      "agent_not_accessible": "该智能体不可访问"
     },
-    "conversation_deleted": "对话已删除"
+    "conversation_deleted": "对话已删除",
+    "memory_cleared": "会话记忆已清空"
   },
   "conversation": {
     "not_found": "对话不存在",
@@ -1119,7 +1145,8 @@
         "conversation": "对话模式",
         "task": "任务模式",
         "batch": "批处理模式",
-        "api": "API 模式"
+        "api": "API 模式",
+        "router": "路由模式"
       },
       "tool_type": {
         "toolkit": "工具集",

@@ -7,7 +7,9 @@
 import type { OrgNodeType } from '#/api/admin/organization';
 import type { OrgTreeNodeData } from '#/components/business/org-tree';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -173,6 +175,16 @@ onMounted(async () => {
     selectedNode.value = firstNode;
   }
 });
+
+const cleanupPageContext = registerPageContext('admin/system/organization', () => ({
+  page_key: 'admin.system.organization',
+  page_title: $t('admin.system.organization.name'),
+  page_data: {
+    resource: '/admin/organization',
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

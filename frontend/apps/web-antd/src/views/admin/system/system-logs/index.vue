@@ -5,7 +5,10 @@
  */
 import type { adminApi } from '#/api';
 
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -394,6 +397,32 @@ watch(activeCategory, () => {
 
 onMounted(() => {
   onRefresh();
+});
+
+const cleanupPageContext = registerPageContext('admin/system/system-logs', () => ({
+  page_key: 'admin.system.system-logs',
+  page_title: $t('admin.system.systemLog.name'),
+  page_data: {
+    resource: '/admin/system-logs',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('admin.system.system-logs', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload system log stats, categories and files',
+    readonly: true,
+    handler: async () => {
+      await onRefresh();
+      return { success: true, message: 'System logs refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

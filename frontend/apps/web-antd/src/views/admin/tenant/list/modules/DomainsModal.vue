@@ -147,6 +147,7 @@ function onOpenSslDrawer(domain: TenantDomainInfo) {
     domainId: domain.id,
     tenantId: currentTenant.value.tenantId,
     domain: domain.domain,
+    isDefault: domain.domainType === 'default',
   });
 }
 

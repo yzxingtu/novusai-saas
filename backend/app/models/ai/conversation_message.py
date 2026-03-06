@@ -31,6 +31,7 @@ class ConversationMessage(TenantModel):
         "conversation_id": "conversation_id",
         "role": "role",
         "tenant_id": "tenant_id",
+        "agent_id": "agent_id",
         "created_at": "created_at",
     }
 
@@ -112,6 +113,15 @@ class ConversationMessage(TenantModel):
 
     # ==================== 关联模型 ====================
 
+    # 生成此消息的智能体（assistant/tool 角色，支持多智能体对话）
+    agent_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("agents.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment=_("enum.conversation_message.agent_id"),
+    )
+
     # 生成此消息使用的 AI 模型（仅 assistant 角色）
     model_id: Mapped[int | None] = mapped_column(
         Integer,
@@ -142,6 +152,11 @@ class ConversationMessage(TenantModel):
         "AgentConversation",
         back_populates="message_list",
         lazy="noload",
+    )
+
+    agent = relationship(
+        "Agent",
+        lazy="selectin",
     )
 
     model = relationship(

@@ -83,9 +83,8 @@ class UsageRecorder:
             )
         except RateLimitExceeded as e:
             logger.warning(
-                _("ai.log.rate_limit_blocked"),
-                tenant_id=tenant_id,
-                error=str(e),
+                "Rate limit blocked: tenant=%s error=%s",
+                tenant_id, str(e),
             )
             raise
 
@@ -97,9 +96,8 @@ class UsageRecorder:
             )
         except QuotaExceeded as e:
             logger.warning(
-                _("ai.log.quota_blocked"),
-                tenant_id=tenant_id,
-                error=str(e),
+                "Quota blocked: tenant=%s error=%s",
+                tenant_id, str(e),
             )
             raise
 

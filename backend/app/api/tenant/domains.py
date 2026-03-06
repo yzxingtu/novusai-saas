@@ -12,7 +12,6 @@ from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
-from app.exceptions import BusinessException
 from app.rbac.decorators import (
     MenuConfig,
     action_create,
@@ -168,27 +167,6 @@ class TenantDomainController(TenantController):
 
             权限: tenant_domain:create
             """
-            # 检查自定义域名配额（allow_custom_domain + max_custom_domains）
-            from sqlalchemy import select
-            from sqlalchemy.orm import selectinload
-
-            from app.enums import ErrorCode
-            from app.models.tenant.tenant import Tenant
-            from app.services.tenant.quota_service import QuotaService
-            tenant_obj = (await db.execute(
-                select(Tenant)
-                .options(selectinload(Tenant.tenant_plan))
-                .where(Tenant.id == current_admin.tenant_id)
-            )).scalar_one_or_none()
-            if tenant_obj:
-                quota_svc = QuotaService(db, tenant_obj)
-                domain_check = await quota_svc.check_domain_quota()
-                if not domain_check.allowed:
-                    raise BusinessException(
-                        message=domain_check.message or _("quota.custom_domain_not_supported"),
-                        code=ErrorCode.CONFLICT,
-                    )
-
             service = self.get_service(db, current_admin.tenant_id)
             domain = await service.add_custom_domain(
                 tenant_id=current_admin.tenant_id,
@@ -451,18 +429,6 @@ class TenantDomainController(TenantController):
             if not domain or domain.tenant_id != current_admin.tenant_id:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("tenant_domain.not_found"))
 
-            # 套餐权限检查
-            from sqlalchemy import select
-            from sqlalchemy.orm import selectinload
-
-            from app.models.tenant.tenant import Tenant
-            tenant_result = await db.execute(
-                select(Tenant).where(Tenant.id == current_admin.tenant_id).options(selectinload(Tenant.tenant_plan))
-            )
-            tenant = tenant_result.scalar_one_or_none()
-            if tenant and not tenant.get_quota_value("allow_custom_ssl", False):
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("ssl_certificate.custom_ssl_not_allowed"))
-
             ssl_service = SslCertificateService(db)
             cert = await ssl_service.upload_custom_cert(
                 domain_id=domain_id,
@@ -470,6 +436,7 @@ class TenantDomainController(TenantController):
                 cert_pem=data.certificate,
                 key_pem=data.private_key,
                 chain_pem=data.certificate_chain,
+                check_quota=True,
             )
             await db.commit()
 

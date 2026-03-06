@@ -4,7 +4,10 @@
  */
 import type { NotificationTemplateInfo } from '#/api/admin/notification-templates';
 
-import { ref } from 'vue';
+import { onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 
@@ -151,6 +154,32 @@ const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
     test: onTest,
     edit: onEdit,
   },
+});
+
+const cleanupPageContext = registerPageContext('admin/system/notification-templates', () => ({
+  page_key: 'admin.system.notification-templates',
+  page_title: $t('admin.system.notificationTemplate.name'),
+  page_data: {
+    resource: '/admin/notification-templates',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('admin.system.notification-templates', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the notification template list',
+    readonly: true,
+    handler: async () => {
+      gridReload();
+      return { success: true, message: 'Notification template list refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

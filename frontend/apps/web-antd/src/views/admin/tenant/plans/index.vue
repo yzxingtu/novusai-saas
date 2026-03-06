@@ -4,7 +4,10 @@
  */
 import type { adminApi } from '#/api';
 
-import { ref } from 'vue';
+import { onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -52,7 +55,7 @@ function handleSetPermissions(row: TenantPlanInfo) {
 }
 
 // 声明式 CRUD 页面（导出按钮自动添加）
-const { Grid, FormDrawer, ExportModal, gridApi, onRefresh } =
+const { Grid, FormDrawer, ExportModal, openExportModal, gridApi, onRefresh } =
   useCrudPage<TenantPlanInfo>({
     api: {
       list: admin.getTenantPlanListApi,
@@ -77,6 +80,42 @@ const { Grid, FormDrawer, ExportModal, gridApi, onRefresh } =
 useAutoTableDragSort(() => gridApi.grid, {
   onBatchUpdate: (ids) => admin.reorderTenantPlansApi(ids as number[]),
   keyField: 'id',
+});
+
+const cleanupPageContext = registerPageContext('admin/tenant/plans', () => ({
+  page_key: 'admin.tenant.plans',
+  page_title: $t('admin.tenant.plan.name'),
+  page_data: {
+    resource: '/admin/plans',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('admin.tenant.plans', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the tenant plan list',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'Plan list refreshed' };
+    },
+  },
+  {
+    name: 'export_data',
+    label: $t('shared.pageOperation.exportData'),
+    description: 'Open the export dialog for tenant plans',
+    readonly: true,
+    handler: async () => {
+      openExportModal();
+      return { success: true, message: 'Export dialog opened' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

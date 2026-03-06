@@ -40,6 +40,10 @@ export interface BackendMenuItemRaw {
     link?: string;
     order?: number;
     title?: string;
+    ai?: {
+      mode?: string;
+      page_context_key?: string;
+    };
   };
   children?: BackendMenuItemRaw[];
 }
@@ -191,6 +195,14 @@ function transformMenuItem(
     if (item.meta.authority) meta.authority = item.meta.authority;
     if (item.meta.iframe_src) meta.iframeSrc = item.meta.iframe_src;
     if (item.meta.link) meta.link = item.meta.link;
+    if (item.meta.ai) {
+      (meta as Record<string, unknown>).ai = {
+        mode: item.meta.ai.mode ?? 'context_only',
+        ...(item.meta.ai.page_context_key
+          ? { pageContextKey: item.meta.ai.page_context_key }
+          : {}),
+      };
+    }
   }
 
   // 处理扁平字段（兼容不同后端格式）

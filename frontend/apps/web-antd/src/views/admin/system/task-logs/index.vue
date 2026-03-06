@@ -4,6 +4,11 @@
  */
 import type { adminApi } from '#/api';
 
+import { onUnmounted } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+
 import { Page, useVbenDrawer } from '@vben/common-ui';
 
 import { Badge, Card, message, Tag, Tooltip } from 'ant-design-vue';
@@ -60,6 +65,32 @@ const { Grid, onRefresh } = useCrudPage<TaskLogInfo>({
     detail: onViewDetail,
     retry: onRetryTask,
   },
+});
+
+const cleanupPageContext = registerPageContext('admin/system/task-logs', () => ({
+  page_key: 'admin.system.task-logs',
+  page_title: $t('admin.system.taskLog.name'),
+  page_data: {
+    resource: '/admin/tasks',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('admin.system.task-logs', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the task log list',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'Task log list refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

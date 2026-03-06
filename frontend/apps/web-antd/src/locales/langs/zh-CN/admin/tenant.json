@@ -244,7 +244,9 @@
       "sourceSelect": "证书来源",
       "platformHint": "由平台自动申请免费 SSL 证书，支持自动续期",
       "uploadHint": "上传您自己的 SSL 证书文件",
-      "deleteHint": "删除证书后将回退到 HTTP 访问"
+      "deleteHint": "删除证书后将回退到 HTTP 访问",
+      "platformWildcard": "平台通配符 SSL 证书已覆盖",
+      "platformWildcardDesc": "默认域名由平台通配符 SSL 证书自动保护，无需单独配置"
     }
   },
   "manageDomains": "域名管理",

@@ -1,6 +1,11 @@
 <script lang="ts" setup>
 import type { tenantApi } from '#/api';
 
+import { onUnmounted } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -60,6 +65,32 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<PeriodicTaskInfo>({
   customActions: {
     trigger: onTriggerTask,
   },
+});
+
+const cleanupPageContext = registerPageContext('tenant/system/periodic-tasks', () => ({
+  page_key: 'tenant.system.periodic-tasks',
+  page_title: $t('tenant.system.periodicTask.name'),
+  page_data: {
+    resource: '/tenant/periodic-tasks',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('tenant.system.periodic-tasks', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the periodic task list',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'Periodic task list refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

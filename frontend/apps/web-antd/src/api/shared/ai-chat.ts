@@ -28,6 +28,7 @@ export interface RawMessageItem {
 }
 
 export interface ConversationDetailResponse {
+  agent_id?: null | number;
   message_list: RawMessageItem[];
 }
 
@@ -80,15 +81,14 @@ export async function getChatAgentsApi<T = Record<string, unknown>>(
 }
 
 /**
- * 获取对话列表
+ * 获取全局对话列表（跨智能体）
  */
-export async function getChatConversationsApi<T = Record<string, unknown>>(
+export async function getGlobalConversationsApi<T = Record<string, unknown>>(
   apiPrefix: string,
-  agentId: number,
   pageSize = 50,
 ): Promise<PaginatedResponse<T>> {
   return requestClient.get<PaginatedResponse<T>>(
-    `${chatBaseUrl(apiPrefix)}/${agentId}/conversations`,
+    `${chatBaseUrl(apiPrefix)}/conversations`,
     { params: { 'page[size]': pageSize, sort: '-created_at' } },
   );
 }
@@ -98,11 +98,10 @@ export async function getChatConversationsApi<T = Record<string, unknown>>(
  */
 export async function deleteChatConversationApi(
   apiPrefix: string,
-  agentId: number,
   conversationId: number,
 ): Promise<unknown> {
   return requestClient.delete(
-    `${chatBaseUrl(apiPrefix)}/${agentId}/conversations/${conversationId}`,
+    `${chatBaseUrl(apiPrefix)}/conversations/${conversationId}`,
   );
 }
 
@@ -111,11 +110,31 @@ export async function deleteChatConversationApi(
  */
 export async function clearChatConversationMemoryApi(
   apiPrefix: string,
-  agentId: number,
   conversationId: number,
 ): Promise<{ deleted_count: number }> {
   return requestClient.delete<{ deleted_count: number }>(
-    `${chatBaseUrl(apiPrefix)}/${agentId}/conversations/${conversationId}/memory-state`,
+    `${chatBaseUrl(apiPrefix)}/conversations/${conversationId}/memory-state`,
+  );
+}
+
+/**
+ * 获取会话记忆状态（偏好/约束/任务/事实）
+ */
+export interface MemoryState {
+  preferences: string[];
+  constraints: string[];
+  task_states: string[];
+  verified_facts: string[];
+  version: number;
+  updated_at: number;
+}
+
+export async function getChatConversationMemoryApi(
+  apiPrefix: string,
+  conversationId: number,
+): Promise<MemoryState> {
+  return requestClient.get<MemoryState>(
+    `${chatBaseUrl(apiPrefix)}/conversations/${conversationId}/memory-state`,
   );
 }
 
@@ -124,11 +143,10 @@ export async function clearChatConversationMemoryApi(
  */
 export async function getChatConversationMessagesApi(
   apiPrefix: string,
-  agentId: number,
   conversationId: number,
 ): Promise<ConversationDetailResponse> {
   return requestClient.get<ConversationDetailResponse>(
-    `${chatBaseUrl(apiPrefix)}/${agentId}/conversations/${conversationId}`,
+    `${chatBaseUrl(apiPrefix)}/conversations/${conversationId}`,
   );
 }
 
@@ -154,13 +172,114 @@ export async function uploadChatFileApi(
   );
 }
 
+// ============ Route Types ============
+
+export interface PageContext {
+  page_key: string;
+  page_title?: string;
+  page_data?: Record<string, unknown>;
+}
+
+export interface AgentChatImageParams {
+  n?: number;
+  quality?: string;
+  size?: string;
+  style?: string;
+}
+
+export interface AgentChatRequestBody {
+  attachments?: ChatAttachment[];
+  consented_actions?: string[];
+  conversation_id?: null | number;
+  image_params?: AgentChatImageParams;
+  knowledge_base_ids?: number[];
+  message: string;
+  page_context?: null | PageContext;
+  page_session_id?: null | string;
+}
+
+export interface AgentRouteResponse {
+  agent_id: number;
+  agent_name: string;
+  confidence: number;
+  routed_by: string;
+}
+
+/**
+ * 智能路由 — 根据消息和上下文选择目标智能体
+ */
+export async function routeMessageApi(
+  apiPrefix: string,
+  body: {
+    conversation_id?: null | number;
+    message: string;
+    page_context?: null | PageContext;
+    pinned_agent_id?: null | number;
+  },
+): Promise<AgentRouteResponse> {
+  return requestClient.post<AgentRouteResponse>(
+    `${chatBaseUrl(apiPrefix)}/route`,
+    body,
+    {
+      showCodeMessage: false,
+      showErrorMessage: false,
+    },
+  );
+}
+
+// ============ Agent Skill Bindings ============
+
+export interface ChatSkillBindingInfo {
+  id: null | number;
+  agent_id: number;
+  package_id: number;
+  package_name: null | string;
+  package_description: null | string;
+  package_is_system: boolean;
+  is_auto_bound: boolean;
+  consent_mode: string;
+}
+
+export interface ChatSkillInfo {
+  id: number;
+  name: string;
+  type: string;
+  is_active: boolean;
+  description?: null | string;
+}
+
+/**
+ * 获取智能体的技能绑定列表（共享，按 apiPrefix 自动走 admin/tenant）
+ */
+export async function getChatAgentSkillsApi(
+  apiPrefix: string,
+  agentId: number,
+): Promise<ChatSkillBindingInfo[]> {
+  return requestClient.get<ChatSkillBindingInfo[]>(
+    `${apiPrefix}/ai/agents/${agentId}/skills`,
+  );
+}
+
+/**
+ * 获取技能包内的技能列表（共享）
+ */
+export async function getChatPackageSkillsApi(
+  apiPrefix: string,
+  packageId: number,
+): Promise<{ items: ChatSkillInfo[]; total: number }> {
+  return requestClient.get<{ items: ChatSkillInfo[]; total: number }>(
+    `${apiPrefix}/ai/skill-packages/${packageId}/skills`,
+    { params: { 'page[size]': 100 } },
+  );
+}
+
 /**
  * 发送 SSE 流式聊天消息
  */
 export async function sendChatStreamApi(
   apiPrefix: string,
   agentId: number,
-  body: Record<string, unknown>,
+  body: AgentChatRequestBody,
   sseOptions: SSEOptions,
 ): Promise<void> {
   return requestClient.postSSE(

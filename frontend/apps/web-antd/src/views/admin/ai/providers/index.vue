@@ -4,6 +4,11 @@
  */
 import type { AIProviderInfo } from '#/api/admin/ai';
 
+import { onUnmounted } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
+
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -81,6 +86,32 @@ function onFormSuccess() {
 useAutoTableDragSort(() => gridApi.grid, {
   onBatchUpdate: (ids) => reorderAIProvidersApi(ids as number[]),
   keyField: 'id',
+});
+
+const cleanupPageContext = registerPageContext('admin/ai/providers', () => ({
+  page_key: 'admin.ai.providers',
+  page_title: $t('admin.ai.provider.name'),
+  page_data: {
+    resource: '/admin/ai/providers',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('admin.ai.providers', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the AI provider list',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'Provider list refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

@@ -345,7 +345,7 @@ class TextToSQLExecutor(BaseToolExecutor):
         status: str = "success",
         error_message: str | None = None,
         duration_ms: int = 0,
-        confidence: str | None = None,
+        confidence: float | str | None = None,
     ) -> None:
         """写入 AI 数据查询审计日志（独立 session，失败不影响主流程）"""
         if not context:
@@ -369,7 +369,7 @@ class TextToSQLExecutor(BaseToolExecutor):
                         "status": status,
                         "error_message": error_message[:2000] if error_message else None,
                         "duration_ms": duration_ms,
-                        "confidence": confidence,
+                        "confidence": str(confidence) if confidence is not None else None,
                     })
                     await log_db.commit()
                 except Exception:

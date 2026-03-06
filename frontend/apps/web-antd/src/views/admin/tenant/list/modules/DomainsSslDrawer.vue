@@ -43,7 +43,11 @@ interface SslDrawerData {
   domainId: number;
   tenantId: number;
   domain: string;
+  isDefault?: boolean;
 }
+
+/** 是否为默认域名（平台通配符 SSL 覆盖） */
+const isDefaultDomain = computed(() => drawerData.value?.isDefault ?? false);
 
 // 状态
 const drawerData = ref<null | SslDrawerData>(null);
@@ -357,6 +361,21 @@ defineExpose({ open });
             <IconifyIcon icon="lucide:trash-2" class="mr-1 size-3" />
             {{ $t('admin.tenant.domain.ssl.actions.delete') }}
           </Button>
+        </div>
+      </template>
+
+      <!-- 默认域名：平台通配符 SSL 覆盖 -->
+      <template v-else-if="isDefaultDomain">
+        <div
+          class="flex flex-col items-center justify-center py-12 text-muted-foreground"
+        >
+          <IconifyIcon icon="lucide:shield-check" class="mb-3 size-12 text-success" />
+          <p class="mb-2 text-sm font-medium text-foreground">
+            {{ $t('admin.tenant.domain.ssl.platformWildcard') }}
+          </p>
+          <p class="text-xs">
+            {{ $t('admin.tenant.domain.ssl.platformWildcardDesc') }}
+          </p>
         </div>
       </template>
 

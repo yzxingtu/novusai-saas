@@ -309,12 +309,8 @@ class QuotaManager:
             )
             if result >= 0:
                 logger.warning(
-                    _("ai.log.quota_exceeded"),
-                    tenant_id=tenant_id,
-                    model_id=model_id,
-                    current=result,
-                    limit=quota.limit,
-                    period=quota.period
+                    "Quota exceeded: tenant=%s model=%s current=%s limit=%s period=%s",
+                    tenant_id, model_id, result, quota.limit, quota.period,
                 )
                 raise QuotaExceeded(
                     _("ai.error.quota_exceeded").format(
@@ -334,12 +330,8 @@ class QuotaManager:
 
             if current_usage + estimated_tokens > quota.limit:
                 logger.warning(
-                    _("ai.log.quota_exceeded_soft"),
-                    tenant_id=tenant_id,
-                    model_id=model_id,
-                    current=current_usage,
-                    limit=quota.limit,
-                    period=quota.period
+                    "Soft quota exceeded: tenant=%s model=%s current=%s limit=%s period=%s",
+                    tenant_id, model_id, current_usage, quota.limit, quota.period,
                 )
                 # 软限制允许超额,但记录警告
                 # TODO: 发送通知给租户

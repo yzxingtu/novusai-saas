@@ -4,6 +4,7 @@
 编排完整对话流程：创建/续接对话 → 加载历史 → 调 ExecutionDispatcher → 持久化消息
 """
 
+import json
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -43,7 +44,7 @@ from app.enums.agent import (
 from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.repositories.ai.agent_repository import AgentRepository
-from app.schemas.ai.agent_chat import AgentChatResponse
+from app.schemas.ai.agent_chat import AgentChatResponse, PageContext
 from app.services.ai.conversation_service import ConversationService
 from app.services.ai.session_memory_service import SessionMemoryService
 
@@ -109,66 +110,119 @@ class AgentChatService:
             raise BusinessException(message=_("agent.error.not_published"))
         return agent
 
-    @staticmethod
-    def _extract_memory_delta(
+    async def _extract_memory_delta(
+        self,
         message: str,
         response: str,
+        agent_id: int,
     ) -> dict[str, list[str]]:
         """
-        从本轮对话中提取会话记忆增量（轻量规则版）
+        使用 LLM 从本轮对话中提取会话记忆增量
 
-        仅提取偏好/约束/任务状态/可验证事实，避免全量污染。
+        相比关键词匹配版本，LLM 能更准确地理解上下文、
+        区分重要信息、并生成简洁的摘要式记忆条目。
+
+        使用独立 DB Session 以兼容流式回调场景。
+        失败时静默降级返回空 delta，不影响主对话链路。
         """
-        text = (message or "").strip()
-        if not text:
-            return {
-                "preferences": [],
-                "constraints": [],
-                "task_states": [],
-                "verified_facts": [],
-            }
-
-        lowered = text.lower()
-        preferences: list[str] = []
-        constraints: list[str] = []
-        task_states: list[str] = []
-        verified_facts: list[str] = []
-
-        # 偏好信号
-        pref_markers = ["请用", "以后都用", "prefer", "please use", "use "]
-        if any(m in text for m in pref_markers) or any(m in lowered for m in ["prefer", "please use"]):
-            preferences.append(text[:300])
-
-        # 约束信号
-        constraint_markers = ["不要", "禁止", "必须", "不超过", "must", "do not", "don't", "should not"]
-        if any(m in text for m in constraint_markers) or any(m in lowered for m in ["must", "do not", "should not"]):
-            constraints.append(text[:300])
-
-        # 任务状态信号
-        task_markers = ["继续", "下一步", "待办", "todo", "next step", "continue"]
-        if any(m in text for m in task_markers) or any(m in lowered for m in ["todo", "next step", "continue"]):
-            task_states.append(text[:300])
-
-        # 可验证事实（首版仅记录用户明确陈述；不做模型推断）
-        fact_markers = ["我是", "我们是", "my ", "our ", "我的", "我们"]
-        if any(m in text for m in fact_markers) or any(m in lowered for m in ["my ", "our "]):
-            verified_facts.append(text[:300])
-
-        # 显式“记住”指令，提高召回价值
-        if "记住" in text or "remember" in lowered:
-            constraints.append(f"[explicit_remember] {text[:300]}")
-
-        # assistant 响应摘要（任务状态补充）
-        resp = (response or "").strip()
-        if resp:
-            task_states.append(resp[:300])
-
-        return {
-            "preferences": preferences[:5],
-            "constraints": constraints[:5],
-            "task_states": task_states[:5],
-            "verified_facts": verified_facts[:5],
+        empty: dict[str, list[str]] = {
+            "preferences": [],
+            "constraints": [],
+            "task_states": [],
+            "verified_facts": [],
         }
+
+        text = (message or "").strip()
+        if not text or len(text) < 4:
+            return empty
+
+        try:
+            async with async_session_factory() as llm_db:
+                if self.tenant_id == 0:
+                    from app.repositories.ai.agent_repository import AdminAgentRepository
+                    agent_repo = AdminAgentRepository(llm_db)
+                else:
+                    agent_repo = AgentRepository(llm_db, self.tenant_id)
+
+                agent = await agent_repo.get_by_id(agent_id)
+                if not agent:
+                    return empty
+
+                model_obj = getattr(agent, "model", None)
+                if not model_obj or not getattr(model_obj, "provider", None):
+                    return empty
+
+                provider_code = model_obj.provider.code
+                model_code = model_obj.code
+                if not provider_code or not model_code:
+                    return empty
+
+                extraction_prompt = (
+                    "Analyze this conversation turn and extract information worth remembering.\n\n"
+                    f"User message:\n{text[:1500]}\n\n"
+                    f"Assistant response:\n{(response or '')[:1500]}\n\n"
+                    "Extract ONLY genuinely important items into these categories:\n"
+                    "- preferences: User's stated preferences, likes, dislikes, preferred formats/tools/styles\n"
+                    "- constraints: Explicit restrictions, rules, things to avoid, 'don't do X'\n"
+                    "- task_states: Current task progress, todos, next steps, ongoing work\n"
+                    "- verified_facts: User's personal facts (name, role, company, tech stack, etc.)\n\n"
+                    "Rules:\n"
+                    "1. Only extract items the user explicitly stated or strongly implied\n"
+                    "2. Summarize each item concisely (1 short sentence max)\n"
+                    "3. If nothing worth remembering, return all empty arrays\n"
+                    "4. Do NOT extract trivial greetings, acknowledgments, or filler\n"
+                    "5. Do NOT repeat what the assistant said unless the user confirmed it as a preference\n\n"
+                    'Respond ONLY with valid JSON (no markdown, no explanation):\n'
+                    '{"preferences": [], "constraints": [], "task_states": [], "verified_facts": []}'
+                )
+
+                gateway = AIGateway(llm_db)
+                llm_response = await gateway.chat(
+                    provider_code=provider_code,
+                    messages=[ChatMessage(role="user", content=extraction_prompt)],
+                    model=model_code,
+                    temperature=0.1,
+                    max_tokens=500,
+                    tenant_id=self.tenant_id if self.tenant_id > 0 else None,
+                )
+
+                content = (llm_response.message.content or "").strip()
+                # 处理 markdown 代码块包裹
+                if content.startswith("```"):
+                    lines = content.split("\n")
+                    content = "\n".join(lines[1:])
+                    if content.endswith("```"):
+                        content = content[:-3].strip()
+
+                data = json.loads(content)
+
+                result: dict[str, list[str]] = {}
+                for key in ("preferences", "constraints", "task_states", "verified_facts"):
+                    raw_list = data.get(key) or []
+                    result[key] = [
+                        str(item).strip()[:300]
+                        for item in raw_list
+                        if item and str(item).strip()
+                    ][:5]
+
+                if any(result.values()):
+                    logger.info(
+                        "LLM memory extraction: tenant=%s agent=%s prefs=%d constraints=%d tasks=%d facts=%d",
+                        self.tenant_id, agent_id,
+                        len(result["preferences"]),
+                        len(result["constraints"]),
+                        len(result["task_states"]),
+                        len(result["verified_facts"]),
+                    )
+
+                return result
+
+        except Exception as exc:
+            logger.warning(
+                "LLM memory extraction failed, returning empty: tenant=%s agent=%s err=%s",
+                self.tenant_id, agent_id, str(exc),
+            )
+            return empty
 
     async def _load_session_memory_context(
         self,
@@ -238,18 +292,21 @@ class AgentChatService:
         message: str,
         response: str,
         event_id: str,
-    ) -> None:
+    ) -> dict[str, list[str]] | None:
         """
         将本轮对话增量写入会话记忆
+
+        Returns:
+            提取到的 delta dict（有内容时），或 None（无记忆提取）
         """
         if not request.memory_enabled:
-            return
+            return None
         if not request.conversation_id or not request.user_id:
-            return
+            return None
 
-        delta = self._extract_memory_delta(message, response)
+        delta = await self._extract_memory_delta(message, response, request.agent_id)
         if not any(delta.values()):
-            return
+            return None
 
         memory_svc = SessionMemoryService(self.tenant_id)
         await memory_svc.upsert_state(
@@ -262,6 +319,7 @@ class AgentChatService:
             delta=delta,
             metadata={"scene": request.memory_scene},
         )
+        return delta
 
     @staticmethod
     def _resolve_memory_context(
@@ -286,7 +344,10 @@ class AgentChatService:
             else MemoryChannelEnum.SYSTEM.value
         )
         source = memory_source or scene
-        enabled = scene == MemorySceneEnum.AI_CHAT_PAGE.value
+        enabled = scene in (
+            MemorySceneEnum.AI_CHAT_PAGE.value,
+            MemorySceneEnum.ADMIN_CHAT.value,
+        )
         return scene, channel, source, enabled
 
     async def _resolve_effective_memory_enabled(
@@ -300,8 +361,8 @@ class AgentChatService:
         解析运行时最终记忆开关（入口场景 + 三层开关）
 
         规则：
-        1) 非 ai_chat_page 场景直接关闭
-        2) ai_chat_page 场景下叠加平台/管理端/租户三层开关
+        1) 非 ai_chat_page/admin_chat 场景直接关闭
+        2) 允许场景下叠加平台/管理端/租户三层开关
         """
         if not scene_enabled:
             return False
@@ -346,6 +407,7 @@ class AgentChatService:
         message: str,
         conversation_id: int | None = None,
         variables: dict[str, Any] | None = None,
+        page_context: PageContext | dict[str, Any] | None = None,
         user_id: int | None = None,
         knowledge_base_ids: list[int] | None = None,
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
@@ -355,6 +417,7 @@ class AgentChatService:
         memory_scene: str = DEFAULT_MEMORY_SCENE,
         memory_channel: str = MEMORY_CHANNEL_SYSTEM,
         memory_source: str = "",
+        page_session_id: str | None = None,
     ) -> AgentChatResponse:
         """
         非流式对话
@@ -379,6 +442,7 @@ class AgentChatService:
             BusinessException: 智能体未发布、对话已归档、执行失败
         """
         start = time.perf_counter()
+        variables = PageContext.normalize_variables(variables, page_context)
 
         # 0. 加载并校验 Agent（必须已发布）
         agent = await self._validate_agent(agent_id)
@@ -456,6 +520,7 @@ class AgentChatService:
             memory_channel=normalized_channel,
             memory_source=normalized_source,
             memory_enabled=memory_enabled,
+            page_session_id=page_session_id,
         )
 
         # 4.1 会话记忆注入（仅 ai_chat_page 生效）
@@ -492,10 +557,15 @@ class AgentChatService:
             conversation=conversation,
             result=result,
             history_count=history_count,
+            agent_id=agent_id,
         )
 
         # 7. 更新对话统计 + 智能体用量统计
-        await self.conversation_svc.update_stats(conversation, result)
+        await self.conversation_svc.update_stats(
+            conversation,
+            result,
+            current_agent=agent,
+        )
         await AgentStatsManager.record_chat(
             tenant_id=self.tenant_id,
             agent_id=agent_id,
@@ -504,12 +574,14 @@ class AgentChatService:
 
         # 7.1 写入会话记忆（非阻塞主流程，失败仅告警）
         try:
-            await self._persist_session_memory(
+            memory_delta = await self._persist_session_memory(
                 request=request,
                 message=message,
                 response=result.output or "",
                 event_id=f"{conversation.id}:{history_count}:{int(time.time())}",
             )
+            if memory_delta:
+                await self.conversation_svc.mark_memory_updated(conversation.id)
         except Exception as exc:
             logger.warning(
                 "Persist session memory failed: tenant=%s conversation=%s err=%s",
@@ -547,6 +619,7 @@ class AgentChatService:
         message: str,
         conversation_id: int | None = None,
         variables: dict[str, Any] | None = None,
+        page_context: PageContext | dict[str, Any] | None = None,
         user_id: int | None = None,
         knowledge_base_ids: list[int] | None = None,
         user_role: str = UserRoleEnum.TENANT_ADMIN.value,
@@ -557,6 +630,7 @@ class AgentChatService:
         memory_scene: str = DEFAULT_MEMORY_SCENE,
         memory_channel: str = MEMORY_CHANNEL_SYSTEM,
         memory_source: str = "",
+        page_session_id: str | None = None,
     ) -> StreamingResponse:
         """
         流式对话（返回 StreamingResponse）
@@ -575,6 +649,8 @@ class AgentChatService:
         Returns:
             StreamingResponse (SSE)
         """
+        variables = PageContext.normalize_variables(variables, page_context)
+
         # 0. 加载并校验 Agent（必须已发布）
         agent = await self._validate_agent(agent_id)
 
@@ -655,6 +731,7 @@ class AgentChatService:
             memory_channel=normalized_channel,
             memory_source=normalized_source,
             memory_enabled=memory_enabled,
+            page_session_id=page_session_id,
         )
 
         # 4.1 会话记忆注入（仅 ai_chat_page 生效）
@@ -774,6 +851,8 @@ class AgentChatService:
                 agent=agent,
                 toolkit_security_level=str(_toolkit_security_level),
                 toolkit_memory_limit_mb=int(_toolkit_memory_limit_mb),
+                input_variables=variables or {},
+                page_session_id=page_session_id,
             )
             engine = ConversationEngine(
                 db=self.db,
@@ -784,14 +863,18 @@ class AgentChatService:
         # 7. 创建持久化回调（流式完成后调用，含配额记录+并发释放+钩子）
         history_count = len(history_messages)
 
-        async def on_stream_complete(result: ExecutionResult) -> None:
+        async def on_stream_complete(result: ExecutionResult) -> dict[str, Any] | None:
             """流式完成后持久化消息 + 配额记录 + 并发释放
 
             使用独立 db session，不依赖 DI session 生命周期。
             SSE 生成器在响应体流式传输期间执行此回调，
             DI session 的 commit/close 时机取决于框架版本，
             独立 session 保证写入操作始终可靠。
+
+            Returns:
+                Extra data dict to merge into the SSE 'done' event, or None.
             """
+            extra: dict[str, Any] = {}
             try:
                 if result.success:
                     # 独立 session：不依赖 DI session 生命周期
@@ -805,9 +888,12 @@ class AgentChatService:
                                 conversation=cb_conv,
                                 result=result,
                                 history_count=history_count,
+                                agent_id=agent_id,
                             )
                             await cb_conv_svc.update_stats(
-                                cb_conv, result,
+                                cb_conv,
+                                result,
+                                current_agent=agent,
                             )
                             await AgentStatsManager.record_chat(
                                 tenant_id=self.tenant_id,
@@ -817,12 +903,17 @@ class AgentChatService:
 
                             # 写入会话记忆（流式完成后）
                             try:
-                                await self._persist_session_memory(
+                                memory_delta = await self._persist_session_memory(
                                     request=request,
                                     message=message,
                                     response=result.output or "",
                                     event_id=f"{conversation.id}:{history_count}:{int(time.time())}",
                                 )
+                                if memory_delta:
+                                    extra["memory_updated"] = True
+                                    await cb_conv_svc.mark_memory_updated(
+                                        conversation.id,
+                                    )
                             except Exception as mem_exc:
                                 logger.warning(
                                     "Persist stream session memory failed: tenant=%s conversation=%s err=%s",
@@ -891,6 +982,7 @@ class AgentChatService:
                         agent_id=agent_id,
                         lock_token=lock_token,
                     )
+            return extra or None
 
         if is_image_model:
             return await engine.stream_execute(

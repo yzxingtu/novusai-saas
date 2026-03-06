@@ -12,10 +12,15 @@ import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
 import { message, Popover, Tooltip } from 'ant-design-vue';
 
 import { getApiEndpoint } from '#/api';
+import { AIChatSlidePanel } from '#/components/business/ai-slide-panel';
 import CacheClearModal from '#/components/business/cache-clear-modal/CacheClearModal.vue';
+import { CommandBar } from '#/components/business/command-bar';
 import NotificationPanel from '#/components/business/notification-panel/NotificationPanel.vue';
 import NotificationToast from '#/components/business/notification-toast/NotificationToast.vue';
 import PluginFloatingPanels from '#/components/business/plugin-slots/PluginFloatingPanels.vue';
+import { useCurrentPageAIPolicy } from '#/composables';
+import { usePageOperationChannel } from '#/composables/use-page-operation-channel';
+import { usePageSession } from '#/composables/use-page-session';
 import {
   refreshPluginSlots,
   resetPluginRoutesReady,
@@ -25,7 +30,7 @@ import { $t } from '#/locales';
 import { generateAccess } from '#/router/access';
 import { accessRoutes } from '#/router/routes';
 import {
-  useGlobalAIChatStore,
+  useAIPanelStore,
   useMultiAuthStore,
   useNotificationStore,
   usePresenceStore,
@@ -33,12 +38,11 @@ import {
 } from '#/store';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
 import LoginForm from '#/views/_core/authentication/login.vue';
-import GlobalAIChat from '#/views/_core/global-ai-chat/GlobalAIChat.vue';
 
 const router = useRouter();
 const userStore = useUserStore();
 const multiAuthStore = useMultiAuthStore();
-const globalAIChatStore = useGlobalAIChatStore();
+const aiPanelStore = useAIPanelStore();
 const socketIOStore = useSocketIOStore();
 const notificationStore = useNotificationStore();
 const presenceStore = usePresenceStore();
@@ -47,6 +51,55 @@ const tabbarStore = useTabbarStore();
 const pluginSlotsStore = usePluginSlotsStore();
 const { destroyWatermark, updateWatermark } = useWatermark();
 const cacheClearModalRef = ref<InstanceType<typeof CacheClearModal>>();
+
+// ============ AI Panel ============
+
+usePageSession();
+usePageOperationChannel();
+const { aiEnabled, pageContextKey } = useCurrentPageAIPolicy();
+
+const apiPrefix = computed(() => {
+  const path = router.currentRoute.value.path;
+  if (path.startsWith('/admin')) return '/admin';
+  if (path.startsWith('/tenant')) return '/tenant';
+  return '/tenant';
+});
+
+const uploadUrl = computed(() => `${apiPrefix.value}/attachments/upload`);
+
+/** AI Panel 固定时的右侧偏移量（页面禁用 AI 时归零） */
+const aiPanelRightOffset = computed(() => {
+  if (!aiEnabled.value || !aiPanelStore.visible || aiPanelStore.mode === 'full' || !aiPanelStore.docked) {
+    return 0;
+  }
+  return aiPanelStore.panelWidth;
+});
+
+/** CommandBar 发送的待处理消息 */
+const pendingMessage = ref<null | string>(null);
+
+/** CommandBar 选择的待恢复对话 ID */
+const pendingConversationId = ref<null | number>(null);
+
+function onCommandBarSubmit(text: string) {
+  pendingMessage.value = text;
+  aiPanelStore.open();
+}
+
+function onCommandBarSelectConversation(convId: number) {
+  pendingConversationId.value = convId;
+}
+
+function onMessageSent() {
+  pendingMessage.value = null;
+}
+
+function onConversationRestored() {
+  pendingConversationId.value = null;
+}
+
+/** CommandBar 组件引用 */
+const commandBarRef = ref<InstanceType<typeof CommandBar> | null>(null);
 
 // 初始化插件前端（动态加载已启用插件的 UMD 包并注册到插槽 Store）
 const currentEndpointPrefix = computed(() => {
@@ -63,13 +116,6 @@ watch(currentEndpointPrefix, async (endpoint, previousEndpoint) => {
   resetPluginRoutesReady(router);
   await refreshPluginSlots(endpoint, router);
 });
-
-function handleGlobalKeydown(e: KeyboardEvent) {
-  if ((e.ctrlKey || e.metaKey) && e.key === '\\') {
-    e.preventDefault();
-    globalAIChatStore.toggle();
-  }
-}
 
 /** Socket.IO 断连/重连 UI 提示 */
 let disconnectMsgKey: string | undefined;
@@ -99,7 +145,6 @@ watch(
 );
 
 onMounted(() => {
-  document.addEventListener('keydown', handleGlobalKeydown);
   // Socket.IO: 登录后自动连接
   socketIOStore.connect();
   // 加载未读通知数
@@ -109,7 +154,6 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  document.removeEventListener('keydown', handleGlobalKeydown);
   clearDisconnectToast();
 });
 
@@ -219,6 +263,7 @@ watch(
 
 <template>
   <BasicLayout
+    :panel-right-offset="aiPanelRightOffset"
     @clear-preferences-and-logout="() => cacheClearModalRef?.open()"
     @locale-change="handleLocaleChange"
   >
@@ -296,16 +341,17 @@ watch(
     </template>
     <template #header-right-51>
       <Tooltip
-        :title="`${$t('common.globalAiChat.title')} (Ctrl+\\)`"
+        v-if="aiEnabled"
+        :title="`${$t('common.aiPanel.title')} (Ctrl+J)`"
         placement="bottom"
       >
         <div
           class="relative flex cursor-pointer items-center justify-center rounded-md p-1.5 transition-colors hover:bg-accent"
-          @click="globalAIChatStore.toggle()"
+          @click="commandBarRef?.show()"
         >
-          <IconifyIcon icon="lucide:bot" class="size-4" />
+          <IconifyIcon icon="lucide:sparkles" class="size-4" />
           <span
-            v-if="globalAIChatStore.hasUnread"
+            v-if="aiPanelStore.hasUnread"
             class="absolute right-0.5 top-0.5 size-2 rounded-full bg-destructive"
           ></span>
         </div>
@@ -318,7 +364,24 @@ watch(
       >
         <LoginForm />
       </AuthenticationLoginExpiredModal>
-      <GlobalAIChat />
+      <CommandBar
+        v-if="aiEnabled"
+        ref="commandBarRef"
+        :api-prefix="apiPrefix"
+        :can-chat="aiEnabled"
+        @submit="onCommandBarSubmit"
+        @select-conversation="onCommandBarSelectConversation"
+      />
+      <AIChatSlidePanel
+        v-if="aiEnabled"
+        :api-prefix="apiPrefix"
+        :upload-url="uploadUrl"
+        :pending-message="pendingMessage"
+        :pending-conversation-id="pendingConversationId"
+        :page-context-key="pageContextKey"
+        @message-sent="onMessageSent"
+        @conversation-restored="onConversationRestored"
+      />
       <CacheClearModal ref="cacheClearModalRef" />
       <NotificationToast />
       <!-- 插件 floatingPanels 动态注入（支持 icon/position/弹出控制） -->

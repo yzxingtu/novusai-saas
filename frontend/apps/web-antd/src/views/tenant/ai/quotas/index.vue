@@ -7,6 +7,10 @@ import type {
   TenantRateLimitInfo,
 } from '#/api/tenant/ai';
 
+import { onUnmounted } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -69,6 +73,16 @@ function getProgressColor(item: TenantQuotaWithUsageInfo): string {
   if (item.is_warning) return '#faad14';
   return '#52c41a';
 }
+
+const cleanupPageContext = registerPageContext('tenant/ai/quotas', () => ({
+  page_key: 'tenant.ai.quotas',
+  page_title: $t('tenant.ai.quota.name'),
+  page_data: {
+    resource: '/tenant/ai/quotas',
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

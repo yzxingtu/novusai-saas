@@ -6,7 +6,10 @@
  */
 import type { AITablePolicyInfo } from '#/api/admin/ai';
 
-import { ref } from 'vue';
+import { onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -103,6 +106,32 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AITablePolicyInfo>({
   i18nPrefix: 'admin.ai.tablePolicy',
   nameField: 'table_name',
   defaultSort: 'sort_order',
+});
+
+const cleanupPageContext = registerPageContext('admin/ai/table-policies', () => ({
+  page_key: 'admin.ai.table-policies',
+  page_title: $t('admin.ai.tablePolicy.name'),
+  page_data: {
+    resource: '/admin/ai/table-policies',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('admin.ai.table-policies', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the table policy list',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'Table policy list refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

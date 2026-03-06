@@ -4,7 +4,10 @@
  */
 import type { AttachmentInfo } from '#/types/attachment';
 
-import { ref } from 'vue';
+import { onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -96,7 +99,7 @@ async function onDownload(row: AttachmentInfo) {
 const pickerRef = ref<InstanceType<typeof FilePicker> | null>(null);
 
 // CRUD 页面
-const { Grid, gridApi } = useCrudPage<AttachmentInfo>({
+const { Grid, gridApi, onRefresh } = useCrudPage<AttachmentInfo>({
   api: {
     list: getAttachmentListApi,
     resource: '/tenant/attachments',
@@ -110,6 +113,32 @@ const { Grid, gridApi } = useCrudPage<AttachmentInfo>({
     detail: onViewDetail,
     download: onDownload,
   },
+});
+
+const cleanupPageContext = registerPageContext('tenant/system/attachments', () => ({
+  page_key: 'tenant.system.attachments',
+  page_title: $t('tenant.system.attachment.name'),
+  page_data: {
+    resource: '/tenant/attachments',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('tenant.system.attachments', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the attachment list',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'Attachment list refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

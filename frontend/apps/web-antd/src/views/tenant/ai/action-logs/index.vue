@@ -6,7 +6,10 @@
  */
 import type { ActionLogItem, ActionLogStats } from '#/api/tenant/action-logs';
 
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -71,7 +74,7 @@ onMounted(() => {
 
 // ============ 列表 ============
 
-const { Grid } = useCrudPage<ActionLogItem>({
+const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
   api: {
     list: getActionLogListApi,
     resource: '/tenant/ai/action-logs',
@@ -80,6 +83,32 @@ const { Grid } = useCrudPage<ActionLogItem>({
   searchSchema: useGridFormSchema(),
   i18nPrefix: 'tenant.ai.actionLog',
   defaultSort: '-created_at',
+});
+
+const cleanupPageContext = registerPageContext('tenant/ai/action-logs', () => ({
+  page_key: 'tenant.ai.action-logs',
+  page_title: $t('tenant.ai.actionLog.name'),
+  page_data: {
+    resource: '/tenant/ai/action-logs',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('tenant.ai.action-logs', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the action log list',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'Action log list refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

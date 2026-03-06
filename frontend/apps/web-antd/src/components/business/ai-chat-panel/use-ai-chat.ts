@@ -19,12 +19,19 @@ import { computed, nextTick, ref, unref } from 'vue';
 
 import { message } from 'ant-design-vue';
 
+import type {
+  AgentChatRequestBody,
+  MemoryState,
+  PageContext,
+} from '#/api/shared/ai-chat';
+
 import {
   clearChatConversationMemoryApi,
   deleteChatConversationApi,
   getChatAgentsApi,
+  getChatConversationMemoryApi,
   getChatConversationMessagesApi,
-  getChatConversationsApi,
+  getGlobalConversationsApi,
   sendChatStreamApi,
   uploadChatFileApi,
 } from '#/api/shared/ai-chat';
@@ -46,10 +53,14 @@ export interface UseAIChatOptions {
   onToolCall?: (toolName: string, output: string) => void;
   /** Callback when streaming completes (used for unread badge) */
   onStreamComplete?: () => void;
+  pageContextResolver?: () => null | PageContext;
+  pageSessionIdGetter?: () => string;
 }
 
 export function useAIChat(options: UseAIChatOptions) {
   const { validateChatFile, revokePreviewUrls } = useFileUpload();
+
+  const trustSession = ref(false);
 
   // ============ Agents ============
 
@@ -101,26 +112,21 @@ export function useAIChat(options: UseAIChatOptions) {
   const conversationsLoading = ref(false);
   const activeConversationId = ref<null | number>(null);
   const clearingMemory = ref(false);
+  const memoryState = ref<MemoryState | null>(null);
+  const memoryLoading = ref(false);
+  const lastMemoryUpdated = ref(false);
 
   /** 请求序号防护：避免旧异步响应覆盖最新状态 */
   let conversationsRequestSeq = 0;
   let messagesRequestSeq = 0;
 
   async function loadConversations() {
-    if (!selectedAgentId.value) return;
-    const currentAgentId = selectedAgentId.value;
     const reqSeq = ++conversationsRequestSeq;
     conversationsLoading.value = true;
     try {
       const prefix = unref(options.apiPrefix) as string;
-      const res = await getChatConversationsApi<ConversationItem>(
-        prefix,
-        currentAgentId,
-      );
-      if (
-        reqSeq !== conversationsRequestSeq ||
-        selectedAgentId.value !== currentAgentId
-      ) {
+      const res = await getGlobalConversationsApi<ConversationItem>(prefix);
+      if (reqSeq !== conversationsRequestSeq) {
         return;
       }
       conversations.value = res.items;
@@ -148,12 +154,14 @@ export function useAIChat(options: UseAIChatOptions) {
     messagesRequestSeq += 1;
     activeConversationId.value = null;
     chatMessages.value = [];
+    memoryState.value = null;
+    lastMemoryUpdated.value = false;
   }
 
   async function deleteConversation(convId: number) {
     try {
       const prefix = unref(options.apiPrefix) as string;
-      await deleteChatConversationApi(prefix, selectedAgentId.value!, convId);
+      await deleteChatConversationApi(prefix, convId);
       if (activeConversationId.value === convId) {
         messagesRequestSeq += 1;
         activeConversationId.value = null;
@@ -166,48 +174,66 @@ export function useAIChat(options: UseAIChatOptions) {
   }
 
   async function loadConversationMessages(convId: number) {
-    const currentAgentId = selectedAgentId.value;
-    if (!currentAgentId) return;
     const reqSeq = ++messagesRequestSeq;
     activeConversationId.value = convId;
+    const currentConversation = conversations.value.find((c) => c.id === convId);
+    if (currentConversation?.agent_id) {
+      selectedAgentId.value = currentConversation.agent_id;
+    }
     try {
       const prefix = unref(options.apiPrefix) as string;
-      const res = await getChatConversationMessagesApi(
-        prefix,
-        currentAgentId,
-        convId,
-      );
+      const res = await getChatConversationMessagesApi(prefix, convId);
       if (
         reqSeq !== messagesRequestSeq ||
-        selectedAgentId.value !== currentAgentId ||
         activeConversationId.value !== convId
       ) {
         return;
       }
 
-      chatMessages.value = mergeMessagesForDisplay(res.message_list ?? []);
+      if (res.agent_id) {
+        selectedAgentId.value = res.agent_id;
+      }
+
+      const merged = mergeMessagesForDisplay(res.message_list ?? []);
+      chatMessages.value = merged;
+      // Restore lastMemoryUpdated from historical messages
+      lastMemoryUpdated.value = merged.some((m) => m.memoryUpdated);
       scrollToBottom(true);
     } catch {
       // handled by interceptor
     }
   }
 
+  async function fetchConversationMemory(): Promise<MemoryState | null> {
+    const convId = activeConversationId.value;
+    if (!convId) {
+      return null;
+    }
+    memoryLoading.value = true;
+    try {
+      const prefix = unref(options.apiPrefix) as string;
+      const state = await getChatConversationMemoryApi(prefix, convId);
+      memoryState.value = state;
+      return state;
+    } catch {
+      memoryState.value = null;
+      return null;
+    } finally {
+      memoryLoading.value = false;
+    }
+  }
+
   async function clearConversationMemory(): Promise<boolean> {
-    if (
-      !selectedAgentId.value ||
-      !activeConversationId.value ||
-      clearingMemory.value
-    ) {
+    const convId = activeConversationId.value;
+    if (!convId || clearingMemory.value) {
       return false;
     }
     clearingMemory.value = true;
     try {
       const prefix = unref(options.apiPrefix) as string;
-      await clearChatConversationMemoryApi(
-        prefix,
-        selectedAgentId.value,
-        activeConversationId.value,
-      );
+      await clearChatConversationMemoryApi(prefix, convId);
+      memoryState.value = null;
+      lastMemoryUpdated.value = false;
       return true;
     } catch {
       return false;
@@ -228,8 +254,11 @@ export function useAIChat(options: UseAIChatOptions) {
    */
   function mergeMessagesForDisplay(
     rawMessages: Array<{
+      agent_avatar?: null | string;
+      agent_id?: null | number;
+      agent_name?: null | string;
       content: null | string;
-      metadata?: null | { attachments?: ChatAttachment[] };
+      metadata?: null | { attachments?: ChatAttachment[]; memory_updated?: boolean };
       role: string;
       tool_call_id?: null | string;
       tool_calls?: Array<{
@@ -281,12 +310,33 @@ export function useAIChat(options: UseAIChatOptions) {
       // Collect all consecutive non-user messages as one assistant turn
       const toolCalls: ToolCallEvent[] = [];
       const contentParts: string[] = [];
+      let hasMemoryUpdated = false;
+      let turnAgentId: null | number = null;
+      let turnAgentName: null | string = null;
+      let turnAgentAvatar: null | string = null;
+      let turnAgentDescription: null | string = null;
+      let turnModelName: null | string = null;
       const startIdx = i;
 
       while (i < filtered.length && filtered[i]!.role !== 'user') {
         const cur = filtered[i]!;
 
         if (cur.role === 'assistant') {
+          // Capture agent info from the first assistant message in this turn
+          if (turnAgentId === null && cur.agent_id) {
+            turnAgentId = cur.agent_id;
+            turnAgentName = cur.agent_name ?? null;
+            turnAgentAvatar = cur.agent_avatar ?? null;
+            // Enrich from agents list
+            const agentInfo = agents.value.find((a) => a.id === cur.agent_id);
+            if (agentInfo) {
+              turnAgentDescription = agentInfo.description ?? null;
+              turnModelName = agentInfo.model_name ?? null;
+              if (!turnAgentAvatar && agentInfo.avatar) {
+                turnAgentAvatar = agentInfo.avatar;
+              }
+            }
+          }
           // Extract tool calls from this assistant message
           if (cur.tool_calls && cur.tool_calls.length > 0) {
             for (const tc of cur.tool_calls) {
@@ -323,6 +373,11 @@ export function useAIChat(options: UseAIChatOptions) {
             }
           }
 
+          // Check memory_updated flag in metadata
+          if (cur.metadata?.memory_updated) {
+            hasMemoryUpdated = true;
+          }
+
           // Accumulate content from all assistant messages in this turn
           // (matches streaming behavior where all deltas are concatenated)
           if (cur.content && cur.content.trim()) {
@@ -335,11 +390,20 @@ export function useAIChat(options: UseAIChatOptions) {
 
       // Only add if we actually processed something
       if (i > startIdx) {
-        result.push({
+        const assistantMsg: ChatMessage = {
           role: 'assistant',
           content: contentParts.join('\n\n'),
           toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-        });
+          agent_id: turnAgentId,
+          agent_name: turnAgentName,
+          agent_avatar: turnAgentAvatar,
+          agent_description: turnAgentDescription,
+          model_name: turnModelName,
+        };
+        if (hasMemoryUpdated) {
+          assistantMsg.memoryUpdated = true;
+        }
+        result.push(assistantMsg);
       }
     }
 
@@ -360,8 +424,8 @@ export function useAIChat(options: UseAIChatOptions) {
 
   let streamAbortController: AbortController | null = null;
 
-  /** Whether user has manually scrolled up during streaming */
-  let userScrolledUp = false;
+  /** Whether user has manually scrolled up */
+  const userScrolledUp = ref(false);
 
   /**
    * Smart scroll: only auto-scroll to bottom if user hasn't scrolled up.
@@ -371,7 +435,7 @@ export function useAIChat(options: UseAIChatOptions) {
     nextTick(() => {
       const el = messagesContainer.value;
       if (!el) return;
-      if (force || !userScrolledUp) {
+      if (force || !userScrolledUp.value) {
         el.scrollTop = el.scrollHeight;
       }
     });
@@ -387,8 +451,7 @@ export function useAIChat(options: UseAIChatOptions) {
 
   /** Handle scroll events to detect manual user scroll-up */
   function handleMessagesScroll() {
-    if (!streaming.value) return;
-    userScrolledUp = !isNearBottom();
+    userScrolledUp.value = !isNearBottom();
   }
 
   async function copyMessage(content: string) {
@@ -641,13 +704,22 @@ export function useAIChat(options: UseAIChatOptions) {
     }
   }
 
-  async function sendMessage(opts?: { silent?: boolean }) {
+  async function sendMessage(opts?: {
+    agentId?: number;
+    pageContext?: null | PageContext;
+    silent?: boolean;
+  }) {
     const silent = opts?.silent ?? false;
+    const targetAgentId = opts?.agentId ?? selectedAgentId.value;
+    const pageContext =
+      opts?.pageContext === undefined
+        ? (options.pageContextResolver?.() ?? null)
+        : opts.pageContext;
     const hasText = inputMessage.value.trim().length > 0;
     const hasAttachments = pendingAttachments.value.length > 0;
     if (
       (!hasText && !hasAttachments) ||
-      !selectedAgentId.value ||
+      !targetAgentId ||
       sending.value
     )
       return;
@@ -660,14 +732,22 @@ export function useAIChat(options: UseAIChatOptions) {
         role: 'user',
         content: userMsg,
         attachments: msgAttachments.length > 0 ? msgAttachments : undefined,
+        created_at: new Date().toISOString(),
       });
     }
+    // Resolve agent info for multi-agent avatar display
+    const targetAgent = agents.value.find((a) => a.id === targetAgentId);
     chatMessages.value.push({
       role: 'assistant',
       content: '',
       streaming: true,
+      agent_id: targetAgentId,
+      agent_name: targetAgent?.name ?? null,
+      agent_avatar: targetAgent?.avatar ?? null,
+      agent_description: targetAgent?.description ?? null,
+      model_name: targetAgent?.model_name ?? null,
     });
-    userScrolledUp = false;
+    userScrolledUp.value = false;
     scrollToBottom(true);
 
     inputMessage.value = '';
@@ -706,24 +786,29 @@ export function useAIChat(options: UseAIChatOptions) {
 
     try {
       const prefix = unref(options.apiPrefix) as string;
+      const requestBody: AgentChatRequestBody = {
+        message: userMsg || ' ',
+        conversation_id: activeConversationId.value,
+        ...(selectedKBIds.value.length > 0
+          ? { knowledge_base_ids: selectedKBIds.value }
+          : {}),
+        consented_actions: getConsentedActions(),
+        ...(apiAttachments ? { attachments: apiAttachments } : {}),
+        ...(imageParams.value.size !== '1024x1024' ||
+        imageParams.value.quality !== 'standard' ||
+        imageParams.value.style !== 'vivid' ||
+        imageParams.value.n !== 1
+          ? { image_params: imageParams.value }
+          : {}),
+        ...(pageContext ? { page_context: pageContext } : {}),
+        ...(options.pageSessionIdGetter
+          ? { page_session_id: options.pageSessionIdGetter() || null }
+          : {}),
+      };
       await sendChatStreamApi(
         prefix,
-        selectedAgentId.value!,
-        {
-          message: userMsg || ' ',
-          conversation_id: activeConversationId.value,
-          ...(selectedKBIds.value.length > 0
-            ? { knowledge_base_ids: selectedKBIds.value }
-            : {}),
-          consented_actions: getConsentedActions(),
-          ...(apiAttachments ? { attachments: apiAttachments } : {}),
-          ...(imageParams.value.size !== '1024x1024' ||
-          imageParams.value.quality !== 'standard' ||
-          imageParams.value.style !== 'vivid' ||
-          imageParams.value.n !== 1
-            ? { image_params: imageParams.value }
-            : {}),
-        },
+        targetAgentId!,
+        requestBody,
         {
           abortController: streamAbortController,
           onMessage(rawChunk: string) {
@@ -817,12 +902,25 @@ export function useAIChat(options: UseAIChatOptions) {
                         preview: event.preview,
                       };
                     } else if (event.event === 'tool_consent_request') {
-                      msg.pendingConsent = {
-                        toolName: event.name || '',
-                        arguments: event.arguments,
-                        skillName: event.skill_name || undefined,
-                        skillType: event.skill_type || undefined,
-                      };
+                      if (trustSession.value) {
+                        msg.pendingConsent = {
+                          toolName: event.name || '',
+                          arguments: event.arguments,
+                          skillName: event.skill_name || undefined,
+                          skillType: event.skill_type || undefined,
+                          resolved: true,
+                          autoApproved: true,
+                        };
+                        inputMessage.value = $t('common.globalAiChat.confirmExecute');
+                        sendMessage({ silent: true });
+                      } else {
+                        msg.pendingConsent = {
+                          toolName: event.name || '',
+                          arguments: event.arguments,
+                          skillName: event.skill_name || undefined,
+                          skillType: event.skill_type || undefined,
+                        };
+                      }
                       scrollToBottom();
                     } else if (
                       event.event === 'action_buttons' &&
@@ -848,6 +946,10 @@ export function useAIChat(options: UseAIChatOptions) {
                       msg.durationMs = event.duration_ms || 0;
                       if (event.conversation_id) {
                         activeConversationId.value = event.conversation_id;
+                      }
+                      if (event.memory_updated) {
+                        lastMemoryUpdated.value = true;
+                        msg.memoryUpdated = true;
                       }
                       if (options.onStreamComplete) {
                         options.onStreamComplete();
@@ -883,7 +985,7 @@ export function useAIChat(options: UseAIChatOptions) {
       sending.value = false;
       streaming.value = false;
       streamAbortController = null;
-      userScrolledUp = false;
+      userScrolledUp.value = false;
       finalizeMessage();
     }
   }
@@ -916,6 +1018,7 @@ export function useAIChat(options: UseAIChatOptions) {
     const msg = chatMessages.value[msgIndex];
     if (!msg?.pendingConsent || msg.pendingConsent.resolved) return;
     msg.pendingConsent.resolved = true;
+    msg.pendingConsent.rejected = true;
     inputMessage.value = $t('common.globalAiChat.rejectExecute');
     sendMessage({ silent: true });
   }
@@ -1023,7 +1126,7 @@ export function useAIChat(options: UseAIChatOptions) {
     }
     sending.value = false;
     streaming.value = false;
-    userScrolledUp = false;
+    userScrolledUp.value = false;
     const last = chatMessages.value.at(-1);
     if (last?.streaming) last.streaming = false;
   }
@@ -1054,6 +1157,10 @@ export function useAIChat(options: UseAIChatOptions) {
     deleteConversation,
     clearConversationMemory,
     clearingMemory,
+    fetchConversationMemory,
+    memoryState,
+    memoryLoading,
+    lastMemoryUpdated,
     loadConversationMessages,
 
     // Chat
@@ -1067,12 +1174,14 @@ export function useAIChat(options: UseAIChatOptions) {
     stopGeneration,
     scrollToBottom,
     handleMessagesScroll,
+    showScrollToBottom: userScrolledUp,
     copyMessage,
     handleInputKeyDown,
     confirmAction,
     rejectAction,
     confirmConsent,
     rejectConsent,
+    trustSession,
     clickActionButton,
     regenerateMessage,
     editAndResend,

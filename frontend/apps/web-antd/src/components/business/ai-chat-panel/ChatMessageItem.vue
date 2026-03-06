@@ -6,26 +6,113 @@
  * - false (default): Full page layout with avatar, Tag status, RAG sources
  * - true: Compact drawer layout with smaller sizes, no avatar/Tag/RAG
  */
+import type { ChatSkillBindingInfo, ChatSkillInfo } from '#/api/shared/ai-chat';
 import type { AgentItem, ChatMessage } from './types';
+
+import { computed, reactive, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Spin, Tag, Tooltip } from 'ant-design-vue';
+import { Button, Popover, Spin, Tag, Tooltip } from 'ant-design-vue';
 
+import {
+  getChatAgentSkillsApi,
+  getChatPackageSkillsApi,
+} from '#/api/shared/ai-chat';
 import { MarkdownRender } from '#/components/business/markdown-render';
 import { $t } from '#/locales';
+import { getSkillTypeColor, getSkillTypeIcon } from '#/utils/ai-helpers';
 import { getFileIcon } from '#/utils/file';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 const props = withDefaults(
   defineProps<{
+    apiPrefix?: string;
     compact?: boolean;
     index: number;
     msg: ChatMessage;
     selectedAgent?: AgentItem | null;
+    /** Whether to show an agent-switch separator above this message */
+    showAgentSwitch?: boolean;
   }>(),
-  { compact: false, selectedAgent: null },
+  { apiPrefix: '', compact: false, selectedAgent: null, showAgentSwitch: false },
 );
+
+/** Resolve agent display info: prefer message-level, fallback to selectedAgent */
+const msgAgentName = computed(() =>
+  props.msg.agent_name || props.selectedAgent?.name || null,
+);
+const msgAgentAvatarUrl = computed(() => {
+  if (props.msg.agent_avatar) return toAvatarDisplayUrl(props.msg.agent_avatar);
+  if (props.selectedAgent?.avatar) return agentAvatar(props.selectedAgent);
+  return null;
+});
+const msgAgentDescription = computed(() =>
+  props.msg.agent_description || props.selectedAgent?.description || null,
+);
+const msgModelName = computed(() =>
+  props.msg.model_name || props.selectedAgent?.model_name || null,
+);
+
+const showProfileCard = ref(false);
+
+// ==================== Agent Skills in Popover ====================
+const skillBindings = ref<ChatSkillBindingInfo[]>([]);
+const skillBindingsLoaded = ref(false);
+const skillBindingsLoading = ref(false);
+const expandedPackages = reactive(new Set<number>());
+const packageSkills = reactive(new Map<number, ChatSkillInfo[]>());
+const packageSkillsLoading = reactive(new Set<number>());
+
+function getSkillTypeText(type: string | undefined): string {
+  if (!type) return '-';
+  const key = `admin.ai.skill.type_options.${type}`;
+  const text = $t(key);
+  if (text === key) {
+    return type
+      .replaceAll('_', ' ')
+      .replaceAll(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return text;
+}
+
+async function loadSkillBindings() {
+  const agentId = props.msg.agent_id;
+  if (!agentId || !props.apiPrefix || skillBindingsLoaded.value) return;
+  skillBindingsLoading.value = true;
+  try {
+    const res = await getChatAgentSkillsApi(props.apiPrefix, agentId);
+    skillBindings.value = res;
+    skillBindingsLoaded.value = true;
+  } catch {
+    skillBindings.value = [];
+  } finally {
+    skillBindingsLoading.value = false;
+  }
+}
+
+async function togglePackageSkills(packageId: number) {
+  if (expandedPackages.has(packageId)) {
+    expandedPackages.delete(packageId);
+    return;
+  }
+  expandedPackages.add(packageId);
+  if (packageSkills.has(packageId)) return;
+  if (!props.apiPrefix) return;
+  packageSkillsLoading.add(packageId);
+  try {
+    const res = await getChatPackageSkillsApi(props.apiPrefix, packageId);
+    packageSkills.set(packageId, res.items || []);
+  } catch {
+    packageSkills.set(packageId, []);
+  } finally {
+    packageSkillsLoading.delete(packageId);
+  }
+}
+
+watch(showProfileCard, (open) => {
+  if (open) loadSkillBindings();
+});
 
 const emit = defineEmits<{
   actionClick: [index: number, value: string];
@@ -43,12 +130,26 @@ function agentAvatar(agent: { avatar?: null | string }) {
   return agent.avatar ? toAvatarDisplayUrl(agent.avatar) : null;
 }
 
-function agentInitial(agent: { name: string }) {
-  return agent.name.charAt(0).toUpperCase();
-}
 </script>
 
 <template>
+  <!-- Agent switch separator -->
+  <div
+    v-if="showAgentSwitch && msg.role === 'assistant' && msgAgentName"
+    class="flex items-center gap-2 py-1"
+    :class="compact ? 'mb-1' : 'mb-2'"
+  >
+    <div class="h-px flex-1 bg-border/40" />
+    <div
+      class="flex items-center gap-1 rounded-full bg-muted/60 px-2.5 py-0.5 text-muted-foreground"
+      :class="compact ? 'text-[10px]' : 'text-xs'"
+    >
+      <IconifyIcon icon="lucide:arrow-right" class="size-3" />
+      <span>{{ msgAgentName }}</span>
+    </div>
+    <div class="h-px flex-1 bg-border/40" />
+  </div>
+
   <div
     class="flex"
     :class="[
@@ -59,33 +160,207 @@ function agentInitial(agent: { name: string }) {
     <!-- ===== Assistant message ===== -->
     <div
       v-if="msg.role === 'assistant'"
-      class="group"
-      :class="compact ? 'max-w-[90%]' : 'flex max-w-[80%] gap-2'"
+      class="group flex"
+      :class="compact ? 'max-w-[90%] gap-1.5' : 'max-w-[80%] gap-2'"
     >
-      <!-- Avatar (page mode only) -->
-      <div
-        v-if="!compact"
-        class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 text-xs font-medium text-primary shadow-sm"
+      <!-- Avatar with profile card popover -->
+      <Popover
+        v-model:open="showProfileCard"
+        trigger="click"
+        placement="rightTop"
+        overlay-class-name="agent-profile-popover"
       >
-        <img
-          v-if="selectedAgent && agentAvatar(selectedAgent)"
-          :src="agentAvatar(selectedAgent)!"
-          :alt="selectedAgent?.name || ''"
-          class="size-full rounded-lg object-cover"
-        />
-        <span v-else-if="selectedAgent">{{ agentInitial(selectedAgent) }}</span>
-        <IconifyIcon v-else icon="lucide:bot" class="size-3.5" />
-      </div>
+        <template #content>
+          <div class="w-[280px]">
+            <!-- Profile header -->
+            <div class="flex items-center gap-3 border-b border-border/30 pb-3">
+              <div
+                class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 text-sm font-semibold text-primary shadow-sm"
+              >
+                <img
+                  v-if="msgAgentAvatarUrl"
+                  :src="msgAgentAvatarUrl"
+                  :alt="msgAgentName || ''"
+                  class="size-full rounded-xl object-cover"
+                />
+                <span v-else-if="msgAgentName">{{ msgAgentName.charAt(0).toUpperCase() }}</span>
+                <IconifyIcon v-else icon="lucide:bot" class="size-4" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-semibold text-foreground">
+                  {{ msgAgentName || $t('common.globalAiChat.assistant') }}
+                </div>
+                <div
+                  v-if="msgModelName"
+                  class="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground"
+                >
+                  <IconifyIcon icon="lucide:cpu" class="size-3 shrink-0" />
+                  <span class="truncate">{{ msgModelName }}</span>
+                </div>
+              </div>
+            </div>
+            <!-- Description -->
+            <div
+              v-if="msgAgentDescription"
+              class="pt-2.5 text-xs leading-relaxed text-muted-foreground"
+            >
+              {{ msgAgentDescription }}
+            </div>
+            <div
+              v-else
+              class="pt-2.5 text-xs italic text-muted-foreground/50"
+            >
+              {{ $t('common.globalAiChat.noDescription') }}
+            </div>
+            <!-- Skill Packages -->
+            <div
+              v-if="apiPrefix && msg.agent_id"
+              class="mt-2.5 border-t border-border/30 pt-2.5"
+            >
+              <div class="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                <IconifyIcon icon="lucide:puzzle" class="size-3" />
+                <span>{{ $t('common.globalAiChat.skillPackages') }}</span>
+              </div>
+              <Spin
+                v-if="skillBindingsLoading"
+                size="small"
+                class="flex justify-center py-2"
+              />
+              <div
+                v-else-if="skillBindings.length === 0 && skillBindingsLoaded"
+                class="py-1.5 text-center text-[11px] italic text-muted-foreground/50"
+              >
+                {{ $t('common.globalAiChat.noSkillPackages') }}
+              </div>
+              <div v-else class="max-h-[240px] space-y-1 overflow-y-auto">
+                <div
+                  v-for="binding in skillBindings"
+                  :key="binding.package_id"
+                  class="overflow-hidden rounded-lg border border-border/30"
+                >
+                  <div
+                    class="flex cursor-pointer items-center gap-2 px-2.5 py-1.5 transition-colors hover:bg-accent/30"
+                    @click="togglePackageSkills(binding.package_id)"
+                  >
+                    <IconifyIcon
+                      icon="lucide:package"
+                      class="size-3 shrink-0 text-primary/60"
+                    />
+                    <span class="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
+                      {{ binding.package_name || `#${binding.package_id}` }}
+                    </span>
+                    <Tag
+                      v-if="binding.package_is_system"
+                      color="red"
+                      class="!mr-0 !text-[9px] !leading-tight"
+                    >
+                      {{ $t('admin.ai.skillPackage.system') }}
+                    </Tag>
+                    <IconifyIcon
+                      :icon="expandedPackages.has(binding.package_id) ? 'lucide:chevron-up' : 'lucide:chevron-down'"
+                      class="size-3 shrink-0 text-muted-foreground/50"
+                    />
+                  </div>
+                  <!-- Skills within package -->
+                  <div
+                    v-if="expandedPackages.has(binding.package_id)"
+                    class="border-t border-border/20 bg-accent/10 px-2 py-1"
+                  >
+                    <Spin
+                      v-if="packageSkillsLoading.has(binding.package_id)"
+                      size="small"
+                      class="flex justify-center py-1.5"
+                    />
+                    <div
+                      v-else-if="packageSkills.get(binding.package_id)?.length === 0"
+                      class="py-1.5 text-center text-[10px] italic text-muted-foreground/50"
+                    >
+                      {{ $t('common.globalAiChat.noSkillsInPackage') }}
+                    </div>
+                    <div v-else class="space-y-px">
+                      <div
+                        v-for="skill in packageSkills.get(binding.package_id)"
+                        :key="skill.id"
+                        class="flex items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors hover:bg-accent/30"
+                      >
+                        <IconifyIcon
+                          :icon="getSkillTypeIcon(skill.type)"
+                          class="size-3 shrink-0"
+                          :style="{ color: `var(--ant-color-${getSkillTypeColor(skill.type)})` }"
+                        />
+                        <span class="min-w-0 flex-1 truncate text-[10px] text-foreground/80">
+                          {{ skill.name }}
+                        </span>
+                        <Tag
+                          :color="getSkillTypeColor(skill.type)"
+                          class="!mr-0 !text-[9px] !leading-tight"
+                        >
+                          {{ getSkillTypeText(skill.type) }}
+                        </Tag>
+                        <span
+                          :class="skill.is_active ? 'bg-green-500' : 'bg-muted-foreground/30'"
+                          class="inline-block size-1.5 shrink-0 rounded-full"
+                        ></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+        <div
+          class="shrink-0 cursor-pointer items-center justify-center rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 font-medium text-primary transition-all hover:shadow-md hover:ring-2 hover:ring-primary/20"
+          :class="
+            compact
+              ? 'mt-0.5 flex size-6 text-[9px]'
+              : 'mt-0.5 flex size-8 text-xs shadow-sm'
+          "
+        >
+          <img
+            v-if="msgAgentAvatarUrl"
+            :src="msgAgentAvatarUrl"
+            :alt="msgAgentName || ''"
+            class="size-full rounded-xl object-cover"
+          />
+          <span v-else-if="msgAgentName">{{ msgAgentName.charAt(0).toUpperCase() }}</span>
+          <IconifyIcon v-else icon="lucide:bot" :class="compact ? 'size-3' : 'size-3.5'" />
+        </div>
+      </Popover>
 
       <div class="min-w-0">
-        <!-- Thinking (no tool calls yet) -->
+        <!-- Agent name + model label -->
+        <div
+          v-if="msgAgentName && msg.agent_id"
+          :class="compact ? 'mb-0.5' : 'mb-1'"
+        >
+          <span :class="compact ? 'text-[10px]' : 'text-xs'" class="font-medium text-muted-foreground">
+            {{ msgAgentName }}
+          </span>
+          <span
+            v-if="!compact && msgModelName"
+            class="ml-1.5 rounded bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground/60"
+          >
+            {{ msgModelName }}
+          </span>
+        </div>
+
+        <!-- Thinking (no tool calls yet) - skeleton pulse -->
         <div
           v-if="msg.streaming && !msg.content && !msg.toolCalls?.length"
-          class="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-muted-foreground"
-          :class="compact ? 'text-xs' : 'text-sm'"
+          class="thinking-skeleton space-y-2 rounded-xl border border-border/20 bg-accent/30 px-3 py-3"
         >
-          <Spin size="small" />
-          <span>{{ $t('common.globalAiChat.thinking') }}</span>
+          <div class="flex items-center gap-2">
+            <div class="thinking-glow relative flex size-5 items-center justify-center rounded-full bg-primary/10">
+              <span class="typing-dots"><span /><span /><span /></span>
+            </div>
+            <span class="text-xs font-medium text-muted-foreground">{{ $t('common.globalAiChat.thinking') }}</span>
+          </div>
+          <div class="space-y-2">
+            <div class="skeleton-line h-2 w-[90%] rounded-full bg-muted/50"></div>
+            <div class="skeleton-line h-2 w-[72%] rounded-full bg-muted/50" style="animation-delay: 0.15s"></div>
+            <div class="skeleton-line h-2 w-[55%] rounded-full bg-muted/50" style="animation-delay: 0.3s"></div>
+          </div>
         </div>
 
         <!-- Optimizing tools indicator -->
@@ -117,20 +392,21 @@ function agentInitial(agent: { name: string }) {
         <!-- Tool calls -->
         <div
           v-if="msg.toolCalls?.length"
-          :class="compact ? 'mb-1 space-y-0.5' : 'mb-2 space-y-1'"
+          :class="compact ? 'mb-1 space-y-px' : 'mb-1.5 space-y-0.5'"
         >
           <details
             v-for="(tc, tcIdx) in msg.toolCalls"
             :key="tcIdx"
-            class="group/tc overflow-hidden border border-border/30 bg-accent/30 backdrop-blur-sm [&>summary::-webkit-details-marker]:hidden [&>summary]:list-none"
-            :class="compact ? 'rounded-lg' : 'rounded-xl'"
+            class="group/tc overflow-hidden border border-border/20 bg-accent/20 [&>summary::-webkit-details-marker]:hidden [&>summary]:list-none"
+            :class="compact ? 'rounded-md' : 'rounded-lg'"
+            :open="tc.status === 'error'"
           >
             <summary
               class="flex cursor-pointer select-none items-center"
               :class="
                 compact
-                  ? 'gap-1.5 px-2 py-1 text-[11px]'
-                  : 'gap-2 px-3 py-1.5 text-xs'
+                  ? 'gap-1 px-2 py-0.5 text-[11px]'
+                  : 'gap-1.5 px-2.5 py-1 text-xs'
               "
             >
               <Spin v-if="tc.status === 'running'" size="small" />
@@ -152,76 +428,53 @@ function agentInitial(agent: { name: string }) {
                   <span class="font-medium text-foreground/70">{{
                     tc.skillName
                   }}</span>
-                  <span
-                    :class="compact ? 'mx-0.5' : 'mx-1'"
-                    class="text-muted-foreground/50"
-                    >›</span
-                  >
+                  <span class="mx-0.5 text-muted-foreground/40">›</span>
                 </template>
                 {{ tc.displayName || tc.name }}
                 <span
                   v-if="tc.summary && tc.status === 'success'"
-                  class="ml-1 text-muted-foreground/70"
+                  class="ml-1 text-muted-foreground/60"
                   >— {{ tc.summary }}</span
                 >
               </span>
-              <!-- Tag status (page mode only) -->
-              <Tag
-                v-if="!compact && tc.status !== 'running'"
-                :color="tc.status === 'success' ? 'success' : 'error'"
-                size="small"
-              >
-                {{
-                  tc.status === 'success'
-                    ? $t('common.globalAiChat.toolSuccess')
-                    : $t('common.globalAiChat.toolFailed')
-                }}
-              </Tag>
-              <span
-                v-if="!compact && tc.status === 'running'"
-                class="text-muted-foreground"
-              >
-                {{ $t('common.globalAiChat.toolRunning') }}
-              </span>
-              <span v-if="tc.durationMs" class="text-muted-foreground/60">
+              <span v-if="tc.durationMs" class="text-[10px] text-muted-foreground/50">
                 {{ (tc.durationMs / 1000).toFixed(1) }}s
               </span>
               <IconifyIcon
                 v-if="tc.status !== 'running'"
                 icon="lucide:chevron-down"
-                class="shrink-0 text-muted-foreground transition-transform duration-200 group-open/tc:rotate-180"
-                :class="compact ? 'size-3' : 'size-3.5'"
+                class="shrink-0 text-muted-foreground/40 transition-transform duration-200 group-open/tc:rotate-180"
+                :class="compact ? 'size-2.5' : 'size-3'"
               />
             </summary>
             <div
               v-if="tc.output || tc.error || tc.arguments"
-              class="border-t border-border/50"
-              :class="compact ? 'px-2 py-1.5 text-[11px]' : 'px-3 py-2 text-xs'"
+              class="border-t border-border/30"
+              :class="compact ? 'px-2 py-1 text-[10px]' : 'px-2.5 py-1.5 text-[11px]'"
             >
               <div
                 v-if="tc.arguments && Object.keys(tc.arguments).length > 0"
                 class="mb-1"
               >
-                <span class="font-medium text-muted-foreground">{{
+                <span class="font-medium text-muted-foreground/70">{{
                   $t('common.globalAiChat.args')
                 }}</span>
                 <code
-                  class="ml-1 text-muted-foreground"
-                  :class="compact ? 'text-[10px]' : 'text-[11px]'"
+                  class="ml-1 rounded bg-accent/60 px-1 py-px text-[10px] text-muted-foreground"
                 >
                   {{ JSON.stringify(tc.arguments) }}
                 </code>
               </div>
               <div
                 v-if="tc.output"
-                class="overflow-y-auto whitespace-pre-wrap break-all text-muted-foreground"
-                :class="compact ? 'max-h-40' : 'max-h-48'"
+                class="overflow-y-auto whitespace-pre-wrap break-all rounded bg-accent/40 px-1.5 py-1 text-muted-foreground"
+                :class="compact ? 'max-h-32' : 'max-h-40'"
               >
                 {{ tc.output }}
               </div>
               <div
                 v-if="tc.error"
-                class="whitespace-pre-wrap break-all text-red-500"
+                class="whitespace-pre-wrap break-all rounded bg-red-50 px-1.5 py-1 text-red-500 dark:bg-red-950/30"
               >
                 {{ tc.error }}
               </div>
@@ -229,13 +482,9 @@ function agentInitial(agent: { name: string }) {
                 v-if="tc.resultLink && tc.status === 'success'"
                 :href="tc.resultLink"
                 target="_blank"
-                class="mt-1 inline-flex items-center gap-1 text-primary hover:underline"
-                :class="compact ? 'text-[10px]' : 'text-[11px]'"
+                class="mt-1 inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
               >
-                <IconifyIcon
-                  icon="lucide:external-link"
-                  :class="compact ? 'size-2.5' : 'size-3'"
-                />
+                <IconifyIcon icon="lucide:external-link" class="size-2.5" />
                 {{ $t('common.globalAiChat.viewResult') }}
               </a>
             </div>
@@ -243,10 +492,10 @@ function agentInitial(agent: { name: string }) {
           <!-- Generating indicator after tool calls -->
           <div
             v-if="msg.streaming && !msg.content"
-            class="flex items-center gap-2 text-muted-foreground"
-            :class="compact ? 'px-2 py-1 text-[11px]' : 'px-3 py-1 text-xs'"
+            class="flex items-center gap-1.5 px-2 py-0.5 text-muted-foreground"
+            :class="compact ? 'text-[11px]' : 'text-xs'"
           >
-            <Spin size="small" />
+            <span class="typing-dots"><span /><span /><span /></span>
             <span>{{ $t('common.globalAiChat.generating') }}</span>
           </div>
         </div>
@@ -255,7 +504,7 @@ function agentInitial(agent: { name: string }) {
         <div
           v-if="msg.content"
           class="rounded-2xl border border-border/30 bg-gradient-to-br from-muted/40 to-muted/20 shadow-sm"
-          :class="compact ? 'px-3 py-2 text-sm' : 'px-4 py-3'"
+          :class="compact ? 'px-2.5 py-1.5 text-sm' : 'px-4 py-3'"
         >
           <MarkdownRender :content="msg.content" :streaming="!!msg.streaming" />
           <span v-if="msg.streaming" class="streaming-cursor"></span>
@@ -393,97 +642,100 @@ function agentInitial(agent: { name: string }) {
         <!-- Tool consent card -->
         <div
           v-if="msg.pendingConsent && !msg.streaming"
-          class="rounded-lg border border-warning/40 bg-warning/5"
-          :class="compact ? 'mt-1.5 px-3 py-2' : 'mt-2 px-4 py-3'"
+          class="overflow-hidden rounded-lg border"
+          :class="[
+            compact ? 'mt-1' : 'mt-1.5',
+            msg.pendingConsent.resolved
+              ? 'border-border/20 bg-accent/10'
+              : 'border-warning/30 bg-warning/5',
+          ]"
         >
+          <!-- Resolved state: compact single line -->
           <div
-            class="flex items-center font-medium text-foreground"
-            :class="compact ? 'mb-1.5 gap-1.5 text-xs' : 'mb-2 gap-2 text-sm'"
+            v-if="msg.pendingConsent.resolved"
+            class="flex items-center gap-1.5 px-2.5 py-1 text-[11px]"
           >
             <IconifyIcon
-              icon="lucide:shield-alert"
-              class="size-4 text-warning"
+              :icon="msg.pendingConsent.rejected ? 'lucide:x-circle' : msg.pendingConsent.autoApproved ? 'lucide:shield-check' : 'lucide:check-circle'"
+              class="size-3 shrink-0"
+              :class="msg.pendingConsent.rejected ? 'text-red-500' : 'text-green-600'"
             />
-            <span>{{ $t('common.globalAiChat.consentTitle') }}</span>
-          </div>
-          <div
-            class="text-muted-foreground"
-            :class="compact ? 'mb-1.5 text-xs' : 'mb-2 text-sm'"
-          >
+            <span class="truncate text-muted-foreground">
+              <span v-if="msg.pendingConsent.skillName" class="font-medium text-foreground/60">{{ msg.pendingConsent.skillName }} ›</span>
+              <code class="text-[10px]">{{ msg.pendingConsent.toolName }}</code>
+            </span>
             <span
-              v-if="msg.pendingConsent.skillName"
-              class="font-medium text-foreground/70"
-              >{{ msg.pendingConsent.skillName }} ›</span
+              class="ml-auto shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium"
+              :class="
+                msg.pendingConsent.rejected
+                  ? 'bg-red-50 text-red-600 dark:bg-red-950/30'
+                  : msg.pendingConsent.autoApproved
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/30'
+                    : 'bg-green-50 text-green-600 dark:bg-green-950/30'
+              "
             >
-            <code class="ml-1 font-mono">{{
-              msg.pendingConsent.toolName
-            }}</code>
+              {{
+                msg.pendingConsent.rejected
+                  ? $t('common.globalAiChat.consentRejected')
+                  : msg.pendingConsent.autoApproved
+                    ? $t('common.globalAiChat.consentAutoApproved')
+                    : $t('common.globalAiChat.consentApproved')
+              }}
+            </span>
           </div>
-          <div
-            v-if="
-              msg.pendingConsent.arguments &&
-              Object.keys(msg.pendingConsent.arguments).length > 0
-            "
-            class="overflow-y-auto rounded-md bg-accent/50 font-mono text-muted-foreground"
-            :class="
-              compact
-                ? 'mb-2 max-h-32 px-2 py-1.5 text-[10px]'
-                : 'mb-3 max-h-40 px-3 py-2 text-xs'
-            "
-          >
-            <pre class="whitespace-pre-wrap">{{
-              JSON.stringify(msg.pendingConsent.arguments, null, 2)
-            }}</pre>
-          </div>
-          <div
-            v-if="!msg.pendingConsent.resolved"
-            class="flex items-center gap-2"
-          >
-            <Button
-              type="primary"
-              size="small"
-              @click="emit('consentConfirm', props.index)"
+
+          <!-- Pending state: inline with actions -->
+          <template v-else>
+            <div class="flex items-center gap-1.5 px-2.5 py-1.5">
+              <IconifyIcon
+                icon="lucide:shield-alert"
+                class="size-3.5 shrink-0 text-warning"
+              />
+              <span class="flex-1 truncate text-[11px] text-muted-foreground">
+                <span v-if="msg.pendingConsent.skillName" class="font-medium text-foreground/70">{{ msg.pendingConsent.skillName }} ›</span>
+                <code class="text-[10px] font-semibold">{{ msg.pendingConsent.toolName }}</code>
+              </span>
+              <div class="flex shrink-0 items-center gap-1">
+                <button
+                  class="inline-flex items-center gap-0.5 rounded-md bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                  @click="emit('consentConfirm', props.index)"
+                >
+                  <IconifyIcon icon="lucide:check" class="size-3" />
+                  {{ $t('common.globalAiChat.consentAllow') }}
+                </button>
+                <button
+                  class="inline-flex items-center gap-0.5 rounded-md border border-border/60 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+                  @click="emit('consentReject', props.index)"
+                >
+                  <IconifyIcon icon="lucide:x" class="size-3" />
+                  {{ $t('common.globalAiChat.consentDeny') }}
+                </button>
+              </div>
+            </div>
+            <!-- Collapsible args -->
+            <details
+              v-if="
+                msg.pendingConsent.arguments &&
+                Object.keys(msg.pendingConsent.arguments).length > 0
+              "
+              class="[&>summary::-webkit-details-marker]:hidden [&>summary]:list-none"
             >
-              <template #icon>
-                <IconifyIcon
-                  icon="lucide:check"
-                  :class="compact ? 'size-3' : 'size-3.5'"
-                />
-              </template>
-              {{ $t('common.globalAiChat.consentAllow') }}
-            </Button>
-            <Button
-              size="small"
-              danger
-              @click="emit('consentReject', props.index)"
-            >
-              <template #icon>
-                <IconifyIcon
-                  icon="lucide:x"
-                  :class="compact ? 'size-3' : 'size-3.5'"
-                />
-              </template>
-              {{ $t('common.globalAiChat.consentDeny') }}
-            </Button>
-          </div>
-          <div
-            v-else
-            :class="compact ? 'text-[11px]' : 'text-xs'"
-            class="text-muted-foreground"
-          >
-            <IconifyIcon
-              icon="lucide:check-circle"
-              class="mr-1 inline text-success"
-              :class="compact ? 'size-3' : 'size-3.5'"
-            />
-            {{ $t('common.globalAiChat.consentResolved') }}
-          </div>
+              <summary class="flex cursor-pointer items-center gap-1 border-t border-border/20 px-2.5 py-0.5 text-[10px] text-muted-foreground/60 hover:text-muted-foreground">
+                <IconifyIcon icon="lucide:code" class="size-2.5" />
+                {{ $t('common.globalAiChat.consentShowArgs') }}
+                <IconifyIcon icon="lucide:chevron-down" class="size-2.5 transition-transform duration-200 [details[open]>&]:rotate-180" />
+              </summary>
+              <div class="border-t border-border/20 px-2.5 py-1">
+                <pre class="max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-[10px] text-muted-foreground">{{ JSON.stringify(msg.pendingConsent.arguments, null, 2) }}</pre>
+              </div>
+            </details>
+          </template>
         </div>
 
         <!-- RAG sources -->
         <div
           v-if="msg.ragSources && msg.ragSources.length > 0 && !msg.streaming"
-          :class="compact ? 'mt-1' : 'mt-2'"
+          :class="compact ? 'mt-1' : 'mt-1.5'"
         >
           <details class="group">
             <summary
@@ -559,39 +811,46 @@ function agentInitial(agent: { name: string }) {
         <!-- Stats + Copy + Regenerate -->
         <div
           v-if="msg.content && !msg.streaming"
-          class="flex items-center text-muted-foreground/70"
-          :class="compact ? 'mt-1 gap-1.5 text-[11px]' : 'mt-2 gap-1.5 text-xs'"
+          class="flex items-center text-muted-foreground/70 transition-opacity duration-200"
+          :class="[
+            compact ? 'mt-0.5 gap-0.5 text-[11px]' : 'mt-1 gap-1 text-xs',
+            'group-hover:opacity-100',
+            compact ? 'opacity-0' : 'opacity-60 hover:opacity-100',
+          ]"
         >
-          <span v-if="msg.tokenUsage" class="mr-1"
+          <span v-if="msg.tokenUsage" class="mr-0.5 tabular-nums"
             >{{ msg.tokenUsage }} {{ $t('common.globalAiChat.tokens') }}</span
           >
-          <span v-if="!compact && msg.durationMs" class="mr-1"
-            >{{ (msg.durationMs / 1000).toFixed(1) }}s</span
+          <span v-if="msg.durationMs" class="mr-0.5 tabular-nums"
+            >· {{ (msg.durationMs / 1000).toFixed(1) }}s</span
           >
-          <Tooltip v-if="!compact" :title="$t('common.globalAiChat.copy')">
+          <Tooltip
+            v-if="msg.memoryUpdated"
+            :title="$t('common.globalAiChat.memoryUpdated')"
+          >
+            <span class="mr-0.5 inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+              <IconifyIcon icon="lucide:brain" class="size-2.5" />
+            </span>
+          </Tooltip>
+          <span class="mx-0.5 text-border">·</span>
+          <Tooltip :title="$t('common.globalAiChat.copy')">
             <button
-              class="flex size-6 items-center justify-center rounded-md opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
+              class="flex items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground"
+              :class="compact ? 'size-5' : 'size-5'"
               @click="emit('copy', msg.content)"
             >
-              <IconifyIcon icon="lucide:copy" class="size-3.5" />
+              <IconifyIcon icon="lucide:copy" :class="compact ? 'size-2.5' : 'size-3'" />
             </button>
           </Tooltip>
-          <button
-            v-else
-            class="flex size-5 items-center justify-center rounded opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
-            @click="emit('copy', msg.content)"
-          >
-            <IconifyIcon icon="lucide:copy" class="size-3" />
-          </button>
           <Tooltip :title="$t('common.globalAiChat.regenerate')">
             <button
-              class="flex items-center justify-center rounded-md opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
-              :class="compact ? 'size-5' : 'size-6'"
+              class="flex items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground"
+              :class="compact ? 'size-5' : 'size-5'"
               @click="emit('regenerate', props.index)"
             >
               <IconifyIcon
                 icon="lucide:refresh-cw"
-                :class="compact ? 'size-3' : 'size-3.5'"
+                :class="compact ? 'size-2.5' : 'size-3'"
               />
             </button>
           </Tooltip>
@@ -650,13 +909,26 @@ function agentInitial(agent: { name: string }) {
       >
         {{ msg.content }}
       </div>
-      <div class="mt-0.5 flex justify-end">
-        <Tooltip :title="$t('common.edit')">
-          <IconifyIcon
-            icon="lucide:pencil"
-            class="size-3 cursor-pointer text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+      <!-- User message toolbar (timestamp + copy + edit) -->
+      <div class="mt-0.5 flex items-center justify-end gap-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+        <span v-if="msg.created_at" class="mr-0.5 text-[10px] tabular-nums text-muted-foreground/40">
+          {{ new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+        </span>
+        <Tooltip :title="$t('common.globalAiChat.copy')">
+          <button
+            class="flex size-5 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+            @click="emit('copy', msg.content)"
+          >
+            <IconifyIcon icon="lucide:copy" class="size-2.5" />
+          </button>
+        </Tooltip>
+        <Tooltip :title="$t('common.globalAiChat.editResend')">
+          <button
+            class="flex size-5 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
             @click="emit('edit', props.index)"
-          />
+          >
+            <IconifyIcon icon="lucide:pencil" class="size-2.5" />
+          </button>
         </Tooltip>
       </div>
     </div>
@@ -680,6 +952,83 @@ function agentInitial(agent: { name: string }) {
 
   50% {
     opacity: 0;
+  }
+}
+
+/* Skeleton line pulse animation */
+.skeleton-line {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* Thinking glow ring */
+.thinking-glow::before {
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: radial-gradient(circle, hsl(var(--primary) / 0.2), transparent 70%);
+  content: '';
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+/* Typing dots animation */
+.typing-dots {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.typing-dots span {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: hsl(var(--primary));
+  animation: typing-bounce 1.4s ease-in-out infinite;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing-bounce {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
   }
 }
 </style>

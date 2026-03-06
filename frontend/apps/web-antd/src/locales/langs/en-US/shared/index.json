@@ -9,6 +9,7 @@
     "./filePreview.json",
     "./knowledgeDocPicker.json",
     "./page.json",
+    "./pageOperation.json",
     "./profile.json"
   ]
 }

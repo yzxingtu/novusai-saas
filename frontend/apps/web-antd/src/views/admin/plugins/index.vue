@@ -9,6 +9,8 @@ import type { MenuOverrideItem, PluginInfo } from '#/api/admin/plugin';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 import { useAccessStore, useUserStore } from '@vben/stores';
@@ -551,6 +553,18 @@ function getDependencyStatusText(plugin: PluginInfo): string {
     ? $t('admin.plugin.dependency.installed')
     : $t('admin.plugin.dependency.missing');
 }
+
+const cleanupPageContext = registerPageContext('admin/plugins', () => ({
+  page_key: 'admin.plugins',
+  page_title: $t('admin.plugin.title'),
+  page_data: {
+    resource: '/admin/plugins',
+    total_plugins: plugins.value.length,
+    enabled_plugins: plugins.value.filter((p) => p.status === 'enabled').length,
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

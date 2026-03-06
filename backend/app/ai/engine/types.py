@@ -73,6 +73,9 @@ class ExecutionRequest:
     memory_source: str = ""
     memory_enabled: bool = False
 
+    # 前端页面会话 ID（用于 PageOperationExecutor 定位目标页面实例）
+    page_session_id: str | None = None
+
 
 @dataclass
 class ExecutionResult:

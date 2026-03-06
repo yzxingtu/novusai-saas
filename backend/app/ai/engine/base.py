@@ -129,21 +129,18 @@ class BaseEngine(ABC):
             prompt = template.render(**variables)
         except TemplateSyntaxError as exc:
             logger.warning(
-                _("agent.log.template_syntax_error"),
-                agent_id=agent.id,
-                error=str(exc),
+                "Template syntax error: agent_id=%s error=%s",
+                agent.id, str(exc),
             )
         except UndefinedError as exc:
             logger.warning(
-                _("agent.log.undefined_variable"),
-                agent_id=agent.id,
-                error=str(exc),
+                "Template undefined variable: agent_id=%s error=%s",
+                agent.id, str(exc),
             )
         except Exception as exc:
             logger.warning(
-                _("agent.log.template_render_error"),
-                agent_id=agent.id,
-                error=str(exc),
+                "Template render error: agent_id=%s error=%s",
+                agent.id, str(exc),
             )
 
         return ChatMessage(role="system", content=prompt)

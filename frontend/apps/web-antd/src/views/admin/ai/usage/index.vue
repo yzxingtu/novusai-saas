@@ -6,7 +6,10 @@ import type { CallTrendItem } from '#/api/admin/analytics';
 /**
  * 平台管理端 AI 使用量统计页面
  */
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -229,7 +232,7 @@ onMounted(loadTrend);
 // Grid
 // ============================================================
 
-const { Grid } = useCrudPage({
+const { Grid, onRefresh } = useCrudPage({
   api: {
     list: getAIUsageStatsApi,
     resource: '/admin/ai/usage/stats',
@@ -244,6 +247,35 @@ const { Grid } = useCrudPage({
     export: true,
     zoom: true,
   },
+});
+
+const cleanupPageContext = registerPageContext('admin/ai/usage', () => ({
+  page_key: 'admin.ai.usage',
+  page_title: $t('admin.ai.usage.name'),
+  page_data: {
+    resource: '/admin/ai/usage/stats',
+    total_calls: summaryData.value.total_calls,
+    total_tokens: summaryData.value.total_tokens,
+    total_cost: summaryData.value.total_cost,
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('admin.ai.usage', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the usage statistics list',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'Usage list refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

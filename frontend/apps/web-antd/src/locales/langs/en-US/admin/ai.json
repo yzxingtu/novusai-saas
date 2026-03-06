@@ -356,7 +356,8 @@
       "routing": "Smart Routing",
       "basicInfo": "Basic Info",
       "saveSuccess": "Saved successfully",
-      "noQuotaLimit": "0 means no limit"
+      "noQuotaLimit": "0 means no limit",
+      "noSkills": "No skills in this package"
     },
     "memory": {
       "title": "Session Memory",
@@ -1060,6 +1061,10 @@
       "general_chat": {
         "name": "General AI Chat",
         "description": "Built-in general-purpose AI chat assistant"
+      },
+      "default_chat": {
+        "name": "Default Chat Assistant",
+        "description": "Default AI chat assistant used when no specific route is matched"
       },
       "translation": {
         "name": "AI Translation",

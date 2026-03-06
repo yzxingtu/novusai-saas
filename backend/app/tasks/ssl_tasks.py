@@ -89,6 +89,7 @@ def task_provision_ssl(self: BaseTask, domain_id: int) -> dict:
                 cert_pem, key_pem, chain_pem = await acme.provision_certificate(
                     domain.domain,
                     dns_setter=dns_provider.set_txt_record,
+                    dns_deleter=dns_provider.delete_txt_record,
                 )
 
                 # 4. 存储证书
@@ -213,7 +214,7 @@ def task_check_ssl_renewals(self: BaseTask) -> dict:
                 # 2. 查询即将过期的自定义证书 → 记录提醒 + 邮件通知
                 custom_certs = await repo.get_expiring_custom_certs(days=30)
                 for cert in custom_certs:
-                    await ssl_service.mark_renewal_failed(
+                    await ssl_service.mark_expiry_warning(
                         cert.id,
                         "Custom certificate expiring soon, manual upload required",
                     )
@@ -337,6 +338,7 @@ def task_renew_ssl(self: BaseTask, cert_id: int) -> dict:
                 cert_pem, key_pem, chain_pem = await acme.provision_certificate(
                     domain.domain,
                     dns_setter=dns_provider.set_txt_record,
+                    dns_deleter=dns_provider.delete_txt_record,
                 )
 
                 # 5. 存储新证书（会自动停用旧证书）

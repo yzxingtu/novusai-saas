@@ -377,6 +377,7 @@ export interface PluginSlotData {
   icon?: string;
   position?: string;
   event?: string;
+  ai?: { mode?: string; page_context_key?: string };
   [key: string]: unknown;
 }
 

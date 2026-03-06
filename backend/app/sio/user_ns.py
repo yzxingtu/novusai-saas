@@ -13,17 +13,19 @@ from app.core.security import (
     TokenExpiredError,
     verify_token_with_scope,
 )
+from app.sio.page_session import PageSessionMixin
 
 logger = LogManager.get_logger("app")
 
 
-class UserNamespace(socketio.AsyncNamespace):
+class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
     """
     /user namespace — 租户业务用户
 
     Rooms:
     - user:{user_id} — 指定用户的所有设备
     - tenant:{tenant_id} — 该租户的所有在线业务用户
+    - page_session:{id} — 页面操作定位（动态加入）
     """
 
     # sid → session 备份，防止 get_session 失败时无法清理 presence

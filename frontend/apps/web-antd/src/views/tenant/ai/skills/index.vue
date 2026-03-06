@@ -4,7 +4,10 @@
  */
 import type { SkillInfo } from '#/api/tenant/skills';
 
-import { ref } from 'vue';
+import { onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -77,6 +80,32 @@ const { Grid, onRefresh } = useCrudPage<SkillInfo>({
 function onFormSuccess() {
   onRefresh();
 }
+
+const cleanupPageContext = registerPageContext('tenant/ai/skills', () => ({
+  page_key: 'tenant.ai.skills',
+  page_title: $t('tenant.ai.skill.name'),
+  page_data: {
+    resource: '/tenant/ai/skills',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('tenant.ai.skills', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the skill list',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'Skill list refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

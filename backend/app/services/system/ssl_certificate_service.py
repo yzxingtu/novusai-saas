@@ -45,6 +45,30 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
 
     # ==================== 上传自定义证书 ====================
 
+    async def _check_custom_ssl_quota(self, tenant_id: int) -> None:
+        """
+        检查租户是否允许上传自定义 SSL 证书
+
+        通过租户套餐的 allow_custom_ssl 配额判断。
+        不允许时抛出 BusinessException。
+        """
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+
+        from app.models.tenant.tenant import Tenant
+
+        result = await self.db.execute(
+            select(Tenant)
+            .where(Tenant.id == tenant_id, Tenant.is_deleted.is_(False))
+            .options(selectinload(Tenant.tenant_plan))
+        )
+        tenant = result.scalar_one_or_none()
+        if tenant and not tenant.get_quota_value("allow_custom_ssl", False):
+            raise BusinessException(
+                message=_("ssl_certificate.custom_ssl_not_allowed"),
+                code=ErrorCode.FORBIDDEN,
+            )
+
     async def upload_custom_cert(
         self,
         domain_id: int,
@@ -52,13 +76,22 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
         cert_pem: str,
         key_pem: str,
         chain_pem: str | None = None,
+        *,
+        check_quota: bool = False,
     ) -> DomainSslCertificate:
         """
         上传自定义证书
 
         验证证书格式、私钥匹配、域名匹配后存储
         自动设置 cert_type=custom, auto_renew=False
+
+        Args:
+            check_quota: 是否检查套餐 allow_custom_ssl 配额（租户端传 True，管理端传 False）
         """
+        # 套餐配额检查（仅租户端需要）
+        if check_quota:
+            await self._check_custom_ssl_quota(tenant_id)
+
         # 获取域名信息
         domain = await self._get_domain(domain_id)
 
@@ -202,6 +235,17 @@ class SslCertificateService(GlobalService[DomainSslCertificate, SslCertificateRe
         """标记续期失败（不改变 ssl_status，证书仍然有效直到过期）"""
         await self.update(cert_id, {
             "renewal_error": error,
+            "last_renewal_attempt": utc_now(),
+        })
+
+    # ==================== 记录到期预警 ====================
+
+    async def mark_expiry_warning(
+        self, cert_id: int, warning: str,
+    ) -> None:
+        """记录证书到期预警（用于自定义证书即将过期的提醒，不改变状态）"""
+        await self.update(cert_id, {
+            "renewal_error": warning,
             "last_renewal_attempt": utc_now(),
         })
 

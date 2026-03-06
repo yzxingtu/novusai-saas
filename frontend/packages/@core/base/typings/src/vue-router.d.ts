@@ -1,6 +1,27 @@
 import type { Component } from 'vue';
 import type { Router, RouteRecordRaw } from 'vue-router';
 
+/**
+ * 页面 AI 策略模式
+ *
+ * - disabled:     该页面禁用 AI（隐藏入口）
+ * - context_only: 仅提供页面上下文（默认值）
+ * - operate:      允许页面操作（预留，本轮不实现执行）
+ */
+type AIPageMode = 'context_only' | 'disabled' | 'operate';
+
+/**
+ * 页面级 AI 元信息
+ *
+ * 声明在 route.meta.ai 中，与 RBAC 权限共同决定 AI 入口可见性。
+ */
+interface AIPageMeta {
+  /** AI 模式 */
+  mode?: AIPageMode;
+  /** 页面上下文注册表 key（可选，用于 resolvePageContext 精确匹配） */
+  pageContextKey?: string;
+}
+
 interface RouteMeta {
   /**
    * 激活图标（菜单/tab）
@@ -121,6 +142,13 @@ interface RouteMeta {
    * 标题名称
    */
   title: string;
+
+  /**
+   * 页面级 AI 策略（与 RBAC 权限共同控制 AI 入口可见性）
+   *
+   * 未声明时默认为 { mode: 'context_only' }
+   */
+  ai?: AIPageMeta;
 }
 
 // 定义递归类型以将 RouteRecordRaw 的 component 属性更改为 string
@@ -145,6 +173,8 @@ interface GenerateMenuAndRoutesOptions {
 }
 
 export type {
+  AIPageMeta,
+  AIPageMode,
   ComponentRecordType,
   GenerateMenuAndRoutesOptions,
   RouteMeta,

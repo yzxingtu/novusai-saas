@@ -4,7 +4,10 @@
  */
 import type { ConversationInfo } from '#/api/tenant/conversations';
 
-import { ref } from 'vue';
+import { onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -39,7 +42,7 @@ function onViewDetail(row: ConversationInfo) {
   detailOpen.value = true;
 }
 
-const { Grid } = useCrudPage<ConversationInfo>({
+const { Grid, onRefresh } = useCrudPage<ConversationInfo>({
   api: {
     list: getConversationListApi,
     resource: '/tenant/ai/conversations',
@@ -51,6 +54,32 @@ const { Grid } = useCrudPage<ConversationInfo>({
   customActions: {
     detail: onViewDetail,
   },
+});
+
+const cleanupPageContext = registerPageContext('tenant/ai/conversations', () => ({
+  page_key: 'tenant.ai.conversations',
+  page_title: $t('tenant.ai.conversation.name'),
+  page_data: {
+    resource: '/tenant/ai/conversations',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('tenant.ai.conversations', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the conversation list',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'Conversation list refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

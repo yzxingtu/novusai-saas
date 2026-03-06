@@ -356,7 +356,8 @@
       "routing": "智能路由",
       "basicInfo": "基本信息",
       "saveSuccess": "保存成功",
-      "noQuotaLimit": "0 表示不限制"
+      "noQuotaLimit": "0 表示不限制",
+      "noSkills": "该技能包暂无技能"
     },
     "memory": {
       "title": "会话记忆",
@@ -1060,6 +1061,10 @@
       "general_chat": {
         "name": "通用 AI 对话",
         "description": "平台内置的通用 AI 对话助手"
+      },
+      "default_chat": {
+        "name": "默认对话助手",
+        "description": "当未命中特定路由时使用的默认 AI 对话助手"
       },
       "translation": {
         "name": "AI 翻译",

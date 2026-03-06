@@ -4,7 +4,10 @@
  */
 import type { AIModelInfo } from '#/api/admin/ai';
 
-import { ref } from 'vue';
+import { onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -121,6 +124,32 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AIModelInfo>({
   customActions: {
     test: onTestModel,
   },
+});
+
+const cleanupPageContext = registerPageContext('admin/ai/models', () => ({
+  page_key: 'admin.ai.models',
+  page_title: $t('admin.ai.model.name'),
+  page_data: {
+    resource: '/admin/ai/models',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('admin.ai.models', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the AI model list',
+    readonly: true,
+    handler: async () => {
+      onRefresh();
+      return { success: true, message: 'Model list refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

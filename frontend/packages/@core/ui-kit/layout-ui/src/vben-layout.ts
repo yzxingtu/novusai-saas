@@ -171,5 +171,10 @@ interface VbenLayoutProps {
    * @default 100
    */
   zIndex?: number;
+  /**
+   * 右侧面板偏移量（如 AI 面板固定时推开布局）
+   * @default 0
+   */
+  panelRightOffset?: number;
 }
 export type { VbenLayoutProps };

@@ -1,0 +1,10 @@
+{
+  "confirmTitle": "操作确认",
+  "confirmContent": "AI 助手请求执行操作：{operation}，是否允许？",
+  "confirmContentWithDesc": "AI 助手请求执行操作：{operation}\n\n{description}\n\n是否允许？",
+  "confirmOk": "允许执行",
+  "confirmCancel": "取消",
+  "refreshDashboard": "刷新仪表盘",
+  "refreshList": "刷新列表",
+  "exportData": "导出数据"
+}

@@ -244,7 +244,9 @@
       "sourceSelect": "Certificate Source",
       "platformHint": "Platform auto-issues free SSL certificates with auto renewal support",
       "uploadHint": "Upload your own SSL certificate files",
-      "deleteHint": "Deleting certificate will fall back to HTTP access"
+      "deleteHint": "Deleting certificate will fall back to HTTP access",
+      "platformWildcard": "Platform Wildcard SSL Certificate Active",
+      "platformWildcardDesc": "Default domains are automatically protected by the platform wildcard SSL certificate, no separate configuration needed"
     }
   },
   "manageDomains": "Manage Domains",

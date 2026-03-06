@@ -403,6 +403,8 @@ class ExecutionDispatcher:
             agent=agent,
             toolkit_security_level=toolkit_security_level,
             toolkit_memory_limit_mb=toolkit_memory_limit_mb,
+            input_variables=request.input_variables,
+            page_session_id=request.page_session_id,
         )
         # 传递前端会话级授权
         if request.consented_actions:

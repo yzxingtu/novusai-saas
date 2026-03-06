@@ -4,7 +4,9 @@
  */
 import type { KnowledgeBaseItem } from '#/api/tenant/knowledge-bases';
 
-import { computed, ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -107,6 +109,17 @@ function onMenuClick(key: number | string, row: KnowledgeBaseItem) {
     handleMenuAction(String(key), row);
   }
 }
+
+const cleanupPageContext = registerPageContext('tenant/ai/knowledge-bases', () => ({
+  page_key: 'tenant.ai.knowledge-bases',
+  page_title: $t('tenant.knowledgeBase.name'),
+  page_data: {
+    resource: '/tenant/ai/knowledge-bases',
+    total: total.value,
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>

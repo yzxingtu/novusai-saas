@@ -189,9 +189,8 @@ class AIGateway:
                 raise
 
             logger.info(
-                _("ai.log.fallback_attempt"),
-                original_model=model,
-                fallback_model=fallback_model.code,
+                "Fallback attempt: original_model=%s fallback_model=%s",
+                model, fallback_model.code,
             )
 
             try:
@@ -216,13 +215,13 @@ class AIGateway:
                 model_id = fallback_model.id
                 model = fallback_model.code
                 logger.info(
-                    _("ai.log.fallback_succeeded"),
-                    fallback_model=fallback_model.code,
+                    "Fallback succeeded: fallback_model=%s",
+                    fallback_model.code,
                 )
             except (AIGatewayError, NotFoundException, BusinessException):
                 logger.warning(
-                    _("ai.log.fallback_failed"),
-                    fallback_model=fallback_model.code,
+                    "Fallback failed: fallback_model=%s",
+                    fallback_model.code,
                 )
                 await self.usage_recorder.log_call_failure(
                     error=original_error,
@@ -389,9 +388,8 @@ class AIGateway:
 
                         # 调用适配器流式接口
                         logger.info(
-                            _("ai.log.gateway_stream_call"),
-                            provider=provider_code,
-                            model=model,
+                            "Gateway stream call: provider=%s model=%s",
+                            provider_code, model,
                         )
 
                         async for chunk in adapter.stream_chat(
@@ -408,10 +406,8 @@ class AIGateway:
                         # 重试成功时记录日志
                         if attempt > 0:
                             logger.info(
-                                _("ai.log.retry_succeeded"),
-                                provider=provider_code,
-                                model=model,
-                                attempt=attempt,
+                                "Stream retry succeeded: provider=%s model=%s attempt=%s",
+                                provider_code, model, attempt,
                             )
 
                         # 更新外层 api_key 引用
@@ -422,22 +418,16 @@ class AIGateway:
                         # 不可重试的异常直接抛出
                         if not is_retryable(e):
                             logger.error(
-                                _("ai.log.non_retryable_error"),
-                                provider=provider_code,
-                                model=model,
-                                error_code=e.error_code,
-                                error=str(e),
+                                "Non-retryable error: provider=%s model=%s error_code=%s error=%s",
+                                provider_code, model, e.error_code, str(e),
                             )
                             raise
 
                         # 已达最大重试次数
                         if attempt >= MAX_RETRIES:
                             logger.error(
-                                _("ai.log.max_retries_exhausted"),
-                                provider=provider_code,
-                                model=model,
-                                attempts=attempt + 1,
-                                error=str(e),
+                                "Max retries exhausted: provider=%s model=%s attempts=%s error=%s",
+                                provider_code, model, attempt + 1, str(e),
                             )
                             raise
 
@@ -447,13 +437,8 @@ class AIGateway:
                             delay = float(e.retry_after)
 
                         logger.warning(
-                            _("ai.log.retrying_after_error"),
-                            provider=provider_code,
-                            model=model,
-                            attempt=attempt,
-                            delay_seconds=delay,
-                            error_code=e.error_code,
-                            error=str(e),
+                            "Retrying after error: provider=%s model=%s attempt=%s delay=%.1fs error_code=%s error=%s",
+                            provider_code, model, attempt, delay, e.error_code, str(e),
                         )
 
                         # 尝试切换 API Key
@@ -464,10 +449,8 @@ class AIGateway:
                         )
                         if next_key:
                             logger.info(
-                                _("ai.log.switching_api_key"),
-                                provider=provider_code,
-                                old_key_id=current_key.id,
-                                new_key_id=next_key.id,
+                                "Switching API key: provider=%s old_key=%s new_key=%s",
+                                provider_code, current_key.id, next_key.id,
                             )
                             current_key = next_key
 
@@ -495,9 +478,8 @@ class AIGateway:
                     raise
 
                 logger.info(
-                    _("ai.log.fallback_attempt"),
-                    original_model=model,
-                    fallback_model=fallback_model.code,
+                    "Fallback attempt: original_model=%s fallback_model=%s",
+                    model, fallback_model.code,
                 )
 
                 try:
@@ -526,13 +508,13 @@ class AIGateway:
                     provider = fb_provider
                     ai_model = fallback_model
                     logger.info(
-                        _("ai.log.fallback_succeeded"),
-                        fallback_model=fallback_model.code,
+                        "Fallback succeeded: fallback_model=%s",
+                        fallback_model.code,
                     )
                 except (AIGatewayError, NotFoundException, BusinessException):
                     logger.warning(
-                        _("ai.log.fallback_failed"),
-                        fallback_model=fallback_model.code,
+                        "Fallback failed: fallback_model=%s",
+                        fallback_model.code,
                     )
                     await self.usage_recorder.log_call_failure(
                         error=original_error,

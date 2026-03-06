@@ -7,7 +7,9 @@
  */
 import type { AIAgentInfo } from '#/api/admin/ai';
 
-import { computed, ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -241,6 +243,19 @@ const stats = computed(() => {
     system: all.filter((a) => a.is_system).length,
   };
 });
+
+const cleanupPageContext = registerPageContext('admin/ai/agents', () => ({
+  page_key: 'admin.ai.agents',
+  page_title: $t('admin.ai.agent.name'),
+  page_data: {
+    resource: '/admin/ai/agents',
+    total: stats.value.total,
+    published: stats.value.published,
+    system: stats.value.system,
+  },
+}));
+
+onUnmounted(cleanupPageContext);
 </script>
 
 <template>
@@ -415,11 +430,6 @@ const stats = computed(() => {
                 :icon="String(agent.avatar)"
                 class="size-5"
               />
-              <IconifyIcon
-                v-else-if="agent.is_system"
-                icon="lucide:shield-check"
-                class="size-5"
-              />
               <span v-else>{{
                 agent.name?.charAt(0)?.toUpperCase() || '?'
               }}</span>
@@ -468,6 +478,17 @@ const stats = computed(() => {
               </button>
               <template #overlay>
                 <Menu>
+                  <MenuItem
+                    key="detail"
+                    @click="
+                      $router.push(`/admin/ai/agents/${agent.id}`)
+                    "
+                  >
+                    <div class="flex items-center gap-2">
+                      <IconifyIcon icon="lucide:settings" class="size-4" />
+                      <span>{{ $t('admin.ai.agent.detail.title') }}</span>
+                    </div>
+                  </MenuItem>
                   <MenuItem key="edit" @click="agentFormRef?.openEdit(agent)">
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:pencil" class="size-4" />
@@ -667,14 +688,24 @@ const stats = computed(() => {
               <span>{{ formatRelativeTime(agent.created_at) }}</span>
             </Tooltip>
 
-            <!-- Quick edit button (always visible on mobile) -->
-            <button
-              class="flex items-center gap-1 rounded-md px-2 py-1 text-primary transition-colors hover:bg-primary/10 md:opacity-0 md:group-hover:opacity-100"
-              @click="agentFormRef?.openEdit(agent)"
-            >
-              <IconifyIcon icon="lucide:pencil" class="size-3" />
-              <span>{{ $t('admin.common.edit') }}</span>
-            </button>
+            <div class="flex items-center gap-2">
+              <!-- Detail/Configure button -->
+              <button
+                class="flex items-center gap-1 rounded-md px-2 py-1 text-primary transition-colors hover:bg-primary/10"
+                @click="$router.push(`/admin/ai/agents/${agent.id}`)"
+              >
+                <IconifyIcon icon="lucide:settings" class="size-3" />
+                <span>{{ $t('admin.ai.agent.detail.title') }}</span>
+              </button>
+              <!-- Quick edit button -->
+              <button
+                class="flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:opacity-0 md:group-hover:opacity-100"
+                @click="agentFormRef?.openEdit(agent)"
+              >
+                <IconifyIcon icon="lucide:pencil" class="size-3" />
+                <span>{{ $t('admin.common.edit') }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

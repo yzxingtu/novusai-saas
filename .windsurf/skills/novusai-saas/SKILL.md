@@ -23,6 +23,9 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 2. 查阅对应 reference 文件了解规范
 3. 确认相关模块是否已有类似实现，复用已有组件和模式
 4. **禁止启动前端/后端开发服务器**：用户已预先启动，直接使用即可（后端 `localhost:8000`，前端 `localhost:5666`）
+5. **开发环境登录凭据**（仅用于本地调试/测试）：
+   - 管理端（`/admin/login`）：`admin` / `admin123456`
+   - 租户端（`/tenant/login`）：`adminsss` / `admin123456`
 
 ---
 
@@ -186,6 +189,11 @@ show: (row) => row.scope === 'all_tenants' && row.tenant_id !== null
 - 技能类型：`toolkit` / `knowledge_base` / `data_intelligence` / `builtin` / `http` / `email` / `code_execution`
 - 新增 AI 功能标准流程：定义类型 → 实现 Executor → 注册映射 → 创建 Skill → 绑定 Agent
 - **技能（Skill）无独立 `scope` 字段**，可见性和操作权限完全继承自所属 SkillPackage
+- 页面感知与操作遵循三层架构：Layer 1 通过 `page_context -> input_variables -> system prompt` 注入基础感知，Layer 2 通过 builtin skill `get_page_context` 提供深度上下文，Layer 3 通过 builtin skill `invoke_page_operation` 经 WebSocket 双向通信执行前端页面操作
+- **仅注册 Executor 不算完成**，必须同时存在 `SkillPackage + builtin Skill + auto-bind`，让工具进入 LLM function calling tools schema
+- `_PROTECTED_TOOL_NAMES` 白名单保护 `get_page_context`、`invoke_page_operation`、`list_page_operations` 不被工具优化器过滤
+- 页面感知标准接入点：前端 `registerPageContext()` / `registerPageOperations()` / `route.meta.ai`，后端 `PageContext.normalize_variables()` / `PageOperationExecutor` / `PageSessionMixin`
+- 操作安全：`readonly=true` 直接执行，`readonly=false` 前端弹出确认对话框，超时 30s
 
 ### Skill 作用域规则（摘要）
 

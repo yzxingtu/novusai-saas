@@ -25,6 +25,12 @@ MAX_TOOLS_WITHOUT_OPTIMIZATION = 6
 # 优化后最多保留的工具数
 MAX_TOOLS_AFTER_OPTIMIZATION = 8
 
+# 基础设施工具白名单：始终保留，不参与优化淘汰
+_PROTECTED_TOOL_NAMES: frozenset[str] = frozenset({
+    "get_page_context",
+    "invoke_page_operation",
+})
+
 # 中文分词用的停用词（高频无意义词）
 _STOPWORDS_ZH = frozenset({
     "的", "了", "在", "是", "我", "有", "和", "就", "不", "人",
@@ -212,13 +218,34 @@ def optimize_tools(
             skipped=True,
         )
 
+    # 分离保护工具与可优化工具
+    protected: list[ToolDefinition] = []
+    optimizable: list[ToolDefinition] = []
+    for tool in tools:
+        if tool.name in _PROTECTED_TOOL_NAMES:
+            protected.append(tool)
+        else:
+            optimizable.append(tool)
+
+    # 扣除保护工具后的可用名额
+    budget = max(max_after_optimization - len(protected), 1)
+
+    # 可优化工具在名额内，直接全部保留
+    if len(optimizable) <= budget:
+        return OptimizeResult(
+            tools=protected + optimizable,
+            total=total,
+            selected=len(protected) + len(optimizable),
+            skipped=True,
+        )
+
     # 分词
     query_text = user_query.lower()
     query_tokens = _tokenize(user_query)
 
-    # 打分
+    # 打分（仅对可优化工具）
     scored: list[tuple[float, int, ToolDefinition]] = []
-    for idx, tool in enumerate(tools):
+    for idx, tool in enumerate(optimizable):
         s = _score_tool(tool, query_tokens, query_text, used_tool_names)
         scored.append((s, idx, tool))
 
@@ -226,16 +253,20 @@ def optimize_tools(
     scored.sort(key=lambda x: (-x[0], x[1]))
 
     # 取 top-N
-    selected = [item[2] for item in scored[:max_after_optimization]]
+    selected_optimizable = [item[2] for item in scored[:budget]]
+    selected = protected + selected_optimizable
 
     logger.info(
-        "Tool optimizer: %d → %d tools (query=%s)",
+        "Tool optimizer: %d → %d tools (%d protected, query=%s)",
         total,
         len(selected),
+        len(protected),
         user_query[:50],
     )
     if logger.isEnabledFor(10):  # DEBUG
-        for s, _, t in scored[:max_after_optimization]:
+        for t in protected:
+            logger.debug("  [protected] %s", t.name)
+        for s, _, t in scored[:budget]:
             logger.debug("  [%.1f] %s", s, t.name)
 
     return OptimizeResult(
@@ -251,4 +282,5 @@ __all__ = [
     "OptimizeResult",
     "MAX_TOOLS_WITHOUT_OPTIMIZATION",
     "MAX_TOOLS_AFTER_OPTIMIZATION",
+    "PROTECTED_TOOL_NAMES",
 ]
