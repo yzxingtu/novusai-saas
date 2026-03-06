@@ -95,7 +95,7 @@ async function onSync() {
   });
 }
 
-const { Grid, FormDrawer, onRefresh } = useCrudPage<AITablePolicyInfo>({
+const { Grid, FormDrawer, onRefresh, gridApi } = useCrudPage<AITablePolicyInfo>({
   api: {
     list: getAITablePolicyListApi,
     resource: '/admin/ai/table-policies',
@@ -125,6 +125,31 @@ const cleanupPageOps = registerPageOperations('admin.ai.table-policies', [
     handler: async () => {
       onRefresh();
       return { success: true, message: 'Table policy list refreshed' };
+    },
+  },
+  {
+    name: 'sync_policies',
+    label: $t('shared.pageOperation.syncData'),
+    description: 'Sync table policies from database schema',
+    readonly: false,
+    handler: async () => {
+      onSync();
+      return { success: true, message: 'Sync dialog opened' };
+    },
+  },
+  {
+    name: 'search_policies',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search table policies by table name',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Table name keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[table_name][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
     },
   },
 ]);

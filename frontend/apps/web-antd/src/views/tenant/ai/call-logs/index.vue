@@ -84,6 +84,21 @@ const cleanupPageOps = registerPageOperations('tenant.ai.call-logs', [
       return { success: true, message: 'Call log list refreshed' };
     },
   },
+  {
+    name: 'search_logs',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search call logs by model name',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Model name keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[model_name][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
+    },
+  },
 ]);
 
 onUnmounted(() => {

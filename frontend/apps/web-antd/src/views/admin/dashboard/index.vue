@@ -121,6 +121,20 @@ const cleanupPageOps = registerPageOperations('admin.dashboard', [
       return { success: true, message: 'Dashboard refreshed successfully' };
     },
   },
+  {
+    name: 'navigate_to',
+    label: $t('shared.pageOperation.navigateTo'),
+    description: 'Navigate to a specific admin page (e.g. /admin/tenant, /admin/ai/agents, /admin/analytics)',
+    readonly: true,
+    params: {
+      route: { type: 'string', description: 'Target route path' },
+    },
+    handler: async (params) => {
+      const route = (params?.route as string) || '/admin/tenant';
+      navigateTo(route);
+      return { success: true, message: `Navigated to ${route}` };
+    },
+  },
 ]);
 
 onMounted(() => {

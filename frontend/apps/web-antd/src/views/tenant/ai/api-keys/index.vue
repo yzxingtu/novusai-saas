@@ -7,6 +7,7 @@ import type { TenantAIApiKeyInfo } from '#/api/tenant/ai';
 import { onMounted, onUnmounted, ref } from 'vue';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { IconifyIcon, Plus } from '@vben/icons';
 
@@ -89,7 +90,33 @@ const cleanupPageContext = registerPageContext('tenant/ai/api-keys', () => ({
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('tenant.ai.api-keys', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the API key list',
+    readonly: true,
+    handler: async () => {
+      await loadKeys();
+      return { success: true, message: 'API keys refreshed' };
+    },
+  },
+  {
+    name: 'create_api_key',
+    label: $t('shared.pageOperation.createApiKey'),
+    description: 'Open the create API key form',
+    readonly: false,
+    handler: async () => {
+      showCreateForm.value = true;
+      return { success: true, message: 'Create API key form opened' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

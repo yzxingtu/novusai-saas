@@ -282,7 +282,12 @@
     "close": "关闭",
     "history": "对话历史",
     "noMessages": "发送消息开始对话",
-    "inputPlaceholder": "输入消息..."
+    "inputPlaceholder": "输入消息...",
+    "pageAiSupported": "本页支持 AI",
+    "pageAiOperations": "支持的操作",
+    "pageAiReadonly": "只读",
+    "pageAiWritable": "可写",
+    "pageAiNoOperations": "AI 可感知当前页面上下文"
   },
   "recycleBin": {
     "title": "回收站",

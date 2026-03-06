@@ -74,7 +74,7 @@ onMounted(() => {
 
 // ============ 列表 ============
 
-const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
+const { Grid, onRefresh, gridApi } = useCrudPage<ActionLogItem>({
   api: {
     list: getActionLogListApi,
     resource: '/tenant/ai/action-logs',
@@ -101,7 +101,23 @@ const cleanupPageOps = registerPageOperations('tenant.ai.action-logs', [
     readonly: true,
     handler: async () => {
       onRefresh();
+      await fetchStats();
       return { success: true, message: 'Action log list refreshed' };
+    },
+  },
+  {
+    name: 'search_logs',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search action logs by action type',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Action type keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[action_type][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
     },
   },
 ]);

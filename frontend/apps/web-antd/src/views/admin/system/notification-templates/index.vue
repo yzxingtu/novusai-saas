@@ -141,7 +141,7 @@ async function handleSave() {
   }
 }
 
-const { Grid, onRefresh: gridReload } = useCrudPage<NotificationTemplateInfo>({
+const { Grid, onRefresh: gridReload, gridApi } = useCrudPage<NotificationTemplateInfo>({
   api: {
     list: getNotificationTemplateListApi,
     resource: '/admin/notification-templates',
@@ -165,6 +165,21 @@ const cleanupPageContext = registerPageContext('admin/system/notification-templa
 }));
 
 const cleanupPageOps = registerPageOperations('admin.system.notification-templates', [
+  {
+    name: 'search_templates',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search notification templates by code',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Template code keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[code][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
+    },
+  },
   {
     name: 'refresh_list',
     label: $t('shared.pageOperation.refreshList'),

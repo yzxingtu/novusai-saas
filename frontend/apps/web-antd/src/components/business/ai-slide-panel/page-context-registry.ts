@@ -19,6 +19,8 @@
  * ```
  */
 
+import { ref } from 'vue';
+
 import type { PageContext } from '#/api/shared/ai-chat';
 
 /** 页面上下文结构（对应后端 PageContext schema） */
@@ -36,6 +38,12 @@ export type PageContextResolver = () => PageContextData | null;
 const registry = new Map<string, PageContextResolver>();
 
 /**
+ * 响应式版本号 — 每次注册/注销时自增，
+ * 供外部 computed 建立依赖以实现实时感知。
+ */
+export const pageContextVersion = ref(0);
+
+/**
  * 注册页面上下文解析函数
  *
  * @param key 唯一标识（建议使用路由 path，如 'tenant/orders/detail'）
@@ -47,10 +55,12 @@ export function registerPageContext(
   resolver: PageContextResolver,
 ): () => void {
   registry.set(key, resolver);
+  pageContextVersion.value++;
   return () => {
     // 仅删除自己注册的（避免新注册被意外清除）
     if (registry.get(key) === resolver) {
       registry.delete(key);
+      pageContextVersion.value++;
     }
   };
 }
@@ -113,4 +123,5 @@ export function getRegisteredKeys(): string[] {
  */
 export function clearPageContextRegistry(): void {
   registry.clear();
+  pageContextVersion.value++;
 }

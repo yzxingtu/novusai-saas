@@ -49,7 +49,7 @@ async function onToggleActive(row: PeriodicTaskInfo, checked: boolean) {
   }
 }
 
-const { Grid, FormDrawer, onRefresh } = useCrudPage<PeriodicTaskInfo>({
+const { Grid, FormDrawer, onRefresh, onCreate, gridApi } = useCrudPage<PeriodicTaskInfo>({
   api: {
     list: tenant.getPeriodicTaskListApi,
     resource: '/tenant/periodic-tasks',
@@ -84,6 +84,31 @@ const cleanupPageOps = registerPageOperations('tenant.system.periodic-tasks', [
     handler: async () => {
       onRefresh();
       return { success: true, message: 'Periodic task list refreshed' };
+    },
+  },
+  {
+    name: 'create_task',
+    label: $t('shared.pageOperation.createRecord'),
+    description: 'Open the create periodic task form',
+    readonly: false,
+    handler: async () => {
+      onCreate();
+      return { success: true, message: 'Create periodic task form opened' };
+    },
+  },
+  {
+    name: 'search_tasks',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search periodic tasks by name',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Task name keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[name][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
     },
   },
 ]);

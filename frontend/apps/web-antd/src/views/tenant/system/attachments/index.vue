@@ -125,6 +125,21 @@ const cleanupPageContext = registerPageContext('tenant/system/attachments', () =
 
 const cleanupPageOps = registerPageOperations('tenant.system.attachments', [
   {
+    name: 'search_attachments',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search attachments by file name',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'File name keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[name][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
+    },
+  },
+  {
     name: 'refresh_list',
     label: $t('shared.pageOperation.refreshList'),
     description: 'Reload the attachment list',

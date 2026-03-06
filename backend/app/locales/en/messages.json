@@ -2436,6 +2436,10 @@
   "config.group.platform_ai_memory.desc": "Platform memory default switch settings",
   "config.platform.platform_default_memory_enabled.name": "Default Memory Enabled",
   "config.platform.platform_default_memory_enabled.desc": "Default memory switch for all agents",
+  "config.platform.memory_extraction_provider.name": "Memory Extraction Provider",
+  "config.platform.memory_extraction_provider.desc": "AI provider code for memory extraction. Leave empty to use the agent's own model",
+  "config.platform.memory_extraction_model.name": "Memory Extraction Model",
+  "config.platform.memory_extraction_model.desc": "Model code for memory extraction (recommend a low-cost model). Leave empty to use the agent's own model",
   "agent_memory_override": {
     "field": {
       "agent_id": "Agent ID",

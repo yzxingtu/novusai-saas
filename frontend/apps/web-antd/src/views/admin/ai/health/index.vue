@@ -7,6 +7,7 @@ import type { AIHealthStatus } from '#/api/admin/ai';
 import { computed, onUnmounted } from 'vue';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -83,7 +84,23 @@ const cleanupPageContext = registerPageContext('admin/ai/health', () => ({
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('admin.ai.health', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Refresh health status of all providers',
+    readonly: true,
+    handler: async () => {
+      await loadHealth();
+      return { success: true, message: 'Health status refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

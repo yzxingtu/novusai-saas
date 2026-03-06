@@ -232,7 +232,7 @@ onMounted(loadTrend);
 // Grid
 // ============================================================
 
-const { Grid, onRefresh } = useCrudPage({
+const { Grid, onRefresh, gridApi } = useCrudPage({
   api: {
     list: getAIUsageStatsApi,
     resource: '/admin/ai/usage/stats',
@@ -264,11 +264,28 @@ const cleanupPageOps = registerPageOperations('admin.ai.usage', [
   {
     name: 'refresh_list',
     label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the usage statistics list',
+    description: 'Reload the usage statistics and trend chart',
     readonly: true,
     handler: async () => {
       onRefresh();
-      return { success: true, message: 'Usage list refreshed' };
+      await loadSummary();
+      await loadTrend();
+      return { success: true, message: 'Usage data refreshed' };
+    },
+  },
+  {
+    name: 'search_usage',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search usage stats by model name',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Model name keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[model_name][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
     },
   },
 ]);

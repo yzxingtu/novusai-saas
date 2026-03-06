@@ -248,6 +248,7 @@
     }
   },
   "organization": {
+    "name": "Organization",
     "title": "Organization Management",
     "tree": "Organization",
     "leader": "Leader",

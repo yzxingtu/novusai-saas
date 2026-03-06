@@ -7,6 +7,7 @@ import type { TenantAIModelInfo } from '#/api/tenant/ai';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -71,7 +72,37 @@ const cleanupPageContext = registerPageContext('tenant/ai/models', () => ({
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('tenant.ai.models', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the model list',
+    readonly: true,
+    handler: async () => {
+      await loadModels();
+      return { success: true, message: 'Model list refreshed' };
+    },
+  },
+  {
+    name: 'search_models',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search models by name',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Model name keyword' },
+    },
+    handler: async (params) => {
+      searchText.value = (params?.keyword as string) || '';
+      onSearch();
+      return { success: true, message: `Searched for: ${searchText.value}` };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

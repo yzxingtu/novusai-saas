@@ -115,7 +115,7 @@ function onViewDetail(row: AICallLogInfo) {
 
 // ========== Grid ==========
 
-const { Grid, onRefresh } = useCrudPage<AICallLogInfo>({
+const { Grid, onRefresh, gridApi } = useCrudPage<AICallLogInfo>({
   api: {
     list: getAICallLogListApi,
     resource: '/admin/ai/call-logs',
@@ -144,11 +144,27 @@ const cleanupPageOps = registerPageOperations('admin.ai.call-logs', [
   {
     name: 'refresh_list',
     label: $t('shared.pageOperation.refreshList'),
-    description: 'Reload the call log list',
+    description: 'Reload the call log list and summary',
     readonly: true,
     handler: async () => {
       onRefresh();
+      await loadSummary();
       return { success: true, message: 'Call log list refreshed' };
+    },
+  },
+  {
+    name: 'search_logs',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search call logs by model name',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Model name keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[model_name][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
     },
   },
 ]);

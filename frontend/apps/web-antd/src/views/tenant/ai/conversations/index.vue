@@ -42,7 +42,7 @@ function onViewDetail(row: ConversationInfo) {
   detailOpen.value = true;
 }
 
-const { Grid, onRefresh } = useCrudPage<ConversationInfo>({
+const { Grid, onRefresh, gridApi } = useCrudPage<ConversationInfo>({
   api: {
     list: getConversationListApi,
     resource: '/tenant/ai/conversations',
@@ -73,6 +73,21 @@ const cleanupPageOps = registerPageOperations('tenant.ai.conversations', [
     handler: async () => {
       onRefresh();
       return { success: true, message: 'Conversation list refreshed' };
+    },
+  },
+  {
+    name: 'search_conversations',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search conversations by title',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Conversation title keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[title][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
     },
   },
 ]);

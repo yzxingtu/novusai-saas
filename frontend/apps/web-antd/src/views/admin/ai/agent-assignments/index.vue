@@ -10,6 +10,7 @@ import type { AgentAssignmentItem } from '#/api/shared/agent-assignments';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -203,7 +204,23 @@ const cleanupPageContext = registerPageContext('admin/ai/agent-assignments', () 
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('admin.ai.agent-assignments', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the agent assignment list',
+    readonly: true,
+    handler: async () => {
+      await loadList();
+      return { success: true, message: 'Agent assignments refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

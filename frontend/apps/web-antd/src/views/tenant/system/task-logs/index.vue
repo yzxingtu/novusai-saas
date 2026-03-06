@@ -39,7 +39,7 @@ function onViewDetail(row: TaskLogInfo) {
   detailDrawerApi.setData({ id: row.id, mode: 'view' }).open();
 }
 
-const { Grid, onRefresh } = useCrudPage<TaskLogInfo>({
+const { Grid, onRefresh, gridApi } = useCrudPage<TaskLogInfo>({
   api: {
     list: tenant.getTaskLogListApi,
     resource: '/tenant/tasks',
@@ -71,6 +71,21 @@ const cleanupPageOps = registerPageOperations('tenant.system.task-logs', [
     handler: async () => {
       onRefresh();
       return { success: true, message: 'Task log list refreshed' };
+    },
+  },
+  {
+    name: 'search_logs',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search task logs by task name',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Task name keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[task_name][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
     },
   },
 ]);

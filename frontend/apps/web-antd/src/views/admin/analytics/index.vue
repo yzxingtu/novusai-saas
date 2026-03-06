@@ -18,6 +18,7 @@ import type {
 import { onMounted, onUnmounted, ref } from 'vue';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 
@@ -100,7 +101,23 @@ const cleanupPageContext = registerPageContext('admin/analytics', () => ({
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('admin.analytics', [
+  {
+    name: 'refresh_analytics',
+    label: $t('shared.pageOperation.refreshAnalytics'),
+    description: 'Reload all analytics charts and data',
+    readonly: true,
+    handler: async () => {
+      await loadAll();
+      return { success: true, message: 'Analytics data refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

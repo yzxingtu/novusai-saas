@@ -2,6 +2,7 @@ export { default as AIChatSlidePanel } from './AIChatSlidePanel.vue';
 export {
   clearPageContextRegistry,
   getRegisteredKeys,
+  pageContextVersion,
   registerPageContext,
   resolvePageContext,
 } from './page-context-registry';
@@ -12,6 +13,7 @@ export {
   findPageOperation,
   getRegisteredOperationKeys,
   listPageOperations,
+  pageOperationVersion,
   registerPageOperations,
 } from './page-operation-registry';
 export type {

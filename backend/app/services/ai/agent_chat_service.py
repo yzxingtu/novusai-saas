@@ -138,24 +138,39 @@ class AgentChatService:
 
         try:
             async with async_session_factory() as llm_db:
-                if self.tenant_id == 0:
-                    from app.repositories.ai.agent_repository import AdminAgentRepository
-                    agent_repo = AdminAgentRepository(llm_db)
+                # 优先使用平台配置的记忆提取专用模型（成本更低）
+                from app.configs.service import ConfigService
+                cfg = ConfigService(llm_db)
+                cfg_provider = await cfg.get_platform_config(
+                    "memory_extraction_provider", default="",
+                )
+                cfg_model = await cfg.get_platform_config(
+                    "memory_extraction_model", default="",
+                )
+
+                if cfg_provider and cfg_model:
+                    provider_code = cfg_provider
+                    model_code = cfg_model
                 else:
-                    agent_repo = AgentRepository(llm_db, self.tenant_id)
+                    # 降级：使用 Agent 自身绑定的模型
+                    if self.tenant_id == 0:
+                        from app.repositories.ai.agent_repository import AdminAgentRepository
+                        agent_repo = AdminAgentRepository(llm_db)
+                    else:
+                        agent_repo = AgentRepository(llm_db, self.tenant_id)
 
-                agent = await agent_repo.get_by_id(agent_id)
-                if not agent:
-                    return empty
+                    agent = await agent_repo.get_by_id(agent_id)
+                    if not agent:
+                        return empty
 
-                model_obj = getattr(agent, "model", None)
-                if not model_obj or not getattr(model_obj, "provider", None):
-                    return empty
+                    model_obj = getattr(agent, "model", None)
+                    if not model_obj or not getattr(model_obj, "provider", None):
+                        return empty
 
-                provider_code = model_obj.provider.code
-                model_code = model_obj.code
-                if not provider_code or not model_code:
-                    return empty
+                    provider_code = model_obj.provider.code
+                    model_code = model_obj.code
+                    if not provider_code or not model_code:
+                        return empty
 
                 extraction_prompt = (
                     "Analyze this conversation turn and extract information worth remembering.\n\n"

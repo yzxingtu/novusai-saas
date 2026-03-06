@@ -12,6 +12,7 @@ import type { StorageDriverInfo, TenantStorageStatus } from '#/types/storage';
 import { computed, onActivated, onMounted, onUnmounted, ref } from 'vue';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -235,7 +236,33 @@ const cleanupPageContext = registerPageContext('tenant/system/storage', () => ({
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('tenant.system.storage', [
+  {
+    name: 'refresh_status',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload storage status and driver list',
+    readonly: true,
+    handler: async () => {
+      await loadData();
+      return { success: true, message: 'Storage status refreshed' };
+    },
+  },
+  {
+    name: 'save_config',
+    label: $t('shared.pageOperation.saveConfig'),
+    description: 'Save the current storage configuration (only available in custom mode)',
+    readonly: false,
+    handler: async () => {
+      await onSave();
+      return { success: true, message: 'Storage config saved' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

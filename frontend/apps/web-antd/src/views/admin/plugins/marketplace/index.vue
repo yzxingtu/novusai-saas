@@ -4,8 +4,11 @@
  */
 import type { MarketplacePluginItem } from '#/api/admin/plugin-marketplace';
 
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -104,6 +107,48 @@ async function handleInstall(plugin: MarketplacePluginItem) {
     },
   });
 }
+
+const cleanupPageContext = registerPageContext('admin/plugins/marketplace', () => ({
+  page_key: 'admin.plugins.marketplace',
+  page_title: $t('admin.plugin.marketplace.title'),
+  page_data: {
+    resource: '/admin/plugins/marketplace',
+    total: total.value,
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('admin.plugins.marketplace', [
+  {
+    name: 'refresh_marketplace',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the plugin marketplace list',
+    readonly: true,
+    handler: async () => {
+      await loadMarketplace();
+      return { success: true, message: 'Marketplace refreshed' };
+    },
+  },
+  {
+    name: 'search_plugins',
+    label: $t('shared.pageOperation.searchPlugins'),
+    description: 'Search plugins in the marketplace',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Plugin name keyword' },
+    },
+    handler: async (params) => {
+      searchKeyword.value = (params?.keyword as string) || '';
+      currentPage.value = 1;
+      await loadMarketplace();
+      return { success: true, message: `Searched for: ${searchKeyword.value}` };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

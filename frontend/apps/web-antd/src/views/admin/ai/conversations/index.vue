@@ -41,7 +41,7 @@ function onViewDetail(row: AIConversationInfo) {
   detailOpen.value = true;
 }
 
-const { Grid, onRefresh } = useCrudPage<AIConversationInfo>({
+const { Grid, onRefresh, gridApi } = useCrudPage<AIConversationInfo>({
   api: {
     list: getAIConversationListApi,
     resource: '/admin/ai/conversations',
@@ -72,6 +72,37 @@ const cleanupPageOps = registerPageOperations('admin.ai.conversations', [
     handler: async () => {
       onRefresh();
       return { success: true, message: 'Conversation list refreshed' };
+    },
+  },
+  {
+    name: 'search_conversations',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search conversations by keyword',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Search keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[title][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
+    },
+  },
+  {
+    name: 'view_detail',
+    label: $t('shared.pageOperation.viewDetail'),
+    description: 'View conversation detail by ID',
+    readonly: true,
+    params: {
+      id: { type: 'number', description: 'Conversation ID' },
+    },
+    handler: async (params) => {
+      const id = params?.id as number;
+      if (!id) return { success: false, message: 'ID is required' };
+      detailId.value = id;
+      detailOpen.value = true;
+      return { success: true, message: `Viewing conversation ${id}` };
     },
   },
 ]);

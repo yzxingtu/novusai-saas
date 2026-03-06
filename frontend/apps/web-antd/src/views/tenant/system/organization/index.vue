@@ -10,6 +10,7 @@ import type { OrgTreeNodeData } from '#/components/business/org-tree';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -187,7 +188,33 @@ const cleanupPageContext = registerPageContext('tenant/system/organization', () 
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('tenant.system.organization', [
+  {
+    name: 'refresh_tree',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Refresh the organization tree',
+    readonly: true,
+    handler: async () => {
+      await refreshTree();
+      return { success: true, message: 'Organization tree refreshed' };
+    },
+  },
+  {
+    name: 'create_root_node',
+    label: $t('shared.pageOperation.createRecord'),
+    description: 'Open dialog to create a root organization node',
+    readonly: false,
+    handler: async () => {
+      handleCreateRoot();
+      return { success: true, message: 'Create root node dialog opened' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

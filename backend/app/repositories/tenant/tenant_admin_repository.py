@@ -164,6 +164,39 @@ class TenantAdminRepository(TenantRepository[TenantAdmin]):
         result = await self.db.execute(query)
         return result.scalar_one_or_none() is not None
 
+    async def batch_load_user_info(
+        self,
+        user_ids: set[int],
+    ) -> dict[int, dict]:
+        """
+        批量加载租户管理员摘要信息
+
+        Args:
+            user_ids: 用户 ID 集合
+
+        Returns:
+            {user_id: {"id", "username", "nickname", "avatar"}} 映射
+        """
+        if not user_ids:
+            return {}
+        stmt = select(
+            TenantAdmin.id, TenantAdmin.username,
+            TenantAdmin.nickname, TenantAdmin.avatar,
+        ).where(
+            TenantAdmin.id.in_(user_ids),
+            TenantAdmin.is_deleted.is_(False),
+        )
+        result = await self.db.execute(stmt)
+        return {
+            row.id: {
+                "id": row.id,
+                "username": row.username,
+                "nickname": row.nickname,
+                "avatar": row.avatar,
+            }
+            for row in result.all()
+        }
+
     async def get_owner(self) -> TenantAdmin | None:
         """
         获取租户所有者

@@ -58,7 +58,7 @@ async function onTest(row: SkillInfo) {
   }
 }
 
-const { Grid, onRefresh } = useCrudPage<SkillInfo>({
+const { Grid, gridApi, onRefresh } = useCrudPage<SkillInfo>({
   api: {
     list: getSkillListApi,
     delete: deleteSkillApi,
@@ -98,6 +98,21 @@ const cleanupPageOps = registerPageOperations('tenant.ai.skills', [
     handler: async () => {
       onRefresh();
       return { success: true, message: 'Skill list refreshed' };
+    },
+  },
+  {
+    name: 'search_skills',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search skills by name',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Skill name keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[name][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
     },
   },
 ]);

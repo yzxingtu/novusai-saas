@@ -60,7 +60,7 @@ async function openDetail(row: AdminActionLogItem) {
 
 // ============ 列表 ============
 
-const { Grid, onRefresh } = useCrudPage<AdminActionLogItem>({
+const { Grid, onRefresh, gridApi } = useCrudPage<AdminActionLogItem>({
   api: {
     list: getAdminActionLogListApi,
     resource: '/admin/ai/action-logs',
@@ -91,6 +91,21 @@ const cleanupPageOps = registerPageOperations('admin.ai.action-logs', [
     handler: async () => {
       onRefresh();
       return { success: true, message: 'Action log list refreshed' };
+    },
+  },
+  {
+    name: 'search_logs',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search action logs by keyword',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Search keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[action_type][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
     },
   },
 ]);

@@ -15,6 +15,7 @@ import type {
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -248,7 +249,24 @@ const cleanupPageContext = registerPageContext('tenant/ai/usage', () => ({
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('tenant.ai.usage', [
+  {
+    name: 'refresh_data',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload usage summary and charts',
+    readonly: true,
+    handler: async () => {
+      await loadSummary();
+      await loadCharts();
+      return { success: true, message: 'Usage data refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

@@ -10,6 +10,7 @@ import type {
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -156,7 +157,59 @@ const cleanupPageContext = registerPageContext('admin/ai/knowledge-bases', () =>
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('admin.ai.knowledge-bases', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the knowledge base list and stats',
+    readonly: true,
+    handler: async () => {
+      await loadList();
+      await loadStats();
+      return { success: true, message: 'Knowledge base list refreshed' };
+    },
+  },
+  {
+    name: 'create_knowledge_base',
+    label: $t('shared.pageOperation.createRecord'),
+    description: 'Open the create knowledge base form',
+    readonly: false,
+    handler: async () => {
+      onCreate();
+      return { success: true, message: 'Create knowledge base form opened' };
+    },
+  },
+  {
+    name: 'search_knowledge_bases',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search knowledge bases by keyword',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Search keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      searchKeyword.value = keyword;
+      doSearch();
+      return { success: true, message: `Searched for: ${keyword}` };
+    },
+  },
+  {
+    name: 'view_recycle_bin',
+    label: $t('shared.pageOperation.restoreRecord'),
+    description: 'Open the recycle bin drawer',
+    readonly: true,
+    handler: async () => {
+      openRecycleBin();
+      return { success: true, message: 'Recycle bin opened' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

@@ -7,6 +7,7 @@ import type { AIQuotaInfo, AIRateLimitInfo } from '#/api/admin/ai';
 import { onUnmounted, ref } from 'vue';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -115,7 +116,34 @@ const cleanupPageContext = registerPageContext('admin/ai/quotas', () => ({
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('admin.ai.quotas', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the quota list',
+    readonly: true,
+    handler: async () => {
+      await loadQuotas();
+      await loadRateLimits();
+      return { success: true, message: 'Quota list refreshed' };
+    },
+  },
+  {
+    name: 'create_quota',
+    label: $t('shared.pageOperation.createRecord'),
+    description: 'Open the create quota form',
+    readonly: false,
+    handler: async () => {
+      onCreateQuota();
+      return { success: true, message: 'Create quota form opened' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

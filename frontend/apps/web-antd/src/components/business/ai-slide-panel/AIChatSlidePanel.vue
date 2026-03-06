@@ -13,7 +13,7 @@ import { computed, onMounted, onUnmounted, ref, toRef, watch, watchEffect } from
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Input, message, Modal, Spin, Tooltip } from 'ant-design-vue';
+import { Input, message, Modal, Popover, Spin, Tooltip } from 'ant-design-vue';
 
 import ChatMessageItem from '#/components/business/ai-chat-panel/ChatMessageItem.vue';
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
@@ -24,8 +24,8 @@ import { useAIPanelStore } from '#/store';
 import { usePublicConfigStore } from '#/store/shared/public-config';
 import { getFileIcon } from '#/utils/file';
 
-import { resolvePageContext } from './page-context-registry';
-import { listPageOperations } from './page-operation-registry';
+import { pageContextVersion, resolvePageContext } from './page-context-registry';
+import { listPageOperations, pageOperationVersion } from './page-operation-registry';
 import { useAgentRouter } from './use-agent-router';
 
 defineOptions({ name: 'AIChatSlidePanel' });
@@ -189,6 +189,25 @@ function showRouteNotice(text: string) {
     routeNotice.value = null;
   }, 4000);
 }
+
+// ============ Page AI Capability Indicator ============
+
+/** Current page context (reactive to route changes AND registry mutations) */
+const currentPageContext = computed(() => {
+  void pageContextVersion.value;
+  return resolvePageContext(props.pageContextKey);
+});
+
+/** Current page operations list */
+const currentPageOperations = computed(() => {
+  void pageOperationVersion.value;
+  const ctx = currentPageContext.value;
+  if (!ctx) return [];
+  return listPageOperations(ctx.page_key);
+});
+
+/** Whether the current page has registered AI context */
+const hasPageAI = computed(() => !!currentPageContext.value);
 
 // ============ 发送消息（路由 + 流式） ============
 
@@ -714,6 +733,60 @@ onUnmounted(() => {
                     {{ routeNotice }}
                   </span>
                 </Transition>
+                <!-- Page AI capability indicator -->
+                <Popover
+                  v-if="hasPageAI && !routeNotice"
+                  placement="bottomLeft"
+                  trigger="hover"
+                  overlay-class-name="page-ai-popover"
+                >
+                  <template #content>
+                    <div class="min-w-[180px] max-w-[260px]">
+                      <div class="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground">
+                        <IconifyIcon icon="lucide:cpu" class="size-3.5 text-primary" />
+                        {{ currentPageContext?.page_title || $t('common.aiPanel.pageAiSupported') }}
+                      </div>
+                      <div v-if="currentPageOperations.length > 0" class="space-y-1">
+                        <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+                          {{ $t('common.aiPanel.pageAiOperations') }}
+                        </div>
+                        <div
+                          v-for="op in currentPageOperations"
+                          :key="op.name"
+                          class="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] hover:bg-accent/50"
+                        >
+                          <IconifyIcon
+                            :icon="op.readonly ? 'lucide:eye' : 'lucide:pencil'"
+                            class="size-3 shrink-0"
+                            :class="op.readonly ? 'text-blue-500' : 'text-amber-500'"
+                          />
+                          <span class="flex-1 text-foreground/80">{{ op.label }}</span>
+                          <span
+                            class="rounded-full px-1 py-px text-[9px]"
+                            :class="op.readonly ? 'bg-blue-500/10 text-blue-600' : 'bg-amber-500/10 text-amber-600'"
+                          >
+                            {{ op.readonly ? $t('common.aiPanel.pageAiReadonly') : $t('common.aiPanel.pageAiWritable') }}
+                          </span>
+                        </div>
+                      </div>
+                      <div v-else class="text-[11px] text-muted-foreground">
+                        {{ $t('common.aiPanel.pageAiNoOperations') }}
+                      </div>
+                    </div>
+                  </template>
+                  <span
+                    class="inline-flex cursor-default items-center gap-0.5 rounded-full bg-primary/8 px-1.5 py-px text-[10px] font-medium text-primary/70 transition-colors hover:bg-primary/15 hover:text-primary"
+                  >
+                    <IconifyIcon icon="lucide:cpu" class="size-2.5" />
+                    {{ $t('common.aiPanel.pageAiSupported') }}
+                    <span
+                      v-if="currentPageOperations.length > 0"
+                      class="ml-0.5 inline-flex size-3 items-center justify-center rounded-full bg-primary/15 text-[8px] font-bold"
+                    >
+                      {{ currentPageOperations.length }}
+                    </span>
+                  </span>
+                </Popover>
               </div>
             </div>
           </div>

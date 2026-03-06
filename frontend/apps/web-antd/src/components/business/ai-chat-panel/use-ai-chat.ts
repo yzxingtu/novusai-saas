@@ -961,8 +961,8 @@ export function useAIChat(options: UseAIChatOptions) {
                     }
                   }
                 }
-              } catch {
-                // ignore unparseable lines
+              } catch (e: unknown) {
+                console.warn('[AI Chat] SSE parse error:', e);
               }
             });
           },

@@ -10,8 +10,11 @@
 import type { TenantSkillPackageInfo } from '#/api/tenant/skill-packages';
 import type { SkillInfo } from '#/api/tenant/skills';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -163,6 +166,34 @@ async function handleSaveValves() {
 function goBack() {
   router.push('/tenant/ai/skill-packages');
 }
+const cleanupPageContext = registerPageContext('tenant/ai/skill-packages/detail', () => ({
+  page_key: 'tenant.ai.skill-packages.detail',
+  page_title: pkg.value?.name ?? $t('tenant.ai.skillPackage.detail'),
+  page_data: {
+    resource: '/tenant/ai/skill-packages',
+    package_id: packageId.value,
+    package_name: pkg.value?.name ?? '',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('tenant.ai.skill-packages.detail', [
+  {
+    name: 'refresh_detail',
+    label: $t('shared.pageOperation.refreshDetail'),
+    description: 'Reload the skill package detail and skills',
+    readonly: true,
+    handler: async () => {
+      await loadPackage();
+      await loadSkills();
+      return { success: true, message: 'Skill package detail refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

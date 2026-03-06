@@ -250,6 +250,20 @@ const cleanupPageOps = registerPageOperations('tenant.dashboard', [
       return { success: true, message: 'Dashboard refreshed successfully' };
     },
   },
+  {
+    name: 'navigate_to',
+    label: $t('shared.pageOperation.navigateTo'),
+    description: 'Navigate to a specific tenant page (e.g. /tenant/ai/agents, /tenant/analytics)',
+    readonly: true,
+    params: {
+      route: { type: 'string', description: 'Target route path' },
+    },
+    handler: async (params) => {
+      const route = (params?.route as string) || '/tenant/ai/agents';
+      navigateTo(route);
+      return { success: true, message: `Navigated to ${route}` };
+    },
+  },
 ]);
 
 const cleanupPageContext = registerPageContext('tenant/dashboard', () => ({

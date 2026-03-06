@@ -7,6 +7,7 @@ import type { KnowledgeBaseItem } from '#/api/tenant/knowledge-bases';
 import { computed, onUnmounted, ref } from 'vue';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -119,7 +120,47 @@ const cleanupPageContext = registerPageContext('tenant/ai/knowledge-bases', () =
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('tenant.ai.knowledge-bases', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the knowledge base list',
+    readonly: true,
+    handler: async () => {
+      await loadList();
+      return { success: true, message: 'Knowledge base list refreshed' };
+    },
+  },
+  {
+    name: 'create_knowledge_base',
+    label: $t('shared.pageOperation.createRecord'),
+    description: 'Open the create knowledge base form',
+    readonly: false,
+    handler: async () => {
+      kbFormRef.value?.openNew();
+      return { success: true, message: 'Create knowledge base form opened' };
+    },
+  },
+  {
+    name: 'search_knowledge_bases',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search knowledge bases by keyword',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Search keyword' },
+    },
+    handler: async (params) => {
+      searchKeyword.value = (params?.keyword as string) || '';
+      doSearch();
+      return { success: true, message: `Searched for: ${searchKeyword.value}` };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

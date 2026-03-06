@@ -62,7 +62,7 @@ function onToggleActive(row: AIProviderInfo) {
 // CRUD Grid
 // ============================================================
 
-const { Grid, FormDrawer, gridApi, onRefresh } = useCrudPage<AIProviderInfo>({
+const { Grid, FormDrawer, gridApi, onRefresh, onCreate } = useCrudPage<AIProviderInfo>({
   api: {
     list: getAIProviderListApi,
     resource: '/admin/ai/providers',
@@ -105,6 +105,31 @@ const cleanupPageOps = registerPageOperations('admin.ai.providers', [
     handler: async () => {
       onRefresh();
       return { success: true, message: 'Provider list refreshed' };
+    },
+  },
+  {
+    name: 'create_provider',
+    label: $t('shared.pageOperation.createRecord'),
+    description: 'Open the create provider form',
+    readonly: false,
+    handler: async () => {
+      onCreate();
+      return { success: true, message: 'Create provider form opened' };
+    },
+  },
+  {
+    name: 'search_providers',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search providers by keyword',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Search keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[name][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
     },
   },
 ]);

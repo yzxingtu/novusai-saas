@@ -53,6 +53,77 @@ class ConversationService(TenantService[AgentConversation, AgentConversationRepo
             )
         return self._message_repo
 
+    @property
+    def tenant_admin_repo(self) -> "TenantAdminRepository":
+        """获取租户管理员 Repository（延迟创建）"""
+        if not hasattr(self, "_tenant_admin_repo"):
+            from app.repositories.tenant.tenant_admin_repository import (
+                TenantAdminRepository,
+            )
+            self._tenant_admin_repo = TenantAdminRepository(
+                self.db, self.tenant_id,
+            )
+        return self._tenant_admin_repo
+
+    async def enrich_conversation_list(
+        self,
+        items: list[AgentConversation],
+        include_user_info: bool = False,
+    ) -> list[dict]:
+        """
+        将对话列表 ORM 对象转为字典并补充 agent/user 信息
+
+        Args:
+            items: 对话 ORM 对象列表
+            include_user_info: 是否附加 user_info（租户端管理页使用）
+        """
+        user_map: dict[int, dict] = {}
+        if include_user_info:
+            user_ids = {c.user_id for c in items if c.user_id is not None}
+            user_map = await self.tenant_admin_repo.batch_load_user_info(user_ids)
+
+        result: list[dict] = []
+        for item in items:
+            d = item.to_dict()
+            agent_obj = getattr(item, "agent", None)
+            if agent_obj is not None:
+                d["agent_name"] = agent_obj.name
+                d["agent_avatar"] = agent_obj.avatar
+            else:
+                d["agent_name"] = None
+                d["agent_avatar"] = None
+
+            if include_user_info:
+                d["user_info"] = user_map.get(item.user_id) if item.user_id else None
+
+            result.append(d)
+        return result
+
+    async def enrich_conversation_detail(
+        self,
+        detail: dict,
+        conversation: AgentConversation,
+    ) -> dict:
+        """
+        补充对话详情的 agent_avatar 和 user_info
+
+        Args:
+            detail: get_conversation_detail 返回的字典
+            conversation: 对话 ORM 对象
+        """
+        agent_obj = getattr(conversation, "agent", None)
+        detail["agent_avatar"] = agent_obj.avatar if agent_obj else None
+
+        if conversation.user_id is not None:
+            user_map = await self.tenant_admin_repo.batch_load_user_info(
+                {conversation.user_id},
+            )
+            detail["user_info"] = user_map.get(conversation.user_id)
+        else:
+            detail["user_info"] = None
+
+        return detail
+
     # ========================================
     # 详情
     # ========================================

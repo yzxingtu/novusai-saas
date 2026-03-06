@@ -102,6 +102,21 @@ const cleanupPageOps = registerPageOperations('admin.tenant.plans', [
     },
   },
   {
+    name: 'search_plans',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search tenant plans by name',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Plan name keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[name][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
+    },
+  },
+  {
     name: 'export_data',
     label: $t('shared.pageOperation.exportData'),
     description: 'Open the export dialog for tenant plans',

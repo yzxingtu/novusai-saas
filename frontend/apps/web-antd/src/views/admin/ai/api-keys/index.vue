@@ -52,7 +52,7 @@ function onToggleActive(row: AIApiKeyInfo) {
   });
 }
 
-const { Grid, FormDrawer, onRefresh } = useCrudPage<AIApiKeyInfo>({
+const { Grid, FormDrawer, onRefresh, onCreate, gridApi } = useCrudPage<AIApiKeyInfo>({
   api: {
     list: getAIApiKeyListApi,
     resource: '/admin/ai/api-keys',
@@ -84,6 +84,31 @@ const cleanupPageOps = registerPageOperations('admin.ai.api-keys', [
     handler: async () => {
       onRefresh();
       return { success: true, message: 'API key list refreshed' };
+    },
+  },
+  {
+    name: 'create_api_key',
+    label: $t('shared.pageOperation.createApiKey'),
+    description: 'Open the create API key form',
+    readonly: false,
+    handler: async () => {
+      onCreate();
+      return { success: true, message: 'Create API key form opened' };
+    },
+  },
+  {
+    name: 'search_keys',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search API keys by keyword',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Search keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[name][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
     },
   },
 ]);

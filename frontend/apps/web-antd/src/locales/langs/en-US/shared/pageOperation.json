@@ -4,7 +4,53 @@
   "confirmContentWithDesc": "AI assistant requests to execute: {operation}\n\n{description}\n\nAllow?",
   "confirmOk": "Allow",
   "confirmCancel": "Cancel",
+
   "refreshDashboard": "Refresh Dashboard",
   "refreshList": "Refresh List",
-  "exportData": "Export Data"
+  "refreshDetail": "Refresh Detail",
+  "refreshTree": "Refresh Tree",
+  "refreshConfig": "Refresh Config",
+
+  "createRecord": "Create Record",
+  "editRecord": "Edit Record",
+  "deleteRecord": "Delete Record",
+  "batchDelete": "Batch Delete",
+  "viewDetail": "View Detail",
+  "restoreRecord": "Restore Record",
+  "archiveRecord": "Archive Record",
+
+  "searchByKeyword": "Search by Keyword",
+  "exportData": "Export Data",
+  "uploadFile": "Upload File",
+  "downloadFile": "Download File",
+
+  "toggleStatus": "Toggle Status",
+  "toggleEnabled": "Enable/Disable",
+  "changeStatus": "Change Status",
+
+  "saveConfig": "Save Config",
+  "saveBasicInfo": "Save Basic Info",
+  "saveModelParams": "Save Model Params",
+
+  "publishVersion": "Publish Version",
+  "bindResource": "Bind Resource",
+  "unbindResource": "Unbind Resource",
+  "syncData": "Sync Data",
+
+  "triggerTask": "Trigger Task",
+  "retryTask": "Retry Task",
+  "cancelTask": "Cancel Task",
+
+  "createDepartment": "Create Department",
+  "assignMember": "Assign Member",
+  "searchMembers": "Search Members",
+
+  "installPlugin": "Install Plugin",
+  "searchPlugins": "Search Plugins",
+
+  "createApiKey": "Create API Key",
+  "createSkillPackage": "Create Skill Package",
+
+  "navigateTo": "Navigate To",
+  "refreshAnalytics": "Refresh Analytics"
 }

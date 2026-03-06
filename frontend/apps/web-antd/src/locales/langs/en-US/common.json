@@ -282,7 +282,12 @@
     "close": "Close",
     "history": "Conversation History",
     "noMessages": "Send a message to start a conversation",
-    "inputPlaceholder": "Type a message..."
+    "inputPlaceholder": "Type a message...",
+    "pageAiSupported": "AI-enabled page",
+    "pageAiOperations": "Supported operations",
+    "pageAiReadonly": "Read-only",
+    "pageAiWritable": "Writable",
+    "pageAiNoOperations": "AI can perceive current page context"
   },
   "recycleBin": {
     "title": "Recycle Bin",

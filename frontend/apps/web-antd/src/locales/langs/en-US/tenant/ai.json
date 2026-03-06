@@ -1,5 +1,8 @@
 {
   "title": "AI Management",
+  "config": {
+    "name": "AI Config"
+  },
   "model": {
     "title": "Available Models",
     "pageDesc": "View AI models available to your tenant, including capabilities and pricing.",

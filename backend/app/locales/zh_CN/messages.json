@@ -1849,6 +1849,14 @@
       "platform_default_memory_enabled": {
         "name": "默认开启记忆",
         "desc": "所有智能体的默认记忆开关"
+      },
+      "memory_extraction_provider": {
+        "name": "记忆提取供应商",
+        "desc": "用于记忆提取的 AI 供应商代码，留空则使用智能体自身模型"
+      },
+      "memory_extraction_model": {
+        "name": "记忆提取模型",
+        "desc": "用于记忆提取的模型代码（建议使用低成本模型），留空则使用智能体自身模型"
       }
     },
     "tenant": {

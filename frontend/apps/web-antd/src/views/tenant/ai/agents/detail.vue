@@ -10,8 +10,11 @@ import type {
   AgentSkillBindingInfo,
 } from '#/api/tenant/agents';
 
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -565,6 +568,45 @@ function onTabChange(key: number | string) {
     }
   }
 }
+
+const cleanupPageContext = registerPageContext('tenant/ai/agents/detail', () => ({
+  page_key: 'tenant.ai.agents.detail',
+  page_title: agent.value?.name ?? $t('tenant.ai.agent.detail'),
+  page_data: {
+    resource: '/tenant/ai/agents',
+    agent_id: agentId.value,
+    agent_name: agent.value?.name ?? '',
+    status: agent.value?.status ?? '',
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('tenant.ai.agents.detail', [
+  {
+    name: 'refresh_detail',
+    label: $t('shared.pageOperation.refreshDetail'),
+    description: 'Reload the agent detail',
+    readonly: true,
+    handler: async () => {
+      await loadAgent();
+      return { success: true, message: 'Agent detail refreshed' };
+    },
+  },
+  {
+    name: 'save_model_params',
+    label: $t('shared.pageOperation.saveModelParams'),
+    description: 'Save the current model parameters (temperature, max_tokens, top_p)',
+    readonly: false,
+    handler: async () => {
+      await saveModelParams();
+      return { success: true, message: 'Model params saved' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

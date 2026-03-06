@@ -107,7 +107,7 @@ async function onTestModel(row: AIModelInfo) {
   }
 }
 
-const { Grid, FormDrawer, onRefresh } = useCrudPage<AIModelInfo>({
+const { Grid, FormDrawer, onRefresh, onCreate, gridApi } = useCrudPage<AIModelInfo>({
   api: {
     list: getAIModelListApi,
     resource: '/admin/ai/models',
@@ -143,6 +143,31 @@ const cleanupPageOps = registerPageOperations('admin.ai.models', [
     handler: async () => {
       onRefresh();
       return { success: true, message: 'Model list refreshed' };
+    },
+  },
+  {
+    name: 'create_model',
+    label: $t('shared.pageOperation.createRecord'),
+    description: 'Open the create model form',
+    readonly: false,
+    handler: async () => {
+      onCreate();
+      return { success: true, message: 'Create model form opened' };
+    },
+  },
+  {
+    name: 'search_models',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search models by keyword',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Search keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[name][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
     },
   },
 ]);

@@ -248,6 +248,7 @@
     }
   },
   "organization": {
+    "name": "组织架构",
     "title": "组织架构管理",
     "tree": "组织架构",
     "leader": "负责人",

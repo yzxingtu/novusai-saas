@@ -13,6 +13,7 @@ import type { AdminSkillInfo } from '#/api/admin/skills';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 import { useRouter } from 'vue-router';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
@@ -571,7 +572,46 @@ const cleanupPageContext = registerPageContext('admin/ai/skill-packages', () => 
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('admin.ai.skill-packages', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the skill package list',
+    readonly: true,
+    handler: async () => {
+      await loadPackages();
+      return { success: true, message: 'Skill package list refreshed' };
+    },
+  },
+  {
+    name: 'create_skill_package',
+    label: $t('shared.pageOperation.createRecord'),
+    description: 'Open the create skill package form',
+    readonly: false,
+    handler: async () => {
+      onCreatePackage();
+      return { success: true, message: 'Create skill package form opened' };
+    },
+  },
+  {
+    name: 'search_packages',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search skill packages by keyword',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Search keyword' },
+    },
+    handler: async (params) => {
+      searchKeyword.value = (params?.keyword as string) || '';
+      return { success: true, message: `Searched for: ${searchKeyword.value}` };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

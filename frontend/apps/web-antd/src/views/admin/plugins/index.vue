@@ -10,6 +10,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -231,9 +232,6 @@ onMounted(() => {
   progressStore.startListening();
 });
 
-onUnmounted(() => {
-  progressStore.stopListening();
-});
 
 function isProcessing(id: number): boolean {
   return processingIds.value.has(id);
@@ -564,7 +562,37 @@ const cleanupPageContext = registerPageContext('admin/plugins', () => ({
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('admin.plugins', [
+  {
+    name: 'refresh_plugins',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the plugin list',
+    readonly: true,
+    handler: async () => {
+      await loadPlugins();
+      return { success: true, message: 'Plugin list refreshed' };
+    },
+  },
+  {
+    name: 'search_plugins',
+    label: $t('shared.pageOperation.searchPlugins'),
+    description: 'Search plugins by keyword',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Plugin name keyword' },
+    },
+    handler: async (params) => {
+      searchKeyword.value = (params?.keyword as string) || '';
+      return { success: true, message: `Searched for: ${searchKeyword.value}` };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+  progressStore.stopListening();
+});
 </script>
 
 <template>

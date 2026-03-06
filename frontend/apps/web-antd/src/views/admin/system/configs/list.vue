@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { ConfigGroupListItemMeta, ConfigItemMeta } from '#/types/config';
 
-import { computed, onActivated, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onActivated, onBeforeUnmount, onMounted, onUnmounted, ref } from 'vue';
+
+import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -16,7 +19,7 @@ import {
 } from '#/api/admin/configs';
 import { ConfigForm } from '#/components';
 import PluginSettingsTabs from '#/components/business/plugin-slots/PluginSettingsTabs.vue';
-import { $t as t } from '#/locales';
+import { $t, $t as t } from '#/locales';
 
 // 平台存储配置专用面板
 import PlatformStoragePanel from './modules/PlatformStoragePanel.vue';
@@ -200,6 +203,43 @@ onActivated(() => {
 });
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', beforeUnloadHandler);
+});
+
+const cleanupPageContext = registerPageContext('admin/system/configs', () => ({
+  page_key: 'admin.system.configs',
+  page_title: $t('admin.system.config.title'),
+  page_data: {
+    resource: '/admin/system/configs',
+    active_group: activeGroup.value,
+  },
+}));
+
+const cleanupPageOps = registerPageOperations('admin.system.configs', [
+  {
+    name: 'refresh_configs',
+    label: $t('shared.pageOperation.refreshConfig'),
+    description: 'Reload config groups and current group detail',
+    readonly: true,
+    handler: async () => {
+      await loadGroups();
+      return { success: true, message: 'Config groups refreshed' };
+    },
+  },
+  {
+    name: 'save_config',
+    label: $t('shared.pageOperation.saveConfig'),
+    description: 'Save the current config group settings',
+    readonly: false,
+    handler: async () => {
+      await onSave();
+      return { success: true, message: 'Config saved' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
 });
 </script>
 

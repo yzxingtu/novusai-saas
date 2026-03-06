@@ -47,7 +47,7 @@ function onPreview(row: EmailLogInfo) {
   previewDrawerApi.open();
 }
 
-const { Grid, onRefresh } = useCrudPage<EmailLogInfo>({
+const { Grid, onRefresh, gridApi } = useCrudPage<EmailLogInfo>({
   api: {
     list: getEmailLogListApi,
     resource: '/admin/email-logs',
@@ -79,6 +79,21 @@ const cleanupPageOps = registerPageOperations('admin.system.email-logs', [
     handler: async () => {
       onRefresh();
       return { success: true, message: 'Email log list refreshed' };
+    },
+  },
+  {
+    name: 'search_logs',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search email logs by subject',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Subject keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[subject][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
     },
   },
 ]);

@@ -36,6 +36,8 @@
  * ```
  */
 
+import { ref } from 'vue';
+
 /** 操作执行结果 */
 export interface PageOperationResult {
   /** 是否执行成功 */
@@ -80,6 +82,12 @@ export interface PageOperation {
 const registry = new Map<string, PageOperation[]>();
 
 /**
+ * 响应式版本号 — 每次注册/注销时自增，
+ * 供外部 computed 建立依赖以实现实时感知。
+ */
+export const pageOperationVersion = ref(0);
+
+/**
  * 注册页面操作列表
  *
  * @param key 页面标识（建议与 pageContextKey 一致）
@@ -91,9 +99,11 @@ export function registerPageOperations(
   operations: PageOperation[],
 ): () => void {
   registry.set(key, operations);
+  pageOperationVersion.value++;
   return () => {
     if (registry.get(key) === operations) {
       registry.delete(key);
+      pageOperationVersion.value++;
     }
   };
 }
@@ -188,4 +198,5 @@ export function getRegisteredOperationKeys(): string[] {
  */
 export function clearPageOperationRegistry(): void {
   registry.clear();
+  pageOperationVersion.value++;
 }

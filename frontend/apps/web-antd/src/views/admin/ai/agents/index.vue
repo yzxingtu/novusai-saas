@@ -10,6 +10,7 @@ import type { AIAgentInfo } from '#/api/admin/ai';
 import { computed, onUnmounted, ref } from 'vue';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -255,7 +256,58 @@ const cleanupPageContext = registerPageContext('admin/ai/agents', () => ({
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('admin.ai.agents', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the agent list',
+    readonly: true,
+    handler: async () => {
+      await loadList();
+      return { success: true, message: 'Agent list refreshed' };
+    },
+  },
+  {
+    name: 'create_agent',
+    label: $t('shared.pageOperation.createRecord'),
+    description: 'Open the create agent form',
+    readonly: false,
+    handler: async () => {
+      agentFormRef.value?.openNew();
+      return { success: true, message: 'Create agent form opened' };
+    },
+  },
+  {
+    name: 'search_agents',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search agents by keyword',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Search keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      searchKeyword.value = keyword;
+      doSearch();
+      return { success: true, message: `Searched for: ${keyword}` };
+    },
+  },
+  {
+    name: 'view_recycle_bin',
+    label: $t('shared.pageOperation.restoreRecord'),
+    description: 'Open the recycle bin drawer',
+    readonly: true,
+    handler: async () => {
+      openRecycleBin();
+      return { success: true, message: 'Recycle bin opened' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

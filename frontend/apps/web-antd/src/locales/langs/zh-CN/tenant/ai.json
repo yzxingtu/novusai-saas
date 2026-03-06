@@ -1,5 +1,8 @@
 {
   "title": "AI 管理",
+  "config": {
+    "name": "AI 配置"
+  },
   "model": {
     "title": "可用模型",
     "pageDesc": "查看平台分配给当前租户的可用 AI 模型及其能力和定价。",

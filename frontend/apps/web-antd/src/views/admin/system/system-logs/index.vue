@@ -418,6 +418,19 @@ const cleanupPageOps = registerPageOperations('admin.system.system-logs', [
       return { success: true, message: 'System logs refreshed' };
     },
   },
+  {
+    name: 'search_logs',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search within current log content',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Search keyword' },
+    },
+    handler: async (params) => {
+      logSearchQuery.value = (params?.keyword as string) || '';
+      return { success: true, message: `Searching for: ${logSearchQuery.value}` };
+    },
+  },
 ]);
 
 onUnmounted(() => {

@@ -10,6 +10,7 @@ import type {
 import { onUnmounted } from 'vue';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -82,7 +83,36 @@ const cleanupPageContext = registerPageContext('tenant/ai/quotas', () => ({
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('tenant.ai.quotas', [
+  {
+    name: 'refresh_quotas',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload quotas and rate limits',
+    readonly: true,
+    handler: async () => {
+      quotas.value = [];
+      rateLimits.value = [];
+      // Trigger reload by re-fetching
+      const [q, r] = await Promise.all([
+        getTenantQuotasApi(),
+        getTenantRateLimitsApi(),
+      ]);
+      quotas.value = Array.isArray(q)
+        ? (q as TenantQuotaWithUsageInfo[]).map((item) => ({
+            ...item,
+            id: item.quota?.id,
+          }))
+        : [];
+      rateLimits.value = Array.isArray(r) ? r : [];
+      return { success: true, message: 'Quotas refreshed' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

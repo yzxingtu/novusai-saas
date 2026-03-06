@@ -102,6 +102,21 @@ const cleanupPageContext = registerPageContext('tenant/system/operation-logs', (
 
 const cleanupPageOps = registerPageOperations('tenant.system.operation-logs', [
   {
+    name: 'search_logs',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search operation logs by path',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Request path keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[path][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
+    },
+  },
+  {
     name: 'refresh_list',
     label: $t('shared.pageOperation.refreshList'),
     description: 'Reload the operation log list',

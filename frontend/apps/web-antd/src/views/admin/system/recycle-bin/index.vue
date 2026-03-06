@@ -15,6 +15,7 @@ import type {
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -284,7 +285,34 @@ const cleanupPageContext = registerPageContext('admin/system/recycle-bin', () =>
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('admin.system.recycle-bin', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the recycle bin summary and list',
+    readonly: true,
+    handler: async () => {
+      await loadSummary();
+      return { success: true, message: 'Recycle bin refreshed' };
+    },
+  },
+  {
+    name: 'trigger_cleanup',
+    label: $t('shared.pageOperation.deleteRecord'),
+    description: 'Trigger cleanup of expired items in recycle bin',
+    readonly: false,
+    handler: async () => {
+      await triggerRecycleBinCleanupApi();
+      await loadSummary();
+      return { success: true, message: 'Cleanup triggered' };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

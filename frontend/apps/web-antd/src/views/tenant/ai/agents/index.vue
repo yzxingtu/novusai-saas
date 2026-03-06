@@ -11,6 +11,7 @@ import { computed, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
+import { registerPageOperations } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -225,7 +226,47 @@ const cleanupPageContext = registerPageContext('tenant/ai/agents', () => ({
   },
 }));
 
-onUnmounted(cleanupPageContext);
+const cleanupPageOps = registerPageOperations('tenant.ai.agents', [
+  {
+    name: 'refresh_list',
+    label: $t('shared.pageOperation.refreshList'),
+    description: 'Reload the agent list',
+    readonly: true,
+    handler: async () => {
+      await loadList();
+      return { success: true, message: 'Agent list refreshed' };
+    },
+  },
+  {
+    name: 'create_agent',
+    label: $t('shared.pageOperation.createRecord'),
+    description: 'Open the create agent form',
+    readonly: false,
+    handler: async () => {
+      agentFormRef.value?.openNew();
+      return { success: true, message: 'Create agent form opened' };
+    },
+  },
+  {
+    name: 'search_agents',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search agents by keyword',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Search keyword' },
+    },
+    handler: async (params) => {
+      searchKeyword.value = (params?.keyword as string) || '';
+      onSearch({ 'filter[name][ilike]': searchKeyword.value || undefined });
+      return { success: true, message: `Searched for: ${searchKeyword.value}` };
+    },
+  },
+]);
+
+onUnmounted(() => {
+  cleanupPageContext();
+  cleanupPageOps();
+});
 </script>
 
 <template>

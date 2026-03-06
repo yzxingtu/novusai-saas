@@ -168,7 +168,7 @@ async function onImpersonateInCurrentTab(row: TenantInfo) {
 }
 
 // 声明式 CRUD 页面（套餐下拉由 ApiSelect 自动加载，导出按钮自动添加）
-const { Grid, FormDrawer, ExportModal, onRefresh, handleActionClick, openExportModal } =
+const { Grid, FormDrawer, ExportModal, onRefresh, onCreate, gridApi, handleActionClick, openExportModal } =
   useCrudPage<TenantInfo>({
     api: {
       list: admin.getTenantListApi,
@@ -216,6 +216,31 @@ const cleanupPageOps = registerPageOperations('admin.tenant.list', [
     handler: async () => {
       onRefresh();
       return { success: true, message: 'Tenant list refreshed' };
+    },
+  },
+  {
+    name: 'create_tenant',
+    label: $t('shared.pageOperation.createRecord'),
+    description: 'Open the create tenant form',
+    readonly: false,
+    handler: async () => {
+      onCreate();
+      return { success: true, message: 'Create tenant form opened' };
+    },
+  },
+  {
+    name: 'search_tenants',
+    label: $t('shared.pageOperation.searchByKeyword'),
+    description: 'Search tenants by name',
+    readonly: true,
+    params: {
+      keyword: { type: 'string', description: 'Tenant name keyword' },
+    },
+    handler: async (params) => {
+      const keyword = (params?.keyword as string) || '';
+      gridApi.formApi?.setValues({ 'filter[name][ilike]': keyword });
+      gridApi.reload({ page: 1 });
+      return { success: true, message: `Searched for: ${keyword}` };
     },
   },
   {

@@ -4,7 +4,53 @@
   "confirmContentWithDesc": "AI 助手请求执行操作：{operation}\n\n{description}\n\n是否允许？",
   "confirmOk": "允许执行",
   "confirmCancel": "取消",
+
   "refreshDashboard": "刷新仪表盘",
   "refreshList": "刷新列表",
-  "exportData": "导出数据"
+  "refreshDetail": "刷新详情",
+  "refreshTree": "刷新树形结构",
+  "refreshConfig": "刷新配置",
+
+  "createRecord": "新建记录",
+  "editRecord": "编辑记录",
+  "deleteRecord": "删除记录",
+  "batchDelete": "批量删除",
+  "viewDetail": "查看详情",
+  "restoreRecord": "恢复记录",
+  "archiveRecord": "归档记录",
+
+  "searchByKeyword": "按关键词搜索",
+  "exportData": "导出数据",
+  "uploadFile": "上传文件",
+  "downloadFile": "下载文件",
+
+  "toggleStatus": "切换状态",
+  "toggleEnabled": "启用/禁用",
+  "changeStatus": "变更状态",
+
+  "saveConfig": "保存配置",
+  "saveBasicInfo": "保存基本信息",
+  "saveModelParams": "保存模型参数",
+
+  "publishVersion": "发布版本",
+  "bindResource": "绑定资源",
+  "unbindResource": "解绑资源",
+  "syncData": "同步数据",
+
+  "triggerTask": "触发任务",
+  "retryTask": "重试任务",
+  "cancelTask": "取消任务",
+
+  "createDepartment": "创建部门",
+  "assignMember": "分配成员",
+  "searchMembers": "搜索成员",
+
+  "installPlugin": "安装插件",
+  "searchPlugins": "搜索插件",
+
+  "createApiKey": "创建 API Key",
+  "createSkillPackage": "创建技能包",
+
+  "navigateTo": "跳转到页面",
+  "refreshAnalytics": "刷新分析数据"
 }

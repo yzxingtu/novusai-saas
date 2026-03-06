@@ -13,7 +13,6 @@ from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import deleted, paginated, success
 from app.enums.agent import (
-    ConfirmActionEnum,
     MemoryChannelEnum,
     MemorySceneEnum,
 )
@@ -28,11 +27,15 @@ from app.rbac.decorators import (
     permission_resource,
 )
 from app.rbac.services.permission_service import PermissionService
+from app.api.shared._agent_chat_helpers import (
+    enrich_conversations_with_agent,
+    handle_confirm_or_cancel,
+    handle_route,
+)
 from app.schemas.ai.agent_chat import (
     AgentChatRequest,
     AgentConfirmRequest,
     AgentRouteRequest,
-    AgentRouteResponse,
 )
 from app.services.ai.agent_chat_service import AgentChatService
 from app.services.ai.agent_service import AdminAgentService
@@ -190,23 +193,14 @@ class AdminAgentChatController(GlobalController):
 
             Permission: admin_agent_chat:route
             """
-            from app.services.ai.agent_router_service import AgentRouterService
-
-            router_svc = AgentRouterService(db)
-            result = await router_svc.route(
+            return await handle_route(
+                db,
                 tenant_id=None,
                 message=data.message,
                 is_admin_context=True,
                 page_context=data.page_context.model_dump() if data.page_context else None,
                 pinned_agent_id=data.pinned_agent_id,
             )
-
-            return success(data=AgentRouteResponse(
-                agent_id=result.agent_id,
-                agent_name=result.agent_name,
-                confidence=result.confidence,
-                routed_by=result.routed_by,
-            ).model_dump())
 
         # ========================================
         # 操作确认
@@ -230,23 +224,9 @@ class AdminAgentChatController(GlobalController):
             """
             # 该接口与具体智能体无关，使用租户哨兵值 0
             service = AgentChatService(db, 0)
-
-            if data.action == ConfirmActionEnum.CANCEL.value:
-                result = await service.cancel_action(data.confirm_id)
-                msg_key = (
-                    _("agent_confirm.cancelled")
-                    if result["status"] == "cancelled"
-                    else _("agent_confirm.cancel_failed")
-                )
-                return success(data=result, message=msg_key)
-
-            # 确认执行
-            result = await service.confirm_action(
-                confirm_id=data.confirm_id,
-                tenant_id=0,
-                user_id=admin.id,
+            return await handle_confirm_or_cancel(
+                service, data, tenant_id=0, user_id=admin.id,
             )
-            return success(data=result)
 
         # ========================================
         # 对话管理
@@ -270,19 +250,8 @@ class AdminAgentChatController(GlobalController):
             """
             service = ConversationService(db, 0)
             items, total = await service.query_list(spec=query)
-            conv_list = []
-            for item in items:
-                d = item.to_dict()
-                agent_obj = getattr(item, "agent", None)
-                if agent_obj is not None:
-                    d["agent_name"] = agent_obj.name
-                    d["agent_avatar"] = agent_obj.avatar
-                else:
-                    d["agent_name"] = None
-                    d["agent_avatar"] = None
-                conv_list.append(d)
             return paginated(
-                items=conv_list,
+                items=enrich_conversations_with_agent(items),
                 total=total,
                 page=query.page,
                 page_size=query.size,
