@@ -16,16 +16,17 @@ const mainRoutes: RouteRecordRaw = {
   },
   name: 'UserRoot',
   path: '/',
-  redirect: '/dashboard',
+  redirect: '/home',
   children: [
     {
-      name: 'UserDashboard',
-      path: 'dashboard',
-      component: () => import('#/views/user/dashboard/index.vue'),
+      name: 'UserHome',
+      path: 'home',
+      component: () => import('#/views/user/home/index.vue'),
       meta: {
         affixTab: true,
-        icon: 'lucide:layout-dashboard',
-        title: $t('page.dashboard.title'),
+        icon: 'lucide:home',
+        ignoreAccess: true,
+        title: $t('user.home.title'),
       },
     },
     {

@@ -45,7 +45,7 @@ import {
   useSocketIOStore,
 } from '#/store';
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
-import LoginForm from '#/views/_core/authentication/login.vue';
+import LoginForm from '#/views/user/authentication/login.vue';
 
 const router = useRouter();
 const userStore = useUserStore();

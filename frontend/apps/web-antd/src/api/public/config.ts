@@ -109,6 +109,8 @@ export interface PlatformPublicConfig {
   maintenance: MaintenanceConfig;
   /** 域名配置 */
   domain: DomainConfig;
+  /** 平台管理端域名列表（用于域名检测） */
+  platformDomains: string[];
 }
 
 /** 租户公开配置 */
@@ -155,6 +157,7 @@ interface PlatformPublicConfigRaw {
   // Domain
   tenant_domain_suffix?: string;
   domain_verification_prefix?: string;
+  platform_domains?: string[];
 
   // Maintenance
   maintenance_mode?: boolean;
@@ -292,6 +295,7 @@ function transformPlatformConfig(
       suffix: raw.tenant_domain_suffix ?? '',
       verificationPrefix: raw.domain_verification_prefix ?? '',
     },
+    platformDomains: raw.platform_domains ?? [],
   };
 }
 
@@ -345,12 +349,26 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
           ? {}
           : { allow_registration: raw.allow_registration }
       ),
+      ...(
+        raw.registration_approval === null || raw.registration_approval === undefined
+          ? {}
+          : { registration_approval: raw.registration_approval }
+      ),
       ...(raw.api_access === null || raw.api_access === undefined
         ? {}
         : { api_access: raw.api_access }),
       ...(raw.file_upload === null || raw.file_upload === undefined
         ? {}
         : { file_upload: raw.file_upload }),
+      ...(raw.allow_profile_edit === null || raw.allow_profile_edit === undefined
+        ? {}
+        : { allow_profile_edit: raw.allow_profile_edit }),
+      ...(raw.email_notification === null || raw.email_notification === undefined
+        ? {}
+        : { email_notification: raw.email_notification }),
+      ...(raw.sms_notification === null || raw.sms_notification === undefined
+        ? {}
+        : { sms_notification: raw.sms_notification }),
     },
   };
 }

@@ -2,15 +2,14 @@
 import type { VbenFormSchema } from '@vben/common-ui';
 
 import type { CaptchaDifficulty } from '#/api/public/captcha';
+import type { CaptchaAdapterExpose } from '#/components/business/captcha';
 
 import { computed, onMounted, ref } from 'vue';
 
 import { AuthenticationLogin, z } from '@vben/common-ui';
 import { $t } from '@vben/locales';
 
-import { Input } from 'ant-design-vue';
-
-import { CaptchaImage } from '#/components/business/captcha';
+import { CaptchaProvider } from '#/components/business/captcha';
 import { useMultiAuthStore, usePublicConfigStore } from '#/store';
 
 defineOptions({ name: 'AdminLogin' });
@@ -19,9 +18,7 @@ const publicConfigStore = usePublicConfigStore();
 const multiAuthStore = useMultiAuthStore();
 
 // 验证码组件引用
-const captchaRef = ref<InstanceType<typeof CaptchaImage>>();
-// 验证码用户输入
-const captchaSolution = ref('');
+const captchaRef = ref<CaptchaAdapterExpose>();
 
 // 首次访问加载平台公开配置
 onMounted(() => {
@@ -67,29 +64,33 @@ const formSchema = computed((): VbenFormSchema[] => {
   ];
 });
 
+// 验证码提供商类型
+const captchaProvider = computed(() => {
+  return publicConfigStore.platformCaptcha?.provider ?? 'image';
+});
+
 // 刷新验证码
 function refreshCaptcha() {
-  captchaSolution.value = '';
   captchaRef.value?.refresh();
 }
 
-async function handleLogin(values: Record<string, any>) {
+async function handleLogin(values: Record<string, unknown>) {
   // 构建登录参数
-  const loginParams: Record<string, any> = {
+  const loginParams: Record<string, unknown> = {
     password: values.password,
     username: values.username,
   };
 
-  // 如果需要验证码，添加验证码参数
+  // 如果需要验证码，从 CaptchaProvider 获取统一结果
   if (showCaptcha.value && captchaRef.value) {
-    if (!captchaSolution.value) {
+    const result = captchaRef.value.getResult();
+    if (!result) {
       // 验证码未填写，不提交
       return;
     }
-    loginParams.captchaChallengeId = captchaRef.value.getChallengeId();
-    loginParams.captchaSolution = captchaSolution.value;
-    loginParams.captchaType = 'image';
-    // 使用缓存的验证码提供方标识，降级为 'image'
+    loginParams.captchaChallengeId = result.challengeId;
+    loginParams.captchaSolution = result.captchaCode;
+    loginParams.captchaType = result.provider;
     loginParams.captchaProviderCode =
       publicConfigStore.platformCaptcha?.provider ?? 'image';
   }
@@ -129,23 +130,16 @@ async function handleLogin(values: Record<string, any>) {
       :sub-title="$t('admin.auth.subtitle')"
       @submit="handleLogin"
     >
-      <!-- 验证码插槽 - 显示在密码输入框下方 -->
+      <!-- 验证码插槽 -->
       <template v-if="showCaptcha" #form-extend>
         <div class="captcha-section">
-          <div class="captcha-row">
-            <Input
-              v-model:value="captchaSolution"
-              :placeholder="$t('shared.auth.captcha.placeholder')"
-              :maxlength="6"
-              size="large"
-              class="captcha-input"
-            />
-            <CaptchaImage
-              ref="captchaRef"
-              endpoint="admin"
-              :difficulty="captchaDifficulty"
-            />
-          </div>
+          <CaptchaProvider
+            ref="captchaRef"
+            endpoint="admin"
+            action="login"
+            :provider="captchaProvider"
+            :difficulty="captchaDifficulty"
+          />
         </div>
       </template>
     </AuthenticationLogin>
@@ -156,17 +150,6 @@ async function handleLogin(values: Record<string, any>) {
 .captcha-section {
   margin-top: 8px;
   margin-bottom: 16px;
-}
-
-.captcha-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.captcha-input {
-  flex: 1;
-  min-width: 0;
 }
 
 :deep(.flex-auto.overflow-hidden) {

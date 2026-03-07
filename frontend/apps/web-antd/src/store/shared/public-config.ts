@@ -215,6 +215,21 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       if (!captcha.failedThreshold || captcha.failedThreshold <= 0) return true;
       return this.userLoginFailCount >= captcha.failedThreshold;
     },
+
+    /** 是否允许注册（默认 true） */
+    isRegistrationEnabled(): boolean {
+      return this.tenantConfig?.features?.allow_registration !== false;
+    },
+
+    /** 注册是否需要审批 */
+    isRegistrationApprovalRequired(): boolean {
+      return this.tenantConfig?.features?.registration_approval === true;
+    },
+
+    /** 是否允许编辑个人资料（默认 true） */
+    isProfileEditAllowed(): boolean {
+      return this.tenantConfig?.features?.allow_profile_edit !== false;
+    },
   },
 
   actions: {
@@ -280,30 +295,73 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     },
 
     /**
-     * 检测当前域名类型（租户域名 vs 平台域名）
+     * 三层确定性域名检测
      *
-     * 幂等：200 或 404 后标记完成不再重复请求；网络/500 错误不标记允许下次重试。
-     * 检测结果：
-     *   - true  = 租户域名（后端返回租户配置）
-     *   - false = 平台域名（后端返回 404，无对应租户）
-     *   - null  = 未检测完成（网络错误等，路由守卫不做限制）
+     * Layer 1: 前端环境变量快速匹配（零网络请求）
+     * Layer 2: 平台公开配置 API（1次请求，匹配 platformDomains / tenantDomainSuffix）
+     * Layer 3: 租户配置 API 回退（自定义域名场景，200=租户 | 4040=未知）
+     *
+     * 幂等：检测完成后不再重复。网络错误不标记完成允许重试。
      */
     async detectDomainType(): Promise<void> {
       if (this.isDomainDetected) return;
+
+      const hostname = globalThis.location?.hostname ?? '';
+
+      // ── Layer 1: 环境变量快速匹配 ──────────────────────────
+      const envDomains = (
+        import.meta.env.VITE_PLATFORM_DOMAINS ?? ''
+      )
+        .split(',')
+        .map((d: string) => d.trim().toLowerCase())
+        .filter(Boolean);
+
+      if (envDomains.includes(hostname.toLowerCase())) {
+        this.isDomainTenantDomain = false;
+        this.isDomainDetected = true;
+        return;
+      }
+
+      // ── Layer 2: 平台公开配置 API ──────────────────────────
+      const platformConfig = await this.loadPlatformConfig();
+      if (platformConfig) {
+        // 2a: 检查 platformDomains 列表
+        const apiDomains = platformConfig.platformDomains.map((d) =>
+          d.toLowerCase(),
+        );
+        if (apiDomains.includes(hostname.toLowerCase())) {
+          this.isDomainTenantDomain = false;
+          this.isDomainDetected = true;
+          return;
+        }
+
+        // 2b: 检查租户子域名后缀匹配 (*.suffix)
+        const suffix = platformConfig.domain.suffix?.toLowerCase();
+        if (suffix && hostname.toLowerCase().endsWith(suffix)) {
+          this.isDomainTenantDomain = true;
+          this.isDomainDetected = true;
+          // 预加载租户配置
+          await this.loadTenantConfig();
+          return;
+        }
+      }
+
+      // ── Layer 3: 租户配置 API 回退（自定义域名） ──────────
       try {
-        const config = await getTenantPublicConfigApi();
+        const tenantConfig = await getTenantPublicConfigApi();
         this.isDomainTenantDomain = true;
-        // 同步到租户配置缓存，避免后续 loadTenantConfig 重复请求
         if (!this.tenantConfig) {
-          this.tenantConfig = config;
+          this.tenantConfig = tenantConfig;
           this.tenantConfigLoaded = true;
-          applyBrandConfig(config.brand);
+          applyBrandConfig(tenantConfig.brand);
         }
         this.isDomainDetected = true;
       } catch (error) {
-        const err = error as { response?: { status?: number } };
-        if (err?.response?.status === 404) {
-          // 明确无租户 → 平台域名
+        const err = error as {
+          code?: number;
+          response?: { status?: number };
+        };
+        if (err?.code === 4040 || err?.response?.status === 404) {
           this.isDomainTenantDomain = false;
           this.isDomainDetected = true;
         }

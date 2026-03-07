@@ -45,7 +45,7 @@ export const ADMIN_HOME_PATH = '/admin/dashboard';
 export const TENANT_HOME_PATH = '/tenant/dashboard';
 
 /** 用户端默认首页 */
-export const USER_HOME_PATH = '/dashboard';
+export const USER_HOME_PATH = '/';
 
 // ============================================================
 // API 前缀常量

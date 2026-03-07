@@ -13,7 +13,7 @@ import { useAccessStore, useUserStore } from '@vben/stores';
 import { Drawer, Dropdown, Tooltip } from 'ant-design-vue';
 
 import { $t } from '#/locales';
-import { useMultiAuthStore, usePresenceStore, useSocketIOStore } from '#/store';
+import { useMultiAuthStore, usePresenceStore, usePublicConfigStore, useSocketIOStore } from '#/store';
 
 defineOptions({ name: 'UserLayout' });
 
@@ -22,8 +22,26 @@ const route = useRoute();
 const userStore = useUserStore();
 const accessStore = useAccessStore();
 const multiAuthStore = useMultiAuthStore();
+const publicConfigStore = usePublicConfigStore();
 const socketIOStore = useSocketIOStore();
 const presenceStore = usePresenceStore();
+
+// 域名感知品牌
+const isTenantDomain = computed(() => publicConfigStore.isDomainTenantDomain);
+
+const brandLogo = computed(() => {
+  if (isTenantDomain.value) {
+    return publicConfigStore.tenantBrand?.logo || preferences.logo.source;
+  }
+  return preferences.logo.source;
+});
+
+const brandName = computed(() => {
+  if (isTenantDomain.value) {
+    return publicConfigStore.tenantBrand?.siteName || preferences.app.name;
+  }
+  return preferences.app.name;
+});
 
 const mobileMenuOpen = ref(false);
 
@@ -85,6 +103,8 @@ function handleDropdownClick({ key }: { key: string }) {
   }
 }
 
+const isLoggedIn = computed(() => !!userStore.userInfo?.username);
+
 const year = computed(() => new Date().getFullYear());
 
 watch(
@@ -95,8 +115,10 @@ watch(
 );
 
 onMounted(() => {
-  socketIOStore.connect('user');
-  presenceStore.initSocketHandlers();
+  if (userStore.userInfo?.username) {
+    socketIOStore.connect('user');
+    presenceStore.initSocketHandlers();
+  }
 });
 
 onBeforeUnmount(() => {
@@ -113,13 +135,13 @@ onBeforeUnmount(() => {
       <!-- Logo + Brand -->
       <div class="flex shrink-0 items-center gap-2">
         <img
-          v-if="preferences.logo.source"
-          :src="preferences.logo.source"
-          :alt="preferences.app.name"
+          v-if="brandLogo"
+          :src="brandLogo"
+          :alt="brandName"
           class="size-7"
         />
         <span class="hidden text-base font-semibold text-foreground sm:inline-block">
-          {{ preferences.app.name }}
+          {{ brandName }}
         </span>
       </div>
 
@@ -157,8 +179,9 @@ onBeforeUnmount(() => {
           <LanguageToggle />
         </Tooltip>
 
-        <!-- User Dropdown -->
+        <!-- User Dropdown (logged in) -->
         <Dropdown
+          v-if="isLoggedIn"
           :trigger="['click']"
           placement="bottomRight"
         >
@@ -234,12 +257,12 @@ onBeforeUnmount(() => {
       <template #title>
         <div class="flex items-center gap-2">
           <img
-            v-if="preferences.logo.source"
-            :src="preferences.logo.source"
-            :alt="preferences.app.name"
+            v-if="brandLogo"
+            :src="brandLogo"
+            :alt="brandName"
             class="size-6"
           />
-          <span class="font-semibold">{{ preferences.app.name }}</span>
+          <span class="font-semibold">{{ brandName }}</span>
         </div>
       </template>
       <nav class="flex flex-col gap-1">
@@ -275,7 +298,7 @@ onBeforeUnmount(() => {
     <footer
       class="flex items-center justify-center border-t border-border px-4 py-4 text-xs text-muted-foreground"
     >
-      <span>&copy; {{ year }} {{ preferences.app.name }}</span>
+      <span>&copy; {{ year }} {{ brandName }}</span>
     </footer>
   </div>
 </template>

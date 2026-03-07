@@ -19,25 +19,18 @@ import { notification } from 'ant-design-vue';
 import { defineStore } from 'pinia';
 
 import { adminApi, getApiEndpoint, tenantApi, userApi } from '#/api';
+import {
+  HOME_PATHS,
+  LOGIN_PATHS,
+} from '#/constants/endpoints';
 import { $t } from '#/locales';
 import { toAvatarDisplayUrl } from '#/utils/image';
 import { clearPersistedTabbarStorage } from '#/utils/tabbar-storage';
 
 import { TokenStorage } from './token-storage';
 
-/** 各端登录路径 */
-export const LOGIN_PATHS: Record<ApiEndpoint, string> = {
-  admin: '/admin/login',
-  tenant: '/tenant/login',
-  user: '/auth/login',
-};
-
-/** 各端默认首页路径 */
-export const HOME_PATHS: Record<ApiEndpoint, string> = {
-  admin: '/admin/dashboard',
-  tenant: '/tenant/dashboard',
-  user: '/dashboard',
-};
+// Re-export for backward compatibility (guard.ts, impersonate.vue etc.)
+export { HOME_PATHS, LOGIN_PATHS };
 
 export const useMultiAuthStore = defineStore('multi-auth', () => {
   const accessStore = useAccessStore();

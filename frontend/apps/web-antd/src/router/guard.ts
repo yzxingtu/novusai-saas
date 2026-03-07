@@ -7,10 +7,9 @@ import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
 import { startProgress, stopProgress } from '@vben/utils';
 
 import { getApiEndpoint } from '#/api';
+import { HOME_PATHS, LOGIN_PATHS } from '#/constants/endpoints';
 import { accessRoutes, coreRouteNames } from '#/router/routes';
 import {
-  HOME_PATHS,
-  LOGIN_PATHS,
   TokenStorage,
   useMultiAuthStore,
   usePublicConfigStore,
@@ -87,19 +86,27 @@ function setupAccessGuard(router: Router) {
     // ── 域名隔离检测（幂等，仅首次导航发一次请求） ──────────────────────────
     await publicConfigStore.detectDomainType().catch(() => {});
 
-    // 租户域名禁止访问平台管理端
-    if (
-      publicConfigStore.isDomainTenantDomain === true &&
-      currentEndpoint === 'admin'
-    ) {
-      return { path: LOGIN_PATHS.tenant, replace: true };
-    }
-    // 平台域名禁止访问租户端/用户端
-    if (
-      publicConfigStore.isDomainTenantDomain === false &&
-      (currentEndpoint === 'tenant' || currentEndpoint === 'user')
-    ) {
-      return { path: LOGIN_PATHS.admin, replace: true };
+    // 开发环境 localhost/127.0.0.1 跳过域名隔离（允许同时访问三端）
+    const hostname = globalThis.location?.hostname ?? '';
+    const isDevLocalhost =
+      import.meta.env.DEV &&
+      (hostname === 'localhost' || hostname === '127.0.0.1');
+
+    if (!isDevLocalhost && publicConfigStore.isDomainDetected) {
+      // 租户域名禁止访问平台管理端
+      if (
+        publicConfigStore.isDomainTenantDomain === true &&
+        currentEndpoint === 'admin'
+      ) {
+        return { path: LOGIN_PATHS.tenant, replace: true };
+      }
+      // 平台域名禁止访问租户端/用户端
+      if (
+        publicConfigStore.isDomainTenantDomain === false &&
+        (currentEndpoint === 'tenant' || currentEndpoint === 'user')
+      ) {
+        return { path: LOGIN_PATHS.admin, replace: true };
+      }
     }
     // ─────────────────────────────────────────────────────────────────────────
 

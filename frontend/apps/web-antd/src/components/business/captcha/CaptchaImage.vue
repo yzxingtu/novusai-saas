@@ -35,8 +35,8 @@ const emit = defineEmits<{
 // ============================================================
 
 interface Props {
-  /** 端点标识: admin | tenant */
-  endpoint: 'admin' | 'tenant';
+  /** 端点标识: admin | tenant | user */
+  endpoint: 'admin' | 'tenant' | 'user';
   /** 难度等级 */
   difficulty?: CaptchaDifficulty;
   /** 操作类型，默认 login */

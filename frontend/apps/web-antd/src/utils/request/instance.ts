@@ -64,7 +64,7 @@ const REFRESH_TOKEN_URLS: Record<ApiEndpoint, string> = {
 const LOGIN_PATHS: Record<ApiEndpoint, string> = {
   admin: '/admin/login',
   tenant: '/tenant/login',
-  user: '/login',
+  user: '/auth/login',
 };
 
 // ============================================================

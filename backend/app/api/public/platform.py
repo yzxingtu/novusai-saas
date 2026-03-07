@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.configs.service import ConfigService
+from app.core.config import settings
 from app.core.deps import DbSession
 from app.core.i18n import _
 from app.core.response import success
@@ -28,6 +29,7 @@ async def get_platform_public_config(db: DbSession):
 
     return success(
         data=PlatformPublicConfig(
+            platform_domains=settings.platform_domains_list,
             site_name=configs.get("site_name"),
             site_description=configs.get("site_description"),
             site_logo=configs.get("site_logo"),

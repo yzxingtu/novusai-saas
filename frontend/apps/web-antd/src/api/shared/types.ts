@@ -94,7 +94,10 @@ export interface TenantUserInfo extends BaseUserInfo {
 /** API 端类型 */
 export type ApiEndpoint = 'admin' | 'tenant' | 'user';
 
-/** 根据路由获取 API 端类型 */
+/**
+ * 根据路由获取 API 端类型
+ * @deprecated 请使用 `getEndpointFromPath` 或 `getApiEndpoint` from '#/utils/endpoint'
+ */
 export function getApiEndpoint(path: string): ApiEndpoint {
   if (path.startsWith('/admin')) {
     return 'admin';

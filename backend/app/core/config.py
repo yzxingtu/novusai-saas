@@ -150,8 +150,12 @@ class Settings(BaseSettings):
     MAX_PAGE_SIZE: int = 100
 
     # ========================================
-    # 租户域名配置
+    # 域名配置
     # ========================================
+    # 平台管理端域名列表（逗号分隔），用于前端域名检测
+    # 例如: "admin.novusai.com,manage.novusai.com"
+    PLATFORM_DOMAINS: str = ""
+
     # 租户子域名后缀，如 .app.novusai.com
     # 租户访问地址为: {tenant_code}.app.novusai.com
     TENANT_DOMAIN_SUFFIX: str = ".app.novusai.com"
@@ -161,6 +165,13 @@ class Settings(BaseSettings):
 
     # 租户域名验证前缀（用于 DNS TXT 记录验证）
     DOMAIN_VERIFICATION_PREFIX: str = "_novusai-verification"
+
+    @property
+    def platform_domains_list(self) -> list[str]:
+        """解析平台管理端域名列表"""
+        if not self.PLATFORM_DOMAINS:
+            return []
+        return [d.strip() for d in self.PLATFORM_DOMAINS.split(",") if d.strip()]
 
     # ========================================
     # SSL 证书管理

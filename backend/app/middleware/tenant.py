@@ -79,6 +79,11 @@ def parse_tenant_from_host(host: str) -> tuple[str | None, str]:
     if host == suffix.lstrip("."):
         return None, "unknown"
 
+    # 排除已配置的平台管理端域名，避免不必要的 DB 查询
+    platform_domains = [d.lower() for d in settings.platform_domains_list]
+    if host in platform_domains:
+        return None, "unknown"
+
     return None, "custom"
 
 
