@@ -114,6 +114,10 @@ interface PublicConfigState {
   platformCaptchaRequired: boolean;
   /** 租户端验证码强制要求（来自登录响应） */
   tenantCaptchaRequired: boolean;
+  /** 用户端登录失败次数 */
+  userLoginFailCount: number;
+  /** 用户端验证码强制要求（来自登录响应） */
+  userCaptchaRequired: boolean;
 }
 
 // ============================================================
@@ -132,6 +136,8 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     tenantLoginFailCount: 0,
     platformCaptchaRequired: false,
     tenantCaptchaRequired: false,
+    userLoginFailCount: 0,
+    userCaptchaRequired: false,
   }),
 
   getters: {
@@ -191,6 +197,17 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       if (!captcha.failedThreshold || captcha.failedThreshold <= 0) return true;
       // 失败次数达到阈值时显示
       return this.tenantLoginFailCount >= captcha.failedThreshold;
+    },
+
+    /** 用户端验证码是否需要显示（复用租户配置，独立计数） */
+    shouldShowUserCaptcha(): boolean {
+      if (this.userCaptchaRequired) return true;
+
+      const captcha = this.tenantConfig?.login?.captcha;
+      if (!captcha?.enabled) return false;
+
+      if (!captcha.failedThreshold || captcha.failedThreshold <= 0) return true;
+      return this.userLoginFailCount >= captcha.failedThreshold;
     },
   },
 
@@ -259,6 +276,12 @@ export const usePublicConfigStore = defineStore('publicConfig', {
           tenantCode = import.meta.env.VITE_DEV_TENANT_CODE ?? undefined;
         }
 
+        // 开发环境下无租户标识时跳过 API 调用，避免 404
+        if (!tenantCode && import.meta.env.DEV) {
+          this.tenantConfigLoaded = true;
+          return null;
+        }
+
         const config = await getTenantPublicConfigApi(tenantCode);
         this.tenantConfig = config;
         this.tenantConfigLoaded = true;
@@ -304,8 +327,10 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       this.error = null;
       this.platformLoginFailCount = 0;
       this.tenantLoginFailCount = 0;
+      this.userLoginFailCount = 0;
       this.platformCaptchaRequired = false;
       this.tenantCaptchaRequired = false;
+      this.userCaptchaRequired = false;
       localStorage.removeItem(BRAND_CONFIG_CACHE_KEY);
     },
 
@@ -366,6 +391,29 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       this.tenantLoginFailCount = 0;
       this.tenantCaptchaRequired = false;
     },
+
+    /**
+     * 增加用户端登录失败次数
+     */
+    incrementUserLoginFail() {
+      this.userLoginFailCount++;
+    },
+
+    /**
+     * 设置用户端验证码强制要求状态
+     */
+    setUserCaptchaRequired(required: boolean) {
+      this.userCaptchaRequired = required;
+    },
+
+    /**
+     * 重置用户端登录状态（登录成功后调用）
+     */
+    resetUserLoginState() {
+      this.userLoginFailCount = 0;
+      this.userCaptchaRequired = false;
+    },
+
     /**
      * 手动应用品牌配置（用于 Router Guard）
      */

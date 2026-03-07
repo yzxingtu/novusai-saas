@@ -37,6 +37,9 @@ export const usePresenceStore = defineStore('presence', () => {
   /** 当前租户管理员在线 ID 集合 */
   const tenantAdminOnlineIds = reactive(new Set<number>());
 
+  /** 当前租户业务用户在线 ID 集合 */
+  const tenantUserOnlineIds = reactive(new Set<number>());
+
   /** 指定租户的管理员在线（管理端查看租户详情时） */
   const tenantPresenceMap = reactive(new Map<number, Set<number>>());
 
@@ -58,6 +61,8 @@ export const usePresenceStore = defineStore('presence', () => {
         const ids = tenantPresenceMap.get(tenant_id);
         if (ids) ids.add(user_id);
       }
+    } else if (user_type === 'tenant_user') {
+      tenantUserOnlineIds.add(user_id);
     }
   };
 
@@ -75,6 +80,8 @@ export const usePresenceStore = defineStore('presence', () => {
         const ids = tenantPresenceMap.get(tenant_id);
         if (ids) ids.delete(user_id);
       }
+    } else if (user_type === 'tenant_user') {
+      tenantUserOnlineIds.delete(user_id);
     }
   };
 
@@ -104,6 +111,16 @@ export const usePresenceStore = defineStore('presence', () => {
     }
   };
 
+  const handleUserPresenceOnline = (data: unknown) => {
+    const { user_id } = data as { user_id: number };
+    tenantUserOnlineIds.add(user_id);
+  };
+
+  const handleUserPresenceOffline = (data: unknown) => {
+    const { user_id } = data as { user_id: number };
+    tenantUserOnlineIds.delete(user_id);
+  };
+
   const handlePresenceList = (data: unknown) => {
     const { online_ids } = data as { online_ids: number[] };
     if (!online_ids) return;
@@ -119,6 +136,11 @@ export const usePresenceStore = defineStore('presence', () => {
       tenantAdminOnlineIds.clear();
       for (const id of online_ids) {
         tenantAdminOnlineIds.add(id);
+      }
+    } else if (endpoint === 'user') {
+      tenantUserOnlineIds.clear();
+      for (const id of online_ids) {
+        tenantUserOnlineIds.add(id);
       }
     }
   };
@@ -145,6 +167,9 @@ export const usePresenceStore = defineStore('presence', () => {
       }
       return tenantAdminOnlineIds.has(userId);
     }
+    if (userType === 'tenant_user') {
+      return tenantUserOnlineIds.has(userId);
+    }
     return false;
   }
 
@@ -155,8 +180,14 @@ export const usePresenceStore = defineStore('presence', () => {
    * @param ids - 可选，只统计这些 ID 中在线的数量
    */
   function getOnlineCount(userType: string, ids?: number[]): number {
-    const onlineSet =
-      userType === 'admin' ? adminOnlineIds : tenantAdminOnlineIds;
+    let onlineSet: Set<number>;
+    if (userType === 'admin') {
+      onlineSet = adminOnlineIds;
+    } else if (userType === 'tenant_user') {
+      onlineSet = tenantUserOnlineIds;
+    } else {
+      onlineSet = tenantAdminOnlineIds;
+    }
     if (!ids) return onlineSet.size;
     return ids.filter((id) => onlineSet.has(id)).length;
   }
@@ -230,6 +261,25 @@ export const usePresenceStore = defineStore('presence', () => {
     }
   }
 
+  /**
+   * 加载当前租户业务用户在线状态（租户端使用）
+   */
+  async function loadTenantUserPresence(): Promise<void> {
+    try {
+      const data = await requestClient.get<PresenceResponse>(
+        '/tenant/ws/presence/users',
+      );
+      if (data?.online_ids) {
+        tenantUserOnlineIds.clear();
+        for (const id of data.online_ids) {
+          tenantUserOnlineIds.add(id);
+        }
+      }
+    } catch {
+      console.error('[Presence] Failed to load tenant user presence');
+    }
+  }
+
   // ============================================================
   // Socket.IO 实时更新
   // ============================================================
@@ -254,6 +304,14 @@ export const usePresenceStore = defineStore('presence', () => {
       'tenant_presence:offline',
       handleTenantPresenceOffline,
     );
+    sioStore.unregisterHandler(
+      'user_presence:online',
+      handleUserPresenceOnline,
+    );
+    sioStore.unregisterHandler(
+      'user_presence:offline',
+      handleUserPresenceOffline,
+    );
     sioStore.unregisterHandler('presence:list', handlePresenceList);
 
     sioStore.registerHandler('presence:online', handlePresenceOnline);
@@ -265,6 +323,14 @@ export const usePresenceStore = defineStore('presence', () => {
     sioStore.registerHandler(
       'tenant_presence:offline',
       handleTenantPresenceOffline,
+    );
+    sioStore.registerHandler(
+      'user_presence:online',
+      handleUserPresenceOnline,
+    );
+    sioStore.registerHandler(
+      'user_presence:offline',
+      handleUserPresenceOffline,
     );
     sioStore.registerHandler('presence:list', handlePresenceList);
   }
@@ -286,12 +352,21 @@ export const usePresenceStore = defineStore('presence', () => {
         'tenant_presence:offline',
         handleTenantPresenceOffline,
       );
+      sioStore.unregisterHandler(
+        'user_presence:online',
+        handleUserPresenceOnline,
+      );
+      sioStore.unregisterHandler(
+        'user_presence:offline',
+        handleUserPresenceOffline,
+      );
       sioStore.unregisterHandler('presence:list', handlePresenceList);
     } catch {
       // 静默
     }
     adminOnlineIds.clear();
     tenantAdminOnlineIds.clear();
+    tenantUserOnlineIds.clear();
     tenantPresenceMap.clear();
     initialized.value = false;
   }
@@ -299,6 +374,7 @@ export const usePresenceStore = defineStore('presence', () => {
   return {
     adminOnlineIds,
     tenantAdminOnlineIds,
+    tenantUserOnlineIds,
     tenantPresenceMap,
     isOnline,
     getOnlineCount,
@@ -306,6 +382,7 @@ export const usePresenceStore = defineStore('presence', () => {
     loadAdminPresence,
     loadTenantPresence,
     loadCurrentTenantPresence,
+    loadTenantUserPresence,
     initSocketHandlers,
     $reset,
   };

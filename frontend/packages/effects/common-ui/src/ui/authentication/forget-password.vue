@@ -95,6 +95,9 @@ defineExpose({
     </Title>
     <Form />
 
+    <!-- 表单扩展插槽，用于添加租户编码等额外内容 -->
+    <slot name="form-extend"></slot>
+
     <div>
       <VbenButton
         :class="{

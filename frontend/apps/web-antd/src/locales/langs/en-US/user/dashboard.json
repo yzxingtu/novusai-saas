@@ -2,6 +2,19 @@
   "title": "Home",
   "welcome": "Welcome back",
   "greeting": "Hello, {name}!",
+  "greetingDesc": "Welcome to the AI Assistant Platform. Here is your overview.",
   "recentOrders": "Recent Orders",
-  "notifications": "Notifications"
+  "notifications": "Notifications",
+  "quickActions": "Quick Actions",
+  "aiChat": "AI Chat",
+  "aiChatDesc": "Chat with AI assistants in real time",
+  "myProfile": "My Profile",
+  "myProfileDesc": "View and edit your personal information",
+  "changePassword": "Change Password",
+  "changePasswordDesc": "Update your login password",
+  "lastLoginAt": "Last Login",
+  "memberSince": "Member Since",
+  "role": "Role",
+  "noRole": "User",
+  "neverLoggedIn": "Never"
 }

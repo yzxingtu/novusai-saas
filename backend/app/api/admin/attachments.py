@@ -44,6 +44,7 @@ from app.services.tenant.attachment_download_service import AttachmentDownloadSe
     resource="attachment",
     name="menu.admin.attachment",
     scope=PermissionScope.ADMIN_ONLY,
+    parent_resource="system_config",
     menu=MenuConfig(
         icon="lucide:paperclip",
         path="/system/attachments",

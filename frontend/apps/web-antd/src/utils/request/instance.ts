@@ -41,7 +41,7 @@ const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
 const REFRESH_TOKEN_URLS: Record<ApiEndpoint, string> = {
   admin: '/admin/auth/refresh',
   tenant: '/tenant/auth/refresh',
-  user: '/api/v1/auth/refresh',
+  user: '/api/user/auth/refresh',
 };
 
 /** 登录页 URL 映射（避免依赖 store 入口造成循环依赖） */

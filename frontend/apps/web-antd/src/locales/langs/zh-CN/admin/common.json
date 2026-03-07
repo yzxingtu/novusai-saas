@@ -23,5 +23,8 @@
   "noData": "暂无数据",
   "prev": "上一页",
   "next": "下一页",
-  "detail": "详情"
+  "detail": "详情",
+  "toggleStatus": "切换状态",
+  "operationSuccess": "操作成功",
+  "operationFailed": "操作失败"
 }

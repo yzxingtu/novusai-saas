@@ -69,12 +69,13 @@ class PriorityEnum(IntEnum):
 class ResourceScopeEnum(LabeledStrEnum):
     """统一资源作用域枚举（全平台共用：智能体、技能包、知识库、权限、配置、插件、定时任务等）
 
-    5 种作用域覆盖所有业务场景：
+    6 种作用域覆盖所有业务场景：
       - ADMIN_ONLY:         仅管理端可见
       - ALL_TENANTS:        仅租户端可见（全部租户）
       - ADMIN_AND_ALL:      管理端 + 全部租户（全局共享）
       - ADMIN_AND_ASSIGNED: 管理端 + 部分租户（需 ResourceTenantAssignment 分配）
       - ASSIGNED_TENANTS:   部分租户（需 ResourceTenantAssignment 分配）
+      - TENANT_USER:        仅用户端可见（租户业务用户）
 
     注意区分：本枚举是「资源作用域」，与以下概念无关：
       - JWT Token Scope (TOKEN_SCOPE_ADMIN 等) — 认证身份标识
@@ -87,6 +88,7 @@ class ResourceScopeEnum(LabeledStrEnum):
     ADMIN_AND_ALL = ("admin_and_all", "enum.scope.admin_and_all")
     ADMIN_AND_ASSIGNED = ("admin_and_assigned", "enum.scope.admin_and_assigned")
     ASSIGNED_TENANTS = ("assigned_tenants", "enum.scope.assigned_tenants")
+    TENANT_USER = ("tenant_user", "enum.scope.tenant_user")
 
 
 class SkillBindModeEnum(LabeledStrEnum):
@@ -99,6 +101,14 @@ class SkillBindModeEnum(LabeledStrEnum):
 
     AUTO = ("auto", "enum.skill_bind_mode.auto")
     MANUAL = ("manual", "enum.skill_bind_mode.manual")
+
+
+class ApprovalStatusEnum(LabeledStrEnum):
+    """用户审批状态枚举"""
+
+    PENDING = ("pending", "enum.approval_status.pending")
+    APPROVED = ("approved", "enum.approval_status.approved")
+    REJECTED = ("rejected", "enum.approval_status.rejected")
 
 
 class DeleteLevelEnum(LabeledStrEnum):
@@ -125,6 +135,7 @@ __all__ = [
     "PriorityEnum",
     "ResourceScopeEnum",
     "SkillBindModeEnum",
+    "ApprovalStatusEnum",
     "DeleteLevelEnum",
     "UserRoleEnum",
 ]

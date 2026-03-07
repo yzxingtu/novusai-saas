@@ -15,6 +15,7 @@
 
 from app.rbac.menus.admin_menus import ADMIN_DIRECTORY_MENUS
 from app.rbac.menus.tenant_menus import TENANT_DIRECTORY_MENUS
+from app.rbac.menus.user_menus import USER_DIRECTORY_MENUS
 from app.rbac.registry import permission_registry
 
 
@@ -39,16 +40,22 @@ def register_directory_menus() -> int:
         permission_registry.register(menu)
         count += 1
 
+    # 注册用户端目录菜单
+    for menu in USER_DIRECTORY_MENUS:
+        permission_registry.register(menu)
+        count += 1
+
     return count
 
 
 # 导出所有菜单定义（用于外部访问）
-ALL_DIRECTORY_MENUS = ADMIN_DIRECTORY_MENUS + TENANT_DIRECTORY_MENUS
+ALL_DIRECTORY_MENUS = ADMIN_DIRECTORY_MENUS + TENANT_DIRECTORY_MENUS + USER_DIRECTORY_MENUS
 
 
 __all__ = [
     "ADMIN_DIRECTORY_MENUS",
     "TENANT_DIRECTORY_MENUS",
+    "USER_DIRECTORY_MENUS",
     "ALL_DIRECTORY_MENUS",
     "register_directory_menus",
 ]

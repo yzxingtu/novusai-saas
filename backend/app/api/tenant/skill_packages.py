@@ -43,6 +43,7 @@ def _build_package_item(pkg: SkillPackage, skill_count: int = 0) -> dict[str, An
     resource="skill_package",
     name="menu.tenant.skill_package",
     scope=PermissionScope.ALL_TENANTS,
+    parent_resource="ai_workspace",
     menu=MenuConfig(
         icon="lucide:package",
         path="/ai/skill-packages",

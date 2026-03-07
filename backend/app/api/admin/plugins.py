@@ -91,6 +91,7 @@ class PluginDependencyActionBody(PydanticBaseModel):
     resource="plugin",
     name="menu.admin.plugin",
     scope=PermissionScope.ADMIN_ONLY,
+    parent_resource="system_maintenance",
     menu=MenuConfig(
         icon="lucide:puzzle",
         path="/plugins",

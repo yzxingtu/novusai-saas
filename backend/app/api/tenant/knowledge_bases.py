@@ -83,6 +83,7 @@ ALLOWED_EXTENSIONS: dict[str, str] = {
     resource="knowledge_base",
     name="menu.tenant.knowledge_base",
     scope=PermissionScope.ALL_TENANTS,
+    parent_resource="ai_workspace",
     menu=MenuConfig(
         icon="lucide:book-open",
         path="/ai/knowledge-bases",

@@ -31,8 +31,8 @@ export const ADMIN_LOGIN_PATH = '/admin/login';
 /** 租户管理端登录路径 */
 export const TENANT_LOGIN_PATH = '/tenant/login';
 
-/** 用户端登录路径 */
-export const USER_LOGIN_PATH = '/login';
+/** 用户端登录路径（复用租户端登录） */
+export const USER_LOGIN_PATH = '/tenant/login';
 
 // ============================================================
 // 默认首页路径常量
@@ -58,7 +58,7 @@ export const ADMIN_API_PREFIX = '/api/v1/admin';
 export const TENANT_API_PREFIX = '/api/v1/tenant';
 
 /** 用户端 API 前缀 */
-export const USER_API_PREFIX = '/api/v1/user';
+export const USER_API_PREFIX = '/api/user';
 
 // ============================================================
 // 路径映射表

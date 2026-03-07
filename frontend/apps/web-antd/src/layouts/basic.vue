@@ -170,7 +170,11 @@ watch(
 onMounted(() => {
   // Socket.IO: 登录后自动连接
   socketIOStore.connect();
-  // 加载未读通知数
+  // 设置通知端类型后再加载未读数（避免默认 admin 端导致 401）
+  const ep = router.currentRoute.value.path.startsWith('/admin')
+    ? 'admin'
+    : 'tenant';
+  notificationStore.setEndpoint(ep);
   notificationStore.loadUnreadCount();
   notificationStore.initSocketHandlers();
   presenceStore.initSocketHandlers();
@@ -184,7 +188,7 @@ const menus = computed(() => [
   {
     handler: () => {
       const isTenant = router.currentRoute.value.path.startsWith('/tenant');
-      router.push({ name: isTenant ? 'TenantProfile' : 'Profile' });
+      router.push({ name: isTenant ? 'TenantProfile' : 'AdminProfile' });
     },
     icon: 'lucide:user',
     text: $t('page.auth.profile'),

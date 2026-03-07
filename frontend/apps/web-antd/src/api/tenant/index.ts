@@ -10,3 +10,5 @@ export * from './periodic-task';
 export * from './permission';
 export * from './role';
 export * from './task-log';
+export * from './tenant-user-roles';
+export * from './tenant-users';

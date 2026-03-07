@@ -60,6 +60,7 @@ def _build_admin_agent_item(agent) -> dict:
     resource="ai_agent",
     name="menu.admin.ai_agent",
     scope=PermissionScope.ADMIN_ONLY,
+    parent_resource="ai_agent_mgmt",
     menu=MenuConfig(
         icon="lucide:bot",
         path="/ai/agents",
@@ -86,7 +87,7 @@ class AdminAgentController(GlobalController):
         register_admin_recycle_bin_routes(
             router=router,
             service_class=AdminAgentService,
-            resource_name="admin_agent",
+            resource_name="ai_agent",
             serialize=_build_admin_agent_item,
         )
 

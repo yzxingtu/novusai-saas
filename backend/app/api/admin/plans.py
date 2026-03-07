@@ -57,6 +57,7 @@ def _translate_permission_name(name: str) -> str:
     resource="tenant_plan",
     name="menu.admin.tenant_plan",  # i18n key
     scope=PermissionScope.ADMIN_ONLY,
+    parent_resource="platform_mgmt",
     menu=MenuConfig(
         icon="lucide:package",
         path="/tenant/plans",

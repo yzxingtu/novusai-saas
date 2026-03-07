@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi import Request
 
 from app.core.base_controller import TenantController
+from app.enums.rbac import PermissionScope
 from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.response import deleted, success
 from app.rbac.decorators import (
@@ -24,7 +25,9 @@ from app.services.ai.table_policy_override_service import AITablePolicyOverrideS
 
 @permission_resource(
     resource="ai_table_policy_override",
-    name="AI 表策略覆盖",
+    name="menu.tenant.ai_table_policy_override",
+    scope=PermissionScope.ALL_TENANTS,
+    parent_resource="ai_settings",
 )
 class TenantAITablePolicyController(TenantController):
     """租户端 AI 表策略管理"""

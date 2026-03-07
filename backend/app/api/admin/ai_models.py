@@ -33,6 +33,7 @@ from app.services.ai import AIModelService
     resource="ai_model",
     name="menu.admin.ai_model",
     scope=PermissionScope.ADMIN_ONLY,
+    parent_resource="ai_infra",
     menu=MenuConfig(
         icon="lucide:brain",
         path="/ai/models",

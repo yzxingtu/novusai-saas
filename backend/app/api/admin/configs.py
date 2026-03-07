@@ -95,6 +95,7 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
     resource="platform_config",
     name="menu.admin.platform_config",  # i18n key
     scope=PermissionScope.ADMIN_ONLY,
+    parent_resource="system_config",
     menu=MenuConfig(
         icon="lucide:settings",
         path="/system/configs",

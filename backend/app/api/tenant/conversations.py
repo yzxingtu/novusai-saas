@@ -40,6 +40,7 @@ class BatchArchiveRequest(BaseModel):
     resource="agent_conversation",
     name="menu.tenant.agent_conversation",
     scope=PermissionScope.ALL_TENANTS,
+    parent_resource="ai_analytics",
     menu=MenuConfig(
         icon="lucide:message-square-text",
         path="/ai/conversations",

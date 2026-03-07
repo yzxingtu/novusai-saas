@@ -58,6 +58,7 @@ def _build_agent_list_item(agent) -> dict:
     resource="agent",
     name="menu.tenant.agent",
     scope=PermissionScope.ALL_TENANTS,
+    parent_resource="ai_workspace",
     menu=MenuConfig(
         icon="lucide:bot",
         path="/ai/agents",

@@ -18,7 +18,7 @@ import {
   tenantApi,
   userApi,
 } from '#/api';
-import { BasicLayout, IFrameView } from '#/layouts';
+import { BasicLayout, IFrameView, UserLayout } from '#/layouts';
 import { $t } from '#/locales';
 
 const forbiddenComponent = () => import('#/views/_core/fallback/forbidden.vue');
@@ -35,11 +35,7 @@ function getMenuWithPermissionsApi(endpoint: ApiEndpoint) {
       return tenantApi.getTenantMenusWithPermissionsApi;
     }
     default: {
-      // user 端暂时使用旧 API，返回空权限码
-      return async () => {
-        const menus = await userApi.getUserMenusApi();
-        return { menus, permissions: [] as string[] };
-      };
+      return userApi.getUserMenusWithPermissionsApi;
     }
   }
 }
@@ -62,6 +58,7 @@ async function generateAccess(
   const layoutMap: ComponentRecordType = {
     BasicLayout,
     IFrameView,
+    UserLayout,
   };
 
   // 如果未指定端类型，尝试从当前路由获取

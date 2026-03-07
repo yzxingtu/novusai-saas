@@ -176,7 +176,12 @@ def permission_resource(
 
         # 注册菜单权限
         if menu:
-            scope_prefix = "admin" if scope == PermissionScope.ADMIN_ONLY else "tenant"
+            if scope == PermissionScope.ADMIN_ONLY:
+                scope_prefix = "admin"
+            elif scope == PermissionScope.TENANT_USER:
+                scope_prefix = "user"
+            else:
+                scope_prefix = "tenant"
             menu_code = f"menu:{scope_prefix}.{resource}"
             parent_code = None
             if menu.parent:
@@ -397,16 +402,24 @@ def register_action_permissions(controller_cls: type, router: Any) -> None:
 
     # 构造父菜单权限 code（操作权限挂载到对应菜单下）
     from app.enums.rbac import PermissionScope
-    scope_prefix = "admin" if scope == PermissionScope.ADMIN_ONLY else "tenant"
-
-    # 优先使用 parent_resource 指定的父菜单，否则使用自己的资源菜单
-    if parent_resource:
-        parent_menu_code = f"menu:{scope_prefix}.{parent_resource}"
+    if scope == PermissionScope.ADMIN_ONLY:
+        scope_prefix = "admin"
+    elif scope == PermissionScope.TENANT_USER:
+        scope_prefix = "user"
     else:
-        parent_menu_code = f"menu:{scope_prefix}.{resource}"
+        scope_prefix = "tenant"
 
-    # 检查父菜单是否存在（不存在则不设置 parent_code）
-    parent_code = parent_menu_code if parent_menu_code in permission_registry else None
+    # 确定操作权限的父菜单：
+    # 1. 优先挂载到控制器自身的菜单下（如果已注册）
+    # 2. 其次使用 parent_resource 指定的父菜单（适用于无菜单的资源）
+    own_menu_code = f"menu:{scope_prefix}.{resource}"
+    if own_menu_code in permission_registry:
+        parent_code = own_menu_code
+    elif parent_resource:
+        parent_menu_code = f"menu:{scope_prefix}.{parent_resource}"
+        parent_code = parent_menu_code if parent_menu_code in permission_registry else None
+    else:
+        parent_code = None
 
     # 已注册的操作（避免重复）
     registered_actions: set[str] = set()

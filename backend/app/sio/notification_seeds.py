@@ -286,6 +286,31 @@ SEED_TEMPLATES: list[dict] = [
         "channels": ["ws", "inbox"],
         "priority": "normal",
     },
+    # ===== approval (3) =====
+    {
+        "code": "biz.user_registration_pending",
+        "category": "biz",
+        "title_template": "新用户注册待审批：{username}",
+        "body_template": "用户 {username}（{email}）已提交注册申请，请前往用户管理页面审批。",
+        "channels": ["ws", "inbox"],
+        "priority": "normal",
+    },
+    {
+        "code": "biz.user_approved",
+        "category": "biz",
+        "title_template": "注册审批已通过",
+        "body_template": "您在 {tenant_name} 的注册申请已通过审批，现在可以正常使用系统了。",
+        "channels": ["ws", "inbox", "email"],
+        "priority": "normal",
+    },
+    {
+        "code": "biz.user_rejected",
+        "category": "biz",
+        "title_template": "注册审批已拒绝",
+        "body_template": "您在 {tenant_name} 的注册申请已被拒绝，如有疑问请联系管理员。",
+        "channels": ["ws", "inbox", "email"],
+        "priority": "normal",
+    },
     # ===== audit (4) =====
     {
         "code": "audit.suspicious_login",

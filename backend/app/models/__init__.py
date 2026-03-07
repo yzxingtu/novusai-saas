@@ -46,8 +46,10 @@ from app.models.auth import (
     AdminRole,
     Permission,
     TenantAdminRole,
+    TenantUserRole,
     admin_role_permissions,
     tenant_admin_role_permissions,
+    tenant_user_role_permissions,
 )
 from app.models.common.notification import Notification
 from app.models.common.notification_preference import NotificationPreference
@@ -108,6 +110,8 @@ __all__ = [
     "admin_role_permissions",
     "TenantAdminRole",
     "tenant_admin_role_permissions",
+    "TenantUserRole",
+    "tenant_user_role_permissions",
     # AI
     "AIProvider",
     "AIModel",

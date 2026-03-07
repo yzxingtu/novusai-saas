@@ -1,0 +1,150 @@
+"""
+租户用户角色模型
+
+租户级别的用户角色，用于租户业务用户的权限控制（扁平结构，无层级）
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Table, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.base_model import Base, TenantModel
+from app.core.deletion import DeletionDep, DeletionStrategy
+
+
+# 用户角色-权限关联表（多对多）
+tenant_user_role_permissions = Table(
+    "tenant_user_role_permissions",
+    Base.metadata,
+    Column("role_id", Integer, ForeignKey("tenant_user_roles.id", ondelete="CASCADE"), primary_key=True),
+    Column("permission_id", Integer, ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
+class TenantUserRole(TenantModel):
+    """
+    租户用户角色模型
+
+    - 属于特定租户
+    - 用于租户业务用户的权限控制
+    - 与 Permission 多对多关联
+    - 扁平结构，不支持层级
+    - 不同租户可以有同名角色
+    """
+
+    __tablename__ = "tenant_user_roles"
+
+    __delete_deps__ = [
+        DeletionDep("TenantUser", "role_id", DeletionStrategy.BLOCK,
+                    label_field="username", i18n_key="tenant_user"),
+    ]
+
+    # 可过滤字段声明
+    __filterable__ = {
+        "id": "id",
+        "tenant_id": "tenant_id",
+        "name": "name",
+        "code": "code",
+        "is_system": "is_system",
+        "is_active": "is_active",
+        "sort_order": "sort_order",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+    }
+
+    # 下拉选项配置
+    __selectable__ = {
+        "label": "name",
+        "value": "id",
+        "search": ["name", "code"],
+        "extra": ["code"],
+    }
+
+    # 排序配置
+    __sortable__ = {
+        "field": "sort_order",
+        "step": 1000,
+        "scope_fields": ["tenant_id"],
+    }
+
+    # 角色名称
+    name: Mapped[str] = mapped_column(
+        String(50), comment="角色名称"
+    )
+
+    # 角色代码（租户内唯一）
+    code: Mapped[str] = mapped_column(
+        String(50), index=True, comment="角色代码"
+    )
+
+    # 角色描述
+    description: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="角色描述"
+    )
+
+    # 是否系统内置（内置角色不可删除）
+    is_system: Mapped[bool] = mapped_column(
+        Boolean, default=False, comment="是否系统内置"
+    )
+
+    # 是否启用
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, comment="是否启用"
+    )
+
+    # 排序
+    sort_order: Mapped[int] = mapped_column(
+        Integer, default=0, comment="排序"
+    )
+
+    # ========== 关联关系 ==========
+    # 关联权限（多对多）
+    permissions: Mapped[list["Permission"]] = relationship(
+        "Permission",
+        secondary=tenant_user_role_permissions,
+        lazy="selectin",
+    )
+
+    # 关联租户用户（一对多）
+    users: Mapped[list["TenantUser"]] = relationship(
+        "TenantUser",
+        back_populates="role",
+        lazy="selectin",
+        foreign_keys="TenantUser.role_id",
+    )
+
+    def __repr__(self) -> str:
+        return f"<TenantUserRole(id={self.id}, tenant_id={self.tenant_id}, code={self.code})>"
+
+    @property
+    def permissions_count(self) -> int:
+        """获取权限数量"""
+        return len(self.permissions)
+
+    @property
+    def member_count(self) -> int:
+        """获取用户数量"""
+        return len([u for u in self.users if not u.is_deleted])
+
+    def has_permission(self, permission_code: str) -> bool:
+        """
+        检查角色是否拥有指定权限
+
+        Args:
+            permission_code: 权限代码
+
+        Returns:
+            是否拥有该权限
+        """
+        return any(p.code == permission_code for p in self.permissions)
+
+
+if TYPE_CHECKING:
+    from app.models.auth.permission import Permission
+    from app.models.tenant.tenant_user import TenantUser
+
+
+__all__ = ["TenantUserRole", "tenant_user_role_permissions"]

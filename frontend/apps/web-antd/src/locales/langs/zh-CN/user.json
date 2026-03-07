@@ -2,8 +2,20 @@
   "dashboard": {
     "title": "首页",
     "welcome": "欢迎回来",
-    "recentOrders": "最近订单",
-    "notifications": "通知消息"
+    "greeting": "你好，{name}",
+    "greetingDesc": "欢迎回到您的工作台，祝您工作愉快！",
+    "neverLoggedIn": "从未登录",
+    "lastLoginAt": "上次登录",
+    "role": "角色",
+    "noRole": "暂无角色",
+    "memberSince": "注册时间",
+    "quickActions": "快捷操作",
+    "aiChat": "AI 对话",
+    "aiChatDesc": "与 AI 助手对话",
+    "myProfile": "个人资料",
+    "myProfileDesc": "查看和编辑个人信息",
+    "changePassword": "修改密码",
+    "changePasswordDesc": "更新您的登录密码"
   },
   "profile": {
     "title": "个人中心",
@@ -13,7 +25,13 @@
     "nickname": "昵称",
     "email": "邮箱",
     "phone": "手机号",
+    "gender": "性别",
+    "genderUnknown": "保密",
+    "genderMale": "男",
+    "genderFemale": "女",
+    "security": "安全设置",
     "changePassword": "修改密码",
+    "changePasswordDesc": "定期修改密码可以提高账号安全性",
     "oldPassword": "当前密码",
     "newPassword": "新密码",
     "confirmPassword": "确认新密码",
@@ -30,27 +48,7 @@
       "inputConfirmPassword": "请再次输入新密码"
     }
   },
-  "order": {
-    "title": "我的订单",
-    "list": "订单列表",
-    "detail": "订单详情",
-    "orderNo": "订单号",
-    "status": "状态",
-    "amount": "金额",
-    "createdAt": "下单时间",
-    "payAt": "支付时间",
-    "statusOptions": {
-      "pending": "待支付",
-      "paid": "已支付",
-      "shipped": "已发货",
-      "completed": "已完成",
-      "cancelled": "已取消"
-    }
-  },
-  "common": {
-    "operation": "操作",
-    "viewDetail": "查看详情",
-    "submit": "提交",
-    "save": "保存"
+  "auth": {
+    "passwordMinLength": "密码长度至少 6 位"
   }
 }

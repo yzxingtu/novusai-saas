@@ -29,7 +29,7 @@ import { TokenStorage } from './token-storage';
 export const LOGIN_PATHS: Record<ApiEndpoint, string> = {
   admin: '/admin/login',
   tenant: '/tenant/login',
-  user: '/login',
+  user: '/tenant/login',
 };
 
 /** 各端默认首页路径 */

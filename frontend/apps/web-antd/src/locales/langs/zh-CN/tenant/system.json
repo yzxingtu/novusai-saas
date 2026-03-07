@@ -89,6 +89,76 @@
     },
     "tip": "管理租户角色，配置角色对应的功能权限"
   },
+  "userRole": {
+    "title": "用户角色管理",
+    "list": "用户角色列表",
+    "create": "新增用户角色",
+    "edit": "编辑用户角色",
+    "code": "角色代码",
+    "name": "角色名称",
+    "description": "描述",
+    "status": "状态",
+    "sortOrder": "排序",
+    "permissions": "权限配置",
+    "permissionCount": "权限数",
+    "memberCount": "成员数",
+    "isSystem": "系统内置",
+    "createdAt": "创建时间",
+    "noPermissions": "未配置权限",
+    "assignPermissions": "分配权限",
+    "stats": {
+      "total": "角色总数",
+      "active": "已启用",
+      "withPermissions": "已配置权限"
+    },
+    "messages": {
+      "toggleStatusTitle": "切换状态",
+      "toggleStatusConfirm": "确定要{action}用户角色「{name}」吗？",
+      "deleteConfirm": "确定要删除用户角色「{name}」吗？删除后不可恢复。",
+      "deleteTitle": "删除确认",
+      "deleting": "正在删除 {name}...",
+      "deleteSuccess": "删除成功",
+      "createSuccess": "创建成功",
+      "updateSuccess": "更新成功",
+      "permissionsSaved": "权限分配成功",
+      "systemRoleCannotDelete": "系统内置角色不可删除"
+    },
+    "placeholder": {
+      "searchName": "搜索角色名称",
+      "searchCode": "搜索角色代码",
+      "allStatus": "全部状态",
+      "inputCode": "请输入角色代码",
+      "inputName": "请输入角色名称",
+      "inputDescription": "请输入角色描述",
+      "inputSortOrder": "请输入排序值"
+    },
+    "help": {
+      "codeHelp": "角色代码在租户内唯一，创建后不可修改",
+      "codeCreate": "角色代码将用于权限标识",
+      "systemRoleHelp": "系统内置角色不可删除和修改代码"
+    }
+  },
+  "userArchitecture": {
+    "title": "用户架构",
+    "roleList": "角色列表",
+    "selectRoleHint": "请在左侧选择一个角色",
+    "selectRoleSubHint": "选择后可查看角色详情和管理成员",
+    "searchRole": "搜索角色名称",
+    "createRole": "新建角色",
+    "noRoles": "暂无角色",
+    "refresh": "刷新",
+    "expandSidebar": "展开侧栏",
+    "collapseSidebar": "收起侧栏",
+    "memberTitle": "角色成员",
+    "addMember": "添加成员",
+    "memberUnit": "人",
+    "enabled": "启用",
+    "disabled": "禁用",
+    "noMembers": "该角色暂无成员",
+    "noMembersHint": "点击「添加成员」为该角色分配用户",
+    "online": "在线",
+    "offline": "离线"
+  },
   "configs": {
     "title": "系统配置",
     "description": "管理租户级配置项"

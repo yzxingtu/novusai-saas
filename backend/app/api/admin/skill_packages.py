@@ -68,6 +68,7 @@ def _build_admin_package_item(pkg: SkillPackage, skill_count: int = 0) -> dict[s
     resource="ai_skill_package",
     name="menu.admin.ai_skill_package",
     scope=PermissionScope.ADMIN_ONLY,
+    parent_resource="ai_skill_mgmt",
     menu=MenuConfig(
         icon="lucide:package",
         path="/ai/skill-packages",

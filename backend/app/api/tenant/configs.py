@@ -122,6 +122,7 @@ def _translate_config_item(config: dict) -> ConfigItemResponse:
     resource="tenant_config",
     name="menu.tenant.tenant_config",  # i18n key
     scope=PermissionScope.ALL_TENANTS,
+    parent_resource="system_mgmt",
     menu=MenuConfig(
         icon="lucide:sliders-horizontal",
         path="/system-mgmt/configs",

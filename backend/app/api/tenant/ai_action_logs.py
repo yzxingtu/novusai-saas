@@ -24,6 +24,7 @@ from app.services.ai.action_log_service import AIActionLogService
     resource="ai_action_log",
     name="menu.tenant.ai_action_log",
     scope=PermissionScope.ALL_TENANTS,
+    parent_resource="ai_analytics",
     menu=MenuConfig(
         icon="lucide:shield-check",
         path="/ai/action-logs",

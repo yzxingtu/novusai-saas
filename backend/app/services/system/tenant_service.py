@@ -16,6 +16,7 @@ from app.core.security import get_password_hash
 from app.enums import ErrorCode, RoleType
 from app.exceptions import BusinessException, NotFoundException
 from app.models.auth.tenant_admin_role import TenantAdminRole
+from app.models.auth.tenant_user_role import TenantUserRole
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
 from app.repositories.system.tenant_repository import TenantRepository
@@ -151,6 +152,9 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             tenant_id=tenant.id,
         )
 
+        # 创建默认用户角色
+        await self._create_default_user_role(tenant.id)
+
         # 自动绑定插件（scope=global/all_tenants 的已启用插件）
         await self._provision_tenant_plugins(tenant.id)
 
@@ -267,6 +271,48 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
         await self.db.flush()
 
         return owner
+
+    async def _create_default_user_role(self, tenant_id: int) -> TenantUserRole:
+        """
+        为新租户创建默认用户角色
+
+        创建 code='default_user' 的系统内置角色，作为用户注册时的默认角色。
+        该角色 is_system=True，不可被租户管理员删除。
+
+        Args:
+            tenant_id: 租户 ID
+
+        Returns:
+            创建的默认用户角色
+        """
+        default_role = TenantUserRole(
+            tenant_id=tenant_id,
+            name=_("role.default_user_name"),
+            code="default_user",
+            description=_("role.default_user_description"),
+            is_system=True,
+            is_active=True,
+            sort_order=0,
+        )
+
+        self.db.add(default_role)
+        await self.db.flush()
+
+        logger.info(
+            "Created default user role (id=%s) for tenant %s",
+            default_role.id, tenant_id,
+        )
+
+        # 将默认角色 ID 写入租户配置
+        from app.configs.service import ConfigService
+        config_service = ConfigService(self.db)
+        await config_service.set_tenant_config(
+            tenant_id,
+            "user_default_role_id",
+            default_role.id,
+        )
+
+        return default_role
 
     async def _provision_tenant_plugins(self, tenant_id: int) -> None:
         """

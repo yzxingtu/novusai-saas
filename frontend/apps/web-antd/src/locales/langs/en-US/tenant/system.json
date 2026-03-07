@@ -89,6 +89,76 @@
     },
     "tip": "Manage tenant roles and configure role permissions"
   },
+  "userRole": {
+    "title": "User Role Management",
+    "list": "User Role List",
+    "create": "Create User Role",
+    "edit": "Edit User Role",
+    "code": "Role Code",
+    "name": "Role Name",
+    "description": "Description",
+    "status": "Status",
+    "sortOrder": "Sort Order",
+    "permissions": "Permissions",
+    "permissionCount": "Permissions",
+    "memberCount": "Members",
+    "isSystem": "System Built-in",
+    "createdAt": "Created At",
+    "noPermissions": "No permissions configured",
+    "assignPermissions": "Assign Permissions",
+    "stats": {
+      "total": "Total Roles",
+      "active": "Active",
+      "withPermissions": "With Permissions"
+    },
+    "messages": {
+      "toggleStatusTitle": "Toggle Status",
+      "toggleStatusConfirm": "Are you sure you want to {action} user role \"{name}\"?",
+      "deleteConfirm": "Are you sure you want to delete user role \"{name}\"? This action cannot be undone.",
+      "deleteTitle": "Delete Confirmation",
+      "deleting": "Deleting {name}...",
+      "deleteSuccess": "Deleted successfully",
+      "createSuccess": "Created successfully",
+      "updateSuccess": "Updated successfully",
+      "permissionsSaved": "Permissions assigned successfully",
+      "systemRoleCannotDelete": "System built-in roles cannot be deleted"
+    },
+    "placeholder": {
+      "searchName": "Search role name",
+      "searchCode": "Search role code",
+      "allStatus": "All statuses",
+      "inputCode": "Enter role code",
+      "inputName": "Enter role name",
+      "inputDescription": "Enter role description",
+      "inputSortOrder": "Enter sort order"
+    },
+    "help": {
+      "codeHelp": "Role code is unique within the tenant and cannot be changed after creation",
+      "codeCreate": "Role code will be used for permission identification",
+      "systemRoleHelp": "System built-in roles cannot be deleted or have their code changed"
+    }
+  },
+  "userArchitecture": {
+    "title": "User Architecture",
+    "roleList": "Role List",
+    "selectRoleHint": "Please select a role from the left",
+    "selectRoleSubHint": "View role details and manage members after selection",
+    "searchRole": "Search role name",
+    "createRole": "Create Role",
+    "noRoles": "No roles yet",
+    "refresh": "Refresh",
+    "expandSidebar": "Expand Sidebar",
+    "collapseSidebar": "Collapse Sidebar",
+    "memberTitle": "Role Members",
+    "addMember": "Add Member",
+    "memberUnit": "",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "noMembers": "No members in this role",
+    "noMembersHint": "Click \"Add Member\" to assign users to this role",
+    "online": "Online",
+    "offline": "Offline"
+  },
   "configs": {
     "title": "System Configs",
     "description": "Manage tenant-level configurations"

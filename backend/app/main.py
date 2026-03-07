@@ -669,6 +669,10 @@ def create_application() -> FastAPI:
     from app.api.v1 import api_router
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
+    # 注册用户端 API 路由 (/api/user/*)
+    from app.api.user import user_router
+    app.include_router(user_router, prefix="/api/user")
+
     # 注册公共 API 路由 (/api/public/*) - 无需认证，用于租户登录页获取配置
     from app.api.public import public_router
     app.include_router(public_router, prefix="/api/public")

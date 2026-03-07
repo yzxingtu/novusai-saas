@@ -40,6 +40,7 @@ from app.services.tenant.attachment_service import AttachmentService
     resource="attachment",
     name="menu.tenant.attachment",
     scope=PermissionScope.ALL_TENANTS,
+    parent_resource="system_mgmt",
     menu=MenuConfig(
         icon="lucide:paperclip",
         path="/system/attachments",

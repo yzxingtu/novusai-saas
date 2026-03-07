@@ -100,7 +100,7 @@ const mainRoutes: RouteRecordRaw = {
     // 插件详情改为抽屉形式，不再需要独立路由
     // 个人中心：不在后端菜单中，必须静态注册
     {
-      name: 'Profile',
+      name: 'AdminProfile',
       path: '/admin/profile',
       component: () => import('#/views/admin/profile/index.vue'),
       meta: {

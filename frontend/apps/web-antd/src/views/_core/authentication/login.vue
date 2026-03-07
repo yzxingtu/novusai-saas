@@ -14,9 +14,7 @@ defineOptions({ name: 'UserLogin' });
 
 const multiAuthStore = useMultiAuthStore();
 
-// 是否需要显示租户编码输入
 const showTenantCode = ref(false);
-// 租户编码输入值
 const tenantCode = ref('');
 
 const formSchema = computed((): VbenFormSchema[] => {
@@ -24,7 +22,7 @@ const formSchema = computed((): VbenFormSchema[] => {
     {
       component: 'VbenInput',
       componentProps: {
-        placeholder: $t('authentication.usernameTip'),
+        placeholder: $t('user.auth.usernameOrEmailPlaceholder'),
       },
       fieldName: 'username',
       label: $t('authentication.username'),
@@ -42,21 +40,18 @@ const formSchema = computed((): VbenFormSchema[] => {
   ];
 });
 
-async function handleLogin(values: Record<string, any>) {
-  // 构建登录参数
+async function handleLogin(values: Record<string, unknown>) {
   const loginParams: Record<string, unknown> = {
     password: values.password,
     username: values.username,
   };
 
-  // 如果需要租户编码，添加到参数
   if (showTenantCode.value && tenantCode.value) {
     loginParams.tenantCode = tenantCode.value;
   }
 
   const result = await multiAuthStore.authLogin(loginParams, 'user');
 
-  // 如果后端要求指定租户编码
   if (!result.userInfo && result.tenantCodeRequired) {
     showTenantCode.value = true;
   }
@@ -69,25 +64,18 @@ async function handleLogin(values: Record<string, any>) {
     :loading="multiAuthStore.loginLoading"
     @submit="handleLogin"
   >
-    <!-- 租户编码插槽 -->
     <template v-if="showTenantCode" #form-extend>
-      <div class="tenant-code-section">
+      <div class="mb-4">
         <Input
           v-model:value="tenantCode"
-          :placeholder="$t('tenant.auth.tenantCodePlaceholder')"
+          :placeholder="$t('user.auth.tenantCodePlaceholder')"
           size="large"
         >
           <template #prefix>
-            <span class="i-lucide-building text-muted-foreground"></span>
+            <span class="i-lucide-building text-muted-foreground" />
           </template>
         </Input>
       </div>
     </template>
   </AuthenticationLogin>
 </template>
-
-<style scoped>
-.tenant-code-section {
-  margin-bottom: 16px;
-}
-</style>

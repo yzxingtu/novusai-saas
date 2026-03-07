@@ -43,6 +43,8 @@ from app.models import (
     admin_role_permissions,
     TenantAdminRole,
     tenant_admin_role_permissions,
+    TenantUserRole,
+    tenant_user_role_permissions,
     # 通知
     NotificationTemplate,
     Notification,

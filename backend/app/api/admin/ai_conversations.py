@@ -172,6 +172,7 @@ async def _load_single_user_info(
     resource="ai_conversation",
     name="menu.admin.ai_conversation",
     scope=PermissionScope.ADMIN_ONLY,
+    parent_resource="ai_quota_mgmt",
     menu=MenuConfig(
         icon="lucide:message-square-text",
         path="/ai/conversations",

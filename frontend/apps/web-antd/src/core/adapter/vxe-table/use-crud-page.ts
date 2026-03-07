@@ -254,6 +254,7 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       try {
         await toggleApi(row.id, { [fieldName]: newStatus });
         message.success(`${action}${$t('ui.actionMessage.operationSuccess')}`);
+        gridApi.reload();
         return true;
       } finally {
         setProcessing(row.id, false);

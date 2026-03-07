@@ -32,6 +32,7 @@ from app.services.system import PeriodicTaskService
     resource="periodic_task",
     name="menu.admin.periodic_task",
     scope=PermissionScope.ADMIN_ONLY,
+    parent_resource="system_maintenance",
     menu=MenuConfig(
         icon="lucide:timer",
         path="/system/periodic-tasks",

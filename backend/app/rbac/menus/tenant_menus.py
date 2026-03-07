@@ -6,8 +6,8 @@
 菜单层级示例:
 - 仪表板 (dashboard)
 - 权限管理 (system)
-  ├── 用户管理 (tenant_user) - 由控制器声明
-  └── 角色管理 (role) - 由控制器声明
+  ├── 用户架构 (user_architecture) - 由 user_roles.py 控制器声明
+  └── 组织架构 (organization) - 由 roles.py 控制器声明
 - 业务管理 (business) - 预留，具体子菜单由业务控制器声明
 
 name 字段使用 i18n key，前端渲染时翻译。
@@ -73,9 +73,10 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         sort_order=10,
     ),
     # 子菜单由控制器声明:
-    # - menu:tenant.tenant_user (用户管理)
-    # - menu:tenant.permission (权限管理) - 可选，一般隐藏
+    # - menu:tenant.user_architecture (用户架构) - 由 user_roles.py 控制器声明
     # - menu:tenant.organization (组织架构) - 由 roles.py 控制器声明
+    # - menu:tenant.permission (权限管理) - 可选，一般隐藏
+    # 注意: tenant_user (用户管理) 已合并到 user_architecture 页面，不再独立注册菜单
 
     # ========================================
     # 系统管理（目录）

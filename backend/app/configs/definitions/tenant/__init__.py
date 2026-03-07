@@ -5,11 +5,12 @@
 """
 
 # 导入配置模块（触发配置注册到分组）
-from app.configs.definitions.tenant import branding, features, security, storage
+from app.configs.definitions.tenant import branding, features, registration, security, storage
 
 __all__ = [
     "branding",
     "security",
     "features",
+    "registration",
     "storage",
 ]

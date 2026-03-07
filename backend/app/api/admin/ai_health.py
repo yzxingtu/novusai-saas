@@ -23,6 +23,7 @@ from app.rbac.decorators import (
     resource="ai_health",
     name="menu.admin.ai_health",
     scope=PermissionScope.ADMIN_ONLY,
+    parent_resource="ai_infra",
     menu=MenuConfig(
         icon="lucide:heart-pulse",
         path="/ai/monitor/health",

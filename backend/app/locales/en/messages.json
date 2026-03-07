@@ -39,7 +39,17 @@
     "impersonate_success": "Impersonate login successful",
     "profile_updated": "Profile updated successfully",
     "email_already_exists": "This email is already in use by another user",
-    "tenant_code_required": "Multiple matching accounts found, please specify the tenant code"
+    "tenant_code_required": "Multiple matching accounts found, please specify the tenant code",
+    "registration_disabled": "User registration is not enabled for this tenant",
+    "username_taken": "Username is already taken",
+    "email_taken": "Email is already registered",
+    "phone_taken": "Phone number is already registered",
+    "register_success": "Registration successful",
+    "reset_code_sent": "Verification code has been sent to your email",
+    "reset_code_invalid": "Verification code is invalid or expired",
+    "reset_rate_limited": "Too many requests, please try again later",
+    "password_reset_success": "Password reset successful",
+    "approval_pending": "Registration successful, pending admin approval"
   },
   "user": {
     "not_found": "User not found",
@@ -808,7 +818,8 @@
       "toggle_status": "Toggle Tenant Status",
       "impersonate": "Login as Tenant",
       "select": "Tenant Remote Select",
-      "reset_owner_password": "Reset Tenant Owner Password"
+      "reset_owner_password": "Reset Tenant Owner Password",
+      "recycle_bin": "Recycle Bin"
     },
     "tenant_settings": {
       "view": "View Tenant Settings",
@@ -823,7 +834,8 @@
     "platform_config": {
       "groups": "View Config Groups",
       "detail": "View Config Details",
-      "update": "Update Config"
+      "update": "Update Configuration",
+      "read": "Read Platform Configuration"
     },
     "tenant_config": {
       "groups": "View Config Groups",
@@ -840,7 +852,8 @@
       "permissions": "View Plan Permissions",
       "assign_permissions": "Assign Plan Permissions",
       "available_permissions": "View Available Permissions",
-      "reorder": "Reorder"
+      "reorder": "Reorder",
+      "recycle_bin": "Recycle Bin"
     },
     "tenant_domain": {
       "list": "View Domain List",
@@ -849,7 +862,36 @@
       "update": "Update Domain",
       "delete": "Delete Domain",
       "verify": "Verify Domain",
-      "set_primary": "Set Primary Domain"
+      "set_primary": "Set Primary Domain",
+      "ssl_detail": "View SSL Certificate Details",
+      "ssl_provision": "Provision SSL Certificate",
+      "ssl_renew": "Renew SSL Certificate",
+      "ssl_upload": "Upload SSL Certificate",
+      "ssl_replace": "Replace SSL Certificate",
+      "ssl_auto_renew": "Set SSL Auto-Renew",
+      "ssl_batch_provision": "Batch Provision SSL Certificates",
+      "ssl_delete": "Delete SSL Certificate"
+    },
+    "tenant_user": {
+      "list": "View User List",
+      "detail": "View User Details",
+      "create": "Create User",
+      "update": "Update User",
+      "delete": "Delete User",
+      "toggle": "Toggle User Status",
+      "reset_password": "Reset User Password",
+      "approve": "Approve User",
+      "reject": "Reject User",
+      "select": "User Remote Select"
+    },
+    "tenant_user_role": {
+      "list": "View User Role List",
+      "detail": "View User Role Details",
+      "create": "Create User Role",
+      "update": "Update User Role",
+      "delete": "Delete User Role",
+      "toggle": "Toggle User Role Status",
+      "assign_permissions": "Assign User Role Permissions"
     },
     "operation_log": {
       "list": "View Operation Log List",
@@ -881,14 +923,28 @@
       "preview": "Preview Attachment",
       "stats": "View Storage Statistics",
       "stats_by_tenant": "View Tenant Storage Statistics",
-      "storage_quota": "View Storage Quota"
+      "storage_quota": "View Storage Quota",
+      "upload_rules": "Get Upload Rules",
+      "batch_upload": "Batch Upload Attachments",
+      "batch_delete": "Batch Delete Attachments",
+      "migrate": "Migrate Storage"
     },
     "ai_quota": {
       "list": "View Quota List",
       "detail": "View Quota Details",
       "create": "Create Quota",
       "update": "Update Quota",
-      "delete": "Delete Quota"
+      "delete": "Delete Quota",
+      "list_rate_limits": "View Rate Limits",
+      "create_rate_limit": "Create Rate Limit",
+      "update_rate_limit": "Update Rate Limit",
+      "delete_rate_limit": "Delete Rate Limit",
+      "create_quota": "Create Quota Rule",
+      "update_quota": "Update Quota Rule",
+      "delete_quota": "Delete Quota Rule",
+      "detail_quota": "View Quota Rule Details",
+      "list_quotas": "View Quota Rules",
+      "effective_rate_limits": "View Effective Rate Limits"
     },
     "agent": {
       "list": "View Agent List",
@@ -896,7 +952,24 @@
       "create": "Create Agent",
       "update": "Update Agent",
       "delete": "Delete Agent",
-      "publish": "Publish Agent"
+      "publish": "Publish Agent",
+      "rollback": "Rollback Agent",
+      "skills": "View Agent Skills",
+      "bind_skill": "Bind Skill",
+      "batch_bind_skills": "Batch Bind Skills",
+      "update_skill_binding": "Update Skill Binding",
+      "unbind_skill": "Unbind Skill",
+      "update_access": "Update Access Config",
+      "access_config": "View Access Config",
+      "versions": "View Version List",
+      "version_detail": "View Version Details",
+      "version_diff": "View Version Diff",
+      "stats": "View Agent Stats",
+      "batch_cancel": "Batch Cancel Tasks",
+      "batch_submit": "Batch Submit Tasks",
+      "batch_progress": "View Batch Progress",
+      "quota_usage": "View Quota Usage",
+      "recycle_bin": "Recycle Bin"
     },
     "agent_tool": {
       "list": "View Tool List",
@@ -911,7 +984,10 @@
       "stream": "Stream Chat",
       "conversations": "View Conversations",
       "conversation_detail": "View Conversation Detail",
-      "delete_conversation": "Delete Conversation"
+      "delete_conversation": "Delete Conversation",
+      "confirm": "Confirm Operation",
+      "read_conversation": "Read Conversation",
+      "route": "Route Conversation"
     },
     "agent_conversation": {
       "list": "View Conversation List",
@@ -925,6 +1001,274 @@
     "ai_conversation": {
       "list": "View All Tenant Conversations",
       "detail": "View Conversation Detail (Audit)"
+    },
+    "tenant_agent_assignment": {
+      "list": "View Agent Assignment List",
+      "update": "Set Tenant Override Binding",
+      "delete": "Delete Tenant Override Binding"
+    },
+    "ai_action_log": {
+      "list": "View AI Action Log List",
+      "stats": "View AI Action Statistics",
+      "detail": "View AI Action Log Detail"
+    },
+    "ai_config": {
+      "models": "View Available Models",
+      "keys": "View API Key List",
+      "create_key": "Create API Key",
+      "delete_key": "Delete API Key"
+    },
+    "ai_gateway": {
+      "chat": "AI Chat",
+      "chat_stream": "AI Streaming Chat",
+      "embedding": "AI Embedding",
+      "test": "Test AI Call"
+    },
+    "ai_table_policy_override": {
+      "read": "View Data Access Policy Override",
+      "update": "Update Data Access Policy Override",
+      "delete": "Delete Data Access Policy Override"
+    },
+    "ai_tenant_call_log": {
+      "list": "View AI Call Log List",
+      "detail": "View AI Call Log Detail"
+    },
+    "ai_tenant_usage": {
+      "summary": "View AI Usage Summary",
+      "user_summary": "View User AI Usage Summary"
+    },
+    "knowledge_base": {
+      "selectable": "Knowledge Base Select Options",
+      "list": "View Knowledge Base List",
+      "detail": "View Knowledge Base Detail",
+      "create": "Create Knowledge Base",
+      "update": "Update Knowledge Base",
+      "delete": "Delete Knowledge Base",
+      "document_list": "View Document List",
+      "document_upload": "Upload Document",
+      "document_detail": "View Document Detail",
+      "document_text": "Add Text Document",
+      "document_chunks": "View Document Chunks",
+      "document_delete": "Delete Document",
+      "document_retry": "Retry Document Processing",
+      "document_progress": "View Document Processing Progress",
+      "reindex": "Reindex Knowledge Base",
+      "qa_create": "Create Q&A Pair",
+      "qa_batch": "Batch Create Q&A Pairs",
+      "document_url": "Add Document via URL",
+      "search": "Search Knowledge Base",
+      "recycle_bin": "Recycle Bin"
+    },
+    "periodic_task": {
+      "list": "View Periodic Task List",
+      "create": "Create Periodic Task",
+      "detail": "View Periodic Task Detail",
+      "update": "Update Periodic Task",
+      "delete": "Delete Periodic Task",
+      "toggle": "Enable/Disable Periodic Task",
+      "trigger": "Manually Trigger Periodic Task",
+      "recycle_bin": "Recycle Bin"
+    },
+    "skill": {
+      "list": "View Skill List",
+      "detail": "View Skill Detail",
+      "create": "Create Skill",
+      "update": "Update Skill",
+      "delete": "Delete Skill",
+      "recycle_bin": "Recycle Bin"
+    },
+    "skill_package": {
+      "list": "View Skill Package List",
+      "detail": "View Skill Package Detail",
+      "create": "Create Skill Package",
+      "update": "Update Skill Package",
+      "delete": "Delete Skill Package",
+      "upload": "Upload Skill Package",
+      "recycle_bin": "Recycle Bin"
+    },
+    "task_log": {
+      "list": "View Task Log List",
+      "stats": "View Task Statistics",
+      "detail": "View Task Log Details",
+      "retry": "Retry Task",
+      "cancel": "Cancel Task",
+      "active": "View Active Tasks"
+    },
+    "agent_assignment": {
+      "list": "View Agent Assignment List",
+      "detail": "View Agent Assignment Detail",
+      "update": "Update Agent Assignment"
+    },
+    "ai_agent": {
+      "list": "View Agent List",
+      "create": "Create Agent",
+      "update": "Update Agent",
+      "delete": "Delete Agent",
+      "detail": "View Agent Detail",
+      "update_status": "Update Agent Status",
+      "skills": "View Agent Skills",
+      "bind_skill": "Bind Skill",
+      "batch_bind_skills": "Batch Bind Skills",
+      "update_skill_binding": "Update Skill Binding",
+      "unbind_skill": "Unbind Skill",
+      "publish": "Publish Agent",
+      "rollback": "Rollback Agent Version",
+      "versions": "View Agent Version List",
+      "version_detail": "View Version Detail",
+      "access_config": "View Access Configuration",
+      "update_access": "Update Access Configuration",
+      "recycle_bin": "Recycle Bin"
+    },
+    "admin_agent_chat": {
+      "chat": "Send Chat Message",
+      "stream": "Streaming Chat",
+      "route": "Route Chat",
+      "confirm": "Confirm Chat",
+      "conversations": "View Conversation List",
+      "conversation_detail": "View Conversation Detail",
+      "delete_conversation": "Delete Conversation",
+      "read_conversation": "Read Conversation"
+    },
+    "ai_api_key": {
+      "list": "View API Key List",
+      "list_by_provider": "View API Keys by Provider",
+      "detail": "View API Key Detail",
+      "create": "Create API Key",
+      "update": "Update API Key",
+      "delete": "Delete API Key",
+      "toggle_status": "Enable/Disable API Key"
+    },
+    "ai_call_log": {
+      "list": "View AI Call Log List",
+      "statistics": "View AI Call Statistics",
+      "failed": "View Failed Call List",
+      "detail": "View AI Call Log Detail"
+    },
+    "ai_health": {
+      "list": "View AI Health Status",
+      "history": "View AI Health History"
+    },
+    "ai_model": {
+      "list": "View Model List",
+      "list_by_provider": "View Models by Provider",
+      "detail": "View Model Detail",
+      "create": "Create Model",
+      "update": "Update Model",
+      "delete": "Delete Model",
+      "recycle_bin": "Recycle Bin"
+    },
+    "ai_provider": {
+      "list": "View Provider List",
+      "reorder": "Reorder Providers",
+      "detail": "View Provider Detail",
+      "create": "Create Provider",
+      "update": "Update Provider",
+      "delete": "Delete Provider",
+      "toggle_status": "Enable/Disable Provider",
+      "recycle_bin": "Recycle Bin"
+    },
+    "ai_table_policy": {
+      "list": "View Data Access Policy List",
+      "detail": "View Data Access Policy Detail",
+      "update": "Update Data Access Policy",
+      "columns": "View Table Column Info",
+      "sync": "Sync Data Access Policies"
+    },
+    "ai_usage": {
+      "tenant_summary": "View Tenant Usage Summary",
+      "model_summary": "View Model Usage Summary",
+      "stats": "View Usage Statistics"
+    },
+    "cache": {
+      "summary": "View Cache Summary",
+      "clear": "Clear Cache"
+    },
+    "email_log": {
+      "list": "View Email Log List",
+      "send": "Send Email",
+      "test": "Send Test Email"
+    },
+    "ai_knowledge_base": {
+      "list": "View Knowledge Base List",
+      "create": "Create Knowledge Base",
+      "update": "Update Knowledge Base",
+      "selectable": "Knowledge Base Select Options",
+      "stats": "View Knowledge Base Statistics",
+      "detail": "View Knowledge Base Detail",
+      "document_list": "View Document List",
+      "document_upload": "Upload Document",
+      "document_text": "Add Text Document",
+      "document_chunks": "View Document Chunks",
+      "document_delete": "Delete Document",
+      "document_retry": "Retry Document Processing",
+      "document_progress": "View Document Processing Progress",
+      "reindex": "Reindex Knowledge Base",
+      "search": "Search Knowledge Base",
+      "qa_create": "Create Q&A Pair",
+      "qa_batch": "Batch Create Q&A Pairs",
+      "document_url": "Add Document via URL",
+      "delete": "Delete Knowledge Base",
+      "recycle_bin": "Recycle Bin"
+    },
+    "notification_template": {
+      "list": "View Notification Template List",
+      "update": "Update Notification Template",
+      "test": "Test Notification Template"
+    },
+    "plugin": {
+      "read": "View Plugin Info",
+      "update": "Update Plugin",
+      "list": "View Plugin List",
+      "install": "Install Plugin",
+      "detail": "View Plugin Detail",
+      "preview": "Preview Plugin",
+      "enable": "Enable Plugin",
+      "disable": "Disable Plugin",
+      "uninstall": "Uninstall Plugin",
+      "repair": "Repair Plugin",
+      "config": "Configure Plugin",
+      "capabilities": "Manage Plugin Capabilities",
+      "icon": "Update Plugin Icon",
+      "versions": "View Plugin Versions",
+      "upgrade": "Upgrade Plugin",
+      "rollback": "Rollback Plugin Version",
+      "tenants": "View Plugin Tenants",
+      "assign_tenants": "Assign Plugin to Tenants",
+      "unassign_tenant": "Unassign Tenant",
+      "view_license": "View License",
+      "activate_license": "Activate License",
+      "activate_trial": "Activate Trial",
+      "revoke_license": "Revoke License",
+      "ai_features": "View AI Features",
+      "bind_ai": "Bind AI Feature",
+      "health": "View Plugin Health"
+    },
+    "recycle_bin": {
+      "read": "View Recycle Bin",
+      "delete": "Delete from Recycle Bin"
+    },
+    "ai_skill_package": {
+      "list": "View Skill Package List",
+      "detail": "View Skill Package Detail",
+      "create": "Create Skill Package",
+      "update": "Update Skill Package",
+      "delete": "Delete Skill Package",
+      "update_status": "Update Skill Package Status",
+      "upload": "Upload Skill Package",
+      "recycle_bin": "Recycle Bin"
+    },
+    "ai_skill": {
+      "list": "View Skill List",
+      "detail": "View Skill Detail",
+      "create": "Create Skill",
+      "update": "Update Skill",
+      "delete": "Delete Skill",
+      "update_status": "Update Skill Status"
+    },
+    "tenant_admin": {
+      "list": "View Tenant Admin List",
+      "create": "Create Tenant Admin",
+      "update": "Update Tenant Admin"
     }
   },
   "role": {
@@ -933,6 +1277,8 @@
     "created": "Role created successfully",
     "tenant_root_description": "Tenant organization root node, cannot be deleted",
     "platform_root_description": "Platform organization root node, cannot be deleted",
+    "default_user_name": "Default User",
+    "default_user_description": "System default user role, automatically assigned to newly registered users",
     "updated": "Role updated successfully",
     "deleted": "Role deleted successfully",
     "system_role_cannot_modify": "System role cannot be modified",
@@ -980,6 +1326,25 @@
     "username_or_email_exists": "Username or email is already used by another admin in this tenant",
     "cannot_disable_owner": "Cannot disable tenant owner"
   },
+  "tenant_user": {
+    "not_found": "User not found",
+    "created": "User created successfully",
+    "updated": "User updated successfully",
+    "deleted": "User deleted successfully",
+    "password_reset": "Password reset successfully",
+    "status_updated": "User status updated successfully",
+    "approved": "User approved successfully",
+    "rejected": "User rejected successfully",
+    "not_pending": "User is not in pending approval status"
+  },
+  "tenant_user_role": {
+    "not_found": "User role not found",
+    "code_exists": "Role code already exists",
+    "name_exists": "Role name already exists",
+    "system_cannot_modify": "System built-in role cannot be modified",
+    "system_cannot_delete": "System built-in role cannot be deleted",
+    "has_users": "Role has associated users and cannot be deleted"
+  },
   "enum": {
     "status": {
       "active": "Active",
@@ -995,6 +1360,11 @@
       "female": "Female"
     },
     "audit": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "approval_status": {
       "pending": "Pending",
       "approved": "Approved",
       "rejected": "Rejected"
@@ -1234,7 +1604,8 @@
       "all_tenants": "All Tenants",
       "admin_and_all": "Global",
       "admin_and_assigned": "Admin + Assigned Tenants",
-      "assigned_tenants": "Assigned Tenants"
+      "assigned_tenants": "Assigned Tenants",
+      "tenant_user": "User Portal"
     },
     "skill_bind_mode": {
       "auto": "Auto Bind",
@@ -2445,5 +2816,15 @@
       "agent_id": "Agent ID",
       "disabled": "Memory Disabled"
     }
-  }
+  },
+  "config.tenant.user_registration_enabled.name": "User Registration",
+  "config.tenant.user_registration_enabled.desc": "Allow users to self-register",
+  "config.tenant.user_registration_captcha_enabled.name": "Registration CAPTCHA",
+  "config.tenant.user_registration_captcha_enabled.desc": "Require CAPTCHA verification during registration",
+  "config.tenant.user_default_active.name": "Default Active",
+  "config.tenant.user_default_active.desc": "Activate user accounts immediately after registration",
+  "config.tenant.user_require_approval.name": "Require Approval",
+  "config.tenant.user_require_approval.desc": "Require admin approval before user accounts are activated",
+  "config.tenant.user_default_role_id.name": "Default User Role",
+  "config.tenant.user_default_role_id.desc": "Role ID automatically assigned to newly registered users, set during tenant creation"
 }

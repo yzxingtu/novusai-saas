@@ -22,6 +22,7 @@ from app.rbac.services import PermissionService
     resource="permission",
     name="menu.tenant.permission",  # i18n key
     scope=PermissionScope.ALL_TENANTS,
+    parent_resource="system",
     # 不传 menu 参数 = 不注册菜单权限，仅提供 API 端点
 )
 class TenantPermissionController(TenantController):

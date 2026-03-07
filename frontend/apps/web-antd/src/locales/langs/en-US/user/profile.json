@@ -6,13 +6,20 @@
   "nickname": "Nickname",
   "email": "Email",
   "phone": "Phone",
+  "gender": "Gender",
+  "genderUnknown": "Not specified",
+  "genderMale": "Male",
+  "genderFemale": "Female",
+  "security": "Security",
   "changePassword": "Change Password",
+  "changePasswordDesc": "Change your password regularly to keep your account secure",
   "oldPassword": "Current Password",
   "newPassword": "New Password",
   "confirmPassword": "Confirm Password",
   "messages": {
     "updateSuccess": "Profile updated successfully",
-    "changePasswordSuccess": "Password changed successfully"
+    "changePasswordSuccess": "Password changed successfully",
+    "passwordMismatch": "Passwords do not match"
   },
   "placeholder": {
     "inputNickname": "Please enter nickname",

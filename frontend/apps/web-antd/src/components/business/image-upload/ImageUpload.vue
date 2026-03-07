@@ -14,6 +14,7 @@ import { Button, message, Spin, Upload } from 'ant-design-vue';
 
 import { smartUploadFile as adminUploadApi } from '#/api/admin/attachment';
 import { smartUploadFile as tenantUploadApi } from '#/api/tenant/attachment';
+import { smartUploadFile as userUploadApi } from '#/api/user/attachment';
 import { $t as t } from '#/locales';
 import { getProcessedImageUrl } from '#/utils/image';
 
@@ -22,7 +23,7 @@ const props = withDefaults(
     /** 允许的文件类型 */
     accept?: string;
     /** API 端类型，默认从 URL 自动检测 */
-    endpoint?: 'admin' | 'tenant';
+    endpoint?: 'admin' | 'tenant' | 'user';
     /** 当前值：附件 ID（字符串）或旧格式 URL */
     modelValue?: string;
   }>(),
@@ -39,7 +40,10 @@ const uploading = ref(false);
 
 const resolvedEndpoint = computed(() => {
   if (props.endpoint) return props.endpoint;
-  return window.location.pathname.startsWith('/admin') ? 'admin' : 'tenant';
+  const path = window.location.pathname;
+  if (path.startsWith('/admin')) return 'admin';
+  if (path.startsWith('/tenant')) return 'tenant';
+  return 'user';
 });
 
 /**
@@ -69,6 +73,12 @@ async function handleCustomRequest(options: {
     if (resolvedEndpoint.value === 'admin') {
       const result = await adminUploadApi(
         { file: uploadFile, tenant_id: 0, visibility: 'private' },
+        (progress) => onProgress?.({ percent: progress.percent }),
+      );
+      attachmentId = result.attachment?.id;
+    } else if (resolvedEndpoint.value === 'user') {
+      const result = await userUploadApi(
+        { file: uploadFile, visibility: 'private' },
         (progress) => onProgress?.({ percent: progress.percent }),
       );
       attachmentId = result.attachment?.id;

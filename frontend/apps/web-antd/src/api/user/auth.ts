@@ -1,6 +1,6 @@
 /**
  * 租户用户端认证 API
- * 对接后端 /api/v1/auth/* 接口
+ * 对接后端 /api/user/auth/* 接口
  */
 import type {
   ChangePasswordParams,
@@ -20,7 +20,7 @@ import { baseRequestClient, requestClient } from '#/utils/request';
 
 // Logout 使用 baseRequestClient 避免 401 时循环调用
 
-const API_PREFIX = '/api/v1/auth';
+const API_PREFIX = '/api/user/auth';
 
 /**
  * 用户登录 (JSON 格式)
@@ -110,13 +110,38 @@ interface UserInfoRaw {
   phone?: string;
   nickname?: string;
   avatar?: string;
+  gender?: number;
   is_active?: boolean;
+  approval_status?: string;
   tenant_id?: number;
   role_id?: number;
+  role_name?: string;
   last_login_at?: string;
   created_at?: string;
+  updated_at?: string;
   /** 权限码列表 */
   permissions?: string[];
+}
+
+/**
+ * 用户完整资料信息（前端格式）
+ */
+export interface UserProfileInfo {
+  id: number;
+  username: string;
+  email?: string;
+  phone?: string;
+  nickname?: string;
+  avatar?: string;
+  gender?: number;
+  isActive?: boolean;
+  approvalStatus?: string;
+  tenantId?: number;
+  roleId?: number;
+  roleName?: string;
+  lastLoginAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /**
@@ -137,6 +162,224 @@ export async function getUserInfoApi(
     roles: [],
     permissions: raw.permissions || [],
   };
+}
+
+/**
+ * 获取当前用户完整资料
+ */
+export async function getUserProfileApi(
+  options?: ApiRequestOptions,
+): Promise<UserProfileInfo> {
+  const raw = await requestClient.get<UserInfoRaw>(`${API_PREFIX}/me`, options);
+  return {
+    id: raw.id,
+    username: raw.username,
+    nickname: raw.nickname,
+    email: raw.email,
+    phone: raw.phone,
+    avatar: raw.avatar,
+    gender: raw.gender,
+    isActive: raw.is_active,
+    approvalStatus: raw.approval_status,
+    tenantId: raw.tenant_id,
+    roleId: raw.role_id,
+    roleName: raw.role_name,
+    lastLoginAt: raw.last_login_at,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+/**
+ * 更新个人资料参数
+ */
+export interface UpdateProfileParams {
+  avatar?: string;
+  email?: string;
+  gender?: number;
+  nickname?: string;
+  phone?: string;
+}
+
+/**
+ * 更新个人资料
+ */
+export async function updateUserProfileApi(
+  data: UpdateProfileParams,
+  options?: ApiRequestOptions,
+): Promise<UserProfileInfo> {
+  const raw = await requestClient.put<UserInfoRaw>(
+    `${API_PREFIX}/profile`,
+    data,
+    options,
+  );
+  return {
+    id: raw.id,
+    username: raw.username,
+    nickname: raw.nickname,
+    email: raw.email,
+    phone: raw.phone,
+    avatar: raw.avatar,
+    gender: raw.gender,
+    isActive: raw.is_active,
+    approvalStatus: raw.approval_status,
+    tenantId: raw.tenant_id,
+    roleId: raw.role_id,
+    roleName: raw.role_name,
+    lastLoginAt: raw.last_login_at,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+/**
+ * 注册参数
+ */
+export interface RegisterParams {
+  captchaChallengeId?: string;
+  captchaProviderCode?: string;
+  captchaSolution?: string;
+  confirmPassword: string;
+  email: string;
+  nickname?: string;
+  password: string;
+  phone?: string;
+  tenantCode?: string;
+  username: string;
+}
+
+/**
+ * 注册结果（后端原始格式）
+ */
+interface RegisterResultRaw {
+  approval_status?: string;
+  id?: number;
+  message?: string;
+  username?: string;
+}
+
+/**
+ * 注册结果
+ */
+export interface RegisterResult {
+  approvalStatus?: string;
+  id?: number;
+  message?: string;
+  username?: string;
+}
+
+/**
+ * 用户注册
+ */
+export async function userRegisterApi(
+  data: RegisterParams,
+  options?: ApiRequestOptions,
+): Promise<RegisterResult> {
+  const requestBody: Record<string, unknown> = {
+    confirm_password: data.confirmPassword,
+    email: data.email,
+    password: data.password,
+    username: data.username,
+  };
+
+  if (data.tenantCode) {
+    requestBody.tenant_code = data.tenantCode;
+  }
+  if (data.phone) {
+    requestBody.phone = data.phone;
+  }
+  if (data.nickname) {
+    requestBody.nickname = data.nickname;
+  }
+  if (data.captchaChallengeId) {
+    requestBody.captcha_challenge_id = data.captchaChallengeId;
+  }
+  if (data.captchaSolution) {
+    requestBody.captcha_solution = data.captchaSolution;
+  }
+  if (data.captchaProviderCode) {
+    requestBody.captcha_provider_code = data.captchaProviderCode;
+  }
+
+  const response = await requestClient.post<RegisterResultRaw>(
+    `${API_PREFIX}/register`,
+    requestBody,
+    options,
+  );
+
+  return {
+    approvalStatus: response.approval_status,
+    id: response.id,
+    message: response.message,
+    username: response.username,
+  };
+}
+
+/**
+ * 忘记密码参数
+ */
+export interface ForgotPasswordParams {
+  email: string;
+  tenantCode?: string;
+}
+
+/**
+ * 重置密码参数
+ */
+export interface ResetPasswordParams {
+  code: string;
+  confirmPassword: string;
+  email: string;
+  newPassword: string;
+  tenantCode?: string;
+}
+
+/**
+ * 忘记密码 - 发送验证码
+ */
+export async function userForgotPasswordApi(
+  data: ForgotPasswordParams,
+  options?: ApiRequestOptions,
+) {
+  const requestBody: Record<string, unknown> = {
+    channel: 'email',
+    email: data.email,
+  };
+
+  if (data.tenantCode) {
+    requestBody.tenant_code = data.tenantCode;
+  }
+
+  return requestClient.post(
+    `${API_PREFIX}/forgot-password`,
+    requestBody,
+    options,
+  );
+}
+
+/**
+ * 重置密码
+ */
+export async function userResetPasswordApi(
+  data: ResetPasswordParams,
+  options?: ApiRequestOptions,
+) {
+  const requestBody: Record<string, unknown> = {
+    code: data.code,
+    confirm_password: data.confirmPassword,
+    email: data.email,
+    new_password: data.newPassword,
+  };
+
+  if (data.tenantCode) {
+    requestBody.tenant_code = data.tenantCode;
+  }
+
+  return requestClient.post(
+    `${API_PREFIX}/reset-password`,
+    requestBody,
+    options,
+  );
 }
 
 /**

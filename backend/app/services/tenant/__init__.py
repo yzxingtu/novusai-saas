@@ -14,6 +14,7 @@ from app.services.tenant.tenant_admin_role_service import TenantAdminRoleService
 from app.services.tenant.tenant_admin_service import TenantAdminService
 from app.services.tenant.tenant_plan_service import TenantPlanService
 from app.services.tenant.tenant_settings_service import TenantSettingsService
+from app.services.tenant.tenant_user_service import TenantUserService
 
 __all__ = [
     "AttachmentService",
@@ -25,4 +26,5 @@ __all__ = [
     "TenantDomainTenantService",
     "QuotaService",
     "QuotaCheckResult",
+    "TenantUserService",
 ]

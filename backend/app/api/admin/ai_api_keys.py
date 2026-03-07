@@ -94,6 +94,7 @@ def _build_api_key_response(key) -> dict:
     resource="ai_api_key",
     name="menu.admin.ai_api_key",
     scope=PermissionScope.ADMIN_ONLY,
+    parent_resource="ai_infra",
     menu=MenuConfig(
         icon="lucide:key",
         path="/ai/api-keys",

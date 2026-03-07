@@ -39,7 +39,17 @@
     "impersonate_success": "一键登录成功",
     "profile_updated": "个人资料更新成功",
     "email_already_exists": "邮箱已被注册",
-    "tenant_code_required": "存在多个匹配账户，请指定租户编码"
+    "tenant_code_required": "存在多个匹配账户，请指定租户编码",
+    "registration_disabled": "该租户暂未开放用户注册",
+    "username_taken": "用户名已被占用",
+    "email_taken": "邮箱已被注册",
+    "phone_taken": "手机号已被注册",
+    "register_success": "注册成功",
+    "reset_code_sent": "验证码已发送，请查收邮箱",
+    "reset_code_invalid": "验证码无效或已过期",
+    "reset_rate_limited": "操作过于频繁，请稍后再试",
+    "password_reset_success": "密码重置成功",
+    "approval_pending": "注册成功，等待管理员审批"
   },
   "user": {
     "not_found": "用户不存在",
@@ -808,7 +818,8 @@
       "toggle_status": "切换租户状态",
       "impersonate": "一键登录租户后台",
       "select": "租户远程下拉",
-      "reset_owner_password": "重置租户超级管理员密码"
+      "reset_owner_password": "重置租户超级管理员密码",
+      "recycle_bin": "回收站"
     },
     "tenant_settings": {
       "view": "查看租户设置",
@@ -823,7 +834,8 @@
     "platform_config": {
       "groups": "查看配置分组",
       "detail": "查看配置详情",
-      "update": "更新配置"
+      "update": "更新配置",
+      "read": "读取平台配置"
     },
     "tenant_config": {
       "groups": "查看配置分组",
@@ -840,7 +852,8 @@
       "permissions": "查看套餐权限",
       "assign_permissions": "分配套餐权限",
       "available_permissions": "查看可分配权限",
-      "reorder": "重新排序"
+      "reorder": "重新排序",
+      "recycle_bin": "回收站"
     },
     "tenant_domain": {
       "list": "查看域名列表",
@@ -849,7 +862,36 @@
       "update": "更新域名",
       "delete": "删除域名",
       "verify": "验证域名",
-      "set_primary": "设置主域名"
+      "set_primary": "设置主域名",
+      "ssl_detail": "查看 SSL 证书详情",
+      "ssl_provision": "申请 SSL 证书",
+      "ssl_renew": "续期 SSL 证书",
+      "ssl_upload": "上传 SSL 证书",
+      "ssl_replace": "替换 SSL 证书",
+      "ssl_auto_renew": "设置 SSL 自动续期",
+      "ssl_batch_provision": "批量申请 SSL 证书",
+      "ssl_delete": "删除 SSL 证书"
+    },
+    "tenant_user": {
+      "list": "查看用户列表",
+      "detail": "查看用户详情",
+      "create": "创建用户",
+      "update": "更新用户",
+      "delete": "删除用户",
+      "toggle": "切换用户状态",
+      "reset_password": "重置用户密码",
+      "approve": "审批通过用户",
+      "reject": "审批拒绝用户",
+      "select": "用户远程下拉"
+    },
+    "tenant_user_role": {
+      "list": "查看用户角色列表",
+      "detail": "查看用户角色详情",
+      "create": "创建用户角色",
+      "update": "更新用户角色",
+      "delete": "删除用户角色",
+      "toggle": "切换用户角色状态",
+      "assign_permissions": "分配用户角色权限"
     },
     "operation_log": {
       "list": "查看操作日志列表",
@@ -881,14 +923,28 @@
       "preview": "预览附件",
       "stats": "查看存储统计",
       "stats_by_tenant": "查看租户存储统计",
-      "storage_quota": "查看存储配额"
+      "storage_quota": "查看存储配额",
+      "upload_rules": "获取上传规则",
+      "batch_upload": "批量上传附件",
+      "batch_delete": "批量删除附件",
+      "migrate": "迁移存储"
     },
     "ai_quota": {
       "list": "查看配额列表",
       "detail": "查看配额详情",
       "create": "创建配额",
       "update": "更新配额",
-      "delete": "删除配额"
+      "delete": "删除配额",
+      "list_rate_limits": "查看速率限制列表",
+      "create_rate_limit": "创建速率限制",
+      "update_rate_limit": "更新速率限制",
+      "delete_rate_limit": "删除速率限制",
+      "create_quota": "创建配额规则",
+      "update_quota": "更新配额规则",
+      "delete_quota": "删除配额规则",
+      "detail_quota": "查看配额规则详情",
+      "list_quotas": "查看配额规则列表",
+      "effective_rate_limits": "查看生效的速率限制"
     },
     "agent": {
       "list": "查看智能体列表",
@@ -896,7 +952,24 @@
       "create": "创建智能体",
       "update": "更新智能体",
       "delete": "删除智能体",
-      "publish": "发布智能体"
+      "publish": "发布智能体",
+      "rollback": "回滚智能体",
+      "skills": "查看智能体技能",
+      "bind_skill": "绑定技能",
+      "batch_bind_skills": "批量绑定技能",
+      "update_skill_binding": "更新技能绑定",
+      "unbind_skill": "解绑技能",
+      "update_access": "更新访问配置",
+      "access_config": "查看访问配置",
+      "versions": "查看版本列表",
+      "version_detail": "查看版本详情",
+      "version_diff": "查看版本差异",
+      "stats": "查看智能体统计",
+      "batch_cancel": "批量取消任务",
+      "batch_submit": "批量提交任务",
+      "batch_progress": "查看批量进度",
+      "quota_usage": "查看配额用量",
+      "recycle_bin": "回收站"
     },
     "agent_tool": {
       "list": "查看工具列表",
@@ -911,7 +984,10 @@
       "stream": "流式对话",
       "conversations": "查看对话列表",
       "conversation_detail": "查看对话详情",
-      "delete_conversation": "删除对话"
+      "delete_conversation": "删除对话",
+      "confirm": "确认操作",
+      "read_conversation": "查看对话内容",
+      "route": "路由对话"
     },
     "agent_conversation": {
       "list": "查看对话列表",
@@ -925,6 +1001,274 @@
     "ai_conversation": {
       "list": "查看全租户对话列表",
       "detail": "查看对话详情（审计）"
+    },
+    "tenant_agent_assignment": {
+      "list": "查看智能体绑定列表",
+      "update": "设置租户覆盖绑定",
+      "delete": "删除租户覆盖绑定"
+    },
+    "ai_action_log": {
+      "list": "查看 AI 操作日志列表",
+      "stats": "查看 AI 操作统计",
+      "detail": "查看 AI 操作日志详情"
+    },
+    "ai_config": {
+      "models": "查看可用模型列表",
+      "keys": "查看 API Key 列表",
+      "create_key": "创建 API Key",
+      "delete_key": "删除 API Key"
+    },
+    "ai_gateway": {
+      "chat": "AI 对话",
+      "chat_stream": "AI 流式对话",
+      "embedding": "AI 向量化",
+      "test": "测试 AI 调用"
+    },
+    "ai_table_policy_override": {
+      "read": "查看数据访问策略覆盖",
+      "update": "修改数据访问策略覆盖",
+      "delete": "删除数据访问策略覆盖"
+    },
+    "ai_tenant_call_log": {
+      "list": "查看 AI 调用日志列表",
+      "detail": "查看 AI 调用日志详情"
+    },
+    "ai_tenant_usage": {
+      "summary": "查看 AI 用量汇总",
+      "user_summary": "查看用户 AI 用量汇总"
+    },
+    "knowledge_base": {
+      "selectable": "知识库下拉选项",
+      "list": "查看知识库列表",
+      "detail": "查看知识库详情",
+      "create": "创建知识库",
+      "update": "编辑知识库",
+      "delete": "删除知识库",
+      "document_list": "查看文档列表",
+      "document_upload": "上传文档",
+      "document_detail": "查看文档详情",
+      "document_text": "添加文本文档",
+      "document_chunks": "查看文档分块",
+      "document_delete": "删除文档",
+      "document_retry": "重试文档处理",
+      "document_progress": "查看文档处理进度",
+      "reindex": "重建知识库索引",
+      "qa_create": "创建问答对",
+      "qa_batch": "批量创建问答对",
+      "document_url": "通过 URL 添加文档",
+      "search": "搜索知识库",
+      "recycle_bin": "回收站"
+    },
+    "periodic_task": {
+      "list": "查看定时任务列表",
+      "create": "创建定时任务",
+      "detail": "查看定时任务详情",
+      "update": "编辑定时任务",
+      "delete": "删除定时任务",
+      "toggle": "启用/禁用定时任务",
+      "trigger": "手动触发定时任务",
+      "recycle_bin": "回收站"
+    },
+    "skill": {
+      "list": "查看技能列表",
+      "detail": "查看技能详情",
+      "create": "创建技能",
+      "update": "编辑技能",
+      "delete": "删除技能",
+      "recycle_bin": "回收站"
+    },
+    "skill_package": {
+      "list": "查看技能包列表",
+      "detail": "查看技能包详情",
+      "create": "创建技能包",
+      "update": "编辑技能包",
+      "delete": "删除技能包",
+      "upload": "上传技能包",
+      "recycle_bin": "回收站"
+    },
+    "task_log": {
+      "list": "查看任务日志列表",
+      "stats": "查看任务统计",
+      "detail": "查看任务日志详情",
+      "retry": "重试任务",
+      "cancel": "取消任务",
+      "active": "查看活跃任务"
+    },
+    "agent_assignment": {
+      "list": "查看功能分配列表",
+      "detail": "查看功能分配详情",
+      "update": "修改功能分配"
+    },
+    "ai_agent": {
+      "list": "查看智能体列表",
+      "create": "创建智能体",
+      "update": "编辑智能体",
+      "delete": "删除智能体",
+      "detail": "查看智能体详情",
+      "update_status": "修改智能体状态",
+      "skills": "查看智能体技能",
+      "bind_skill": "绑定技能",
+      "batch_bind_skills": "批量绑定技能",
+      "update_skill_binding": "修改技能绑定",
+      "unbind_skill": "解绑技能",
+      "publish": "发布智能体",
+      "rollback": "回滚智能体版本",
+      "versions": "查看智能体版本列表",
+      "version_detail": "查看版本详情",
+      "access_config": "查看访问配置",
+      "update_access": "修改访问配置",
+      "recycle_bin": "回收站"
+    },
+    "admin_agent_chat": {
+      "chat": "发送对话消息",
+      "stream": "流式对话",
+      "route": "路由对话",
+      "confirm": "确认对话",
+      "conversations": "查看对话列表",
+      "conversation_detail": "查看对话详情",
+      "delete_conversation": "删除对话",
+      "read_conversation": "阅读对话"
+    },
+    "ai_api_key": {
+      "list": "查看 API Key 列表",
+      "list_by_provider": "按供应商查看 API Key",
+      "detail": "查看 API Key 详情",
+      "create": "创建 API Key",
+      "update": "编辑 API Key",
+      "delete": "删除 API Key",
+      "toggle_status": "启用/禁用 API Key"
+    },
+    "ai_call_log": {
+      "list": "查看 AI 调用日志列表",
+      "statistics": "查看 AI 调用统计",
+      "failed": "查看失败调用列表",
+      "detail": "查看 AI 调用日志详情"
+    },
+    "ai_health": {
+      "list": "查看 AI 健康状态",
+      "history": "查看 AI 健康历史"
+    },
+    "ai_model": {
+      "list": "查看模型列表",
+      "list_by_provider": "按供应商查看模型",
+      "detail": "查看模型详情",
+      "create": "创建模型",
+      "update": "编辑模型",
+      "delete": "删除模型",
+      "recycle_bin": "回收站"
+    },
+    "ai_provider": {
+      "list": "查看供应商列表",
+      "reorder": "排序供应商",
+      "detail": "查看供应商详情",
+      "create": "创建供应商",
+      "update": "编辑供应商",
+      "delete": "删除供应商",
+      "toggle_status": "启用/禁用供应商",
+      "recycle_bin": "回收站"
+    },
+    "ai_table_policy": {
+      "list": "查看数据访问策略列表",
+      "detail": "查看数据访问策略详情",
+      "update": "编辑数据访问策略",
+      "columns": "查看表列信息",
+      "sync": "同步数据访问策略"
+    },
+    "ai_usage": {
+      "tenant_summary": "查看租户用量汇总",
+      "model_summary": "查看模型用量汇总",
+      "stats": "查看用量统计"
+    },
+    "cache": {
+      "summary": "查看缓存概览",
+      "clear": "清除缓存"
+    },
+    "email_log": {
+      "list": "查看邮件日志列表",
+      "send": "发送邮件",
+      "test": "发送测试邮件"
+    },
+    "ai_knowledge_base": {
+      "list": "查看知识库列表",
+      "create": "创建知识库",
+      "update": "编辑知识库",
+      "selectable": "知识库下拉选项",
+      "stats": "查看知识库统计",
+      "detail": "查看知识库详情",
+      "document_list": "查看文档列表",
+      "document_upload": "上传文档",
+      "document_text": "添加文本文档",
+      "document_chunks": "查看文档分块",
+      "document_delete": "删除文档",
+      "document_retry": "重试文档处理",
+      "document_progress": "查看文档处理进度",
+      "reindex": "重建知识库索引",
+      "search": "搜索知识库",
+      "qa_create": "创建问答对",
+      "qa_batch": "批量创建问答对",
+      "document_url": "通过 URL 添加文档",
+      "delete": "删除知识库",
+      "recycle_bin": "回收站"
+    },
+    "notification_template": {
+      "list": "查看通知模板列表",
+      "update": "编辑通知模板",
+      "test": "测试通知模板"
+    },
+    "plugin": {
+      "read": "查看插件信息",
+      "update": "编辑插件",
+      "list": "查看插件列表",
+      "install": "安装插件",
+      "detail": "查看插件详情",
+      "preview": "预览插件",
+      "enable": "启用插件",
+      "disable": "禁用插件",
+      "uninstall": "卸载插件",
+      "repair": "修复插件",
+      "config": "配置插件",
+      "capabilities": "管理插件能力",
+      "icon": "修改插件图标",
+      "versions": "查看插件版本",
+      "upgrade": "升级插件",
+      "rollback": "回滚插件版本",
+      "tenants": "查看插件租户",
+      "assign_tenants": "分配插件租户",
+      "unassign_tenant": "取消分配租户",
+      "view_license": "查看许可证",
+      "activate_license": "激活许可证",
+      "activate_trial": "激活试用",
+      "revoke_license": "撤销许可证",
+      "ai_features": "查看 AI 功能",
+      "bind_ai": "绑定 AI 功能",
+      "health": "查看插件健康状态"
+    },
+    "recycle_bin": {
+      "read": "查看回收站",
+      "delete": "从回收站删除"
+    },
+    "ai_skill_package": {
+      "list": "查看技能包列表",
+      "detail": "查看技能包详情",
+      "create": "创建技能包",
+      "update": "编辑技能包",
+      "delete": "删除技能包",
+      "update_status": "修改技能包状态",
+      "upload": "上传技能包",
+      "recycle_bin": "回收站"
+    },
+    "ai_skill": {
+      "list": "查看技能列表",
+      "detail": "查看技能详情",
+      "create": "创建技能",
+      "update": "编辑技能",
+      "delete": "删除技能",
+      "update_status": "修改技能状态"
+    },
+    "tenant_admin": {
+      "list": "查看租户管理员列表",
+      "create": "创建租户管理员",
+      "update": "编辑租户管理员"
     }
   },
   "role": {
@@ -933,6 +1277,8 @@
     "created": "角色创建成功",
     "tenant_root_description": "租户组织架构根节点，不可删除",
     "platform_root_description": "平台组织架构根节点，不可删除",
+    "default_user_name": "默认用户",
+    "default_user_description": "系统默认用户角色，新注册用户自动分配此角色",
     "updated": "角色更新成功",
     "deleted": "角色删除成功",
     "system_role_cannot_modify": "系统内置角色不可修改",
@@ -982,6 +1328,25 @@
     "username_or_email_exists": "用户名或邮箱已被该租户下其他管理员使用",
     "cannot_disable_owner": "不能禁用租户所有者"
   },
+  "tenant_user": {
+    "not_found": "用户不存在",
+    "created": "用户创建成功",
+    "updated": "用户更新成功",
+    "deleted": "用户删除成功",
+    "password_reset": "密码重置成功",
+    "status_updated": "用户状态更新成功",
+    "approved": "用户审批通过",
+    "rejected": "用户审批拒绝",
+    "not_pending": "用户不在待审批状态"
+  },
+  "tenant_user_role": {
+    "not_found": "用户角色不存在",
+    "code_exists": "角色代码已存在",
+    "name_exists": "角色名称已存在",
+    "system_cannot_modify": "系统内置角色不可修改",
+    "system_cannot_delete": "系统内置角色不可删除",
+    "has_users": "该角色下还有关联用户，无法删除"
+  },
   "enum": {
     "status": {
       "active": "启用",
@@ -998,6 +1363,11 @@
     },
     "audit": {
       "pending": "待审核",
+      "approved": "已通过",
+      "rejected": "已拒绝"
+    },
+    "approval_status": {
+      "pending": "待审批",
       "approved": "已通过",
       "rejected": "已拒绝"
     },
@@ -1236,7 +1606,8 @@
       "all_tenants": "全部租户",
       "admin_and_all": "全局共享",
       "admin_and_assigned": "管理端+部分租户",
-      "assigned_tenants": "部分租户"
+      "assigned_tenants": "部分租户",
+      "tenant_user": "用户端"
     },
     "skill_bind_mode": {
       "auto": "自动绑定",
@@ -2450,5 +2821,15 @@
       "agent_id": "智能体ID",
       "disabled": "记忆已禁用"
     }
-  }
+  },
+  "config.tenant.user_registration_enabled.name": "用户注册",
+  "config.tenant.user_registration_enabled.desc": "是否允许用户自助注册",
+  "config.tenant.user_registration_captcha_enabled.name": "注册验证码",
+  "config.tenant.user_registration_captcha_enabled.desc": "注册时是否需要验证码验证",
+  "config.tenant.user_default_active.name": "默认激活",
+  "config.tenant.user_default_active.desc": "注册后立即激活用户账户",
+  "config.tenant.user_require_approval.name": "需要审批",
+  "config.tenant.user_require_approval.desc": "用户注册后需要管理员审批才能激活",
+  "config.tenant.user_default_role_id.name": "默认用户角色",
+  "config.tenant.user_default_role_id.desc": "新注册用户自动分配的角色 ID，由系统创建租户时自动设置"
 }

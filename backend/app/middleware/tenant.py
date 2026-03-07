@@ -95,6 +95,7 @@ class TenantMiddleware:
     TENANT_PATHS = (
         "/tenant/",
         "/api/v1/",
+        "/api/user/",
         "/api/public/tenant",
     )
 

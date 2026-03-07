@@ -4,9 +4,11 @@
 提供平台管理员、租户管理员、租户用户的认证逻辑
 """
 
+import secrets
+import string
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.captcha.service import captcha_service
@@ -26,8 +28,13 @@ from app.core.security import (
     verify_password,
     verify_token_with_scope,
 )
+from app.core.logging import LogManager
+from app.core.redis import cache_delete, cache_get, cache_set
+from app.enums.common import ApprovalStatusEnum
 from app.exceptions import AuthenticationException, BusinessException, NotFoundException
 from app.models import Admin, Tenant, TenantAdmin, TenantUser
+
+logger = LogManager.get_logger("auth")
 
 
 class AuthService:
@@ -967,6 +974,471 @@ class AuthService:
         await self._validate_password_policy(new_password, tenant_id=user.tenant_id)
 
         user.password_hash = get_password_hash(new_password)
+
+    # ==================== 租户用户注册 ====================
+
+    async def register_tenant_user(
+        self,
+        username: str,
+        email: str,
+        password: str,
+        tenant_code: str | None = None,
+        tenant_id_from_ctx: int | None = None,
+        phone: str | None = None,
+        nickname: str | None = None,
+        client_ip: str | None = None,
+        captcha_challenge_id: str | None = None,
+        captcha_solution: str | None = None,
+        captcha_provider_code: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        租户用户自助注册
+
+        Args:
+            username: 用户名
+            email: 邮箱
+            password: 密码
+            tenant_code: 租户编码
+            tenant_id_from_ctx: 来自中间件的租户 ID
+            phone: 手机号
+            nickname: 昵称
+            client_ip: 客户端 IP
+            captcha_challenge_id: 验证码挑战 ID
+            captcha_solution: 验证码答案
+            captcha_provider_code: 验证码提供方标识
+
+        Returns:
+            注册结果信息
+
+        Raises:
+            BusinessException: 注册未开放或参数错误
+        """
+        # 确定租户
+        tenant_id = tenant_id_from_ctx
+        if not tenant_id and tenant_code:
+            result = await self.db.execute(
+                select(Tenant).where(
+                    Tenant.code == tenant_code,
+                    Tenant.is_deleted.is_(False),
+                )
+            )
+            tenant = result.scalar_one_or_none()
+            if tenant is None or not tenant.is_active:
+                raise BusinessException(message=_("tenant.not_found"))
+            tenant_id = tenant.id
+        elif tenant_id:
+            result = await self.db.execute(
+                select(Tenant).where(
+                    Tenant.id == tenant_id,
+                    Tenant.is_deleted.is_(False),
+                )
+            )
+            tenant = result.scalar_one_or_none()
+            if tenant is None or not tenant.is_active:
+                raise BusinessException(message=_("tenant.disabled"))
+
+        if not tenant_id:
+            raise BusinessException(
+                message=_("tenant.not_found"),
+                data={"tenant_code_required": True},
+            )
+
+        # 检查注册是否开放
+        registration_enabled = await self._config_service.get_tenant_config(
+            tenant_id, "user_registration_enabled", default=False
+        )
+        if not registration_enabled:
+            raise BusinessException(message=_("auth.registration_disabled"))
+
+        # 检查注册验证码
+        captcha_enabled = await self._config_service.get_tenant_config(
+            tenant_id, "user_registration_captcha_enabled", default=True
+        )
+        if captcha_enabled:
+            await self._verify_captcha(
+                captcha_challenge_id,
+                captcha_solution,
+                captcha_provider_code,
+                {"ip": client_ip, "endpoint": "user", "action": "register"},
+            )
+
+        # 验证密码策略
+        await self._validate_password_policy(password, tenant_id=tenant_id)
+
+        # 检查用户名唯一性
+        existing = await self.db.execute(
+            select(TenantUser).where(
+                and_(
+                    TenantUser.tenant_id == tenant_id,
+                    TenantUser.username == username,
+                    TenantUser.is_deleted.is_(False),
+                )
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise BusinessException(message=_("auth.username_taken"))
+
+        # 检查邮箱唯一性
+        existing = await self.db.execute(
+            select(TenantUser).where(
+                and_(
+                    TenantUser.tenant_id == tenant_id,
+                    TenantUser.email == email,
+                    TenantUser.is_deleted.is_(False),
+                )
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise BusinessException(message=_("auth.email_taken"))
+
+        # 检查手机号唯一性
+        if phone:
+            existing = await self.db.execute(
+                select(TenantUser).where(
+                    and_(
+                        TenantUser.tenant_id == tenant_id,
+                        TenantUser.phone == phone,
+                        TenantUser.is_deleted.is_(False),
+                    )
+                )
+            )
+            if existing.scalar_one_or_none():
+                raise BusinessException(message=_("auth.phone_taken"))
+
+        # 获取审批和激活配置
+        require_approval = await self._config_service.get_tenant_config(
+            tenant_id, "user_require_approval", default=False
+        )
+        default_active = await self._config_service.get_tenant_config(
+            tenant_id, "user_default_active", default=True
+        )
+
+        # 获取默认用户角色 ID
+        default_role_id = await self._config_service.get_tenant_config(
+            tenant_id, "user_default_role_id", default=0
+        )
+        default_role_id = int(default_role_id) if default_role_id else 0
+
+        # 根据配置决定初始状态
+        if require_approval:
+            approval_status = ApprovalStatusEnum.PENDING.value
+            is_active = False
+        else:
+            approval_status = ApprovalStatusEnum.APPROVED.value
+            is_active = default_active
+
+        # 创建用户
+        user = TenantUser(
+            tenant_id=tenant_id,
+            username=username,
+            email=email,
+            password_hash=get_password_hash(password),
+            phone=phone,
+            nickname=nickname or username,
+            is_active=is_active,
+            approval_status=approval_status,
+            role_id=default_role_id if default_role_id > 0 else None,
+        )
+        self.db.add(user)
+        await self.db.flush()
+
+        logger.info(
+            f"User registered: {username} (tenant={tenant_id}, "
+            f"approval={approval_status}, active={is_active})"
+        )
+
+        # 需要审批时通知租户管理员
+        if approval_status == ApprovalStatusEnum.PENDING.value:
+            await self._notify_tenant_admins_pending(
+                tenant_id=tenant_id,
+                username=username,
+                email=email,
+            )
+
+        result_data: dict[str, Any] = {
+            "user_id": user.id,
+            "username": user.username,
+            "approval_status": approval_status,
+            "is_active": is_active,
+        }
+
+        # 如果不需要审批且默认激活，直接返回 token
+        if approval_status == ApprovalStatusEnum.APPROVED.value and is_active:
+            tokens = create_token_pair(
+                user.id,
+                scope=TOKEN_SCOPE_TENANT_USER,
+                extra_claims={"tenant_id": tenant_id},
+            )
+            result_data["tokens"] = tokens
+
+        return result_data
+
+    async def _notify_tenant_admins_pending(
+        self,
+        tenant_id: int,
+        username: str,
+        email: str,
+    ) -> None:
+        """注册待审批时通知租户管理员"""
+        from app.services.common.notification_service import notify
+
+        # 获取租户所有活跃管理员
+        admins = (await self.db.execute(
+            select(TenantAdmin).where(
+                and_(
+                    TenantAdmin.tenant_id == tenant_id,
+                    TenantAdmin.is_active.is_(True),
+                    TenantAdmin.is_deleted.is_(False),
+                )
+            )
+        )).scalars().all()
+
+        if not admins:
+            return
+
+        recipients = [("tenant_admin", admin.id) for admin in admins]
+        await notify(
+            self.db,
+            template_code="biz.user_registration_pending",
+            recipients=recipients,
+            data={"username": username, "email": email},
+            tenant_id=tenant_id,
+        )
+
+    # ==================== 用户资料更新 ====================
+
+    async def update_tenant_user_profile(
+        self,
+        user: TenantUser,
+        nickname: str | None = None,
+        avatar: str | None = None,
+        gender: int | None = None,
+        phone: str | None = None,
+        email: str | None = None,
+    ) -> TenantUser:
+        """
+        更新租户用户个人资料
+
+        Args:
+            user: 当前用户实例
+            nickname: 昵称
+            avatar: 头像 URL
+            gender: 性别
+            phone: 手机号
+            email: 邮箱
+
+        Returns:
+            更新后的用户实例
+
+        Raises:
+            BusinessException: 邮箱或手机号已被占用
+        """
+        # 检查邮箱唯一性
+        if email and email != user.email:
+            existing = await self.db.execute(
+                select(TenantUser).where(
+                    and_(
+                        TenantUser.tenant_id == user.tenant_id,
+                        TenantUser.email == email,
+                        TenantUser.id != user.id,
+                        TenantUser.is_deleted.is_(False),
+                    )
+                )
+            )
+            if existing.scalar_one_or_none():
+                raise BusinessException(message=_("auth.email_taken"))
+            user.email = email
+
+        # 检查手机号唯一性
+        if phone is not None and phone != user.phone:
+            if phone:
+                existing = await self.db.execute(
+                    select(TenantUser).where(
+                        and_(
+                            TenantUser.tenant_id == user.tenant_id,
+                            TenantUser.phone == phone,
+                            TenantUser.id != user.id,
+                            TenantUser.is_deleted.is_(False),
+                        )
+                    )
+                )
+                if existing.scalar_one_or_none():
+                    raise BusinessException(message=_("auth.phone_taken"))
+            user.phone = phone
+
+        if nickname is not None:
+            user.nickname = nickname
+        if avatar is not None:
+            user.avatar = avatar
+        if gender is not None:
+            user.gender = gender
+
+        return user
+
+    # ==================== 忘记密码 / 重置密码 ====================
+
+    RESET_CODE_TTL = 600  # 10 分钟
+    RESET_RATE_LIMIT_TTL = 60  # 1 分钟内只能发一次
+
+    async def request_password_reset(
+        self,
+        email: str,
+        tenant_code: str | None = None,
+        tenant_id_from_ctx: int | None = None,
+    ) -> dict[str, Any]:
+        """
+        请求密码重置
+
+        生成重置验证码并通过邮件发送
+
+        Args:
+            email: 邮箱
+            tenant_code: 租户编码
+            tenant_id_from_ctx: 来自中间件的租户 ID
+
+        Returns:
+            结果信息
+
+        Raises:
+            BusinessException: 频率限制或用户不存在
+        """
+        # 确定租户
+        tenant_id = tenant_id_from_ctx
+        if not tenant_id and tenant_code:
+            result = await self.db.execute(
+                select(Tenant).where(
+                    Tenant.code == tenant_code,
+                    Tenant.is_deleted.is_(False),
+                )
+            )
+            tenant = result.scalar_one_or_none()
+            if tenant is None or not tenant.is_active:
+                raise BusinessException(message=_("tenant.not_found"))
+            tenant_id = tenant.id
+
+        if not tenant_id:
+            raise BusinessException(
+                message=_("tenant.not_found"),
+                data={"tenant_code_required": True},
+            )
+
+        # 频率限制检查
+        rate_key = f"password_reset_rate:{tenant_id}:{email}"
+        if await cache_get(rate_key):
+            raise BusinessException(message=_("auth.reset_rate_limited"))
+
+        # 查找用户
+        result = await self.db.execute(
+            select(TenantUser).where(
+                and_(
+                    TenantUser.tenant_id == tenant_id,
+                    TenantUser.email == email,
+                    TenantUser.is_deleted.is_(False),
+                )
+            )
+        )
+        user = result.scalar_one_or_none()
+
+        # 无论用户是否存在，都返回成功（防止枚举攻击）
+        if user is None:
+            logger.warning(f"Password reset requested for non-existent email: {email}")
+            return {"message": _("auth.reset_code_sent")}
+
+        # 生成 6 位数验证码
+        code = "".join(secrets.choice(string.digits) for _ in range(6))
+
+        # 存储到 Redis
+        code_key = f"password_reset:{tenant_id}:{email}"
+        await cache_set(code_key, {"code": code, "user_id": user.id}, ttl=self.RESET_CODE_TTL)
+
+        # 设置频率限制
+        await cache_set(rate_key, True, ttl=self.RESET_RATE_LIMIT_TTL)
+
+        # TODO: 通过邮件发送验证码（集成邮件服务后实现）
+        logger.info(f"Password reset code generated for user {user.id} (tenant={tenant_id})")
+
+        return {"message": _("auth.reset_code_sent")}
+
+    async def reset_tenant_user_password(
+        self,
+        email: str,
+        code: str,
+        new_password: str,
+        tenant_code: str | None = None,
+        tenant_id_from_ctx: int | None = None,
+    ) -> None:
+        """
+        重置租户用户密码
+
+        Args:
+            email: 邮箱
+            code: 验证码
+            new_password: 新密码
+            tenant_code: 租户编码
+            tenant_id_from_ctx: 来自中间件的租户 ID
+
+        Raises:
+            BusinessException: 验证码无效或已过期
+        """
+        # 确定租户
+        tenant_id = tenant_id_from_ctx
+        if not tenant_id and tenant_code:
+            result = await self.db.execute(
+                select(Tenant).where(
+                    Tenant.code == tenant_code,
+                    Tenant.is_deleted.is_(False),
+                )
+            )
+            tenant = result.scalar_one_or_none()
+            if tenant is None or not tenant.is_active:
+                raise BusinessException(message=_("tenant.not_found"))
+            tenant_id = tenant.id
+
+        if not tenant_id:
+            raise BusinessException(
+                message=_("tenant.not_found"),
+                data={"tenant_code_required": True},
+            )
+
+        # 从 Redis 获取验证码
+        code_key = f"password_reset:{tenant_id}:{email}"
+        stored = await cache_get(code_key)
+
+        if not stored or not isinstance(stored, dict):
+            raise BusinessException(message=_("auth.reset_code_invalid"))
+
+        if stored.get("code") != code:
+            raise BusinessException(message=_("auth.reset_code_invalid"))
+
+        user_id = stored.get("user_id")
+        if not user_id:
+            raise BusinessException(message=_("auth.reset_code_invalid"))
+
+        # 查找用户
+        result = await self.db.execute(
+            select(TenantUser).where(
+                and_(
+                    TenantUser.id == int(user_id),
+                    TenantUser.tenant_id == tenant_id,
+                    TenantUser.is_deleted.is_(False),
+                )
+            )
+        )
+        user = result.scalar_one_or_none()
+
+        if user is None:
+            raise BusinessException(message=_("auth.reset_code_invalid"))
+
+        # 验证新密码策略
+        await self._validate_password_policy(new_password, tenant_id=tenant_id)
+
+        # 更新密码
+        user.password_hash = get_password_hash(new_password)
+
+        # 删除验证码
+        await cache_delete(code_key)
+
+        logger.info(f"Password reset completed for user {user.id} (tenant={tenant_id})")
 
 
 __all__ = ["AuthService"]

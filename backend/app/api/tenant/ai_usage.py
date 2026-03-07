@@ -25,6 +25,7 @@ from app.services.ai import MeteringService
     resource="ai_tenant_usage",
     name="menu.tenant.ai_usage",
     scope=PermissionScope.ALL_TENANTS,
+    parent_resource="ai_analytics",
     menu=MenuConfig(
         icon="lucide:bar-chart-3",
         path="/ai/usage",

@@ -23,5 +23,8 @@
   "noData": "No data",
   "prev": "Previous",
   "next": "Next",
-  "detail": "Detail"
+  "detail": "Detail",
+  "toggleStatus": "Toggle Status",
+  "operationSuccess": "Operation successful",
+  "operationFailed": "Operation failed"
 }

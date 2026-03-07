@@ -71,6 +71,7 @@ def _build_resolve_result(assignment, feature_code: str) -> dict:
     resource="tenant_agent_assignment",
     name="menu.tenant.agent_assignment",
     scope=PermissionScope.ALL_TENANTS,
+    parent_resource="ai_workspace",
     menu=MenuConfig(
         icon="lucide:plug",
         path="/ai/agent-assignments",

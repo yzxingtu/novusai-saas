@@ -38,6 +38,7 @@ from app.services.ai.tenant_rate_limit_service import TenantRateLimitService
     resource="ai_quota",
     name="menu.tenant.ai_quota",
     scope=PermissionScope.ALL_TENANTS,
+    parent_resource="ai_settings",
     menu=MenuConfig(
         icon="lucide:gauge",
         path="/ai/quotas",

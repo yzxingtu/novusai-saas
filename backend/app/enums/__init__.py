@@ -25,6 +25,7 @@ from app.enums.base import BaseEnum, IntEnum, StrEnum
 from app.enums.billing import BillingCycle
 from app.enums.cache import CacheCategoryEnum
 from app.enums.common import (
+    ApprovalStatusEnum,
     AuditStatusEnum,
     BoolEnum,
     DeleteLevelEnum,
@@ -75,6 +76,7 @@ __all__ = [
     "BoolEnum",
     "GenderEnum",
     "AuditStatusEnum",
+    "ApprovalStatusEnum",
     "SortOrderEnum",
     "OperationTypeEnum",
     "PriorityEnum",

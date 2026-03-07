@@ -55,10 +55,21 @@ from app.schemas.tenant.ssl import (
     SslCertificateUploadRequest,
     SslReplaceRequest,
 )
+from app.schemas.tenant.user_role import (
+    TenantUserRoleCreateRequest,
+    TenantUserRoleDetailResponse,
+    TenantUserRolePermissionsRequest,
+    TenantUserRoleResponse,
+    TenantUserRoleUpdateRequest,
+)
 from app.schemas.tenant.user import (
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
     TenantUserChangePasswordRequest,
     TenantUserCreateRequest,
     TenantUserLoginRequest,
+    TenantUserProfileUpdateRequest,
+    TenantUserRegisterRequest,
     TenantUserResponse,
     TenantUserUpdateRequest,
 )
@@ -77,6 +88,10 @@ __all__ = [
     "TenantUserCreateRequest",
     "TenantUserUpdateRequest",
     "TenantUserChangePasswordRequest",
+    "TenantUserRegisterRequest",
+    "TenantUserProfileUpdateRequest",
+    "ForgotPasswordRequest",
+    "ResetPasswordRequest",
     # Role
     "TenantAdminRoleResponse",
     "TenantAdminRoleDetailResponse",
@@ -92,6 +107,12 @@ __all__ = [
     "TenantAdminRoleResetPasswordRequest",
     "TenantAdminRoleToggleStatusRequest",
     "TenantAdminRoleMemberResponse",
+    # TenantUserRole
+    "TenantUserRoleResponse",
+    "TenantUserRoleDetailResponse",
+    "TenantUserRoleCreateRequest",
+    "TenantUserRoleUpdateRequest",
+    "TenantUserRolePermissionsRequest",
     # Domain
     "TenantDomainSimpleResponse",
     "TenantDomainVerificationInfo",

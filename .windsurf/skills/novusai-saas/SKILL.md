@@ -52,7 +52,7 @@ description: NovusAI SaaS 全栈开发技能。当需要开发前端页面（Vue
 
 **核心要点**：
 - 四层租户隔离：`TenantModel` → `TenantRepository` → `TenantService` → `TenantController`
-- 三端 Token：`ActiveAdmin` / `ActiveTenantAdmin` / `ActiveUser`
+- 三端 Token：`ActiveAdmin` / `ActiveTenantAdmin` / `ActiveTenantUser`
 - 异常由 Service 抛出（`NotFoundException` / `BusinessException` 等），Controller 不捕获
 - 日志分类器：`LogManager.get_logger("app"/"auth"/"storage"/"task"/"queue"/"db")`
 - 上传必须通过 `AttachmentService`，前端用 `FilePicker` / `ImageUpload` / `smartUploadFile`
@@ -417,7 +417,31 @@ await perm_sync.sync_permissions()
 
 ---
 
-## 十七、插件开发
+## 十七、用户端（User Endpoint）开发
+
+用户端面向 C 端业务用户，架构与 admin/tenant 端有显著差异：
+
+| 维度 | admin/tenant | user |
+|------|-------------|------|
+| API 前缀 | `/api/admin/*` / `/api/tenant/*` | **`/api/user/*`**（ADR-2） |
+| Token Scope | `admin` / `tenant_admin` | `tenant_user` |
+| 依赖注入 | `ActiveAdmin` / `ActiveTenantAdmin` | **`ActiveTenantUser`** |
+| Layout | `BasicLayout`（侧边栏） | **`UserLayout`**（Layout A - Top Nav, 无侧边栏） |
+| 移动端 | 次要 | **核心支持**（responsive-first, >=375px） |
+
+**核心要点**：
+- UserLayout = 56px 水平导航栏 + 居中内容区（max-width: 1100px）+ 移动端 hamburger drawer
+- 用户端 RBAC 使用 `PermissionScope.USER` scope，菜单定义在 `user_menus.py`
+- 域名→租户→品牌加载：Router Guard → `loadTenantConfig()` → 应用 Logo/主色调/站点名
+- 公开端点用 `@public`，登录后端点用 `@auth_only`
+- 注册/忘记密码端点需 `IPRateLimiter` 保护
+- Token 选择：前端 `/api/user/*` URL 自动选择 user Token
+
+→ 完整规范：[references/user-endpoint-spec.md](references/user-endpoint-spec.md)
+
+---
+
+## 十八、插件开发
 
 插件系统采用**零侵入架构**：plugin.yaml 声明式清单 + PluginBase 生命周期钩子 + PluginContext 沙箱 API + UMD 前端动态加载。
 
@@ -500,4 +524,5 @@ python scripts/plugin_cli.py pack plugins/my-plugin                   # 打包 z
 | [multimodal-rag.md](references/multimodal-rag.md) | 多模态RAG规范（M263：VisionDescriber/ImageParser/PptxParser/KB配置） |
 | [upload-storage-spec.md](references/upload-storage-spec.md) | 上传与存储系统规范（附件系统/FilePicker/ImageUpload/smartUploadFile/分片上传） |
 | [plugin-menu-registration.md](references/plugin-menu-registration.md) | 插件菜单注册全链路规范（plugin.yaml/后端注册/权限同步/前端路由/管理员配置） |
+| [user-endpoint-spec.md](references/user-endpoint-spec.md) | 用户端开发规范（UserLayout/认证流程/RBAC/Token路由/响应式设计） |
 | [browser-testing-spec.md](references/browser-testing-spec.md) | 浏览器测试规范（MCP 工具优先级/登录凭据/租户端进入方式/测试步骤） |

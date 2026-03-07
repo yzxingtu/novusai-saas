@@ -26,6 +26,7 @@ from app.services.ai import MeteringService
     resource="ai_usage",
     name="menu.admin.ai_usage",
     scope=PermissionScope.ADMIN_ONLY,
+    parent_resource="ai_quota_mgmt",
     menu=MenuConfig(
         icon="lucide:bar-chart-3",
         path="/ai/monitor/usage",

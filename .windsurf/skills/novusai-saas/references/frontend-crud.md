@@ -344,7 +344,7 @@ await requestClient.put('/admin/users/1', data);
 await requestClient.delete('/admin/users/1');
 ```
 
-Token 按 URL 前缀自动选择：`/admin/*` → admin，`/tenant/*` → tenant，`/api/v1/*` → user
+Token 按 URL 前缀自动选择：`/admin/*` → admin，`/tenant/*` → tenant，`/api/user/*` → user
 
 ---
 

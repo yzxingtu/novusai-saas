@@ -44,6 +44,7 @@ from app.services.ai.conversation_service import ConversationService
     resource="agent_chat",
     name="menu.tenant.agent_chat",
     scope=PermissionScope.ALL_TENANTS,
+    parent_resource="ai_workspace",
     menu=MenuConfig(
         icon="lucide:message-square",
         path="/ai/chat",

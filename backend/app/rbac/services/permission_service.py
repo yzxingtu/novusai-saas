@@ -10,9 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.i18n import _
-from app.models import Admin, Permission, TenantAdmin
+from app.models import Admin, Permission, TenantAdmin, TenantUser
 from app.models.auth.admin_role import AdminRole
 from app.models.auth.tenant_admin_role import TenantAdminRole
+from app.models.auth.tenant_user_role import TenantUserRole
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_plan import TenantPlan
 from app.repositories.system.admin_role_repository import AdminRoleRepository
@@ -513,17 +514,23 @@ class PermissionService:
         获取指定作用域的所有启用权限
 
         Args:
-            scope: 权限作用域 (admin/tenant/both)
+            scope: 权限作用域 (admin_only/all_tenants/tenant_user)
 
         Returns:
             权限列表
         """
+        # tenant_user 独立作用域，不含 admin_and_all
+        if scope == "tenant_user":
+            scopes = [scope]
+        else:
+            scopes = [scope, "admin_and_all"]
+
         result = await self.db.execute(
             select(Permission)
             .where(
                 Permission.is_enabled.is_(True),
                 Permission.is_deleted.is_(False),
-                Permission.scope.in_([scope, "admin_and_all"]),
+                Permission.scope.in_(scopes),
             )
             .order_by(Permission.sort_order)
         )
@@ -951,6 +958,131 @@ class PermissionService:
 
         # 获取用户的有效权限 ID 集合（已包含套餐过滤逻辑）
         effective_ids = await self.get_tenant_admin_effective_permission_ids(tenant_admin)
+
+        if not effective_ids:
+            return []
+
+        # 查询用户拥有的所有权限
+        result = await self.db.execute(
+            select(Permission)
+            .where(
+                Permission.id.in_(effective_ids),
+                Permission.is_enabled.is_(True),
+                Permission.is_deleted.is_(False),
+            )
+        )
+        user_permissions = list(result.scalars().all())
+
+        # 收集用户拥有的权限码集合
+        user_permission_codes = {p.code for p in user_permissions}
+
+        # 收集用户拥有的菜单 ID 和操作权限的 parent_id
+        menu_ids = set()
+        for perm in user_permissions:
+            if perm.type == "menu":
+                menu_ids.add(perm.id)
+            elif perm.type == "operation" and perm.parent_id:
+                menu_ids.add(perm.parent_id)
+
+        # 构建菜单 ID 到菜单的映射
+        menu_by_id = {p.id: p for p in all_permissions if p.type == "menu"}
+
+        # 补充所有祖先菜单
+        ids_to_process = list(menu_ids)
+        while ids_to_process:
+            menu_id = ids_to_process.pop()
+            menu = menu_by_id.get(menu_id)
+            if menu and menu.parent_id and menu.parent_id not in menu_ids:
+                menu_ids.add(menu.parent_id)
+                ids_to_process.append(menu.parent_id)
+
+        # 构建用于菜单树的权限列表
+        permissions_for_tree = []
+        for p in all_permissions:
+            if p.type == "menu" and p.id in menu_ids or p.type == "operation":
+                permissions_for_tree.append(p)
+
+        return self._build_menu_tree(permissions_for_tree, user_permission_codes)
+
+    # ==================== 用户端权限方法 ====================
+
+    async def get_tenant_user_permissions(
+        self,
+        tenant_user: TenantUser,
+    ) -> set[str]:
+        """
+        获取租户业务用户的权限码集合
+
+        Args:
+            tenant_user: 租户业务用户
+
+        Returns:
+            权限代码集合
+        """
+        if tenant_user.role_id is None:
+            return set()
+
+        result = await self.db.execute(
+            select(TenantUserRole)
+            .where(TenantUserRole.id == tenant_user.role_id)
+            .options(selectinload(TenantUserRole.permissions))
+        )
+        role = result.scalar_one_or_none()
+
+        if role is None or not role.is_active:
+            return set()
+
+        return {
+            p.code for p in role.permissions
+            if p.is_enabled and not p.is_deleted
+        }
+
+    async def get_tenant_user_effective_permission_ids(
+        self,
+        tenant_user: TenantUser,
+    ) -> set[int]:
+        """
+        获取租户业务用户的有效权限 ID 集合
+
+        Args:
+            tenant_user: 租户业务用户
+
+        Returns:
+            权限 ID 集合
+        """
+        if tenant_user.role_id is None:
+            return set()
+
+        result = await self.db.execute(
+            select(TenantUserRole)
+            .where(TenantUserRole.id == tenant_user.role_id)
+            .options(selectinload(TenantUserRole.permissions))
+        )
+        role = result.scalar_one_or_none()
+
+        if role is None or not role.is_active:
+            return set()
+
+        return {
+            p.id for p in role.permissions
+            if p.is_enabled and not p.is_deleted
+        }
+
+    async def get_tenant_user_menus(self, tenant_user: TenantUser) -> list[MenuResponse]:
+        """
+        获取租户业务用户的菜单树
+
+        Args:
+            tenant_user: 租户业务用户
+
+        Returns:
+            菜单树列表，每个菜单包含该菜单下用户拥有的操作权限码
+        """
+        # 获取所有用户端权限（菜单 + 操作权限）
+        all_permissions = await self.get_enabled_permissions_by_scope("tenant_user")
+
+        # 获取用户的有效权限 ID 集合
+        effective_ids = await self.get_tenant_user_effective_permission_ids(tenant_user)
 
         if not effective_ids:
             return []

@@ -2,8 +2,20 @@
   "dashboard": {
     "title": "Home",
     "welcome": "Welcome back",
-    "recentOrders": "Recent Orders",
-    "notifications": "Notifications"
+    "greeting": "Hello, {name}",
+    "greetingDesc": "Welcome back to your workspace. Have a great day!",
+    "neverLoggedIn": "Never logged in",
+    "lastLoginAt": "Last Login",
+    "role": "Role",
+    "noRole": "No role assigned",
+    "memberSince": "Member Since",
+    "quickActions": "Quick Actions",
+    "aiChat": "AI Chat",
+    "aiChatDesc": "Chat with AI assistant",
+    "myProfile": "My Profile",
+    "myProfileDesc": "View and edit your profile",
+    "changePassword": "Change Password",
+    "changePasswordDesc": "Update your login password"
   },
   "profile": {
     "title": "Profile",
@@ -13,7 +25,13 @@
     "nickname": "Nickname",
     "email": "Email",
     "phone": "Phone",
+    "gender": "Gender",
+    "genderUnknown": "Prefer not to say",
+    "genderMale": "Male",
+    "genderFemale": "Female",
+    "security": "Security",
     "changePassword": "Change Password",
+    "changePasswordDesc": "Regularly changing your password improves account security",
     "oldPassword": "Current Password",
     "newPassword": "New Password",
     "confirmPassword": "Confirm New Password",
@@ -30,27 +48,7 @@
       "inputConfirmPassword": "Please confirm new password"
     }
   },
-  "order": {
-    "title": "My Orders",
-    "list": "Order List",
-    "detail": "Order Detail",
-    "orderNo": "Order No",
-    "status": "Status",
-    "amount": "Amount",
-    "createdAt": "Order Time",
-    "payAt": "Payment Time",
-    "statusOptions": {
-      "pending": "Pending",
-      "paid": "Paid",
-      "shipped": "Shipped",
-      "completed": "Completed",
-      "cancelled": "Cancelled"
-    }
-  },
-  "common": {
-    "operation": "Operation",
-    "viewDetail": "View Detail",
-    "submit": "Submit",
-    "save": "Save"
+  "auth": {
+    "passwordMinLength": "Password must be at least 6 characters"
   }
 }

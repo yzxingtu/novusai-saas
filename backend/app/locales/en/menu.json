@@ -74,13 +74,17 @@
       "tenant_knowledge_base": "Knowledge Bases",
       "tenant_ai_table_policy": "Data Access Policies",
       "admin_agent_assignment_mgmt": "Agent Assignment Management",
+      "tenant_agent_assignment": "Agent Assignments",
       "notification_template": "Notification Template Management",
       "admin_cache": "Cache Management"
     },
     "tenant": {
       "dashboard": "Dashboard",
+      "tenant_workspace": "Workspace",
       "system": "System",
       "tenant_user": "Users",
+      "tenant_user_role": "User Roles",
+      "user_architecture": "User Architecture",
       "permission": "Permissions",
       "organization": "Organization",
       "operation_log": "Operation Logs",

@@ -40,6 +40,7 @@ from app.services.system.tenant_domain_service import TenantDomainTenantService
     resource="tenant_domain",
     name="menu.tenant.domain",  # i18n key
     scope=PermissionScope.ALL_TENANTS,
+    parent_resource="system_mgmt",
     menu=MenuConfig(
         icon="lucide:globe",
         path="/system-mgmt/domains",

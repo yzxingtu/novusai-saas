@@ -9,6 +9,8 @@
 
 from fastapi import APIRouter
 
+from app.api.tenant.agent_assignments import TenantAgentAssignmentController
+from app.api.tenant.agent_assignments import router as agent_assignments_router
 from app.api.tenant.agent_chat import TenantAgentChatController
 from app.api.tenant.agent_chat import router as agent_chat_router
 from app.api.tenant.agents import TenantAgentController
@@ -59,6 +61,10 @@ from app.api.tenant.skills import TenantSkillController
 from app.api.tenant.skills import router as skills_router
 from app.api.tenant.tasks import TenantTaskLogController
 from app.api.tenant.tasks import router as tasks_router
+from app.api.tenant.user_roles import TenantUserRoleController
+from app.api.tenant.user_roles import router as user_roles_router
+from app.api.tenant.users import TenantUserController
+from app.api.tenant.users import router as users_router
 from app.api.tenant.ws import router as ws_router
 
 # 创建租户管理后台路由器
@@ -73,6 +79,8 @@ tenant_router.include_router(domains_router)
 tenant_router.include_router(operation_logs_router)
 tenant_router.include_router(permissions_router)
 tenant_router.include_router(roles_router)
+tenant_router.include_router(users_router)
+tenant_router.include_router(user_roles_router)
 tenant_router.include_router(tasks_router)
 tenant_router.include_router(periodic_tasks_router)
 # AI 网关相关
@@ -83,6 +91,8 @@ tenant_router.include_router(ai_usage_router)
 tenant_router.include_router(ai_call_logs_router)
 # 智能体
 tenant_router.include_router(agents_router)
+# 智能体绑定
+tenant_router.include_router(agent_assignments_router)
 # 对话管理
 tenant_router.include_router(conversations_router)
 # AI 对话
@@ -119,6 +129,8 @@ __all__ = [
     "TenantPermissionController",
     "TenantRoleController",
     "TenantTaskLogController",
+    "TenantUserController",
+    "TenantUserRoleController",
     # AI 网关
     "TenantAIConfigController",
     "TenantAIGatewayController",
@@ -127,6 +139,8 @@ __all__ = [
     "TenantAICallLogController",
     # 智能体
     "TenantAgentController",
+    # 智能体绑定
+    "TenantAgentAssignmentController",
     # 对话管理
     "TenantConversationController",
     # AI 对话

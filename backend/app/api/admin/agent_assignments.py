@@ -44,6 +44,7 @@ class AgentAssignmentUpdate(PydanticBaseModel):
     resource="agent_assignment",
     name="menu.admin.agent_assignment",
     scope=PermissionScope.ADMIN_ONLY,
+    parent_resource="ai_agent_mgmt",
     menu=MenuConfig(
         icon="lucide:plug",
         path="/ai/agent-assignments",

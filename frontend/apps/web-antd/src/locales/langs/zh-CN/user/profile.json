@@ -6,13 +6,20 @@
   "nickname": "昵称",
   "email": "邮箱",
   "phone": "手机号",
+  "gender": "性别",
+  "genderUnknown": "未知",
+  "genderMale": "男",
+  "genderFemale": "女",
+  "security": "安全设置",
   "changePassword": "修改密码",
+  "changePasswordDesc": "定期修改密码以保护账户安全",
   "oldPassword": "当前密码",
   "newPassword": "新密码",
   "confirmPassword": "确认新密码",
   "messages": {
     "updateSuccess": "资料更新成功",
-    "changePasswordSuccess": "密码修改成功"
+    "changePasswordSuccess": "密码修改成功",
+    "passwordMismatch": "两次输入的密码不一致"
   },
   "placeholder": {
     "inputNickname": "请输入昵称",

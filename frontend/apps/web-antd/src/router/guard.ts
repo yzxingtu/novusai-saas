@@ -97,9 +97,9 @@ function setupAccessGuard(router: Router) {
           publicConfigStore.platformConfig.brand,
         );
       }
-    } else if (currentEndpoint === 'tenant') {
+    } else if (currentEndpoint === 'tenant' || currentEndpoint === 'user') {
       if (!publicConfigStore.tenantConfigLoaded) {
-        // 租户端：加载租户公开配置
+        // 租户端 / 用户端：加载租户公开配置（用户属于租户，复用租户配置）
         await publicConfigStore.loadTenantConfig().catch((error) => {
           console.warn('[Router Guard] 加载租户公开配置失败:', error);
         });
@@ -153,11 +153,20 @@ function setupAccessGuard(router: Router) {
     if (coreRouteNames.includes(to.name as string)) {
       // 如果当前端已登录且访问登录页，重定向到对应端的首页
       if (isLoginPath(to.path) && currentToken) {
-        return (
-          (to.query?.redirect as string) ||
-          userStore.userInfo?.homePath ||
-          currentHomePath
-        );
+        const redirectPath = to.query?.redirect as string | undefined;
+        if (redirectPath) {
+          // 防止跨端重定向死循环：如果重定向目标属于另一个端且该端没有 Token，
+          // 则留在登录页（允许用户登录目标端），而不是跟随 redirect 导致死循环
+          const redirectEndpoint = getApiEndpoint(redirectPath);
+          if (
+            redirectEndpoint !== currentEndpoint &&
+            !TokenStorage.getToken(redirectEndpoint)
+          ) {
+            return true;
+          }
+          return redirectPath;
+        }
+        return userStore.userInfo?.homePath || currentHomePath;
       }
       return true;
     }

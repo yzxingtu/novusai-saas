@@ -11,6 +11,10 @@ from app.repositories.tenant.tenant_domain_tenant_repository import (
 )
 from app.repositories.tenant.tenant_plan_repository import TenantPlanRepository
 from app.repositories.tenant.tenant_role_repository import TenantRoleRepository
+from app.repositories.tenant.tenant_user_repository import TenantUserRepository
+from app.repositories.tenant.tenant_user_role_repository import (
+    TenantUserRoleRepository,
+)
 
 __all__ = [
     "AttachmentRepository",
@@ -18,4 +22,6 @@ __all__ = [
     "TenantRoleRepository",
     "TenantPlanRepository",
     "TenantDomainTenantRepository",
+    "TenantUserRepository",
+    "TenantUserRoleRepository",
 ]

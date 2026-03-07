@@ -50,6 +50,7 @@ from app.services.tenant.tenant_admin_role_service import TenantAdminRoleService
     resource="organization",
     name="menu.tenant.organization",  # i18n key
     scope=PermissionScope.ALL_TENANTS,
+    parent_resource="system",
     menu=MenuConfig(
         icon="lucide:git-branch",
         path="/system/organization",

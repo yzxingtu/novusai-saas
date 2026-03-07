@@ -31,6 +31,7 @@ from app.services.system.operation_log_service import OperationLogService
     resource="operation_log",
     name="menu.admin.operation_log",  # i18n key
     scope=PermissionScope.ADMIN_ONLY,
+    parent_resource="system_maintenance",
     menu=MenuConfig(
         icon="lucide:file-text",
         path="/system/operation-logs",

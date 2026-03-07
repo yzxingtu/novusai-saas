@@ -14,11 +14,13 @@ from app.core.database import async_session_factory
 from app.core.security import (
     TOKEN_SCOPE_ADMIN,
     TOKEN_SCOPE_TENANT_ADMIN,
+    TOKEN_SCOPE_TENANT_USER,
     TOKEN_TYPE_ACCESS,
 )
-from app.models import Admin, TenantAdmin
+from app.models import Admin, TenantAdmin, TenantUser
 from app.models.auth.admin_role import AdminRole
 from app.models.auth.tenant_admin_role import TenantAdminRole
+from app.models.auth.tenant_user_role import TenantUserRole
 
 
 class PermissionMiddleware:
@@ -85,6 +87,8 @@ class PermissionMiddleware:
             await self._load_admin_permissions(request, int(user_id))
         elif scope == TOKEN_SCOPE_TENANT_ADMIN:
             await self._load_tenant_admin_permissions(request, int(user_id))
+        elif scope == TOKEN_SCOPE_TENANT_USER:
+            await self._load_tenant_user_permissions(request, int(user_id))
 
     async def _load_admin_permissions(
         self, request: Request, admin_id: int
@@ -171,6 +175,43 @@ class PermissionMiddleware:
                 select(TenantAdminRole)
                 .where(TenantAdminRole.id == tenant_admin.role_id)
                 .options(selectinload(TenantAdminRole.permissions))
+            )
+            role = result.scalar_one_or_none()
+
+            if role and role.is_active:
+                for p in role.permissions:
+                    if p.is_enabled and not p.is_deleted:
+                        permissions.add(p.code)
+
+            request.state.user_permissions = permissions
+
+    async def _load_tenant_user_permissions(
+        self, request: Request, tenant_user_id: int
+    ) -> None:
+        """加载租户业务用户权限"""
+        async with async_session_factory() as db:
+            result = await db.execute(
+                select(TenantUser).where(TenantUser.id == tenant_user_id)
+            )
+            tenant_user = result.scalar_one_or_none()
+
+            if tenant_user is None or not tenant_user.is_active:
+                return
+
+            # 将用户对象存入 state
+            request.state.user = tenant_user
+
+            # 无角色则无权限
+            if tenant_user.role_id is None:
+                return
+
+            permissions: set[str] = set()
+
+            # 获取当前角色的权限
+            result = await db.execute(
+                select(TenantUserRole)
+                .where(TenantUserRole.id == tenant_user.role_id)
+                .options(selectinload(TenantUserRole.permissions))
             )
             role = result.scalar_one_or_none()
 

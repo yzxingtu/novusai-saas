@@ -121,6 +121,14 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
                 room=f"tenant:{tenant_id}",
                 skip_sid=sid,
             )
+            # 通知 /tenant namespace，让租户管理员看到业务用户上线
+            from app.core.socketio_server import get_sio
+            await get_sio().emit(
+                "user_presence:online",
+                {"user_id": user_id, "user_type": "tenant_user", "tenant_id": tenant_id},
+                room=f"tenant:{tenant_id}",
+                namespace="/tenant",
+            )
 
         online_ids = await PresenceManager.get_online_ids("tenant_user", tenant_id)
         await self.emit("presence:list", {"online_ids": online_ids}, to=sid)
@@ -160,6 +168,14 @@ class UserNamespace(PageSessionMixin, socketio.AsyncNamespace):
                         {"user_id": user_id, "user_type": "tenant_user", "tenant_id": tenant_id},
                         room=f"tenant:{tenant_id}",
                         skip_sid=sid,
+                    )
+                    # 通知 /tenant namespace，让租户管理员看到业务用户下线
+                    from app.core.socketio_server import get_sio
+                    await get_sio().emit(
+                        "user_presence:offline",
+                        {"user_id": user_id, "user_type": "tenant_user", "tenant_id": tenant_id},
+                        room=f"tenant:{tenant_id}",
+                        namespace="/tenant",
                     )
             except Exception as e:
                 logger.error(

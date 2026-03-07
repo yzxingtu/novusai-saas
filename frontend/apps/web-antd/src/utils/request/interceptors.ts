@@ -249,7 +249,7 @@ export function createResponseDataInterceptor(
 const LOGIN_URLS = [
   '/admin/auth/login',
   '/tenant/auth/login',
-  '/api/v1/auth/login',
+  '/api/user/auth/login',
 ];
 
 /**

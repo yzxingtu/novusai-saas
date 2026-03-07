@@ -175,7 +175,63 @@ except Exception as _perm_exc:
 
 ---
 
-## 四、权限树层级结构
+## 四、用户端（tenant_user）权限扩展
+
+### 新增 Scope
+
+用户端 RBAC 使用独立的 `tenant_user` scope，通过 `PermissionScope.USER` 枚举值标识。
+
+### 菜单定义
+
+用户端菜单定义在 `backend/app/rbac/menus/user_menus.py`：
+
+```python
+USER_DIRECTORY_MENUS: list[PermissionMeta] = [
+    PermissionMeta(
+        code="menu:user.dashboard",
+        name="menu.user.dashboard",
+        type=PermissionType.MENU,
+        scope=PermissionScope.USER,
+        resource="menu",
+        action="user.dashboard",
+        icon="lucide:layout-dashboard",
+        path="/dashboard",
+        sort_order=10,
+    ),
+]
+```
+
+### 注册流程
+
+1. `user_menus.py` 中定义 `USER_DIRECTORY_MENUS`
+2. `register_directory_menus()` 新增 `USER_DIRECTORY_MENUS` 注册
+3. `ResourceScopeEnum` 新增 `TENANT_USER` 值
+4. Permission 中间件 `_load_permissions()` 新增 `TOKEN_SCOPE_TENANT_USER` 分支
+
+### 用户端 Controller 权限模式
+
+用户端大多数 API 使用 `@auth_only` 或 `@public`，不需要细粒度权限：
+
+```python
+# 公开端点（注册/忘记密码）→ @public
+# 登录后端点（个人信息/菜单）→ @auth_only
+# 需要 RBAC 控制的端点 → @permission_resource + @action_*
+```
+
+### 前端对接
+
+```typescript
+// api/user/menu.ts
+export function getUserMenusWithPermissionsApi() {
+  return requestClient.get('/user/permissions/menus');
+}
+```
+
+→ 完整规范：[user-endpoint-spec.md](user-endpoint-spec.md) § 四
+
+---
+
+## 五、权限树层级结构
 
 ```
 菜单（Menu）

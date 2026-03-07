@@ -10,6 +10,10 @@ from app.models.auth.tenant_admin_role import (
     TenantAdminRole,
     tenant_admin_role_permissions,
 )
+from app.models.auth.tenant_user_role import (
+    TenantUserRole,
+    tenant_user_role_permissions,
+)
 
 __all__ = [
     "Permission",
@@ -17,4 +21,6 @@ __all__ = [
     "admin_role_permissions",
     "TenantAdminRole",
     "tenant_admin_role_permissions",
+    "TenantUserRole",
+    "tenant_user_role_permissions",
 ]
