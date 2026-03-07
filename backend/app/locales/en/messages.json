@@ -95,6 +95,16 @@
     "owner_password_reset": "Tenant owner password reset successfully",
     "no_plan": "No plan assigned to this tenant. All features are disabled. Please contact the platform administrator."
   },
+  "domain": {
+    "instructions_header": "Please add the following records at your DNS provider",
+    "cname_record_required": "CNAME Record (Required)",
+    "txt_record_verify": "TXT Record (for ownership verification)",
+    "host_record": "Host Record",
+    "or_subdomain": "or your subdomain",
+    "record_type": "Record Type",
+    "record_value": "Record Value",
+    "dns_propagation_note": "DNS records may take a few minutes to several hours to propagate. Please be patient."
+  },
   "tenant_plan": {
     "not_found": "Plan not found",
     "code_exists": "Plan code already exists",

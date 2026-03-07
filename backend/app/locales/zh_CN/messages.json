@@ -95,6 +95,16 @@
     "owner_password_reset": "租户超级管理员密码重置成功",
     "no_plan": "当前租户未分配套餐，无法使用任何功能。请联系平台管理员分配套餐。"
   },
+  "domain": {
+    "instructions_header": "请在您的 DNS 服务商处添加以下记录",
+    "cname_record_required": "CNAME 记录（必需）",
+    "txt_record_verify": "TXT 记录（用于验证所有权）",
+    "host_record": "主机记录",
+    "or_subdomain": "或您的子域名",
+    "record_type": "记录类型",
+    "record_value": "记录值",
+    "dns_propagation_note": "DNS 记录生效可能需要几分钟到几小时，请耐心等待。"
+  },
   "tenant_plan": {
     "not_found": "套餐不存在",
     "code_exists": "套餐代码已存在",

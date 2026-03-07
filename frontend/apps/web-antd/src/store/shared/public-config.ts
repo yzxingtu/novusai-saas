@@ -102,8 +102,12 @@ interface PublicConfigState {
   platformConfigLoaded: boolean;
   /** 租户配置是否已加载 */
   tenantConfigLoaded: boolean;
-  /** 加载中状态 */
+  /** 加载中状态（向后兼容，任一端加载中即为 true） */
   loading: boolean;
+  /** 平台配置加载中 */
+  platformLoading: boolean;
+  /** 租户配置加载中 */
+  tenantLoading: boolean;
   /** 错误信息 */
   error: null | string;
   /** 平台端登录失败次数 */
@@ -128,6 +132,11 @@ interface PublicConfigState {
 // Store 定义
 // ============================================================
 
+// Promise 去重：防止并发调用产生重复请求
+let _platformConfigPromise: Promise<null | PlatformPublicConfig> | null = null;
+let _tenantConfigPromise: Promise<null | TenantPublicConfig> | null = null;
+let _detectDomainPromise: Promise<void> | null = null;
+
 export const usePublicConfigStore = defineStore('publicConfig', {
   state: (): PublicConfigState => ({
     platformConfig: null,
@@ -135,6 +144,8 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     platformConfigLoaded: false,
     tenantConfigLoaded: false,
     loading: false,
+    platformLoading: false,
+    tenantLoading: false,
     error: null,
     platformLoginFailCount: 0,
     tenantLoginFailCount: 0,
@@ -243,6 +254,19 @@ export const usePublicConfigStore = defineStore('publicConfig', {
         return this.platformConfig;
       }
 
+      // 去重：复用正在进行的请求
+      if (_platformConfigPromise) {
+        return _platformConfigPromise;
+      }
+
+      _platformConfigPromise = this._doLoadPlatformConfig();
+      return _platformConfigPromise.finally(() => {
+        _platformConfigPromise = null;
+      });
+    },
+
+    async _doLoadPlatformConfig(): Promise<null | PlatformPublicConfig> {
+      this.platformLoading = true;
       this.loading = true;
       this.error = null;
 
@@ -260,7 +284,8 @@ export const usePublicConfigStore = defineStore('publicConfig', {
           error instanceof Error ? error.message : 'Failed to load config';
         return null;
       } finally {
-        this.loading = false;
+        this.platformLoading = false;
+        this.loading = this.tenantLoading;
       }
     },
 
@@ -274,6 +299,19 @@ export const usePublicConfigStore = defineStore('publicConfig', {
         return this.tenantConfig;
       }
 
+      // 去重：复用正在进行的请求
+      if (_tenantConfigPromise) {
+        return _tenantConfigPromise;
+      }
+
+      _tenantConfigPromise = this._doLoadTenantConfig();
+      return _tenantConfigPromise.finally(() => {
+        _tenantConfigPromise = null;
+      });
+    },
+
+    async _doLoadTenantConfig(): Promise<null | TenantPublicConfig> {
+      this.tenantLoading = true;
       this.loading = true;
       this.error = null;
 
@@ -290,7 +328,8 @@ export const usePublicConfigStore = defineStore('publicConfig', {
           error instanceof Error ? error.message : 'Failed to load config';
         return null;
       } finally {
-        this.loading = false;
+        this.tenantLoading = false;
+        this.loading = this.platformLoading;
       }
     },
 
@@ -304,6 +343,20 @@ export const usePublicConfigStore = defineStore('publicConfig', {
      * 幂等：检测完成后不再重复。网络错误不标记完成允许重试。
      */
     async detectDomainType(): Promise<void> {
+      if (this.isDomainDetected) return;
+
+      // 去重：复用正在进行的检测
+      if (_detectDomainPromise) {
+        return _detectDomainPromise;
+      }
+
+      _detectDomainPromise = this._doDetectDomainType();
+      return _detectDomainPromise.finally(() => {
+        _detectDomainPromise = null;
+      });
+    },
+
+    async _doDetectDomainType(): Promise<void> {
       if (this.isDomainDetected) return;
 
       const hostname = globalThis.location?.hostname ?? '';
@@ -358,10 +411,20 @@ export const usePublicConfigStore = defineStore('publicConfig', {
         this.isDomainDetected = true;
       } catch (error) {
         const err = error as {
-          code?: number;
-          response?: { status?: number };
+          response?: { data?: { code?: number }; status?: number };
         };
-        if (err?.code === 4040 || err?.response?.status === 404) {
+        const httpStatus = err?.response?.status;
+        const businessCode = err?.response?.data?.code;
+
+        if (
+          httpStatus === 404 ||
+          businessCode === 4040
+        ) {
+          // 租户不存在 → 平台域名
+          this.isDomainTenantDomain = false;
+          this.isDomainDetected = true;
+        } else if (httpStatus && httpStatus >= 400 && httpStatus < 500) {
+          // 其他客户端错误（如 403）也标记为非租户域名
           this.isDomainTenantDomain = false;
           this.isDomainDetected = true;
         }
@@ -402,6 +465,8 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       this.platformCaptchaRequired = false;
       this.tenantCaptchaRequired = false;
       this.userCaptchaRequired = false;
+      this.isDomainTenantDomain = null;
+      this.isDomainDetected = false;
       localStorage.removeItem(BRAND_CONFIG_CACHE_KEY);
     },
 

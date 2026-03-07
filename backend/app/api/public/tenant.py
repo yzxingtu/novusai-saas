@@ -103,7 +103,8 @@ async def get_tenant_public_config(request: Request, db: DbSession):
         allowed_extensions=allowed_extensions,
     )
 
-    subdomain_url = f"https://{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
+    scheme = request.url.scheme
+    subdomain_url = f"{scheme}://{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
 
     # 品牌 fallback：租户未设置 → 平台默认
     logo_url = configs.get("tenant_logo") or platform_general_config.get("site_logo") or ""
@@ -193,20 +194,18 @@ async def get_domain_verification_info(
     txt_value = f"novusai-verification={tenant.code}"
 
     # 配置说明
-    instructions = f"""请在您的 DNS 服务商处添加以下记录：
-
-1. CNAME 记录（必需）:
-   - 主机记录: @ 或您的子域名
-   - 记录类型: CNAME
-   - 记录值: {cname_target}
-
-2. TXT 记录（用于验证所有权）:
-   - 主机记录: {settings.DOMAIN_VERIFICATION_PREFIX}
-   - 记录类型: TXT
-   - 记录值: {txt_value}
-
-DNS 记录生效可能需要几分钟到几小时，请耐心等待。
-"""
+    instructions = (
+        f"{_('domain.instructions_header')}\n\n"
+        f"1. {_('domain.cname_record_required')}:\n"
+        f"   - {_('domain.host_record')}: @ {_('domain.or_subdomain')}\n"
+        f"   - {_('domain.record_type')}: CNAME\n"
+        f"   - {_('domain.record_value')}: {cname_target}\n\n"
+        f"2. {_('domain.txt_record_verify')}:\n"
+        f"   - {_('domain.host_record')}: {settings.DOMAIN_VERIFICATION_PREFIX}\n"
+        f"   - {_('domain.record_type')}: TXT\n"
+        f"   - {_('domain.record_value')}: {txt_value}\n\n"
+        f"{_('domain.dns_propagation_note')}\n"
+    )
 
     return success(
         data=DomainVerificationInfo(

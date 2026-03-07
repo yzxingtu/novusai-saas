@@ -68,6 +68,13 @@ function setupCommonGuard(router: Router) {
 let lastEndpoint: ApiEndpoint | null = null;
 
 /**
+ * 重置端类型记录（登出时调用，避免 HMR 或会话切换时的残留状态）
+ */
+export function resetLastEndpoint() {
+  lastEndpoint = null;
+}
+
+/**
  * 权限访问守卫配置
  * @param router
  */
@@ -151,11 +158,19 @@ function setupAccessGuard(router: Router) {
       !isAdminRoute &&
       !isLoginPath(to.path)
     ) {
-      return { path: '/maintenance', replace: true };
+      return {
+        path: '/maintenance',
+        query: { from: currentEndpoint },
+        replace: true,
+      };
     }
     // 维护模式已关闭但用户仍在维护页面，重定向回首页
     if (!maintenanceEnabled && isMaintenancePage) {
-      return { path: currentHomePath, replace: true };
+      const fromEndpoint = (to.query.from as string) || '';
+      const homePath = fromEndpoint && HOME_PATHS[fromEndpoint as ApiEndpoint]
+        ? HOME_PATHS[fromEndpoint as ApiEndpoint]
+        : currentHomePath;
+      return { path: homePath, replace: true };
     }
 
     // 检测端切换：如果端类型变化，需要重新生成路由和权限

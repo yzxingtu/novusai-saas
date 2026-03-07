@@ -5,6 +5,38 @@
 import { getProcessedImageUrl } from '#/utils/image';
 import { baseRequestClient } from '#/utils/request';
 
+interface HttpResponse<T = unknown> {
+  code: number;
+  data: T;
+  message: string;
+}
+
+/**
+ * 从 baseRequestClient 响应中提取业务数据
+ * baseRequestClient TS 类型返回 T，但运行时实际返回 AxiosResponse，.data 为 HttpResponse
+ */
+function extractResponseData<T>(response: unknown): HttpResponse<T> {
+  return (response as { data: HttpResponse<T> }).data;
+}
+
+/**
+ * 从源对象中提取非 null/undefined 的字段，返回仅包含有值字段的对象
+ * 用于构建可选特性配置，避免将 null 值覆盖到默认值上
+ */
+function pickDefined<T, K extends keyof T>(
+  source: T,
+  keys: K[],
+): Record<string, NonNullable<T[K]>> {
+  const result: Record<string, NonNullable<T[K]>> = {};
+  for (const key of keys) {
+    const val = source[key];
+    if (val !== null && val !== undefined) {
+      result[key as string] = val as NonNullable<T[K]>;
+    }
+  }
+  return result;
+}
+
 /**
  * 将附件 ID 字符串转为图片访问 URL
  * 配置项存储的是附件 ID（如 "10"），需转为 /api/public/attachments/{id}/image
@@ -343,33 +375,15 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
     },
     privacyPolicyUrl: raw.privacy_policy_url || undefined,
     termsUrl: raw.terms_url || undefined,
-    features: {
-      ...(
-        raw.allow_registration === null || raw.allow_registration === undefined
-          ? {}
-          : { allow_registration: raw.allow_registration }
-      ),
-      ...(
-        raw.registration_approval === null || raw.registration_approval === undefined
-          ? {}
-          : { registration_approval: raw.registration_approval }
-      ),
-      ...(raw.api_access === null || raw.api_access === undefined
-        ? {}
-        : { api_access: raw.api_access }),
-      ...(raw.file_upload === null || raw.file_upload === undefined
-        ? {}
-        : { file_upload: raw.file_upload }),
-      ...(raw.allow_profile_edit === null || raw.allow_profile_edit === undefined
-        ? {}
-        : { allow_profile_edit: raw.allow_profile_edit }),
-      ...(raw.email_notification === null || raw.email_notification === undefined
-        ? {}
-        : { email_notification: raw.email_notification }),
-      ...(raw.sms_notification === null || raw.sms_notification === undefined
-        ? {}
-        : { sms_notification: raw.sms_notification }),
-    },
+    features: pickDefined(raw, [
+      'allow_registration',
+      'registration_approval',
+      'api_access',
+      'file_upload',
+      'allow_profile_edit',
+      'email_notification',
+      'sms_notification',
+    ]),
   };
 }
 
@@ -396,11 +410,7 @@ export async function getPlatformPublicConfigApi(): Promise<PlatformPublicConfig
     HttpResponse<PlatformPublicConfigRaw>
   >('/api/public/platform/config');
 
-  // response 是 AxiosResponse，response.data 是 HttpResponse
-  const httpResponse = response as unknown as {
-    data: HttpResponse<PlatformPublicConfigRaw>;
-  };
-  const responseData = httpResponse.data;
+  const responseData = extractResponseData<PlatformPublicConfigRaw>(response);
 
   if (responseData.code !== 0) {
     throw new Error(responseData.message || 'Failed to get platform config');
@@ -419,11 +429,7 @@ export async function getTenantPublicConfigApi(): Promise<TenantPublicConfig> {
     HttpResponse<TenantPublicConfigRaw>
   >('/api/public/tenant/config');
 
-  // response 是 AxiosResponse，response.data 是 HttpResponse
-  const httpResponse = response as unknown as {
-    data: HttpResponse<TenantPublicConfigRaw>;
-  };
-  const responseData = httpResponse.data;
+  const responseData = extractResponseData<TenantPublicConfigRaw>(response);
 
   if (responseData.code !== 0) {
     throw new Error(responseData.message || 'Failed to get tenant config');

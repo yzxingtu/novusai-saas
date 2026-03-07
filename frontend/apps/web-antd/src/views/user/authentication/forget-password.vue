@@ -214,21 +214,5 @@ async function handleSubmit() {
 </template>
 
 <style scoped>
-.auth-input :deep(.ant-input),
-.auth-input :deep(.ant-input-password) {
-  border-radius: 10px !important;
-  height: 44px !important;
-}
-
-.auth-input :deep(.ant-input-affix-wrapper) {
-  border-radius: 10px !important;
-  padding: 0 12px !important;
-}
-
-.auth-btn {
-  height: 44px !important;
-  border-radius: 10px !important;
-  font-weight: 600 !important;
-  font-size: 15px !important;
-}
+@import './auth-shared.css';
 </style>

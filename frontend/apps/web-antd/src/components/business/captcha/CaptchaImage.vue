@@ -66,12 +66,26 @@ const errorMsg = ref('');
 // Methods
 // ============================================================
 
+let _fetchPromise: Promise<void> | null = null;
+
 /**
- * 获取验证码挑战
+ * 获取验证码挑战（含去重：快速连续调用复用同一请求）
  */
 async function fetchChallenge() {
   if (props.disabled) return;
 
+  // 去重：如果有正在进行的请求，等待其完成后再发新请求
+  if (_fetchPromise) {
+    await _fetchPromise.catch(() => {});
+  }
+
+  _fetchPromise = _doFetchChallenge();
+  await _fetchPromise.finally(() => {
+    _fetchPromise = null;
+  });
+}
+
+async function _doFetchChallenge() {
   loading.value = true;
   errorMsg.value = '';
 
@@ -204,7 +218,7 @@ defineExpose({
   justify-content: center;
   overflow: hidden;
   cursor: pointer;
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  background: linear-gradient(135deg, hsl(var(--muted)) 0%, hsl(var(--accent)) 100%);
   border: 1px solid hsl(var(--border));
   border-radius: 6px;
   transition: all 0.2s ease;

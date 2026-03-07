@@ -139,11 +139,11 @@ async function doRefreshToken(): Promise<string> {
   }>(REFRESH_TOKEN_URLS[endpoint], { refresh_token: refreshToken });
 
   // 从响应中提取业务数据：response.data 是 HttpResponse，response.data.data 是实际数据
-  const httpResponse = (response as any).data;
+  const httpResponse = (response as unknown as { data: { code: number; data: RefreshTokenResultRaw; message: string } }).data;
   if (httpResponse.code !== 0) {
     throw new Error(httpResponse.message || 'Failed to refresh token');
   }
-  const result = httpResponse.data as RefreshTokenResultRaw;
+  const result = httpResponse.data;
   const newToken = result.access_token;
 
   // 更新 TokenStorage

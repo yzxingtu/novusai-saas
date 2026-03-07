@@ -50,7 +50,12 @@ function refresh() {
 
 function getResult(): CaptchaResult | null {
   const challengeId = captchaRef.value?.getChallengeId() || '';
-  if (!challengeId || !captchaCode.value) {
+  if (!challengeId) {
+    emit('error', new Error('captcha_not_loaded'));
+    return null;
+  }
+  if (!captchaCode.value) {
+    emit('error', new Error('captcha_code_empty'));
     return null;
   }
   return {

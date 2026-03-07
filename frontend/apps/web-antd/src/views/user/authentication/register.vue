@@ -128,15 +128,20 @@ async function handleSubmit() {
     await router.push('/auth/login');
   } catch (error: unknown) {
     const err = error as {
-      response?: { data?: { data?: { captcha_required?: boolean; errors?: Array<{ captcha_required?: boolean }> } } };
+      response?: { data?: { code?: number; data?: { captcha_required?: boolean; errors?: Array<{ captcha_required?: boolean }> }; message?: string } };
     };
+    const responseData = err?.response?.data;
     const captchaRequired =
-      err?.response?.data?.data?.captcha_required ||
-      err?.response?.data?.data?.errors?.[0]?.captcha_required;
+      responseData?.data?.captcha_required ||
+      responseData?.data?.errors?.[0]?.captcha_required;
     if (captchaRequired) {
       showCaptcha.value = true;
-      refreshCaptcha();
     }
+    // 显示后端返回的错误信息
+    if (responseData?.message) {
+      message.error(responseData.message);
+    }
+    refreshCaptcha();
   } finally {
     loading.value = false;
   }
@@ -317,21 +322,5 @@ async function handleSubmit() {
 </template>
 
 <style scoped>
-.auth-input :deep(.ant-input),
-.auth-input :deep(.ant-input-password) {
-  border-radius: 10px !important;
-  height: 44px !important;
-}
-
-.auth-input :deep(.ant-input-affix-wrapper) {
-  border-radius: 10px !important;
-  padding: 0 12px !important;
-}
-
-.auth-btn {
-  height: 44px !important;
-  border-radius: 10px !important;
-  font-weight: 600 !important;
-  font-size: 15px !important;
-}
+@import './auth-shared.css';
 </style>

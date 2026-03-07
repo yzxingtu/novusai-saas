@@ -59,7 +59,9 @@ const resolvedComponent = computed(() => {
   if (entry) {
     return entry.component;
   }
-
+  if (props.provider !== 'image') {
+    console.warn(`[CaptchaProvider] provider "${props.provider}" not registered, falling back to CaptchaImageForm`);
+  }
   // Fallback to image if provider not registered
   return CaptchaImageForm;
 });

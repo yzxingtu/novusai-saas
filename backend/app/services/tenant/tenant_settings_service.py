@@ -84,8 +84,9 @@ class TenantSettingsService(TenantService[Tenant, TenantRepository]):
         # 统计已绑定域名数量
         domain_count = await self._count_domains()
 
-        # 构建子域名 URL
-        subdomain_url = f"https://{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
+        # 构建子域名 URL（开发环境用 http，生产环境用 https）
+        scheme = "http" if settings.DEBUG else "https"
+        subdomain_url = f"{scheme}://{tenant.code}{settings.TENANT_DOMAIN_SUFFIX}"
 
         return {
             "tenant_id": tenant.id,
