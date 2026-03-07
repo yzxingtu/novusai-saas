@@ -84,6 +84,25 @@ function setupAccessGuard(router: Router) {
     const currentLoginPath = getLoginPathByRoute(to.path);
     const currentHomePath = getHomePathByRoute(to.path);
 
+    // ── 域名隔离检测（幂等，仅首次导航发一次请求） ──────────────────────────
+    await publicConfigStore.detectDomainType().catch(() => {});
+
+    // 租户域名禁止访问平台管理端
+    if (
+      publicConfigStore.isDomainTenantDomain === true &&
+      currentEndpoint === 'admin'
+    ) {
+      return { path: LOGIN_PATHS.tenant, replace: true };
+    }
+    // 平台域名禁止访问租户端/用户端
+    if (
+      publicConfigStore.isDomainTenantDomain === false &&
+      (currentEndpoint === 'tenant' || currentEndpoint === 'user')
+    ) {
+      return { path: LOGIN_PATHS.admin, replace: true };
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // 首次访问时加载对应端的公开配置（品牌、验证码等）
     if (currentEndpoint === 'admin') {
       if (!publicConfigStore.platformConfigLoaded) {
@@ -273,10 +292,16 @@ function setupAccessGuard(router: Router) {
     accessStore.setAccessRoutes(accessibleRoutes);
     accessStore.setIsAccessChecked(true);
 
-    const redirectPath = (from.query.redirect ??
+    let redirectPath = (from.query.redirect ??
       (to.path === currentHomePath
         ? userInfo.homePath || currentHomePath
         : to.fullPath)) as string;
+
+    // 防止 homePath 缓存过期导致跨端重定向（如旧值 /analytics 被识别为 user 端）
+    const redirectEndpoint = getApiEndpoint(redirectPath);
+    if (redirectEndpoint !== currentEndpoint) {
+      redirectPath = currentHomePath;
+    }
 
     // 插件路由在 guard 中同步注册（无感方式，不跳转首页）
     const isPluginRedirect = /\/(?:tenant|admin)\/plugins\//.test(redirectPath);

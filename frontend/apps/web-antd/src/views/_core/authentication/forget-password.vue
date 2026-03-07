@@ -7,7 +7,7 @@ import { useRouter } from 'vue-router';
 import { AuthenticationForgetPassword, z } from '@vben/common-ui';
 import { $t } from '@vben/locales';
 
-import { Input, notification } from 'ant-design-vue';
+import { notification } from 'ant-design-vue';
 
 import { userApi } from '#/api';
 
@@ -17,8 +17,6 @@ const router = useRouter();
 const loading = ref(false);
 const codeSent = ref(false);
 const emailValue = ref('');
-const showTenantCode = ref(false);
-const tenantCode = ref('');
 
 const formSchema = computed((): VbenFormSchema[] => {
   const schemas: VbenFormSchema[] = [
@@ -94,7 +92,6 @@ async function handleSubmit(values: Record<string, unknown>) {
     if (!codeSent.value) {
       await userApi.userForgotPasswordApi({
         email: values.email as string,
-        tenantCode: showTenantCode.value ? tenantCode.value : undefined,
       });
 
       emailValue.value = values.email as string;
@@ -111,7 +108,6 @@ async function handleSubmit(values: Record<string, unknown>) {
         confirmPassword: values.confirmPassword as string,
         email: emailValue.value,
         newPassword: values.newPassword as string,
-        tenantCode: showTenantCode.value ? tenantCode.value : undefined,
       });
 
       notification.success({
@@ -122,19 +118,8 @@ async function handleSubmit(values: Record<string, unknown>) {
 
       await router.push('/login');
     }
-  } catch (error: unknown) {
-    const err = error as {
-      response?: {
-        data?: {
-          data?: {
-            tenant_code_required?: boolean;
-          };
-        };
-      };
-    };
-    if (err?.response?.data?.data?.tenant_code_required) {
-      showTenantCode.value = true;
-    }
+  } catch {
+    // 错误已由 axios 拦截器处理并显示
   } finally {
     loading.value = false;
   }
@@ -146,19 +131,5 @@ async function handleSubmit(values: Record<string, unknown>) {
     :form-schema="formSchema"
     :loading="loading"
     @submit="handleSubmit"
-  >
-    <template v-if="showTenantCode" #form-extend>
-      <div class="mb-4">
-        <Input
-          v-model:value="tenantCode"
-          :placeholder="$t('user.auth.tenantCodePlaceholder')"
-          size="large"
-        >
-          <template #prefix>
-            <span class="i-lucide-building text-muted-foreground" />
-          </template>
-        </Input>
-      </div>
-    </template>
-  </AuthenticationForgetPassword>
+  />
 </template>

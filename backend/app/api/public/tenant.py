@@ -5,7 +5,6 @@
 """
 
 from fastapi import APIRouter, HTTPException, Request, status
-from sqlalchemy import select
 
 from app.configs.service import ConfigService
 from app.core.config import settings
@@ -13,7 +12,6 @@ from app.core.deps import DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.middleware.tenant import get_tenant_context
-from app.models import Tenant
 from app.rbac.decorators import public
 from app.schemas.public import DomainVerificationInfo, TenantPublicConfig
 from app.schemas.public.platform import StoragePublicConfig
@@ -23,7 +21,7 @@ router = APIRouter(prefix="/tenant", tags=["租户公开接口"])
 
 @router.get("/config", summary="获取当前租户公开配置")
 @public
-async def get_tenant_public_config(request: Request, db: DbSession, tenant_code: str | None = None):
+async def get_tenant_public_config(request: Request, db: DbSession):
     """
     获取当前租户的公开配置
 
@@ -32,7 +30,6 @@ async def get_tenant_public_config(request: Request, db: DbSession, tenant_code:
     **域名识别规则:**
     - 子域名模式: `{tenant_code}.app.novusai.com`
     - 自定义域名模式: 用户绑定的独立域名
-    - 开发环境: 支持通过 `?tenant_code=xxx` 查询参数指定租户
 
     **返回内容:**
     - 租户基本信息（名称、logo 等）
@@ -46,15 +43,6 @@ async def get_tenant_public_config(request: Request, db: DbSession, tenant_code:
     tenant = None
     if tenant_ctx and tenant_ctx.is_resolved:
         tenant = tenant_ctx.tenant
-    elif tenant_code and settings.APP_ENV == "development":
-        result = await db.execute(
-            select(Tenant).where(
-                Tenant.code == tenant_code,
-                Tenant.is_active.is_(True),
-                Tenant.is_deleted.is_(False),
-            )
-        )
-        tenant = result.scalar_one_or_none()
 
     if not tenant:
         raise HTTPException(
@@ -156,6 +144,8 @@ async def get_tenant_public_config(request: Request, db: DbSession, tenant_code:
             sms_notification=configs.get("tenant_sms_notification"),
             api_access=configs.get("tenant_api_access"),
             file_upload=configs.get("tenant_file_upload"),
+            privacy_policy_url=configs.get("user_privacy_policy_url") or None,
+            terms_url=configs.get("user_terms_url") or None,
             subdomain=tenant.code,
             subdomain_url=subdomain_url,
             storage=storage_config_obj,

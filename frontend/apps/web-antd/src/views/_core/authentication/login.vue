@@ -1,21 +1,16 @@
 <script lang="ts" setup>
 import type { VbenFormSchema } from '@vben/common-ui';
 
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 
 import { AuthenticationLogin, z } from '@vben/common-ui';
 import { $t } from '@vben/locales';
-
-import { Input } from 'ant-design-vue';
 
 import { useMultiAuthStore } from '#/store';
 
 defineOptions({ name: 'UserLogin' });
 
 const multiAuthStore = useMultiAuthStore();
-
-const showTenantCode = ref(false);
-const tenantCode = ref('');
 
 const formSchema = computed((): VbenFormSchema[] => {
   return [
@@ -41,20 +36,10 @@ const formSchema = computed((): VbenFormSchema[] => {
 });
 
 async function handleLogin(values: Record<string, unknown>) {
-  const loginParams: Record<string, unknown> = {
-    password: values.password,
-    username: values.username,
-  };
-
-  if (showTenantCode.value && tenantCode.value) {
-    loginParams.tenantCode = tenantCode.value;
-  }
-
-  const result = await multiAuthStore.authLogin(loginParams, 'user');
-
-  if (!result.userInfo && result.tenantCodeRequired) {
-    showTenantCode.value = true;
-  }
+  await multiAuthStore.authLogin(
+    { password: values.password, username: values.username },
+    'user',
+  );
 }
 </script>
 
@@ -63,19 +48,5 @@ async function handleLogin(values: Record<string, unknown>) {
     :form-schema="formSchema"
     :loading="multiAuthStore.loginLoading"
     @submit="handleLogin"
-  >
-    <template v-if="showTenantCode" #form-extend>
-      <div class="mb-4">
-        <Input
-          v-model:value="tenantCode"
-          :placeholder="$t('user.auth.tenantCodePlaceholder')"
-          size="large"
-        >
-          <template #prefix>
-            <span class="i-lucide-building text-muted-foreground" />
-          </template>
-        </Input>
-      </div>
-    </template>
-  </AuthenticationLogin>
+  />
 </template>

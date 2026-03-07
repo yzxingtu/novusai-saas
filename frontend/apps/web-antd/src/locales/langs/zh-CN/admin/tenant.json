@@ -183,7 +183,8 @@
       "noteRoot": "如果是根域名（如 example.com），主机记录填 @",
       "nextStep": "下一步",
       "prevStep": "上一步",
-      "verifyHint": "配置完成后，点击下方按钮发起验证"
+      "verifyHint": "配置完成后，点击下方按钮发起验证",
+      "devModeBanner": "⚠️ 开发环境提示：已自动写入本地 hosts 文件（127.0.0.1 → {domain}），无需配置实际 DNS。直接跳到第三步点击「发起验证」即可完成。"
     },
     "ssl": {
       "title": "SSL 证书管理",

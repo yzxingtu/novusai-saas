@@ -31,7 +31,7 @@ from app.core.security import (
 from app.core.logging import LogManager
 from app.core.redis import cache_delete, cache_get, cache_set
 from app.enums.common import ApprovalStatusEnum
-from app.exceptions import AuthenticationException, BusinessException, NotFoundException
+from app.exceptions import AuthenticationException, BusinessException, NotFoundException, ValidationException
 from app.models import Admin, Tenant, TenantAdmin, TenantUser
 
 logger = LogManager.get_logger("auth")
@@ -518,6 +518,12 @@ class AuthService:
         Raises:
             AuthenticationException: 认证失败
         """
+        # 租户域名隔离：必须通过租户域名或显式指定 tenant_code 访问
+        if not tenant_code and not tenant_id_from_ctx:
+            raise AuthenticationException(
+                message=_("auth.tenant_domain_required"),
+            )
+
         # 查询租户管理员
         query = select(TenantAdmin).where(
             or_(
@@ -811,6 +817,12 @@ class AuthService:
         Raises:
             AuthenticationException: 认证失败
         """
+        # 租户域名隔离：必须通过租户域名或显式指定 tenant_code 访问
+        if not tenant_code and not tenant_id_from_ctx:
+            raise AuthenticationException(
+                message=_("auth.tenant_domain_required"),
+            )
+
         # 查询用户
         query = select(TenantUser).where(
             or_(
@@ -1043,24 +1055,30 @@ class AuthService:
                 data={"tenant_code_required": True},
             )
 
-        # 检查注册是否开放
+        # 检查注册是否开放（与前端功能设置 tenant_allow_registration 一致）
         registration_enabled = await self._config_service.get_tenant_config(
-            tenant_id, "user_registration_enabled", default=False
+            tenant_id, "tenant_allow_registration", default=False
         )
         if not registration_enabled:
             raise BusinessException(message=_("auth.registration_disabled"))
 
-        # 检查注册验证码
+        # 检查注册验证码（注册属于表单验证，验证码错误返回 422 而非 401）
         captcha_enabled = await self._config_service.get_tenant_config(
             tenant_id, "user_registration_captcha_enabled", default=True
         )
         if captcha_enabled:
-            await self._verify_captcha(
-                captcha_challenge_id,
-                captcha_solution,
-                captcha_provider_code,
-                {"ip": client_ip, "endpoint": "user", "action": "register"},
-            )
+            try:
+                await self._verify_captcha(
+                    captcha_challenge_id,
+                    captcha_solution,
+                    captcha_provider_code,
+                    {"ip": client_ip, "endpoint": "user", "action": "register"},
+                )
+            except AuthenticationException as e:
+                raise ValidationException(
+                    message=e.message,
+                    errors=[e.data] if e.data else None,
+                )
 
         # 验证密码策略
         await self._validate_password_policy(password, tenant_id=tenant_id)
@@ -1105,9 +1123,9 @@ class AuthService:
             if existing.scalar_one_or_none():
                 raise BusinessException(message=_("auth.phone_taken"))
 
-        # 获取审批和激活配置
+        # 获取审批和激活配置（与前端功能设置 tenant_registration_approval 一致）
         require_approval = await self._config_service.get_tenant_config(
-            tenant_id, "user_require_approval", default=False
+            tenant_id, "tenant_registration_approval", default=False
         )
         default_active = await self._config_service.get_tenant_config(
             tenant_id, "user_default_active", default=True

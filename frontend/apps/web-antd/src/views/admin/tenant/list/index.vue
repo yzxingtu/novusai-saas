@@ -51,12 +51,12 @@ const isDev = computed(() => import.meta.env.DEV);
 
 /**
  * 构建租户端 origin URL
- * 开发模式或无域名时使用当前 origin（通过 tenant_code 参数识别租户）
- * 生产模式下优先使用租户主域名
+ * 开发模式下使用租户域名 + 当前端口
+ * 生产模式下使用租户主域名
  */
-function getTenantOrigin(domain?: null | string): string {
-  if (isDev.value || !domain) {
-    return window.location.origin;
+function getTenantOrigin(domain: string): string {
+  if (isDev.value) {
+    return `${window.location.protocol}//${domain}:${window.location.port}`;
   }
   return `${window.location.protocol}//${domain}`;
 }
@@ -123,13 +123,17 @@ async function onImpersonate(row: TenantInfo) {
     key: 'impersonate_tenant',
   });
   try {
+    if (!row.primaryDomain?.domain) {
+      hideLoading();
+      message.warning($t('admin.tenant.messages.noPrimaryDomain'));
+      return;
+    }
     const result = await admin.tenantImpersonateApi(row.id);
     message.success({
       content: $t('admin.tenant.messages.impersonateSuccess'),
       key: 'impersonate_tenant',
     });
-    // 有域名用域名跳转，无域名用同域名 + tenant_code
-    const targetUrl = `${getTenantOrigin(row.primaryDomain?.domain)}/tenant/impersonate?token=${encodeURIComponent(result.impersonateToken)}&tenant_code=${encodeURIComponent(row.code)}`;
+    const targetUrl = `${getTenantOrigin(row.primaryDomain.domain)}/tenant/impersonate?token=${encodeURIComponent(result.impersonateToken)}`;
     window.open(targetUrl, '_blank');
   } catch {
     hideLoading();
@@ -150,13 +154,17 @@ async function onImpersonateInCurrentTab(row: TenantInfo) {
     key: 'impersonate_tenant_current',
   });
   try {
+    if (!row.primaryDomain?.domain) {
+      hideLoading();
+      message.warning($t('admin.tenant.messages.noPrimaryDomain'));
+      return;
+    }
     const result = await admin.tenantImpersonateApi(row.id);
     message.success({
       content: $t('admin.tenant.messages.impersonateSuccess'),
       key: 'impersonate_tenant_current',
     });
-    // 有域名用域名跳转，无域名用同域名 + tenant_code
-    const targetUrl = `${getTenantOrigin(row.primaryDomain?.domain)}/tenant/impersonate?token=${encodeURIComponent(result.impersonateToken)}&tenant_code=${encodeURIComponent(row.code)}`;
+    const targetUrl = `${getTenantOrigin(row.primaryDomain.domain)}/tenant/impersonate?token=${encodeURIComponent(result.impersonateToken)}`;
     window.location.href = targetUrl;
   } catch {
     hideLoading();

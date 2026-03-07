@@ -9,6 +9,7 @@
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -186,7 +187,9 @@ class TenantMiddleware:
             domain = host.split(":")[0].lower()
 
             result = await db.execute(
-                select(TenantDomain).where(
+                select(TenantDomain)
+                .options(selectinload(TenantDomain.tenant))
+                .where(
                     TenantDomain.domain == domain,
                     TenantDomain.is_verified.is_(True),
                     TenantDomain.is_deleted.is_(False),

@@ -29,6 +29,9 @@ const emits = defineEmits<{
   success: [];
 }>();
 
+// 开发环境检测 / Dev mode detection (Vite built-in)
+const isDev = import.meta.env.DEV;
+
 // 状态
 const guideData = ref<DnsGuideData | null>(null);
 const currentStep = ref(0);
@@ -127,6 +130,16 @@ function getDnsHostRecord(domain: string): string {
 <template>
   <Modal :title="$t('admin.tenant.domain.dnsGuide.title')" class="w-[600px]">
     <template v-if="guideData">
+      <!-- 开发环境提示横幅 (仅在 Vite DEV 模式下显示 / Only shown in Vite DEV mode) -->
+      <Alert
+        v-if="isDev"
+        :message="$t('admin.tenant.domain.dnsGuide.devModeBanner', { domain: guideData.domain })"
+        type="warning"
+        show-icon
+        banner
+        class="mb-4"
+      />
+
       <!-- 步骤条 -->
       <Steps :current="currentStep" size="small" class="mb-6">
         <Steps.Step :title="$t('admin.tenant.domain.dnsGuide.step1Title')" />

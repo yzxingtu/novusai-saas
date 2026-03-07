@@ -31,8 +31,8 @@ export const ADMIN_LOGIN_PATH = '/admin/login';
 /** 租户管理端登录路径 */
 export const TENANT_LOGIN_PATH = '/tenant/login';
 
-/** 用户端登录路径（复用租户端登录） */
-export const USER_LOGIN_PATH = '/tenant/login';
+/** 用户端登录路径 */
+export const USER_LOGIN_PATH = '/auth/login';
 
 // ============================================================
 // 默认首页路径常量

@@ -499,9 +499,11 @@ def create_application() -> FastAPI:
 
     # CORS 中间件 — 必须最后注册（= 最外层），
     # 确保所有中间件（包括 AccessControlMiddleware 的 403）返回的响应都带 CORS headers
+    # ⚠️  DEBUG 模式下允许所有 Origin，支持租户域名（如 demo.app.local:5666）跨域访问
+    cors_origins: list[str] = ["*"] if settings.DEBUG else settings.CORS_ORIGINS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -514,8 +516,8 @@ def create_application() -> FastAPI:
     def _get_cors_headers(request: Request) -> dict[str, str]:
         """获取 CORS 响应头"""
         origin = request.headers.get("origin", "")
-        # 检查 origin 是否在允许列表中
-        if "*" in settings.CORS_ORIGINS or origin in settings.CORS_ORIGINS:
+        # 检查 origin 是否在允许列表中（DEBUG 模式下允许所有）
+        if "*" in cors_origins or origin in cors_origins:
             return {
                 "Access-Control-Allow-Origin": origin or "*",
                 "Access-Control-Allow-Credentials": "true",
@@ -664,10 +666,6 @@ def create_application() -> FastAPI:
     # 注册租户管理后台路由 (/tenant/*)
     from app.api.tenant import tenant_router
     app.include_router(tenant_router, prefix="/tenant")
-
-    # 注册租户业务用户 API v1 路由 (/api/v1/*)
-    from app.api.v1 import api_router
-    app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
     # 注册用户端 API 路由 (/api/user/*)
     from app.api.user import user_router

@@ -301,7 +301,7 @@ export async function userRegisterApi(
     requestBody.captcha_provider_code = data.captchaProviderCode;
   }
 
-  const response = await requestClient.post<RegisterResultRaw>(
+  const response = await baseRequestClient.post<RegisterResultRaw>(
     `${API_PREFIX}/register`,
     requestBody,
     options,

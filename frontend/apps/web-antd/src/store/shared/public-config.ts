@@ -118,6 +118,10 @@ interface PublicConfigState {
   userLoginFailCount: number;
   /** 用户端验证码强制要求（来自登录响应） */
   userCaptchaRequired: boolean;
+  /** 当前域名是否是租户域名（null=未检测，true=租户域名，false=平台域名） */
+  isDomainTenantDomain: boolean | null;
+  /** 域名类型检测是否完成（200 或 404 后标记，网络错误不标记允许重试） */
+  isDomainDetected: boolean;
 }
 
 // ============================================================
@@ -138,6 +142,8 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     tenantCaptchaRequired: false,
     userLoginFailCount: 0,
     userCaptchaRequired: false,
+    isDomainTenantDomain: null,
+    isDomainDetected: false,
   }),
 
   getters: {
@@ -246,7 +252,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
     /**
      * 加载租户公开配置
      * 仅首次访问时调用
-     * 开发环境支持通过 URL 参数 tenant_code 指定租户
+     * 租户通过域名中间件自动识别，无需手动传 tenant_code
      */
     async loadTenantConfig(): Promise<null | TenantPublicConfig> {
       if (this.tenantConfigLoaded && this.tenantConfig) {
@@ -257,32 +263,7 @@ export const usePublicConfigStore = defineStore('publicConfig', {
       this.error = null;
 
       try {
-        let tenantCode: string | undefined;
-
-        // 从 URL 参数读取 tenant_code（所有环境通用）
-        const urlParams = new URLSearchParams(window.location.search);
-        const fromUrl = urlParams.get('tenant_code');
-        if (fromUrl) {
-          localStorage.setItem('__tenant_code__', fromUrl);
-          tenantCode = fromUrl;
-        } else {
-          // 从 localStorage 读取（支持一键登录后的品牌配置加载）
-          tenantCode =
-            localStorage.getItem('__tenant_code__') ?? undefined;
-        }
-
-        // 开发环境额外支持环境变量兜底
-        if (!tenantCode && import.meta.env.DEV) {
-          tenantCode = import.meta.env.VITE_DEV_TENANT_CODE ?? undefined;
-        }
-
-        // 开发环境下无租户标识时跳过 API 调用，避免 404
-        if (!tenantCode && import.meta.env.DEV) {
-          this.tenantConfigLoaded = true;
-          return null;
-        }
-
-        const config = await getTenantPublicConfigApi(tenantCode);
+        const config = await getTenantPublicConfigApi();
         this.tenantConfig = config;
         this.tenantConfigLoaded = true;
 
@@ -295,6 +276,38 @@ export const usePublicConfigStore = defineStore('publicConfig', {
         return null;
       } finally {
         this.loading = false;
+      }
+    },
+
+    /**
+     * 检测当前域名类型（租户域名 vs 平台域名）
+     *
+     * 幂等：200 或 404 后标记完成不再重复请求；网络/500 错误不标记允许下次重试。
+     * 检测结果：
+     *   - true  = 租户域名（后端返回租户配置）
+     *   - false = 平台域名（后端返回 404，无对应租户）
+     *   - null  = 未检测完成（网络错误等，路由守卫不做限制）
+     */
+    async detectDomainType(): Promise<void> {
+      if (this.isDomainDetected) return;
+      try {
+        const config = await getTenantPublicConfigApi();
+        this.isDomainTenantDomain = true;
+        // 同步到租户配置缓存，避免后续 loadTenantConfig 重复请求
+        if (!this.tenantConfig) {
+          this.tenantConfig = config;
+          this.tenantConfigLoaded = true;
+          applyBrandConfig(config.brand);
+        }
+        this.isDomainDetected = true;
+      } catch (error) {
+        const err = error as { response?: { status?: number } };
+        if (err?.response?.status === 404) {
+          // 明确无租户 → 平台域名
+          this.isDomainTenantDomain = false;
+          this.isDomainDetected = true;
+        }
+        // 网络错误/500 等：isDomainDetected 保持 false，下次导航继续重试
       }
     },
 

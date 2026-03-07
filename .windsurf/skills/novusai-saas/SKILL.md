@@ -526,3 +526,4 @@ python scripts/plugin_cli.py pack plugins/my-plugin                   # 打包 z
 | [plugin-menu-registration.md](references/plugin-menu-registration.md) | 插件菜单注册全链路规范（plugin.yaml/后端注册/权限同步/前端路由/管理员配置） |
 | [user-endpoint-spec.md](references/user-endpoint-spec.md) | 用户端开发规范（UserLayout/认证流程/RBAC/Token路由/响应式设计） |
 | [browser-testing-spec.md](references/browser-testing-spec.md) | 浏览器测试规范（MCP 工具优先级/登录凭据/租户端进入方式/测试步骤） |
+| [tenant-domain-isolation.md](references/tenant-domain-isolation.md) | 租户域名隔离规范（TenantMiddleware/前端检测/路由守卫隔离规则/菜单剪枝/安全清单） |

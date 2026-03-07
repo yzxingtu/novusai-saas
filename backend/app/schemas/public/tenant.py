@@ -57,6 +57,10 @@ class TenantPublicConfig(BaseSchema):
     api_access: bool | None = Field(None, description="启用 API 访问")
     file_upload: bool | None = Field(None, description="启用文件上传")
 
+    # 注册页链接
+    privacy_policy_url: str | None = Field(None, description="隐私政策链接")
+    terms_url: str | None = Field(None, description="服务条款链接")
+
     # 域名信息
     subdomain: str = Field(..., description="租户子域名")
     subdomain_url: str = Field(..., description="子域名完整 URL")

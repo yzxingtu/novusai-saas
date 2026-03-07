@@ -1,22 +1,51 @@
 <script lang="ts" setup>
 import type { VbenFormSchema } from '@vben/common-ui';
 
-import { computed, h, ref } from 'vue';
+import type { CaptchaDifficulty } from '#/api/public/captcha';
+
+import { computed, h, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { AuthenticationRegister, z } from '@vben/common-ui';
 import { $t } from '@vben/locales';
 
-import { Input, notification } from 'ant-design-vue';
+import { notification } from 'ant-design-vue';
 
 import { userApi } from '#/api';
+import { CaptchaImage } from '#/components/business/captcha';
+import { usePublicConfigStore } from '#/store';
 
 defineOptions({ name: 'UserRegister' });
 
 const router = useRouter();
 const loading = ref(false);
-const showTenantCode = ref(false);
-const tenantCode = ref('');
+const publicConfigStore = usePublicConfigStore();
+
+const captchaRef = ref<InstanceType<typeof CaptchaImage>>();
+const captchaSolution = ref('');
+const showCaptcha = ref(false);
+
+const captchaDifficulty = computed((): CaptchaDifficulty => {
+  const difficulty = publicConfigStore.tenantCaptcha?.difficulty;
+  if (
+    difficulty === 'easy' ||
+    difficulty === 'medium' ||
+    difficulty === 'hard'
+  ) {
+    return difficulty;
+  }
+  return 'medium';
+});
+
+onMounted(async () => {
+  await publicConfigStore.loadTenantConfig();
+  showCaptcha.value = publicConfigStore.shouldShowTenantCaptcha;
+});
+
+function refreshCaptcha() {
+  captchaSolution.value = '';
+  captchaRef.value?.refresh();
+}
 
 const formSchema = computed((): VbenFormSchema[] => {
   return [
@@ -84,18 +113,17 @@ const formSchema = computed((): VbenFormSchema[] => {
       component: 'VbenCheckbox',
       fieldName: 'agreePolicy',
       renderComponentContent: () => ({
-        default: () =>
-          h('span', [
-            $t('authentication.agree'),
-            h(
-              'a',
-              {
-                class: 'vben-link ml-1 ',
-                href: '',
-              },
-              `${$t('authentication.privacyPolicy')} & ${$t('authentication.terms')}`,
-            ),
-          ]),
+        default: () => {
+          const privacyUrl = publicConfigStore.tenantConfig?.privacyPolicyUrl;
+          const termsUrl = publicConfigStore.tenantConfig?.termsUrl;
+          const privacyNode = privacyUrl
+            ? h('a', { class: 'vben-link', href: privacyUrl, target: '_blank', rel: 'noopener noreferrer' }, $t('authentication.privacyPolicy'))
+            : h('span', $t('authentication.privacyPolicy'));
+          const termsNode = termsUrl
+            ? h('a', { class: 'vben-link ml-1', href: termsUrl, target: '_blank', rel: 'noopener noreferrer' }, $t('authentication.terms'))
+            : h('span', { class: 'ml-1' }, $t('authentication.terms'));
+          return h('span', [$t('authentication.agree'), ' ', privacyNode, ' & ', termsNode]);
+        },
       }),
       rules: z.boolean().refine((value) => !!value, {
         message: $t('authentication.agreeTip'),
@@ -105,16 +133,27 @@ const formSchema = computed((): VbenFormSchema[] => {
 });
 
 async function handleSubmit(values: Record<string, unknown>) {
+  if (showCaptcha.value && !captchaSolution.value) {
+    return;
+  }
   try {
     loading.value = true;
 
-    const result = await userApi.userRegisterApi({
+    const params: userApi.RegisterParams = {
       confirmPassword: values.confirmPassword as string,
       email: values.email as string,
       password: values.password as string,
-      tenantCode: showTenantCode.value ? tenantCode.value : undefined,
       username: values.username as string,
-    });
+    };
+
+    if (showCaptcha.value && captchaRef.value) {
+      params.captchaChallengeId = captchaRef.value.getChallengeId();
+      params.captchaSolution = captchaSolution.value;
+      params.captchaProviderCode =
+        publicConfigStore.tenantCaptcha?.provider ?? 'image';
+    }
+
+    const result = await userApi.userRegisterApi(params);
 
     const isPending = result.approvalStatus === 'pending';
 
@@ -126,19 +165,17 @@ async function handleSubmit(values: Record<string, unknown>) {
       message: $t('user.auth.registerSuccess'),
     });
 
-    await router.push('/login');
+    await router.push('/auth/login');
   } catch (error: unknown) {
     const err = error as {
-      response?: {
-        data?: {
-          data?: {
-            tenant_code_required?: boolean;
-          };
-        };
-      };
+      response?: { data?: { data?: { captcha_required?: boolean; errors?: Array<{ captcha_required?: boolean }> } } };
     };
-    if (err?.response?.data?.data?.tenant_code_required) {
-      showTenantCode.value = true;
+    const captchaRequired =
+      err?.response?.data?.data?.captcha_required ||
+      err?.response?.data?.data?.errors?.[0]?.captcha_required;
+    if (captchaRequired) {
+      showCaptcha.value = true;
+      refreshCaptcha();
     }
   } finally {
     loading.value = false;
@@ -152,19 +189,13 @@ async function handleSubmit(values: Record<string, unknown>) {
     :loading="loading"
     @submit="handleSubmit"
   >
-    <!-- Tenant code slot -->
-    <template v-if="showTenantCode" #form-extend>
-      <div class="mb-4">
-        <Input
-          v-model:value="tenantCode"
-          :placeholder="$t('user.auth.tenantCodePlaceholder')"
-          size="large"
-        >
-          <template #prefix>
-            <span class="i-lucide-building text-muted-foreground" />
-          </template>
-        </Input>
-      </div>
+    <template v-if="showCaptcha" #beforeSubmit>
+      <CaptchaImage
+        ref="captchaRef"
+        v-model="captchaSolution"
+        :difficulty="captchaDifficulty"
+        endpoint="tenant"
+      />
     </template>
   </AuthenticationRegister>
 </template>

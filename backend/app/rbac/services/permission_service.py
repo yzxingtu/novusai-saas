@@ -864,6 +864,11 @@ class PermissionService:
                         # 如果提供了用户权限码集合，只返回用户拥有的
                         menu_permissions.append(p.code)
 
+                # 跳过空目录菜单：无组件（纯目录）+ 无子菜单 + 无操作权限
+                # 典型场景：插件禁用后其父目录（如"工作台"）变为空壳
+                if not perm.component and not children and not menu_permissions:
+                    continue
+
                 tree.append(MenuResponse(
                     id=perm.id,
                     code=perm.code,

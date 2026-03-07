@@ -12,7 +12,7 @@ import type {
   TenantAdminInfo,
 } from '../shared/types';
 
-import type { ApiRequestOptions } from '#/utils/request';
+import type { ApiRequestOptions, HttpResponse } from '#/utils/request';
 
 import { useAccessStore } from '@vben/stores';
 
@@ -71,14 +71,12 @@ export async function tenantLoginApi(
 export async function tenantRefreshTokenApi(
   refreshToken: string,
 ): Promise<RefreshTokenResult> {
-  const response = await baseRequestClient.post<{
-    code: number;
-    data: RefreshTokenResultRaw;
-    message: string;
-  }>(`${API_PREFIX}/refresh`, {
-    refresh_token: refreshToken,
-  });
-  const responseData = (response as any).data;
+  const response = await baseRequestClient.post<RefreshTokenResultRaw>(
+    `${API_PREFIX}/refresh`,
+    { refresh_token: refreshToken },
+  );
+  const responseData = (response as unknown as { data: HttpResponse<RefreshTokenResultRaw> })
+    .data;
   if (responseData.code !== 0) {
     throw new Error(
       responseData.message || $t('tenant.impersonate.refreshFailed'),
@@ -217,12 +215,11 @@ export interface ImpersonateTokenRequest {
 export async function impersonateLoginApi(
   impersonateToken: string,
 ): Promise<LoginResult> {
-  const response = await baseRequestClient.post<{
-    code: number;
-    data: LoginResultRaw;
-    message: string;
-  }>(`${API_PREFIX}/impersonate`, { impersonate_token: impersonateToken });
-  const responseData = (response as any).data;
+  const response = await baseRequestClient.post<LoginResultRaw>(
+    `${API_PREFIX}/impersonate`,
+    { impersonate_token: impersonateToken },
+  );
+  const responseData = (response as unknown as { data: HttpResponse<LoginResultRaw> }).data;
   if (responseData.code !== 0) {
     throw new Error(
       responseData.message || $t('tenant.impersonate.loginFailed'),

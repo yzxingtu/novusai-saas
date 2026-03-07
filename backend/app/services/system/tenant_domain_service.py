@@ -13,6 +13,7 @@ from app.configs.service import ConfigService
 from app.core.base_model import utc_now
 from app.core.base_service import GlobalService, TenantService
 from app.core.config import settings
+from app.core.hosts_helper import async_add_host_entry, async_remove_host_entry, is_dev_local
 from app.core.i18n import _
 from app.enums import ErrorCode
 from app.enums.domain import DomainSslStatus
@@ -135,7 +136,13 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             "remark": _("tenant_domain.default_domain_remark"),
         }
 
-        return await self.create(data)
+        result = await self.create(data)
+
+        # ⚠️  LOCAL DEV ENVIRONMENT: auto-inject default domain into hosts file
+        if self._should_inject_hosts() and is_dev_local():
+            await async_add_host_entry(domain)
+
+        return result
 
     async def add_custom_domain(
         self,
@@ -234,7 +241,14 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
                 code=ErrorCode.FORBIDDEN,
             )
 
-        return await self.delete(domain_id)
+        domain_str = domain_obj.domain
+        deleted = await self.delete(domain_id)
+
+        # ⚠️  LOCAL DEV ENVIRONMENT: remove deleted custom domain from hosts file
+        if deleted and self._should_inject_hosts() and is_dev_local():
+            await async_remove_host_entry(domain_str)
+
+        return deleted
 
     async def set_primary_domain(
         self,
@@ -330,13 +344,19 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         if not result:
             raise NotFoundException(message=_("tenant_domain.not_found"))
 
-        # 自动触发 SSL 证书签发（Celery 异步任务）
-        from app.celery_app import celery_app
-        celery_app.send_task(
-            "app.tasks.ssl_tasks.task_provision_ssl",
-            args=[domain_id],
-            queue="default",
-        )
+        # ⚠️  LOCAL DEV ENVIRONMENT: auto-inject verified custom domain into hosts file
+        if self._should_inject_hosts() and is_dev_local():
+            await async_add_host_entry(domain.domain)
+
+        # ⚠️  LOCAL DEV ENVIRONMENT: skip SSL provisioning for local domains
+        # (.app.local / .localhost cannot obtain public CA certificates)
+        if not settings.DEBUG:
+            from app.celery_app import celery_app
+            celery_app.send_task(
+                "app.tasks.ssl_tasks.task_provision_ssl",
+                args=[domain_id],
+                queue="default",
+            )
 
         return result
 
@@ -489,6 +509,15 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
             "value": domain_obj.verification_token,
         }
 
+    def _should_inject_hosts(self) -> bool:
+        """
+        是否允许在当前服务上下文中注入 hosts
+
+        管理端（TenantDomainService）返回 True；
+        租户端（TenantDomainTenantService）覆盖返回 False，防止误写入。
+        """
+        return True
+
     def get_cname_record(self, domain: TenantDomain) -> dict:
         """
         获取 CNAME 记录信息
@@ -533,15 +562,17 @@ class TenantDomainService(GlobalService[TenantDomain, TenantDomainRepository]):
         domains = list(result.scalars().all())
 
         triggered = 0
-        from app.celery_app import celery_app
-        for domain in domains:
-            await self.update(domain.id, {"ssl_status": DomainSslStatus.PROVISIONING.value})
-            celery_app.send_task(
-                "app.tasks.ssl_tasks.task_provision_ssl",
-                args=[domain.id],
-                queue="default",
-            )
-            triggered += 1
+        # ⚠️  LOCAL DEV ENVIRONMENT: skip SSL provisioning in DEBUG mode
+        if not settings.DEBUG:
+            from app.celery_app import celery_app
+            for domain in domains:
+                await self.update(domain.id, {"ssl_status": DomainSslStatus.PROVISIONING.value})
+                celery_app.send_task(
+                    "app.tasks.ssl_tasks.task_provision_ssl",
+                    args=[domain.id],
+                    queue="default",
+                )
+                triggered += 1
 
         return triggered
 
@@ -552,6 +583,56 @@ class TenantDomainTenantService(TenantDomainService, TenantService[TenantDomain,
 
     def __init__(self, db, tenant_id: int):
         TenantService.__init__(self, db, tenant_id)
+
+    def _should_inject_hosts(self) -> bool:
+        """租户端禁止 hosts 注入，防止非预期写入本地系统文件"""
+        return False
+
+    async def verify_domain(self, domain_id: int) -> TenantDomain:
+        """
+        租户端域名验证 — 永远执行真实 DNS 验证，不受 DEBUG 模式影响
+
+        安全原则：租户端不应因 DEBUG=true 而绕过 DNS 验证，
+        防止租户在开发/测试环境中意外验证不属于自己的域名。
+        """
+        domain = await self.get_by_id(domain_id)
+        if not domain:
+            raise NotFoundException(
+                message=_("tenant_domain.not_found"),
+            )
+
+        if domain.is_verified:
+            raise BusinessException(
+                message=_("tenant_domain.already_verified"),
+                code=ErrorCode.VALIDATION_ERROR,
+            )
+
+        # 租户端始终执行真实 DNS 验证，不跳过
+        is_valid = await self._verify_dns_txt_record(domain)
+
+        if not is_valid:
+            raise BusinessException(
+                message=_("tenant_domain.verify_failed"),
+                code=ErrorCode.VALIDATION_ERROR,
+            )
+
+        result = await self.update(domain_id, {
+            "is_verified": True,
+            "verified_at": utc_now(),
+            "ssl_status": DomainSslStatus.PROVISIONING.value,
+        })
+        if not result:
+            raise NotFoundException(message=_("tenant_domain.not_found"))
+
+        # 触发 SSL 证书签发（租户端不跳过，SSL 是真实需要的）
+        from app.celery_app import celery_app
+        celery_app.send_task(
+            "app.tasks.ssl_tasks.task_provision_ssl",
+            args=[domain_id],
+            queue="default",
+        )
+
+        return result
 
 
 __all__ = ["TenantDomainService", "TenantDomainTenantService"]

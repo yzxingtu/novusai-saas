@@ -183,7 +183,8 @@
       "noteRoot": "For root domains (e.g., example.com), use '@' as host record",
       "nextStep": "Next",
       "prevStep": "Previous",
-      "verifyHint": "After configuration, click the button below to verify"
+      "verifyHint": "After configuration, click the button below to verify",
+      "devModeBanner": "\u26a0\ufe0f Local Dev: hosts file auto-updated (127.0.0.1 \u2192 {domain}). No DNS configuration needed. Skip to Step 3 and click \"Verify\" to complete."
     },
     "ssl": {
       "title": "SSL Certificate Management",

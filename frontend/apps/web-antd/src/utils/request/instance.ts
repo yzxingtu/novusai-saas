@@ -35,7 +35,23 @@ import { RequestClient } from './request-client';
 // 配置
 // ============================================================
 
-const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
+const { apiURL: rawApiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
+
+/**
+ * Dev 模式下使用当前页面 hostname 替代 127.0.0.1，
+ * 确保 API 请求携带正确的 Host header（租户域名隔离依赖 Host header）。
+ * 例如：as.dakkii.cn:5666 → API 发送到 as.dakkii.cn:8000
+ */
+const apiURL = (() => {
+  if (import.meta.env.PROD) return rawApiURL;
+  try {
+    const parsed = new URL(rawApiURL);
+    parsed.hostname = window.location.hostname;
+    return parsed.toString().replace(/\/+$/, '');
+  } catch {
+    return rawApiURL;
+  }
+})();
 
 /** 刷新 Token URL 映射 */
 const REFRESH_TOKEN_URLS: Record<ApiEndpoint, string> = {

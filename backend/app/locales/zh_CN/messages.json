@@ -40,6 +40,7 @@
     "profile_updated": "个人资料更新成功",
     "email_already_exists": "邮箱已被注册",
     "tenant_code_required": "存在多个匹配账户，请指定租户编码",
+    "tenant_domain_required": "请通过租户专属域名访问登录页面",
     "registration_disabled": "该租户暂未开放用户注册",
     "username_taken": "用户名已被占用",
     "email_taken": "邮箱已被注册",
@@ -2831,5 +2832,9 @@
   "config.tenant.user_require_approval.name": "需要审批",
   "config.tenant.user_require_approval.desc": "用户注册后需要管理员审批才能激活",
   "config.tenant.user_default_role_id.name": "默认用户角色",
-  "config.tenant.user_default_role_id.desc": "新注册用户自动分配的角色 ID，由系统创建租户时自动设置"
+  "config.tenant.user_default_role_id.desc": "新注册用户自动分配的角色 ID，由系统创建租户时自动设置",
+  "config.tenant.user_privacy_policy_url.name": "隐私政策链接",
+  "config.tenant.user_privacy_policy_url.desc": "注册页面显示的隐私政策链接地址，留空则不显示",
+  "config.tenant.user_terms_url.name": "服务条款链接",
+  "config.tenant.user_terms_url.desc": "注册页面显示的服务条款链接地址，留空则不显示"
 }

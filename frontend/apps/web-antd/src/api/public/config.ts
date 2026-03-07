@@ -131,6 +131,10 @@ export interface TenantPublicConfig {
   domain: DomainConfig;
   /** 功能开关 */
   features?: Record<string, boolean>;
+  /** 注册页隐私政策链接 */
+  privacyPolicyUrl?: string;
+  /** 注册页服务条款链接 */
+  termsUrl?: string;
 }
 
 // ============================================================
@@ -224,6 +228,10 @@ interface TenantPublicConfigRaw {
   sms_notification?: boolean;
   api_access?: boolean;
   file_upload?: boolean;
+
+  // Registration links
+  privacy_policy_url?: string;
+  terms_url?: string;
 
   // Storage
   storage?: {
@@ -329,6 +337,8 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
       suffix: '',
       verificationPrefix: '',
     },
+    privacyPolicyUrl: raw.privacy_policy_url || undefined,
+    termsUrl: raw.terms_url || undefined,
     features: {
       ...(
         raw.allow_registration === null || raw.allow_registration === undefined
@@ -384,20 +394,12 @@ export async function getPlatformPublicConfigApi(): Promise<PlatformPublicConfig
 /**
  * 获取租户公开配置
  * GET /api/public/tenant/config
- * 无需认证，根据域名自动识别租户
- * 开发环境支持通过 tenantCode 参数指定租户
+ * 无需认证，根据域名中间件自动识别租户
  */
-export async function getTenantPublicConfigApi(
-  tenantCode?: string,
-): Promise<TenantPublicConfig> {
-  const params: Record<string, string> = {};
-  if (tenantCode) {
-    params.tenant_code = tenantCode;
-  }
-
+export async function getTenantPublicConfigApi(): Promise<TenantPublicConfig> {
   const response = await baseRequestClient.get<
     HttpResponse<TenantPublicConfigRaw>
-  >('/api/public/tenant/config', { params });
+  >('/api/public/tenant/config');
 
   // response 是 AxiosResponse，response.data 是 HttpResponse
   const httpResponse = response as unknown as {

@@ -40,6 +40,7 @@
     "profile_updated": "Profile updated successfully",
     "email_already_exists": "This email is already in use by another user",
     "tenant_code_required": "Multiple matching accounts found, please specify the tenant code",
+    "tenant_domain_required": "Please access the login page via your tenant domain",
     "registration_disabled": "User registration is not enabled for this tenant",
     "username_taken": "Username is already taken",
     "email_taken": "Email is already registered",
@@ -2826,5 +2827,9 @@
   "config.tenant.user_require_approval.name": "Require Approval",
   "config.tenant.user_require_approval.desc": "Require admin approval before user accounts are activated",
   "config.tenant.user_default_role_id.name": "Default User Role",
-  "config.tenant.user_default_role_id.desc": "Role ID automatically assigned to newly registered users, set during tenant creation"
+  "config.tenant.user_default_role_id.desc": "Role ID automatically assigned to newly registered users, set during tenant creation",
+  "config.tenant.user_privacy_policy_url.name": "Privacy Policy URL",
+  "config.tenant.user_privacy_policy_url.desc": "Link to the privacy policy shown on the registration page. Leave empty to hide.",
+  "config.tenant.user_terms_url.name": "Terms of Service URL",
+  "config.tenant.user_terms_url.desc": "Link to the terms of service shown on the registration page. Leave empty to hide."
 }

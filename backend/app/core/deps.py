@@ -6,7 +6,7 @@
 认证架构:
 - Admin: 平台管理员 (/admin/login)
 - TenantAdmin: 租户管理员 (/tenant/login)
-- TenantUser: 租户业务用户 (/api/v1/auth/login)
+- TenantUser: 租户业务用户 (/api/user/auth/login)
 """
 
 from collections.abc import AsyncGenerator

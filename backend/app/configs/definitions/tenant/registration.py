@@ -34,7 +34,7 @@ USER_REGISTRATION_CAPTCHA_ENABLED = ConfigMeta(
     default_value=True,
     sort_order=110,
     display_rules=[
-        DisplayRule(field="user_registration_enabled", operator="equals", value=True, action="show"),
+        DisplayRule(field="tenant_allow_registration", operator="equals", value=True, action="show"),
     ],
 )
 
@@ -48,11 +48,11 @@ USER_DEFAULT_ACTIVE = ConfigMeta(
     default_value=True,
     sort_order=120,
     display_rules=[
-        DisplayRule(field="user_registration_enabled", operator="equals", value=True, action="show"),
+        DisplayRule(field="tenant_allow_registration", operator="equals", value=True, action="show"),
     ],
 )
 
-# 注册是否需要审批
+# 注册是否需要审批（已由 features.py 的 tenant_registration_approval 控制，此处保留供兼容）
 USER_REQUIRE_APPROVAL = ConfigMeta(
     key="user_require_approval",
     name_key="config.tenant.user_require_approval.name",
@@ -62,7 +62,7 @@ USER_REQUIRE_APPROVAL = ConfigMeta(
     default_value=False,
     sort_order=130,
     display_rules=[
-        DisplayRule(field="user_registration_enabled", operator="equals", value=True, action="show"),
+        DisplayRule(field="tenant_allow_registration", operator="equals", value=True, action="show"),
     ],
 )
 
@@ -76,21 +76,51 @@ USER_DEFAULT_ROLE_ID = ConfigMeta(
     default_value=0,
     sort_order=140,
     display_rules=[
-        DisplayRule(field="user_registration_enabled", operator="equals", value=True, action="show"),
+        DisplayRule(field="tenant_allow_registration", operator="equals", value=True, action="show"),
+    ],
+)
+
+# 隐私政策链接
+USER_PRIVACY_POLICY_URL = ConfigMeta(
+    key="user_privacy_policy_url",
+    name_key="config.tenant.user_privacy_policy_url.name",
+    description_key="config.tenant.user_privacy_policy_url.desc",
+    scope=ConfigScope.ALL_TENANTS,
+    value_type=ConfigValueType.STRING,
+    default_value="",
+    sort_order=150,
+    display_rules=[
+        DisplayRule(field="tenant_allow_registration", operator="equals", value=True, action="show"),
+    ],
+)
+
+# 服务条款链接
+USER_TERMS_URL = ConfigMeta(
+    key="user_terms_url",
+    name_key="config.tenant.user_terms_url.name",
+    description_key="config.tenant.user_terms_url.desc",
+    scope=ConfigScope.ALL_TENANTS,
+    value_type=ConfigValueType.STRING,
+    default_value="",
+    sort_order=160,
+    display_rules=[
+        DisplayRule(field="tenant_allow_registration", operator="equals", value=True, action="show"),
     ],
 )
 
 
 # ==========================================
 # 注册配置到分组
+# 注意：USER_REGISTRATION_ENABLED (user_registration_enabled) 已由
+# features.py 的 tenant_allow_registration 替代，不再重复注册
 # ==========================================
 
 TENANT_FEATURES_GROUP.configs = TENANT_FEATURES_GROUP.configs + [
-    USER_REGISTRATION_ENABLED,
     USER_REGISTRATION_CAPTCHA_ENABLED,
     USER_DEFAULT_ACTIVE,
-    USER_REQUIRE_APPROVAL,
     USER_DEFAULT_ROLE_ID,
+    USER_PRIVACY_POLICY_URL,
+    USER_TERMS_URL,
 ]
 
 
@@ -100,4 +130,6 @@ __all__ = [
     "USER_DEFAULT_ACTIVE",
     "USER_REQUIRE_APPROVAL",
     "USER_DEFAULT_ROLE_ID",
+    "USER_PRIVACY_POLICY_URL",
+    "USER_TERMS_URL",
 ]
