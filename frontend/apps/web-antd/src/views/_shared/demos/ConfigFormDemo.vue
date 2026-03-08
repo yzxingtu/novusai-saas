@@ -48,10 +48,10 @@ const configs = ref<ConfigItemMeta[]>([
     ],
   },
   {
-    key: 'tenant_primary_color',
-    name_key: 'config.tenant.tenant_primary_color',
-    value_type: 'color',
-    default_value: '#1890ff',
+    key: 'tenant_login_title',
+    name_key: 'config.tenant.tenant_login_title',
+    value_type: 'string',
+    default_value: '',
   },
   {
     key: 'email_smtp_password',

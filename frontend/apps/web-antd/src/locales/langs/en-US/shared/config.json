@@ -13,17 +13,17 @@
     "platform_email": "Email Settings",
     "platform_ssl": "SSL Certificate Management",
     "tenant_appearance": "Appearance",
-    "tenant_general": "General",
-    "tenant_features": "Features"
+    "tenant_general": "Security",
+    "tenant_features": "Members"
   },
   "group_desc": {
     "platform_general": "Site info, maintenance mode, etc.",
     "platform_security": "Password policy, login security, etc.",
     "platform_email": "SMTP email delivery configuration",
     "platform_ssl": "ACME certificate issuance, DNS provider, renewal policy",
-    "tenant_appearance": "Logo, theme colors, branding",
-    "tenant_general": "Login methods, session timeout, etc.",
-    "tenant_features": "Registration, notifications, API access"
+    "tenant_appearance": "Logo, login page branding",
+    "tenant_general": "Login security, password policy, session settings",
+    "tenant_features": "Registration, notifications, file upload and other member features"
   },
   "platform": {
     "site_name": "Site Name",
@@ -113,8 +113,6 @@
     "tenant_logo": "Tenant Logo",
     "tenant_favicon": "Tenant Favicon",
     "tenant_login_bg": "Login Background",
-    "tenant_primary_color": "Primary Color",
-    "tenant_accent_color": "Accent Color",
     "tenant_login_title": "Login Title",
     "tenant_login_subtitle": "Login Subtitle",
     "tenant_footer_copyright": "Footer Copyright",

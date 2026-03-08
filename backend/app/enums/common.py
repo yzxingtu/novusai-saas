@@ -123,6 +123,7 @@ class UserRoleEnum(LabeledStrEnum):
 
     PLATFORM_ADMIN = ("platform_admin", "enum.user_role.platform_admin")
     TENANT_ADMIN = ("tenant_admin", "enum.user_role.tenant_admin")
+    TENANT_USER = ("tenant_user", "enum.user_role.tenant_user")
 
 
 __all__ = [

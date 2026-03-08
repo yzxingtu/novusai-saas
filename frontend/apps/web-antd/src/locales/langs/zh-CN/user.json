@@ -56,6 +56,7 @@
     "genderUnknown": "保密",
     "genderMale": "男",
     "genderFemale": "女",
+    "editDisabled": "管理员已关闭资料修改功能，当前无法编辑个人资料",
     "security": "安全设置",
     "changePassword": "修改密码",
     "changePasswordDesc": "定期修改密码可以提高账号安全性",
@@ -74,6 +75,9 @@
       "inputNewPassword": "请输入新密码",
       "inputConfirmPassword": "请再次输入新密码"
     }
+  },
+  "settings": {
+    "description": "管理您的账户信息和安全设置"
   },
   "auth": {
     "passwordMinLength": "密码长度至少 6 位"

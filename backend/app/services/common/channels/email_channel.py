@@ -78,6 +78,24 @@ class EmailChannel(NotificationChannel):
         """
         _ = data
         try:
+            # 租户级邮件通知开关检查
+            if tenant_id:
+                try:
+                    from app.configs.service import ConfigService
+                    config_service = ConfigService(db)
+                    email_enabled = await config_service.get_tenant_config(
+                        tenant_id=tenant_id,
+                        key="tenant_email_notification",
+                    )
+                    if email_enabled is False:
+                        logger.debug(
+                            "EmailChannel: tenant %d email notification disabled, skip",
+                            tenant_id,
+                        )
+                        return False
+                except Exception as cfg_err:
+                    logger.warning("EmailChannel: tenant config check failed: %s", cfg_err)
+
             email = await self._get_user_email(db, user_type, user_id)
             if not email:
                 logger.debug("EmailChannel: no email for %s:%d, skip", user_type, user_id)

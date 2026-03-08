@@ -503,29 +503,31 @@ export async function smartUploadFile(
     signal: options?.signal,
   });
 
-  // ===== 第二步：预检（秒传）=====
+  // ===== 第二步：预检（秒传，仅在哈希可用时执行）=====
   onProgress?.({ percent: HASH_PROGRESS_END });
-  try {
-    const preflight = await preflightCheckApi(
-      {
-        hash: fileHash,
-        filename: file.name,
-        size: file.size,
-        visibility: params.visibility ?? 'private',
-      },
-      params.tenant_id ?? 0,
-      options,
-    );
-    if (preflight.exists && preflight.attachment) {
-      onProgress?.({ percent: 100 });
-      return {
-        attachment: preflight.attachment,
-        url: preflight.url ?? '',
-        used_bytes: 0,
-      };
+  if (fileHash) {
+    try {
+      const preflight = await preflightCheckApi(
+        {
+          hash: fileHash,
+          filename: file.name,
+          size: file.size,
+          visibility: params.visibility ?? 'private',
+        },
+        params.tenant_id ?? 0,
+        options,
+      );
+      if (preflight.exists && preflight.attachment) {
+        onProgress?.({ percent: 100 });
+        return {
+          attachment: preflight.attachment,
+          url: preflight.url ?? '',
+          used_bytes: 0,
+        };
+      }
+    } catch {
+      // 预检失败不影响正常上传流程
     }
-  } catch {
-    // 预检失败不影响正常上传流程
   }
 
   // ===== 第三步：实际上传 =====

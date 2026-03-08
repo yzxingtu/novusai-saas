@@ -53,6 +53,7 @@
     "approval_pending": "注册成功，等待管理员审批"
   },
   "user": {
+    "profile_edit_disabled": "管理员已关闭资料修改功能",
     "not_found": "用户不存在",
     "already_exists": "用户已存在",
     "email_exists": "邮箱已被注册",
@@ -1584,6 +1585,7 @@
       "memory_channel": {
         "tenant_chat": "租户对话",
         "admin_chat": "管理端对话",
+        "user_chat": "用户端对话",
         "plugin": "插件",
         "system": "系统"
       },
@@ -1635,7 +1637,8 @@
     },
     "user_role": {
       "platform_admin": "平台管理员",
-      "tenant_admin": "租户管理员"
+      "tenant_admin": "租户管理员",
+      "tenant_user": "租户用户"
     },
     "tool_parameter_type": {
       "string": "字符串",
@@ -1888,16 +1891,16 @@
         "desc": "Socket.IO 连接参数与通知系统配置"
       },
       "tenant_general": {
-        "name": "基础设置",
+        "name": "安全设置",
         "desc": "登录安全、密码策略、会话设置"
       },
       "tenant_appearance": {
         "name": "外观设置",
-        "desc": "Logo、主题色、登录页定制"
+        "desc": "Logo、登录页定制"
       },
       "tenant_features": {
-        "name": "功能设置",
-        "desc": "功能模块的启用和禁用"
+        "name": "会员设置",
+        "desc": "注册、通知、文件上传等会员功能开关"
       },
       "tenant_storage": {
         "name": "存储设置",
@@ -2253,14 +2256,6 @@
       "login_bg": {
         "name": "登录页背景",
         "desc": "登录页面的背景图片"
-      },
-      "primary_color": {
-        "name": "主题主色",
-        "desc": "界面的主要颜色"
-      },
-      "accent_color": {
-        "name": "主题强调色",
-        "desc": "用于强调和高亮的颜色"
       },
       "login_title": {
         "name": "登录页标题",
@@ -2842,7 +2837,8 @@
   "config.tenant.user_require_approval.name": "需要审批",
   "config.tenant.user_require_approval.desc": "用户注册后需要管理员审批才能激活",
   "config.tenant.user_default_role_id.name": "默认用户角色",
-  "config.tenant.user_default_role_id.desc": "新注册用户自动分配的角色 ID，由系统创建租户时自动设置",
+  "config.tenant.user_default_role_id.desc": "新注册用户自动分配的角色，选择「不分配角色」则用户注册后无角色",
+  "config.tenant.user_default_role_id.option_none": "不分配角色",
   "config.tenant.user_privacy_policy_url.name": "隐私政策链接",
   "config.tenant.user_privacy_policy_url.desc": "注册页面显示的隐私政策链接地址，留空则不显示",
   "config.tenant.user_terms_url.name": "服务条款链接",

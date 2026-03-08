@@ -31,6 +31,8 @@ from app.schemas.tenant.user import (
     TenantUserProfileUpdateRequest,
     TenantUserRegisterRequest,
 )
+from app.configs.service import ConfigService
+from app.exceptions import BusinessException
 from app.services.common import AuthService
 
 router = APIRouter(prefix="/auth", tags=["User Authentication"])
@@ -234,6 +236,14 @@ async def update_profile(
     """
     更新当前用户个人资料
     """
+    config_service = ConfigService(db)
+    allow_edit = await config_service.get_tenant_config(
+        tenant_id=current_user.tenant_id,
+        key="tenant_allow_profile_edit",
+    )
+    if allow_edit is False:
+        raise BusinessException(message=_("user.profile_edit_disabled"))
+
     auth_service = AuthService(db)
 
     user = await auth_service.update_tenant_user_profile(

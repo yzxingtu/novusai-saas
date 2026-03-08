@@ -108,6 +108,7 @@ onUnmounted(() => {
     <ConversationDetail
       v-model:open="detailOpen"
       :conversation-id="detailId"
+      api-prefix="/tenant"
       i18n-prefix="tenant.ai.conversation"
       :get-detail-api="getConversationDetailApi"
       :format-tokens="formatTokenCount"

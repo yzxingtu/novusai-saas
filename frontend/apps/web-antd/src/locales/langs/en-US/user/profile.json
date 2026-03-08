@@ -1,6 +1,7 @@
 {
   "title": "Profile",
   "edit": "Edit Profile",
+  "editDisabled": "Profile editing has been disabled by the administrator",
   "avatar": "Avatar",
   "username": "Username",
   "nickname": "Nickname",
@@ -19,7 +20,11 @@
   "messages": {
     "updateSuccess": "Profile updated successfully",
     "changePasswordSuccess": "Password changed successfully",
-    "passwordMismatch": "Passwords do not match"
+    "passwordMismatch": "Passwords do not match",
+    "avatarUpdated": "Avatar updated successfully",
+    "avatarFailed": "Failed to update avatar",
+    "avatarTypeError": "Only image files are allowed",
+    "avatarSizeError": "Image size must be less than 2MB"
   },
   "placeholder": {
     "inputNickname": "Please enter nickname",

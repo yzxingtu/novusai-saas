@@ -30,22 +30,38 @@ const mainRoutes: RouteRecordRaw = {
       },
     },
     {
-      name: 'UserProfile',
-      path: 'profile',
-      component: () => import('#/views/user/profile/index.vue'),
+      name: 'UserSettings',
+      path: 'settings',
+      component: () => import('#/views/user/settings/index.vue'),
+      redirect: '/settings/profile',
       meta: {
-        icon: 'lucide:user',
-        title: $t('user.profile.title'),
+        icon: 'lucide:settings',
+        ignoreAccess: true,
+        title: $t('menu.user.settings'),
       },
-    },
-    {
-      name: 'UserChangePassword',
-      path: 'profile/change-password',
-      component: () => import('#/views/user/profile/change-password.vue'),
-      meta: {
-        hideInMenu: true,
-        title: $t('user.profile.changePassword'),
-      },
+      children: [
+        {
+          name: 'UserProfile',
+          path: 'profile',
+          component: () => import('#/views/user/profile/index.vue'),
+          meta: {
+            icon: 'lucide:user',
+            ignoreAccess: true,
+            title: $t('user.profile.title'),
+          },
+        },
+        {
+          name: 'UserChangePassword',
+          path: 'password',
+          component: () =>
+            import('#/views/user/profile/change-password.vue'),
+          meta: {
+            hideInMenu: true,
+            ignoreAccess: true,
+            title: $t('user.profile.changePassword'),
+          },
+        },
+      ],
     },
   ],
 };

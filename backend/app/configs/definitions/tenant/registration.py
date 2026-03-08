@@ -5,7 +5,7 @@
 """
 
 from app.configs.definitions.groups import TENANT_FEATURES_GROUP
-from app.configs.meta import ConfigMeta, DisplayRule
+from app.configs.meta import ConfigMeta, ConfigOption, DisplayRule
 from app.enums.config import ConfigScope, ConfigValueType
 
 
@@ -72,9 +72,12 @@ USER_DEFAULT_ROLE_ID = ConfigMeta(
     name_key="config.tenant.user_default_role_id.name",
     description_key="config.tenant.user_default_role_id.desc",
     scope=ConfigScope.ALL_TENANTS,
-    value_type=ConfigValueType.NUMBER,
+    value_type=ConfigValueType.SELECT,
     default_value=0,
     sort_order=140,
+    options=[
+        ConfigOption(value=0, label_key="config.tenant.user_default_role_id.option_none"),
+    ],
     display_rules=[
         DisplayRule(field="tenant_allow_registration", operator="equals", value=True, action="show"),
     ],

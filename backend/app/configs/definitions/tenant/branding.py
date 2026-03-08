@@ -1,11 +1,11 @@
 """
 租户品牌设置配置项
 
-包含租户 Logo、主题色、外观定制等配置
+包含租户 Logo、登录页定制等配置
 """
 
 from app.configs.definitions.groups import TENANT_APPEARANCE_GROUP
-from app.configs.meta import ConfigMeta, max_length, pattern
+from app.configs.meta import ConfigMeta, max_length
 from app.enums.config import ConfigScope, ConfigValueType
 
 # ==========================================
@@ -43,39 +43,6 @@ TENANT_LOGIN_BG = ConfigMeta(
     value_type=ConfigValueType.IMAGE,
     default_value="",
     sort_order=30,
-)
-
-
-# ==========================================
-# 主题颜色
-# ==========================================
-
-# 主题主色调
-TENANT_PRIMARY_COLOR = ConfigMeta(
-    key="tenant_primary_color",
-    name_key="config.tenant.primary_color.name",
-    description_key="config.tenant.primary_color.desc",
-    scope=ConfigScope.ALL_TENANTS,
-    value_type=ConfigValueType.COLOR,
-    default_value="#1890ff",
-    validation_rules=[
-        pattern(r"^#[0-9A-Fa-f]{6}$", "validation.color_format"),
-    ],
-    sort_order=40,
-)
-
-# 主题强调色
-TENANT_ACCENT_COLOR = ConfigMeta(
-    key="tenant_accent_color",
-    name_key="config.tenant.accent_color.name",
-    description_key="config.tenant.accent_color.desc",
-    scope=ConfigScope.ALL_TENANTS,
-    value_type=ConfigValueType.COLOR,
-    default_value="#52c41a",
-    validation_rules=[
-        pattern(r"^#[0-9A-Fa-f]{6}$", "validation.color_format"),
-    ],
-    sort_order=50,
 )
 
 
@@ -134,8 +101,6 @@ TENANT_APPEARANCE_GROUP.configs = [
     TENANT_LOGO,
     TENANT_FAVICON,
     TENANT_LOGIN_BG,
-    TENANT_PRIMARY_COLOR,
-    TENANT_ACCENT_COLOR,
     TENANT_LOGIN_TITLE,
     TENANT_LOGIN_SUBTITLE,
     TENANT_FOOTER_COPYRIGHT,
@@ -146,8 +111,6 @@ __all__ = [
     "TENANT_LOGO",
     "TENANT_FAVICON",
     "TENANT_LOGIN_BG",
-    "TENANT_PRIMARY_COLOR",
-    "TENANT_ACCENT_COLOR",
     "TENANT_LOGIN_TITLE",
     "TENANT_LOGIN_SUBTITLE",
     "TENANT_FOOTER_COPYRIGHT",

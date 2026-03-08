@@ -399,6 +399,89 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
             })
         return operators
 
+    async def get_tenant_operators_select(
+        self,
+        tenant_id: int,
+        search: str | None = None,
+        user_type: str | None = None,
+        page: int = 1,
+        page_size: int = 10,
+    ) -> tuple[list[dict], int]:
+        """
+        获取租户端操作人分页下拉列表
+
+        支持远程搜索和按用户类型过滤，返回 label/value 格式供 ApiSelect 使用
+
+        Args:
+            tenant_id: 租户 ID
+            search: 搜索关键词（匹配 username/nickname）
+            user_type: 用户类型过滤
+            page: 页码
+            page_size: 每页数量
+
+        Returns:
+            (items, total) 元组
+        """
+        from sqlalchemy import or_
+
+        from app.core.i18n import _
+
+        # 基础查询：按 user_id + user_type 去重
+        base_q = (
+            select(
+                OperationLog.user_id,
+                OperationLog.user_type,
+                func.max(OperationLog.username).label("username"),
+                func.max(OperationLog.nickname).label("nickname"),
+            )
+            .where(
+                OperationLog.is_deleted.is_(False),
+                OperationLog.user_id.isnot(None),
+                OperationLog.tenant_id == tenant_id,
+            )
+            .group_by(
+                OperationLog.user_id,
+                OperationLog.user_type,
+            )
+        )
+
+        # 按用户类型过滤
+        if user_type:
+            base_q = base_q.where(OperationLog.user_type == user_type)
+
+        # 搜索 username/nickname
+        if search:
+            base_q = base_q.having(
+                or_(
+                    func.max(OperationLog.username).ilike(f"%{search}%"),
+                    func.max(OperationLog.nickname).ilike(f"%{search}%"),
+                )
+            )
+
+        # 统计总数
+        count_subq = base_q.subquery()
+        count_q = select(func.count()).select_from(count_subq)
+        total = (await self.db.execute(count_q)).scalar() or 0
+
+        # 分页
+        offset = (page - 1) * page_size
+        paginated_q = base_q.offset(offset).limit(page_size)
+
+        result = await self.db.execute(paginated_q)
+        rows = result.all()
+
+        # 构建 label/value 格式
+        items = []
+        for user_id, ut, username, nickname in rows:
+            display_name = nickname or username or ""
+            user_type_label = _("enum.user_type." + ut) if ut else ""
+            items.append({
+                "label": f"{display_name} ({user_type_label})" if user_type_label else display_name,
+                "value": username or "",
+            })
+
+        return items, total
+
     async def _get_subordinate_admin_ids(self, admin: "Admin") -> list[int]:
         """
         获取平台管理员的下属用户 ID 列表

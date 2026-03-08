@@ -1,4 +1,11 @@
 {
+  "user": {
+    "dashboard": "Workspace",
+    "ai_chat": "AI Chat",
+    "settings": "Settings",
+    "profile": "Profile",
+    "change_password": "Change Password"
+  },
   "tenant": {
     "dashboard": "Dashboard",
     "tenant_workspace": "Workspace",

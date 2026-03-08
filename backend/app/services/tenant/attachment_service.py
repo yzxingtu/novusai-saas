@@ -355,7 +355,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         plan_limit_mb = quota_service.get_quota_value("max_file_size_mb", 0)
 
         from app.configs.service import ConfigService
-        config_service = ConfigService(self._db)
+        config_service = ConfigService(self.db)
         platform_limit_mb = int(
             await config_service.get_platform_config(
                 "platform_storage_max_file_size_mb", default=100,
@@ -516,13 +516,13 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
     async def _resolve_storage_context(self) -> tuple[str, StorageConfig, bool]:
         from app.services.common.storage_config_resolver import StorageConfigResolver
 
-        resolver = StorageConfigResolver(self._db)
+        resolver = StorageConfigResolver(self.db)
         return await resolver.resolve_context(self.tenant_id)
 
     async def _get_storage_mode(self) -> str:
         from app.services.common.storage_config_resolver import StorageConfigResolver
 
-        resolver = StorageConfigResolver(self._db)
+        resolver = StorageConfigResolver(self.db)
         return await resolver.get_storage_mode(self.tenant_id)
 
     async def _resolve_storage_config(self, storage_mode: str) -> StorageConfig:
@@ -531,7 +531,7 @@ class AttachmentService(TenantService[Attachment, AttachmentRepository]):
         """
         from app.services.common.storage_config_resolver import StorageConfigResolver
 
-        resolver = StorageConfigResolver(self._db)
+        resolver = StorageConfigResolver(self.db)
         return await resolver.resolve_config(storage_mode, self.tenant_id)
 
     def _build_storage_path(self, filename: str, storage_mode: str = "platform") -> str:

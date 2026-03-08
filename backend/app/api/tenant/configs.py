@@ -4,7 +4,15 @@
 提供租户级配置管理接口（租户管理员专用）
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from fastapi import Body, Request
+from sqlalchemy import select as sa_select
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.shared._storage_helpers import (
     get_known_plugin_storage_drivers as _get_known_plugin_storage_drivers,
@@ -19,6 +27,7 @@ from app.enums.config import ConfigScope
 from app.enums.error_code import ErrorCode
 from app.enums.rbac import PermissionScope
 from app.exceptions import BusinessException, NotFoundException
+from app.models.auth.tenant_user_role import TenantUserRole
 from app.rbac.decorators import (
     MenuConfig,
     action_read,
@@ -62,14 +71,48 @@ def _mask_sensitive_options(options: dict) -> dict:
     return masked
 
 
+async def _inject_role_options(
+    db: "AsyncSession",
+    tenant_id: int,
+    configs: list[dict],
+) -> None:
+    """
+    为 user_default_role_id 配置项动态注入当前租户的角色选项。
+
+    在静态的「不分配角色」选项之后，追加租户的所有活跃角色。
+    """
+    for cfg in configs:
+        if cfg["key"] != "user_default_role_id":
+            continue
+        result = await db.execute(
+            sa_select(TenantUserRole.id, TenantUserRole.name)
+            .where(
+                TenantUserRole.tenant_id == tenant_id,
+                TenantUserRole.is_active.is_(True),
+                TenantUserRole.is_deleted.is_(False),
+            )
+            .order_by(TenantUserRole.sort_order, TenantUserRole.id)
+        )
+        roles = result.all()
+        for role in roles:
+            cfg["options"].append({"value": role.id, "label": role.name})
+        break
+
+
 def _translate_config_item(config: dict) -> ConfigItemResponse:
     """将配置项字典转换为响应对象并翻译 i18n 键"""
     # 翻译选项标签
     translated_options = []
     for opt in config.get("options", []):
+        if opt.get("label"):
+            label = opt["label"]
+        elif opt.get("label_key"):
+            label = _(opt["label_key"])
+        else:
+            label = str(opt.get("value", ""))
         translated_options.append({
             "value": opt["value"],
-            "label": _(opt["label_key"]) if opt.get("label_key") else str(opt.get("value", "")),
+            "label": label,
         })
 
     # 翻译验证规则消息
@@ -226,6 +269,9 @@ class TenantConfigController(TenantController):
                     code=ErrorCode.CONFIG_GROUP_NOT_FOUND,
                 )
 
+            # 动态注入角色选项
+            await _inject_role_options(db, current_admin.tenant_id, target_group["configs"])
+
             # 转换响应
             configs = [
                 _translate_config_item(c)
@@ -299,6 +345,10 @@ class TenantConfigController(TenantController):
                 if g["code"] == group_code:
                     target_group = g
                     break
+
+            # 动态注入角色选项
+            if target_group:
+                await _inject_role_options(db, current_admin.tenant_id, target_group["configs"])
 
             configs = [
                 _translate_config_item(c)

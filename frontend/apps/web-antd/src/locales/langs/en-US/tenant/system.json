@@ -12,6 +12,16 @@
     "avatar": "Avatar",
     "role": "Role",
     "status": "Status",
+    "approval": "Approval",
+    "approve": "Approve",
+    "reject": "Reject",
+    "batchApprove": "Batch Approve",
+    "batchReject": "Batch Reject",
+    "approvalStatus": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
     "createdAt": "Created At",
     "lastLoginAt": "Last Login",
     "password": "Password",
@@ -32,12 +42,20 @@
       "deleteSuccess": "Deleted successfully",
       "resetPasswordSuccess": "Password reset successfully",
       "createSuccess": "Created successfully",
-      "updateSuccess": "Updated successfully"
+      "updateSuccess": "Updated successfully",
+      "approveSuccess": "User approved successfully",
+      "rejectSuccess": "User rejected successfully",
+      "batchApproveSuccess": "Batch approval completed",
+      "batchRejectSuccess": "Batch rejection completed",
+      "batchApproveConfirm": "Are you sure you want to approve the selected users?",
+      "batchRejectConfirm": "Are you sure you want to reject the selected users?",
+      "selectUsersFirst": "Please select users first"
     },
     "placeholder": {
       "searchUsername": "Search username",
       "searchEmail": "Search email",
       "allStatus": "All Status",
+      "allApprovalStatus": "All Approval Status",
       "inputUsername": "Please enter username",
       "inputNickname": "Please enter nickname",
       "inputPassword": "Please enter password (at least 6 characters)",
@@ -157,7 +175,10 @@
     "noMembers": "No members in this role",
     "noMembersHint": "Click \"Add Member\" to assign users to this role",
     "online": "Online",
-    "offline": "Offline"
+    "offline": "Offline",
+    "allUsers": "All Users",
+    "allUsersDesc": "View all users in this tenant, regardless of role",
+    "allUsersListTitle": "User List"
   },
   "configs": {
     "title": "System Configs",
@@ -308,13 +329,18 @@
     "clientInfo": "Client Info",
     "queryParams": "Query Params",
     "requestBody": "Request Body",
+    "userTypeOptions": {
+      "tenantAdmin": "Tenant Admin",
+      "tenantUser": "User"
+    },
     "placeholder": {
       "searchUsername": "Search operator",
       "searchModule": "Search module",
       "searchAction": "Search action",
       "searchIp": "Search IP address",
       "startDate": "Start date",
-      "endDate": "End date"
+      "endDate": "End date",
+      "allUserTypes": "All User Types"
     }
   },
   "organization": {

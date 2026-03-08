@@ -6,18 +6,25 @@ import { LanguageToggle, ThemeToggle } from '@vben/layouts';
 import { preferences, updatePreferences, usePreferences } from '@vben/preferences';
 
 import { $t } from '#/locales';
+import { usePublicConfigStore } from '#/store/shared/public-config';
 
 defineOptions({ name: 'UserAuthLayout' });
 
+const publicConfigStore = usePublicConfigStore();
+
 onMounted(() => {
   updatePreferences({
-    theme: { builtinType: 'default', colorPrimary: 'hsl(211 91% 39%)' },
+    theme: { builtinType: 'default' },
   });
 });
 
 const appName = computed(() => preferences.app.name);
 const logo = computed(() => preferences.logo.source);
 const logoDark = computed(() => preferences.logo.sourceDark);
+const loginBg = computed(() => publicConfigStore.tenantBrand?.loginBg);
+const siteDescription = computed(
+  () => publicConfigStore.tenantBrand?.siteDescription,
+);
 
 const { isDark } = usePreferences();
 
@@ -45,7 +52,18 @@ const logoSrc = computed(() => {
     <!-- Left: Illustration Panel -->
     <div
       class="user-illustration relative hidden flex-col items-center justify-center overflow-hidden lg:flex lg:w-[45%]"
+      :style="
+        loginBg
+          ? {
+              backgroundImage: `url(${loginBg})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }
+          : {}
+      "
     >
+      <!-- Dark overlay when using custom background image -->
+      <div v-if="loginBg" class="absolute inset-0 bg-black/60" />
       <!-- Decorative circles with floating animation -->
       <div
         class="animate-float-slow absolute -left-20 -top-20 size-80 rounded-full opacity-20"
@@ -82,7 +100,7 @@ const logoSrc = computed(() => {
           {{ $t('user.auth.welcomeTitle') }}
         </h2>
         <p class="mb-12 text-base leading-relaxed text-white/60">
-          {{ $t('user.auth.welcomeDesc') }}
+          {{ siteDescription || $t('user.auth.welcomeDesc') }}
         </p>
 
         <!-- Feature list -->

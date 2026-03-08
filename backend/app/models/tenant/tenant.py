@@ -150,7 +150,6 @@ class Tenant(BaseModel):
     # 以下属性已废弃，请使用 ConfigService.get_tenant_config() 代替
     # - logo_url -> tenant_logo
     # - favicon_url -> tenant_favicon
-    # - theme_color -> tenant_primary_color
     # - captcha_enabled -> tenant_captcha_enabled
     # - login_methods -> tenant_login_methods
 

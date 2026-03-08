@@ -135,11 +135,21 @@ export async function getOperationLogListApi(
 }
 
 /**
- * 获取操作人下拉列表（含头像）
+ * 获取操作人下拉列表（含头像，全量模式）
  * GET /tenant/operation-logs/operators
  */
 export async function getOperatorsApi(): Promise<OperatorItem[]> {
   return requestClient.get<OperatorItem[]>(`${API_PREFIX}/operators`);
+}
+
+/**
+ * 获取操作人分页下拉列表（供 ApiSelect 使用）
+ * GET /tenant/operation-logs/operators?page=1&page_size=10&search=xxx&user_type=xxx
+ */
+export async function getOperatorsSelectApi(
+  params: Record<string, unknown>,
+): Promise<{ items: { label: string; value: string }[]; page: number; page_size: number; total: number }> {
+  return requestClient.get(`${API_PREFIX}/operators`, { params });
 }
 
 /**

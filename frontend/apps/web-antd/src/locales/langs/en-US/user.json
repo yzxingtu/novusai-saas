@@ -56,6 +56,7 @@
     "genderUnknown": "Prefer not to say",
     "genderMale": "Male",
     "genderFemale": "Female",
+    "editDisabled": "Profile editing has been disabled by the administrator",
     "security": "Security",
     "changePassword": "Change Password",
     "changePasswordDesc": "Regularly changing your password improves account security",
@@ -74,6 +75,9 @@
       "inputNewPassword": "Please enter new password",
       "inputConfirmPassword": "Please confirm new password"
     }
+  },
+  "settings": {
+    "description": "Manage your account information and security settings"
   },
   "auth": {
     "passwordMinLength": "Password must be at least 6 characters"

@@ -143,6 +143,13 @@ export async function computeFileHash(
 ): Promise<string> {
   const { onProgress, signal } = options ?? {};
 
+  // crypto.subtle 仅在安全上下文（HTTPS / localhost）可用
+  // 非安全上下文返回空串，调用方应跳过预检直接上传
+  if (!globalThis.crypto?.subtle) {
+    onProgress?.(100);
+    return '';
+  }
+
   // 空文件直接返回空内容的 SHA-256
   if (file.size === 0) {
     onProgress?.(100);

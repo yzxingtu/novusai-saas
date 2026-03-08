@@ -20,6 +20,7 @@ import {
   Timeline,
 } from 'ant-design-vue';
 
+import { AgentProfilePopover } from '#/components/business/agent-profile-popover';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -47,6 +48,7 @@ export interface ConversationDetailData {
   status: string;
   token_count: number;
   cost: number;
+  agent_id?: null | number;
   agent_name: null | string;
   agent_avatar?: null | string;
   tenant_name?: null | string;
@@ -59,13 +61,15 @@ export interface ConversationDetailData {
 }
 
 const props = defineProps<{
+  /** API prefix: '/admin' or '/tenant', for loading agent skill packages */
+  apiPrefix?: string;
   conversationId: null | number;
   /** 格式化费用的函数 */
   formatCost: (cost: null | number | undefined) => string;
   /** 格式化 token 数量的函数 */
   formatTokens: (count: null | number | undefined) => string;
   /** 获取对话详情的 API 函数 */
-  getDetailApi: (id: number, ...args: any[]) => Promise<unknown>;
+  getDetailApi: (id: number, ...args: unknown[]) => Promise<unknown>;
   /** 获取状态文本的函数 */
   getStatusText: (status: string) => string;
   /** i18n 前缀，如 'admin.ai.conversation' 或 'tenant.ai.conversation' */
@@ -241,18 +245,13 @@ defineExpose({ detail });
                 <template
                   v-else-if="msg.role === 'assistant' && detail?.agent_name"
                 >
-                  <Avatar
-                    v-if="detail.agent_avatar"
-                    :src="toAvatarDisplayUrl(detail.agent_avatar)"
-                    :size="22"
+                  <AgentProfilePopover
+                    :agent-id="detail.agent_id"
+                    :agent-avatar="detail.agent_avatar"
+                    :agent-name="detail.agent_name"
+                    :api-prefix="props.apiPrefix"
+                    size="sm"
                   />
-                  <Avatar
-                    v-else
-                    :size="22"
-                    class="bg-success/10 text-xs text-success"
-                  >
-                    {{ (detail.agent_name || '?').charAt(0) }}
-                  </Avatar>
                   <span class="text-sm font-medium text-foreground">
                     {{ detail.agent_name }}
                   </span>

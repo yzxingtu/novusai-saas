@@ -40,6 +40,7 @@ class MemoryChannelEnum(LabeledStrEnum):
 
     TENANT_CHAT = ("tenant_chat", "enum.agent.memory_channel.tenant_chat")
     ADMIN_CHAT = ("admin_chat", "enum.agent.memory_channel.admin_chat")
+    USER_CHAT = ("user_chat", "enum.agent.memory_channel.user_chat")
     PLUGIN = ("plugin", "enum.agent.memory_channel.plugin")
     SYSTEM = ("system", "enum.agent.memory_channel.system")
 

@@ -34,7 +34,7 @@ async def get_tenant_public_config(request: Request, db: DbSession):
     **返回内容:**
     - 租户基本信息（名称、logo 等）
     - 登录配置（验证码、登录方式等）
-    - 品牌设置（主题色等）
+    - 品牌设置（Logo、登录页定制等）
 
     此接口无需认证，用于前端登录页面获取租户信息。
     """
@@ -121,10 +121,7 @@ async def get_tenant_public_config(request: Request, db: DbSession):
             tenant_name=tenant.name,
             logo_url=logo_url,
             favicon_url=favicon_url,
-            theme_color=configs.get("tenant_primary_color"),
             login_bg=login_bg,
-            primary_color=configs.get("tenant_primary_color"),
-            accent_color=configs.get("tenant_accent_color"),
             login_title=login_title,
             login_subtitle=login_subtitle,
             footer_copyright=footer_copyright,

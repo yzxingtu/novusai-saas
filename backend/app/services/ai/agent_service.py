@@ -726,6 +726,29 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
         return False
 
+    async def list_user_accessible_agents(
+        self,
+        user_id: int,
+        spec: "QuerySpec",
+    ) -> tuple[list[Agent], int]:
+        """
+        获取终端用户可访问的智能体列表
+
+        在 SQL 层完成全部过滤（status/execution_mode/visibility/access_type），
+        保证分页和 total 计数的正确性。
+
+        Args:
+            user_id: 当前终端用户 ID
+            spec: JSON:API 查询参数
+
+        Returns:
+            (items, total)
+        """
+        return await self.repo.query_user_accessible_list(
+            spec=spec,
+            user_id=user_id,
+        )
+
 
 class AdminAgentService(GlobalService[Agent, AdminAgentRepository]):
     """

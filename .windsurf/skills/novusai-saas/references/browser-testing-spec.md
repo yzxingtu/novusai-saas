@@ -36,15 +36,15 @@
 
 ### 租户端（Tenant）
 
-**租户端不通过登录页直接登录，而是通过平台管理端的租户列表"一键登录"进入。**
+**开发环境下，租户端通过租户专属域名直接登录。**
 
-流程：
-1. 先以 admin 身份登录平台管理端
-2. 导航到 `http://localhost:5666/admin/tenant/list`（租户管理列表）
-3. 在租户列表中找到目标租户，点击该租户操作菜单的"一键登录"按钮
-4. 系统会通过 impersonate token 自动完成租户端认证并跳转到租户后台
+| 字段 | 值 |
+|------|-----|
+| 登录页 | `http://ss.dakkii.cn:5666/tenant/login` |
+| 用户名 | `adminsss` |
+| 密码 | `admin123456` |
 
-> **注意**：一键登录会在新窗口打开租户端页面（通过租户主域名跳转）。开发模式下也可使用"当前标签页登录"选项。
+> **备选方式**：也可通过平台管理端的租户列表"一键登录"（操作菜单 → 进入后台 / 当前标签页进入）进入租户端。
 
 ## 三、测试步骤规范
 
@@ -68,7 +68,27 @@
 5. browser_wait_for → 等待页面跳转完成
 ```
 
-### 3.2 页面导航
+### 3.2 登录租户端
+
+**chrome-devtools（首选）：**
+```
+1. navigate_page(type="url", url="http://ss.dakkii.cn:5666/tenant/login")
+2. take_snapshot → 获取页面快照，找到输入框 uid
+3. fill(uid=用户名uid, value="adminsss") + fill(uid=密码uid, value="admin123456")
+4. click(uid=登录按钮uid)
+5. wait_for(text=["概览"]) → 等待登录完成
+```
+
+**playwright（备选）：**
+```
+1. browser_navigate → http://ss.dakkii.cn:5666/tenant/login
+2. browser_snapshot → 获取页面快照
+3. browser_fill_form → 填入用户名 adminsss 和密码 admin123456
+4. browser_click → 点击登录按钮
+5. browser_wait_for → 等待页面跳转完成
+```
+
+### 3.3 页面导航
 
 **chrome-devtools：**
 ```
@@ -84,7 +104,7 @@
 3. 根据快照中的 ref 进行操作
 ```
 
-### 3.3 表单操作
+### 3.4 表单操作
 
 **chrome-devtools：**
 ```
@@ -102,7 +122,7 @@
 4. browser_wait_for → 等待操作结果
 ```
 
-### 3.4 文件上传测试
+### 3.5 文件上传测试
 
 > 文件上传推荐使用 playwright MCP（chrome-devtools 不直接支持 file input 操作）
 
@@ -114,7 +134,7 @@
 5. browser_snapshot → 验证上传结果
 ```
 
-### 3.5 网络请求检查（chrome-devtools 专属）
+### 3.6 网络请求检查（chrome-devtools 专属）
 
 ```
 1. list_network_requests(resourceTypes=["fetch", "xhr"]) → 查看 API 请求列表

@@ -68,6 +68,37 @@ USER_DIRECTORY_MENUS: list[PermissionMeta] = [
         path="/settings",
         sort_order=900,
     ),
+
+    # ---- 个人资料 ----
+    PermissionMeta(
+        code="menu:user.profile",
+        name="menu.user.profile",
+        type=PermissionType.MENU,
+        scope=PermissionScope.TENANT_USER,
+        resource="menu",
+        action="user.profile",
+        icon="lucide:user",
+        path="/settings/profile",
+        component="user/profile/Index",
+        parent_code="menu:user.settings",
+        sort_order=10,
+    ),
+
+    # ---- 修改密码 ----
+    PermissionMeta(
+        code="menu:user.change_password",
+        name="menu.user.change_password",
+        type=PermissionType.MENU,
+        scope=PermissionScope.TENANT_USER,
+        resource="menu",
+        action="user.change_password",
+        icon="lucide:key-round",
+        path="/settings/password",
+        component="user/profile/change-password",
+        parent_code="menu:user.settings",
+        sort_order=20,
+        hidden=True,
+    ),
 ]
 
 __all__ = ["USER_DIRECTORY_MENUS"]

@@ -28,7 +28,19 @@ async function generateAccessible(
   // 生成路由
   const accessibleRoutes = await generateRoutes(mode, options);
 
-  const root = router.getRoutes().find((item) => item.path === '/');
+  // Multi-endpoint support: determine the correct parent root route based on
+  // the dynamic routes' path prefix. For /admin/* routes use AdminRoot,
+  // for /tenant/* routes use TenantRoot, otherwise use the default root at '/'.
+  let rootPath = '/';
+  if (accessibleRoutes.length > 0) {
+    const firstRoutePath = accessibleRoutes[0]?.path ?? '';
+    if (firstRoutePath.startsWith('/admin')) {
+      rootPath = '/admin';
+    } else if (firstRoutePath.startsWith('/tenant')) {
+      rootPath = '/tenant';
+    }
+  }
+  const root = router.getRoutes().find((item) => item.path === rootPath);
 
   // 获取已有的路由名称列表
   const names = root?.children?.map((item) => item.name) ?? [];

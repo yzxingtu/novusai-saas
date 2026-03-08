@@ -144,28 +144,30 @@ export async function smartUploadFile(
     signal: options?.signal,
   });
 
-  // 第二步：预检（秒传）
+  // 第二步：预检（秒传，仅在哈希可用时执行）
   onProgress?.({ percent: HASH_PROGRESS_END });
-  try {
-    const preflight = await preflightCheckApi(
-      {
-        hash: fileHash,
-        filename: file.name,
-        size: file.size,
-        visibility: params.visibility ?? 'private',
-      },
-      options,
-    );
-    if (preflight.exists && preflight.attachment) {
-      onProgress?.({ percent: 100 });
-      return {
-        attachment: preflight.attachment,
-        url: preflight.url ?? '',
-        used_bytes: preflight.used_bytes ?? 0,
-      };
+  if (fileHash) {
+    try {
+      const preflight = await preflightCheckApi(
+        {
+          hash: fileHash,
+          filename: file.name,
+          size: file.size,
+          visibility: params.visibility ?? 'private',
+        },
+        options,
+      );
+      if (preflight.exists && preflight.attachment) {
+        onProgress?.({ percent: 100 });
+        return {
+          attachment: preflight.attachment,
+          url: preflight.url ?? '',
+          used_bytes: preflight.used_bytes ?? 0,
+        };
+      }
+    } catch {
+      // 预检失败不影响正常上传
     }
-  } catch {
-    // 预检失败不影响正常上传
   }
 
   // 第三步：普通上传

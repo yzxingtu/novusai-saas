@@ -69,6 +69,7 @@ TENANT_SMS_NOTIFICATION = ConfigMeta(
     scope=ConfigScope.ALL_TENANTS,
     value_type=ConfigValueType.BOOLEAN,
     default_value=False,
+    is_visible=False,
     sort_order=50,
 )
 
@@ -85,6 +86,7 @@ TENANT_API_ACCESS = ConfigMeta(
     scope=ConfigScope.ALL_TENANTS,
     value_type=ConfigValueType.BOOLEAN,
     default_value=True,
+    is_visible=False,
     sort_order=60,
 )
 

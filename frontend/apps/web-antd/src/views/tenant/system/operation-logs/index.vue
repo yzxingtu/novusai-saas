@@ -22,6 +22,8 @@ import { toAvatarDisplayUrl } from '#/utils/image';
 import {
   getMethodColor,
   getStatusColor,
+  getUserTypeColor,
+  getUserTypeLabel,
   useColumns,
   useGridFormSchema,
 } from './data';
@@ -43,6 +45,21 @@ function onViewDetail(row: OperationLogInfo) {
   detailDrawerApi.setData({ id: row.id }).open();
 }
 
+// 用户类型筛选联动：选择类型后，操作人下拉只显示对应类型的用户
+function onUserTypeChange(userType: string | undefined) {
+  // 清空已选操作人（因为可能不属于新类型）
+  gridApi.formApi?.setValues({ 'filter[username]': undefined });
+  // 更新 ApiSelect 的请求参数，注入 user_type
+  gridApi.formApi?.updateSchema([
+    {
+      componentProps: {
+        params: { user_type: userType || undefined },
+      },
+      fieldName: 'filter[username]',
+    },
+  ]);
+}
+
 // CRUD 页面（只读列表）
 const { Grid, gridApi, onRefresh } = useCrudPage<OperationLogInfo>({
   api: {
@@ -50,7 +67,7 @@ const { Grid, gridApi, onRefresh } = useCrudPage<OperationLogInfo>({
     resource: '/tenant/operation-logs',
   },
   columns: useColumns,
-  searchSchema: useGridFormSchema(),
+  searchSchema: useGridFormSchema({ onUserTypeChange }),
   i18nPrefix: 'tenant.system.operationLog',
   nameField: 'id',
   defaultSort: '-created_at',
@@ -59,37 +76,24 @@ const { Grid, gridApi, onRefresh } = useCrudPage<OperationLogInfo>({
   },
 });
 
-// 操作人列表（头像 + 下拉）
+// 头像映射（用于表格行显示头像）
 const avatarMap = ref<Record<number, null | string | undefined>>({});
 
-async function loadOperators() {
+async function loadAvatarMap() {
   try {
     const list = await tenant.getOperatorsApi();
-    // 构建 userId → avatar 映射
     const map: Record<number, null | string | undefined> = {};
     for (const op of list) {
       if (op.user_id) map[op.user_id] = op.avatar;
     }
     avatarMap.value = map;
-    // 动态更新搜索表单下拉选项
-    gridApi.formApi?.updateSchema([
-      {
-        componentProps: {
-          options: list.map((op) => ({
-            label: op.nickname || op.username,
-            value: op.username,
-          })),
-        },
-        fieldName: 'filter[username]',
-      },
-    ]);
   } catch {
     // ignore
   }
 }
 
 onMounted(() => {
-  loadOperators();
+  loadAvatarMap();
 });
 
 const cleanupPageContext = registerPageContext('tenant/system/operation-logs', () => ({
@@ -141,7 +145,7 @@ onUnmounted(() => {
     <!-- 表格 -->
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
-        <!-- 用户名列（含头像） -->
+        <!-- 用户名列（含头像 + 用户类型标签） -->
         <template #username_cell="{ row }">
           <div class="flex items-center gap-2">
             <Avatar
@@ -157,8 +161,16 @@ onUnmounted(() => {
               {{ (row.nickname || row.username || '?').charAt(0) }}
             </Avatar>
             <div class="min-w-0 flex-1">
-              <div class="truncate text-sm font-medium text-foreground">
-                {{ row.nickname || row.username }}
+              <div class="flex items-center gap-1">
+                <span class="truncate text-sm font-medium text-foreground">
+                  {{ row.nickname || row.username }}
+                </span>
+                <Tag
+                  :color="getUserTypeColor(row.userType)"
+                  class="!m-0 !text-[10px] !leading-tight"
+                >
+                  {{ getUserTypeLabel(row.userType) }}
+                </Tag>
               </div>
               <div
                 v-if="row.nickname"

@@ -78,6 +78,16 @@
       "notification_template": "Notification Template Management",
       "admin_cache": "Cache Management"
     },
+    "user": {
+      "dashboard": "Dashboard",
+      "ai_chat": "AI Chat",
+      "settings": "Settings",
+      "profile": "Profile",
+      "change_password": "Change Password",
+      "permission": "Permissions",
+      "agent_chat": "AI Chat",
+      "agents": "Agents"
+    },
     "tenant": {
       "dashboard": "Dashboard",
       "tenant_workspace": "Workspace",

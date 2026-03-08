@@ -74,7 +74,7 @@ async function handleLogout() {
 }
 
 function goToProfile() {
-  router.push('/profile');
+  router.push('/settings/profile');
 }
 
 const userDropdownItems = computed(() => [

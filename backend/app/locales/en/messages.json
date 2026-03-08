@@ -53,6 +53,7 @@
     "approval_pending": "Registration successful, pending admin approval"
   },
   "user": {
+    "profile_edit_disabled": "Profile editing has been disabled by the administrator",
     "not_found": "User not found",
     "already_exists": "User already exists",
     "email_exists": "Email already registered",
@@ -1582,6 +1583,7 @@
       "memory_channel": {
         "tenant_chat": "Tenant Chat",
         "admin_chat": "Admin Chat",
+        "user_chat": "User Chat",
         "plugin": "Plugin",
         "system": "System"
       },
@@ -1633,7 +1635,8 @@
     },
     "user_role": {
       "platform_admin": "Platform Admin",
-      "tenant_admin": "Tenant Admin"
+      "tenant_admin": "Tenant Admin",
+      "tenant_user": "Tenant User"
     },
     "tool_parameter_type": {
       "string": "String",
@@ -1879,16 +1882,16 @@
         "desc": "Socket.IO connection parameters and notification system settings"
       },
       "tenant_general": {
-        "name": "General Settings",
+        "name": "Security Settings",
         "desc": "Login security, password policy, session settings"
       },
       "tenant_appearance": {
         "name": "Appearance Settings",
-        "desc": "Logo, theme colors, login page customization"
+        "desc": "Logo, login page customization"
       },
       "tenant_features": {
-        "name": "Feature Settings",
-        "desc": "Enable or disable feature modules"
+        "name": "Member Settings",
+        "desc": "Registration, notifications, file upload and other member features"
       },
       "tenant_storage": {
         "name": "Storage Settings",
@@ -2236,14 +2239,6 @@
       "login_bg": {
         "name": "Login Background",
         "desc": "Background image for login page"
-      },
-      "primary_color": {
-        "name": "Primary Color",
-        "desc": "Main color of the interface"
-      },
-      "accent_color": {
-        "name": "Accent Color",
-        "desc": "Color for emphasis and highlights"
       },
       "login_title": {
         "name": "Login Title",
@@ -2837,7 +2832,8 @@
   "config.tenant.user_require_approval.name": "Require Approval",
   "config.tenant.user_require_approval.desc": "Require admin approval before user accounts are activated",
   "config.tenant.user_default_role_id.name": "Default User Role",
-  "config.tenant.user_default_role_id.desc": "Role ID automatically assigned to newly registered users, set during tenant creation",
+  "config.tenant.user_default_role_id.desc": "Role automatically assigned to newly registered users. Select 'No Role' to leave users without a role",
+  "config.tenant.user_default_role_id.option_none": "No Role",
   "config.tenant.user_privacy_policy_url.name": "Privacy Policy URL",
   "config.tenant.user_privacy_policy_url.desc": "Link to the privacy policy shown on the registration page. Leave empty to hide.",
   "config.tenant.user_terms_url.name": "Terms of Service URL",

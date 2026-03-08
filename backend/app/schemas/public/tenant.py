@@ -25,10 +25,7 @@ class TenantPublicConfig(BaseSchema):
     # 品牌设置
     logo_url: str | None = Field(None, description="Logo URL")
     favicon_url: str | None = Field(None, description="Favicon URL")
-    theme_color: str | None = Field(None, description="主题色")
     login_bg: str | None = Field(None, description="登录页背景图")
-    primary_color: str | None = Field(None, description="主题主色")
-    accent_color: str | None = Field(None, description="主题强调色")
     login_title: str | None = Field(None, description="登录页标题")
     login_subtitle: str | None = Field(None, description="登录页副标题")
     footer_copyright: str | None = Field(None, description="页脚版权")

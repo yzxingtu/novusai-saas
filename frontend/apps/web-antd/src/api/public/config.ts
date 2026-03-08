@@ -64,8 +64,10 @@ export interface BrandConfig {
   logoDark?: string;
   /** Favicon URL */
   favicon?: string;
-  /** 主题色 */
+  /** 主题色（仅平台端使用） */
   primaryColor?: string;
+  /** 登录页背景图 */
+  loginBg?: string;
   /** 版权信息 */
   copyright?: string;
   /** ICP 备案号 */
@@ -223,10 +225,7 @@ interface TenantPublicConfigRaw {
   // Brand (backend returns these field names from TenantPublicConfig schema)
   logo_url?: string;
   favicon_url?: string;
-  theme_color?: string;
   login_bg?: string;
-  primary_color?: string;
-  accent_color?: string;
   login_title?: string;
   login_subtitle?: string;
   footer_copyright?: string;
@@ -341,7 +340,7 @@ function transformTenantConfig(raw: TenantPublicConfigRaw): TenantPublicConfig {
       siteDescription: raw.login_subtitle,
       logo: attachmentIdToUrl(raw.logo_url),
       favicon: attachmentIdToUrl(raw.favicon_url),
-      primaryColor: raw.primary_color,
+      loginBg: attachmentIdToUrl(raw.login_bg),
       copyright: raw.footer_copyright,
     },
     login: {

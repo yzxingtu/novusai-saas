@@ -94,13 +94,42 @@ class TenantOperationLogController(TenantController):
             request: Request,
             db: DbSession,
             current_admin: ActiveTenantAdmin,
+            search: str | None = None,
+            user_type: str | None = None,
+            page: int | None = None,
+            page_size: int = 10,
         ):
             """
-            获取当前租户操作日志中的去重操作人列表（含头像）
+            获取当前租户操作日志中的去重操作人列表
+
+            支持两种模式：
+            - 分页模式（传 page 参数）：返回 {items, total, page, page_size} 供 ApiSelect 使用
+            - 全量模式（不传 page）：返回完整列表（含头像）供表格头像映射
 
             权限: operation_log:list
             """
             service = OperationLogService(db)
+
+            if page is not None:
+                # 分页模式：供 ApiSelect 远程搜索
+                items, total = await service.get_tenant_operators_select(
+                    tenant_id=current_admin.tenant_id,
+                    search=search,
+                    user_type=user_type,
+                    page=page,
+                    page_size=page_size,
+                )
+                return success(
+                    data={
+                        "items": items,
+                        "total": total,
+                        "page": page,
+                        "page_size": page_size,
+                    },
+                    message=_("common.success"),
+                )
+
+            # 全量模式：返回含头像的完整列表
             operators = await service.get_tenant_operators(current_admin.tenant_id)
             return success(
                 data=[OperatorSelectItem(**op) for op in operators],

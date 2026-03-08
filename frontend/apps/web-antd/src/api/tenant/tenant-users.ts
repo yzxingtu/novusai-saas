@@ -263,3 +263,35 @@ export async function rejectTenantUserApi(
   );
   return transformUserInfo(raw);
 }
+
+/**
+ * 批量审批通过用户
+ * PUT /tenant/users/batch/approve
+ */
+export async function batchApproveTenantUserApi(
+  ids: number[],
+  options?: ApiRequestOptions,
+): Promise<TenantUserInfo[]> {
+  const rawList = await requestClient.put<TenantUserInfoRaw[]>(
+    `${API_PREFIX}/batch/approve`,
+    { ids },
+    options,
+  );
+  return rawList.map((raw) => transformUserInfo(raw));
+}
+
+/**
+ * 批量审批拒绝用户
+ * PUT /tenant/users/batch/reject
+ */
+export async function batchRejectTenantUserApi(
+  ids: number[],
+  options?: ApiRequestOptions,
+): Promise<TenantUserInfo[]> {
+  const rawList = await requestClient.put<TenantUserInfoRaw[]>(
+    `${API_PREFIX}/batch/reject`,
+    { ids },
+    options,
+  );
+  return rawList.map((raw) => transformUserInfo(raw));
+}

@@ -13,17 +13,17 @@
     "platform_email": "邮件设置",
     "platform_ssl": "SSL 证书管理",
     "tenant_appearance": "外观设置",
-    "tenant_general": "基础设置",
-    "tenant_features": "功能设置"
+    "tenant_general": "安全设置",
+    "tenant_features": "会员设置"
   },
   "group_desc": {
     "platform_general": "站点基本信息、维护模式等配置",
     "platform_security": "密码策略、登录安全等配置",
     "platform_email": "SMTP 邮件发送配置",
     "platform_ssl": "ACME 证书签发、DNS 提供商、续期策略配置",
-    "tenant_appearance": "Logo、主题色等品牌设置",
-    "tenant_general": "登录方式、会话超时等配置",
-    "tenant_features": "注册、通知、API 访问等功能开关"
+    "tenant_appearance": "Logo、登录页品牌设置",
+    "tenant_general": "登录安全、密码策略、会话设置",
+    "tenant_features": "注册、通知、文件上传等会员功能开关"
   },
   "platform": {
     "site_name": "站点名称",
@@ -113,8 +113,6 @@
     "tenant_logo": "租户 Logo",
     "tenant_favicon": "租户图标",
     "tenant_login_bg": "登录页背景",
-    "tenant_primary_color": "主题主色",
-    "tenant_accent_color": "主题强调色",
     "tenant_login_title": "登录页标题",
     "tenant_login_subtitle": "登录页副标题",
     "tenant_footer_copyright": "页脚版权",

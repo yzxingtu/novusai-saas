@@ -78,6 +78,16 @@
       "notification_template": "通知模板管理",
       "admin_cache": "缓存管理"
     },
+    "user": {
+      "dashboard": "首页",
+      "ai_chat": "AI 对话",
+      "settings": "设置",
+      "profile": "个人资料",
+      "change_password": "修改密码",
+      "permission": "权限",
+      "agent_chat": "AI 对话",
+      "agents": "智能体"
+    },
     "tenant": {
       "dashboard": "仪表板",
       "tenant_workspace": "工作台",

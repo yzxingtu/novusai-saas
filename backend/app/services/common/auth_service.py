@@ -1080,6 +1080,22 @@ class AuthService:
                     errors=[e.data] if e.data else None,
                 )
 
+        # 检查用户数配额
+        from sqlalchemy.orm import selectinload as _selectinload
+        from app.services.tenant.quota_service import QuotaService
+        tenant_for_quota = (await self.db.execute(
+            select(Tenant)
+            .options(_selectinload(Tenant.tenant_plan))
+            .where(Tenant.id == tenant_id)
+        )).scalar_one_or_none()
+        if tenant_for_quota:
+            quota_svc = QuotaService(self.db, tenant_for_quota)
+            quota_check = await quota_svc.check_user_quota()
+            if not quota_check.allowed:
+                raise BusinessException(
+                    message=quota_check.message or _("quota.users_exceeded"),
+                )
+
         # 验证密码策略
         await self._validate_password_policy(password, tenant_id=tenant_id)
 

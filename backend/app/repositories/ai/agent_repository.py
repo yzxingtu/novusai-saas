@@ -9,8 +9,15 @@ from sqlalchemy.orm import selectinload
 from app.core.base_model import utc_now
 from app.core.base_repository import BaseRepository, TenantRepository
 from app.enums.common import DeleteLevelEnum, ResourceScopeEnum
+from app.enums.agent import (
+    AccessTypeEnum,
+    AgentExecutionModeEnum,
+    AgentStatusEnum,
+    AgentVisibilityEnum,
+)
 from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
+from app.models.ai.agent_access import AgentAccess
 from app.repositories.system.resource_tenant_assignment_repository import (
     assigned_resource_ids_subquery,
 )
@@ -121,6 +128,100 @@ class AgentRepository(TenantRepository[Agent]):
 
         result = await self.db.execute(query)
         items = list(result.scalars().all())
+        return items, total
+
+    async def query_user_accessible_list(
+        self,
+        spec: QuerySpec,
+        user_id: int,
+        scope: str | None = None,
+        forced_filters: list[FilterRule] | None = None,
+    ) -> tuple[list[Agent], int]:
+        """
+        查询终端用户可访问的智能体列表
+
+        在 AgentRepository.query_list 的租户可见性规则基础上，增加用户访问控制过滤：
+        - visibility != private → 允许
+        - visibility == private:
+          - 无 AgentAccess 记录 → 允许（默认 all_users）
+          - access_type == all_users → 允许
+          - access_type == specific_users 且 user_id 在 user_ids 中 → 允许
+
+        注意：org_node / api_only 在用户端列表中不展示。
+        """
+        allowed_fields = self.get_allowed_fields(scope)
+        all_fields = self.get_allowed_fields(None)
+
+        query = select(self.model)
+        query = query.where(self.model.is_deleted.is_(False))
+
+        assigned_subq = assigned_resource_ids_subquery("agent", self.tenant_id)
+        query = query.where(
+            or_(
+                self.model.tenant_id == self.tenant_id,
+                self.model.scope == ResourceScopeEnum.ADMIN_AND_ALL.value,
+                and_(
+                    self.model.scope == ResourceScopeEnum.ALL_TENANTS.value,
+                    self.model.tenant_id.is_(None),
+                ),
+                and_(
+                    self.model.scope.in_(_ASSIGNED_SCOPES),
+                    self.model.id.in_(assigned_subq),
+                ),
+            )
+        )
+
+        access_join_on = and_(
+            AgentAccess.tenant_id == self.tenant_id,
+            AgentAccess.agent_id == self.model.id,
+            AgentAccess.is_deleted.is_(False),
+        )
+        query = query.outerjoin(AgentAccess, access_join_on)
+
+        query = query.where(
+            or_(
+                self.model.visibility != AgentVisibilityEnum.PRIVATE.value,
+                AgentAccess.id.is_(None),
+                AgentAccess.access_type == AccessTypeEnum.ALL_USERS.value,
+                and_(
+                    AgentAccess.access_type == AccessTypeEnum.SPECIFIC_USERS.value,
+                    AgentAccess.user_ids.contains([user_id]),
+                ),
+            )
+        )
+        query = query.where(self.model.status == AgentStatusEnum.PUBLISHED.value)
+        query = query.where(self.model.execution_mode != AgentExecutionModeEnum.ROUTER.value)
+        query = query.where(
+            or_(
+                AgentAccess.id.is_(None),
+                AgentAccess.access_type.notin_({
+                    AccessTypeEnum.ORG_NODE.value,
+                    AccessTypeEnum.API_ONLY.value,
+                }),
+            )
+        )
+
+        extra_forced = [
+            f for f in (forced_filters or [])
+            if f.field != "tenant_id"
+        ]
+        if extra_forced:
+            query = self._apply_filters(query, extra_forced, all_fields)
+
+        if spec.filters:
+            query = self._apply_filters(query, spec.filters, allowed_fields)
+
+        count_query = select(func.count()).select_from(query.subquery())
+        count_result = await self.db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        sortable_fields = self.get_sortable_fields()
+        query = self._apply_sort(query, spec.sort, sortable_fields)
+        query = query.offset(spec.offset).limit(spec.limit)
+        query = query.options(selectinload(Agent.skill_bindings))
+
+        result = await self.db.execute(query)
+        items = list(result.scalars().unique().all())
         return items, total
 
     async def cascade_soft_delete_conversations(

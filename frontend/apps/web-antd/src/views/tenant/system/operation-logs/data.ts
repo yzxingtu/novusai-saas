@@ -5,10 +5,33 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { tenantApi } from '#/api';
 
-import { searchDateRange, searchInput } from '#/adapter/form';
+import { searchDateRange, searchInput, select } from '#/adapter/form';
+import { getOperatorsSelectApi } from '#/api/tenant/operation-log';
 import { $t } from '#/locales';
 
 type OperationLogInfo = tenantApi.OperationLogInfo;
+
+/**
+ * 获取用户类型颜色
+ */
+export function getUserTypeColor(userType: string | undefined): string {
+  if (userType === 'tenant_admin') return 'blue';
+  if (userType === 'tenant_user') return 'green';
+  return 'default';
+}
+
+/**
+ * 获取用户类型 i18n key
+ */
+export function getUserTypeLabel(userType: string | undefined): string {
+  if (userType === 'tenant_admin') {
+    return $t('tenant.system.operationLog.userTypeOptions.tenantAdmin');
+  }
+  if (userType === 'tenant_user') {
+    return $t('tenant.system.operationLog.userTypeOptions.tenantUser');
+  }
+  return userType || '';
+}
 
 /**
  * 获取响应状态颜色
@@ -58,7 +81,7 @@ export function useColumns<T = OperationLogInfo>(
     {
       field: 'username',
       title: $t('tenant.system.operationLog.username'),
-      width: 180,
+      width: 220,
       slots: {
         default: 'username_cell',
       },
@@ -160,22 +183,46 @@ export function useColumns<T = OperationLogInfo>(
 /**
  * 搜索表单 Schema
  */
-export function useGridFormSchema(): VbenFormSchema[] {
+export interface GridFormSchemaOptions {
+  onUserTypeChange?: (value: string | undefined) => void;
+}
+
+export function useGridFormSchema(
+  options?: GridFormSchemaOptions,
+): VbenFormSchema[] {
   return [
+    select('filter[username]', $t('tenant.system.operationLog.username'), {
+      api: getOperatorsSelectApi,
+      placeholder: $t(
+        'tenant.system.operationLog.placeholder.searchUsername',
+      ),
+    }),
     {
       component: 'Select',
       componentProps: {
         allowClear: true,
         class: 'w-full',
-        options: [],
+        onChange: options?.onUserTypeChange,
+        options: [
+          {
+            label: $t(
+              'tenant.system.operationLog.userTypeOptions.tenantAdmin',
+            ),
+            value: 'tenant_admin',
+          },
+          {
+            label: $t(
+              'tenant.system.operationLog.userTypeOptions.tenantUser',
+            ),
+            value: 'tenant_user',
+          },
+        ],
         placeholder: $t(
-          'tenant.system.operationLog.placeholder.searchUsername',
+          'tenant.system.operationLog.placeholder.allUserTypes',
         ),
-        showSearch: true,
-        optionFilterProp: 'label',
       },
-      fieldName: 'filter[username]',
-      label: $t('tenant.system.operationLog.username'),
+      fieldName: 'filter[user_type]',
+      label: $t('tenant.system.operationLog.userType'),
     },
     searchInput('module', $t('tenant.system.operationLog.module'), {
       placeholder: $t('tenant.system.operationLog.placeholder.searchModule'),

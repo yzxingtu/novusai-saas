@@ -1,14 +1,16 @@
 <script setup lang="ts">
 /**
  * 公开首页 — 游客/登录用户均可访问
- * 平台域名：显示平台介绍 + 核心能力
- * 租户域名：显示租户品牌 + 登录/注册入口
+ * 游客：显示平台/租户品牌 + 登录/注册入口
+ * 已登录：显示工作台仪表板（欢迎信息 + 快捷操作）
  */
 import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
+import { VbenAvatar } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 import { preferences } from '@vben/preferences';
+import { useUserStore } from '@vben/stores';
 
 import {
   TENANT_LOGIN_PATH,
@@ -16,11 +18,50 @@ import {
 } from '#/constants/endpoints';
 import { $t } from '#/locales';
 import { usePublicConfigStore } from '#/store';
+import { TokenStorage } from '#/store/shared/token-storage';
 
 defineOptions({ name: 'UserHome' });
 
 const router = useRouter();
 const publicConfigStore = usePublicConfigStore();
+const userStore = useUserStore();
+
+const isLoggedIn = computed(() => TokenStorage.hasToken('user'));
+
+const currentUser = computed(() => userStore.userInfo);
+
+const userAvatar = computed(() => {
+  return currentUser.value?.avatar || preferences.app.defaultAvatar;
+});
+
+const userName = computed(() => {
+  return currentUser.value?.realName || currentUser.value?.username || '';
+});
+
+interface QuickAction {
+  color: string;
+  desc: () => string;
+  icon: string;
+  label: () => string;
+  path: string;
+}
+
+const quickActions = computed<QuickAction[]>(() => [
+  {
+    color: 'text-primary',
+    desc: () => $t('user.dashboard.myProfileDesc'),
+    icon: 'lucide:user',
+    label: () => $t('user.dashboard.myProfile'),
+    path: '/settings/profile',
+  },
+  {
+    color: 'text-warning',
+    desc: () => $t('user.dashboard.changePasswordDesc'),
+    icon: 'lucide:key-round',
+    label: () => $t('user.dashboard.changePassword'),
+    path: '/settings/password',
+  },
+]);
 
 // 域名感知
 const isTenantDomain = computed(() => publicConfigStore.isDomainTenantDomain);
@@ -114,8 +155,64 @@ onMounted(() => {
 </script>
 
 <template>
+  <!-- ═══════ 已登录：工作台仪表板 ═══════ -->
+  <div v-if="isLoggedIn" class="space-y-6">
+    <!-- Welcome Hero -->
+    <div
+      class="relative overflow-hidden rounded-xl border border-border bg-card p-6 sm:p-8"
+    >
+      <div
+        class="absolute inset-0 bg-gradient-to-br from-primary/6 via-transparent to-primary/3"
+      />
+      <div class="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">
+        <VbenAvatar
+          :src="userAvatar"
+          :alt="userName"
+          class="size-16 shrink-0 rounded-full ring-2 ring-background shadow-lg sm:size-20"
+        />
+        <div class="flex-1">
+          <h1 class="text-xl font-bold text-foreground sm:text-2xl">
+            {{ $t('user.dashboard.greeting', { name: userName }) }}
+          </h1>
+          <p class="mt-1 text-sm text-muted-foreground">
+            {{ $t('user.dashboard.greetingDesc') }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div>
+      <h2 class="mb-3 text-base font-semibold text-foreground">
+        {{ $t('user.dashboard.quickActions') }}
+      </h2>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <button
+          v-for="action in quickActions"
+          :key="action.path"
+          class="flex items-start gap-4 rounded-xl border border-border bg-card p-5 text-left transition-all duration-150 hover:border-primary/30 hover:shadow-sm"
+          @click="navigateTo(action.path)"
+        >
+          <div
+            class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent"
+          >
+            <IconifyIcon :icon="action.icon" class="size-5" :class="action.color" />
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-foreground">
+              {{ action.label() }}
+            </h3>
+            <p class="mt-0.5 text-xs text-muted-foreground">
+              {{ action.desc() }}
+            </p>
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══════ 租户域名：租户专属落地页 ═══════ -->
-  <div v-if="isTenantDomain" class="flex flex-col items-center gap-10 py-6">
+  <div v-else-if="isTenantDomain" class="flex flex-col items-center gap-10 py-6">
     <!-- Hero -->
     <div
       class="relative w-full overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-primary/5 to-transparent px-6 py-16 sm:px-10 sm:py-20"

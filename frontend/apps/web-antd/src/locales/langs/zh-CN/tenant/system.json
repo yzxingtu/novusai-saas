@@ -12,6 +12,16 @@
     "avatar": "头像",
     "role": "角色",
     "status": "状态",
+    "approval": "审批状态",
+    "approve": "审批通过",
+    "reject": "审批拒绝",
+    "batchApprove": "批量通过",
+    "batchReject": "批量拒绝",
+    "approvalStatus": {
+      "pending": "待审批",
+      "approved": "已通过",
+      "rejected": "已拒绝"
+    },
     "createdAt": "创建时间",
     "lastLoginAt": "最后登录",
     "password": "密码",
@@ -32,12 +42,20 @@
       "deleteSuccess": "删除成功",
       "resetPasswordSuccess": "密码重置成功",
       "createSuccess": "创建成功",
-      "updateSuccess": "更新成功"
+      "updateSuccess": "更新成功",
+      "approveSuccess": "审批通过成功",
+      "rejectSuccess": "审批拒绝成功",
+      "batchApproveSuccess": "批量审批通过成功",
+      "batchRejectSuccess": "批量审批拒绝成功",
+      "batchApproveConfirm": "确定要批量审批通过选中的用户吗？",
+      "batchRejectConfirm": "确定要批量审批拒绝选中的用户吗？",
+      "selectUsersFirst": "请先勾选需要操作的用户"
     },
     "placeholder": {
       "searchUsername": "搜索用户名",
       "searchEmail": "搜索邮箱",
       "allStatus": "全部状态",
+      "allApprovalStatus": "全部审批状态",
       "inputUsername": "请输入用户名",
       "inputNickname": "请输入昵称",
       "inputPassword": "请输入密码，至少6位",
@@ -157,7 +175,10 @@
     "noMembers": "该角色暂无成员",
     "noMembersHint": "点击「添加成员」为该角色分配用户",
     "online": "在线",
-    "offline": "离线"
+    "offline": "离线",
+    "allUsers": "全部用户",
+    "allUsersDesc": "查看租户下所有用户，不按角色过滤",
+    "allUsersListTitle": "用户列表"
   },
   "configs": {
     "title": "系统配置",
@@ -308,13 +329,18 @@
     "clientInfo": "客户端信息",
     "queryParams": "请求参数",
     "requestBody": "请求体",
+    "userTypeOptions": {
+      "tenantAdmin": "租户管理员",
+      "tenantUser": "普通用户"
+    },
     "placeholder": {
       "searchUsername": "搜索操作用户",
       "searchModule": "搜索模块",
       "searchAction": "搜索操作类型",
       "searchIp": "搜索IP地址",
       "startDate": "开始日期",
-      "endDate": "结束日期"
+      "endDate": "结束日期",
+      "allUserTypes": "全部用户类型"
     }
   },
   "organization": {

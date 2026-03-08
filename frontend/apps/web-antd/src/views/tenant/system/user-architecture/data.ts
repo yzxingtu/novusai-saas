@@ -13,6 +13,7 @@ import {
   switchField,
   textareaField,
 } from '#/adapter/form';
+import { checkboxColumn } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
 
 // ============================================================
@@ -23,6 +24,14 @@ function getStatusOptions() {
   return [
     { label: $t('shared.status.active'), value: 'true' },
     { label: $t('shared.status.inactive'), value: 'false' },
+  ];
+}
+
+function getApprovalStatusOptions() {
+  return [
+    { label: $t('tenant.system.user.approvalStatus.pending'), value: 'pending' },
+    { label: $t('tenant.system.user.approvalStatus.approved'), value: 'approved' },
+    { label: $t('tenant.system.user.approvalStatus.rejected'), value: 'rejected' },
   ];
 }
 
@@ -70,6 +79,7 @@ export function useMemberColumns<T = TenantUserInfo>(
   onActionClick: OnActionClickFn<T>,
 ): VxeTableGridOptions['columns'] {
   return [
+    checkboxColumn,
     {
       field: 'username',
       title: $t('tenant.system.user.username'),
@@ -90,6 +100,13 @@ export function useMemberColumns<T = TenantUserInfo>(
       field: 'phone',
       title: $t('tenant.system.user.phone'),
       minWidth: 130,
+    },
+    {
+      field: 'approvalStatus',
+      title: $t('tenant.system.user.approval'),
+      width: 110,
+      align: 'center',
+      slots: { default: 'approval_cell' },
     },
     {
       field: 'isActive',
@@ -150,6 +167,10 @@ export function useMemberSearchSchema(): VbenFormSchema[] {
     select('filter[is_active][eq]', $t('tenant.system.user.status'), {
       options: getStatusOptions(),
       placeholder: $t('tenant.system.user.placeholder.allStatus'),
+    }),
+    select('filter[approval_status][eq]', $t('tenant.system.user.approval'), {
+      options: getApprovalStatusOptions(),
+      placeholder: $t('tenant.system.user.placeholder.allApprovalStatus'),
     }),
   ];
 }

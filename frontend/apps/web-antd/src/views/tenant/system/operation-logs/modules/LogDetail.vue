@@ -21,7 +21,7 @@ import { getOperationLogDetailApi } from '#/api/tenant/operation-log';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
-import { getMethodColor, getStatusColor } from '../data';
+import { getMethodColor, getStatusColor, getUserTypeColor, getUserTypeLabel } from '../data';
 
 defineOptions({ name: 'LogDetail' });
 
@@ -86,7 +86,9 @@ const statusCodeType = computed(() => {
             <DescriptionsItem
               :label="$t('tenant.system.operationLog.userType')"
             >
-              <Tag color="cyan">{{ detail.userType }}</Tag>
+              <Tag :color="getUserTypeColor(detail.userType)">
+                {{ getUserTypeLabel(detail.userType) }}
+              </Tag>
             </DescriptionsItem>
           </Descriptions>
         </div>

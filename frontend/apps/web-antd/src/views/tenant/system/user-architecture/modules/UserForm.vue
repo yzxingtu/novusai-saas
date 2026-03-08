@@ -4,6 +4,7 @@ import type { TenantUserInfo } from '#/api/tenant/tenant-users';
 import { computed } from 'vue';
 
 import { useVbenForm } from '#/adapter/form';
+import { getTenantUserRoleListApi } from '#/api/tenant/tenant-user-roles';
 import { getTenantUserDetailApi } from '#/api/tenant/tenant-users';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
@@ -36,6 +37,35 @@ const { Drawer, isEdit } = useCrudDrawer<TenantUserInfo>({
     emits('success');
   },
   detailApi: (id) => getTenantUserDetailApi(id as number),
+  async afterOpen(api) {
+    if (!api) return;
+    try {
+      const res = await getTenantUserRoleListApi({
+        'page[size]': 100,
+        'filter[is_active][eq]': true,
+      });
+      const roleOptions = res.items.map((r) => ({
+        label: r.name,
+        value: r.id,
+      }));
+      const currentSchema = useUserFormSchema(isEdit.value);
+      const updatedSchema = currentSchema.map((item) => {
+        if (item.fieldName === 'role_id' && item.componentProps) {
+          return {
+            ...item,
+            componentProps: {
+              ...item.componentProps,
+              options: roleOptions,
+            },
+          };
+        }
+        return item;
+      });
+      api.setState({ schema: updatedSchema });
+    } catch {
+      // error handled by request client
+    }
+  },
 });
 
 const title = computed(() =>

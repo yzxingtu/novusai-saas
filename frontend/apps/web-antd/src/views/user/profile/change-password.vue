@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 用户修改密码页面
+ * 用户修改密码页面 - 现代化设计
  */
 import type { Rule } from 'ant-design-vue/es/form';
 
@@ -83,97 +83,98 @@ async function handleSubmit() {
       confirmPassword: formState.confirmPassword,
     });
     message.success($t('user.profile.messages.changePasswordSuccess'));
-    // Reset form
     formState.oldPassword = '';
     formState.newPassword = '';
     formState.confirmPassword = '';
     formRef.value?.resetFields();
+    router.push('/settings/profile');
   } catch {
     // Error handled by request interceptor
   } finally {
     saving.value = false;
   }
 }
-
-function goBack() {
-  router.push('/profile');
-}
 </script>
 
 <template>
   <div class="space-y-6">
-    <!-- Header -->
-    <div class="flex items-center gap-3">
-      <button
-        class="flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent"
-        @click="goBack"
+    <!-- Security Info Banner -->
+    <div
+      class="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4"
+    >
+      <div
+        class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10"
       >
-        <IconifyIcon icon="lucide:arrow-left" class="size-4" />
-      </button>
+        <IconifyIcon icon="lucide:shield-check" class="size-5 text-primary" />
+      </div>
       <div>
-        <h1 class="text-lg font-semibold text-foreground">
+        <h3 class="text-sm font-medium text-foreground">
           {{ $t('user.profile.changePassword') }}
-        </h1>
-        <p class="text-xs text-muted-foreground">
+        </h3>
+        <p class="mt-0.5 text-xs text-muted-foreground">
           {{ $t('user.profile.changePasswordDesc') }}
         </p>
       </div>
     </div>
 
-    <!-- Form Card -->
-    <div class="rounded-lg border border-border bg-card p-6">
-      <Form
-        ref="formRef"
-        layout="vertical"
-        :model="formState"
-        :rules="formRules"
-        class="mx-auto max-w-md"
-      >
-        <FormItem
-          :label="$t('user.profile.oldPassword')"
-          name="oldPassword"
+    <!-- Password Form Card -->
+    <div class="rounded-xl border border-border bg-card">
+      <div class="px-6 py-5">
+        <Form
+          ref="formRef"
+          layout="vertical"
+          :model="formState"
+          :rules="formRules"
+          class="max-w-lg"
         >
-          <Input.Password
-            v-model:value="formState.oldPassword"
-            :placeholder="$t('user.profile.placeholder.inputOldPassword')"
-          />
-        </FormItem>
+          <FormItem
+            :label="$t('user.profile.oldPassword')"
+            name="oldPassword"
+          >
+            <Input.Password
+              v-model:value="formState.oldPassword"
+              :placeholder="$t('user.profile.placeholder.inputOldPassword')"
+              size="large"
+            />
+          </FormItem>
 
-        <FormItem
-          :label="$t('user.profile.newPassword')"
-          name="newPassword"
+          <div class="my-5 h-px bg-border" />
+
+          <FormItem
+            :label="$t('user.profile.newPassword')"
+            name="newPassword"
+          >
+            <Input.Password
+              v-model:value="formState.newPassword"
+              :placeholder="$t('user.profile.placeholder.inputNewPassword')"
+              size="large"
+            />
+          </FormItem>
+
+          <FormItem
+            :label="$t('user.profile.confirmPassword')"
+            name="confirmPassword"
+          >
+            <Input.Password
+              v-model:value="formState.confirmPassword"
+              :placeholder="$t('user.profile.placeholder.inputConfirmPassword')"
+              size="large"
+            />
+          </FormItem>
+        </Form>
+      </div>
+      <div class="flex items-center justify-end border-t border-border px-6 py-4">
+        <Button
+          type="primary"
+          :loading="saving"
+          @click="handleSubmit"
         >
-          <Input.Password
-            v-model:value="formState.newPassword"
-            :placeholder="$t('user.profile.placeholder.inputNewPassword')"
-          />
-        </FormItem>
-
-        <FormItem
-          :label="$t('user.profile.confirmPassword')"
-          name="confirmPassword"
-        >
-          <Input.Password
-            v-model:value="formState.confirmPassword"
-            :placeholder="$t('user.profile.placeholder.inputConfirmPassword')"
-          />
-        </FormItem>
-
-        <FormItem>
-          <div class="flex gap-3">
-            <Button
-              type="primary"
-              :loading="saving"
-              @click="handleSubmit"
-            >
-              {{ $t('common.save') }}
-            </Button>
-            <Button @click="goBack">
-              {{ $t('common.cancel') }}
-            </Button>
-          </div>
-        </FormItem>
-      </Form>
+          <span class="flex items-center gap-1.5">
+            <IconifyIcon icon="lucide:save" class="size-4" />
+            {{ $t('common.save') }}
+          </span>
+        </Button>
+      </div>
     </div>
   </div>
 </template>

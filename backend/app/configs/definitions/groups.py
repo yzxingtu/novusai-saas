@@ -62,13 +62,13 @@ PLATFORM_STORAGE_GROUP = ConfigGroupMeta(
 # 租户配置分组
 # ==========================================
 
-# 租户基础设置分组
+# 租户安全设置分组
 TENANT_GENERAL_GROUP = ConfigGroupMeta(
     code="tenant_general",
     name_key="config.group.tenant_general.name",
     description_key="config.group.tenant_general.desc",
     scope=ConfigScope.ALL_TENANTS,
-    icon="lucide:sliders-horizontal",
+    icon="lucide:shield",
     sort_order=10,
 )
 
@@ -82,13 +82,13 @@ TENANT_APPEARANCE_GROUP = ConfigGroupMeta(
     sort_order=20,
 )
 
-# 租户功能设置分组
+# 租户会员设置分组
 TENANT_FEATURES_GROUP = ConfigGroupMeta(
     code="tenant_features",
     name_key="config.group.tenant_features.name",
     description_key="config.group.tenant_features.desc",
     scope=ConfigScope.ALL_TENANTS,
-    icon="lucide:puzzle",
+    icon="lucide:users",
     sort_order=30,
 )
 

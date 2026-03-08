@@ -179,7 +179,7 @@ defineExpose({
     <Transition name="command-bar-mask">
       <div
         v-if="open"
-        class="fixed inset-0 z-[1100] bg-black/40 backdrop-blur-sm"
+        class="fixed inset-0 z-[1100] bg-black/50"
         @click="handleMaskClick"
       ></div>
     </Transition>

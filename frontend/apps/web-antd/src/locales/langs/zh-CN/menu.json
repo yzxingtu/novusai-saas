@@ -1,4 +1,11 @@
 {
+  "user": {
+    "dashboard": "工作台",
+    "ai_chat": "AI 对话",
+    "settings": "设置",
+    "profile": "个人资料",
+    "change_password": "修改密码"
+  },
   "tenant": {
     "dashboard": "仪表板",
     "tenant_workspace": "工作台",

@@ -25,14 +25,22 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
-import { useCrudPage } from '#/adapter/vxe-table';
+import {
+  clearSelection,
+  getSelectedIds,
+  useCrudPage,
+} from '#/adapter/vxe-table';
 import {
   deleteTenantUserRoleApi,
   getTenantUserRoleListApi,
   toggleTenantUserRoleStatusApi,
 } from '#/api/tenant/tenant-user-roles';
 import {
+  approveTenantUserApi,
+  batchApproveTenantUserApi,
+  batchRejectTenantUserApi,
   getTenantUserListApi,
+  rejectTenantUserApi,
   resetTenantUserPasswordApi,
   toggleTenantUserStatusApi,
 } from '#/api/tenant/tenant-users';
@@ -51,11 +59,14 @@ defineOptions({ name: 'TenantUserArchitecture' });
 // 左侧角色列表
 // ============================================================
 
+const ALL_USERS_ID = -1;
+
 const roles = ref<TenantUserRoleInfo[]>([]);
 const rolesLoading = ref(false);
 const searchKeyword = ref('');
 const selectedRole = ref<TenantUserRoleInfo | null>(null);
 const panelCollapsed = ref(false);
+const isAllUsersSelected = computed(() => selectedRole.value?.id === ALL_USERS_ID);
 
 const filteredRoles = computed(() => {
   if (!searchKeyword.value) return roles.value;
@@ -193,15 +204,74 @@ async function toggleUserStatus(
   return toggleTenantUserStatusApi(id, !!data.is_active);
 }
 
-/** 带 role_id 过滤的用户列表 API */
+/** 带 role_id 过滤的用户列表 API（"全部用户"时不过滤） */
 function getUserListForRole(params: Record<string, unknown>) {
   if (!selectedRole.value) {
     return Promise.resolve({ items: [], total: 0, page: 1, page_size: 20 });
+  }
+  if (isAllUsersSelected.value) {
+    return getTenantUserListApi(params);
   }
   return getTenantUserListApi({
     ...params,
     'filter[role_id][eq]': selectedRole.value.id,
   });
+}
+
+// ============================================================
+// 用户审批操作
+// ============================================================
+
+async function onApproveUser(row: TenantUserInfo) {
+  try {
+    await approveTenantUserApi(row.id);
+    message.success($t('tenant.system.user.messages.approveSuccess'));
+    onMemberRefresh();
+  } catch {
+    // error handled by request client
+  }
+}
+
+async function onRejectUser(row: TenantUserInfo) {
+  try {
+    await rejectTenantUserApi(row.id);
+    message.success($t('tenant.system.user.messages.rejectSuccess'));
+    onMemberRefresh();
+  } catch {
+    // error handled by request client
+  }
+}
+
+async function handleBatchApprove() {
+  const ids = getSelectedIds<TenantUserInfo>(memberGridApi?.grid);
+  if (ids.length === 0) {
+    message.warning($t('tenant.system.user.messages.selectUsersFirst'));
+    return;
+  }
+  try {
+    await batchApproveTenantUserApi(ids as number[]);
+    message.success($t('tenant.system.user.messages.batchApproveSuccess'));
+    clearSelection(memberGridApi?.grid);
+    onMemberRefresh();
+  } catch {
+    // error handled by request client
+  }
+}
+
+async function handleBatchReject() {
+  const ids = getSelectedIds<TenantUserInfo>(memberGridApi?.grid);
+  if (ids.length === 0) {
+    message.warning($t('tenant.system.user.messages.selectUsersFirst'));
+    return;
+  }
+  try {
+    await batchRejectTenantUserApi(ids as number[]);
+    message.success($t('tenant.system.user.messages.batchRejectSuccess'));
+    clearSelection(memberGridApi?.grid);
+    onMemberRefresh();
+  } catch {
+    // error handled by request client
+  }
 }
 
 const newPasswordRef = ref('');
@@ -233,6 +303,7 @@ async function onResetPassword(row: TenantUserInfo) {
 
 const {
   Grid: MemberGrid,
+  gridApi: memberGridApi,
   FormDrawer: MemberFormDrawer,
   onRefresh: onMemberRefresh,
   handleToggleStatus: handleMemberToggleStatus,
@@ -282,10 +353,16 @@ const presenceStore = usePresenceStore();
 
 onMounted(async () => {
   await loadRoles();
-  // 自动选择第一个角色
-  if (roles.value.length > 0) {
-    selectedRole.value = roles.value[0]!;
-  }
+  // 默认选择"全部用户"
+  selectedRole.value = {
+    id: ALL_USERS_ID,
+    name: $t('tenant.system.userArchitecture.allUsers'),
+    code: 'all_users',
+    memberCount: 0,
+    isActive: true,
+    isSystem: false,
+    permissionsCount: 0,
+  } as TenantUserRoleInfo;
   // 加载业务用户在线状态
   presenceStore.loadTenantUserPresence();
 });
@@ -463,7 +540,45 @@ onUnmounted(() => {
         <!-- 角色列表 -->
         <div v-show="!panelCollapsed" class="flex-1 overflow-y-auto p-2 lg:p-3">
           <Spin :spinning="rolesLoading">
-            <div v-if="filteredRoles.length > 0" class="space-y-1">
+            <div class="space-y-1">
+              <!-- 全部用户（虚拟选项） -->
+              <div
+                class="group cursor-pointer rounded-lg border border-transparent px-3 py-2.5 transition-all duration-150 hover:bg-accent/50"
+                :class="[
+                  isAllUsersSelected
+                    ? 'border-primary/30 bg-primary/5 shadow-sm'
+                    : '',
+                ]"
+                @click="selectedRole = {
+                  id: ALL_USERS_ID,
+                  name: $t('tenant.system.userArchitecture.allUsers'),
+                  code: 'all_users',
+                  memberCount: 0,
+                  isActive: true,
+                  isSystem: false,
+                  permissionsCount: 0,
+                } as TenantUserRoleInfo"
+              >
+                <div class="flex items-center gap-2.5">
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-accent"
+                  >
+                    <IconifyIcon
+                      icon="lucide:users"
+                      class="h-4 w-4 text-foreground"
+                    />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <span class="truncate text-sm font-medium text-foreground">
+                      {{ $t('tenant.system.userArchitecture.allUsers') }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 角色分隔线 -->
+              <div v-if="filteredRoles.length > 0" class="my-1 border-t border-border/30" />
+
               <div
                 v-for="role in filteredRoles"
                 :key="role.id"
@@ -514,7 +629,7 @@ onUnmounted(() => {
               </div>
             </div>
             <Empty
-              v-else
+              v-if="filteredRoles.length === 0 && searchKeyword"
               :description="$t('tenant.system.userArchitecture.noRoles')"
               class="py-8"
             />
@@ -560,8 +675,36 @@ onUnmounted(() => {
 
         <!-- 选中角色时显示详情 + 成员表格 -->
         <template v-else>
+          <!-- 全部用户头部 -->
+          <div
+            v-if="isAllUsersSelected"
+            class="border-b border-border/50 px-3 py-3 lg:px-6 lg:py-4"
+          >
+            <div class="flex min-w-0 items-center gap-2 lg:gap-3">
+              <div
+                class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-accent lg:h-12 lg:w-12"
+              >
+                <IconifyIcon
+                  icon="lucide:users"
+                  class="h-5 w-5 text-foreground lg:h-6 lg:w-6"
+                />
+              </div>
+              <div class="min-w-0 flex-1">
+                <h2 class="truncate text-base font-semibold lg:text-xl">
+                  {{ $t('tenant.system.userArchitecture.allUsers') }}
+                </h2>
+                <p class="mt-0.5 text-xs text-muted-foreground lg:text-sm">
+                  {{ $t('tenant.system.userArchitecture.allUsersDesc') }}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <!-- 角色头部信息 -->
-          <div class="border-b border-border/50 px-3 py-3 lg:px-6 lg:py-4">
+          <div
+            v-else
+            class="border-b border-border/50 px-3 py-3 lg:px-6 lg:py-4"
+          >
             <!-- 第一行：标题和操作按钮 -->
             <div class="flex items-start justify-between gap-3">
               <div class="flex min-w-0 items-center gap-2 lg:gap-3">
@@ -691,11 +834,53 @@ onUnmounted(() => {
             <Card class="h-full overflow-hidden" size="small">
               <template #title>
                 <span class="text-sm lg:text-base">
-                  {{ $t('tenant.system.userArchitecture.memberTitle') }}
+                  {{ isAllUsersSelected ? $t('tenant.system.userArchitecture.allUsersListTitle') : $t('tenant.system.userArchitecture.memberTitle') }}
                 </span>
               </template>
+              <template #extra>
+                <div class="flex items-center gap-2">
+                  <Popconfirm
+                    :title="$t('tenant.system.user.messages.batchApproveConfirm')"
+                    :ok-text="$t('shared.common.confirm')"
+                    :cancel-text="$t('shared.common.cancel')"
+                    @confirm="handleBatchApprove"
+                  >
+                    <Button
+                      v-access:code="['tenant_user:approve']"
+                      size="small"
+                      type="primary"
+                      class="!bg-success !border-success hover:!bg-success/80"
+                    >
+                      <template #icon>
+                        <IconifyIcon icon="lucide:check-circle" />
+                      </template>
+                      {{ $t('tenant.system.user.batchApprove') }}
+                    </Button>
+                  </Popconfirm>
+                  <Popconfirm
+                    :title="$t('tenant.system.user.messages.batchRejectConfirm')"
+                    :ok-text="$t('shared.common.confirm')"
+                    :cancel-text="$t('shared.common.cancel')"
+                    :ok-button-props="{ danger: true }"
+                    @confirm="handleBatchReject"
+                  >
+                    <Button
+                      v-access:code="['tenant_user:reject']"
+                      size="small"
+                      danger
+                    >
+                      <template #icon>
+                        <IconifyIcon icon="lucide:x-circle" />
+                      </template>
+                      {{ $t('tenant.system.user.batchReject') }}
+                    </Button>
+                  </Popconfirm>
+                </div>
+              </template>
               <MemberFormDrawer @success="onMemberFormSuccess" />
-              <MemberGrid>
+              <MemberGrid
+                :checkboxConfig="{ trigger: 'cell', highlight: true }"
+              >
                 <template #username_cell="{ row }">
                   <div class="flex items-center gap-2">
                     <div class="relative flex-shrink-0">
@@ -741,6 +926,57 @@ onUnmounted(() => {
                         {{ row.nickname }}
                       </span>
                     </div>
+                  </div>
+                </template>
+
+                <template #approval_cell="{ row }">
+                  <div class="flex items-center gap-1">
+                    <Tag
+                      v-if="row.approvalStatus === 'approved'"
+                      color="success"
+                      class="!m-0"
+                    >
+                      {{ $t('tenant.system.user.approvalStatus.approved') }}
+                    </Tag>
+                    <Tag
+                      v-else-if="row.approvalStatus === 'rejected'"
+                      color="error"
+                      class="!m-0"
+                    >
+                      {{ $t('tenant.system.user.approvalStatus.rejected') }}
+                    </Tag>
+                    <template v-else-if="row.approvalStatus === 'pending'">
+                      <Tag color="warning" class="!m-0">
+                        {{ $t('tenant.system.user.approvalStatus.pending') }}
+                      </Tag>
+                      <Tooltip :title="$t('tenant.system.user.approve')">
+                        <Button
+                          v-access:code="['tenant_user:approve']"
+                          type="link"
+                          size="small"
+                          class="!p-0 !text-success"
+                          @click="onApproveUser(row)"
+                        >
+                          <template #icon>
+                            <IconifyIcon icon="lucide:check" class="!text-xs" />
+                          </template>
+                        </Button>
+                      </Tooltip>
+                      <Tooltip :title="$t('tenant.system.user.reject')">
+                        <Button
+                          v-access:code="['tenant_user:reject']"
+                          type="link"
+                          size="small"
+                          class="!p-0"
+                          danger
+                          @click="onRejectUser(row)"
+                        >
+                          <template #icon>
+                            <IconifyIcon icon="lucide:x" class="!text-xs" />
+                          </template>
+                        </Button>
+                      </Tooltip>
+                    </template>
                   </div>
                 </template>
 

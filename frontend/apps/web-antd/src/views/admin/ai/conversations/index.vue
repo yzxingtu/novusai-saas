@@ -122,6 +122,7 @@ onUnmounted(() => {
     <ConversationDetail
       v-model:open="detailOpen"
       :conversation-id="detailId"
+      api-prefix="/admin"
       i18n-prefix="admin.ai.conversation"
       :get-detail-api="getAIConversationDetailApi"
       :format-tokens="formatTokens"
