@@ -82,6 +82,7 @@ class TenantAgentChatController(TenantController):
             has_access = await agent_service.check_user_access(
                 agent_id=agent_id,
                 user_id=user_id,
+                user_role=UserRoleEnum.TENANT_ADMIN.value,
             )
             if not has_access:
                 from app.exceptions import AuthorizationException
@@ -202,7 +203,7 @@ class TenantAgentChatController(TenantController):
                 db,
                 tenant_id=tenant_admin.tenant_id,
                 message=data.message,
-                is_admin_context=False,
+                user_role=UserRoleEnum.TENANT_ADMIN.value,
                 page_context=data.page_context.model_dump() if data.page_context else None,
                 pinned_agent_id=data.pinned_agent_id,
             )

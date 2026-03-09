@@ -9,6 +9,7 @@ from app.models.ai.agent import Agent
 from app.models.ai.agent_access import AgentAccess
 from app.models.ai.agent_conversation import AgentConversation
 from app.models.ai.agent_memory_override import AgentMemoryOverride
+from app.models.ai.agent_kb_binding import AgentKnowledgeBaseBinding
 from app.models.ai.agent_skill_binding import AgentSkillBinding
 from app.models.ai.agent_version import AgentVersion
 from app.models.ai.api_key import ProviderApiKey
@@ -55,6 +56,7 @@ __all__ = [
     "AITablePolicyOverride",
     "SkillPackage",
     "Skill",
+    "AgentKnowledgeBaseBinding",
     "AgentSkillBinding",
     "SkillCallLog",
 ]

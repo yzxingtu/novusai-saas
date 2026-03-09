@@ -16,6 +16,10 @@ export interface TenantDashboardStats {
   total_cost: number;
   storage_used_bytes: number;
   storage_used_mb: number;
+  total_agents: number;
+  total_knowledge_bases: number;
+  total_kb_documents: number;
+  monthly_conversations: number;
 }
 
 export interface AITrendItem {

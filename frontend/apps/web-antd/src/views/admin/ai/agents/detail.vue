@@ -9,12 +9,13 @@ import type { PkgOption } from './data';
  */
 import type {
   AIAgentInfo,
+  AIAgentKBBindingInfo,
   AIAgentMemoryConfig,
   AIAgentSkillBindingInfo,
 } from '#/api/admin/ai';
 import type { AdminSkillInfo } from '#/api/admin/skills';
 
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
@@ -40,16 +41,21 @@ import {
 } from 'ant-design-vue';
 
 import {
+  batchBindAIAgentKBsApi,
   batchBindAIAgentSkillsApi,
   getAIAgentDetailApi,
+  getAIAgentKBsApi,
   getAIAgentMemoryConfigApi,
   getAIAgentSkillsApi,
   getAIModelListApi,
+  unbindAIAgentKBApi,
   unbindAIAgentSkillApi,
   updateAIAgentApi,
+  updateAIAgentKBBindingApi,
   updateAIAgentMemoryConfigApi,
   updateAIAgentSkillBindingApi,
 } from '#/api/admin/ai';
+import { getAdminKnowledgeBaseListApi } from '#/api/admin/knowledge-bases';
 import { smartUploadFile } from '#/api/admin/attachment';
 import { getSkillPackageSkillsApi } from '#/api/admin/skill-packages';
 import { $t } from '#/locales';
@@ -60,7 +66,11 @@ import {
 } from '#/utils/ai-helpers';
 import { getScopeIcon, getScopeText } from '#/utils/scope-helpers';
 
+import type { InputVariable } from '#/components/business/ai-chat-panel/types';
+import InputVariablesEditor from '#/components/business/input-variables-editor/InputVariablesEditor.vue';
+
 import {
+  getAudienceText,
   getExecutionModeText,
   getPackageSelectOptions,
   getScopeColor,
@@ -286,23 +296,73 @@ async function saveModelParams() {
 // ==================== Chat Config Tab ====================
 const chatWelcome = ref('');
 const chatSuggestions = ref('');
+const chatInputVars = ref<InputVariable[]>([]);
+const chatSystemPrompt = ref('');
+const chatContextMessages = ref(20);
+const chatContextTokens = ref(0);
+
+/** Ref to system prompt textarea for cursor-based variable insertion */
+const chatSystemPromptRef = ref<HTMLTextAreaElement | null>(null);
+
+function formatVarChip(name: string) {
+  return `{{${name}}}`;
+}
+
+function insertVarAtCursor(varName: string) {
+  const el = chatSystemPromptRef.value;
+  const token = `{{${varName}}}`;
+  if (!el) {
+    chatSystemPrompt.value += token;
+    return;
+  }
+  const start = el.selectionStart ?? chatSystemPrompt.value.length;
+  const end = el.selectionEnd ?? start;
+  chatSystemPrompt.value =
+    chatSystemPrompt.value.substring(0, start) +
+    token +
+    chatSystemPrompt.value.substring(end);
+  nextTick(() => {
+    el.focus();
+    const newPos = start + token.length;
+    el.setSelectionRange(newPos, newPos);
+  });
+}
 
 function initChatConfig() {
   if (!agent.value) return;
+  chatSystemPrompt.value = agent.value.system_prompt || '';
   chatWelcome.value = agent.value.welcome_message || '';
-  chatSuggestions.value = Array.isArray(agent.value.suggested_questions)
-    ? agent.value.suggested_questions.join('\n')
+  const sq = agent.value.suggested_questions;
+  chatSuggestions.value = Array.isArray(sq) && sq.length > 0
+    ? JSON.stringify(sq, null, 2)
     : '';
+  chatInputVars.value = Array.isArray(agent.value.input_variables)
+    ? (agent.value.input_variables as InputVariable[])
+    : [];
+  const cc = (agent.value.context_config ?? {}) as Record<string, number>;
+  chatContextMessages.value = cc.max_history_messages ?? 20;
+  chatContextTokens.value = cc.max_history_tokens ?? 0;
+}
+
+function safeJsonArrayParse(str: string): null | unknown[] {
+  if (!str || str.trim() === '' || str.trim() === '[]') return null;
+  try {
+    const parsed = JSON.parse(str);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch { return null; }
 }
 
 async function saveChatConfig() {
-  const sqArray = chatSuggestions.value
-    .split('\n')
-    .map((s: string) => s.trim())
-    .filter((s: string) => s.length > 0);
+  const isSystem = agent.value?.is_system ?? true;
   await saveFields({
+    ...(isSystem ? {} : { system_prompt: chatSystemPrompt.value || null }),
     welcome_message: chatWelcome.value || null,
-    suggested_questions: sqArray.length > 0 ? sqArray : null,
+    suggested_questions: safeJsonArrayParse(chatSuggestions.value),
+    input_variables: chatInputVars.value.length > 0 ? chatInputVars.value : null,
+    context_config: {
+      max_history_messages: chatContextMessages.value,
+      max_history_tokens: chatContextTokens.value,
+    },
   });
 }
 
@@ -310,7 +370,7 @@ async function saveChatConfig() {
 const bindings = ref<AIAgentSkillBindingInfo[]>([]);
 const bindingsLoading = ref(false);
 const packageOptions = ref<PkgOption[]>([]);
-const selectedNewPkg = ref<number | undefined>();
+const selectedNewPkgs = ref<number[]>([]);
 
 async function loadBindings() {
   bindingsLoading.value = true;
@@ -344,13 +404,15 @@ const unboundPackages = computed(() => {
 });
 
 async function bindPackage() {
-  if (!selectedNewPkg.value) return;
+  if (selectedNewPkgs.value.length === 0) return;
   // Only send manual binding IDs (exclude auto-bound)
   const currentIds = manualBindings.value.map((b) => b.package_id);
-  currentIds.push(selectedNewPkg.value);
+  for (const pkgId of selectedNewPkgs.value) {
+    if (!currentIds.includes(pkgId)) currentIds.push(pkgId);
+  }
   try {
     await batchBindAIAgentSkillsApi(agentId.value, { package_ids: currentIds });
-    selectedNewPkg.value = undefined;
+    selectedNewPkgs.value = [];
     await loadBindings();
     message.success($t('admin.ai.agent.detail.saveSuccess'));
   } catch {
@@ -447,6 +509,89 @@ async function togglePackageSkills(packageId: number) {
     packageSkills.set(packageId, []);
   } finally {
     packageSkillsLoading.delete(packageId);
+  }
+}
+
+// ==================== Knowledge Base Bindings Tab ====================
+const kbBindings = ref<AIAgentKBBindingInfo[]>([]);
+const kbBindingsLoading = ref(false);
+const kbOptions = ref<{ label: string; value: number }[]>([]);
+const selectedNewKBs = ref<number[]>([]);
+
+async function loadKBBindings() {
+  kbBindingsLoading.value = true;
+  try {
+    kbBindings.value = await getAIAgentKBsApi(agentId.value);
+  } catch {
+    kbBindings.value = [];
+  } finally {
+    kbBindingsLoading.value = false;
+  }
+}
+
+async function loadKBOptions() {
+  try {
+    const res = await getAdminKnowledgeBaseListApi({ 'page[size]': 200 });
+    kbOptions.value = (res.items || []).map((kb) => ({
+      label: kb.name,
+      value: kb.id,
+    }));
+  } catch {
+    kbOptions.value = [];
+  }
+}
+
+const unboundKBs = computed(() => {
+  const boundIds = new Set(kbBindings.value.map((b) => b.knowledge_base_id));
+  return kbOptions.value.filter((kb) => !boundIds.has(kb.value));
+});
+
+async function bindKB() {
+  if (selectedNewKBs.value.length === 0) return;
+  const currentIds = kbBindings.value.map((b) => b.knowledge_base_id);
+  for (const kbId of selectedNewKBs.value) {
+    if (!currentIds.includes(kbId)) currentIds.push(kbId);
+  }
+  try {
+    await batchBindAIAgentKBsApi(agentId.value, {
+      knowledge_base_ids: currentIds,
+    });
+    selectedNewKBs.value = [];
+    await loadKBBindings();
+    message.success($t('admin.ai.agent.detail.saveSuccess'));
+  } catch {
+    message.error($t('common.saveFailed'));
+  }
+}
+
+async function unbindKB(knowledgeBaseId: number) {
+  try {
+    await unbindAIAgentKBApi(agentId.value, knowledgeBaseId);
+    await loadKBBindings();
+    message.success($t('admin.ai.agent.detail.saveSuccess'));
+  } catch {
+    message.error($t('common.saveFailed'));
+  }
+}
+
+async function toggleKBEnabled(binding: AIAgentKBBindingInfo) {
+  try {
+    await updateAIAgentKBBindingApi(agentId.value, binding.id, {
+      enabled: !binding.enabled,
+    });
+    await loadKBBindings();
+  } catch {
+    message.error($t('common.saveFailed'));
+  }
+}
+
+async function updateKBWeight(bindingId: number, weight: number) {
+  try {
+    await updateAIAgentKBBindingApi(agentId.value, bindingId, { weight });
+    await loadKBBindings();
+    message.success($t('admin.ai.agent.detail.saveSuccess'));
+  } catch {
+    message.error($t('common.saveFailed'));
   }
 }
 
@@ -561,7 +706,11 @@ const [AccessConfigDrawerCmp, accessConfigApi] = useVbenDrawer({
 
 function openAccessConfig() {
   if (!agent.value) return;
-  accessConfigApi.setData({ id: agent.value.id, name: agent.value.name });
+  accessConfigApi.setData({
+    id: agent.value.id,
+    name: agent.value.name,
+    target_audience: agent.value.target_audience,
+  });
   accessConfigApi.open();
 }
 
@@ -604,6 +753,11 @@ function onTabChange(key: number | string) {
     case 'skills': {
       loadBindings();
       loadPackageOptions();
+      break;
+    }
+    case 'knowledgeBases': {
+      loadKBBindings();
+      loadKBOptions();
       break;
     }
   }
@@ -780,6 +934,13 @@ onUnmounted(() => {
                       {{ getScopeText(agent.scope) }}
                     </div>
                   </Tag>
+                  <div
+                    v-if="agent.target_audience"
+                    class="flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/8 px-3 py-1 text-xs text-primary"
+                  >
+                    <IconifyIcon icon="lucide:users" class="size-3" />
+                    {{ getAudienceText(agent.target_audience) }}
+                  </div>
                   <!-- Routing status chip (clickable) -->
                   <button
                     class="flex items-center gap-1.5 rounded-lg border px-3 py-1 text-xs font-medium transition-all duration-200 hover:opacity-80"
@@ -1043,11 +1204,15 @@ onUnmounted(() => {
                         $t('admin.ai.agent.temperature')
                       }}</label>
                     </div>
+                    <p class="mb-2 text-xs text-muted-foreground">
+                      {{ $t('admin.ai.agent.help.temperature') }}
+                    </p>
                     <InputNumber
                       v-model:value="modelTemp"
                       :min="0"
                       :max="2"
                       :step="0.1"
+                      :placeholder="$t('admin.ai.agent.placeholder.inputTemperature')"
                       class="w-full"
                     />
                   </div>
@@ -1065,10 +1230,14 @@ onUnmounted(() => {
                         $t('admin.ai.agent.maxTokens')
                       }}</label>
                     </div>
+                    <p class="mb-2 text-xs text-muted-foreground">
+                      {{ $t('admin.ai.agent.help.maxTokens') }}
+                    </p>
                     <InputNumber
                       v-model:value="modelMaxTokens"
                       :min="1"
                       :max="128000"
+                      :placeholder="$t('admin.ai.agent.placeholder.inputMaxTokens')"
                       class="w-full"
                     />
                   </div>
@@ -1086,11 +1255,15 @@ onUnmounted(() => {
                         $t('admin.ai.agent.topP')
                       }}</label>
                     </div>
+                    <p class="mb-2 text-xs text-muted-foreground">
+                      {{ $t('admin.ai.agent.help.topP') }}
+                    </p>
                     <InputNumber
                       v-model:value="modelTopP"
                       :min="0"
                       :max="1"
                       :step="0.1"
+                      :placeholder="$t('admin.ai.agent.placeholder.inputTopP')"
                       class="w-full"
                     />
                   </div>
@@ -1116,6 +1289,40 @@ onUnmounted(() => {
                 </span>
               </template>
               <div class="flex flex-col gap-4 p-5 pt-3">
+                <!-- System Prompt (editable, with variable quick-insert) -->
+                <div class="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                  <div class="mb-2 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <IconifyIcon icon="lucide:message-square-code" class="size-4 text-primary" />
+                      <span class="text-sm font-semibold text-primary">{{ $t('admin.ai.agent.systemPrompt') }}</span>
+                      <span
+                        v-if="agent?.is_system"
+                        class="rounded-full bg-amber-500/10 px-1.5 py-px text-[10px] text-amber-600"
+                      >{{ $t('admin.ai.agent.systemAgentDesc').split('，')[0] }}</span>
+                    </div>
+                  </div>
+                  <!-- Variable quick-insert chips -->
+                  <div v-if="chatInputVars.length > 0" class="mb-2 flex flex-wrap gap-1.5">
+                    <span class="text-xs text-muted-foreground">{{ $t('admin.ai.agent.detail.chatConfigPromptHint') }}:</span>
+                    <button
+                      v-for="v in chatInputVars"
+                      :key="v.name"
+                      :disabled="agent?.is_system"
+                      class="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[11px] text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      @click="insertVarAtCursor(v.name)"
+                    >
+                      <span v-text="formatVarChip(v.name)" />
+                    </button>
+                  </div>
+                  <Textarea
+                    :ref="(el) => { chatSystemPromptRef = el as HTMLTextAreaElement | null }"
+                    v-model:value="chatSystemPrompt"
+                    :rows="6"
+                    :disabled="agent?.is_system"
+                    :placeholder="$t('admin.ai.agent.placeholder.inputSystemPrompt')"
+                    class="w-full text-xs"
+                  />
+                </div>
                 <div class="rounded-xl border bg-accent/30 p-5">
                   <div class="mb-3 flex items-center gap-2">
                     <div
@@ -1133,6 +1340,7 @@ onUnmounted(() => {
                   <Textarea
                     v-model:value="chatWelcome"
                     :rows="3"
+                    :placeholder="$t('admin.ai.agent.placeholder.inputWelcomeMessage')"
                     class="w-full"
                   />
                 </div>
@@ -1153,13 +1361,63 @@ onUnmounted(() => {
                   <Textarea
                     v-model:value="chatSuggestions"
                     :rows="4"
-                    class="w-full"
+                    :placeholder="$t('admin.ai.agent.placeholder.inputSuggestedQuestions')"
+                    class="w-full font-mono text-xs"
                   />
-                  <p class="mt-2 text-xs text-muted-foreground">
-                    {{
-                      $t('admin.ai.agent.placeholder.inputSuggestedQuestions')
-                    }}
-                  </p>
+                  <p class="mt-1 text-xs text-muted-foreground">JSON</p>
+                </div>
+                <div class="rounded-xl border bg-accent/30 p-5">
+                  <div class="mb-3 flex items-center gap-2">
+                    <div
+                      class="flex size-7 items-center justify-center rounded-lg bg-violet-500/10"
+                    >
+                      <IconifyIcon
+                        icon="lucide:variable"
+                        class="size-4 text-violet-500"
+                      />
+                    </div>
+                    <label class="text-sm font-medium">{{
+                      $t('admin.ai.agent.inputVariables.title')
+                    }}</label>
+                  </div>
+                  <InputVariablesEditor v-model="chatInputVars" />
+                </div>
+                <div class="rounded-xl border bg-accent/30 p-5">
+                  <div class="mb-3 flex items-center gap-2">
+                    <div
+                      class="flex size-7 items-center justify-center rounded-lg bg-amber-500/10"
+                    >
+                      <IconifyIcon
+                        icon="lucide:history"
+                        class="size-4 text-amber-500"
+                      />
+                    </div>
+                    <label class="text-sm font-medium">{{
+                      $t('admin.ai.agent.contextConfig.title')
+                    }}</label>
+                  </div>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="mb-1 block text-xs text-muted-foreground">{{
+                        $t('admin.ai.agent.contextConfig.maxHistoryMessages')
+                      }}</label>
+                      <InputNumber
+                        v-model:value="chatContextMessages"
+                        :min="0"
+                        class="w-full"
+                      />
+                    </div>
+                    <div>
+                      <label class="mb-1 block text-xs text-muted-foreground">{{
+                        $t('admin.ai.agent.contextConfig.maxHistoryTokens')
+                      }}</label>
+                      <InputNumber
+                        v-model:value="chatContextTokens"
+                        :min="0"
+                        class="w-full"
+                      />
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <Button
@@ -1189,13 +1447,15 @@ onUnmounted(() => {
                       class="flex items-center gap-3 rounded-xl border bg-accent/30 p-4"
                     >
                       <ASelect
-                        v-model:value="selectedNewPkg"
+                        v-model:value="selectedNewPkgs"
                         :options="unboundPackages"
                         :placeholder="
                           $t('admin.ai.agent.placeholder.selectSkillPackages')
                         "
+                        mode="multiple"
                         show-search
                         option-filter-prop="label"
+                        allow-clear
                         class="flex-1"
                       >
                         <template
@@ -1242,7 +1502,7 @@ onUnmounted(() => {
                       </ASelect>
                       <Button
                         type="primary"
-                        :disabled="!selectedNewPkg"
+                        :disabled="selectedNewPkgs.length === 0"
                         @click="bindPackage"
                       >
                         <IconifyIcon icon="lucide:plus" class="mr-1" />
@@ -1396,27 +1656,37 @@ onUnmounted(() => {
                               @click="togglePackageSkills(b.package_id)"
                             >
                               <div
-                                class="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary"
+                                class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary"
                               >
                                 {{ (b.package_name || '?')[0] }}
                               </div>
-                              <span class="text-sm font-medium">{{
-                                b.package_name || `#${b.package_id}`
-                              }}</span>
-                              <Tag
-                                v-if="b.package_is_system"
-                                color="red"
-                                class="!text-[10px]"
-                              >
-                                {{ $t('admin.ai.skillPackage.system') }}
-                              </Tag>
+                              <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2">
+                                  <span class="text-sm font-medium">{{
+                                    b.package_name || `#${b.package_id}`
+                                  }}</span>
+                                  <Tag
+                                    v-if="b.package_is_system"
+                                    color="red"
+                                    class="!text-[10px]"
+                                  >
+                                    {{ $t('admin.ai.skillPackage.system') }}
+                                  </Tag>
+                                </div>
+                                <p
+                                  v-if="b.package_description"
+                                  class="mt-0.5 truncate text-xs text-muted-foreground"
+                                >
+                                  {{ b.package_description }}
+                                </p>
+                              </div>
                               <IconifyIcon
                                 :icon="
                                   expandedPackages.has(b.package_id)
                                     ? 'lucide:chevron-up'
                                     : 'lucide:chevron-down'
                                 "
-                                class="size-4 text-muted-foreground transition-transform"
+                                class="size-4 shrink-0 text-muted-foreground transition-transform"
                               />
                             </div>
                             <div class="flex items-center gap-2">
@@ -1510,6 +1780,133 @@ onUnmounted(() => {
                     </div>
 
                     <Empty v-if="bindings.length === 0 && !bindingsLoading" />
+                  </div>
+                </Spin>
+              </div>
+            </TabPane>
+
+            <!-- ========== 知识库绑定 ========== -->
+            <TabPane key="knowledgeBases">
+              <template #tab>
+                <span class="flex items-center gap-1.5 px-1">
+                  <IconifyIcon icon="lucide:library" class="size-3.5" />
+                  {{ $t('admin.ai.agent.detail.knowledgeBases') }}
+                </span>
+              </template>
+              <div class="p-5 pt-3">
+                <Spin :spinning="kbBindingsLoading">
+                  <div class="flex flex-col gap-4">
+                    <!-- Add binding row -->
+                    <div
+                      class="flex items-center gap-3 rounded-xl border bg-accent/30 p-4"
+                    >
+                      <ASelect
+                        v-model:value="selectedNewKBs"
+                        :options="unboundKBs"
+                        :placeholder="
+                          $t('admin.ai.agent.detail.selectKnowledgeBase')
+                        "
+                        mode="multiple"
+                        show-search
+                        option-filter-prop="label"
+                        allow-clear
+                        class="flex-1"
+                      />
+                      <Button
+                        type="primary"
+                        :disabled="selectedNewKBs.length === 0"
+                        @click="bindKB"
+                      >
+                        <IconifyIcon icon="lucide:plus" class="mr-1" />
+                        {{ $t('admin.ai.agent.detail.bindKnowledgeBase') }}
+                      </Button>
+                    </div>
+
+                    <!-- Binding list -->
+                    <div v-if="kbBindings.length > 0" class="flex flex-col gap-2">
+                      <div
+                        v-for="b in kbBindings"
+                        :key="b.id"
+                        class="flex items-center justify-between rounded-xl border bg-background px-4 py-3 transition-colors"
+                      >
+                        <div class="flex items-center gap-3">
+                          <div
+                            class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10"
+                          >
+                            <IconifyIcon
+                              icon="lucide:book-open"
+                              class="size-4 text-blue-500"
+                            />
+                          </div>
+                          <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                              <span class="text-sm font-medium">{{
+                                b.kb_name || `#${b.knowledge_base_id}`
+                              }}</span>
+                              <Tag
+                                v-if="b.kb_document_count != null"
+                                class="!mr-0 !text-[10px]"
+                              >
+                                {{ b.kb_document_count }}
+                                {{ $t('admin.ai.agent.detail.kbDocCount') }}
+                              </Tag>
+                            </div>
+                            <p
+                              v-if="b.kb_description"
+                              class="mt-0.5 truncate text-xs text-muted-foreground"
+                            >
+                              {{ b.kb_description }}
+                            </p>
+                          </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                          <!-- Weight -->
+                          <div class="flex items-center gap-1.5">
+                            <span class="text-xs text-muted-foreground">{{
+                              $t('admin.ai.agent.detail.kbWeight')
+                            }}</span>
+                            <InputNumber
+                              :value="b.weight"
+                              :min="0.1"
+                              :max="2"
+                              :step="0.1"
+                              size="small"
+                              class="!w-20"
+                              @change="
+                                (val) =>
+                                  val != null &&
+                                  updateKBWeight(b.id, Number(val))
+                              "
+                            />
+                          </div>
+                          <!-- Enabled switch -->
+                          <Switch
+                            :checked="b.enabled"
+                            size="small"
+                            @change="toggleKBEnabled(b)"
+                          />
+                          <!-- Unbind -->
+                          <Popconfirm
+                            :title="$t('common.confirmDelete')"
+                            @confirm="unbindKB(b.knowledge_base_id)"
+                          >
+                            <Button size="small" danger type="text">
+                              <IconifyIcon
+                                icon="lucide:unlink"
+                                class="size-3.5"
+                              />
+                            </Button>
+                          </Popconfirm>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Empty
+                      v-if="kbBindings.length === 0 && !kbBindingsLoading"
+                      :description="
+                        $t('admin.ai.agent.detail.noKnowledgeBases')
+                      "
+                    />
                   </div>
                 </Spin>
               </div>

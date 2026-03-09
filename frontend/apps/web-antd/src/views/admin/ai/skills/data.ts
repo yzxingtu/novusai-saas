@@ -13,10 +13,6 @@ function getSkillTypeOptions(currentType?: string) {
   const predefined = [
     { label: $t('admin.ai.skill.type_options.toolkit'), value: 'toolkit' },
     {
-      label: $t('admin.ai.skill.type_options.knowledge_base'),
-      value: 'knowledge_base',
-    },
-    {
       label: $t('admin.ai.skill.type_options.data_intelligence'),
       value: 'data_intelligence',
     },

@@ -175,7 +175,16 @@
       "routing": "Smart Routing",
       "basicInfo": "Basic Info",
       "saveSuccess": "Saved successfully",
-      "noQuotaLimit": "0 means no limit"
+      "chatConfigPromptHint": "Variable Reference",
+      "noQuotaLimit": "0 means no limit",
+      "noSkills": "No skills in this package",
+      "knowledgeBases": "Knowledge Bases",
+      "noKnowledgeBases": "No knowledge bases bound",
+      "kbWeight": "Weight",
+      "kbEnabled": "Enabled",
+      "kbDocCount": "Documents",
+      "selectKnowledgeBase": "Select knowledge base",
+      "bindKnowledgeBase": "Bind"
     },
     "memory": {
       "title": "Session Memory",
@@ -217,6 +226,11 @@
     "description": "Description",
     "status": "Status",
     "executionMode": "Execution Mode",
+    "targetAudience": "Target Audience",
+    "audience_options": {
+      "all": "All Portals",
+      "admin_tenant": "Admin + Tenant"
+    },
     "modelName": "Model",
     "systemPrompt": "System Prompt",
     "temperature": "Temperature",
@@ -276,6 +290,7 @@
       "searchName": "Search agent name",
       "allStatuses": "All Statuses",
       "allModes": "All Modes",
+      "allAudiences": "All Audiences",
       "inputName": "Enter agent name",
       "selectModel": "Select AI model",
       "selectMode": "Select execution mode",
@@ -286,6 +301,7 @@
       "inputTopP": "0-1, used together with temperature",
       "inputWelcomeMessage": "Welcome message shown when user starts a conversation",
       "inputSuggestedQuestions": "JSON array format, e.g.: [\"Question 1\", \"Question 2\"]",
+      "inputVariables": "JSON array, e.g.: [{'{'}\"name\": \"var1\", \"label\": \"Label\", \"type\": \"string\", \"required\": true{'}'}]",
       "inputToolBindings": "JSON array format, e.g.: [{'{'}\"tool_id\": 1{'}'}]",
       "selectSkills": "Select skills to bind",
       "selectSkillPackages": "Select skill packages to bind"
@@ -428,9 +444,13 @@
         "specific_users": "Specific Users",
         "api_only": "API Only"
       },
+      "tenantRoleAccess": "Tenant Admin Role Access",
+      "userRoleAccess": "User Role Access",
       "placeholder": {
         "selectOrgNodes": "Select org nodes",
-        "inputUserIds": "Enter user IDs, separated by commas"
+        "inputUserIds": "Enter user IDs, separated by commas",
+        "selectTenantRoles": "Select tenant admin roles",
+        "selectUserRoles": "Select user roles"
       },
       "messages": {
         "updateSuccess": "Access config updated"
@@ -438,6 +458,7 @@
       "hint": {
         "public": "All tenant users can use this agent",
         "private": "Only authorized users can use this agent",
+        "roleOnly": "Control which users can use this agent by role. Select 'All Allowed' to not restrict by role.",
         "all_users": "All logged-in users in the tenant can access",
         "org_node": "Only users under specified org nodes can access",
         "specific_users": "Only specified users can access",

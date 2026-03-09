@@ -36,6 +36,40 @@ def merge_kb_ids(
     return combined or None
 
 
+async def load_agent_kb_bindings(
+    db: AsyncSession,
+    agent_id: int,
+) -> tuple[list[int] | None, dict[int, float]]:
+    """
+    从 AgentKnowledgeBaseBinding 中间表加载 enabled=True 的绑定
+
+    Returns:
+        (kb_ids, kb_weights): 知识库 ID 列表 + {kb_id: weight} 映射
+    """
+    from sqlalchemy import select
+
+    from app.models.ai.agent_kb_binding import AgentKnowledgeBaseBinding
+
+    stmt = (
+        select(AgentKnowledgeBaseBinding)
+        .where(
+            AgentKnowledgeBaseBinding.agent_id == agent_id,
+            AgentKnowledgeBaseBinding.enabled.is_(True),
+            AgentKnowledgeBaseBinding.is_deleted.is_(False),
+        )
+        .order_by(AgentKnowledgeBaseBinding.sort_order)
+    )
+    result = await db.execute(stmt)
+    bindings = result.scalars().all()
+
+    if not bindings:
+        return None, {}
+
+    kb_ids = [b.knowledge_base_id for b in bindings]
+    kb_weights = {b.knowledge_base_id: b.weight for b in bindings}
+    return kb_ids, kb_weights
+
+
 async def inject_rag_context(
     db: AsyncSession,
     agent: Agent,
@@ -43,6 +77,7 @@ async def inject_rag_context(
     tenant_id: int,
     kb_ids: list[int] | None = None,
     rag_config: dict[str, Any] | None = None,
+    kb_weights: dict[int, float] | None = None,
 ) -> tuple[list[ChatMessage], list[dict[str, Any]] | None]:
     """
     将 RAG 上下文注入 system_prompt
@@ -55,8 +90,9 @@ async def inject_rag_context(
         agent: 智能体模型实例
         messages: 已构建的消息列表（第一条为 system）
         tenant_id: 租户 ID
-        kb_ids: 知识库 ID 列表（已合并 agent + 用户 @ 选择）
-        rag_config: RAG 配置（来自 Skill 解析）
+        kb_ids: 知识库 ID 列表（已合并 Agent 绑定 + 用户 @ 选择）
+        rag_config: RAG 配置（来自 agent.rag_config）
+        kb_weights: {kb_id: weight} 映射，来自 AgentKnowledgeBaseBinding
 
     Returns:
         (messages, rag_sources): 注入后的消息列表 + 引用来源列表（无 RAG 时为 None）
@@ -116,12 +152,13 @@ async def inject_rag_context(
 
         # 检索
         retriever = HybridRetriever(db, tenant_id)
+        # RAG 检索参数统一从 Agent.rag_config 读取，不再回退到 KB 模型字段
         chunks = await retriever.search(
             knowledge_base=primary_kb,
             query=user_query,
-            top_k=rag_config.get("top_k", primary_kb.top_k),
-            score_threshold=rag_config.get("score_threshold", primary_kb.score_threshold),
-            search_mode=rag_config.get("search_mode"),
+            top_k=rag_config.get("top_k", 5),
+            score_threshold=rag_config.get("score_threshold", 0.5),
+            search_mode=rag_config.get("search_mode", "hybrid"),
             kb_ids=kb_ids,
             rewrite_strategy=rag_config.get("rewrite_strategy", "none"),
             reranker_enabled=rag_config.get("reranker_enabled", False),
@@ -180,4 +217,4 @@ async def inject_rag_context(
         return messages, None
 
 
-__all__ = ["inject_rag_context", "merge_kb_ids"]
+__all__ = ["inject_rag_context", "load_agent_kb_bindings", "merge_kb_ids"]

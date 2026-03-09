@@ -144,7 +144,6 @@ class ConfirmActionEnum(LabeledStrEnum):
 class SkillTypeEnum(LabeledStrEnum):
     """技能类型枚举"""
 
-    KNOWLEDGE_BASE = ("knowledge_base", "enum.skill.type.knowledge_base")
     DATA_INTELLIGENCE = ("data_intelligence", "enum.skill.type.data_intelligence")
     TOOLKIT = ("toolkit", "enum.skill.type.toolkit")
     BUILTIN = ("builtin", "enum.skill.type.builtin")
@@ -190,14 +189,10 @@ def get_skill_type_options() -> list[dict[str, str]]:
     Returns:
         [{"value": "http", "label": "...", "source": "builtin"}]
     """
-    options: list[dict[str, str]] = []
-    for e in SkillTypeEnum:
-        options.append({
-            "value": e.value,
-            "label": e.label,
-            "source": "builtin",
-        })
-    return options
+    return [
+        {"value": e.value, "label": e.label, "source": "builtin"}
+        for e in SkillTypeEnum
+    ]
 
 
 

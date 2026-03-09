@@ -1,7 +1,7 @@
 """
 枚举模块
 
-提供应用的枚举类定义
+提供应用的枚举类定义 v2
 """
 
 from app.enums.agent import (
@@ -26,6 +26,7 @@ from app.enums.billing import BillingCycle
 from app.enums.cache import CacheCategoryEnum
 from app.enums.common import (
     ApprovalStatusEnum,
+    AudienceEnum,
     AuditStatusEnum,
     BoolEnum,
     DeleteLevelEnum,
@@ -84,6 +85,7 @@ __all__ = [
     "SkillBindModeEnum",
     "DeleteLevelEnum",
     "UserRoleEnum",
+    "AudienceEnum",
     # RBAC
     "PermissionType",
     "PermissionScope",

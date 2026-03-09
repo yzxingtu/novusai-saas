@@ -16,6 +16,7 @@ from app.models.ai import (
     Agent,
     AgentAccess,
     AgentConversation,
+    AgentKnowledgeBaseBinding,
     AgentMemoryOverride,
     AgentSkillBinding,
     AgentVersion,
@@ -139,6 +140,7 @@ __all__ = [
     # 技能包 & 技能
     "SkillPackage",
     "Skill",
+    "AgentKnowledgeBaseBinding",
     "AgentSkillBinding",
     "SkillCallLog",
     # 知识库

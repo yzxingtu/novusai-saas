@@ -267,7 +267,8 @@
       "batch_not_cancellable": "Batch task cannot be cancelled in current status",
       "tenant_id_required": "tenant_id is required when scope is tenant",
       "system_protected": "System agent cannot be deleted or have key properties modified",
-      "system_agent_not_found": "System agent not found, please run database migrations first"
+      "system_agent_not_found": "System agent not found, please run database migrations first",
+      "audience_not_allowed": "You are not authorized to access this agent (target audience restriction)"
     },
     "batch": {
       "cancelled": "Batch task cancelled"
@@ -322,7 +323,10 @@
       "is_system": "System Package",
       "source_plugin": "Source Plugin",
       "valves_schema": "Configuration Schema",
-      "valves_config": "Configuration Values"
+      "valves_config": "Configuration Values",
+      "target_audience": "Target Audience",
+      "is_recommended": "Recommended",
+      "bind_mode": "Bind Mode"
     },
     "error": {
       "not_found": "Skill package not found",
@@ -442,6 +446,22 @@
       "multiple_entry": "Each skill can only have one entry script",
       "no_entry": "Skill is missing an entry script",
       "entry_required": "Cannot delete the entry script, please set another script as entry first"
+    }
+  },
+  "agent_kb_binding": {
+    "field": {
+      "agent_id": "Agent ID",
+      "knowledge_base_id": "Knowledge Base ID",
+      "weight": "Retrieval Weight",
+      "enabled": "Enabled",
+      "sort_order": "Sort Order"
+    },
+    "error": {
+      "already_bound": "This knowledge base is already bound to this agent",
+      "kb_not_found": "Knowledge base not found",
+      "binding_not_found": "This knowledge base is not bound to this agent",
+      "agent_not_found": "Agent not found",
+      "kb_not_accessible": "No permission to access this knowledge base"
     }
   },
   "agent_skill_binding": {
@@ -1638,6 +1658,11 @@
       "tenant_admin": "Tenant Admin",
       "tenant_user": "Tenant User"
     },
+    "audience": {
+      "all": "All Portals",
+      "admin_only": "Admin Only",
+      "admin_tenant": "Admin + Tenant"
+    },
     "tool_parameter_type": {
       "string": "String",
       "integer": "Integer",
@@ -2766,6 +2791,7 @@
       "provider_api_key": "API Key",
       "agent": "Agent",
       "agent_conversation": "Conversation",
+      "agent_kb_binding": "Knowledge Base Binding",
       "agent_skill_binding": "Skill Binding",
       "batch_run": "Batch Run",
       "skill_package": "Skill Package",
@@ -2837,5 +2863,13 @@
   "config.tenant.user_privacy_policy_url.name": "Privacy Policy URL",
   "config.tenant.user_privacy_policy_url.desc": "Link to the privacy policy shown on the registration page. Leave empty to hide.",
   "config.tenant.user_terms_url.name": "Terms of Service URL",
-  "config.tenant.user_terms_url.desc": "Link to the terms of service shown on the registration page. Leave empty to hide."
+  "config.tenant.user_terms_url.desc": "Link to the terms of service shown on the registration page. Leave empty to hide.",
+  "enum.agent_model.target_audience": "Target Audience",
+  "agent_access.admin_role_ids": "Admin Role Access",
+  "agent_access.tenant_role_ids": "Tenant Role Access",
+  "agent_access.user_role_ids": "User Role Access",
+  "skill_package.system.engine": "System Engine Skills",
+  "skill_package.system.data_management": "Platform Data Management",
+  "skill_package.system.web_search": "Web Search",
+  "skill_package.system.page_awareness": "Page Awareness"
 }

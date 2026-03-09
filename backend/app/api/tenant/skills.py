@@ -1,30 +1,21 @@
 """
-租户端技能管理 API
+租户端技能管理 API（只读）
 
-提供技能的 CRUD 接口，仅限 tenant scope 技能
+提供技能的只读查询接口。
+租户端不允许创建、编辑、删除技能（最小权限原则）。
 """
 
-from typing import Any
-
-from fastapi import Body, Request
+from fastapi import Request
 
 from app.core.base_controller import TenantController
 from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.recycle_bin import register_tenant_recycle_bin_routes
-from app.core.response import created, deleted, paginated, success
+from app.core.response import paginated, success
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
-    action_create,
-    action_delete,
     action_read,
-    action_update,
     permission_resource,
-)
-from app.schemas.ai.skill import (
-    SkillCreate,
-    SkillUpdate,
 )
 from app.services.ai.skill_service import SkillService
 
@@ -38,24 +29,17 @@ from app.services.ai.skill_service import SkillService
 )
 class TenantSkillController(TenantController):
     """
-    租户技能管理控制器
+    租户技能管理控制器（只读）
 
-    提供技能 CRUD 操作，仅限 tenant scope
+    租户端不允许创建/编辑/删除技能，仅提供只读查询。
     """
 
     prefix = "/ai/skills"
     tags = [_("tag.skill_management")]
 
     def _register_routes(self) -> None:
-        """注册路由"""
+        """注册路由（仅只读端点）"""
         router = self.router
-
-        # 回收站路由必须在 /{id} 之前注册，避免路径冲突
-        register_tenant_recycle_bin_routes(
-            router=router,
-            service_class=SkillService,
-            resource_name="skill",
-        )
 
         @router.get("/skill-types", summary="获取可用技能类型列表")
         @action_read("action.skill.list")
@@ -174,119 +158,6 @@ class TenantSkillController(TenantController):
             await enrich_plugin_skill_info(db, skill, data)
 
             return success(data=data)
-
-        @router.post("", summary="创建技能")
-        @action_create("action.skill.create")
-        async def create_skill(
-            request: Request,
-            db: DbSession,
-            data: SkillCreate,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            创建技能（仅 tenant scope）
-            """
-            service = SkillService(db, tenant_admin.tenant_id)
-            skill = await service.create(data.model_dump(exclude_unset=True))
-            await db.commit()
-
-            return created(data=skill.to_dict(), message=_("skill.created"))
-
-        @router.put("/{skill_id}", summary="更新技能")
-        @action_update("action.skill.update")
-        async def update_skill(
-            request: Request,
-            db: DbSession,
-            skill_id: int,
-            data: SkillUpdate,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            更新技能
-            """
-            service = SkillService(db, tenant_admin.tenant_id)
-
-            skill = await service.get_by_id(skill_id)
-            if not skill:
-                raise NotFoundException(message=_("skill.error.not_found"))
-
-            update_data = data.model_dump(exclude_unset=True)
-            updated = await service.update(skill_id, update_data)
-            await db.commit()
-
-            return success(data=updated.to_dict(), message=_("skill.updated"))
-
-        @router.delete("/{skill_id}", summary="删除技能")
-        @action_delete("action.skill.delete")
-        async def delete_skill(
-            request: Request,
-            db: DbSession,
-            skill_id: int,
-            tenant_admin: ActiveTenantAdmin,
-        ):
-            """
-            删除技能（软删除）
-            """
-            service = SkillService(db, tenant_admin.tenant_id)
-
-            skill = await service.get_by_id(skill_id)
-            if not skill:
-                raise NotFoundException(message=_("skill.error.not_found"))
-
-            await service.delete(skill_id)
-            await db.commit()
-
-            return deleted(message=_("skill.deleted"))
-
-        @router.post("/toolkit/parse", summary="解析 Toolkit 源码")
-        @action_read("action.skill.list")
-        async def parse_toolkit_source(
-            request: Request,
-            tenant_admin: ActiveTenantAdmin,
-            body: dict[str, Any] = Body(...),
-        ):
-            """
-            解析 Toolkit Python 源码，返回元数据（tools 列表、Valves schema 等）。
-            供前端编辑器实时预览使用。
-
-            Body: { "source": "..." }
-            """
-            source = body.get("source", "")
-            if not source or not source.strip():
-                return success(data={"tools": [], "valves_schema": {}, "errors": []})
-
-            from app.ai.skills.toolkit_parser import (
-                ToolkitParseError,
-                parse_toolkit,
-                validate_toolkit_source,
-            )
-
-            errors = validate_toolkit_source(source)
-            if errors:
-                return success(data={"tools": [], "valves_schema": {}, "errors": errors})
-
-            try:
-                meta = parse_toolkit(source)
-                return success(data={
-                    "title": meta.title,
-                    "description": meta.description,
-                    "version": meta.version,
-                    "author": meta.author,
-                    "requirements": meta.requirements,
-                    "tools": [
-                        {
-                            "name": t.name,
-                            "description": t.description,
-                            "parameters": t.parameters,
-                            "is_async": t.is_async,
-                        }
-                        for t in meta.tools
-                    ],
-                    "valves_schema": meta.valves_schema,
-                    "errors": [],
-                })
-            except ToolkitParseError as exc:
-                return success(data={"tools": [], "valves_schema": {}, "errors": [str(exc)]})
 
 
 # 导出路由器

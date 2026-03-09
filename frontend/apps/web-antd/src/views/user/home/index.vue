@@ -49,6 +49,13 @@ interface QuickAction {
 const quickActions = computed<QuickAction[]>(() => [
   {
     color: 'text-primary',
+    desc: () => $t('user.dashboard.aiChatDesc'),
+    icon: 'lucide:bot',
+    label: () => $t('user.dashboard.aiChat'),
+    path: '/ai-chat',
+  },
+  {
+    color: 'text-primary',
     desc: () => $t('user.dashboard.myProfileDesc'),
     icon: 'lucide:user',
     label: () => $t('user.dashboard.myProfile'),

@@ -198,7 +198,7 @@ class AdminAgentChatController(GlobalController):
                 db,
                 tenant_id=None,
                 message=data.message,
-                is_admin_context=True,
+                user_role=UserRoleEnum.PLATFORM_ADMIN.value,
                 page_context=data.page_context.model_dump() if data.page_context else None,
                 pinned_agent_id=data.pinned_agent_id,
             )

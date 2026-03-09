@@ -16,7 +16,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base_model import TenantModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
-from app.enums.common import ResourceScopeEnum, SkillBindModeEnum
+from app.enums.common import AudienceEnum, ResourceScopeEnum, SkillBindModeEnum
 
 
 class SkillPackage(TenantModel):
@@ -47,8 +47,10 @@ class SkillPackage(TenantModel):
         "id": "id",
         "name": "name",
         "scope": "scope",
+        "target_audience": "target_audience",
         "is_active": "is_active",
         "is_system": "is_system",
+        "is_recommended": "is_recommended",
         "bind_mode": "bind_mode",
         "tenant_id": "tenant_id",
         "created_at": "created_at",
@@ -58,6 +60,7 @@ class SkillPackage(TenantModel):
     __sortable__ = {
         "id": "id",
         "name": "name",
+        "target_audience": "target_audience",
         "sort_order": "sort_order",
         "created_at": "created_at",
         "updated_at": "updated_at",
@@ -68,7 +71,7 @@ class SkillPackage(TenantModel):
         "label": "name",
         "value": "id",
         "search": ["name"],
-        "extra": ["scope", "is_system", "source_plugin", "bind_mode"],
+        "extra": ["scope", "is_system", "source_plugin", "bind_mode", "target_audience"],
     }
 
     # ==================== 基本信息 ====================
@@ -98,6 +101,25 @@ class SkillPackage(TenantModel):
         default=ResourceScopeEnum.ALL_TENANTS.value,
         index=True,
         comment=_("skill_package.field.scope"),
+    )
+
+    # ==================== 目标受众 ====================
+
+    target_audience: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=AudienceEnum.ALL.value,
+        index=True,
+        comment=_("skill_package.field.target_audience"),
+    )
+
+    # ==================== 推荐标记 ====================
+
+    is_recommended: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment=_("skill_package.field.is_recommended"),
     )
 
     # ==================== 绑定模式 ====================

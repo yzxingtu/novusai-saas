@@ -15,6 +15,8 @@ export interface AdminSkillPackageInfo {
   description: null | string;
   avatar: null | string;
   scope: string;
+  target_audience: string;
+  is_recommended: boolean;
   bind_mode: string;
   is_system: boolean;
   is_active: boolean;
@@ -34,6 +36,8 @@ export interface SkillPackageCreateParams {
   description?: null | string;
   avatar?: null | string;
   scope: string;
+  target_audience?: string;
+  is_recommended?: boolean;
   bind_mode?: string;
   is_active?: boolean;
   sort_order?: number;
@@ -87,6 +91,13 @@ export function updateSkillPackageApi(
 /** 删除技能包 */
 export function deleteSkillPackageApi(id: number) {
   return requestClient.delete(`${BASE_URL}/${id}`);
+}
+
+/** 获取推荐技能包列表 */
+export function getRecommendedSkillPackagesApi() {
+  return requestClient.get<(AdminSkillPackageInfo & { skill_count: number })[]>(
+    `${BASE_URL}/recommended`,
+  );
 }
 
 /** 切换技能包状态 */

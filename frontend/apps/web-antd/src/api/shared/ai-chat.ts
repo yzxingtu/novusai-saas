@@ -196,6 +196,7 @@ export interface AgentChatRequestBody {
   message: string;
   page_context?: null | PageContext;
   page_session_id?: null | string;
+  variables?: Record<string, string>;
 }
 
 export interface AgentRouteResponse {
@@ -224,6 +225,27 @@ export async function routeMessageApi(
       showCodeMessage: false,
       showErrorMessage: false,
     },
+  );
+}
+
+// ============ Agent KB Bindings ============
+
+export interface ChatKBBindingInfo {
+  id: number;
+  knowledge_base_id: number;
+  kb_name: null | string;
+  enabled: boolean;
+}
+
+/**
+ * 获取智能体已绑定的知识库列表（仅返回 enabled 的）
+ */
+export async function getChatAgentKBBindingsApi(
+  apiPrefix: string,
+  agentId: number,
+): Promise<ChatKBBindingInfo[]> {
+  return requestClient.get<ChatKBBindingInfo[]>(
+    `${apiPrefix}/ai/agents/${agentId}/knowledge-bases`,
   );
 }
 

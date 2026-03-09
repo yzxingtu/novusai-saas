@@ -9,6 +9,7 @@ import { computed } from 'vue';
 import {
   inputField,
   numberField,
+  select,
   switchField,
   textareaField,
   useVbenForm,
@@ -20,6 +21,8 @@ import {
 } from '#/components/business/scope-select';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
+
+import { getAudienceOptions } from '../data';
 
 defineOptions({ name: 'AdminSkillPackageForm' });
 
@@ -55,6 +58,19 @@ function useFormSchema() {
     textareaField('description', $t('admin.ai.skillPackage.description'), {
       placeholder: $t('admin.ai.skillPackage.placeholder.inputDescription'),
     }),
+    {
+      ...select('target_audience', $t('admin.ai.skillPackage.targetAudience'), {
+        options: getAudienceOptions(),
+        required: true,
+      }),
+      dependencies: {
+        triggerFields: ['is_system'],
+        disabled: (values: Record<string, unknown>) => !!values.is_system,
+      },
+    },
+    switchField('is_recommended', $t('admin.ai.skillPackage.isRecommended'), {
+      defaultValue: false,
+    }),
     switchField('is_active', $t('admin.ai.skillPackage.isActive'), {
       defaultValue: true,
     }),
@@ -86,6 +102,8 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillPackageInfo>({
   transform: (values) => ({
     name: values.name,
     description: values.description || null,
+    target_audience: values.target_audience ?? 'all',
+    is_recommended: values.is_recommended ?? false,
     is_active: values.is_active ?? true,
     sort_order: values.sort_order ?? 0,
     ...extractScopePayload(values),
@@ -93,8 +111,11 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillPackageInfo>({
   toFormValues: (data: AdminSkillPackageInfo) => ({
     name: data.name,
     description: data.description,
+    target_audience: data.target_audience ?? 'all',
+    is_recommended: data.is_recommended ?? false,
     is_active: data.is_active,
     sort_order: data.sort_order,
+    is_system: data.is_system,
     scope: data.scope,
     tenant_id: data.tenant_id ?? null,
     tenant_ids: data.assigned_tenant_ids ?? [],

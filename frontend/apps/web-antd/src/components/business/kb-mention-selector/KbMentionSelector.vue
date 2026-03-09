@@ -1,9 +1,12 @@
 <script lang="ts" setup>
 /**
- * 知识库 @ 提及选择器
+ * 知识库 @ 提及选择器（辅助功能）
  *
  * 在对话输入区域显示已选知识库标签，点击 @ 按钮弹出可选知识库列表。
  * 通过 props.fetchApi 传入不同的 API 函数，管理端和租户端共用。
+ *
+ * 注意：主要 KB 绑定已迁移至 Agent 级别中间表（AgentKnowledgeBaseBinding），
+ * 此组件仅作为辅助功能，允许用户临时附加额外知识库。
  */
 import { ref } from 'vue';
 

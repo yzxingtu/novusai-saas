@@ -23,7 +23,7 @@ from app.core.base_model import TenantModel
 from app.core.deletion import DeletionDep, DeletionStrategy
 from app.core.i18n import _
 from app.enums.agent import AgentExecutionModeEnum, AgentStatusEnum, AgentVisibilityEnum
-from app.enums.common import ResourceScopeEnum
+from app.enums.common import AudienceEnum, ResourceScopeEnum
 
 
 class Agent(TenantModel):
@@ -39,6 +39,8 @@ class Agent(TenantModel):
     __delete_deps__ = [
         DeletionDep("AgentSkillBinding", "agent_id", DeletionStrategy.CASCADE_DELETE,
                     label_field="id", i18n_key="agent_skill_binding"),
+        DeletionDep("AgentKnowledgeBaseBinding", "agent_id", DeletionStrategy.CASCADE_DELETE,
+                    label_field="id", i18n_key="agent_kb_binding"),
         DeletionDep("AgentConversation", "agent_id", DeletionStrategy.CASCADE_SOFT,
                     label_field="id", i18n_key="agent_conversation"),
         DeletionDep("BatchRun", "agent_id", DeletionStrategy.CASCADE_SOFT,
@@ -61,6 +63,7 @@ class Agent(TenantModel):
         "name": "name",
         "status": "status",
         "scope": "scope",
+        "target_audience": "target_audience",
         "visibility": "visibility",
         "execution_mode": "execution_mode",
         "model_id": "model_id",
@@ -86,6 +89,16 @@ class Agent(TenantModel):
         default=ResourceScopeEnum.ALL_TENANTS.value,
         index=True,
         comment=_("enum.agent_model.scope"),
+    )
+
+    # ==================== 目标受众 ====================
+
+    target_audience: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=AudienceEnum.ADMIN_TENANT.value,
+        index=True,
+        comment=_("enum.agent_model.target_audience"),
     )
 
     # ==================== 基本信息 ====================
@@ -203,22 +216,15 @@ class Agent(TenantModel):
         comment=_("enum.agent_model.input_variables"),
     )
 
-    # ==================== 知识库（RAG）配置 [DEPRECATED] ====================
-    # 已废弃：知识库绑定已迁移到技能包机制（SkillPackage → Skill[knowledge_base]）
-    # 运行时 knowledge_base_ids 来自 SkillResolver + 用户 @ 选择，不再读取此字段
-    # 保留列以兼容旧数据，后续可通过迁移删除
+    # ==================== 知识库（RAG）配置 ====================
+    # 知识库绑定通过 AgentKnowledgeBaseBinding 中间表管理
+    # rag_config 为 Agent 级统一 RAG 配置
 
-    knowledge_base_ids: Mapped[list | None] = mapped_column(
-        JSON,
-        nullable=True,
-        default=list,
-        comment="[DEPRECATED] " + _("enum.agent_model.knowledge_base_ids"),
-    )
     rag_config: Mapped[dict | None] = mapped_column(
         JSON,
         nullable=True,
         default=None,
-        comment="[DEPRECATED] " + _("enum.agent_model.rag_config"),
+        comment=_("enum.agent_model.rag_config"),
     )
 
     # ==================== 上下文配置 ====================
@@ -288,6 +294,14 @@ class Agent(TenantModel):
         lazy="noload",
         cascade="all, delete-orphan",
         order_by="AgentSkillBinding.sort_order",
+    )
+
+    # 知识库绑定
+    kb_bindings = relationship(
+        "AgentKnowledgeBaseBinding",
+        lazy="noload",
+        cascade="all, delete-orphan",
+        order_by="AgentKnowledgeBaseBinding.sort_order",
     )
 
     def __repr__(self) -> str:

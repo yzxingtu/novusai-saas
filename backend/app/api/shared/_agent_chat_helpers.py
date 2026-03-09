@@ -49,14 +49,17 @@ async def handle_route(
     *,
     tenant_id: int | None,
     message: str,
-    is_admin_context: bool,
+    user_role: str,
     page_context: dict[str, Any] | None,
     pinned_agent_id: int | None,
 ) -> dict[str, Any]:
     """
     智能路由的共享逻辑
 
-    admin/tenant 两端 route 端点共用。
+    admin/tenant/user 三端 route 端点共用。
+
+    Args:
+        user_role: 调用方角色（UserRoleEnum 值），用于候选过滤 + target_audience 校验
     """
     from app.services.ai.agent_router_service import AgentRouterService
 
@@ -64,9 +67,9 @@ async def handle_route(
     result = await router_svc.route(
         tenant_id=tenant_id,
         message=message,
-        is_admin_context=is_admin_context,
         page_context=page_context,
         pinned_agent_id=pinned_agent_id,
+        user_role=user_role,
     )
     return success(data=AgentRouteResponse(
         agent_id=result.agent_id,

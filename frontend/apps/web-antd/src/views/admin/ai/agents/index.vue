@@ -47,6 +47,8 @@ import { toAvatarDisplayUrl } from '#/utils/image';
 import { getScopeIcon, getScopeText } from '#/utils/scope-helpers';
 
 import {
+  getAudienceColor,
+  getAudienceText,
   getExecutionModeText,
   getScopeColor,
   getScopeOptions,
@@ -679,6 +681,18 @@ onUnmounted(() => {
               </div>
             </Tag>
 
+            <!-- Target Audience -->
+            <Tag
+              :color="getAudienceColor(agent.target_audience)"
+              class="!mr-0 !text-[11px]"
+              style="padding: 0 6px; line-height: 20px"
+            >
+              <div class="flex items-center gap-1">
+                <IconifyIcon icon="lucide:users" class="size-3" />
+                <span>{{ getAudienceText(agent.target_audience) }}</span>
+              </div>
+            </Tag>
+
             <!-- Smart Routing indicator -->
             <Tooltip
               v-if="
@@ -751,7 +765,7 @@ onUnmounted(() => {
               </button>
               <!-- Quick edit button -->
               <button
-                class="flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:opacity-0 md:group-hover:opacity-100"
+                class="flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 @click="agentFormRef?.openEdit(agent)"
               >
                 <IconifyIcon icon="lucide:pencil" class="size-3" />

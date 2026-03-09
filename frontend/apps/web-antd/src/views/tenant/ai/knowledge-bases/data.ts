@@ -325,34 +325,8 @@ export function useFormSchema(): VbenFormSchema[] {
           options: getChunkStrategyOptions(),
         },
       ),
+      defaultValue: 'recursive',
       help: $t('tenant.knowledgeBase.help.chunkStrategy'),
-    },
-    {
-      ...select('search_mode', $t('tenant.knowledgeBase.field.searchMode'), {
-        options: getSearchModeOptions(),
-      }),
-      help: $t('tenant.knowledgeBase.help.searchMode'),
-    },
-    {
-      ...numberField('top_k', $t('tenant.knowledgeBase.field.topK'), {
-        min: 1,
-        max: 20,
-        defaultValue: 5,
-      }),
-      help: $t('tenant.knowledgeBase.help.topK'),
-    },
-    {
-      ...numberField(
-        'score_threshold',
-        $t('tenant.knowledgeBase.field.scoreThreshold'),
-        {
-          min: 0,
-          max: 1,
-          defaultValue: 0.5,
-          precision: 2,
-        },
-      ),
-      help: $t('tenant.knowledgeBase.help.scoreThreshold'),
     },
   ];
 }

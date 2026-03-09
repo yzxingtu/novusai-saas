@@ -267,7 +267,8 @@
       "batch_not_cancellable": "批处理任务当前状态不可取消",
       "tenant_id_required": "scope 为 tenant 时必须指定 tenant_id",
       "system_protected": "系统智能体不可删除或修改关键属性",
-      "system_agent_not_found": "系统智能体未找到，请先执行数据库迁移"
+      "system_agent_not_found": "系统智能体未找到，请先执行数据库迁移",
+      "audience_not_allowed": "您无权访问该智能体（受目标受众限制）"
     },
     "batch": {
       "cancelled": "批处理任务已取消"
@@ -322,7 +323,10 @@
       "is_system": "系统技能包",
       "source_plugin": "来源插件",
       "valves_schema": "配置项定义",
-      "valves_config": "配置项值"
+      "valves_config": "配置项值",
+      "target_audience": "目标受众",
+      "is_recommended": "推荐技能包",
+      "bind_mode": "绑定模式"
     },
     "error": {
       "not_found": "技能包不存在",
@@ -442,6 +446,22 @@
       "multiple_entry": "每个技能只能有一个入口脚本",
       "no_entry": "技能缺少入口脚本",
       "entry_required": "不能删除入口脚本，请先设置其他脚本为入口"
+    }
+  },
+  "agent_kb_binding": {
+    "field": {
+      "agent_id": "智能体ID",
+      "knowledge_base_id": "知识库ID",
+      "weight": "检索权重",
+      "enabled": "启用状态",
+      "sort_order": "排序"
+    },
+    "error": {
+      "already_bound": "该知识库已绑定到此智能体",
+      "kb_not_found": "知识库不存在",
+      "binding_not_found": "该知识库未绑定到此智能体",
+      "agent_not_found": "智能体不存在",
+      "kb_not_accessible": "无权访问该知识库"
     }
   },
   "agent_skill_binding": {
@@ -1640,6 +1660,11 @@
       "tenant_admin": "租户管理员",
       "tenant_user": "租户用户"
     },
+    "audience": {
+      "all": "所有端",
+      "admin_only": "仅管理端",
+      "admin_tenant": "管理端+租户端"
+    },
     "tool_parameter_type": {
       "string": "字符串",
       "integer": "整数",
@@ -2784,6 +2809,7 @@
       "provider_api_key": "API 密钥",
       "agent": "智能体",
       "agent_conversation": "对话记录",
+      "agent_kb_binding": "知识库绑定",
       "agent_skill_binding": "技能绑定",
       "batch_run": "批量运行",
       "skill_package": "技能包",
@@ -2842,5 +2868,13 @@
   "config.tenant.user_privacy_policy_url.name": "隐私政策链接",
   "config.tenant.user_privacy_policy_url.desc": "注册页面显示的隐私政策链接地址，留空则不显示",
   "config.tenant.user_terms_url.name": "服务条款链接",
-  "config.tenant.user_terms_url.desc": "注册页面显示的服务条款链接地址，留空则不显示"
+  "config.tenant.user_terms_url.desc": "注册页面显示的服务条款链接地址，留空则不显示",
+  "enum.agent_model.target_audience": "目标受众",
+  "agent_access.admin_role_ids": "管理端角色授权",
+  "agent_access.tenant_role_ids": "租户端角色授权",
+  "agent_access.user_role_ids": "用户端角色授权",
+  "skill_package.system.engine": "系统引擎技能包",
+  "skill_package.system.data_management": "平台数据管理",
+  "skill_package.system.web_search": "联网搜索",
+  "skill_package.system.page_awareness": "页面感知交互"
 }

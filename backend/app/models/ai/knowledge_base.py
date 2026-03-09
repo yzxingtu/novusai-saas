@@ -157,25 +157,27 @@ class KnowledgeBase(TenantModel):
         comment=_("knowledge_base.model.chunk_strategy"),
     )
 
-    # ==================== 检索配置 ====================
+    # ==================== 检索配置（DEPRECATED） ====================
+    # 这些字段已迁移到 Agent.rag_config，不再用于 RAG 检索。
+    # 保留列以兼容旧数据，稳定后通过迁移删除。
 
     search_mode: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
         default=SearchModeEnum.HYBRID.value,
-        comment=_("knowledge_base.model.search_mode"),
+        comment="DEPRECATED: use Agent.rag_config.search_mode",
     )
     top_k: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=5,
-        comment=_("knowledge_base.model.top_k"),
+        comment="DEPRECATED: use Agent.rag_config.top_k",
     )
     score_threshold: Mapped[float] = mapped_column(
         Float,
         nullable=False,
         default=0.5,
-        comment=_("knowledge_base.model.score_threshold"),
+        comment="DEPRECATED: use Agent.rag_config.score_threshold",
     )
 
     # ==================== 统计 ====================

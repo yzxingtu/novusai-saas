@@ -10,12 +10,13 @@ from fastapi import Request
 from app.api.shared._agent_helpers import build_agent_base_item
 from app.core.base_controller import BaseController
 from app.core.deps import ActiveTenantUser, DbSession, QueryParams
-from app.core.response import paginated
+from app.core.response import paginated, success
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
     auth_only,
     permission_resource,
 )
+from app.services.ai.agent_kb_binding_service import AgentKBBindingService
 from app.services.ai.agent_service import AgentService
 
 
@@ -45,6 +46,21 @@ class UserAgentController(BaseController):
     def _register_routes(self) -> None:
         """注册路由"""
         router = self.router
+
+        @router.get("/{agent_id}/knowledge-bases", summary="获取智能体知识库绑定")
+        @auth_only
+        async def get_agent_kbs(
+            request: Request,
+            db: DbSession,
+            agent_id: int,
+            current_user: ActiveTenantUser,
+        ):
+            """
+            获取智能体绑定的启用知识库列表（用于聊天界面展示 RAG 指示器）
+            """
+            kb_service = AgentKBBindingService(db, current_user.tenant_id)
+            result = await kb_service.get_agent_kb_bindings(agent_id)
+            return success(data=result)
 
         @router.get("", summary="获取可用智能体列表")
         @auth_only

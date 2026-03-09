@@ -30,6 +30,16 @@ const mainRoutes: RouteRecordRaw = {
       },
     },
     {
+      name: 'UserAIChat',
+      path: 'ai-chat',
+      component: () => import('#/views/user/ai-chat/index.vue'),
+      meta: {
+        icon: 'lucide:bot',
+        ignoreAccess: true,
+        title: $t('menu.user.ai_chat'),
+      },
+    },
+    {
       name: 'UserSettings',
       path: 'settings',
       component: () => import('#/views/user/settings/index.vue'),

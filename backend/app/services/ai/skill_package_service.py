@@ -64,7 +64,7 @@ class SkillPackageService(TenantService[SkillPackage, SkillPackageRepository]):
             raise BusinessException(message=_("skill_package.error.system_protected"))
 
         if pkg.is_system:
-            protected = {"scope", "is_system", "is_active", "bind_mode"}
+            protected = {"scope", "is_system", "is_active", "bind_mode", "target_audience"}
             if protected & set(data.keys()):
                 raise BusinessException(message=_("skill_package.error.system_protected"))
 
@@ -184,7 +184,7 @@ class AdminSkillPackageService(GlobalService[SkillPackage, AdminSkillPackageRepo
             raise NotFoundException(message=_("skill_package.error.not_found"))
 
         if pkg.is_system:
-            protected = {"scope", "is_system", "is_active", "bind_mode"}
+            protected = {"scope", "is_system", "is_active", "bind_mode", "target_audience"}
             if protected & set(data.keys()):
                 raise BusinessException(message=_("skill_package.error.system_protected"))
 

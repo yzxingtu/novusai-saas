@@ -13,7 +13,8 @@ from app.configs.service import ConfigService
 from app.core.base_service import GlobalService, TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.enums.agent import AccessTypeEnum, AgentStatusEnum, AgentVisibilityEnum
+from app.enums.agent import AgentStatusEnum
+from app.enums.common import AudienceEnum, UserRoleEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent import Agent
 from app.repositories.ai.agent_access_repository import AgentAccessRepository
@@ -594,7 +595,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
     async def get_access_config(self, agent_id: int) -> dict[str, Any]:
         """
-        获取智能体访问权限配置
+        获取智能体访问权限配置（仅角色 ID 列表）
 
         Args:
             agent_id: 智能体 ID
@@ -611,31 +612,26 @@ class AgentService(TenantService[Agent, AgentRepository]):
 
         return {
             "agent_id": agent_id,
-            "visibility": agent.visibility or AgentVisibilityEnum.PUBLIC.value,
-            "access_type": access.access_type if access else AccessTypeEnum.ALL_USERS.value,
-            "org_node_ids": access.org_node_ids if access else None,
-            "user_ids": access.user_ids if access else None,
+            "admin_role_ids": getattr(access, "admin_role_ids", None) if access else None,
+            "tenant_role_ids": getattr(access, "tenant_role_ids", None) if access else None,
+            "user_role_ids": getattr(access, "user_role_ids", None) if access else None,
         }
 
     async def update_access_config(
         self,
         agent_id: int,
-        visibility: str,
-        access_type: str,
-        org_node_ids: list[int] | None = None,
-        user_ids: list[int] | None = None,
+        admin_role_ids: list[int] | None = None,
+        tenant_role_ids: list[int] | None = None,
+        user_role_ids: list[int] | None = None,
     ) -> dict[str, Any]:
         """
-        更新智能体访问权限配置
-
-        同时更新 Agent.visibility 和 AgentAccess 记录。
+        更新智能体访问权限配置（仅角色 ID 列表）
 
         Args:
             agent_id: 智能体 ID
-            visibility: 可见性（public / private）
-            access_type: 访问类型
-            org_node_ids: 组织节点 ID 列表
-            user_ids: 用户 ID 列表
+            admin_role_ids: 管理端角色 ID 列表
+            tenant_role_ids: 租户端角色 ID 列表
+            user_role_ids: 用户端角色 ID 列表
 
         Returns:
             更新后的访问权限配置字典
@@ -644,87 +640,85 @@ class AgentService(TenantService[Agent, AgentRepository]):
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
 
-        # 更新 Agent.visibility
-        await self.repo.update(agent_id, {"visibility": visibility})
-
         # Upsert AgentAccess
         access_repo = self._get_access_repo()
         access = await access_repo.upsert(agent_id, {
-            "access_type": access_type,
-            "org_node_ids": org_node_ids,
-            "user_ids": user_ids,
+            "admin_role_ids": admin_role_ids,
+            "tenant_role_ids": tenant_role_ids,
+            "user_role_ids": user_role_ids,
         })
 
         logger.info(
-            "Agent access updated: agent_id=%s tenant_id=%s visibility=%s access_type=%s",
-            agent_id, self.tenant_id, visibility, access_type,
+            "Agent access updated: agent_id=%s tenant_id=%s",
+            agent_id, self.tenant_id,
         )
 
         return {
             "agent_id": agent_id,
-            "visibility": visibility,
-            "access_type": access.access_type,
-            "org_node_ids": access.org_node_ids,
-            "user_ids": access.user_ids,
+            "admin_role_ids": getattr(access, "admin_role_ids", None),
+            "tenant_role_ids": getattr(access, "tenant_role_ids", None),
+            "user_role_ids": getattr(access, "user_role_ids", None),
         }
 
     async def check_user_access(
         self,
         agent_id: int,
         user_id: int,
-        user_org_node_ids: list[int] | None = None,
+        user_role: str = UserRoleEnum.TENANT_USER.value,
+        user_role_id: int | None = None,
     ) -> bool:
         """
         检查用户是否有权访问指定智能体
 
-        规则:
-        - visibility=public → 所有人可访问
-        - visibility=private + access_type=all_users → 所有登录用户可访问
-        - visibility=private + access_type=org_node → 用户所属组织节点匹配
-        - visibility=private + access_type=specific_users → 用户 ID 在列表中
-        - visibility=private + access_type=api_only → 仅 API 调用可访问，用户不可
+        两层校验：
+        1. target_audience — 三端隔离（哪些端可访问）
+        2. *_role_ids — 端内角色过滤（null=不限制, []=禁止, [ids]=指定角色）
 
         Args:
             agent_id: 智能体 ID
             user_id: 当前用户 ID
-            user_org_node_ids: 用户所属组织节点 ID 列表
+            user_role: 调用方角色（UserRoleEnum 值）
+            user_role_id: 用户的角色 ID（用于 *_role_ids 校验，None 则跳过角色过滤）
 
         Returns:
             是否有访问权限
         """
+        from app.ai.skills.resolver import _audience_allows_role
+
         agent = await self.repo.get_by_id(agent_id)
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
 
-        # 公开智能体，所有人可访问
-        if agent.visibility != AgentVisibilityEnum.PRIVATE.value:
-            return True
+        # Layer 1: target_audience 三端隔离
+        agent_audience = getattr(agent, "target_audience", AudienceEnum.ADMIN_TENANT.value)
+        if not _audience_allows_role(agent_audience, user_role):
+            return False
 
+        # Layer 2: 端内角色过滤
         access_repo = self._get_access_repo()
         access = await access_repo.get_by_agent_id(agent_id)
         if not access:
-            # 无 access 记录时，默认 all_users
+            # 无 access 记录 → 不限制
             return True
 
-        access_type = access.access_type
+        # 根据调用端选择对应的 role_ids 字段
+        if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
+            role_ids = getattr(access, "admin_role_ids", None)
+        elif user_role == UserRoleEnum.TENANT_ADMIN.value:
+            role_ids = getattr(access, "tenant_role_ids", None)
+        else:
+            role_ids = getattr(access, "user_role_ids", None)
 
-        if access_type == AccessTypeEnum.ALL_USERS.value:
+        if role_ids is None:
+            # NULL = 不限制（所有该端用户可访问）
             return True
-
-        if access_type == AccessTypeEnum.ORG_NODE.value:
-            if not access.org_node_ids or not user_org_node_ids:
-                return False
-            return bool(set(user_org_node_ids) & set(access.org_node_ids))
-
-        if access_type == AccessTypeEnum.SPECIFIC_USERS.value:
-            if not access.user_ids:
-                return False
-            return user_id in access.user_ids
-
-        if access_type == AccessTypeEnum.API_ONLY.value:
+        if not role_ids:
+            # 空列表 = 禁止（无人可访问）
             return False
-
-        return False
+        if user_role_id is None:
+            # 未提供角色 ID 但有限制列表 → 拒绝
+            return False
+        return user_role_id in role_ids
 
     async def list_user_accessible_agents(
         self,

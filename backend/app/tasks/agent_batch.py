@@ -83,10 +83,14 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                 gateway = AIGateway(db)
 
                 # 解析 Agent 绑定的技能
+                # batch 任务由租户管理员发起，默认 tenant_admin 角色进行 target_audience 过滤
                 try:
                     from app.ai.skills.resolver import resolve_for_agent
+                    from app.enums.common import UserRoleEnum
+                    _batch_user_role = UserRoleEnum.TENANT_ADMIN.value
                     await resolve_for_agent(
                         db, agent, tenant_id=tenant_id,
+                        user_role=_batch_user_role,
                     )
                 except Exception as skill_exc:
                     logger.warning(

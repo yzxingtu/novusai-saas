@@ -20,6 +20,7 @@ export interface AgentListItem {
   status: string;
   execution_mode: string;
   scope: string;
+  target_audience: string;
   is_system: boolean;
   model_name: null | string;
   skill_packages: { id: number; name: string }[];
@@ -33,18 +34,16 @@ export interface AgentListItem {
 /** 智能体访问权限配置 */
 export interface AgentAccessConfig {
   agent_id: number;
-  visibility: string;
-  access_type: string;
-  org_node_ids: null | number[];
-  user_ids: null | number[];
+  admin_role_ids: null | number[];
+  tenant_role_ids: null | number[];
+  user_role_ids: null | number[];
 }
 
 /** 更新智能体访问权限请求 */
 export interface AgentAccessUpdateRequest {
-  visibility: string;
-  access_type: string;
-  org_node_ids?: null | number[];
-  user_ids?: null | number[];
+  admin_role_ids?: null | number[];
+  tenant_role_ids?: null | number[];
+  user_role_ids?: null | number[];
 }
 
 /** 智能体详情 */
@@ -80,6 +79,7 @@ export interface AgentCreateRequest {
   max_tokens?: null | number;
   top_p?: null | number;
   execution_mode?: string;
+  target_audience?: string;
   /** @deprecated replaced by AgentSkillBinding */
   tool_bindings?: null | unknown[];
   input_variables?: null | unknown[];
@@ -417,6 +417,79 @@ export async function unbindPackageApi(
 ): Promise<void> {
   await requestClient.delete(
     `${PREFIX}/${agentId}/skills/${packageId}`,
+    options,
+  );
+}
+
+// ============================================================
+// 知识库绑定 API
+// ============================================================
+
+/** 知识库绑定信息 */
+export interface AgentKBBindingInfo {
+  id: number;
+  agent_id: number;
+  knowledge_base_id: number;
+  weight: number;
+  enabled: boolean;
+  sort_order: number;
+  kb_name: string | null;
+  kb_description: string | null;
+  kb_scope: string | null;
+  kb_visibility: string | null;
+  kb_document_count: number | null;
+}
+
+/** 获取智能体知识库绑定列表 */
+export async function getAgentKBsApi(
+  agentId: number,
+  options?: ApiRequestOptions,
+): Promise<AgentKBBindingInfo[]> {
+  return requestClient.get<AgentKBBindingInfo[]>(
+    `${PREFIX}/${agentId}/knowledge-bases`,
+    options,
+  );
+}
+
+/** 批量绑定知识库（替换模式） */
+export async function batchBindKBsApi(
+  agentId: number,
+  knowledgeBaseIds: number[],
+  options?: ApiRequestOptions,
+): Promise<AgentKBBindingInfo[]> {
+  return requestClient.put<AgentKBBindingInfo[]>(
+    `${PREFIX}/${agentId}/knowledge-bases/batch`,
+    { knowledge_base_ids: knowledgeBaseIds },
+    options,
+  );
+}
+
+/** 更新知识库绑定配置 */
+export async function updateAgentKBBindingApi(
+  agentId: number,
+  bindingId: number,
+  data: {
+    enabled?: boolean;
+    sort_order?: null | number;
+    weight?: null | number;
+  },
+  options?: ApiRequestOptions,
+): Promise<AgentKBBindingInfo> {
+  return requestClient.put<AgentKBBindingInfo>(
+    `${PREFIX}/${agentId}/knowledge-bases/${bindingId}`,
+    data,
+    options,
+  );
+}
+
+/** 解绑知识库 */
+export async function unbindKBApi(
+  agentId: number,
+  knowledgeBaseId: number,
+  options?: ApiRequestOptions,
+): Promise<void> {
+  await requestClient.delete(
+    `${PREFIX}/${agentId}/knowledge-bases/${knowledgeBaseId}`,
     options,
   );
 }

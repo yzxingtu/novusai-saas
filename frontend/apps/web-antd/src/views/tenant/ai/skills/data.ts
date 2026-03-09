@@ -16,26 +16,11 @@ import {
   textareaField,
 } from '#/adapter/form';
 import { getTenantTablePoliciesApi } from '#/api/tenant/ai';
-import { getKnowledgeBaseListApi } from '#/api/tenant/knowledge-bases';
 import { getSkillPackageSelectApi } from '#/api/tenant/skill-packages';
 import { getSkillTypesApi, parseToolkitApi } from '#/api/tenant/skills';
 import { $t } from '#/locales';
 
 const _currentValvesSchema = ref<null | Record<string, unknown>>(null);
-
-// ============ 知识库下拉 ============
-
-export async function getKnowledgeBaseSelectOptions() {
-  try {
-    const res = await getKnowledgeBaseListApi({ 'page[size]': 100 });
-    return res.items.map((kb) => ({
-      label: kb.name,
-      value: kb.id,
-    }));
-  } catch {
-    return [];
-  }
-}
 
 // ============ 表策略下拉 ============
 
@@ -51,44 +36,6 @@ export async function getTablePolicySelectOptions() {
   }
 }
 
-// ============ RAG 辅助选项 ============
-
-function getSearchModeOptions() {
-  return [
-    {
-      label: $t('tenant.ai.skill.knowledgeBaseConfig.searchModeOptions.vector'),
-      value: 'vector',
-    },
-    {
-      label: $t(
-        'tenant.ai.skill.knowledgeBaseConfig.searchModeOptions.keyword',
-      ),
-      value: 'keyword',
-    },
-    {
-      label: $t('tenant.ai.skill.knowledgeBaseConfig.searchModeOptions.hybrid'),
-      value: 'hybrid',
-    },
-  ];
-}
-
-function getRewriteStrategyOptions() {
-  return [
-    {
-      label: $t('tenant.ai.skill.knowledgeBaseConfig.rewriteOptions.none'),
-      value: 'none',
-    },
-    {
-      label: $t('tenant.ai.skill.knowledgeBaseConfig.rewriteOptions.multi'),
-      value: 'multi',
-    },
-    {
-      label: $t('tenant.ai.skill.knowledgeBaseConfig.rewriteOptions.hyde'),
-      value: 'hyde',
-    },
-  ];
-}
-
 /** 缓存技能类型列表 */
 const skillTypesCache = ref<SkillTypeOption[]>([]);
 
@@ -102,10 +49,6 @@ export async function loadSkillTypes(): Promise<SkillTypeOption[]> {
   } catch {
     return [
       { value: 'toolkit', label: $t('tenant.ai.skill.type_options.toolkit') },
-      {
-        value: 'knowledge_base',
-        label: $t('tenant.ai.skill.type_options.knowledge_base'),
-      },
       {
         value: 'data_intelligence',
         label: $t('tenant.ai.skill.type_options.data_intelligence'),
@@ -128,10 +71,6 @@ export function getSkillTypeOptions() {
   }
   return [
     { label: $t('tenant.ai.skill.type_options.toolkit'), value: 'toolkit' },
-    {
-      label: $t('tenant.ai.skill.type_options.knowledge_base'),
-      value: 'knowledge_base',
-    },
     {
       label: $t('tenant.ai.skill.type_options.data_intelligence'),
       value: 'data_intelligence',
@@ -336,7 +275,7 @@ export function useFormSchema(): VbenFormSchema[] {
       dependencies: {
         triggerFields: ['type'],
         if: (values: Record<string, unknown>) =>
-          values.type !== 'builtin' && values.type !== 'knowledge_base',
+          values.type !== 'builtin',
       },
     },
     // ============ builtin 专属字段 ============
@@ -367,130 +306,6 @@ export function useFormSchema(): VbenFormSchema[] {
       dependencies: {
         triggerFields: ['type'],
         if: (v: Record<string, unknown>) => v.type === 'builtin',
-      },
-    },
-    // ============ knowledge_base 专属字段 ============
-    {
-      component: 'Divider',
-      fieldName: '_kb_config_divider',
-      label: '',
-      hideLabel: true,
-      componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({
-        default: () => $t('tenant.ai.skill.knowledgeBaseConfig.title'),
-      }),
-      dependencies: {
-        triggerFields: ['type'],
-        if: (values: Record<string, unknown>) =>
-          values.type === 'knowledge_base',
-      },
-    },
-    {
-      component: 'ApiSelect',
-      componentProps: {
-        allowClear: true,
-        api: getKnowledgeBaseSelectOptions,
-        class: 'w-full',
-        mode: 'multiple',
-        placeholder: $t(
-          'tenant.ai.skill.knowledgeBaseConfig.selectKbPlaceholder',
-        ),
-        showSearch: true,
-        optionFilterProp: 'label',
-      },
-      fieldName: 'kb_ids',
-      label: $t('tenant.ai.skill.knowledgeBaseConfig.selectKb'),
-      help: $t('tenant.ai.skill.knowledgeBaseConfig.selectKbHelp'),
-      dependencies: {
-        triggerFields: ['type'],
-        if: (values: Record<string, unknown>) =>
-          values.type === 'knowledge_base',
-      },
-    },
-    {
-      ...switchField(
-        'rag_enabled',
-        $t('tenant.ai.skill.knowledgeBaseConfig.ragEnabled'),
-      ),
-      dependencies: {
-        triggerFields: ['type'],
-        if: (values: Record<string, unknown>) =>
-          values.type === 'knowledge_base',
-      },
-    },
-    {
-      ...numberField(
-        'rag_top_k',
-        $t('tenant.ai.skill.knowledgeBaseConfig.topK'),
-        { min: 1, max: 20 },
-      ),
-      dependencies: {
-        triggerFields: ['type'],
-        if: (values: Record<string, unknown>) =>
-          values.type === 'knowledge_base',
-      },
-    },
-    {
-      ...numberField(
-        'rag_score_threshold',
-        $t('tenant.ai.skill.knowledgeBaseConfig.scoreThreshold'),
-        { min: 0, max: 1 },
-      ),
-      dependencies: {
-        triggerFields: ['type'],
-        if: (values: Record<string, unknown>) =>
-          values.type === 'knowledge_base',
-      },
-    },
-    {
-      ...select(
-        'rag_search_mode',
-        $t('tenant.ai.skill.knowledgeBaseConfig.searchMode'),
-        {
-          options: getSearchModeOptions(),
-        },
-      ),
-      dependencies: {
-        triggerFields: ['type'],
-        if: (values: Record<string, unknown>) =>
-          values.type === 'knowledge_base',
-      },
-    },
-    {
-      ...select(
-        'rag_rewrite_strategy',
-        $t('tenant.ai.skill.knowledgeBaseConfig.rewriteStrategy'),
-        {
-          options: getRewriteStrategyOptions(),
-        },
-      ),
-      dependencies: {
-        triggerFields: ['type'],
-        if: (values: Record<string, unknown>) =>
-          values.type === 'knowledge_base',
-      },
-    },
-    {
-      ...switchField(
-        'rag_reranker_enabled',
-        $t('tenant.ai.skill.knowledgeBaseConfig.rerankerEnabled'),
-      ),
-      dependencies: {
-        triggerFields: ['type'],
-        if: (values: Record<string, unknown>) =>
-          values.type === 'knowledge_base',
-      },
-    },
-    {
-      ...numberField(
-        'rag_context_token_ratio',
-        $t('tenant.ai.skill.knowledgeBaseConfig.contextTokenRatio'),
-        { min: 0, max: 1 },
-      ),
-      dependencies: {
-        triggerFields: ['type'],
-        if: (values: Record<string, unknown>) =>
-          values.type === 'knowledge_base',
       },
     },
     // ============ http 专属字段 ============
@@ -962,15 +777,6 @@ export function getFormDefaults(): Record<string, unknown> {
     is_active: true,
     toolkit_content: '',
     valves_config: {},
-    // knowledge_base defaults
-    kb_ids: [],
-    rag_enabled: true,
-    rag_top_k: 5,
-    rag_score_threshold: 0.5,
-    rag_search_mode: 'hybrid',
-    rag_rewrite_strategy: 'none',
-    rag_reranker_enabled: false,
-    rag_context_token_ratio: 0.3,
     // data_intelligence defaults
     di_table_policy_ids: [],
     di_max_rows_override: 0,

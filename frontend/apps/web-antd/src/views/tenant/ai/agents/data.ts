@@ -16,6 +16,38 @@ import { getTenantAIModelsApi } from '#/api/tenant/ai';
 import { getAvailablePackagesApi } from '#/api/tenant/skill-packages';
 import { $t } from '#/locales';
 
+// ============ 受众辅助 ============
+
+export function getAudienceOptions() {
+  return [
+    { label: $t('tenant.ai.agent.audience_options.all'), value: 'all' },
+    {
+      label: $t('tenant.ai.agent.audience_options.admin_tenant'),
+      value: 'admin_tenant',
+    },
+  ];
+}
+
+export function getAudienceText(audience: string | undefined): string {
+  if (!audience) return '-';
+  const opt = getAudienceOptions().find((o) => o.value === audience);
+  return opt?.label ?? audience;
+}
+
+export function getAudienceColor(audience: string | undefined): string {
+  switch (audience) {
+    case 'admin_tenant': {
+      return 'blue';
+    }
+    case 'all': {
+      return 'green';
+    }
+    default: {
+      return 'default';
+    }
+  }
+}
+
 // ============ 状态辅助 ============
 
 /**
@@ -220,12 +252,14 @@ export async function getPackageSelectOptions() {
         label: string;
         scope?: string;
         source_plugin?: string;
+        target_audience?: string;
         value: number;
       }) => ({
         label: p.label,
         value: p.value,
         scope: p.scope,
         source_plugin: p.source_plugin,
+        target_audience: p.target_audience,
       }),
     );
   } catch {
@@ -254,6 +288,13 @@ export function useColumns<T = AgentListItem>(
       width: 110,
       align: 'center',
       slots: { default: 'status_cell' },
+    },
+    {
+      field: 'target_audience',
+      title: $t('tenant.ai.agent.targetAudience'),
+      width: 120,
+      align: 'center',
+      slots: { default: 'audience_cell' },
     },
     {
       field: 'execution_mode',
@@ -373,6 +414,14 @@ export function useGridFormSchema(): VbenFormSchema[] {
       options: getExecutionModeOptions(),
       placeholder: $t('tenant.ai.agent.placeholder.allModes'),
     }),
+    select(
+      'filter[target_audience][eq]',
+      $t('tenant.ai.agent.targetAudience'),
+      {
+        options: getAudienceOptions(),
+        placeholder: $t('tenant.ai.agent.placeholder.allAudiences'),
+      },
+    ),
   ];
 }
 
@@ -381,17 +430,17 @@ export function useGridFormSchema(): VbenFormSchema[] {
 /**
  * 智能体表单 Schema
  */
-export function useFormSchema(): VbenFormSchema[] {
+export function useFormSchema(isCreate = false): VbenFormSchema[] {
   return [
     inputField('name', $t('tenant.ai.agent.name'), {
       required: true,
       placeholder: $t('tenant.ai.agent.placeholder.inputName'),
     }),
-    {
-      component: 'ImageUpload',
+    ...(!isCreate ? [{
+      component: 'ImageUpload' as const,
       fieldName: 'avatar',
       label: $t('tenant.ai.agent.avatar'),
-    },
+    }] : []),
     select('model_id', $t('tenant.ai.agent.modelName'), {
       api: getModelSelectOptions,
       required: true,
@@ -410,52 +459,54 @@ export function useFormSchema(): VbenFormSchema[] {
     textareaField('description', $t('tenant.ai.agent.description'), {
       placeholder: $t('tenant.ai.agent.placeholder.inputDescription'),
     }),
-    {
-      ...numberField('temperature', $t('tenant.ai.agent.temperature'), {
-        min: 0,
-        max: 2,
-        placeholder: $t('tenant.ai.agent.placeholder.inputTemperature'),
-      }),
-      help: $t('tenant.ai.agent.help.temperature'),
-    },
-    {
-      ...numberField('max_tokens', $t('tenant.ai.agent.maxTokens'), {
-        min: 1,
-        placeholder: $t('tenant.ai.agent.placeholder.inputMaxTokens'),
-      }),
-      help: $t('tenant.ai.agent.help.maxTokens'),
-    },
-    {
-      ...numberField('top_p', $t('tenant.ai.agent.topP'), {
-        min: 0,
-        max: 1,
-        placeholder: $t('tenant.ai.agent.placeholder.inputTopP'),
-      }),
-      help: $t('tenant.ai.agent.help.topP'),
-    },
-    {
-      ...textareaField(
-        'welcome_message',
-        $t('tenant.ai.agent.welcomeMessage'),
-        {
-          placeholder: $t('tenant.ai.agent.placeholder.inputWelcomeMessage'),
-        },
-      ),
-      help: $t('tenant.ai.agent.help.welcomeMessage'),
-    },
-    {
-      ...textareaField(
-        'suggested_questions_str',
-        $t('tenant.ai.agent.suggestedQuestions'),
-        {
-          placeholder: $t(
-            'tenant.ai.agent.placeholder.inputSuggestedQuestions',
-          ),
-          rows: 4,
-        },
-      ),
-      help: $t('tenant.ai.agent.help.suggestedQuestions'),
-    },
+    ...(isCreate ? [] : [
+      {
+        ...numberField('temperature', $t('tenant.ai.agent.temperature'), {
+          min: 0,
+          max: 2,
+          placeholder: $t('tenant.ai.agent.placeholder.inputTemperature'),
+        }),
+        help: $t('tenant.ai.agent.help.temperature'),
+      },
+      {
+        ...numberField('max_tokens', $t('tenant.ai.agent.maxTokens'), {
+          min: 1,
+          placeholder: $t('tenant.ai.agent.placeholder.inputMaxTokens'),
+        }),
+        help: $t('tenant.ai.agent.help.maxTokens'),
+      },
+      {
+        ...numberField('top_p', $t('tenant.ai.agent.topP'), {
+          min: 0,
+          max: 1,
+          placeholder: $t('tenant.ai.agent.placeholder.inputTopP'),
+        }),
+        help: $t('tenant.ai.agent.help.topP'),
+      },
+      {
+        ...textareaField(
+          'welcome_message',
+          $t('tenant.ai.agent.welcomeMessage'),
+          {
+            placeholder: $t('tenant.ai.agent.placeholder.inputWelcomeMessage'),
+          },
+        ),
+        help: $t('tenant.ai.agent.help.welcomeMessage'),
+      },
+      {
+        ...textareaField(
+          'suggested_questions_str',
+          $t('tenant.ai.agent.suggestedQuestions'),
+          {
+            placeholder: $t(
+              'tenant.ai.agent.placeholder.inputSuggestedQuestions',
+            ),
+            rows: 4,
+          },
+        ),
+        help: $t('tenant.ai.agent.help.suggestedQuestions'),
+      },
+    ]),
   ];
 }
 
@@ -495,30 +546,12 @@ const FIELD_STEP_MAP: Record<string, number> = {
 };
 
 /**
- * 向导模式表单 Schema — 与 useFormSchema 相同字段，但按步骤显示/隐藏
+ * 向导模式某步骤的表单 Schema — 直接返回该步骤对应的字段，无需 triggerFields 机制
  */
-export function useWizardFormSchema(): VbenFormSchema[] {
-  const baseSchema = useFormSchema();
-  return [
-    {
-      component: 'Input',
-      fieldName: '_wizard_step',
-      label: '',
-      defaultValue: 0,
-      dependencies: { triggerFields: [], show: false },
-    },
-    ...baseSchema.map((field) => {
-      const step = FIELD_STEP_MAP[field.fieldName] ?? 0;
-      const existingTriggers = field.dependencies?.triggerFields ?? [];
-      return {
-        ...field,
-        dependencies: {
-          triggerFields: ['_wizard_step', ...existingTriggers],
-          if: (values: Record<string, unknown>) => values._wizard_step === step,
-        },
-      };
-    }),
-  ];
+export function getWizardStepSchema(step: number): VbenFormSchema[] {
+  return useFormSchema().filter(
+    (field) => (FIELD_STEP_MAP[field.fieldName] ?? 0) === step,
+  );
 }
 
 /**
@@ -528,7 +561,7 @@ export function getFormDefaults(): Record<string, unknown> {
   return {
     execution_mode: 'conversation',
     temperature: 0.7,
-    suggested_questions_str: '[]',
+    suggested_questions_str: '',
     package_ids: [],
   };
 }

@@ -127,12 +127,6 @@ class AgentVersion(TenantModel):
         default=None,
         comment=_("agent.version.field.quota_config"),
     )
-    knowledge_base_ids: Mapped[list | None] = mapped_column(
-        JSON,
-        nullable=True,
-        default=None,
-        comment=_("agent.version.field.knowledge_base_ids"),
-    )
     rag_config: Mapped[dict | None] = mapped_column(
         JSON,
         nullable=True,

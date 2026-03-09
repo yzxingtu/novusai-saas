@@ -126,6 +126,20 @@ class UserRoleEnum(LabeledStrEnum):
     TENANT_USER = ("tenant_user", "enum.user_role.tenant_user")
 
 
+class AudienceEnum(LabeledStrEnum):
+    """目标受众枚举（三端隔离）
+
+    控制智能体和技能包的可见端：
+      - ALL:          所有端可见（管理端 + 租户端 + 用户端）
+      - ADMIN_ONLY:   仅管理端可见
+      - ADMIN_TENANT: 管理端 + 租户端可见（默认）
+    """
+
+    ALL = ("all", "enum.audience.all")
+    ADMIN_ONLY = ("admin_only", "enum.audience.admin_only")
+    ADMIN_TENANT = ("admin_tenant", "enum.audience.admin_tenant")
+
+
 __all__ = [
     "StatusEnum",
     "BoolEnum",
@@ -139,4 +153,5 @@ __all__ = [
     "ApprovalStatusEnum",
     "DeleteLevelEnum",
     "UserRoleEnum",
+    "AudienceEnum",
 ]

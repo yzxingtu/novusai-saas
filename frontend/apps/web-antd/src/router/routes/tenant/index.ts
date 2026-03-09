@@ -72,17 +72,6 @@ const mainRoutes: RouteRecordRaw = {
         ai: { mode: 'context_only' as const },
       },
     },
-    // 技能包详情页：带 :id 动态参数 + activePath，后端不注册此路由
-    {
-      name: 'TenantAISkillPackageDetail',
-      path: 'ai/skill-packages/:id',
-      component: () => import('#/views/tenant/ai/skill-packages/detail.vue'),
-      meta: {
-        hideInMenu: true,
-        title: $t('tenant.ai.skillPackage.detail.title'),
-        activePath: '/tenant/ai/skill-packages',
-      },
-    },
     // 智能体详情页
     {
       name: 'TenantAIAgentDetail',

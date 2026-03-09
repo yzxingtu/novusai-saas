@@ -64,11 +64,49 @@ export async function getChatModelOptions() {
 
 // ============ 表单默认值 ============
 
+export function getAudienceOptions() {
+  return [
+    { label: $t('admin.ai.agent.audience_options.all'), value: 'all' },
+    {
+      label: $t('admin.ai.agent.audience_options.admin_only'),
+      value: 'admin_only',
+    },
+    {
+      label: $t('admin.ai.agent.audience_options.admin_tenant'),
+      value: 'admin_tenant',
+    },
+  ];
+}
+
+export function getAudienceText(audience: string | undefined): string {
+  if (!audience) return '-';
+  const opt = getAudienceOptions().find((o) => o.value === audience);
+  return opt?.label ?? audience;
+}
+
+export function getAudienceColor(audience: string | undefined): string {
+  switch (audience) {
+    case 'admin_only': {
+      return 'orange';
+    }
+    case 'admin_tenant': {
+      return 'blue';
+    }
+    case 'all': {
+      return 'green';
+    }
+    default: {
+      return 'default';
+    }
+  }
+}
+
 export function getFormDefaults() {
   return {
     name: '',
     description: '',
     scope: 'admin_and_all',
+    target_audience: 'admin_tenant',
     tenant_id: null,
     tenant_ids: [],
     model_id: undefined,
@@ -92,6 +130,8 @@ interface PkgSelectItem {
     is_system?: boolean;
     scope?: string;
     source_plugin?: string;
+    bind_mode?: string;
+    target_audience?: string;
   };
 }
 
@@ -102,11 +142,12 @@ export interface PkgOption {
   sourcePlugin?: string;
   isSystem?: boolean;
   bindMode?: string;
+  targetAudience?: string;
 }
 
 export async function getPackageSelectOptions(): Promise<PkgOption[]> {
   try {
-    const resp = (await getSkillPackageSelectApi()) as unknown as
+    const resp = (await getSkillPackageSelectApi({ include_system: true })) as unknown as
       | PkgSelectItem[]
       | { items: PkgSelectItem[] };
     const items: PkgSelectItem[] = Array.isArray(resp)
@@ -118,9 +159,8 @@ export async function getPackageSelectOptions(): Promise<PkgOption[]> {
       scope: p.extra?.scope,
       sourcePlugin: p.extra?.source_plugin,
       isSystem: p.extra?.is_system,
-      bindMode: (p.extra as Record<string, unknown> | undefined)?.bind_mode as
-        | string
-        | undefined,
+      bindMode: p.extra?.bind_mode,
+      targetAudience: p.extra?.target_audience,
     }));
   } catch {
     return [];
@@ -182,6 +222,7 @@ export function getExecutionModeText(mode: string | undefined): string {
 export function useFormSchema(
   _isEdit = false,
   isSystem = false,
+  isCreate = false,
 ): VbenFormSchema[] {
   const locked = isSystem
     ? { disabled: true, help: $t('admin.ai.agent.systemFieldLocked') }
@@ -192,17 +233,24 @@ export function useFormSchema(
       required: true,
       ...locked,
     }),
-    {
-      component: 'ImageUpload',
+    ...(!isCreate ? [{
+      component: 'ImageUpload' as const,
       fieldName: 'avatar',
       label: $t('admin.ai.agent.avatar'),
-    },
+    }] : []),
     textareaField('description', $t('admin.ai.agent.description'), {
       rows: 2,
     }),
     ...useScopeFields({
       scopeDisabled: isSystem ? () => true : false,
     }),
+    {
+      ...select('target_audience', $t('admin.ai.agent.targetAudience'), {
+        options: getAudienceOptions(),
+        required: true,
+        ...(isSystem ? { disabled: true, help: $t('admin.ai.agent.systemFieldLocked') } : {}),
+      }),
+    },
     {
       ...select('model_id', $t('admin.ai.agent.modelName'), {
         api: getChatModelOptions,
@@ -219,39 +267,50 @@ export function useFormSchema(
     textareaField('system_prompt', $t('admin.ai.agent.systemPrompt'), {
       rows: 5,
     }),
-    numberField('temperature', $t('admin.ai.agent.temperature'), {
-      min: 0,
-      max: 2,
-      precision: 1,
-    }),
-    numberField('max_tokens', $t('admin.ai.agent.maxTokens'), {
-      min: 1,
-      max: 128_000,
-    }),
-    {
-      ...numberField('top_p', $t('admin.ai.agent.topP'), {
-        min: 0,
-        max: 1,
-      }),
-      help: $t('admin.ai.agent.help.topP'),
-    },
-    {
-      ...textareaField('welcome_message', $t('admin.ai.agent.welcomeMessage'), {
-        rows: 3,
-        placeholder: $t('admin.ai.agent.placeholder.inputWelcomeMessage'),
-      }),
-      help: $t('admin.ai.agent.help.welcomeMessage'),
-    },
-    {
-      ...textareaField(
-        'suggested_questions',
-        $t('admin.ai.agent.suggestedQuestions'),
-        {
+    ...(isCreate ? [] : [
+      {
+        ...numberField('temperature', $t('admin.ai.agent.temperature'), {
+          min: 0,
+          max: 2,
+          precision: 1,
+          placeholder: $t('admin.ai.agent.placeholder.inputTemperature'),
+        }),
+        help: $t('admin.ai.agent.help.temperature'),
+      },
+      {
+        ...numberField('max_tokens', $t('admin.ai.agent.maxTokens'), {
+          min: 1,
+          max: 128_000,
+          placeholder: $t('admin.ai.agent.placeholder.inputMaxTokens'),
+        }),
+        help: $t('admin.ai.agent.help.maxTokens'),
+      },
+      {
+        ...numberField('top_p', $t('admin.ai.agent.topP'), {
+          min: 0,
+          max: 1,
+          placeholder: $t('admin.ai.agent.placeholder.inputTopP'),
+        }),
+        help: $t('admin.ai.agent.help.topP'),
+      },
+      {
+        ...textareaField('welcome_message', $t('admin.ai.agent.welcomeMessage'), {
           rows: 3,
-          placeholder: $t('admin.ai.agent.placeholder.inputSuggestedQuestions'),
-        },
-      ),
-      help: $t('admin.ai.agent.help.suggestedQuestions'),
-    },
+          placeholder: $t('admin.ai.agent.placeholder.inputWelcomeMessage'),
+        }),
+        help: $t('admin.ai.agent.help.welcomeMessage'),
+      },
+      {
+        ...textareaField(
+          'suggested_questions',
+          $t('admin.ai.agent.suggestedQuestions'),
+          {
+            rows: 4,
+            placeholder: $t('admin.ai.agent.placeholder.inputSuggestedQuestions'),
+          },
+        ),
+        help: $t('admin.ai.agent.help.suggestedQuestions'),
+      },
+    ]),
   ];
 }

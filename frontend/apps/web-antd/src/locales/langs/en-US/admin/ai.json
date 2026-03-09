@@ -356,8 +356,16 @@
       "routing": "Smart Routing",
       "basicInfo": "Basic Info",
       "saveSuccess": "Saved successfully",
+      "chatConfigPromptHint": "Variable Reference",
       "noQuotaLimit": "0 means no limit",
-      "noSkills": "No skills in this package"
+      "noSkills": "No skills in this package",
+      "knowledgeBases": "Knowledge Bases",
+      "noKnowledgeBases": "No knowledge bases bound",
+      "kbWeight": "Weight",
+      "kbEnabled": "Enabled",
+      "kbDocCount": "Documents",
+      "selectKnowledgeBase": "Select knowledge base",
+      "bindKnowledgeBase": "Bind"
     },
     "memory": {
       "title": "Session Memory",
@@ -400,6 +408,7 @@
     "description": "Description",
     "status": "Status",
     "scopeLabel": "Scope",
+    "targetAudience": "Target Audience",
     "executionMode": "Execution Mode",
     "modelName": "Model",
     "tenantId": "Tenant",
@@ -409,7 +418,16 @@
     "maxTokens": "Max Tokens",
     "topP": "Top P",
     "welcomeMessage": "Welcome Message",
-    "suggestedQuestions": "Suggested Questions",
+    "suggestedQuestions": "Suggested Questions (JSON)",
+    "inputVariables": {
+      "title": "Input Variables",
+      "label": "Variable Definitions (JSON)"
+    },
+    "contextConfig": {
+      "title": "Context Window",
+      "maxHistoryMessages": "Max History Messages",
+      "maxHistoryTokens": "Max History Tokens"
+    },
     "skillPackageBindings": "Skill Package Bindings",
     "consentMode": "Tool Consent Mode",
     "consentModeOptions": {
@@ -418,12 +436,12 @@
       "reject": "Deny Execution"
     },
     "quotaConfig": {
-      "conversationsPerDay": "Conversations per Day",
-      "tokensPerDay": "Tokens per Day",
-      "tokensPerMonth": "Tokens per Month",
-      "maxTurnsPerConversation": "Max Turns per Conversation",
+      "conversationsPerDay": "Daily Conversation Limit",
+      "tokensPerDay": "Daily Token Limit",
+      "tokensPerMonth": "Monthly Token Limit",
+      "maxTurnsPerConversation": "Max Turns Per Conversation",
       "maxConcurrent": "Max Concurrent",
-      "userConversationsPerDay": "User Conversations per Day"
+      "userConversationsPerDay": "User Daily Conversation Limit"
     },
     "create": "Create Agent",
     "noDescription": "No description",
@@ -439,6 +457,11 @@
       "batch": "Batch",
       "api": "API"
     },
+    "audience_options": {
+      "all": "All Portals",
+      "admin_only": "Admin Only",
+      "admin_tenant": "Admin + Tenant"
+    },
     "placeholder": {
       "searchName": "Search agent name",
       "allStatuses": "All Statuses",
@@ -448,15 +471,22 @@
       "allTypes": "All Types",
       "selectSkillPackages": "Select skill packages to bind",
       "inputWelcomeMessage": "Welcome message shown when user opens conversation",
-      "inputSuggestedQuestions": "One suggested question per line",
+      "inputSuggestedQuestions": "JSON array format, e.g.: [\"Question 1\", \"Question 2\"]",
       "selectOrgNodes": "Select organization nodes",
-      "inputUserIds": "Enter user IDs, separated by commas"
+      "inputUserIds": "Enter user IDs, separated by commas",
+      "inputRoleIds": "Enter role IDs, separated by commas",
+      "selectRoles": "Select roles",
+      "inputTemperature": "0-2, higher values produce more random output",
+      "inputMaxTokens": "Maximum token generation limit",
+      "inputTopP": "0-1, used together with temperature"
     },
     "help": {
-      "topP": "0-1, used together with temperature",
+      "temperature": "Controls output randomness. 0 = deterministic, 2 = highly random. Recommended: 0~0.3 for precise tasks, 0.7~1.2 for creative writing",
+      "maxTokens": "Maximum tokens per response. Leave empty for model default. ~2 tokens per Chinese character",
+      "topP": "Nucleus sampling parameter, works with temperature to control diversity. Usually keep at 1, avoid adjusting both simultaneously",
       "skillPackageBindings": "Select skill packages this agent can invoke",
       "welcomeMessage": "Automatically shown when user first opens a conversation. Leave empty to hide",
-      "suggestedQuestions": "Shown when user first enters a conversation, one per line, to help them get started"
+      "suggestedQuestions": "Shown to users when starting a new conversation, helping them get started quickly"
     },
     "type_options": {
       "system": "System Agent",
@@ -480,6 +510,14 @@
     "accessType": "Access Type",
     "orgNodes": "Organization Nodes",
     "specificUsers": "Specific Users",
+    "roleAccess": "Role Access Control",
+    "adminRoleAccess": "Admin Role Access",
+    "tenantRoleAccess": "Tenant Role Access",
+    "userRoleAccess": "User Role Access",
+    "roleMode": {
+      "all": "All Allowed",
+      "specific": "Specific Roles"
+    },
     "visibility_options": {
       "public": "Public",
       "private": "Private"
@@ -504,7 +542,9 @@
       "noVersions": "No version history",
       "accessUpdated": "Access config updated",
       "visibilityPublicHint": "All users can see and use this agent",
-      "visibilityPrivateHint": "Only authorized users can see and use this agent"
+      "visibilityPrivateHint": "Only authorized users can see and use this agent",
+      "accessRoleHint": "Control which admins can use this agent by role. Select 'All Allowed' to not restrict by role.",
+      "noAdminAccess": "This agent's target audience does not include admin portal. No admin role config needed."
     }
   },
   "conversation": {
@@ -708,6 +748,8 @@
     "description": "Description",
     "avatar": "Icon",
     "scope": "Scope",
+    "targetAudience": "Target Audience",
+    "isRecommended": "Recommended",
     "isActive": "Status",
     "skillCount": "Skills",
     "sortOrder": "Sort Order",

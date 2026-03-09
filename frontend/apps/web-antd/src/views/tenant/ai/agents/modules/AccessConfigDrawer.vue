@@ -1,10 +1,12 @@
 <script setup lang="ts">
 /**
- * 智能体访问权限配置抽屉
+ * 智能体访问权限配置抽屉（租户端）
  *
- * 功能：配置可见性（public/private）和访问类型（all_users/org_node/specific_users/api_only）
+ * 仅配置 tenant_role_ids 和 user_role_ids（租户端/用户端角色权限控制）。
+ * 租户端不显示 Admin 端角色选择（租户无权控制管理端角色）。
+ * 根据 target_audience 动态显隐 User 端区块。
  */
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -12,6 +14,7 @@ import { IconifyIcon } from '@vben/icons';
 import {
   Alert,
   Button,
+  Divider,
   Form,
   FormItem,
   message,
@@ -19,36 +22,87 @@ import {
   RadioGroup,
   Select,
   Spin,
+  TreeSelect,
 } from 'ant-design-vue';
 
 import { getAgentAccessApi, updateAgentAccessApi } from '#/api/tenant/agents';
+import { getTenantRoleTreeApi } from '#/api/tenant/role';
+import { getTenantUserRoleListApi } from '#/api/tenant/tenant-user-roles';
 import { $t } from '#/locales';
+
+import type { TenantRoleInfo } from '#/api/tenant/role';
 
 defineOptions({ name: 'AccessConfigDrawer' });
 
 const agentId = ref(0);
 const agentName = ref('');
+const targetAudience = ref<string>('admin_tenant');
 const loading = ref(false);
 const saving = ref(false);
 
-// 表单数据
-const visibility = ref('public');
-const accessType = ref('all_users');
-const orgNodeIds = ref<number[]>([]);
-const userIds = ref<number[]>([]);
+const tenantRoleMode = ref<'all' | 'specific'>('all');
+const tenantRoleIds = ref<number[]>([]);
+const userRoleMode = ref<'all' | 'specific'>('all');
+const userRoleIds = ref<number[]>([]);
 
-// 用户 ID 输入（逗号分隔字符串 → number[]）
-const userIdsInput = ref('');
+const tenantRoleTreeData = ref<Record<string, unknown>[]>([]);
+const tenantRoleTreeLoading = ref(false);
+const userRoleOptions = ref<Array<{ label: string; value: number }>>([]);
+const userRoleLoading = ref(false);
 
-const isPrivate = computed(() => visibility.value === 'private');
+const showTenantBlock = computed(() =>
+  ['all', 'admin_tenant'].includes(targetAudience.value),
+);
+const showUserBlock = computed(() => targetAudience.value === 'all');
+
+function roleInfoToTreeData(roles: TenantRoleInfo[]): Record<string, unknown>[] {
+  return roles.map((r) => ({
+    title: r.name,
+    value: r.id,
+    key: r.id,
+    children: r.children?.length ? roleInfoToTreeData(r.children) : undefined,
+  }));
+}
+
+async function loadTenantRoleTree() {
+  tenantRoleTreeLoading.value = true;
+  try {
+    const tree = await getTenantRoleTreeApi();
+    tenantRoleTreeData.value = roleInfoToTreeData(tree);
+  } catch {
+    // error handled by global interceptor
+  } finally {
+    tenantRoleTreeLoading.value = false;
+  }
+}
+
+async function loadUserRoleOptions() {
+  userRoleLoading.value = true;
+  try {
+    const res = await getTenantUserRoleListApi({ 'page[size]': 100 });
+    userRoleOptions.value = res.items.map((r) => ({
+      label: r.name,
+      value: r.id,
+    }));
+  } catch {
+    // error handled by global interceptor
+  } finally {
+    userRoleLoading.value = false;
+  }
+}
 
 const [Drawer, drawerApi] = useVbenDrawer({
   onOpenChange: async (isOpen) => {
     if (isOpen) {
-      const data = drawerApi.getData<{ id: number; name: string }>();
+      const data = drawerApi.getData<{
+        id: number;
+        name: string;
+        target_audience?: string;
+      }>();
       if (data) {
         agentId.value = data.id;
         agentName.value = data.name;
+        targetAudience.value = data.target_audience ?? 'admin_tenant';
         await loadAccessConfig();
       }
     }
@@ -59,61 +113,22 @@ const title = computed(
   () => `${$t('tenant.ai.agent.access.title')} - ${agentName.value}`,
 );
 
-/** 可见性选项 */
-const visibilityOptions = computed(() => [
-  {
-    label: $t('tenant.ai.agent.access.visibility_options.public'),
-    value: 'public',
-  },
-  {
-    label: $t('tenant.ai.agent.access.visibility_options.private'),
-    value: 'private',
-  },
-]);
+function idsToMode(ids: null | number[]): 'all' | 'specific' {
+  return ids === null ? 'all' : 'specific';
+}
 
-/** 访问类型选项 */
-const accessTypeOptions = computed(() => [
-  {
-    label: $t('tenant.ai.agent.access.access_type_options.all_users'),
-    value: 'all_users',
-  },
-  {
-    label: $t('tenant.ai.agent.access.access_type_options.org_node'),
-    value: 'org_node',
-  },
-  {
-    label: $t('tenant.ai.agent.access.access_type_options.specific_users'),
-    value: 'specific_users',
-  },
-  {
-    label: $t('tenant.ai.agent.access.access_type_options.api_only'),
-    value: 'api_only',
-  },
-]);
+function modeToIds(mode: 'all' | 'specific', ids: number[]): null | number[] {
+  return mode === 'all' ? null : ids;
+}
 
-/** 当前可见性的提示文本 */
-const visibilityHint = computed(() => {
-  return visibility.value === 'private'
-    ? $t('tenant.ai.agent.access.hint.private')
-    : $t('tenant.ai.agent.access.hint.public');
-});
-
-/** 当前访问类型的提示文本 */
-const accessTypeHint = computed(() => {
-  const key = `tenant.ai.agent.access.hint.${accessType.value}`;
-  return $t(key);
-});
-
-/** 加载配置 */
 async function loadAccessConfig() {
   loading.value = true;
   try {
     const config = await getAgentAccessApi(agentId.value);
-    visibility.value = config.visibility || 'public';
-    accessType.value = config.access_type || 'all_users';
-    orgNodeIds.value = config.org_node_ids ?? [];
-    userIds.value = config.user_ids ?? [];
-    userIdsInput.value = userIds.value.join(', ');
+    tenantRoleMode.value = idsToMode(config.tenant_role_ids ?? null);
+    tenantRoleIds.value = config.tenant_role_ids ?? [];
+    userRoleMode.value = idsToMode(config.user_role_ids ?? null);
+    userRoleIds.value = config.user_role_ids ?? [];
   } catch {
     // error handled by global interceptor
   } finally {
@@ -121,30 +136,16 @@ async function loadAccessConfig() {
   }
 }
 
-/** 保存配置 */
 async function onSave() {
-  // 解析用户 ID 输入
-  if (accessType.value === 'specific_users' && userIdsInput.value.trim()) {
-    const parsed = userIdsInput.value
-      .split(',')
-      .map((s) => Number.parseInt(s.trim(), 10))
-      .filter((n) => !Number.isNaN(n) && n > 0);
-    userIds.value = parsed;
-  }
-
   saving.value = true;
   try {
     await updateAgentAccessApi(agentId.value, {
-      visibility: visibility.value,
-      access_type: isPrivate.value ? accessType.value : 'all_users',
-      org_node_ids:
-        isPrivate.value && accessType.value === 'org_node'
-          ? orgNodeIds.value
-          : null,
-      user_ids:
-        isPrivate.value && accessType.value === 'specific_users'
-          ? userIds.value
-          : null,
+      tenant_role_ids: showTenantBlock.value
+        ? modeToIds(tenantRoleMode.value, tenantRoleIds.value)
+        : null,
+      user_role_ids: showUserBlock.value
+        ? modeToIds(userRoleMode.value, userRoleIds.value)
+        : null,
     });
     message.success($t('tenant.ai.agent.access.messages.updateSuccess'));
     drawerApi.close();
@@ -155,99 +156,76 @@ async function onSave() {
   }
 }
 
-/** visibility 切换时重置 accessType */
-watch(visibility, (val) => {
-  if (val === 'public') {
-    accessType.value = 'all_users';
-  }
+watch(showUserBlock, (val) => {
+  if (!val) { userRoleMode.value = 'all'; userRoleIds.value = []; }
+});
+
+onMounted(() => {
+  loadTenantRoleTree();
+  loadUserRoleOptions();
 });
 </script>
 
 <template>
-  <Drawer :title="title" class="w-[520px]">
+  <Drawer :title="title" class="w-[560px]">
     <Spin :spinning="loading">
       <Form layout="vertical" class="px-1">
-        <!-- 可见性 -->
-        <FormItem :label="$t('tenant.ai.agent.access.visibility')">
-          <RadioGroup
-            v-model:value="visibility"
-            button-style="solid"
-            class="mb-2"
-          >
-            <Radio
-              v-for="opt in visibilityOptions"
-              :key="opt.value"
-              :value="opt.value"
-            >
-              <div class="flex items-center gap-1">
-                <IconifyIcon
-                  :icon="
-                    opt.value === 'public' ? 'lucide:globe' : 'lucide:lock'
-                  "
-                  class="size-3.5"
-                />
-                {{ opt.label }}
-              </div>
-            </Radio>
+        <Alert
+          :message="$t('tenant.ai.agent.access.hint.roleOnly')"
+          type="info"
+          show-icon
+          class="mb-4"
+        />
+
+        <!-- Tenant 端角色区块 -->
+        <div v-if="showTenantBlock" class="mb-4 rounded-lg border border-border/60 p-4">
+          <div class="mb-3 flex items-center gap-2">
+            <IconifyIcon icon="lucide:building-2" class="size-4 text-primary" />
+            <span class="text-sm font-medium">{{ $t('tenant.ai.agent.access.tenantRoleAccess') }}</span>
+          </div>
+          <RadioGroup v-model:value="tenantRoleMode" class="mb-2">
+            <Radio value="all">{{ $t('admin.ai.agent.roleMode.all') }}</Radio>
+            <Radio value="specific">{{ $t('admin.ai.agent.roleMode.specific') }}</Radio>
           </RadioGroup>
-          <Alert :message="visibilityHint" type="info" show-icon class="mt-1" />
-        </FormItem>
+          <TreeSelect
+            v-if="tenantRoleMode === 'specific'"
+            v-model:value="tenantRoleIds"
+            :tree-data="tenantRoleTreeData"
+            tree-checkable
+            :show-checked-strategy="TreeSelect.SHOW_CHILD"
+            :placeholder="$t('tenant.ai.agent.access.placeholder.selectTenantRoles')"
+            :loading="tenantRoleTreeLoading"
+            allow-clear
+            style="width: 100%"
+            class="mt-2"
+          />
+        </div>
 
-        <!-- 访问类型（仅 private 时显示） -->
-        <template v-if="isPrivate">
-          <FormItem :label="$t('tenant.ai.agent.access.accessType')">
-            <RadioGroup v-model:value="accessType" class="mb-2">
-              <Radio
-                v-for="opt in accessTypeOptions"
-                :key="opt.value"
-                :value="opt.value"
-                class="mb-1 block"
-              >
-                {{ opt.label }}
-              </Radio>
-            </RadioGroup>
-            <Alert
-              :message="accessTypeHint"
-              type="info"
-              show-icon
-              class="mt-1"
-            />
-          </FormItem>
+        <Divider v-if="showTenantBlock && showUserBlock" class="my-2" />
 
-          <!-- 组织节点 ID（org_node 时显示） -->
-          <FormItem
-            v-if="accessType === 'org_node'"
-            :label="$t('tenant.ai.agent.access.orgNodes')"
-          >
-            <Select
-              v-model:value="orgNodeIds"
-              mode="tags"
-              :placeholder="
-                $t('tenant.ai.agent.access.placeholder.selectOrgNodes')
-              "
-              :token-separators="[',']"
-              style="width: 100%"
-            />
-          </FormItem>
+        <!-- User 端角色区块（仅 all 时显示） -->
+        <div v-if="showUserBlock" class="mb-4 rounded-lg border border-border/60 p-4">
+          <div class="mb-3 flex items-center gap-2">
+            <IconifyIcon icon="lucide:users" class="size-4 text-primary" />
+            <span class="text-sm font-medium">{{ $t('tenant.ai.agent.access.userRoleAccess') }}</span>
+          </div>
+          <RadioGroup v-model:value="userRoleMode" class="mb-2">
+            <Radio value="all">{{ $t('admin.ai.agent.roleMode.all') }}</Radio>
+            <Radio value="specific">{{ $t('admin.ai.agent.roleMode.specific') }}</Radio>
+          </RadioGroup>
+          <Select
+            v-if="userRoleMode === 'specific'"
+            v-model:value="userRoleIds"
+            mode="multiple"
+            :options="userRoleOptions"
+            :placeholder="$t('tenant.ai.agent.access.placeholder.selectUserRoles')"
+            :loading="userRoleLoading"
+            allow-clear
+            style="width: 100%"
+            class="mt-2"
+          />
+        </div>
 
-          <!-- 用户 ID（specific_users 时显示） -->
-          <FormItem
-            v-if="accessType === 'specific_users'"
-            :label="$t('tenant.ai.agent.access.users')"
-          >
-            <Select
-              v-model:value="userIds"
-              mode="tags"
-              :placeholder="
-                $t('tenant.ai.agent.access.placeholder.inputUserIds')
-              "
-              :token-separators="[',']"
-              style="width: 100%"
-            />
-          </FormItem>
-        </template>
-
-        <!-- 操作按钮 -->
         <FormItem class="mt-4">
           <Button type="primary" :loading="saving" @click="onSave">
             {{ $t('common.save') }}

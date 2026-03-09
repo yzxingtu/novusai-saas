@@ -21,6 +21,7 @@ import { message } from 'ant-design-vue';
 
 import type {
   AgentChatRequestBody,
+  ChatKBBindingInfo,
   MemoryState,
   PageContext,
 } from '#/api/shared/ai-chat';
@@ -28,6 +29,7 @@ import type {
 import {
   clearChatConversationMemoryApi,
   deleteChatConversationApi,
+  getChatAgentKBBindingsApi,
   getChatAgentsApi,
   getChatConversationMemoryApi,
   getChatConversationMessagesApi,
@@ -55,6 +57,8 @@ export interface UseAIChatOptions {
   onStreamComplete?: () => void;
   pageContextResolver?: () => null | PageContext;
   pageSessionIdGetter?: () => string;
+  /** Callback when required input variables are missing — opens the vars modal */
+  onVariablesMissing?: () => void;
 }
 
 export function useAIChat(options: UseAIChatOptions) {
@@ -104,6 +108,8 @@ export function useAIChat(options: UseAIChatOptions) {
     activeConversationId.value = null;
     chatMessages.value = [];
     clearPendingAttachments();
+    // Clear cached variables when switching agents
+    // (they'll be re-initialized via watch + openVarsModal in the page component)
   }
 
   // ============ Conversations ============
@@ -150,12 +156,20 @@ export function useAIChat(options: UseAIChatOptions) {
     }
   }
 
-  function startNewConversation() {
+  /**
+   * Reset chat state.
+   * @param keepVars - When true (panel open/reopen), session vars are preserved.
+   *                   When false (explicit "+" new chat), session vars are cleared.
+   */
+  function startNewConversation(keepVars = false) {
     messagesRequestSeq += 1;
     activeConversationId.value = null;
     chatMessages.value = [];
     memoryState.value = null;
     lastMemoryUpdated.value = false;
+    if (!keepVars) {
+      allAgentsVariables.value = {};
+    }
   }
 
   async function deleteConversation(convId: number) {
@@ -192,6 +206,12 @@ export function useAIChat(options: UseAIChatOptions) {
 
       if (res.agent_id) {
         selectedAgentId.value = res.agent_id;
+      }
+
+      // Pre-load variables for the agent from localStorage
+      const agentId = selectedAgentId.value;
+      if (agentId) {
+        ensureAgentVarsLoaded(agentId);
       }
 
       const merged = mergeMessagesForDisplay(res.message_list ?? []);
@@ -417,7 +437,91 @@ export function useAIChat(options: UseAIChatOptions) {
 
   const chatMessages = ref<ChatMessage[]>([]);
   const inputMessage = ref('');
+  /**
+   * 辅助功能：用户手动选择的额外知识库 ID（@ 提及）。
+   * 主要 KB 绑定已迁移至 Agent 级别中间表，此字段仅作为补充。
+   */
   const selectedKBIds = ref<number[]>([]);
+  const agentKBBindings = ref<ChatKBBindingInfo[]>([]);
+
+  // ============ Input Variables ============
+
+  /** Per-agent variables: agentId → { varName: value } */
+  const allAgentsVariables = ref<Record<number, Record<string, string>>>({});
+
+  function _varsLocalKey(agentId: number): string {
+    return `ai-vars:${agentId}`;
+  }
+
+  function _saveVarsToStorage(agentId: number, vars: Record<string, string>) {
+    try {
+      localStorage.setItem(_varsLocalKey(agentId), JSON.stringify(vars));
+    } catch { /* quota exceeded or private mode */ }
+  }
+
+  function _loadVarsFromStorage(agentId: number): Record<string, string> | null {
+    try {
+      const raw = localStorage.getItem(_varsLocalKey(agentId));
+      return raw ? (JSON.parse(raw) as Record<string, string>) : null;
+    } catch { return null; }
+  }
+
+  /**
+   * Ensure session vars are initialized for an agent.
+   * If not yet in session, checks localStorage (for agents the user previously persisted).
+   */
+  function ensureAgentVarsLoaded(agentId: number) {
+    if (!(agentId in allAgentsVariables.value)) {
+      const stored = _loadVarsFromStorage(agentId);
+      allAgentsVariables.value[agentId] = stored ?? {};
+    }
+  }
+
+  /**
+   * Save variables for an agent.
+   * Always updates session vars (in-memory).
+   * @param persist - if true, also writes to localStorage (long-term, auto-injected every session)
+   *                  if false, only in-memory for this browser session
+   */
+  function applyVariables(agentId: number, values: Record<string, string>, persist = false) {
+    allAgentsVariables.value[agentId] = { ...values };
+    if (persist) {
+      _saveVarsToStorage(agentId, { ...values });
+    }
+  }
+
+  function resetVariables() {
+    allAgentsVariables.value = {};
+  }
+
+  function clearConversationVarsCache() {
+    // no-op: variables are now persisted per-agent, not per-conversation
+  }
+
+  /** Agents that have appeared in the conversation AND have input_variables */
+  const agentsWithVarsInConversation = computed(() => {
+    const agentIdsInChat = new Set<number>(
+      chatMessages.value
+        .filter((m) => m.role === 'assistant' && m.agent_id)
+        .map((m) => m.agent_id!),
+    );
+    return agents.value.filter(
+      (a) =>
+        agentIdsInChat.has(a.id) &&
+        a.input_variables &&
+        a.input_variables.length > 0,
+    );
+  });
+
+  async function loadAgentKBBindings(agentId: number) {
+    try {
+      const prefix = unref(options.apiPrefix) as string;
+      const items = await getChatAgentKBBindingsApi(prefix, agentId);
+      agentKBBindings.value = items.filter((b) => b.enabled);
+    } catch {
+      agentKBBindings.value = [];
+    }
+  }
   const sending = ref(false);
   const streaming = ref(false);
   const messagesContainer = ref<HTMLElement | null>(null);
@@ -724,6 +828,24 @@ export function useAIChat(options: UseAIChatOptions) {
     )
       return;
 
+    // Block sending if required input variables are not filled
+    const agent = agents.value.find((a) => a.id === targetAgentId);
+    const requiredVars = agent?.input_variables?.filter((v) => v.required) ?? [];
+    if (requiredVars.length > 0) {
+      ensureAgentVarsLoaded(targetAgentId);
+      const agentVars = allAgentsVariables.value[targetAgentId] ?? {};
+      const missingVars = requiredVars.filter((v) => !agentVars[v.name]?.trim());
+      if (missingVars.length > 0) {
+        message.warning(
+          $t('user.aiChat.varsModal.fillRequired', {
+            fields: missingVars.map((v) => v.label || v.name).join('、'),
+          }),
+        );
+        options.onVariablesMissing?.();
+        return;
+      }
+    }
+
     const userMsg = inputMessage.value.trim();
     const msgAttachments = [...pendingAttachments.value];
 
@@ -791,6 +913,9 @@ export function useAIChat(options: UseAIChatOptions) {
         conversation_id: activeConversationId.value,
         ...(selectedKBIds.value.length > 0
           ? { knowledge_base_ids: selectedKBIds.value }
+          : {}),
+        ...((Object.keys(allAgentsVariables.value[targetAgentId] ?? {}).length > 0)
+          ? { variables: allAgentsVariables.value[targetAgentId] }
           : {}),
         consented_actions: getConsentedActions(),
         ...(apiAttachments ? { attachments: apiAttachments } : {}),
@@ -945,7 +1070,7 @@ export function useAIChat(options: UseAIChatOptions) {
                       msg.tokenUsage = event.total_tokens || 0;
                       msg.durationMs = event.duration_ms || 0;
                       if (event.conversation_id) {
-                        activeConversationId.value = event.conversation_id;
+                        activeConversationId.value = event.conversation_id as number;
                       }
                       if (event.memory_updated) {
                         lastMemoryUpdated.value = true;
@@ -1167,6 +1292,14 @@ export function useAIChat(options: UseAIChatOptions) {
     chatMessages,
     inputMessage,
     selectedKBIds,
+    agentKBBindings,
+    loadAgentKBBindings,
+    allAgentsVariables,
+    ensureAgentVarsLoaded,
+    agentsWithVarsInConversation,
+    applyVariables,
+    resetVariables,
+    clearConversationVarsCache,
     sending,
     streaming,
     messagesContainer,

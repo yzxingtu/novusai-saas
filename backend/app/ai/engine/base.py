@@ -211,7 +211,9 @@ class BaseEngine(ABC):
         if skill_result is None:
             from app.ai.skills.resolver import resolve_for_agent
             skill_result = await resolve_for_agent(
-                self.db, agent, tenant_id=request.tenant_id,
+                self.db, agent,
+                tenant_id=request.tenant_id,
+                user_role=getattr(request, "user_role", None),
             )
 
         # 2. 构建消息列表
@@ -223,16 +225,24 @@ class BaseEngine(ABC):
             messages.extend(request.messages)
 
         # 3. RAG 知识库注入
-        from app.ai.rag_injector import inject_rag_context, merge_kb_ids
+        # 双路合并：Agent 绑定表（主要）+ 用户 @ 选择（辅助）
+        from app.ai.rag_injector import (
+            inject_rag_context,
+            load_agent_kb_bindings,
+            merge_kb_ids,
+        )
         rag_sources = None
-        skill_kb_ids = skill_result.knowledge_base_ids if skill_result else None
-        skill_rag_config = skill_result.rag_config if skill_result else None
-        merged_kb_ids = merge_kb_ids(skill_kb_ids, request.knowledge_base_ids)
+        agent_kb_ids, agent_kb_weights = await load_agent_kb_bindings(
+            self.db, agent.id,
+        )
+        merged_kb_ids = merge_kb_ids(agent_kb_ids, request.knowledge_base_ids)
+        effective_rag_config = agent.rag_config or {}
         if merged_kb_ids:
             messages, rag_sources = await inject_rag_context(
                 self.db, agent, messages, request.tenant_id,
                 kb_ids=merged_kb_ids,
-                rag_config=skill_rag_config,
+                rag_config=effective_rag_config or None,
+                kb_weights=agent_kb_weights,
             )
 
         # 4. 获取工具列表 + 优化

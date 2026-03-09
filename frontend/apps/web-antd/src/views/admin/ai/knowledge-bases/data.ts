@@ -97,9 +97,6 @@ export function getFormDefaults() {
     chunk_size: 512,
     chunk_overlap: 50,
     chunk_strategy: 'recursive',
-    search_mode: 'hybrid',
-    top_k: 5,
-    score_threshold: 0.5,
   };
 }
 
@@ -267,24 +264,6 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
           },
         ),
         help: $t('admin.knowledgeBase.help.chunkOverlap'),
-      },
-      {
-        ...numberField('top_k', $t('admin.knowledgeBase.field.topK'), {
-          min: 1,
-          max: 20,
-        }),
-        help: $t('admin.knowledgeBase.help.topK'),
-      },
-      {
-        ...numberField(
-          'score_threshold',
-          $t('admin.knowledgeBase.field.scoreThreshold'),
-          {
-            min: 0,
-            max: 1,
-          },
-        ),
-        help: $t('admin.knowledgeBase.help.scoreThreshold'),
       },
     );
   }

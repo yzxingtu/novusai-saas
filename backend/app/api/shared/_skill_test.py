@@ -33,9 +33,7 @@ async def test_skill(db: AsyncSession, skill: Skill) -> dict[str, Any]:
     config = skill.config or {}
 
     try:
-        if skill_type == SkillTypeEnum.KNOWLEDGE_BASE.value:
-            return await _test_knowledge_base(db, skill, config)
-        elif skill_type == SkillTypeEnum.DATA_INTELLIGENCE.value:
+        if skill_type == SkillTypeEnum.DATA_INTELLIGENCE.value:
             return await _test_data_intelligence(db, skill, config)
         elif skill_type == SkillTypeEnum.TOOLKIT.value:
             return await _test_toolkit(db, skill)
@@ -63,54 +61,6 @@ async def test_skill(db: AsyncSession, skill: Skill) -> dict[str, Any]:
             "message": str(exc),
             "details": None,
         }
-
-
-async def _test_knowledge_base(
-    db: AsyncSession,
-    skill: Skill,
-    config: dict[str, Any],
-) -> dict[str, Any]:
-    """测试知识库 Skill：检查知识库是否存在且有文档"""
-    kb_ids = config.get("knowledge_base_ids", [])
-    if not kb_ids:
-        return {
-            "success": False,
-            "message": _("skill.test.kb_no_ids"),
-            "details": None,
-        }
-
-    from app.repositories.ai.knowledge_base_repository import (
-        AdminKnowledgeBaseRepository,
-    )
-    kb_repo = AdminKnowledgeBaseRepository(db)
-
-    found_kbs = []
-    missing_ids = []
-    total_docs = 0
-
-    for kb_id in kb_ids:
-        kb = await kb_repo.get_by_id(kb_id)
-        if kb:
-            doc_count = 0
-            if hasattr(kb, "document_count"):
-                doc_count = kb.document_count or 0
-            found_kbs.append({"id": kb.id, "name": kb.name, "documents": doc_count})
-            total_docs += doc_count
-        else:
-            missing_ids.append(kb_id)
-
-    if missing_ids:
-        return {
-            "success": False,
-            "message": _("skill.test.kb_missing", ids=str(missing_ids)),
-            "details": {"found": found_kbs, "missing": missing_ids},
-        }
-
-    return {
-        "success": True,
-        "message": _("skill.test.kb_ok", count=len(found_kbs), docs=total_docs),
-        "details": {"knowledge_bases": found_kbs},
-    }
 
 
 async def _test_data_intelligence(

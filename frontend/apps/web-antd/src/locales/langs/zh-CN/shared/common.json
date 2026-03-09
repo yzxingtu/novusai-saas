@@ -116,5 +116,20 @@
     "perPage": "条/页",
     "prev": "上一页",
     "next": "下一页"
+  },
+  "inputVarsEditor": {
+    "colName": "变量标识",
+    "colLabel": "显示名称",
+    "colType": "类型",
+    "colRequired": "必填",
+    "colDefault": "默认值",
+    "typeString": "单行文本",
+    "typeText": "多行文本",
+    "typeNumber": "数字",
+    "namePlaceholder": "如 user_name",
+    "labelPlaceholder": "如 用户姓名",
+    "defaultPlaceholder": "默认值（可选）",
+    "addVar": "添加变量",
+    "empty": "暂无变量，点击下方按钮添加"
   }
 }

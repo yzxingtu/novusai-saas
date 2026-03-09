@@ -45,7 +45,12 @@ import { $t } from '#/locales';
 import { formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
-import { getExecutionModeText, getStatusText } from './data';
+import {
+  getAudienceColor,
+  getAudienceText,
+  getExecutionModeText,
+  getStatusText,
+} from './data';
 import AgentForm from './modules/AgentForm.vue';
 import VersionHistory from './modules/VersionHistory.vue';
 
@@ -261,6 +266,16 @@ const cleanupPageOps = registerPageOperations('tenant.ai.agents', [
       return { success: true, message: `Searched for: ${searchKeyword.value}` };
     },
   },
+  {
+    name: 'view_recycle_bin',
+    label: $t('shared.pageOperation.restoreRecord'),
+    description: 'Open the recycle bin drawer',
+    readonly: true,
+    handler: async () => {
+      openRecycleBin();
+      return { success: true, message: 'Recycle bin opened' };
+    },
+  },
 ]);
 
 onUnmounted(() => {
@@ -461,6 +476,15 @@ onUnmounted(() => {
               </button>
               <template #overlay>
                 <Menu>
+                  <MenuItem
+                    key="detail"
+                    @click="router.push(`/tenant/ai/agents/${agent.id}`)"
+                  >
+                    <div class="flex items-center gap-2">
+                      <IconifyIcon icon="lucide:settings" class="size-4" />
+                      <span>{{ $t('tenant.ai.agent.detail.title') }}</span>
+                    </div>
+                  </MenuItem>
                   <MenuItem key="edit" @click="agentFormRef?.openEdit(agent)">
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:pencil" class="size-4" />
@@ -478,6 +502,24 @@ onUnmounted(() => {
                         class="size-4 text-success"
                       />
                       <span>{{ $t('tenant.ai.agent.actions.publish') }}</span>
+                    </div>
+                  </MenuItem>
+                  <MenuItem
+                    key="routing"
+                    @click="
+                      router.push(
+                        `/tenant/ai/agents/${agent.id}?tab=routing`,
+                      )
+                    "
+                  >
+                    <div class="flex items-center gap-2">
+                      <IconifyIcon
+                        icon="lucide:git-branch"
+                        class="size-4"
+                      />
+                      <span>{{
+                        $t('tenant.ai.agent.detail.routing')
+                      }}</span>
                     </div>
                   </MenuItem>
                   <MenuItem key="versions" @click="onVersions(agent)">
@@ -539,6 +581,18 @@ onUnmounted(() => {
               </div>
             </Tooltip>
 
+            <!-- Target Audience -->
+            <Tag
+              :color="getAudienceColor(agent.target_audience)"
+              class="!mr-0 !text-[11px]"
+              style="padding: 0 6px; line-height: 20px"
+            >
+              <div class="flex items-center gap-1">
+                <IconifyIcon icon="lucide:users" class="size-3" />
+                <span>{{ getAudienceText(agent.target_audience) }}</span>
+              </div>
+            </Tag>
+
             <Tag
               v-for="pkg in (agent.skill_packages || []).slice(0, 3)"
               :key="pkg.id"
@@ -581,13 +635,22 @@ onUnmounted(() => {
             <Tooltip :title="agent.created_at">
               <span>{{ formatRelativeTime(agent.created_at) }}</span>
             </Tooltip>
-            <button
-              class="flex items-center gap-1 rounded-md px-2 py-1 text-primary transition-colors hover:bg-primary/10 md:opacity-0 md:group-hover:opacity-100"
-              @click="agentFormRef?.openEdit(agent)"
-            >
-              <IconifyIcon icon="lucide:pencil" class="size-3" />
-              <span>{{ $t('common.edit') }}</span>
-            </button>
+            <div class="flex items-center gap-2">
+              <button
+                class="flex items-center gap-1 rounded-md px-2 py-1 text-primary transition-colors hover:bg-primary/10"
+                @click="router.push(`/tenant/ai/agents/${agent.id}`)"
+              >
+                <IconifyIcon icon="lucide:settings" class="size-3" />
+                <span>{{ $t('tenant.ai.agent.detail.title') }}</span>
+              </button>
+              <button
+                class="flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                @click="agentFormRef?.openEdit(agent)"
+              >
+                <IconifyIcon icon="lucide:pencil" class="size-3" />
+                <span>{{ $t('common.edit') }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -618,6 +681,7 @@ onUnmounted(() => {
         :current="currentPage"
         :page-size="pageSize"
         :total="total"
+        :page-size-options="['12', '24', '48']"
         :show-size-changer="false"
         size="small"
         @change="onPageChange"

@@ -4,6 +4,7 @@
 
 
 from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import selectinload
 
 from app.core.base_model import utc_now
@@ -185,7 +186,7 @@ class AgentRepository(TenantRepository[Agent]):
                 AgentAccess.access_type == AccessTypeEnum.ALL_USERS.value,
                 and_(
                     AgentAccess.access_type == AccessTypeEnum.SPECIFIC_USERS.value,
-                    AgentAccess.user_ids.contains([user_id]),
+                    AgentAccess.user_ids.cast(JSONB).contains([user_id]),
                 ),
             )
         )
@@ -200,6 +201,8 @@ class AgentRepository(TenantRepository[Agent]):
                 }),
             )
         )
+        # 用户端只能看到 target_audience='all' 的智能体（三端隔离）
+        query = query.where(self.model.target_audience == "all")
 
         extra_forced = [
             f for f in (forced_filters or [])

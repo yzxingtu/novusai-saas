@@ -14,6 +14,7 @@ from app.core.base_schema import (
     BaseUpdateSchema,
 )
 from app.core.i18n import _
+from app.enums.common import AudienceEnum
 
 
 class SkillPackageCreate(BaseCreateSchema):
@@ -23,6 +24,8 @@ class SkillPackageCreate(BaseCreateSchema):
     description: str | None = Field(None, description=_("skill_package.field.description"))
     avatar: str | None = Field(None, max_length=255, description=_("skill_package.field.avatar"))
     scope: str = Field("all_tenants", description=_("skill_package.field.scope"))
+    target_audience: str = Field(AudienceEnum.ALL.value, max_length=20, description=_("skill_package.field.target_audience"))
+    is_recommended: bool = Field(False, description=_("skill_package.field.is_recommended"))
     bind_mode: str = Field("manual", description=_("skill_package.field.bind_mode"))
     tenant_id: int | None = Field(None, description="租户ID（scope=tenant 时必填）")
     is_active: bool = Field(True, description=_("skill_package.field.is_active"))
@@ -37,6 +40,8 @@ class SkillPackageUpdate(BaseUpdateSchema):
     description: str | None = Field(None, description=_("skill_package.field.description"))
     avatar: str | None = Field(None, max_length=255, description=_("skill_package.field.avatar"))
     scope: str | None = Field(None, description=_("skill_package.field.scope"))
+    target_audience: str | None = Field(None, max_length=20, description=_("skill_package.field.target_audience"))
+    is_recommended: bool | None = Field(None, description=_("skill_package.field.is_recommended"))
     bind_mode: str | None = Field(None, description=_("skill_package.field.bind_mode"))
     is_active: bool | None = Field(None, description=_("skill_package.field.is_active"))
     sort_order: int | None = Field(None, ge=0, description=_("skill_package.field.sort_order"))
@@ -51,6 +56,8 @@ class SkillPackageResponse(BaseResponseSchema):
     description: str | None = Field(None, description=_("skill_package.field.description"))
     avatar: str | None = Field(None, description=_("skill_package.field.avatar"))
     scope: str = Field(..., description=_("skill_package.field.scope"))
+    target_audience: str = Field(AudienceEnum.ALL.value, description=_("skill_package.field.target_audience"))
+    is_recommended: bool = Field(False, description=_("skill_package.field.is_recommended"))
     is_system: bool = Field(False, description=_("skill_package.field.is_system"))
     bind_mode: str = Field("manual", description=_("skill_package.field.bind_mode"))
     source_plugin: str | None = Field(None, description=_("skill_package.field.source_plugin"))

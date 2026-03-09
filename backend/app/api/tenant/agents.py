@@ -292,16 +292,14 @@ class TenantAgentController(TenantController):
             更新智能体访问权限配置
 
             权限: agent:update_access
+            注：访问配置存储在 AgentAccess（租户级独立表），允许对平台分配的智能体配置。
             """
-            await _ensure_tenant_owned_agent(db, tenant_admin.tenant_id, agent_id)
-
             service = AgentService(db, tenant_admin.tenant_id)
             config = await service.update_access_config(
                 agent_id=agent_id,
-                visibility=data.visibility,
-                access_type=data.access_type,
-                org_node_ids=data.org_node_ids,
-                user_ids=data.user_ids,
+                admin_role_ids=data.admin_role_ids,
+                tenant_role_ids=data.tenant_role_ids,
+                user_role_ids=data.user_role_ids,
             )
             await db.commit()
 
@@ -348,11 +346,13 @@ class TenantAgentController(TenantController):
 
         # 包含子路由模块
         from app.api.tenant._agent_batch import router as batch_router
+        from app.api.tenant._agent_kbs import router as kbs_router
         from app.api.tenant._agent_skills import router as skills_router
         from app.api.tenant._agent_version import router as version_router
 
         router.include_router(version_router)
         router.include_router(skills_router)
+        router.include_router(kbs_router)
         router.include_router(batch_router)
 
 

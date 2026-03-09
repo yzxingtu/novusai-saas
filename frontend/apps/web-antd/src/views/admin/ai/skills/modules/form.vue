@@ -17,7 +17,6 @@ import {
   useVbenForm,
 } from '#/adapter/form';
 import { getAITablePolicyListApi } from '#/api/admin/ai';
-import { getAdminKnowledgeBaseListApi } from '#/api/admin/knowledge-bases';
 import { getSkillPackageSelectApi } from '#/api/admin/skill-packages';
 import {
   getSkillDetailApi,
@@ -31,15 +30,6 @@ defineOptions({ name: 'AdminSkillForm' });
 
 const emits = defineEmits<{ success: [] }>();
 
-async function getKbSelectOptions() {
-  try {
-    const res = await getAdminKnowledgeBaseListApi({ 'page[size]': 100 });
-    return res.items.map((kb) => ({ label: kb.name, value: kb.id }));
-  } catch {
-    return [];
-  }
-}
-
 async function getTablePolicySelectOptions() {
   try {
     const res = await getAITablePolicyListApi({ 'page[size]': 200 });
@@ -52,47 +42,9 @@ async function getTablePolicySelectOptions() {
   }
 }
 
-function getSearchModeOptions() {
-  return [
-    {
-      label: $t('admin.ai.skill.knowledgeBaseConfig.searchModeOptions.vector'),
-      value: 'vector',
-    },
-    {
-      label: $t('admin.ai.skill.knowledgeBaseConfig.searchModeOptions.keyword'),
-      value: 'keyword',
-    },
-    {
-      label: $t('admin.ai.skill.knowledgeBaseConfig.searchModeOptions.hybrid'),
-      value: 'hybrid',
-    },
-  ];
-}
-
-function getRewriteStrategyOptions() {
-  return [
-    {
-      label: $t('admin.ai.skill.knowledgeBaseConfig.rewriteOptions.none'),
-      value: 'none',
-    },
-    {
-      label: $t('admin.ai.skill.knowledgeBaseConfig.rewriteOptions.multi'),
-      value: 'multi',
-    },
-    {
-      label: $t('admin.ai.skill.knowledgeBaseConfig.rewriteOptions.hyde'),
-      value: 'hyde',
-    },
-  ];
-}
-
 function getSkillTypeOptions(currentType?: string) {
   const predefined = [
     { label: $t('admin.ai.skill.type_options.toolkit'), value: 'toolkit' },
-    {
-      label: $t('admin.ai.skill.type_options.knowledge_base'),
-      value: 'knowledge_base',
-    },
     {
       label: $t('admin.ai.skill.type_options.data_intelligence'),
       value: 'data_intelligence',
@@ -141,7 +93,6 @@ const pluginTools = ref<PluginToolDefinition[]>([]);
 
 const isToolkit = (v: Record<string, unknown>) =>
   v.type === 'toolkit' && !isPluginSkill.value;
-const isKb = (v: Record<string, unknown>) => v.type === 'knowledge_base';
 const isDi = (v: Record<string, unknown>) => v.type === 'data_intelligence';
 const isDiNonSystem = (v: Record<string, unknown>) =>
   v.type === 'data_intelligence' && !isSystemSkill.value;
@@ -307,7 +258,7 @@ function useFormSchema() {
       dependencies: {
         triggerFields: ['type'],
         if: (values: Record<string, unknown>) =>
-          values.type !== 'builtin' && values.type !== 'knowledge_base',
+          values.type !== 'builtin',
       },
     },
     switchField('is_active', $t('admin.ai.skill.isActive'), {
@@ -350,90 +301,6 @@ function useFormSchema() {
         triggerFields: ['type'],
         if: isToolkit,
       },
-    },
-    // ============ knowledge_base 专属字段 ============
-    {
-      component: 'Divider',
-      fieldName: '_kb_config_divider',
-      label: '',
-      hideLabel: true,
-      componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({
-        default: () => $t('admin.ai.skill.knowledgeBaseConfig.title'),
-      }),
-      dependencies: { triggerFields: ['type'], if: isKb },
-    },
-    {
-      component: 'ApiSelect',
-      componentProps: {
-        allowClear: true,
-        api: getKbSelectOptions,
-        class: 'w-full',
-        mode: 'multiple',
-        placeholder: $t(
-          'admin.ai.skill.knowledgeBaseConfig.selectKbPlaceholder',
-        ),
-        showSearch: true,
-        optionFilterProp: 'label',
-      },
-      fieldName: 'kb_ids',
-      label: $t('admin.ai.skill.knowledgeBaseConfig.selectKb'),
-      help: $t('admin.ai.skill.knowledgeBaseConfig.selectKbHelp'),
-      dependencies: { triggerFields: ['type'], if: isKb },
-    },
-    {
-      ...switchField(
-        'rag_enabled',
-        $t('admin.ai.skill.knowledgeBaseConfig.ragEnabled'),
-      ),
-      dependencies: { triggerFields: ['type'], if: isKb },
-    },
-    {
-      ...numberField(
-        'rag_top_k',
-        $t('admin.ai.skill.knowledgeBaseConfig.topK'),
-        { min: 1, max: 20 },
-      ),
-      dependencies: { triggerFields: ['type'], if: isKb },
-    },
-    {
-      ...numberField(
-        'rag_score_threshold',
-        $t('admin.ai.skill.knowledgeBaseConfig.scoreThreshold'),
-        { min: 0, max: 1 },
-      ),
-      dependencies: { triggerFields: ['type'], if: isKb },
-    },
-    {
-      ...select(
-        'rag_search_mode',
-        $t('admin.ai.skill.knowledgeBaseConfig.searchMode'),
-        { options: getSearchModeOptions() },
-      ),
-      dependencies: { triggerFields: ['type'], if: isKb },
-    },
-    {
-      ...select(
-        'rag_rewrite_strategy',
-        $t('admin.ai.skill.knowledgeBaseConfig.rewriteStrategy'),
-        { options: getRewriteStrategyOptions() },
-      ),
-      dependencies: { triggerFields: ['type'], if: isKb },
-    },
-    {
-      ...switchField(
-        'rag_reranker_enabled',
-        $t('admin.ai.skill.knowledgeBaseConfig.rerankerEnabled'),
-      ),
-      dependencies: { triggerFields: ['type'], if: isKb },
-    },
-    {
-      ...numberField(
-        'rag_context_token_ratio',
-        $t('admin.ai.skill.knowledgeBaseConfig.contextTokenRatio'),
-        { min: 0, max: 1 },
-      ),
-      dependencies: { triggerFields: ['type'], if: isKb },
     },
     // ============ builtin 专属字段 ============
     {
@@ -945,22 +812,6 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
 
         break;
       }
-      case 'knowledge_base': {
-        config = {
-          knowledge_base_ids: values.kb_ids || [],
-          rag_config: {
-            enabled: values.rag_enabled ?? true,
-            top_k: values.rag_top_k ?? 5,
-            score_threshold: values.rag_score_threshold ?? 0.5,
-            search_mode: values.rag_search_mode || 'hybrid',
-            rewrite_strategy: values.rag_rewrite_strategy || 'none',
-            reranker_enabled: values.rag_reranker_enabled ?? false,
-            context_token_ratio: values.rag_context_token_ratio ?? 0.3,
-          },
-        };
-
-        break;
-      }
       case 'toolkit': {
         const valvesConfig = values.valves_config as
           | Record<string, unknown>
@@ -993,7 +844,6 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
   },
   toFormValues: (data) => {
     const cfg = (data.config ?? {}) as Record<string, unknown>;
-    const ragCfg = (cfg.rag_config ?? {}) as Record<string, unknown>;
 
     isSystemSkill.value = !!data.is_system;
 
@@ -1023,7 +873,6 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
         'data_intelligence',
         'email',
         'http',
-        'knowledge_base',
         'toolkit',
       ]);
       if (data.id && !standardTypes.has(data.type)) {
@@ -1042,14 +891,6 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
       is_active: data.is_active,
       toolkit_content: data.toolkit_content || '',
       valves_config: (cfg.valves as Record<string, unknown>) || {},
-      kb_ids: (cfg.knowledge_base_ids as number[]) || [],
-      rag_enabled: (ragCfg.enabled as boolean) ?? true,
-      rag_top_k: (ragCfg.top_k as number) ?? 5,
-      rag_score_threshold: (ragCfg.score_threshold as number) ?? 0.5,
-      rag_search_mode: (ragCfg.search_mode as string) || 'hybrid',
-      rag_rewrite_strategy: (ragCfg.rewrite_strategy as string) || 'none',
-      rag_reranker_enabled: (ragCfg.reranker_enabled as boolean) ?? false,
-      rag_context_token_ratio: (ragCfg.context_token_ratio as number) ?? 0.3,
       di_table_policy_ids: (cfg.table_policy_ids as number[]) || [],
       di_max_rows_override: (cfg.max_rows_override as number) ?? 0,
       // http fields

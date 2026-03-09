@@ -18,6 +18,7 @@ export interface AIAgentInfo {
   description: null | string;
   avatar: null | string;
   scope: string;
+  target_audience: string;
   status: string;
   execution_mode: string;
   is_system: boolean;
@@ -35,6 +36,7 @@ export interface AIAgentInfo {
   routing_config: null | Record<string, unknown>;
   quota_config: null | Record<string, unknown>;
   context_config: null | Record<string, unknown>;
+  input_variables: null | Record<string, unknown>[];
   assigned_tenant_ids?: number[];
   created_at: string;
   updated_at: string;
@@ -45,6 +47,7 @@ export interface AIAgentCreateRequest {
   name: string;
   description?: null | string;
   scope: string;
+  target_audience?: string;
   tenant_id?: null | number;
   tenant_ids?: number[];
   model_id: number;
@@ -61,6 +64,7 @@ export interface AIAgentUpdateRequest {
   description?: null | string;
   avatar?: null | string;
   scope?: string;
+  target_audience?: string;
   tenant_id?: null | number;
   tenant_ids?: number[];
   model_id?: number;
@@ -289,6 +293,102 @@ export async function unbindAIAgentSkillApi(
 }
 
 // ============================================================
+// 类型定义 - 智能体知识库绑定
+// ============================================================
+
+/** 知识库绑定信息 */
+export interface AIAgentKBBindingInfo {
+  id: number;
+  agent_id: number;
+  knowledge_base_id: number;
+  weight: number;
+  enabled: boolean;
+  sort_order: number;
+  kb_name: string | null;
+  kb_description: string | null;
+  kb_scope: string | null;
+  kb_visibility: string | null;
+  kb_document_count: number | null;
+}
+
+/** 绑定知识库请求 */
+export interface AIAgentKBBindRequest {
+  knowledge_base_id: number;
+  weight?: number;
+  sort_order?: number;
+  enabled?: boolean;
+}
+
+/** 批量绑定知识库请求 */
+export interface AIAgentKBBatchBindRequest {
+  knowledge_base_ids: number[];
+}
+
+/** 更新知识库绑定请求 */
+export interface AIAgentKBBindingUpdateRequest {
+  weight?: number | null;
+  enabled?: boolean | null;
+  sort_order?: number | null;
+}
+
+// ============================================================
+// API 接口 - 智能体知识库绑定（平台）
+// ============================================================
+
+/** 获取智能体知识库绑定列表 */
+export async function getAIAgentKBsApi(
+  agentId: number,
+): Promise<AIAgentKBBindingInfo[]> {
+  return requestClient.get<AIAgentKBBindingInfo[]>(
+    `${AGENT_PREFIX}/${agentId}/knowledge-bases`,
+  );
+}
+
+/** 绑定知识库到智能体 */
+export async function bindAIAgentKBApi(
+  agentId: number,
+  data: AIAgentKBBindRequest,
+): Promise<AIAgentKBBindingInfo> {
+  return requestClient.post<AIAgentKBBindingInfo>(
+    `${AGENT_PREFIX}/${agentId}/knowledge-bases`,
+    data,
+  );
+}
+
+/** 批量绑定知识库（替换模式） */
+export async function batchBindAIAgentKBsApi(
+  agentId: number,
+  data: AIAgentKBBatchBindRequest,
+): Promise<AIAgentKBBindingInfo[]> {
+  return requestClient.put<AIAgentKBBindingInfo[]>(
+    `${AGENT_PREFIX}/${agentId}/knowledge-bases/batch`,
+    data,
+  );
+}
+
+/** 更新知识库绑定配置 */
+export async function updateAIAgentKBBindingApi(
+  agentId: number,
+  bindingId: number,
+  data: AIAgentKBBindingUpdateRequest,
+): Promise<AIAgentKBBindingInfo> {
+  return requestClient.put<AIAgentKBBindingInfo>(
+    `${AGENT_PREFIX}/${agentId}/knowledge-bases/${bindingId}`,
+    data,
+  );
+}
+
+/** 解绑知识库 */
+export async function unbindAIAgentKBApi(
+  agentId: number,
+  knowledgeBaseId: number,
+): Promise<void> {
+  await requestClient.delete(
+    `${AGENT_PREFIX}/${agentId}/knowledge-bases/${knowledgeBaseId}`,
+  );
+}
+
+// ============================================================
 // API 接口 - 发布 / 版本管理
 // ============================================================
 
@@ -350,11 +450,10 @@ export async function getAIAgentVersionDetailApi(
 
 /** 访问权限配置 */
 export interface AIAgentAccessConfig {
-  visibility: string;
-  access_type: string;
-  org_node_ids: null | number[];
-  user_ids: null | number[];
-  access_rules: Array<Record<string, unknown>>;
+  agent_id: number;
+  admin_role_ids: null | number[];
+  tenant_role_ids: null | number[];
+  user_role_ids: null | number[];
 }
 
 /** 获取访问权限配置 */
@@ -370,10 +469,9 @@ export async function getAIAgentAccessApi(
 export async function updateAIAgentAccessApi(
   agentId: number,
   data: {
-    access_type?: string;
-    org_node_ids?: null | number[];
-    user_ids?: null | number[];
-    visibility?: string;
+    admin_role_ids?: null | number[];
+    tenant_role_ids?: null | number[];
+    user_role_ids?: null | number[];
   },
 ): Promise<AIAgentAccessConfig> {
   return requestClient.put<AIAgentAccessConfig>(

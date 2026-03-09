@@ -15,6 +15,8 @@ export interface TenantSkillPackageInfo {
   description: null | string;
   avatar: null | string;
   scope: string;
+  target_audience: string;
+  is_recommended: boolean;
   is_system: boolean;
   is_active: boolean;
   sort_order: number;
@@ -42,6 +44,27 @@ export interface SkillPackageUpdateParams {
   avatar?: null | string;
   is_active?: boolean;
   sort_order?: number;
+}
+
+/** 推荐技能包信息 */
+export interface RecommendedSkillPackageInfo {
+  id: number;
+  name: string;
+  description: null | string;
+  avatar: null | string;
+  scope: string;
+  target_audience: string;
+  is_recommended: boolean;
+  is_system: boolean;
+  skill_count: number;
+  source_plugin: null | string;
+}
+
+/** 获取推荐技能包列表 */
+export function getRecommendedSkillPackagesApi() {
+  return requestClient.get<RecommendedSkillPackageInfo[]>(
+    `${BASE_URL}/recommended`,
+  );
 }
 
 /** 获取技能包列表 */

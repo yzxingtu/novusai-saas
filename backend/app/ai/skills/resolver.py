@@ -1,14 +1,14 @@
 """
 Skill 解析器
 
-将 Skill 模型转换为 ToolDefinition 列表，同时提取知识库 IDs 等附加信息。
+将 Skill 模型转换为 ToolDefinition 列表。
 
 转换规则：
-- knowledge_base → 0 个 ToolDefinition（通过 RAG 注入 system_prompt）
 - data_intelligence → 1~4 个 ToolDefinition（data_query + CRUD）
 - toolkit → N 个 ToolDefinition（Tools 类的每个公开方法一个）
 - builtin → 1 个 ToolDefinition（或 N 个，通过 config.tools 列表）
 
+知识库绑定已迁移至 AgentKnowledgeBaseBinding 中间表，不再通过 Skill 解析。
 未知类型走插件解析路径。
 """
 
@@ -22,7 +22,7 @@ from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
 from app.enums.agent import SkillTypeEnum, ToolTypeEnum
-from app.enums.common import ResourceScopeEnum
+from app.enums.common import AudienceEnum, ResourceScopeEnum, UserRoleEnum
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,13 +39,9 @@ class SkillResolveResult:
 
     Attributes:
         tools: 面向 LLM 的 ToolDefinition 列表
-        knowledge_base_ids: 从 knowledge_base 类型 Skill 提取的知识库 ID 列表
-        rag_config: RAG 配置（合并所有 knowledge_base Skill 的配置）
     """
 
     tools: list[ToolDefinition] = field(default_factory=list)
-    knowledge_base_ids: list[int] = field(default_factory=list)
-    rag_config: dict[str, Any] = field(default_factory=dict)
     tool_consent_modes: dict[str, str] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 
@@ -107,8 +103,8 @@ class SkillResolver:
         self._ensure_unique_tool_names(result.tools)
 
         logger.info(
-            "Resolved %d skills → %d tools, %d knowledge_bases",
-            len(skills), len(result.tools), len(result.knowledge_base_ids),
+            "Resolved %d skills → %d tools",
+            len(skills), len(result.tools),
         )
         return result
 
@@ -168,9 +164,7 @@ class SkillResolver:
 
         skill_type = skill.type
 
-        if skill_type == SkillTypeEnum.KNOWLEDGE_BASE.value:
-            self._resolve_knowledge_base(skill, config, result)
-        elif skill_type == SkillTypeEnum.DATA_INTELLIGENCE.value:
+        if skill_type == SkillTypeEnum.DATA_INTELLIGENCE.value:
             await self._resolve_data_intelligence(skill, config, result)
         elif skill_type == SkillTypeEnum.TOOLKIT.value:
             self._resolve_toolkit(skill, config, result)
@@ -187,40 +181,6 @@ class SkillResolver:
                 "Unknown skill type: %s (skill=%d), no resolver available",
                 skill_type, skill.id,
             )
-
-    # ========================================
-    # 知识库 Skill
-    # ========================================
-
-    def _resolve_knowledge_base(
-        self,
-        skill: Skill,
-        config: dict[str, Any],
-        result: SkillResolveResult,
-    ) -> None:
-        """
-        知识库 Skill → 0 个 ToolDefinition
-
-        不生成工具，而是提取 knowledge_base_ids 供 RAG 注入。
-        """
-        _ = skill
-        kb_ids = config.get("knowledge_base_ids", [])
-        if isinstance(kb_ids, list):
-            for kid in kb_ids:
-                if isinstance(kid, int) and kid not in result.knowledge_base_ids:
-                    result.knowledge_base_ids.append(kid)
-
-        # 合并 RAG 配置（存储在 config.rag_config 子字典中）
-        rag_cfg = config.get("rag_config", {})
-        if isinstance(rag_cfg, dict):
-            rag_keys = [
-                "enabled", "top_k", "score_threshold", "search_mode",
-                "rewrite_strategy", "reranker_enabled",
-                "context_token_ratio",
-            ]
-            for key in rag_keys:
-                if key in rag_cfg:
-                    result.rag_config[key] = rag_cfg[key]
 
     # ========================================
     # 数据智能 Skill
@@ -907,10 +867,43 @@ class SkillResolver:
         return params
 
 
+def _audience_allows_role(target_audience: str, user_role: str | None) -> bool:
+    """
+    判断给定的 target_audience 是否允许该 user_role 访问。
+
+    Args:
+        target_audience: AudienceEnum 值（all / admin_only / admin_tenant）
+        user_role: UserRoleEnum 值（platform_admin / tenant_admin / tenant_user）或 None
+
+    Returns:
+        True 表示允许访问，False 表示过滤掉
+    """
+    # 未传 user_role（如 admin 端直调）→ 允许通过（兼容旧路径）
+    if user_role is None:
+        return True
+
+    if target_audience == AudienceEnum.ALL.value:
+        return True
+
+    if target_audience == AudienceEnum.ADMIN_TENANT.value:
+        return user_role in (
+            UserRoleEnum.PLATFORM_ADMIN.value,
+            UserRoleEnum.TENANT_ADMIN.value,
+        )
+
+    if target_audience == AudienceEnum.ADMIN_ONLY.value:
+        return user_role == UserRoleEnum.PLATFORM_ADMIN.value
+
+    # 未知值兜底：允许通过
+    logger.warning("Unknown target_audience value: %s", target_audience)
+    return True
+
+
 async def _load_auto_bind_packages(
     db: AsyncSession,
     agent_scope: str,
     tenant_id: int | None,
+    user_role: str | None = None,
 ) -> list:
     """
     加载 bind_mode=auto 的技能包（按 agent scope 匹配规则过滤）
@@ -919,6 +912,7 @@ async def _load_auto_bind_packages(
     - admin_only agent → auto 包 scope IN (admin_only, admin_and_all, admin_and_assigned)
     - all_tenants agent → auto 包 scope IN (all_tenants, admin_and_all)
                          + scope IN (assigned_tenants, admin_and_assigned) 且在分配表中
+    - user_role 非空时，按 target_audience 过滤包（三端隔离）
     """
     from sqlalchemy import and_, or_, select
 
@@ -990,13 +984,26 @@ async def _load_auto_bind_packages(
         )
 
     result = await db.execute(stmt)
-    return list(result.scalars().all())
+    packages = list(result.scalars().all())
+
+    # 按 target_audience 过滤（user_role 不为 None 时才过滤）
+    if user_role is not None:
+        packages = [
+            pkg for pkg in packages
+            if _audience_allows_role(
+                getattr(pkg, "target_audience", AudienceEnum.ALL.value),
+                user_role,
+            )
+        ]
+
+    return packages
 
 
 async def resolve_for_agent(
     db: AsyncSession,
     agent: Any,
     tenant_id: int | None = None,
+    user_role: str | None = None,
 ) -> SkillResolveResult | None:
     """
     从 AgentSkillBinding 加载并解析 Agent 绑定的所有 Skill
@@ -1012,6 +1019,8 @@ async def resolve_for_agent(
         db: 数据库会话
         agent: Agent 模型实例
         tenant_id: 租户 ID（admin 级 Agent 可为 None）
+        user_role: 调用方角色（UserRoleEnum 值，用于 target_audience 三端过滤）
+                   传 None 则跳过过滤（兼容旧路径，admin 端直调）
 
     Returns:
         SkillResolveResult 或 None（无绑定时）
@@ -1033,7 +1042,7 @@ async def resolve_for_agent(
     auto_packages: list[SkillPackage] = []
     try:
         auto_packages = await _load_auto_bind_packages(
-            db, agent_scope, agent_tenant_id,
+            db, agent_scope, agent_tenant_id, user_role=user_role,
         )
     except SQLAlchemyError as exc:
         logger.warning(
@@ -1089,10 +1098,15 @@ async def resolve_for_agent(
         raise
 
     # ── Phase 1.5: 合并 auto + explicit，去重（explicit 优先） ──
-    # explicit binding 的 package_ids 优先
+    # explicit binding 的 package_ids 优先（按 target_audience 过滤）
     explicit_package_ids: set[int] = set()
     for binding in bindings:
         if binding.package and binding.package.is_active and not binding.package.is_deleted:
+            pkg_audience = getattr(
+                binding.package, "target_audience", AudienceEnum.ALL.value
+            )
+            if not _audience_allows_role(pkg_audience, user_role):
+                continue
             explicit_package_ids.add(binding.package.id)
 
     # 如果没有 explicit 也没有 auto，返回 None
@@ -1236,14 +1250,13 @@ async def resolve_for_agent(
         resolve_result.tools = hook_ctx.get("tool_definitions", resolve_result.tools)
 
     logger.info(
-        "Resolved skills for agent=%s: packages=%s, tools=%s, kb_ids=%s, warnings=%d",
+        "Resolved skills for agent=%s: packages=%s, tools=%s, warnings=%d",
         agent.name if agent else "?",
         package_ids,
         [t.name for t in resolve_result.tools],
-        resolve_result.knowledge_base_ids,
         len(resolve_result.warnings),
     )
     return resolve_result
 
 
-__all__ = ["SkillResolver", "SkillResolveResult", "resolve_for_agent"]
+__all__ = ["SkillResolver", "SkillResolveResult", "resolve_for_agent", "_audience_allows_role"]

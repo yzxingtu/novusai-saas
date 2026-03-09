@@ -32,9 +32,6 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<KnowledgeBaseItem>({
     'chunk_size',
     'chunk_overlap',
     'chunk_strategy',
-    'search_mode',
-    'top_k',
-    'score_threshold',
   ],
   onSuccess: () => {
     emits('success');

@@ -10,6 +10,7 @@ import type { PkgOption } from '../data';
 import type { AIAgentInfo, AIAgentSkillBindingInfo } from '#/api/admin/ai';
 
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -21,6 +22,7 @@ import {
   getAIAgentDetailApi,
   getAIAgentSkillsApi,
 } from '#/api/admin/ai';
+import { getRecommendedSkillPackagesApi } from '#/api/admin/skill-packages';
 import { extractScopePayload } from '#/components/business/scope-select';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
@@ -35,6 +37,7 @@ import {
 defineOptions({ name: 'AdminAgentForm' });
 
 const emits = defineEmits<{ success: [] }>();
+const router = useRouter();
 
 const isSystemAgent = ref(false);
 const pendingPackageIds = ref<number[]>([]);
@@ -43,6 +46,7 @@ const selectedPackages = ref<Array<{ label: string; value: number }>>([]);
 const packageOptions = ref<PkgOption[]>([]);
 const packageLoading = ref(false);
 const autoBindPackages = ref<AIAgentSkillBindingInfo[]>([]);
+const recommendedPackageIds = ref<number[]>([]);
 
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(),
@@ -53,15 +57,21 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
   useCrudDrawer<AIAgentInfo>({
     formApi,
     apiPath: '/admin/ai/agents',
-    schema: (edit) => useFormSchema(edit, edit && isSystemAgent.value),
+    schema: (edit) => useFormSchema(edit, edit && isSystemAgent.value, !edit),
     defaults: getFormDefaults,
     transform: (values, edit) => {
-      // suggested_questions: newline-separated text → JSON array
-      const sqText = (values.suggested_questions as string) || '';
-      const sqArray = sqText
-        .split('\n')
-        .map((s: string) => s.trim())
-        .filter((s: string) => s.length > 0);
+      // suggested_questions: JSON string → array (same format as tenant)
+      const sqText = (values.suggested_questions as string || '').trim();
+      let sqArray: string[] | null = null;
+      if (sqText && sqText !== '[]') {
+        try {
+          const parsed = JSON.parse(sqText);
+          sqArray = Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+        } catch {
+          // fallback: treat as single question
+          sqArray = sqText ? [sqText] : null;
+        }
+      }
 
       const result: Record<string, unknown> = {
         avatar: values.avatar || null,
@@ -72,11 +82,12 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
         max_tokens: values.max_tokens,
         top_p: values.top_p ?? null,
         welcome_message: values.welcome_message || null,
-        suggested_questions: sqArray.length > 0 ? sqArray : null,
+        suggested_questions: sqArray,
       };
       if (!edit || !isSystemAgent.value) {
         result.name = values.name;
         result.execution_mode = values.execution_mode;
+        result.target_audience = values.target_audience ?? 'admin_tenant';
         Object.assign(result, extractScopePayload(values));
       }
       return result;
@@ -91,6 +102,7 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
         tenant_ids:
           ((data as unknown as Record<string, unknown>)
             .assigned_tenant_ids as number[]) ?? [],
+        target_audience: data.target_audience ?? 'admin_tenant',
         model_id: data.model_id,
         execution_mode: data.execution_mode,
         system_prompt: data.system_prompt,
@@ -98,8 +110,8 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
         max_tokens: data.max_tokens,
         top_p: data.top_p,
         welcome_message: data.welcome_message || '',
-        suggested_questions: Array.isArray(data.suggested_questions)
-          ? data.suggested_questions.join('\n')
+        suggested_questions: Array.isArray(data.suggested_questions) && data.suggested_questions.length > 0
+          ? JSON.stringify(data.suggested_questions, null, 2)
           : '',
       };
     },
@@ -109,7 +121,17 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
         ?.is_system;
       isSystemAgent.value = sys;
       // Re-apply schema: initial schema() call ran before isSystemAgent was detected
-      formApi.setState({ schema: useFormSchema(isEdit.value, sys) });
+      formApi.setState({ schema: useFormSchema(isEdit.value, sys, !isEdit.value) });
+      // Pre-populate recommended packages for new agent creation
+      if (!isEdit.value && recommendedPackageIds.value.length > 0) {
+        const recOpts = packageOptions.value
+          .filter((p) => recommendedPackageIds.value.includes(p.value))
+          .map((p) => ({ label: p.label, value: p.value }));
+        if (recOpts.length > 0) {
+          selectedPackages.value = recOpts;
+          pendingPackageIds.value = recOpts.map((p) => p.value);
+        }
+      }
     },
     onSuccess: async () => {
       const agentId = recordId.value as number | undefined;
@@ -127,6 +149,9 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
         }
       }
       emits('success');
+      if (!isEdit.value && agentId) {
+        await router.push(`/admin/ai/agents/${agentId}`);
+      }
     },
     detailApi: async (id) => {
       const agent = await getAIAgentDetailApi(id as number);
@@ -195,7 +220,12 @@ const title = computed(() => {
 async function loadPackageOptions() {
   packageLoading.value = true;
   try {
-    packageOptions.value = await getPackageSelectOptions();
+    const [opts, recommended] = await Promise.all([
+      getPackageSelectOptions(),
+      getRecommendedSkillPackagesApi().catch(() => []),
+    ]);
+    packageOptions.value = opts;
+    recommendedPackageIds.value = recommended.map((p) => p.id);
   } finally {
     packageLoading.value = false;
   }

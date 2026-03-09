@@ -52,6 +52,8 @@ _PACKAGE_EXPORT_FIELDS = [
     "description",
     "avatar",
     "scope",
+    "target_audience",
+    "is_recommended",
     "is_system",
     "is_active",
     "sort_order",
@@ -180,11 +182,21 @@ async def import_skill_package(
             )
 
     # 创建技能包
+    # 租户端导入时 target_audience 重置为 'all'（租户不能创建 admin_only 包）
+    from app.enums.common import AudienceEnum
+    imported_target_audience = package_info.get("target_audience", AudienceEnum.ALL.value)
+    if target_tenant_id is not None:
+        # 租户端操作：强制不能保留 admin_only
+        if imported_target_audience == AudienceEnum.ADMIN_ONLY.value:
+            imported_target_audience = AudienceEnum.ALL.value
+
     new_pkg = SkillPackage(
         name=pkg_name,
         description=package_info.get("description"),
         avatar=package_info.get("avatar"),
         scope=target_scope,
+        target_audience=imported_target_audience,
+        is_recommended=package_info.get("is_recommended", False),
         tenant_id=target_tenant_id,
         is_system=False,  # 导入的不标记为系统
         is_active=package_info.get("is_active", True),

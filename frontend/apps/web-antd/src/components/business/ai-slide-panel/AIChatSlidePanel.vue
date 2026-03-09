@@ -9,11 +9,13 @@
  * - 路由结果提示 badge
  * - Pin 智能体 UI
  */
-import { computed, onMounted, onUnmounted, ref, toRef, watch, watchEffect } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, toRef, watch, watchEffect } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
 import { Input, message, Modal, Popover, Spin, Tooltip } from 'ant-design-vue';
+
+import type { InputVariable } from '#/components/business/ai-chat-panel/types';
 
 import ChatMessageItem from '#/components/business/ai-chat-panel/ChatMessageItem.vue';
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
@@ -92,6 +94,12 @@ const chat = useAIChat({
   pageContextResolver: () =>
     enrichPageContextWithOperations(resolvePageContext(props.pageContextKey)),
   pageSessionIdGetter: getActivePageSessionId,
+  onVariablesMissing: () => {
+    const agent = selectedAgent.value;
+    if (agent?.input_variables?.length) {
+      openVarsModal(agent.input_variables as InputVariable[], agent.id, agent.name);
+    }
+  },
 });
 
 const {
@@ -145,7 +153,90 @@ const {
   exportAsMarkdown,
   totalTokensUsed,
   supportsVision,
+  agentKBBindings,
+  loadAgentKBBindings,
+  allAgentsVariables,
+  ensureAgentVarsLoaded,
+  agentsWithVarsInConversation,
+  applyVariables,
 } = chat;
+
+// ============ Input Variables Modal ============
+
+/** Single-agent prompt modal (when routing detects missing required vars) */
+const varsModalVisible = ref(false);
+const varsFormValues = reactive<Record<string, string>>({});
+const varsModalAgent = ref<null | { id: number; name: string; vars: InputVariable[] }>(null);
+const varsPersist = ref(false);
+/** Pending send context: deferred until vars are filled */
+const pendingSendContext = ref<null | { agentId: number; pageContext: ReturnType<typeof resolvePageContext> }>(null);
+
+function openVarsModal(vars: InputVariable[], agentId: number, agentName: string) {
+  varsModalAgent.value = { id: agentId, name: agentName, vars };
+  ensureAgentVarsLoaded(agentId);
+  vars.forEach((v) => {
+    varsFormValues[v.name] = allAgentsVariables.value[agentId]?.[v.name] ?? v.default ?? '';
+  });
+  varsPersist.value = false;
+  varsModalVisible.value = true;
+}
+
+function onVarsConfirm() {
+  const required = varsModalAgent.value?.vars.filter((v) => v.required) ?? [];
+  const missing = required.filter((v) => !varsFormValues[v.name]?.trim());
+  if (missing.length > 0) {
+    message.warning(
+      $t('user.aiChat.varsModal.fillRequired', {
+        fields: missing.map((v) => v.label || v.name).join('、'),
+      }),
+    );
+    return;
+  }
+  const agentId = varsModalAgent.value!.id;
+  applyVariables(agentId, { ...varsFormValues }, varsPersist.value);
+  varsModalVisible.value = false;
+  // Execute deferred send if this modal was triggered by missing vars
+  if (pendingSendContext.value) {
+    const { agentId: pendingAgentId, pageContext } = pendingSendContext.value;
+    pendingSendContext.value = null;
+    sendMessage({ agentId: pendingAgentId, pageContext });
+  }
+}
+
+function onVarsCancel() {
+  varsModalVisible.value = false;
+  pendingSendContext.value = null;
+}
+
+/** Multi-agent vars editor (edit button in header) */
+const multiVarsModalVisible = ref(false);
+const multiVarsFormValues = reactive<Record<number, Record<string, string>>>({});
+const multiVarsPersist = ref(false);
+
+function openMultiVarsEditor() {
+  for (const a of agentsWithVarsInConversation.value) {
+    ensureAgentVarsLoaded(a.id);
+    multiVarsFormValues[a.id] = { ...allAgentsVariables.value[a.id] };
+    // Fill defaults for any vars not yet set
+    for (const v of (a.input_variables ?? [])) {
+      if (!multiVarsFormValues[a.id]![v.name]) {
+        multiVarsFormValues[a.id]![v.name] = v.default ?? '';
+      }
+    }
+  }
+  multiVarsPersist.value = false;
+  multiVarsModalVisible.value = true;
+}
+
+function onMultiVarsConfirm() {
+  for (const a of agentsWithVarsInConversation.value) {
+    const vals = multiVarsFormValues[a.id];
+    if (vals) {
+      applyVariables(a.id, { ...vals }, multiVarsPersist.value);
+    }
+  }
+  multiVarsModalVisible.value = false;
+}
 
 // Template ref bindings
 void messagesContainer;
@@ -246,10 +337,23 @@ async function handleSendMessage() {
 
   // P0: 已固定智能体 → 跳过路由，直接发送
   if (isPinned.value && aiPanelStore.pinnedAgentId) {
-    if (aiPanelStore.pinnedAgentId !== selectedAgentId.value) {
-      selectedAgentId.value = aiPanelStore.pinnedAgentId;
+    const pinnedId = aiPanelStore.pinnedAgentId;
+    if (pinnedId !== selectedAgentId.value) {
+      selectedAgentId.value = pinnedId;
     }
-    sendMessage({ agentId: aiPanelStore.pinnedAgentId, pageContext });
+    const pinnedAgent = agents.value.find((a) => a.id === pinnedId);
+    const pinnedRequired = pinnedAgent?.input_variables?.filter((v) => v.required) ?? [];
+    if (pinnedRequired.length > 0) {
+      ensureAgentVarsLoaded(pinnedId);
+      const pinnedVars = allAgentsVariables.value[pinnedId] ?? {};
+      const pinnedMissing = pinnedRequired.filter((v) => !pinnedVars[v.name]?.trim());
+      if (pinnedMissing.length > 0) {
+        pendingSendContext.value = { agentId: pinnedId, pageContext };
+        openVarsModal(pinnedAgent!.input_variables!, pinnedId, pinnedAgent!.name);
+        return;
+      }
+    }
+    sendMessage({ agentId: pinnedId, pageContext });
     return;
   }
 
@@ -266,6 +370,21 @@ async function handleSendMessage() {
       showRouteNotice(
         $t('common.aiPanel.routedTo', { agent: result.agentName }),
       );
+    }
+
+    // Check if routed agent has required vars not yet filled
+    const routedAgent = agents.value.find((a) => a.id === result.agentId);
+    const requiredVars = routedAgent?.input_variables?.filter((v) => v.required) ?? [];
+    if (requiredVars.length > 0) {
+      ensureAgentVarsLoaded(result.agentId);
+      const agentVars = allAgentsVariables.value[result.agentId] ?? {};
+      const missing = requiredVars.filter((v) => !agentVars[v.name]?.trim());
+      if (missing.length > 0) {
+        // Defer send: open modal and wait for vars to be filled
+        pendingSendContext.value = { agentId: result.agentId, pageContext };
+        openVarsModal(routedAgent!.input_variables!, result.agentId, routedAgent!.name);
+        return;
+      }
     }
 
     // 发送消息（使用路由后的智能体 ID）
@@ -622,11 +741,26 @@ watch(
   async (visible) => {
     if (visible) {
       const pendingId = aiPanelStore.consumePendingAgentId();
+      // On panel open: reset messages/conversation but KEEP session vars
+      // (vars only clear when user explicitly clicks "+" new chat)
+      startNewConversation(true);
+      showHistory.value = false;
+      showMemoryPanel.value = false;
       await loadAgents(pendingId);
       loadConversations();
     }
   },
 );
+
+// ============ Agent 切换时加载 KB 绑定 ============
+
+watch(selectedAgentId, (agentId) => {
+  if (agentId) {
+    loadAgentKBBindings(agentId);
+    // Pre-load vars from localStorage (no modal on switch)
+    ensureAgentVarsLoaded(agentId);
+  }
+});
 
 // ============ 同步对话状态到 store ============
 
@@ -686,6 +820,96 @@ onUnmounted(() => {
           :class="dragging ? 'bg-primary/40' : ''"
           @mousedown="onDragStart"
         ></div>
+
+        <!-- Single-agent Input Variables Modal (triggered on missing vars) -->
+        <Modal
+          v-model:open="varsModalVisible"
+          :title="$t('user.aiChat.varsModal.title', { name: varsModalAgent?.name ?? '' })"
+          :mask-closable="false"
+          :ok-text="$t('user.aiChat.varsModal.confirm')"
+          :cancel-text="$t('common.cancel')"
+          @ok="onVarsConfirm"
+          @cancel="onVarsCancel"
+        >
+          <p class="mb-4 text-sm text-muted-foreground">
+            {{ $t('user.aiChat.varsModal.desc') }}
+          </p>
+          <div v-if="varsModalAgent" class="space-y-4">
+            <div
+              v-for="v in varsModalAgent.vars"
+              :key="v.name"
+              class="flex flex-col gap-1"
+            >
+              <label class="text-sm font-medium">
+                {{ v.label || v.name }}
+                <span v-if="v.required" class="ml-0.5 text-destructive">*</span>
+              </label>
+              <Input
+                v-model:value="varsFormValues[v.name]"
+                :placeholder="v.default || v.label || v.name"
+                allow-clear
+              />
+            </div>
+            <label class="flex cursor-pointer items-center gap-2 pt-1 text-xs text-muted-foreground">
+              <input
+                v-model="varsPersist"
+                type="checkbox"
+                class="size-3.5 cursor-pointer rounded accent-primary"
+              />
+              <span class="font-medium text-foreground/70">{{ $t('user.aiChat.varsModal.persistLabel') }}</span>
+              <span class="text-[11px]">{{ $t('user.aiChat.varsModal.persistHint') }}</span>
+            </label>
+          </div>
+        </Modal>
+
+        <!-- Multi-agent vars editor (edit button) -->
+        <Modal
+          v-model:open="multiVarsModalVisible"
+          :title="$t('user.aiChat.varsModal.editVars')"
+          :ok-text="$t('common.save')"
+          :cancel-text="$t('common.cancel')"
+          @ok="onMultiVarsConfirm"
+          @cancel="multiVarsModalVisible = false"
+        >
+          <div class="space-y-6">
+            <div
+              v-for="a in agentsWithVarsInConversation"
+              :key="a.id"
+            >
+              <div class="mb-3 flex items-center gap-2">
+                <IconifyIcon icon="lucide:bot" class="size-4 text-primary" />
+                <span class="text-sm font-semibold">{{ a.name }}</span>
+              </div>
+              <div class="space-y-3 pl-6">
+                <div
+                  v-for="v in a.input_variables"
+                  :key="v.name"
+                  class="flex flex-col gap-1"
+                >
+                  <label class="text-sm font-medium">
+                    {{ v.label || v.name }}
+                    <span v-if="v.required" class="ml-0.5 text-destructive">*</span>
+                  </label>
+                  <Input
+                    v-if="multiVarsFormValues[a.id]"
+                    v-model:value="multiVarsFormValues[a.id]![v.name]"
+                    :placeholder="v.default || v.label || v.name"
+                    allow-clear
+                  />
+                </div>
+              </div>
+            </div>
+            <label class="flex cursor-pointer items-center gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
+              <input
+                v-model="multiVarsPersist"
+                type="checkbox"
+                class="size-3.5 cursor-pointer rounded accent-primary"
+              />
+              <span class="font-medium text-foreground/70">{{ $t('user.aiChat.varsModal.persistLabel') }}</span>
+              <span class="text-[11px]">{{ $t('user.aiChat.varsModal.persistHint') }}</span>
+            </label>
+          </div>
+        </Modal>
 
         <!-- Header -->
         <div
@@ -795,6 +1019,21 @@ onUnmounted(() => {
           <div class="flex shrink-0 items-center">
             <!-- Group 1: Chat actions -->
             <div class="flex items-center gap-0.5">
+              <Tooltip
+                v-if="agentsWithVarsInConversation.length > 0 || selectedAgent?.input_variables?.length"
+                :title="$t('user.aiChat.varsModal.editVars')"
+              >
+                <button
+                  class="flex h-7 items-center gap-1 rounded-lg px-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/8"
+                  @click="agentsWithVarsInConversation.length > 0 ? openMultiVarsEditor() : openVarsModal(selectedAgent!.input_variables as InputVariable[], selectedAgent!.id, selectedAgent!.name)"
+                >
+                  <IconifyIcon icon="lucide:sliders-horizontal" class="size-3.5" />
+                  <span
+                    v-if="agentsWithVarsInConversation.some(a => Object.keys(allAgentsVariables[a.id] ?? {}).length > 0)"
+                    class="size-1.5 rounded-full bg-green-500"
+                  />
+                </button>
+              </Tooltip>
               <Tooltip :title="$t('common.aiPanel.newChat')">
                 <button
                   class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -1351,6 +1590,24 @@ onUnmounted(() => {
               </label>
               <span class="text-[10px] text-muted-foreground/40">
                 {{ $t('common.globalAiChat.shiftEnterHint') }}
+              </span>
+            </div>
+
+            <!-- Bound KB indicator -->
+            <div
+              v-if="agentKBBindings.length > 0"
+              class="mb-1 flex flex-wrap items-center gap-1"
+            >
+              <IconifyIcon
+                icon="lucide:book-open"
+                class="size-3 shrink-0 text-muted-foreground/50"
+              />
+              <span
+                v-for="kb in agentKBBindings"
+                :key="kb.knowledge_base_id"
+                class="inline-flex items-center rounded-full bg-primary/8 px-1.5 py-0.5 text-[10px] leading-tight text-primary/70"
+              >
+                {{ kb.kb_name || `KB#${kb.knowledge_base_id}` }}
               </span>
             </div>
 

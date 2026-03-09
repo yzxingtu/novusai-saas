@@ -38,8 +38,6 @@ const { Drawer, isEdit } = useCrudDrawer<AdminKnowledgeBaseItem>({
     }
     result.chunk_size = values.chunk_size;
     result.chunk_overlap = values.chunk_overlap;
-    result.top_k = values.top_k;
-    result.score_threshold = values.score_threshold;
     return result;
   },
   toFormValues: (data) => ({
@@ -51,8 +49,6 @@ const { Drawer, isEdit } = useCrudDrawer<AdminKnowledgeBaseItem>({
     embedding_model_id: data.embedding_model_id,
     chunk_size: data.chunk_size,
     chunk_overlap: data.chunk_overlap,
-    top_k: data.top_k,
-    score_threshold: data.score_threshold,
   }),
   onSuccess: () => {
     emits('success');

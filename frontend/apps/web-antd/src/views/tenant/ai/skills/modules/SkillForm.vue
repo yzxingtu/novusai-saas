@@ -134,22 +134,6 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<SkillInfo>({
 
         break;
       }
-      case 'knowledge_base': {
-        config = {
-          knowledge_base_ids: values.kb_ids || [],
-          rag_config: {
-            enabled: values.rag_enabled ?? true,
-            top_k: values.rag_top_k ?? 5,
-            score_threshold: values.rag_score_threshold ?? 0.5,
-            search_mode: values.rag_search_mode || 'hybrid',
-            rewrite_strategy: values.rag_rewrite_strategy || 'none',
-            reranker_enabled: values.rag_reranker_enabled ?? false,
-            context_token_ratio: values.rag_context_token_ratio ?? 0.3,
-          },
-        };
-
-        break;
-      }
       case 'toolkit': {
         const valvesConfig = values.valves_config as
           | Record<string, unknown>
@@ -182,7 +166,6 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<SkillInfo>({
   },
   toFormValues: (data) => {
     const cfg = (data.config ?? {}) as Record<string, unknown>;
-    const ragCfg = (cfg.rag_config ?? {}) as Record<string, unknown>;
 
     // 插件技能检测
     isPluginSkill.value = !!data.source_plugin;
@@ -214,15 +197,6 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<SkillInfo>({
       is_active: data.is_active,
       toolkit_content: data.toolkit_content || '',
       valves_config: (cfg.valves as Record<string, unknown>) || {},
-      // knowledge_base fields
-      kb_ids: (cfg.knowledge_base_ids as number[]) || [],
-      rag_enabled: (ragCfg.enabled as boolean) ?? true,
-      rag_top_k: (ragCfg.top_k as number) ?? 5,
-      rag_score_threshold: (ragCfg.score_threshold as number) ?? 0.5,
-      rag_search_mode: (ragCfg.search_mode as string) || 'hybrid',
-      rag_rewrite_strategy: (ragCfg.rewrite_strategy as string) || 'none',
-      rag_reranker_enabled: (ragCfg.reranker_enabled as boolean) ?? false,
-      rag_context_token_ratio: (ragCfg.context_token_ratio as number) ?? 0.3,
       // data_intelligence fields
       di_table_policy_ids: (cfg.table_policy_ids as number[]) || [],
       di_max_rows_override: (cfg.max_rows_override as number) ?? 0,

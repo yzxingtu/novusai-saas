@@ -271,7 +271,10 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
 
         不包括：
           - admin_only 包（仅管理端智能体可用）
+          - target_audience=admin_only 的包（三端隔离：租户端不应见到此类包）
         """
+        from app.enums.common import AudienceEnum
+
         assigned_subq = assigned_resource_ids_subquery("skill_package", self.tenant_id)
         stmt = (
             select(SkillPackage)
@@ -280,6 +283,8 @@ class SkillPackageRepository(_SkillPackageCascadeMixin, TenantRepository[SkillPa
                     SkillPackage.is_active.is_(True),
                     SkillPackage.is_deleted.is_(False),
                     SkillPackage.is_system.is_(False),
+                    # 三端隔离：租户端不返回 admin_only 目标受众的包
+                    SkillPackage.target_audience != AudienceEnum.ADMIN_ONLY.value,
                     or_(
                         SkillPackage.tenant_id == self.tenant_id,
                         and_(

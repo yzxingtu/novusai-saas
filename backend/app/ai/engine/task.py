@@ -62,7 +62,9 @@ class TaskEngine(BaseEngine):
             if skill_result is None:
                 from app.ai.skills.resolver import resolve_for_agent
                 skill_result = await resolve_for_agent(
-                    self.db, agent, tenant_id=request.tenant_id,
+                    self.db, agent,
+                    tenant_id=request.tenant_id,
+                    user_role=getattr(request, "user_role", None),
                 )
             tools = skill_result.tools if skill_result else []
 

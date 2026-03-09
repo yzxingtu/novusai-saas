@@ -52,7 +52,7 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
         from app.models.ai.agent import Agent
 
         result = await self.repo.db.execute(
-            select(Agent.id, Agent.status, Agent.scope, Agent.tenant_id).where(
+            select(Agent.id, Agent.status, Agent.scope, Agent.tenant_id, Agent.target_audience).where(
                 Agent.id == agent_id,
                 Agent.is_deleted.is_(False),
             )
@@ -70,9 +70,17 @@ class AgentAssignmentService(GlobalService[SystemAgentAssignment, AgentAssignmen
                 message=_("system_agent_assignment.error.agent_not_published"),
             )
 
-        # admin 端不做 scope 校验
+        # admin 端不做 scope / target_audience 校验
         if tenant_id is None:
             return
+
+        # 租户端校验 target_audience：租户端不能绑定 admin_only 的智能体
+        from app.enums.common import AudienceEnum
+        target_audience = getattr(agent, "target_audience", AudienceEnum.ADMIN_TENANT.value)
+        if target_audience == AudienceEnum.ADMIN_ONLY.value:
+            raise AuthorizationException(
+                message=_("system_agent_assignment.error.agent_not_accessible"),
+            )
 
         # 租户端校验 scope 可见性
         scope = agent.scope

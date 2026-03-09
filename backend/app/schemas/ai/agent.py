@@ -12,6 +12,7 @@ from app.core.base_schema import (
     TenantResponseSchema,
 )
 from app.core.i18n import _
+from app.enums.common import AudienceEnum
 
 # ============================================
 # Shared field mixins
@@ -27,6 +28,7 @@ class _AgentOptionalFields(BaseModel):
     input_variables: list | None = Field(None, description=_("enum.agent_model.input_variables"))
     welcome_message: str | None = Field(None, description=_("enum.agent_model.welcome_message"))
     suggested_questions: list | None = Field(None, description=_("enum.agent_model.suggested_questions"))
+    rag_config: dict | None = Field(None, description=_("enum.agent_model.rag_config"))
     context_config: dict | None = Field(None, description=_("enum.agent_model.context_config"))
     output_schema: list | None = Field(None, description=_("enum.agent_model.output_schema"))
     quota_config: dict | None = Field(None, description=_("enum.agent_model.quota_config"))
@@ -74,6 +76,7 @@ class AdminAgentCreate(_AgentOptionalFields, BaseCreateSchema):
 
     name: str = Field(..., max_length=100, description=_("enum.agent_model.name"))
     scope: str = Field("all_tenants", description=_("enum.agent_model.scope"))
+    target_audience: str = Field(AudienceEnum.ADMIN_TENANT.value, max_length=20, description=_("enum.agent_model.target_audience"))
     tenant_id: int | None = Field(None, description=_("enum.agent_model.tenant_id"))
     tenant_ids: list[int] | None = Field(None, description="分配的租户 ID 列表（scope=assigned_tenants/admin_and_assigned 时使用）")
     system_prompt: str | None = Field("", description=_("enum.agent_model.system_prompt"))
@@ -93,6 +96,7 @@ class AdminAgentUpdate(_AgentOptionalFields, BaseUpdateSchema):
 
     name: str | None = Field(None, max_length=100, description=_("enum.agent_model.name"))
     scope: str | None = Field(None, description=_("enum.agent_model.scope"))
+    target_audience: str | None = Field(None, max_length=20, description=_("enum.agent_model.target_audience"))
     tenant_id: int | None = Field(None, description=_("enum.agent_model.tenant_id"))
     tenant_ids: list[int] | None = Field(None, description="分配的租户 ID 列表（scope=assigned_tenants/admin_and_assigned 时使用）")
     system_prompt: str | None = Field(None, description=_("enum.agent_model.system_prompt"))
@@ -115,6 +119,7 @@ class AgentResponse(_AgentOptionalFields, TenantResponseSchema):
     published_version: int | None = Field(None, description=_("enum.agent_model.published_version"))
     visibility: str | None = Field(None, description=_("enum.agent_model.visibility"))
     scope: str | None = Field(None, description=_("enum.agent_model.scope"))
+    target_audience: str = Field(AudienceEnum.ADMIN_TENANT.value, description=_("enum.agent_model.target_audience"))
     is_system: bool = Field(False, description=_("enum.agent_model.is_system"))
     # 关联字段
     model_name: str | None = Field(None, description=_("enum.agent_model.model_name"))

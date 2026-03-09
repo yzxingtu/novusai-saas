@@ -175,7 +175,16 @@
       "routing": "智能路由",
       "basicInfo": "基本信息",
       "saveSuccess": "保存成功",
-      "noQuotaLimit": "0 表示不限制"
+      "chatConfigPromptHint": "变量参考",
+      "noQuotaLimit": "0 表示不限制",
+      "noSkills": "该技能包暂无技能",
+      "knowledgeBases": "知识库",
+      "noKnowledgeBases": "暂未绑定知识库",
+      "kbWeight": "权重",
+      "kbEnabled": "启用",
+      "kbDocCount": "文档数",
+      "selectKnowledgeBase": "选择知识库",
+      "bindKnowledgeBase": "绑定"
     },
     "memory": {
       "title": "会话记忆",
@@ -217,6 +226,11 @@
     "description": "描述",
     "status": "状态",
     "executionMode": "执行模式",
+    "targetAudience": "目标受众",
+    "audience_options": {
+      "all": "所有端",
+      "admin_tenant": "管理端+租户端"
+    },
     "modelName": "关联模型",
     "systemPrompt": "系统提示词",
     "temperature": "温度",
@@ -267,15 +281,16 @@
       "disabled": "已禁用"
     },
     "mode_options": {
-      "conversation": "对话模式",
-      "task": "任务模式",
+      "conversation": "对话",
+      "task": "任务",
       "batch": "批处理",
-      "api": "API 模式"
+      "api": "API"
     },
     "placeholder": {
       "searchName": "搜索智能体名称",
       "allStatuses": "全部状态",
       "allModes": "全部模式",
+      "allAudiences": "全部受众",
       "inputName": "请输入智能体名称",
       "selectModel": "请选择 AI 模型",
       "selectMode": "请选择执行模式",
@@ -286,6 +301,7 @@
       "inputTopP": "0-1，与 temperature 配合使用",
       "inputWelcomeMessage": "用户首次打开对话时的欢迎语",
       "inputSuggestedQuestions": "JSON 数组格式，如: [\"\u95ee\u98981\", \"\u95ee\u98982\"]",
+      "inputVariables": "JSON 数组，如: [{'{'}\"name\": \"var1\", \"label\": \"变量1\", \"type\": \"string\", \"required\": true{'}'}]",
       "inputToolBindings": "JSON 数组格式，如: [{'{'}\"tool_id\": 1{'}'}]",
       "selectSkills": "请选择要绑定的技能",
       "selectSkillPackages": "请选择要绑定的技能包"
@@ -428,9 +444,13 @@
         "specific_users": "指定用户",
         "api_only": "仅 API"
       },
+      "tenantRoleAccess": "租户管理员角色权限",
+      "userRoleAccess": "用户端角色权限",
       "placeholder": {
         "selectOrgNodes": "请选择组织节点",
-        "inputUserIds": "输入用户 ID，多个用英文逗号分隔"
+        "inputUserIds": "输入用户 ID，多个用英文逗号分隔",
+        "selectTenantRoles": "请选择租户管理员角色",
+        "selectUserRoles": "请选择用户角色"
       },
       "messages": {
         "updateSuccess": "访问权限更新成功"
@@ -438,6 +458,7 @@
       "hint": {
         "public": "所有租户用户均可使用此智能体",
         "private": "仅授权用户可使用此智能体",
+        "roleOnly": "通过角色控制哪些用户可以使用此智能体。选择「全部可用」则不限制角色。",
         "all_users": "租户内所有登录用户可访问",
         "org_node": "仅指定组织节点下的用户可访问",
         "specific_users": "仅指定用户可访问",

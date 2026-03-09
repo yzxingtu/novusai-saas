@@ -13,6 +13,23 @@ import {
   getScopeText,
 } from '#/utils/scope-helpers';
 
+export function getAudienceColor(audience: string | undefined): string {
+  switch (audience) {
+    case 'admin_only': return 'error';
+    case 'admin_tenant': return 'processing';
+    case 'all': return 'success';
+    default: return 'default';
+  }
+}
+
+export function getAudienceOptions() {
+  return [
+    { label: $t('admin.ai.agent.audience_options.all'), value: 'all' },
+    { label: $t('admin.ai.agent.audience_options.admin_only'), value: 'admin_only' },
+    { label: $t('admin.ai.agent.audience_options.admin_tenant'), value: 'admin_tenant' },
+  ];
+}
+
 export { getScopeColor, getScopeText };
 
 function getScopeFilterOptions() {
@@ -56,6 +73,20 @@ export function useColumns<T = AdminSkillPackageInfo>(
       width: 100,
       align: 'center',
       slots: { default: 'skill_count_cell' },
+    },
+    {
+      field: 'target_audience',
+      title: $t('admin.ai.skillPackage.targetAudience'),
+      width: 120,
+      align: 'center',
+      slots: { default: 'targetAudience_cell' },
+    },
+    {
+      field: 'is_recommended',
+      title: $t('admin.ai.skillPackage.isRecommended'),
+      width: 100,
+      align: 'center',
+      slots: { default: 'isRecommended_cell' },
     },
     {
       field: 'is_active',
@@ -105,6 +136,10 @@ export function useGridFormSchema(): VbenFormSchema[] {
     }),
     select('filter[scope][eq]', $t('admin.ai.skillPackage.scope'), {
       options: getScopeFilterOptions(),
+      placeholder: $t('admin.ai.skillPackage.placeholder.allScopes'),
+    }),
+    select('filter[target_audience][eq]', $t('admin.ai.skillPackage.targetAudience'), {
+      options: getAudienceOptions(),
       placeholder: $t('admin.ai.skillPackage.placeholder.allScopes'),
     }),
   ];

@@ -10,24 +10,29 @@ from app.core.i18n import _
 
 
 class AgentAccessUpdate(BaseModel):
-    """更新智能体访问权限配置"""
+    """更新智能体访问权限配置（仅角色 ID 列表）"""
 
-    visibility: str = Field(
-        "public",
-        description=_("agent_access.visibility"),
-    )
-    access_type: str = Field(
-        "all_users",
-        description=_("agent_access.access_type"),
-    )
-    org_node_ids: list[int] | None = Field(
+    admin_role_ids: list[int] | None = Field(
         None,
-        description=_("agent_access.org_node_ids"),
+        description=_("agent_access.admin_role_ids"),
     )
-    user_ids: list[int] | None = Field(
+    tenant_role_ids: list[int] | None = Field(
         None,
-        description=_("agent_access.user_ids"),
+        description=_("agent_access.tenant_role_ids"),
+    )
+    user_role_ids: list[int] | None = Field(
+        None,
+        description=_("agent_access.user_role_ids"),
     )
 
 
-__all__ = ["AgentAccessUpdate"]
+class AgentAccessResponse(BaseModel):
+    """智能体访问权限响应"""
+
+    agent_id: int = Field(..., description=_("agent_access.agent_id"))
+    admin_role_ids: list[int] | None = Field(None, description=_("agent_access.admin_role_ids"))
+    tenant_role_ids: list[int] | None = Field(None, description=_("agent_access.tenant_role_ids"))
+    user_role_ids: list[int] | None = Field(None, description=_("agent_access.user_role_ids"))
+
+
+__all__ = ["AgentAccessUpdate", "AgentAccessResponse"]

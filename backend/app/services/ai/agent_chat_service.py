@@ -836,7 +836,9 @@ class AgentChatService:
             from app.ai.skills.resolver import resolve_for_agent
             try:
                 skill_result = await resolve_for_agent(
-                    self.db, agent, tenant_id=self.tenant_id,
+                    self.db, agent,
+                    tenant_id=self.tenant_id,
+                    user_role=user_role,
                 )
             except Exception as skill_exc:
                 logger.error(

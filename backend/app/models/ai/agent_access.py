@@ -70,6 +70,32 @@ class AgentAccess(TenantModel):
         comment=_("agent_access.user_ids"),
     )
 
+    # ==================== 三端独立角色授权（新增） ====================
+
+    # 管理端角色 ID 列表（admin 端限制访问时使用）
+    admin_role_ids: Mapped[list | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
+        comment=_("agent_access.admin_role_ids"),
+    )
+
+    # 租户端角色 ID 列表（tenant 端限制访问时使用）
+    tenant_role_ids: Mapped[list | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
+        comment=_("agent_access.tenant_role_ids"),
+    )
+
+    # 用户端角色 ID 列表（user 端限制访问时使用）
+    user_role_ids: Mapped[list | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
+        comment=_("agent_access.user_role_ids"),
+    )
+
     # 复合索引
     __table_args__ = (
         Index("ix_agent_access_tenant_agent", "tenant_id", "agent_id", unique=True),

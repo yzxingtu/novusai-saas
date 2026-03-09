@@ -184,7 +184,9 @@ class ExecutionDispatcher:
 
             # 5. 解析 Skill（在 Dispatcher 层完成，不在 Engine 内部查 DB）
             skill_result = await resolve_for_agent(
-                self.db, agent, tenant_id=request.tenant_id,
+                self.db, agent,
+                tenant_id=request.tenant_id,
+                user_role=request.user_role,
             )
 
             # 5.5 读取平台 Toolkit 安全配置（与 stream_chat 路径保持一致）
@@ -327,6 +329,16 @@ class ExecutionDispatcher:
         if agent.status != AgentStatusEnum.PUBLISHED.value:
             raise BusinessException(
                 message=_("agent.error.not_published"))
+
+        # 1.5 target_audience 校验（批处理不应绕过三端隔离）
+        if request.user_role:
+            from app.ai.skills.resolver import _audience_allows_role
+            from app.enums.common import AudienceEnum as _AudienceEnum
+            agent_audience = getattr(agent, "target_audience", _AudienceEnum.ADMIN_TENANT.value)
+            if not _audience_allows_role(agent_audience, request.user_role):
+                raise BusinessException(
+                    message=_("agent.error.audience_not_allowed"),
+                )
 
         # 2. 配额检查（批处理提交时检查一次）
         quota_config = AgentQuotaConfig.from_dict(agent.quota_config)

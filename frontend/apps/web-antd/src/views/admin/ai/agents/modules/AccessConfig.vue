@@ -2,9 +2,10 @@
 /**
  * 智能体访问权限配置抽屉（管理端）
  *
- * 功能：配置可见性（public/private）和访问类型
+ * 仅配置 admin_role_ids（管理端角色权限控制）。
+ * 租户端/用户端的角色权限由租户管理员自行配置。
  */
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -17,34 +18,67 @@ import {
   message,
   Radio,
   RadioGroup,
-  Select,
   Spin,
+  TreeSelect,
 } from 'ant-design-vue';
 
 import { getAIAgentAccessApi, updateAIAgentAccessApi } from '#/api/admin/ai';
+import { getRoleTreeApi } from '#/api/admin/role';
 import { $t } from '#/locales';
+
+import type { RoleInfo } from '#/api/admin/role';
 
 defineOptions({ name: 'AdminAccessConfigDrawer' });
 
 const agentId = ref(0);
 const agentName = ref('');
+const targetAudience = ref<string>('admin_tenant');
 const loading = ref(false);
 const saving = ref(false);
 
-const visibility = ref('public');
-const accessType = ref('all_users');
-const orgNodeIds = ref<number[]>([]);
-const userIds = ref<number[]>([]);
+const adminRoleMode = ref<'all' | 'specific'>('all');
+const adminRoleIds = ref<number[]>([]);
 
-const isPrivate = computed(() => visibility.value === 'private');
+const roleTreeData = ref<Record<string, unknown>[]>([]);
+const roleTreeLoading = ref(false);
+
+const showAdminBlock = computed(() =>
+  ['all', 'admin_only', 'admin_tenant'].includes(targetAudience.value),
+);
+
+function roleInfoToTreeData(roles: RoleInfo[]): Record<string, unknown>[] {
+  return roles.map((r) => ({
+    title: r.name,
+    value: r.id,
+    key: r.id,
+    children: r.children?.length ? roleInfoToTreeData(r.children) : undefined,
+  }));
+}
+
+async function loadRoleTree() {
+  roleTreeLoading.value = true;
+  try {
+    const tree = await getRoleTreeApi();
+    roleTreeData.value = roleInfoToTreeData(tree);
+  } catch {
+    // error handled by global interceptor
+  } finally {
+    roleTreeLoading.value = false;
+  }
+}
 
 const [Drawer, drawerApi] = useVbenDrawer({
   onOpenChange: async (isOpen) => {
     if (isOpen) {
-      const data = drawerApi.getData<{ id: number; name: string }>();
+      const data = drawerApi.getData<{
+        id: number;
+        name: string;
+        target_audience?: string;
+      }>();
       if (data) {
         agentId.value = data.id;
         agentName.value = data.name;
+        targetAudience.value = data.target_audience ?? 'admin_tenant';
         await loadAccessConfig();
       }
     }
@@ -55,38 +89,20 @@ const title = computed(
   () => `${$t('admin.ai.agent.accessConfig')} - ${agentName.value}`,
 );
 
-const visibilityOptions = computed(() => [
-  { label: $t('admin.ai.agent.visibility_options.public'), value: 'public' },
-  { label: $t('admin.ai.agent.visibility_options.private'), value: 'private' },
-]);
+function idsToMode(ids: null | number[]): 'all' | 'specific' {
+  return ids === null ? 'all' : 'specific';
+}
 
-const accessTypeOptions = computed(() => [
-  {
-    label: $t('admin.ai.agent.access_type_options.all_users'),
-    value: 'all_users',
-  },
-  {
-    label: $t('admin.ai.agent.access_type_options.org_node'),
-    value: 'org_node',
-  },
-  {
-    label: $t('admin.ai.agent.access_type_options.specific_users'),
-    value: 'specific_users',
-  },
-  {
-    label: $t('admin.ai.agent.access_type_options.api_only'),
-    value: 'api_only',
-  },
-]);
+function modeToIds(mode: 'all' | 'specific', ids: number[]): null | number[] {
+  return mode === 'all' ? null : ids;
+}
 
 async function loadAccessConfig() {
   loading.value = true;
   try {
     const config = await getAIAgentAccessApi(agentId.value);
-    visibility.value = config.visibility || 'public';
-    accessType.value = config.access_type || 'all_users';
-    orgNodeIds.value = config.org_node_ids ?? [];
-    userIds.value = config.user_ids ?? [];
+    adminRoleMode.value = idsToMode(config.admin_role_ids ?? null);
+    adminRoleIds.value = config.admin_role_ids ?? [];
   } catch {
     // error handled by global interceptor
   } finally {
@@ -98,16 +114,9 @@ async function onSave() {
   saving.value = true;
   try {
     await updateAIAgentAccessApi(agentId.value, {
-      visibility: visibility.value,
-      access_type: isPrivate.value ? accessType.value : 'all_users',
-      org_node_ids:
-        isPrivate.value && accessType.value === 'org_node'
-          ? orgNodeIds.value
-          : null,
-      user_ids:
-        isPrivate.value && accessType.value === 'specific_users'
-          ? userIds.value
-          : null,
+      admin_role_ids: showAdminBlock.value
+        ? modeToIds(adminRoleMode.value, adminRoleIds.value)
+        : null,
     });
     message.success($t('admin.ai.agent.messages.accessUpdated'));
     drawerApi.close();
@@ -118,93 +127,50 @@ async function onSave() {
   }
 }
 
-watch(visibility, (val) => {
-  if (val === 'public') {
-    accessType.value = 'all_users';
-  }
+onMounted(() => {
+  loadRoleTree();
 });
 </script>
 
 <template>
-  <Drawer :title="title" class="w-[520px]">
+  <Drawer :title="title" class="w-[560px]">
     <Spin :spinning="loading">
       <Form layout="vertical" class="px-1">
-        <!-- 可见性 -->
-        <FormItem :label="$t('admin.ai.agent.visibility')">
-          <RadioGroup
-            v-model:value="visibility"
-            button-style="solid"
-            class="mb-2"
-          >
-            <Radio
-              v-for="opt in visibilityOptions"
-              :key="opt.value"
-              :value="opt.value"
-            >
-              <div class="flex items-center gap-1">
-                <IconifyIcon
-                  :icon="
-                    opt.value === 'public' ? 'lucide:globe' : 'lucide:lock'
-                  "
-                  class="size-3.5"
-                />
-                {{ opt.label }}
-              </div>
-            </Radio>
+        <Alert
+          :message="$t('admin.ai.agent.messages.accessRoleHint')"
+          type="info"
+          show-icon
+          class="mb-4"
+        />
+
+        <!-- Admin 端角色区块 -->
+        <div v-if="showAdminBlock" class="mb-4 rounded-lg border border-border/60 p-4">
+          <div class="mb-3 flex items-center gap-2">
+            <IconifyIcon icon="lucide:shield" class="size-4 text-primary" />
+            <span class="text-sm font-medium">{{ $t('admin.ai.agent.adminRoleAccess') }}</span>
+          </div>
+          <RadioGroup v-model:value="adminRoleMode" class="mb-2">
+            <Radio value="all">{{ $t('admin.ai.agent.roleMode.all') }}</Radio>
+            <Radio value="specific">{{ $t('admin.ai.agent.roleMode.specific') }}</Radio>
           </RadioGroup>
-          <Alert
-            :message="
-              isPrivate
-                ? $t('admin.ai.agent.messages.visibilityPrivateHint')
-                : $t('admin.ai.agent.messages.visibilityPublicHint')
-            "
-            type="info"
-            show-icon
-            class="mt-1"
+          <TreeSelect
+            v-if="adminRoleMode === 'specific'"
+            v-model:value="adminRoleIds"
+            :tree-data="roleTreeData"
+            tree-checkable
+            :show-checked-strategy="TreeSelect.SHOW_CHILD"
+            :placeholder="$t('admin.ai.agent.placeholder.selectRoles')"
+            :loading="roleTreeLoading"
+            allow-clear
+            style="width: 100%"
+            class="mt-2"
           />
-        </FormItem>
+        </div>
 
-        <!-- 访问类型（仅 private 时显示） -->
-        <template v-if="isPrivate">
-          <FormItem :label="$t('admin.ai.agent.accessType')">
-            <RadioGroup v-model:value="accessType" class="mb-2">
-              <Radio
-                v-for="opt in accessTypeOptions"
-                :key="opt.value"
-                :value="opt.value"
-                class="mb-1 block"
-              >
-                {{ opt.label }}
-              </Radio>
-            </RadioGroup>
-          </FormItem>
-
-          <FormItem
-            v-if="accessType === 'org_node'"
-            :label="$t('admin.ai.agent.orgNodes')"
-          >
-            <Select
-              v-model:value="orgNodeIds"
-              mode="tags"
-              :placeholder="$t('admin.ai.agent.placeholder.selectOrgNodes')"
-              :token-separators="[',']"
-              style="width: 100%"
-            />
-          </FormItem>
-
-          <FormItem
-            v-if="accessType === 'specific_users'"
-            :label="$t('admin.ai.agent.specificUsers')"
-          >
-            <Select
-              v-model:value="userIds"
-              mode="tags"
-              :placeholder="$t('admin.ai.agent.placeholder.inputUserIds')"
-              :token-separators="[',']"
-              style="width: 100%"
-            />
-          </FormItem>
-        </template>
+        <div v-if="!showAdminBlock" class="py-8 text-center text-muted-foreground">
+          <IconifyIcon icon="lucide:info" class="mb-2 size-8 opacity-40" />
+          <p class="text-sm">{{ $t('admin.ai.agent.messages.noAdminAccess') }}</p>
+        </div>
 
         <FormItem class="mt-4">
           <Button type="primary" :loading="saving" @click="onSave">

@@ -8,6 +8,14 @@ export interface ModelCapabilities {
   max_image_size_mb: null | number;
 }
 
+export interface InputVariable {
+  name: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  default?: string;
+}
+
 export interface AgentItem {
   id: number;
   tenant_id: number;
@@ -19,6 +27,7 @@ export interface AgentItem {
   model_capabilities?: ModelCapabilities | null;
   welcome_message?: null | string;
   suggested_questions?: null | string[];
+  input_variables?: InputVariable[] | null;
 }
 
 export interface ConversationItem {

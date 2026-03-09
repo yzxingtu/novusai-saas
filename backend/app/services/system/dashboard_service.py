@@ -18,7 +18,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_model import utc_now
 from app.core.logging import LogManager
+from app.models.ai.agent import Agent
+from app.models.ai.agent_conversation import AgentConversation
 from app.models.ai.call_log import AICallLog
+from app.models.ai.knowledge_base import KnowledgeBase
+from app.models.ai.knowledge_document import KnowledgeDocument
 from app.models.system.operation_log import OperationLog
 from app.models.system.plugin import Plugin
 from app.models.tenant.attachment import Attachment
@@ -342,21 +346,33 @@ class TenantDashboardService:
 
         Returns:
             {"total_users", "active_users", "api_calls", "total_tokens",
-             "storage_used_bytes", "storage_used_mb"}
+             "total_cost", "storage_used_bytes", "storage_used_mb",
+             "total_agents", "total_knowledge_bases", "total_kb_documents",
+             "monthly_conversations"}
         """
-        total_users = await self._count_admins()
         thirty_days_ago = utc_now().replace(
             hour=0, minute=0, second=0, microsecond=0
         ) - timedelta(days=30)
+
+        total_users = await self._count_admins()
         active_users = await self._count_admins(
             TenantAdmin.last_login_at >= thirty_days_ago,
         )
 
-        # B1: 真实 AI 调用统计（替换硬编码 0）
+        # B1: 真实 AI 调用统计
         ai_stats = await self._get_ai_stats()
 
         # 存储使用量
         storage_used = await self._get_storage_used()
+
+        # B5: 智能体 & 知识库 & 对话统计
+        total_agents = await self._count_tenant_model(Agent)
+        total_knowledge_bases = await self._count_tenant_model(KnowledgeBase)
+        total_kb_documents = await self._count_tenant_model(KnowledgeDocument)
+        monthly_conversations = await self._count_tenant_model(
+            AgentConversation,
+            AgentConversation.created_at >= thirty_days_ago,
+        )
 
         return {
             "total_users": total_users,
@@ -366,6 +382,10 @@ class TenantDashboardService:
             "total_cost": ai_stats["total_cost"],
             "storage_used_bytes": storage_used,
             "storage_used_mb": round(storage_used / 1024 / 1024, 2) if storage_used else 0,
+            "total_agents": total_agents,
+            "total_knowledge_bases": total_knowledge_bases,
+            "total_kb_documents": total_kb_documents,
+            "monthly_conversations": monthly_conversations,
         }
 
     # ── B1: 真实 AI 调用统计 ──
@@ -504,6 +524,15 @@ class TenantDashboardService:
         query = select(func.count()).select_from(TenantAdmin).where(
             TenantAdmin.deleted_at.is_(None),
             TenantAdmin.tenant_id == self.tenant_id,
+            *extra_filters,
+        )
+        return (await self.db.execute(query)).scalar() or 0
+
+    async def _count_tenant_model(self, model, *extra_filters) -> int:
+        """通用租户模型计数（模型须含 tenant_id + deleted_at）"""
+        query = select(func.count()).select_from(model).where(
+            model.deleted_at.is_(None),
+            model.tenant_id == self.tenant_id,
             *extra_filters,
         )
         return (await self.db.execute(query)).scalar() or 0

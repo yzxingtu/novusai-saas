@@ -116,5 +116,20 @@
     "perPage": "/ page",
     "prev": "Previous",
     "next": "Next"
+  },
+  "inputVarsEditor": {
+    "colName": "Variable ID",
+    "colLabel": "Display Name",
+    "colType": "Type",
+    "colRequired": "Required",
+    "colDefault": "Default",
+    "typeString": "Single-line Text",
+    "typeText": "Multi-line Text",
+    "typeNumber": "Number",
+    "namePlaceholder": "e.g. user_name",
+    "labelPlaceholder": "e.g. User Name",
+    "defaultPlaceholder": "Default value (optional)",
+    "addVar": "Add Variable",
+    "empty": "No variables yet, click the button below to add"
   }
 }

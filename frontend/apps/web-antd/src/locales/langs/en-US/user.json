@@ -79,6 +79,24 @@
   "settings": {
     "description": "Manage your account information and security settings"
   },
+  "aiChat": {
+    "title": "AI Chat",
+    "agents": "Agents",
+    "noAgents": "No agents available",
+    "welcomeTitle": "Start AI Chat",
+    "welcomeDesc": "Select an agent to start your AI conversation",
+    "inputPlaceholder": "Type a message...",
+    "varsModal": {
+      "title": "Fill in Variables — {name}",
+      "desc": "Please fill in the following information to personalize this conversation.",
+      "confirm": "Start Chat",
+      "editVars": "Edit Variables",
+      "varsSet": "Variables Set",
+      "fillRequired": "Please fill in required variables: {fields}",
+      "persistLabel": "Permanent save",
+      "persistHint": "Saves to this device; variables will be automatically injected on every conversation with this agent"
+    }
+  },
   "auth": {
     "passwordMinLength": "Password must be at least 6 characters"
   }

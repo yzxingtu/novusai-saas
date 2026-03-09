@@ -68,6 +68,7 @@ def build_agent_base_item(agent: Any) -> dict[str, Any]:
         "published_version": agent.published_version,
         "welcome_message": agent.welcome_message,
         "suggested_questions": agent.suggested_questions,
+        "input_variables": agent.input_variables,
         "created_at": agent.created_at,
         "updated_at": agent.updated_at,
     }

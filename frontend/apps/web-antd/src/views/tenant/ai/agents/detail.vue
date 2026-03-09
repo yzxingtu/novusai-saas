@@ -6,11 +6,12 @@
  */
 import type {
   AgentInfo,
+  AgentKBBindingInfo,
   AgentMemoryConfig,
   AgentSkillBindingInfo,
 } from '#/api/tenant/agents';
 
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
@@ -36,17 +37,19 @@ import {
 } from 'ant-design-vue';
 
 import {
-  batchBindPackagesApi,
+  batchBindKBsApi,
   getAgentDetailApi,
+  getAgentKBsApi,
   getAgentMemoryConfigApi,
   getAgentSkillsApi,
-  unbindPackageApi,
+  unbindKBApi,
   updateAgentApi,
+  updateAgentKBBindingApi,
   updateAgentMemoryConfigApi,
-  updateAgentSkillBindingApi,
 } from '#/api/tenant/agents';
+import { getKnowledgeBaseListApi } from '#/api/tenant/knowledge-bases';
 import { getTenantAIModelsApi } from '#/api/tenant/ai';
-import { getAvailablePackagesApi } from '#/api/tenant/skill-packages';
+import { getSkillPackageSkillsApi } from '#/api/tenant/skill-packages';
 import { smartUploadFile } from '#/api/tenant/attachment';
 import { $t } from '#/locales';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -56,7 +59,10 @@ import {
   getScopeText,
 } from '#/utils/scope-helpers';
 
-import { getExecutionModeText, getStatusColor, getStatusText } from './data';
+import type { InputVariable } from '#/components/business/ai-chat-panel/types';
+import InputVariablesEditor from '#/components/business/input-variables-editor/InputVariablesEditor.vue';
+
+import { getAudienceText, getExecutionModeText, getStatusColor, getStatusText } from './data';
 import AccessConfigDrawer from './modules/AccessConfigDrawer.vue';
 import VersionHistoryDrawer from './modules/VersionHistory.vue';
 
@@ -69,7 +75,11 @@ const [AccessConfigDrawerCmp, accessConfigApi] = useVbenDrawer({
 
 function openAccessConfig() {
   if (!agent.value) return;
-  accessConfigApi.setData({ id: agent.value.id, name: agent.value.name });
+  accessConfigApi.setData({
+    id: agent.value.id,
+    name: agent.value.name,
+    target_audience: agent.value.target_audience,
+  });
   accessConfigApi.open();
 }
 
@@ -314,19 +324,49 @@ async function saveModelParams() {
 // ==================== Chat Config Tab ====================
 const chatWelcome = ref('');
 const chatSuggestions = ref('');
-const chatInputVars = ref('');
+const chatInputVars = ref<InputVariable[]>([]);
+const chatSystemPrompt = ref('');
 const chatContextMessages = ref(20);
 const chatContextTokens = ref(0);
 
+/** Ref to the system prompt textarea for cursor-based variable insertion */
+const chatSystemPromptRef = ref<HTMLTextAreaElement | null>(null);
+
+function formatVarChip(name: string) {
+  return `{{${name}}}`;
+}
+
+function insertVarAtCursor(varName: string) {
+  const el = chatSystemPromptRef.value;
+  const token = `{{${varName}}}`;
+  if (!el) {
+    chatSystemPrompt.value += token;
+    return;
+  }
+  const start = el.selectionStart ?? chatSystemPrompt.value.length;
+  const end = el.selectionEnd ?? start;
+  chatSystemPrompt.value =
+    chatSystemPrompt.value.substring(0, start) +
+    token +
+    chatSystemPrompt.value.substring(end);
+  nextTick(() => {
+    el.focus();
+    const newPos = start + token.length;
+    el.setSelectionRange(newPos, newPos);
+  });
+}
+
 function initChatConfig() {
   if (!agent.value) return;
+  chatSystemPrompt.value = agent.value.system_prompt || '';
   chatWelcome.value = agent.value.welcome_message || '';
-  chatSuggestions.value = Array.isArray(agent.value.suggested_questions)
-    ? JSON.stringify(agent.value.suggested_questions, null, 2)
-    : '[]';
+  const sq = agent.value.suggested_questions;
+  chatSuggestions.value = Array.isArray(sq) && sq.length > 0
+    ? JSON.stringify(sq, null, 2)
+    : '';
   chatInputVars.value = Array.isArray(agent.value.input_variables)
-    ? JSON.stringify(agent.value.input_variables, null, 2)
-    : '[]';
+    ? (agent.value.input_variables as InputVariable[])
+    : [];
   const cc = (agent.value.context_config ?? {}) as Record<string, number>;
   chatContextMessages.value = cc.max_history_messages ?? 20;
   chatContextTokens.value = cc.max_history_tokens ?? 0;
@@ -344,9 +384,10 @@ function safeJsonParse(str: string): null | unknown[] {
 
 async function saveChatConfig() {
   await saveFields({
+    ...(isTenantOwned.value ? { system_prompt: chatSystemPrompt.value || null } : {}),
     welcome_message: chatWelcome.value || null,
     suggested_questions: safeJsonParse(chatSuggestions.value),
-    input_variables: safeJsonParse(chatInputVars.value),
+    input_variables: chatInputVars.value.length > 0 ? chatInputVars.value : null,
     context_config: {
       max_history_messages: chatContextMessages.value,
       max_history_tokens: chatContextTokens.value,
@@ -354,18 +395,12 @@ async function saveChatConfig() {
   });
 }
 
-// ==================== Skill Bindings Tab ====================
 const bindings = ref<AgentSkillBindingInfo[]>([]);
 const bindingsLoading = ref(false);
-const availablePackages = ref<
-  Array<{
-    label: string;
-    scope?: string;
-    source_plugin?: string;
-    value: number;
-  }>
->([]);
-const selectedNewPkg = ref<number | undefined>();
+
+const expandedPackages = reactive(new Set<number>());
+const packageSkills = reactive(new Map<number, Array<{ id: number; is_active: boolean; name: string; type: string }>>());
+const packageSkillsLoading = reactive(new Set<number>());
 
 async function loadBindings() {
   bindingsLoading.value = true;
@@ -378,72 +413,104 @@ async function loadBindings() {
   }
 }
 
-async function loadAvailablePackages() {
+async function togglePackageSkills(packageId: number) {
+  if (expandedPackages.has(packageId)) {
+    expandedPackages.delete(packageId);
+    return;
+  }
+  expandedPackages.add(packageId);
+  if (packageSkills.has(packageId)) return;
+  packageSkillsLoading.add(packageId);
   try {
-    availablePackages.value = await getAvailablePackagesApi();
+    const res = await getSkillPackageSkillsApi(packageId, { 'page[size]': 100 });
+    packageSkills.set(packageId, res.items || []);
   } catch {
-    availablePackages.value = [];
+    packageSkills.set(packageId, []);
+  } finally {
+    packageSkillsLoading.delete(packageId);
   }
 }
 
-const unboundPackages = computed(() => {
-  const boundIds = new Set(bindings.value.map((b) => b.package_id));
-  return availablePackages.value.filter((p) => !boundIds.has(p.value));
+
+// ==================== Knowledge Base Bindings Tab ====================
+const kbBindings = ref<AgentKBBindingInfo[]>([]);
+const kbBindingsLoading = ref(false);
+const kbOptions = ref<{ label: string; value: number }[]>([]);
+const selectedNewKBs = ref<number[]>([]);
+
+async function loadKBBindings() {
+  kbBindingsLoading.value = true;
+  try {
+    kbBindings.value = await getAgentKBsApi(agentId.value);
+  } catch {
+    kbBindings.value = [];
+  } finally {
+    kbBindingsLoading.value = false;
+  }
+}
+
+async function loadKBOptions() {
+  try {
+    const res = await getKnowledgeBaseListApi({ 'page[size]': 200 });
+    kbOptions.value = (res.items || []).map((kb) => ({
+      label: kb.name,
+      value: kb.id,
+    }));
+  } catch {
+    kbOptions.value = [];
+  }
+}
+
+const unboundKBs = computed(() => {
+  const boundIds = new Set(kbBindings.value.map((b) => b.knowledge_base_id));
+  return kbOptions.value.filter((kb) => !boundIds.has(kb.value));
 });
 
-async function bindPackage() {
-  if (!selectedNewPkg.value) return;
-  const currentIds = bindings.value.map((b) => b.package_id);
-  currentIds.push(selectedNewPkg.value);
+async function bindKB() {
+  if (selectedNewKBs.value.length === 0) return;
+  const currentIds = kbBindings.value.map((b) => b.knowledge_base_id);
+  for (const kbId of selectedNewKBs.value) {
+    if (!currentIds.includes(kbId)) currentIds.push(kbId);
+  }
   try {
-    await batchBindPackagesApi(agentId.value, currentIds);
-    selectedNewPkg.value = undefined;
-    await loadBindings();
+    await batchBindKBsApi(agentId.value, currentIds);
+    selectedNewKBs.value = [];
+    await loadKBBindings();
     message.success($t('tenant.ai.agent.detail.saveSuccess'));
   } catch {
     message.error($t('common.saveFailed'));
   }
 }
 
-async function unbindPkg(packageId: number) {
+async function unbindKB(knowledgeBaseId: number) {
   try {
-    await unbindPackageApi(agentId.value, packageId);
-    await loadBindings();
+    await unbindKBApi(agentId.value, knowledgeBaseId);
+    await loadKBBindings();
     message.success($t('tenant.ai.agent.detail.saveSuccess'));
   } catch {
     message.error($t('common.saveFailed'));
   }
 }
 
-async function updateConsentMode(bindingId: number, mode: string) {
+async function toggleKBEnabled(binding: AgentKBBindingInfo) {
   try {
-    await updateAgentSkillBindingApi(agentId.value, bindingId, {
-      consent_mode: mode,
+    await updateAgentKBBindingApi(agentId.value, binding.id, {
+      enabled: !binding.enabled,
     });
-    await loadBindings();
-    message.success($t('tenant.ai.agent.detail.saveSuccess'));
+    await loadKBBindings();
   } catch {
     message.error($t('common.saveFailed'));
   }
 }
 
-const consentModeOptions = [
-  { label: $t('tenant.ai.agent.consentModeOptions.auto'), value: 'auto' },
-  { label: $t('tenant.ai.agent.consentModeOptions.ask'), value: 'ask' },
-  { label: $t('tenant.ai.agent.consentModeOptions.reject'), value: 'reject' },
-];
-
-function getScopeTagProps(
-  scope?: string,
-  sourcePlugin?: string,
-): null | { color: string; text: string } {
-  if (sourcePlugin)
-    return {
-      text: $t('tenant.ai.skillPackage.scopeTag.plugin'),
-      color: 'purple',
-    };
-  if (!scope) return null;
-  return { text: getScopeText(scope), color: getScopeColor(scope) };
+async function updateKBWeight(bindingId: number, weight: number) {
+  try {
+    await updateAgentKBBindingApi(agentId.value, bindingId, { weight });
+    await loadKBBindings();
+    message.success($t('tenant.ai.agent.detail.saveSuccess'));
+  } catch {
+    message.error($t('common.saveFailed'));
+  }
 }
 
 // ==================== Quota Tab ====================
@@ -563,7 +630,11 @@ function onTabChange(key: number | string) {
     }
     case 'skills': {
       loadBindings();
-      loadAvailablePackages();
+      break;
+    }
+    case 'knowledgeBases': {
+      loadKBBindings();
+      loadKBOptions();
       break;
     }
   }
@@ -646,7 +717,6 @@ onUnmounted(() => {
                   {{ $t('tenant.ai.agent.versionHistory') }}
                 </Button>
                 <Button
-                  v-if="isTenantOwned"
                   size="small"
                   @click="openAccessConfig"
                 >
@@ -753,6 +823,13 @@ onUnmounted(() => {
                       {{ getScopeText(agent.scope) }}
                     </div>
                   </Tag>
+                  <div
+                    v-if="agent.target_audience"
+                    class="flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/8 px-3 py-1 text-xs text-primary"
+                  >
+                    <IconifyIcon icon="lucide:users" class="size-3" />
+                    {{ getAudienceText(agent.target_audience) }}
+                  </div>
                   <!-- Readonly badge for non-owned agents -->
                   <div
                     v-if="!isTenantOwned"
@@ -1041,12 +1118,16 @@ onUnmounted(() => {
                         $t('tenant.ai.agent.temperature')
                       }}</label>
                     </div>
+                    <p class="mb-2 text-xs text-muted-foreground">
+                      {{ $t('tenant.ai.agent.help.temperature') }}
+                    </p>
                     <InputNumber
                       v-model:value="modelTemp"
                       :min="0"
                       :max="2"
                       :step="0.1"
                       :disabled="!isTenantOwned"
+                      :placeholder="$t('tenant.ai.agent.placeholder.inputTemperature')"
                       class="w-full"
                     />
                   </div>
@@ -1064,11 +1145,15 @@ onUnmounted(() => {
                         $t('tenant.ai.agent.maxTokens')
                       }}</label>
                     </div>
+                    <p class="mb-2 text-xs text-muted-foreground">
+                      {{ $t('tenant.ai.agent.help.maxTokens') }}
+                    </p>
                     <InputNumber
                       v-model:value="modelMaxTokens"
                       :min="1"
                       :max="128000"
                       :disabled="!isTenantOwned"
+                      :placeholder="$t('tenant.ai.agent.placeholder.inputMaxTokens')"
                       class="w-full"
                     />
                   </div>
@@ -1086,12 +1171,16 @@ onUnmounted(() => {
                         $t('tenant.ai.agent.topP')
                       }}</label>
                     </div>
+                    <p class="mb-2 text-xs text-muted-foreground">
+                      {{ $t('tenant.ai.agent.help.topP') }}
+                    </p>
                     <InputNumber
                       v-model:value="modelTopP"
                       :min="0"
                       :max="1"
                       :step="0.1"
                       :disabled="!isTenantOwned"
+                      :placeholder="$t('tenant.ai.agent.placeholder.inputTopP')"
                       class="w-full"
                     />
                   </div>
@@ -1117,6 +1206,40 @@ onUnmounted(() => {
                 </span>
               </template>
               <div class="flex flex-col gap-4 p-5 pt-3">
+                <!-- System Prompt (editable inline) -->
+                <div class="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                  <div class="mb-2 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <IconifyIcon icon="lucide:message-square-code" class="size-4 text-primary" />
+                      <label class="text-sm font-semibold text-primary">{{ $t('tenant.ai.agent.systemPrompt') }}</label>
+                    </div>
+                    <span
+                      v-if="!isTenantOwned"
+                      class="rounded-full bg-primary/10 px-2 py-px text-[10px] text-primary"
+                    >{{ $t('tenant.ai.agent.readonlyHint') }}</span>
+                  </div>
+                  <!-- Variable quick-insert chips -->
+                  <div v-if="chatInputVars.length > 0" class="mb-2 flex flex-wrap gap-1.5">
+                    <span class="text-xs text-muted-foreground">{{ $t('tenant.ai.agent.detail.chatConfigPromptHint') }}:</span>
+                    <button
+                      v-for="v in chatInputVars"
+                      :key="v.name"
+                      :disabled="!isTenantOwned"
+                      class="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[11px] text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      @click="insertVarAtCursor(v.name)"
+                    >
+                      <span v-text="formatVarChip(v.name)" />
+                    </button>
+                  </div>
+                  <Textarea
+                    :ref="(el) => { chatSystemPromptRef = el as HTMLTextAreaElement | null }"
+                    v-model:value="chatSystemPrompt"
+                    :rows="6"
+                    :disabled="!isTenantOwned"
+                    :placeholder="$t('tenant.ai.agent.placeholder.inputSystemPrompt')"
+                    class="w-full text-xs"
+                  />
+                </div>
                 <div class="rounded-xl border bg-accent/30 p-5">
                   <div class="mb-3 flex items-center gap-2">
                     <div
@@ -1135,6 +1258,7 @@ onUnmounted(() => {
                     v-model:value="chatWelcome"
                     :rows="3"
                     :disabled="!isTenantOwned"
+                    :placeholder="$t('tenant.ai.agent.placeholder.inputWelcomeMessage')"
                     class="w-full"
                   />
                 </div>
@@ -1154,8 +1278,9 @@ onUnmounted(() => {
                   </div>
                   <Textarea
                     v-model:value="chatSuggestions"
-                    :rows="3"
+                    :rows="4"
                     :disabled="!isTenantOwned"
+                    :placeholder="$t('tenant.ai.agent.placeholder.inputSuggestedQuestions')"
                     class="w-full font-mono text-xs"
                   />
                   <p class="mt-1 text-xs text-muted-foreground">JSON</p>
@@ -1174,13 +1299,10 @@ onUnmounted(() => {
                       $t('tenant.ai.agent.inputVariables.title')
                     }}</label>
                   </div>
-                  <Textarea
-                    v-model:value="chatInputVars"
-                    :rows="3"
+                  <InputVariablesEditor
+                    v-model="chatInputVars"
                     :disabled="!isTenantOwned"
-                    class="w-full font-mono text-xs"
                   />
-                  <p class="mt-1 text-xs text-muted-foreground">JSON</p>
                 </div>
                 <div class="rounded-xl border bg-accent/30 p-5">
                   <div class="mb-3 flex items-center gap-2">
@@ -1244,73 +1366,6 @@ onUnmounted(() => {
               <div class="p-5 pt-3">
                 <Spin :spinning="bindingsLoading">
                   <div class="flex flex-col gap-4">
-                    <!-- Add binding (tenant-owned only) -->
-                    <div
-                      v-if="isTenantOwned"
-                      class="flex items-center gap-3 rounded-xl border bg-accent/30 p-4"
-                    >
-                      <ASelect
-                        v-model:value="selectedNewPkg"
-                        :options="unboundPackages"
-                        :placeholder="
-                          $t('tenant.ai.agent.placeholder.selectSkillPackages')
-                        "
-                        show-search
-                        option-filter-prop="label"
-                        class="flex-1"
-                      >
-                        <template
-                          #option="{ label: optLabel, value: optValue }"
-                        >
-                          <div class="flex items-center justify-between gap-2">
-                            <span>{{ optLabel }}</span>
-                            <Tag
-                              v-if="
-                                getScopeTagProps(
-                                  availablePackages.find(
-                                    (p) => p.value === optValue,
-                                  )?.scope,
-                                  availablePackages.find(
-                                    (p) => p.value === optValue,
-                                  )?.source_plugin,
-                                )
-                              "
-                              :color="
-                                getScopeTagProps(
-                                  availablePackages.find(
-                                    (p) => p.value === optValue,
-                                  )?.scope,
-                                  availablePackages.find(
-                                    (p) => p.value === optValue,
-                                  )?.source_plugin,
-                                )!.color
-                              "
-                              class="mr-0 text-xs"
-                            >
-                              {{
-                                getScopeTagProps(
-                                  availablePackages.find(
-                                    (p) => p.value === optValue,
-                                  )?.scope,
-                                  availablePackages.find(
-                                    (p) => p.value === optValue,
-                                  )?.source_plugin,
-                                )!.text
-                              }}
-                            </Tag>
-                          </div>
-                        </template>
-                      </ASelect>
-                      <Button
-                        type="primary"
-                        :disabled="!selectedNewPkg"
-                        @click="bindPackage"
-                      >
-                        <IconifyIcon icon="lucide:plus" class="mr-1" />
-                        {{ $t('common.add') }}
-                      </Button>
-                    </div>
-
                     <!-- Auto-bound -->
                     <div v-if="bindings.some((x) => x.is_auto_bound)">
                       <div
@@ -1326,31 +1381,50 @@ onUnmounted(() => {
                         <div
                           v-for="b in bindings.filter((x) => x.is_auto_bound)"
                           :key="`auto-${b.package_id}`"
-                          class="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 px-4 py-3"
+                          class="overflow-hidden rounded-xl border border-primary/20 bg-primary/5"
                         >
-                          <div class="flex items-center gap-3">
-                            <IconifyIcon
-                              icon="lucide:lock"
-                              class="size-4 text-primary/50"
-                            />
-                            <span class="text-sm font-medium">{{
-                              b.package_name || `#${b.package_id}`
-                            }}</span>
-                            <Tag
-                              v-if="b.package_scope"
-                              :color="getScopeColor(b.package_scope)"
-                              class="!text-[10px]"
-                            >
-                              {{ getScopeText(b.package_scope) }}
-                            </Tag>
+                          <div
+                            class="flex cursor-pointer items-center justify-between px-4 py-3"
+                            @click="togglePackageSkills(b.package_id)"
+                          >
+                            <div class="flex items-center gap-3">
+                              <IconifyIcon
+                                icon="lucide:lock"
+                                class="size-4 shrink-0 text-primary/50"
+                              />
+                              <div class="min-w-0">
+                                <div class="flex items-center gap-2">
+                                  <span class="text-sm font-medium">{{ b.package_name || `#${b.package_id}` }}</span>
+                                  <Tag v-if="b.package_scope" :color="getScopeColor(b.package_scope)" class="!text-[10px]">
+                                    {{ getScopeText(b.package_scope) }}
+                                  </Tag>
+                                </div>
+                                <p v-if="b.package_description" class="mt-0.5 truncate text-xs text-muted-foreground">{{ b.package_description }}</p>
+                              </div>
+                            </div>
+                            <div class="flex shrink-0 items-center gap-2">
+                              <Tag color="blue" class="!text-[10px]">
+                                <IconifyIcon icon="lucide:zap" class="mr-0.5 inline size-3" />
+                                {{ $t('common.bindMode.auto') }}
+                              </Tag>
+                              <IconifyIcon
+                                :icon="expandedPackages.has(b.package_id) ? 'lucide:chevron-up' : 'lucide:chevron-down'"
+                                class="size-4 text-muted-foreground"
+                              />
+                            </div>
                           </div>
-                          <Tag color="blue" class="!text-[10px]">
-                            <IconifyIcon
-                              icon="lucide:zap"
-                              class="mr-0.5 inline size-3"
-                            />
-                            {{ $t('common.bindMode.auto') }}
-                          </Tag>
+                          <div v-if="expandedPackages.has(b.package_id)" class="border-t border-primary/10 bg-background/50 px-4 py-2">
+                            <Spin v-if="packageSkillsLoading.has(b.package_id)" size="small" class="flex justify-center py-3" />
+                            <div v-else-if="packageSkills.get(b.package_id)?.length === 0" class="py-3 text-center text-xs text-muted-foreground">
+                              {{ $t('tenant.ai.agent.detail.noSkills') }}
+                            </div>
+                            <div v-else class="flex flex-col gap-1">
+                              <div v-for="skill in packageSkills.get(b.package_id)" :key="skill.id" class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent/40">
+                                <span class="min-w-0 flex-1 truncate text-xs font-medium">{{ skill.name }}</span>
+                                <span :class="skill.is_active ? 'bg-green-500' : 'bg-muted-foreground/30'" class="inline-block size-1.5 shrink-0 rounded-full"></span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1367,40 +1441,32 @@ onUnmounted(() => {
                         <div
                           v-for="b in bindings.filter((x) => !x.is_auto_bound)"
                           :key="`manual-${b.package_id}`"
-                          class="flex items-center justify-between rounded-xl border bg-background px-4 py-3"
+                          class="overflow-hidden rounded-xl border bg-background"
                         >
-                          <div class="flex items-center gap-3">
+                          <div class="flex items-center justify-between px-4 py-3">
                             <div
-                              class="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary"
+                              class="flex flex-1 cursor-pointer items-center gap-3"
+                              @click="togglePackageSkills(b.package_id)"
                             >
-                              {{ (b.package_name || '?').charAt(0) }}
+                              <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary">
+                                {{ (b.package_name || '?').charAt(0) }}
+                              </div>
+                              <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2">
+                                  <span class="text-sm font-medium">{{ b.package_name || `#${b.package_id}` }}</span>
+                                  <Tag v-if="b.package_scope" :color="getScopeColor(b.package_scope)" class="!text-[10px]">
+                                    {{ getScopeText(b.package_scope) }}
+                                  </Tag>
+                                </div>
+                                <p v-if="b.package_description" class="mt-0.5 truncate text-xs text-muted-foreground">{{ b.package_description }}</p>
+                              </div>
+                              <IconifyIcon
+                                :icon="expandedPackages.has(b.package_id) ? 'lucide:chevron-up' : 'lucide:chevron-down'"
+                                class="size-4 shrink-0 text-muted-foreground"
+                              />
                             </div>
-                            <span class="text-sm font-medium">{{
-                              b.package_name || `#${b.package_id}`
-                            }}</span>
+                            <div class="flex items-center gap-2">
                             <Tag
-                              v-if="b.package_scope"
-                              :color="getScopeColor(b.package_scope)"
-                              class="!text-[10px]"
-                            >
-                              {{ getScopeText(b.package_scope) }}
-                            </Tag>
-                          </div>
-                          <div class="flex items-center gap-2">
-                            <ASelect
-                              v-if="isTenantOwned"
-                              :value="b.consent_mode"
-                              :options="consentModeOptions"
-                              size="small"
-                              class="!w-28"
-                              @change="
-                                (val) =>
-                                  b.id !== null &&
-                                  updateConsentMode(b.id, String(val))
-                              "
-                            />
-                            <Tag
-                              v-else
                               :color="
                                 b.consent_mode === 'auto'
                                   ? 'green'
@@ -1415,24 +1481,157 @@ onUnmounted(() => {
                                 )
                               }}
                             </Tag>
-                            <Popconfirm
-                              v-if="isTenantOwned"
-                              :title="$t('common.confirmDelete')"
-                              @confirm="unbindPkg(b.package_id)"
-                            >
-                              <Button size="small" danger type="text">
-                                <IconifyIcon
-                                  icon="lucide:unlink"
-                                  class="size-3.5"
-                                />
-                              </Button>
-                            </Popconfirm>
+                          </div>
+                          </div>
+                          <!-- Skills expansion -->
+                          <div v-if="expandedPackages.has(b.package_id)" class="border-t bg-accent/20 px-4 py-2">
+                            <Spin v-if="packageSkillsLoading.has(b.package_id)" size="small" class="flex justify-center py-3" />
+                            <div v-else-if="packageSkills.get(b.package_id)?.length === 0" class="py-3 text-center text-xs text-muted-foreground">
+                              {{ $t('tenant.ai.agent.detail.noSkills') }}
+                            </div>
+                            <div v-else class="flex flex-col gap-1">
+                              <div v-for="skill in packageSkills.get(b.package_id)" :key="skill.id" class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent/40">
+                                <span class="min-w-0 flex-1 truncate text-xs font-medium">{{ skill.name }}</span>
+                                <span :class="skill.is_active ? 'bg-green-500' : 'bg-muted-foreground/30'" class="inline-block size-1.5 shrink-0 rounded-full"></span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
 
                     <Empty v-if="bindings.length === 0 && !bindingsLoading" />
+                  </div>
+                </Spin>
+              </div>
+            </TabPane>
+
+            <!-- ========== 知识库绑定 ========== -->
+            <TabPane key="knowledgeBases">
+              <template #tab>
+                <span class="flex items-center gap-1.5 px-1">
+                  <IconifyIcon icon="lucide:library" class="size-3.5" />
+                  {{ $t('tenant.ai.agent.detail.knowledgeBases') }}
+                </span>
+              </template>
+              <div class="p-5 pt-3">
+                <Spin :spinning="kbBindingsLoading">
+                  <div class="flex flex-col gap-4">
+                    <!-- Add binding row -->
+                    <div
+                      v-if="isTenantOwned"
+                      class="flex items-center gap-3 rounded-xl border bg-accent/30 p-4"
+                    >
+                      <ASelect
+                        v-model:value="selectedNewKBs"
+                        :options="unboundKBs"
+                        :placeholder="
+                          $t('tenant.ai.agent.detail.selectKnowledgeBase')
+                        "
+                        mode="multiple"
+                        show-search
+                        option-filter-prop="label"
+                        allow-clear
+                        class="flex-1"
+                      />
+                      <Button
+                        type="primary"
+                        :disabled="selectedNewKBs.length === 0"
+                        @click="bindKB"
+                      >
+                        <IconifyIcon icon="lucide:plus" class="mr-1" />
+                        {{ $t('tenant.ai.agent.detail.bindKnowledgeBase') }}
+                      </Button>
+                    </div>
+
+                    <!-- Binding list -->
+                    <div v-if="kbBindings.length > 0" class="flex flex-col gap-2">
+                      <div
+                        v-for="b in kbBindings"
+                        :key="b.id"
+                        class="flex items-center justify-between rounded-xl border bg-background px-4 py-3 transition-colors"
+                      >
+                        <div class="flex items-center gap-3">
+                          <div
+                            class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10"
+                          >
+                            <IconifyIcon
+                              icon="lucide:book-open"
+                              class="size-4 text-blue-500"
+                            />
+                          </div>
+                          <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                              <span class="text-sm font-medium">{{
+                                b.kb_name || `#${b.knowledge_base_id}`
+                              }}</span>
+                              <Tag
+                                v-if="b.kb_document_count != null"
+                                class="!mr-0 !text-[10px]"
+                              >
+                                {{ b.kb_document_count }}
+                                {{ $t('tenant.ai.agent.detail.kbDocCount') }}
+                              </Tag>
+                            </div>
+                            <p
+                              v-if="b.kb_description"
+                              class="mt-0.5 truncate text-xs text-muted-foreground"
+                            >
+                              {{ b.kb_description }}
+                            </p>
+                          </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                          <!-- Weight -->
+                          <div class="flex items-center gap-1.5">
+                            <span class="text-xs text-muted-foreground">{{
+                              $t('tenant.ai.agent.detail.kbWeight')
+                            }}</span>
+                            <InputNumber
+                              :value="b.weight"
+                              :min="0.1"
+                              :max="2"
+                              :step="0.1"
+                              size="small"
+                              :disabled="!isTenantOwned"
+                              class="!w-20"
+                              @change="
+                                (val) =>
+                                  val != null &&
+                                  updateKBWeight(b.id, Number(val))
+                              "
+                            />
+                          </div>
+                          <!-- Enabled switch -->
+                          <Switch
+                            :checked="b.enabled"
+                            size="small"
+                            :disabled="!isTenantOwned"
+                            @change="toggleKBEnabled(b)"
+                          />
+                          <!-- Unbind -->
+                          <Popconfirm
+                            v-if="isTenantOwned"
+                            :title="$t('common.confirmDelete')"
+                            @confirm="unbindKB(b.knowledge_base_id)"
+                          >
+                            <Button size="small" danger type="text">
+                              <IconifyIcon
+                                icon="lucide:unlink"
+                                class="size-3.5"
+                              />
+                            </Button>
+                          </Popconfirm>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Empty
+                      v-if="kbBindings.length === 0 && !kbBindingsLoading"
+                      :description="
+                        $t('tenant.ai.agent.detail.noKnowledgeBases')
+                      "
+                    />
                   </div>
                 </Spin>
               </div>

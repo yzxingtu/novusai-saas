@@ -106,6 +106,7 @@ class AdminSkillPackageController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
             search: str = Query("", description="搜索关键词"),
+            include_system: bool = Query(False, description="是否包含系统包（用于智能体绑定）"),
         ):
             """
             获取技能包下拉选项（用于 Skill 创建时选择所属包）
@@ -113,9 +114,49 @@ class AdminSkillPackageController(GlobalController):
             service = AdminSkillPackageService(db)
             response = await service.get_select_options(
                 search=search,
-                limit=50,
+                limit=100,
+                is_system=None if include_system else False,
             )
             return success(data=response)
+
+        @router.get("/recommended", summary="推荐技能包列表（管理端）")
+        @action_read("action.ai_skill_package.list")
+        async def list_recommended_packages(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+        ):
+            """
+            获取所有推荐技能包（is_recommended=true）
+
+            管理端无 target_audience 限制，返回全部推荐包。
+            用于创建智能体时显示推荐绑定列表。
+            """
+            from sqlalchemy import and_, select
+
+            from app.models.ai.skill import Skill
+
+            stmt = select(SkillPackage).where(
+                and_(
+                    SkillPackage.is_recommended.is_(True),
+                    SkillPackage.is_active.is_(True),
+                    SkillPackage.is_deleted.is_(False),
+                )
+            ).order_by(SkillPackage.sort_order)
+
+            result = await db.execute(stmt)
+            pkgs = list(result.scalars().all())
+
+            service = AdminSkillPackageService(db)
+            pkg_ids = [p.id for p in pkgs]
+            skill_counts = await service.get_skill_counts_batch(pkg_ids) if pkg_ids else {}
+
+            return success(data=[
+                {**_build_admin_package_item(p, skill_counts.get(p.id, 0)),
+                 "target_audience": getattr(p, "target_audience", "all"),
+                 "is_recommended": True}
+                for p in pkgs
+            ])
 
         @router.get("", summary="全租户技能包列表")
         @action_read("action.ai_skill_package.list")
