@@ -1088,7 +1088,10 @@ async def resolve_for_agent(
             .where(
                 and_(
                     AgentSkillBinding.agent_id == agent.id,
-                    AgentSkillBinding.tenant_id == agent_tenant_id,
+                    or_(
+                        AgentSkillBinding.tenant_id == agent_tenant_id,
+                        AgentSkillBinding.tenant_id.is_(None),
+                    ),
                     AgentSkillBinding.enabled.is_(True),
                     AgentSkillBinding.is_deleted.is_(False),
                 )

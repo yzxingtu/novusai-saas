@@ -53,6 +53,7 @@ import {
   getAudienceColor,
   getAudienceText,
   getExecutionModeText,
+  getFormDefaults,
   getScopeColor,
   getScopeOptions,
   getStatusText,
@@ -275,11 +276,38 @@ const cleanupPageOps = registerPageOperations('admin.ai.agents', [
   {
     name: 'create_agent',
     label: $t('shared.pageOperation.createRecord'),
-    description: 'Open the create agent form',
+    description: 'Open the create agent form and optionally pre-fill fields. Pass params to auto-fill the form.',
     readonly: false,
-    handler: async () => {
-      agentFormRef.value?.openNew();
-      return { success: true, message: 'Create agent form opened' };
+    params: {
+      name: { type: 'string', description: 'Agent name' },
+      description: { type: 'string', description: 'Agent description' },
+      model_id: { type: 'number', description: 'AI model ID to use' },
+      system_prompt: { type: 'string', description: 'System prompt for the agent' },
+      welcome_message: { type: 'string', description: 'Welcome message shown to users' },
+      target_audience: { type: 'string', description: 'Target audience: all / admin_only / admin_tenant' },
+    },
+    handler: async (params) => {
+      const overrides: Record<string, unknown> = {};
+      if (params?.name) overrides.name = params.name;
+      if (params?.description) overrides.description = params.description;
+      if (params?.model_id) overrides.model_id = params.model_id;
+      if (params?.system_prompt) overrides.system_prompt = params.system_prompt;
+      if (params?.welcome_message) overrides.welcome_message = params.welcome_message;
+      if (params?.target_audience) overrides.target_audience = params.target_audience;
+
+      if (Object.keys(overrides).length > 0) {
+        agentFormRef.value?.openNew({
+          _defaults: { ...getFormDefaults(), ...overrides },
+        });
+      } else {
+        agentFormRef.value?.openNew();
+      }
+
+      const filled = Object.keys(overrides);
+      const msg = filled.length > 0
+        ? `Create agent form opened with pre-filled fields: ${filled.join(', ')}`
+        : 'Create agent form opened';
+      return { success: true, message: msg };
     },
   },
   {
